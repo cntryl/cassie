@@ -94,26 +94,8 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
         .danger_accept_invalid_certs(secure)
         .build()
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    let login = client
-        .post(format!("{base_url}/api/v1/auth/login"))
-        .json(&json!({
-            "username": config.user,
-            "password": config.password,
-        }))
-        .send()
-        .await
-        .map_err(|error| CassieError::Execution(error.to_string()))?
-        .error_for_status()
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
-    let session_cookie = login
-        .headers()
-        .get("set-cookie")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(';').next())
-        .map(str::to_owned)
-        .ok_or_else(|| {
-            CassieError::Execution("REST login did not issue a session cookie".to_string())
-        })?;
+    let session_cookie =
+        login_http_session(&client, &base_url, &config.user, &config.password).await?;
     verify_authenticated_http_contract(&client, &base_url, &session_cookie).await?;
     Ok(HttpBenchContext {
         base_url,
@@ -394,6 +376,49 @@ async fn verify_authenticated_http_contract(
         )));
     }
     Ok(())
+}
+
+async fn login_http_session(
+    client: &reqwest::Client,
+    base_url: &str,
+    username: &str,
+    password: &str,
+) -> Result<String, CassieError> {
+    for attempt in 0..100 {
+        let response = client
+            .post(format!("{base_url}/api/v1/auth/login"))
+            .json(&json!({
+                "username": username,
+                "password": password,
+            }))
+            .send()
+            .await;
+        match response {
+            Ok(response) => {
+                let response = response
+                    .error_for_status()
+                    .map_err(|error| CassieError::Execution(error.to_string()))?;
+                return response
+                    .headers()
+                    .get("set-cookie")
+                    .and_then(|value| value.to_str().ok())
+                    .and_then(|value| value.split(';').next())
+                    .map(str::to_owned)
+                    .ok_or_else(|| {
+                        CassieError::Execution(
+                            "REST login did not issue a session cookie".to_string(),
+                        )
+                    });
+            }
+            Err(_error) if attempt < 99 => {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            Err(error) => return Err(CassieError::Execution(error.to_string())),
+        }
+    }
+    Err(CassieError::Execution(
+        "REST login retry budget exhausted".to_string(),
+    ))
 }
 
 fn reserve_local_addr() -> std::io::Result<String> {

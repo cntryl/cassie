@@ -388,8 +388,9 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   lookup, handshake versus keep-alive, query/document/search, body rejection, and admission load.
   - [x] The default HTTP workload now provisions local TLS, uses opaque cookie sessions, probes
     current-session and 413 body rejection, and the 10k document create/get scenario has a
-    passing stress run through the `/api` route surface; 100k, search, keep-alive, and admission
-    result artifacts remain.
+    passing stress run through the `/api` route surface; the 100k create/get run also passes
+    through the same path but is currently marked noisy (26.5% RSD), while search, keep-alive,
+    and admission result artifacts remain.
 
 ## Phase 7 — analytics, recovery, capacity, and embedding resilience
 

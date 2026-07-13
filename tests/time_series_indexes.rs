@@ -447,6 +447,75 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
 }
 
 #[test]
+fn should_keep_time_series_sidecars_current_during_concurrent_rebuilds() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("time_series_concurrent_rebuilds");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE ts_concurrent_rebuild_events (id INT, tenant TEXT, event_at TIMESTAMP, amount INT)",
+            vec![],
+        )
+        .unwrap();
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX idx_ts_concurrent_rebuild_time ON ts_concurrent_rebuild_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+            vec![],
+        )
+        .unwrap();
+    let cassie = std::sync::Arc::new(cassie);
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(9));
+
+    // Act
+    let writers = (0..8)
+        .map(|offset| {
+            let cassie = std::sync::Arc::clone(&cassie);
+            let barrier = std::sync::Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                let session = cassie.create_session("tester", None);
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "INSERT INTO ts_concurrent_rebuild_events (id, tenant, event_at, amount) VALUES ({offset}, 'acme', '2026-01-01T{offset:02}:00:00Z', {offset})"
+                        ),
+                        vec![],
+                    )
+                    .unwrap();
+            })
+        })
+        .collect::<Vec<_>>();
+    barrier.wait();
+    for writer in writers {
+        writer.join().unwrap();
+    }
+    let sidecars = time_series_sidecar_records(
+        cassie.as_ref(),
+        "ts_concurrent_rebuild_events",
+        "idx_ts_concurrent_rebuild_time",
+    );
+    let result = cassie
+        .execute_sql(
+            &cassie.create_session("tester", None),
+            "SELECT count(*) FROM ts_concurrent_rebuild_events",
+            vec![],
+        )
+        .unwrap();
+
+    // Assert
+    assert_eq!(result.rows, vec![vec![Value::Int64(8)]]);
+    assert_eq!(sidecars.len(), 8);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
     // Arrange
     with_fallback();

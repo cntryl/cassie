@@ -149,7 +149,8 @@ Unsupported procedural expectations include:
 - Time-series sidecar keys keep dynamic partition values as ordered prefix components but encode
   bucket start bounds as fixed-width ordered integers. Partition-constrained range reads use
   bounded bucket scans and point-fetch matching rows, with generation fencing and source-row
-  fallback retained for stale or incomplete metadata; broader concurrent rebuild evidence remains.
+  fallback retained for stale or incomplete metadata. Rebuild publication is serialized with
+  collection writes, and concurrent rebuild/write coverage verifies sidecars remain current.
 - REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Expired, rotated, and deleted-role sessions are rejected and removed from the session store, and active sessions are bounded at 1,024. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
 - REST TLS accepts configured rustls certificate/key files, fails closed for non-loopback plaintext
   listeners, and has an end-to-end HTTPS health path with TLS-only HSTS.

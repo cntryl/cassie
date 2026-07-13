@@ -187,6 +187,8 @@ impl Midge {
             return Ok(());
         }
 
+        let write_gate = self.collection_write_gate(&index.collection);
+        let _write_guard = write_gate.lock();
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
         let generation = self.collection_generation(&index.collection)?;
         let mut tx = self.begin_data_rw_tx_for(&index.collection)?;

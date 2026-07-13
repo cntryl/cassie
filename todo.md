@@ -396,7 +396,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 
 ## Phase 7 — analytics, recovery, capacity, and embedding resilience
 
-- [ ] Make time-series state generation-safe and range-addressable.
+- [x] Make time-series state generation-safe and range-addressable.
   - [x] Add collection generation to bucket records/manifests, rebuild affected sidecars against the
     committed generation, and reject stale records with deterministic source-row fallback.
   - [x] Encode bucket start bounds as ordered fixed-width integer key segments; dynamic partition
@@ -404,8 +404,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Range-scan partition-constrained bucket bounds and point-fetch matching rows instead of
     full index and row-prefix scans; expose index-entry and point-fetch diagnostics.
   - Tests: mutation/delete/retention, old generation, restart, concurrent rebuild/write, and bounded
-    read counters; bounded partition/range counters are covered, while concurrent rebuild/write
-    evidence remains.
+    read counters are covered in `tests/time_series_indexes.rs`.
 - [ ] Bind rollup and analytical projection readiness to exact source collection generation(s), not
   global data epoch/row count or `ProjectionFreshness::Fresh` alone.
   - Persist stale/debt in the base transaction and replay at startup.

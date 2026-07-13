@@ -338,6 +338,11 @@ fn bounded_hybrid_fixture_with_max(max_candidates: usize) -> (Cassie, String, &'
                 data_type: DataType::Vector(2),
                 nullable: true,
             },
+            FieldSchema {
+                name: "status".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
         ],
     };
     cassie
@@ -360,7 +365,8 @@ fn bounded_hybrid_fixture_with_max(max_candidates: usize) -> (Cassie, String, &'
                 Some(format!("d{index}")),
                 serde_json::json!({
                     "body": if index < 2 { "alpha marker" } else { "unrelated" },
-                    "embedding": [1.0, 0.0]
+                    "embedding": [1.0, 0.0],
+                    "status": if index == 0 { "approved" } else { "pending" }
                 }),
             )
             .unwrap();
@@ -463,6 +469,42 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
             > before["hybrid"]["exact_reranks_total"].as_u64().unwrap()
     );
 
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_push_structured_filter_over_bounded_hybrid_candidates() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture();
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} WHERE status = 'approved' ORDER BY score DESC LIMIT 1"),
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(result.rows[0][0], Value::String("d0".to_string()));
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(
+        reads < 64,
+        "expected bounded filtered reads, observed {reads}"
+    );
+    assert!(
+        after["hybrid"]["prefilter_filtered_candidate_count_total"]
+            .as_u64()
+            .unwrap()
+            > before["hybrid"]["prefilter_filtered_candidate_count_total"]
+                .as_u64()
+                .unwrap()
+    );
     let _ = std::fs::remove_dir_all(path);
 }
 

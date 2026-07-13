@@ -141,7 +141,11 @@ pub(super) fn bounded_hybrid_rows(
         );
         return Ok(None);
     }
-    let fields = vec![spec.text_field.clone(), spec.vector_field.clone()];
+    let fields = schema
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<Vec<_>>();
     let mut rows = Vec::with_capacity(stats.len().min(vector_ids.len()));
     for id in stats.keys() {
         if !vector_ids.contains(id) {

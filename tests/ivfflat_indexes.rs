@@ -341,6 +341,35 @@ fn should_read_only_probed_ivfflat_candidates() {
 }
 
 #[test]
+fn should_store_ivfflat_membership_outside_training_manifest() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("ivfflat_membership_layout");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    let collection = "ivfflat_membership_layout";
+    register_ivfflat_collection(&cassie, collection);
+    put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_ivfflat_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+
+    // Act
+    put_ivfflat_index(&cassie, collection, 17);
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap();
+    let state = entries
+        .iter()
+        .filter_map(|(_, raw)| serde_json::from_slice::<serde_json::Value>(raw).ok())
+        .find(|value| value.get("ivfflat_training").is_some())
+        .expect("persisted ivfflat state");
+
+    // Assert
+    assert!(state["ivfflat_training"].get("assignments").is_none());
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_refresh_ivfflat_training_after_document_writes() {
     // Arrange
     with_fallback();
@@ -449,7 +478,7 @@ fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
     let before = cassie.metrics();
 
     // Act
-    let expected_reason = "assignment-list-out-of-bounds";
+    let expected_reason = "empty-probed-lists";
 
     // Assert
     assert_ivfflat_fallback_query(&cassie, collection, expected_reason, &before);

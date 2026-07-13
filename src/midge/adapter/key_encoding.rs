@@ -7,6 +7,8 @@ use crate::catalog::split_identifier_path;
 mod fulltext;
 #[path = "key_encoding/graph.rs"]
 mod graph;
+#[path = "key_encoding/vector.rs"]
+mod vector;
 
 pub(crate) use fulltext::{
     fulltext_document_stats_key, fulltext_document_stats_prefix, fulltext_index_artifact_prefix,
@@ -16,6 +18,10 @@ pub(crate) use fulltext::{
 pub(super) use graph::{
     graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_prefix, graph_key,
     graph_outbound_edge_key, graph_outbound_prefix, graph_prefix,
+};
+pub(super) use vector::{
+    decode_ivfflat_membership_suffix, ivfflat_membership_key, ivfflat_membership_list_prefix,
+    ivfflat_membership_prefix, ivfflat_source_summary_key,
 };
 
 pub(super) const LAYOUT_VERSION: &str = "5";
@@ -353,10 +359,6 @@ pub(super) fn hnsw_source_summary_key(collection: &str, field: &str) -> Vec<u8> 
         collection,
         &[field.as_bytes(), b"f"],
     )
-}
-
-pub(super) fn ivfflat_source_summary_key(collection: &str, field: &str) -> Vec<u8> {
-    hnsw_source_summary_key(collection, field)
 }
 
 pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {

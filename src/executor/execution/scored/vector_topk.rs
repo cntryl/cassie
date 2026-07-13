@@ -190,16 +190,18 @@ fn execute_ivfflat_vector_top_k(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(training) = ivfflat_training(cassie, spec)? else {
+    let Some((training, membership_count)) = ivfflat_training(cassie, spec)? else {
         return Ok(None);
     };
 
     let started_at = std::time::Instant::now();
     let normalized_query = crate::vector::normalize(&spec.query)
         .map_or_else(|| spec.query.clone(), |normalized| normalized.values);
-    if let Some(reason) =
-        crate::vector::ivfflat::training_manifest_fallback_reason(&training, spec.query.len())
-    {
+    if let Some(reason) = crate::vector::ivfflat::compact_manifest_fallback_reason(
+        &training,
+        spec.query.len(),
+        membership_count,
+    ) {
         cassie.runtime.record_ivfflat_fallback(reason);
         return Ok(None);
     }
@@ -275,10 +277,10 @@ fn execute_ivfflat_vector_top_k(
 fn ivfflat_training(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
-) -> Result<Option<crate::embeddings::IvfFlatTrainingState>, QueryError> {
+) -> Result<Option<(crate::embeddings::IvfFlatTrainingState, usize)>, QueryError> {
     let index = cassie
         .midge
-        .get_vector_index(&spec.collection, &spec.vector_field)
+        .get_vector_index_definition(&spec.collection, &spec.vector_field)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let Some(index) = index else {
         return Ok(None);
@@ -292,7 +294,11 @@ fn ivfflat_training(
             .record_ivfflat_fallback("incompatible-metric");
         return Ok(None);
     }
-    let Some(training) = index.metadata.ivfflat_training else {
+    let Some(training) = cassie
+        .midge
+        .get_ivfflat_training_manifest(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?
+    else {
         cassie.runtime.record_ivfflat_fallback("missing-training");
         return Ok(None);
     };

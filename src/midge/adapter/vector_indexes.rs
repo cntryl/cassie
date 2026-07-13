@@ -20,7 +20,29 @@ struct PersistedHnswManifest {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct PersistedIvfManifest {
+    version: u32,
+    source_fingerprint: u64,
+    trained: bool,
+    row_count: usize,
+    lists: usize,
+    probes: usize,
+    training_seed: u64,
+    centroid_ids: Vec<String>,
+    centroids: Vec<Vec<f32>>,
+    list_sizes: Vec<usize>,
+    membership_count: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct PersistedVectorIndexState {
+    built_generation: u64,
+    hnsw_graph: Option<PersistedHnswManifest>,
+    ivfflat_training: Option<PersistedIvfManifest>,
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyPersistedVectorIndexState {
     built_generation: u64,
     hnsw_graph: Option<PersistedHnswManifest>,
     ivfflat_training: Option<crate::embeddings::IvfFlatTrainingState>,
@@ -102,44 +124,49 @@ impl Midge {
                 CassieError::Parse(format!("invalid vector index state: {error}"))
             })?
         } else {
-            let persisted: PersistedVectorIndexState =
-                serde_json::from_value(raw_json).map_err(|error| {
+            let persisted = serde_json::from_value::<PersistedVectorIndexState>(raw_json.clone())
+                .map(|state| {
+                    (
+                        state.built_generation,
+                        state.hnsw_graph,
+                        state.ivfflat_training,
+                    )
+                })
+                .or_else(|_| {
+                    serde_json::from_value::<LegacyPersistedVectorIndexState>(raw_json).map(
+                        |state| {
+                            (
+                                state.built_generation,
+                                state.hnsw_graph,
+                                state.ivfflat_training.map(|training| PersistedIvfManifest {
+                                    version: training.version,
+                                    source_fingerprint: training.source_fingerprint,
+                                    trained: training.trained,
+                                    row_count: training.row_count,
+                                    lists: training.lists,
+                                    probes: training.probes,
+                                    training_seed: training.training_seed,
+                                    centroid_ids: training.centroid_ids,
+                                    centroids: training.centroids,
+                                    list_sizes: training.list_sizes,
+                                    membership_count: training.assignments.len(),
+                                }),
+                            )
+                        },
+                    )
+                })
+                .map_err(|error| {
                     CassieError::Parse(format!("invalid vector index state: {error}"))
                 })?;
-            let hnsw_graph = persisted
-                .hnsw_graph
-                .map(
-                    |manifest| -> Result<crate::embeddings::HnswGraphState, CassieError> {
-                        let prefix =
-                            super::key_encoding::hnsw_graph_node_prefix(&collection, field);
-                        let nodes = collect_scan(
-                            tx.scan(&Query::new().prefix(prefix.into()))
-                                .map_err(CassieError::from)?,
-                        )?
-                        .into_iter()
-                        .map(|(_, raw)| {
-                            serde_json::from_slice(raw.as_slice()).map_err(|error| {
-                                CassieError::Parse(format!("invalid hnsw graph node: {error}"))
-                            })
-                        })
-                        .collect::<Result<Vec<crate::embeddings::HnswGraphNode>, CassieError>>()?;
-                        Ok(crate::embeddings::HnswGraphState {
-                            version: manifest.version,
-                            source_fingerprint: manifest.source_fingerprint,
-                            row_count: manifest.row_count,
-                            dimensions: manifest.dimensions,
-                            metric: manifest.metric,
-                            entry_point: manifest.entry_point,
-                            max_layer: manifest.max_layer,
-                            nodes,
-                        })
-                    },
-                )
+            let (built_generation, persisted_hnsw_graph, persisted_ivfflat_training) = persisted;
+            let hnsw_graph = persisted_hnsw_graph
+                .map(|manifest| load_hnsw_manifest(&tx, &collection, field, manifest))
                 .transpose()?;
             VectorIndexState {
-                built_generation: persisted.built_generation,
+                built_generation,
                 hnsw_graph,
-                ivfflat_training: persisted.ivfflat_training,
+                ivfflat_training: persisted_ivfflat_training
+                    .map(|manifest| load_ivfflat_manifest(&tx, &collection, field, manifest)),
             }
         };
         if state.built_generation != self.collection_generation(&collection)? {
@@ -194,6 +221,17 @@ impl Midge {
         for key in old_node_keys {
             tx.delete(key).map_err(CassieError::from)?;
         }
+        let membership_prefix = super::key_encoding::ivfflat_membership_prefix(collection, field);
+        let old_membership_keys = collect_scan(
+            tx.scan(&Query::new().prefix(membership_prefix.into()))
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in old_membership_keys {
+            tx.delete(key).map_err(CassieError::from)?;
+        }
         let hnsw_graph = state
             .hnsw_graph
             .as_ref()
@@ -206,10 +244,34 @@ impl Midge {
                 entry_point: graph.entry_point.clone(),
                 max_layer: graph.max_layer,
             });
+        let ivfflat_training = state
+            .ivfflat_training
+            .as_ref()
+            .map(|training| {
+                for (id, list) in &training.assignments {
+                    let key =
+                        super::key_encoding::ivfflat_membership_key(collection, field, *list, id);
+                    tx.put(key, Vec::new(), None).map_err(CassieError::from)?;
+                }
+                Ok::<PersistedIvfManifest, CassieError>(PersistedIvfManifest {
+                    version: training.version,
+                    source_fingerprint: training.source_fingerprint,
+                    trained: training.trained,
+                    row_count: training.row_count,
+                    lists: training.lists,
+                    probes: training.probes,
+                    training_seed: training.training_seed,
+                    centroid_ids: training.centroid_ids.clone(),
+                    centroids: training.centroids.clone(),
+                    list_sizes: training.list_sizes.clone(),
+                    membership_count: training.assignments.len(),
+                })
+            })
+            .transpose()?;
         let persisted = PersistedVectorIndexState {
             built_generation: state.built_generation,
             hnsw_graph,
-            ivfflat_training: state.ivfflat_training.clone(),
+            ivfflat_training,
         };
         let value = serde_json::to_vec(&persisted)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -870,4 +932,67 @@ fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
             delta * delta
         })
         .sum()
+}
+
+fn load_hnsw_manifest(
+    tx: &cntryl_midge::Transaction,
+    collection: &str,
+    field: &str,
+    manifest: PersistedHnswManifest,
+) -> Result<crate::embeddings::HnswGraphState, CassieError> {
+    let prefix = super::key_encoding::hnsw_graph_node_prefix(collection, field);
+    let nodes = collect_scan(
+        tx.scan(&Query::new().prefix(prefix.into()))
+            .map_err(CassieError::from)?,
+    )?
+    .into_iter()
+    .map(|(_, raw)| {
+        serde_json::from_slice(raw.as_slice())
+            .map_err(|error| CassieError::Parse(format!("invalid hnsw graph node: {error}")))
+    })
+    .collect::<Result<Vec<crate::embeddings::HnswGraphNode>, CassieError>>()?;
+    Ok(crate::embeddings::HnswGraphState {
+        version: manifest.version,
+        source_fingerprint: manifest.source_fingerprint,
+        row_count: manifest.row_count,
+        dimensions: manifest.dimensions,
+        metric: manifest.metric,
+        entry_point: manifest.entry_point,
+        max_layer: manifest.max_layer,
+        nodes,
+    })
+}
+
+fn load_ivfflat_manifest(
+    tx: &cntryl_midge::Transaction,
+    collection: &str,
+    field: &str,
+    manifest: PersistedIvfManifest,
+) -> crate::embeddings::IvfFlatTrainingState {
+    let prefix = super::key_encoding::ivfflat_membership_prefix(collection, field);
+    let mut assignments = std::collections::BTreeMap::new();
+    if let Ok(scan) = tx.scan(&Query::new().prefix(prefix.clone().into())) {
+        if let Ok(entries) = collect_scan(scan) {
+            for (key, _) in entries {
+                if let Some((list, id)) =
+                    super::key_encoding::decode_ivfflat_membership_suffix(&key, &prefix)
+                {
+                    assignments.insert(id, list);
+                }
+            }
+        }
+    }
+    crate::embeddings::IvfFlatTrainingState {
+        version: manifest.version,
+        source_fingerprint: manifest.source_fingerprint,
+        trained: manifest.trained,
+        row_count: manifest.row_count,
+        lists: manifest.lists,
+        probes: manifest.probes,
+        training_seed: manifest.training_seed,
+        centroid_ids: manifest.centroid_ids,
+        centroids: manifest.centroids,
+        assignments,
+        list_sizes: manifest.list_sizes,
+    }
 }

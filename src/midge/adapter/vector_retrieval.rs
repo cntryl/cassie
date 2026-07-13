@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 use super::super::key_encoding;
-use super::{CassieError, Midge, VectorIndexRecord, WriteOptions};
+use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord, WriteOptions};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct HnswSourceSummary {
@@ -12,6 +12,63 @@ pub(super) struct HnswSourceSummary {
 }
 
 impl Midge {
+    /// Reads the compact IVF manifest without hydrating every list membership.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the persisted state cannot be read or decoded.
+    pub fn get_ivfflat_training_manifest(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Option<(crate::embeddings::IvfFlatTrainingState, usize)>, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let Some(raw) = tx
+            .get(&Self::vector_index_state_key(&collection, field))
+            .map_err(CassieError::from)?
+        else {
+            return Ok(None);
+        };
+        let raw_json: serde_json::Value = serde_json::from_slice(&raw)
+            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
+        let Ok(persisted) = serde_json::from_value::<super::PersistedVectorIndexState>(raw_json)
+        else {
+            return self
+                .get_vector_index_state(&collection, field)
+                .map(|state| {
+                    state.and_then(|state| {
+                        state.ivfflat_training.map(|training| {
+                            let count = training.assignments.len();
+                            (training, count)
+                        })
+                    })
+                });
+        };
+        let Some(manifest) = persisted.ivfflat_training else {
+            return Ok(None);
+        };
+        if persisted.built_generation != self.collection_generation(&collection)? {
+            return Ok(None);
+        }
+        Ok(Some((
+            crate::embeddings::IvfFlatTrainingState {
+                version: manifest.version,
+                source_fingerprint: manifest.source_fingerprint,
+                trained: manifest.trained,
+                row_count: manifest.row_count,
+                lists: manifest.lists,
+                probes: manifest.probes,
+                training_seed: manifest.training_seed,
+                centroid_ids: manifest.centroid_ids,
+                centroids: manifest.centroids,
+                assignments: std::collections::BTreeMap::new(),
+                list_sizes: manifest.list_sizes,
+            },
+            manifest.membership_count,
+        )))
+    }
+
     /// Reads only normalized vectors assigned to the selected IVF lists.
     ///
     /// # Errors
@@ -46,13 +103,51 @@ impl Midge {
                 "ivfflat fallback:stale-source-fingerprint".to_string(),
             ));
         }
-        let mut records = Vec::new();
-        for (id, list) in &training.assignments {
-            if !probed_lists.contains(list) {
-                continue;
+        let mut ids = Vec::new();
+        for list in probed_lists {
+            let prefix = key_encoding::ivfflat_membership_list_prefix(&collection, field, *list);
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(prefix.into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            for (key, _) in entries {
+                let Some((_, id)) = key_encoding::decode_ivfflat_membership_suffix(
+                    &key,
+                    &key_encoding::ivfflat_membership_prefix(&collection, field),
+                ) else {
+                    return Err(CassieError::Execution(
+                        "ivfflat fallback:invalid-membership-key".to_string(),
+                    ));
+                };
+                ids.push(id);
             }
+        }
+        if ids.is_empty() && !training.assignments.is_empty() {
+            ids.extend(
+                training
+                    .assignments
+                    .iter()
+                    .filter(|(_, list)| probed_lists.contains(list))
+                    .map(|(id, _)| id.clone()),
+            );
+        }
+        let expected_count = probed_lists
+            .iter()
+            .filter_map(|list| training.list_sizes.get(*list))
+            .sum::<usize>();
+        if !training.assignments.is_empty() && ids.len() != expected_count {
+            return Err(CassieError::Execution(
+                "ivfflat fallback:stale-list-membership".to_string(),
+            ));
+        }
+        let mut records = Vec::with_capacity(ids.len());
+        for id in ids {
             let Some(raw) = tx
-                .get(&key_encoding::normalized_vector_key(&collection, field, id))
+                .get(&key_encoding::normalized_vector_key(
+                    &collection,
+                    field,
+                    &id,
+                ))
                 .map_err(CassieError::from)?
             else {
                 return Err(CassieError::Execution(

@@ -298,10 +298,11 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     missing-node/manifest fallback reasons.
   - [x] IVF query execution now validates a generation-bound source summary and point-reads only
     normalized vectors assigned to probed lists.
-  - Replace the remaining monolithic IVF assignment map with persisted list-membership manifests
-    and bounded list/candidate reads.
-  - Point-read only selected candidates and exact-rerank against current source-row vectors.
-  - Fall back deterministically when a candidate/vector is missing or its generation changes.
+  - [x] Replace the monolithic IVF assignment map with generation-bound persisted list-membership
+    keys; list identifiers use compact fixed-width integer key segments and membership values are
+    empty.
+  - [x] Point-read only selected candidates and exact-rerank against current source-row vectors.
+  - [x] Fall back deterministically when a candidate/vector is missing or its generation changes.
   - Tests: `tests/hnsw_indexes.rs` covers read-counter scaling, missing candidates, generation
     fencing, and fallback equivalence; concurrent mutation and IVF/larger-corpus evidence remain
     open.

@@ -123,6 +123,40 @@ pub fn training_manifest_fallback_reason(
 }
 
 #[must_use]
+pub fn compact_manifest_fallback_reason(
+    training: &IvfFlatTrainingState,
+    dimensions: usize,
+    membership_count: usize,
+) -> Option<&'static str> {
+    if training.source_fingerprint == 0 {
+        return Some("missing-source-fingerprint");
+    }
+    if !training.trained {
+        return Some("untrained");
+    }
+    if training.lists == 0 || training.centroids.len() != training.lists {
+        return Some("invalid-centroid-count");
+    }
+    if training.list_sizes.len() != training.lists {
+        return Some("invalid-list-sizes");
+    }
+    if training.probes == 0 || training.probes > training.lists {
+        return Some("invalid-probes");
+    }
+    if training
+        .centroids
+        .iter()
+        .any(|centroid| centroid.len() != dimensions)
+    {
+        return Some("incompatible-centroid-dimensions");
+    }
+    if membership_count != training.row_count {
+        return Some("incomplete-assignments");
+    }
+    None
+}
+
+#[must_use]
 pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) -> BTreeSet<usize> {
     let mut ranked = training
         .centroids

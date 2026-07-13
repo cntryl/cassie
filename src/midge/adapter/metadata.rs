@@ -266,6 +266,20 @@ impl Midge {
         for key in node_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
+        let membership_keys = collect_scan(
+            data_tx
+                .scan(
+                    &Query::new()
+                        .prefix(key_encoding::ivfflat_membership_prefix(collection, field).into()),
+                )
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in membership_keys {
+            data_tx.delete(key).map_err(CassieError::from)?;
+        }
         data_tx
             .delete(Self::vector_index_state_key(collection, field))
             .map_err(CassieError::from)?;

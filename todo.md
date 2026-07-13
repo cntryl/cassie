@@ -407,9 +407,11 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     read counters are covered in `tests/time_series_indexes.rs`.
 - [ ] Bind rollup and analytical projection readiness to exact source collection generation(s), not
   global data epoch/row count or `ProjectionFreshness::Fresh` alone.
-  - Persist stale/debt in the base transaction and replay at startup.
-  - Tests: failpoint-after-base-commit, multi-source generation mismatch, restart, and no stale
-    serving.
+  - [x] Rollup refresh cursors now persist the source collection generation and rollup rewrites
+    reject mismatched generations; existing debt remains generation-bound and replays at startup.
+  - [ ] Bind analytical projection metadata and multi-source readiness to exact source generations.
+  - Tests: rollup generation mismatch, failpoint-after-base-commit, multi-source generation mismatch,
+    restart, and no stale serving.
 - [ ] Add local work admission beyond socket counts.
   - Bound query/blocking workers, embedding requests, rebuild/index builds, and expensive admin
     operations; expose queue depth, wait, rejection, cancellation, and permit metrics.

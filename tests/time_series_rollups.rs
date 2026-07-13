@@ -119,6 +119,44 @@ fn should_rewrite_query_after_rollup_creation() {
 }
 
 #[test]
+fn should_reject_rollup_with_mismatched_source_generation() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("rollup_generation_fence");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        seed_events(&cassie, &session, "rollup_generation_events");
+        create_hourly_rollup(&cassie, &session, "rollup_generation_events");
+        let mut rollup = cassie
+            .catalog
+            .get_rollup(&canonical_name("rollup_generation_events_hourly"))
+            .expect("rollup metadata");
+        rollup.refresh_cursor.source_generation = 0;
+        cassie.midge.put_rollup(&rollup).unwrap();
+        cassie.catalog.register_rollup(rollup);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                &hourly_query("rollup_generation_events"),
+                vec![],
+            )
+            .unwrap();
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(metrics["rollups"]["rewrite_hits"].as_u64(), Some(0));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_refresh_rollup_for_dml_movement() {
     // Arrange
     with_fallback();

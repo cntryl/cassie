@@ -48,6 +48,8 @@ impl RollupState {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct RollupRefreshCursor {
+    #[serde(default)]
+    pub source_generation: u64,
     pub source_epoch: u64,
     pub last_refresh_ms: Option<u64>,
     pub source_row_count: u64,
@@ -75,8 +77,10 @@ impl RollupMeta {
     }
 
     #[must_use]
-    pub fn is_fresh(&self) -> bool {
-        self.state == RollupState::Ready && self.refresh_cursor.lag_rows == 0
+    pub fn is_fresh(&self, source_generation: u64) -> bool {
+        self.state == RollupState::Ready
+            && self.refresh_cursor.lag_rows == 0
+            && self.refresh_cursor.source_generation == source_generation
     }
 }
 

@@ -55,8 +55,13 @@ pub(super) fn refresh_rollup(
 
     let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
     replace_rollup_rows(cassie, &meta, rows)?;
+    let source_generation = cassie
+        .midge
+        .collection_generation(&meta.source_collection)
+        .map_err(QueryError::Cassie)?;
     meta.state = RollupState::Ready;
     meta.refresh_cursor.last_refresh_ms = now_ms();
+    meta.refresh_cursor.source_generation = source_generation;
     meta.refresh_cursor.source_epoch = cassie.runtime.data_epoch();
     meta.refresh_cursor.source_row_count = cassie
         .catalog
@@ -160,7 +165,11 @@ pub(super) fn try_execute_rollup_query(
         cassie.runtime.record_rollup_fallback("maintenance_pending");
         return Ok(None);
     }
-    if !rollup.is_fresh() {
+    let source_generation = cassie
+        .midge
+        .collection_generation(source)
+        .map_err(QueryError::Cassie)?;
+    if !rollup.is_fresh(source_generation) {
         cassie.runtime.record_rollup_fallback("stale");
         return Ok(None);
     }
@@ -220,8 +229,12 @@ pub(super) fn rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Opti
     {
         return None;
     }
+    let source_generation = cassie
+        .midge
+        .collection_generation(source)
+        .ok()?;
     matching_rollup(cassie, source, plan)
-        .filter(RollupMeta::is_fresh)
+        .filter(|rollup| rollup.is_fresh(source_generation))
         .map(|rollup| rollup.name)
 }
 

@@ -277,6 +277,35 @@ fn should_keep_metadata_response_keys_snake_case() {
 }
 
 #[test]
+fn should_document_rest_transport_policy_contract() {
+    // Arrange
+    let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi document");
+
+    // Act
+    let describes_limits = openapi.contains("8 MiB")
+        && openapi.contains("32 KiB")
+        && openapi.contains("10 seconds")
+        && openapi.contains("30 seconds");
+    let describes_browser_policy = openapi.contains("same-origin")
+        && openapi.contains("cross-origin")
+        && openapi.contains("HSTS");
+    let describes_statuses = openapi.contains("RequestTimeout")
+        && openapi.contains("RequestEntityTooLarge")
+        && openapi.contains("UnsupportedMediaType");
+
+    // Assert
+    assert!(describes_limits, "OpenAPI must document enforced REST limits");
+    assert!(
+        describes_browser_policy,
+        "OpenAPI must document same-origin and TLS browser policy"
+    );
+    assert!(
+        describes_statuses,
+        "OpenAPI must name deterministic transport error responses"
+    );
+}
+
+#[test]
 fn should_keep_openapi_payload_properties_snake_case() {
     // Arrange
     let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi");

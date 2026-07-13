@@ -14,6 +14,13 @@ info:
     All versioned resource APIs live under /api/v1/*. Authenticated browser and REST clients use the server-owned opaque `cassie_session` cookie. Login issues an HttpOnly, SameSite=Strict cookie; password-bearing Authorization headers are not accepted.
     The REST API does not expose first-class `/api/v1/databases` or `/api/v1/schemas` resources.
     Use the authenticated SQL administration endpoints for supported database, schema, table, view, function, and procedure statements.
+
+    Transport policy: request bodies are limited to 8 MiB, HTTP/1 headers to 32 KiB, header reads
+    to 10 seconds, and body collection/route execution to 30 seconds. State-changing `/api/`
+    requests with bodies require `application/json`; explicit cross-origin browser requests are
+    rejected and no permissive CORS policy is advertised; same-origin browser state changes are
+    allowed. TLS is required for non-loopback REST
+    listeners, and TLS responses emit HSTS. Authenticated/API responses are not cacheable.
 servers:
   - url: /
     description: Same-origin admin API server
@@ -44,6 +51,24 @@ components:
   responses:
     BadRequest:
       description: Malformed request body or invalid parameters.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RequestTimeout:
+      description: Request body collection or route execution exceeded the 30-second deadline.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RequestEntityTooLarge:
+      description: Request body exceeded the 8 MiB limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnsupportedMediaType:
+      description: A state-changing API request with a body did not use application/json.
       content:
         application/json:
           schema:
@@ -1177,6 +1202,12 @@ paths:
                 $ref: '#/components/schemas/Session'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
 
   /api/v1/auth/session:
     get:

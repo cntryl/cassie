@@ -379,8 +379,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     caching for hashed assets.
   - [x] Keep `/metrics` public for readiness and local diagnostics; test health, liveness, metrics,
     unmatched API, and authenticated resource boundaries.
-- [ ] Update `public/openapi.yml` for scoped identities, cookie auth, sessions, limits, TLS/CSRF,
-  and errors; regenerate `ui/src/adapters/generated/api.ts` and retain the drift gate.
+- [x] Update `public/openapi.yml` for scoped identities, cookie auth, sessions, limits, TLS/CSRF,
+  and errors; regenerate `ui/src/adapters/generated/api.ts` and retain the drift gate. The
+  generated adapter is unchanged after formatting, proving no schema drift for this contract-only
+  update.
 - [ ] Refresh Tier-4 HTTP evidence over the final authenticated TLS/session stack: login/session
   lookup, handshake versus keep-alive, query/document/search, body rejection, and admission load.
 

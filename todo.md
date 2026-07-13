@@ -293,12 +293,16 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
 - [ ] Make ANN storage reads genuinely bounded.
   - [x] Persist HNSW generation manifests separately from compact, point-addressable graph nodes;
     old monolithic states remain readable during the latest-only transition.
-  - Replace full-prefix normalized-vector validation and monolithic HNSW reads at query time with
+  - [x] HNSW query traversal now point-reads reachable nodes, fences against a generation-bound
+    source fingerprint summary, exact-reranks selected candidates, and records deterministic
+    missing-node/manifest fallback reasons.
+  - Replace remaining full-prefix normalized-vector validation and IVF list membership scans with
     bounded manifest/node/list membership/candidate reads.
   - Point-read only selected candidates and exact-rerank against current source-row vectors.
   - Fall back deterministically when a candidate/vector is missing or its generation changes.
-  - Tests: read-counter scaling, concurrent generation changes, missing candidates, and equivalence
-    between candidate generation and exact source rerank.
+  - Tests: `tests/hnsw_indexes.rs` covers read-counter scaling, missing candidates, generation
+    fencing, and fallback equivalence; concurrent mutation and IVF/larger-corpus evidence remain
+    open.
 - [ ] Replace hybrid full-row prefilter/merge with bounded persisted text and vector candidate
   streams, structured prefilter pushdown, explicit budgets, and exact final source-row scoring.
   - Tests: stale text/vector/both, selective filters, caps, truncation, and fallback equivalence.

@@ -347,6 +347,14 @@ pub(super) fn hnsw_graph_node_prefix(collection: &str, field: &str) -> Vec<u8> {
     )
 }
 
+pub(super) fn hnsw_source_summary_key(collection: &str, field: &str) -> Vec<u8> {
+    data_scoped_key(
+        FAMILY_VECTOR_INDEX_STATE,
+        collection,
+        &[field.as_bytes(), b"f"],
+    )
+}
+
 pub(super) fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
     data_scoped_prefix(FAMILY_VECTOR_INDEX_STATE, collection, &[])
 }

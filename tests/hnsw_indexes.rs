@@ -526,3 +526,74 @@ fn should_store_hnsw_manifest_separately_from_point_readable_nodes() {
 
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_scale_hnsw_query_reads_with_reachable_nodes_not_corpus_size() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_point_read_scaling");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let collection = "hnsw_point_read_scaling";
+    register_hnsw_collection(&cassie, collection);
+    for index in 0..32 {
+        let value = if index == 0 { 1.0 } else { -1.0 };
+        put_hnsw_document(
+            &cassie,
+            collection,
+            &format!("doc-{index}"),
+            [value, 0.0, 0.0],
+        );
+    }
+    put_hnsw_index(&cassie, collection, 2);
+    let before = cassie.metrics();
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM hnsw_point_read_scaling ORDER BY distance ASC LIMIT 1",
+            vec![],
+        )
+        .unwrap();
+    let after = cassie.metrics();
+
+    // Assert
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(reads < 32, "expected bounded point reads, observed {reads}");
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_remove_hnsw_point_nodes_when_index_is_dropped() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("hnsw_point_nodes_drop_cleanup");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let collection = "hnsw_point_nodes_drop_cleanup";
+    register_hnsw_collection(&cassie, collection);
+    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    put_hnsw_index(&cassie, collection, 2);
+
+    // Act
+    cassie
+        .midge
+        .delete_vector_index(&canonical_hnsw_collection(collection), "embedding")
+        .unwrap();
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .unwrap();
+
+    // Assert
+    assert!(!entries.iter().any(|(_, raw)| {
+        serde_json::from_slice::<cassie::embeddings::HnswGraphNode>(raw).is_ok()
+    }));
+
+    let _ = std::fs::remove_dir_all(path);
+}

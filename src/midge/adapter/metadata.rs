@@ -252,8 +252,25 @@ impl Midge {
             &mut data_tx,
             Self::normalized_vector_prefix(collection, field),
         )?;
+        let node_keys = collect_scan(
+            data_tx
+                .scan(
+                    &Query::new()
+                        .prefix(key_encoding::hnsw_graph_node_prefix(collection, field).into()),
+                )
+                .map_err(CassieError::from)?,
+        )?
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>();
+        for key in node_keys {
+            data_tx.delete(key).map_err(CassieError::from)?;
+        }
         data_tx
             .delete(Self::vector_index_state_key(collection, field))
+            .map_err(CassieError::from)?;
+        data_tx
+            .delete(key_encoding::hnsw_source_summary_key(collection, field))
             .map_err(CassieError::from)?;
         data_tx
             .commit(cntryl_midge::WriteOptions::sync())

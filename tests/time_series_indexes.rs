@@ -155,6 +155,13 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
             ]
         );
         assert_eq!(sidecars.len(), 3);
+        let generation = cassie
+            .midge
+            .collection_generation("ts_execute_events")
+            .unwrap();
+        assert!(sidecars
+            .iter()
+            .all(|record| record.generation == generation));
         assert_eq!(metrics["time_series"]["scans"].as_u64(), Some(1));
         assert_eq!(
             metrics["time_series"]["bucket_native_hits"].as_u64(),

@@ -86,6 +86,7 @@ impl Midge {
                         generation,
                         report.row_delta,
                     );
+                    let _ = self.rebuild_time_series_indexes_for_collection(&collection);
                 }
             }
         }

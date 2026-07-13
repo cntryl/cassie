@@ -148,8 +148,7 @@ Unsupported procedural expectations include:
 - `CASSIE_OPERATOR_SWITCHING_ENABLED=1` enables experimental runtime switching for explicitly prevalidated switch pairs. The first supported pair is `vectorized_join_to_merge_join`, which replays left/right join inputs before emitting rows when `CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD` is exceeded.
 - REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
 - REST HTTP transport rejects request bodies over 8 MiB, limits HTTP/1 header buffering to 32 KiB,
-  and applies a 10-second header-read deadline; additional idle/request timeout and security-header
-  hardening remains in progress. API responses emit `no-store`, `nosniff`, frame-deny,
+  and applies a 10-second header-read deadline. API responses emit `no-store`, `nosniff`, frame-deny,
   no-referrer, and baseline CSP headers; body collection and route execution have a 30-second
   deadline with deterministic 408 responses; state-changing API requests require
   `application/json` and return 415 for other media types. Explicit cross-origin state changes

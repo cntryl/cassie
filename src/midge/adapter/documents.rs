@@ -48,6 +48,7 @@ type VectorRecordsByField = Vec<(String, Vec<NormalizedVectorRecord>)>;
 struct DocumentWriteBatchContext {
     schema: Schema,
     row_schema: RowSchema,
+    target_generation: u64,
     uses_column_store: bool,
     vector_indexes: Vec<crate::embeddings::VectorIndexRecord>,
     vector_fields: Vec<String>,
@@ -397,6 +398,7 @@ impl Midge {
             .collection_schema(collection)
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let row_schema = self.row_schema(collection)?;
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
         let uses_column_store = self.collection_uses_column_store(collection)?;
         let vector_indexes = self
             .list_vector_indexes_canonical()?
@@ -444,6 +446,7 @@ impl Midge {
         Ok(DocumentWriteBatchContext {
             schema,
             row_schema,
+            target_generation,
             uses_column_store,
             vector_indexes,
             vector_fields,
@@ -912,6 +915,7 @@ impl Midge {
             previous,
             next,
             &context.time_series_indexes,
+            context.target_generation,
         )?;
         let (graph_deleted, graph_puts) = Self::sync_graph_adjacency_for_document(
             tx,

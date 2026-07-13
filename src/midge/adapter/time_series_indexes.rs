@@ -27,6 +27,7 @@ struct TimeSeriesIndexRecord {
     id: String,
     bucket_key: String,
     timestamp: String,
+    generation: u64,
 }
 
 type TimeSeriesIndexEntry = (Vec<u8>, Vec<u8>);
@@ -81,6 +82,7 @@ impl Midge {
             .collection_schema(collection)
             .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
         let row_schema = self.row_schema(collection)?;
+        let generation = self.collection_generation(collection)?.saturating_add(1);
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
         let mut tx = self.begin_data_rw_tx_for(collection)?;
@@ -99,6 +101,7 @@ impl Midge {
                 None,
                 Some(&payload),
                 &indexes,
+                generation,
             )?;
             ids.push(id);
         }
@@ -120,17 +123,18 @@ impl Midge {
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
         indexes: &[IndexMeta],
+        generation: u64,
     ) -> Result<(usize, usize), CassieError> {
         let mut deletes = 0usize;
         let mut puts = 0usize;
 
         for index in indexes {
             let old_entry = match old_payload {
-                Some(payload) => Self::time_series_index_entry(index, id, payload)?,
+                Some(payload) => Self::time_series_index_entry(index, id, payload, generation)?,
                 None => None,
             };
             let new_entry = match new_payload {
-                Some(payload) => Self::time_series_index_entry(index, id, payload)?,
+                Some(payload) => Self::time_series_index_entry(index, id, payload, generation)?,
                 None => None,
             };
 
@@ -183,6 +187,7 @@ impl Midge {
         }
 
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
+        let generation = self.collection_generation(&index.collection)?;
         let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
@@ -190,7 +195,8 @@ impl Midge {
         )?;
 
         for row in rows {
-            if let Some((key, value)) = Self::time_series_index_entry(index, &row.id, &row.payload)?
+            if let Some((key, value)) =
+                Self::time_series_index_entry(index, &row.id, &row.payload, generation)?
             {
                 tx.put(key, value, None).map_err(CassieError::from)?;
             }
@@ -234,6 +240,7 @@ impl Midge {
         )?;
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut hits = Vec::new();
+        let generation = self.collection_generation(&index.collection)?;
 
         for (_key, raw_value) in scan {
             let record: TimeSeriesIndexRecord =
@@ -247,6 +254,12 @@ impl Midge {
                 return Err(CassieError::Parse(format!(
                     "invalid time-series index entry for '{}': mismatched metadata",
                     index.name
+                )));
+            }
+            if record.generation != generation {
+                return Err(CassieError::Unsupported(format!(
+                    "time-series index '{}' has stale generation {} (current {})",
+                    index.name, record.generation, generation
                 )));
             }
             if seen_ids.insert(record.id.clone()) {
@@ -321,6 +334,7 @@ impl Midge {
         index: &IndexMeta,
         id: &str,
         payload: &serde_json::Value,
+        generation: u64,
     ) -> Result<Option<TimeSeriesIndexEntry>, CassieError> {
         if !Self::time_series_index_supports_storage(index) {
             return Ok(None);
@@ -346,6 +360,7 @@ impl Midge {
             id: id.to_string(),
             bucket_key,
             timestamp: timestamp.to_string(),
+            generation,
         })
         .map_err(|error| CassieError::Parse(error.to_string()))?;
         Ok(Some((key, value)))

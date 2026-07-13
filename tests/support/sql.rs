@@ -14,6 +14,7 @@ pub struct TimeSeriesSidecarRecord {
     pub id: String,
     pub bucket_key: String,
     pub timestamp: String,
+    pub generation: u64,
 }
 
 pub fn with_fallback() {

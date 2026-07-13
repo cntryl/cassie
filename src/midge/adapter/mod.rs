@@ -307,6 +307,7 @@ use layout::{
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
 mod maintenance;
+pub use maintenance::set_fulltext_maintenance_failure_point;
 mod metadata;
 mod operational;
 mod operator_feedback;

@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -9,6 +11,22 @@ const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
 const PROJECTION_HASH_ARTIFACT: &str = "projection_hash";
 pub(crate) const ROLLUP_ARTIFACT: &str = "rollup";
 pub(crate) const MATERIALIZED_PROJECTION_ARTIFACT: &str = "materialized_projection";
+const FULLTEXT_ARTIFACT_PREFIX: &str = "fulltext:";
+static FULLTEXT_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+
+#[doc(hidden)]
+pub fn set_fulltext_maintenance_failure_point(enabled: bool) {
+    FULLTEXT_MAINTENANCE_FAILPOINT.store(enabled, Ordering::SeqCst);
+}
+
+pub(crate) fn check_fulltext_maintenance_failure_point() -> Result<(), CassieError> {
+    if FULLTEXT_MAINTENANCE_FAILPOINT.swap(false, Ordering::SeqCst) {
+        return Err(CassieError::Execution(
+            "injected test failure during fulltext maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct MaintenanceDebt {
@@ -69,6 +87,20 @@ impl Midge {
             tx,
             collection,
             MATERIALIZED_PROJECTION_ARTIFACT,
+            target_generation,
+        )
+    }
+
+    pub(super) fn record_fulltext_maintenance_debt_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        collection: &str,
+        index_name: &str,
+        target_generation: u64,
+    ) -> Result<(), CassieError> {
+        Self::record_maintenance_debt_in_tx(
+            tx,
+            collection,
+            &format!("{FULLTEXT_ARTIFACT_PREFIX}{index_name}"),
             target_generation,
         )
     }
@@ -313,6 +345,22 @@ impl Midge {
                         generation,
                     );
                 }
+            } else if let Some(index_name) = debt.artifact.strip_prefix(FULLTEXT_ARTIFACT_PREFIX) {
+                let generation = self.collection_generation(&debt.collection)?;
+                let index = self.list_indexes()?.into_iter().find(|index| {
+                    index.collection == debt.collection
+                        && index.name == index_name
+                        && index.kind == crate::catalog::IndexKind::FullText
+                });
+                if let Some(index) = index {
+                    if self.rebuild_fulltext_index_for_index(&index).is_ok() {
+                        let _ = self.clear_maintenance_debt(
+                            &debt.collection,
+                            &debt.artifact,
+                            generation,
+                        );
+                    }
+                }
             }
         }
         Ok(())
@@ -342,6 +390,18 @@ impl Midge {
         collection: &str,
     ) -> Result<bool, CassieError> {
         self.has_maintenance_debt(collection, MATERIALIZED_PROJECTION_ARTIFACT)
+    }
+
+    #[doc(hidden)]
+    pub fn has_fulltext_maintenance_debt(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<bool, CassieError> {
+        self.has_maintenance_debt(
+            collection,
+            &format!("{FULLTEXT_ARTIFACT_PREFIX}{index_name}"),
+        )
     }
 
     fn has_maintenance_debt(&self, collection: &str, artifact: &str) -> Result<bool, CassieError> {

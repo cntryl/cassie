@@ -78,6 +78,12 @@ pub struct ExecutionSnapshot {
     pub hnsw_fallbacks: u64,
     pub last_index_kind: String,
     pub last_fallback_reason: String,
+    pub retrieval_stage_queries_total: u64,
+    pub posting_reads_total: u64,
+    pub generation_rejections_total: u64,
+    pub exact_reranks_total: u64,
+    pub row_scan_fallback_total: u64,
+    pub retrieval_fallback_reasons: BTreeMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

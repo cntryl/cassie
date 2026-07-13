@@ -418,6 +418,9 @@ fn build_search_context(
         return Ok(None);
     }
     let options = search_context_options(cassie, &plan.source, fulltext_fields)?;
+    cassie
+        .runtime
+        .record_fulltext_row_scan_fallback("authoritative_row_scan");
     Ok(Some(filter::SearchContext::from_rows(
         batches.iter().flat_map(|batch| batch.iter()),
         text_fields,

@@ -526,6 +526,16 @@ impl RuntimeState {
     /// # Panics
     ///
     /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_fulltext_row_scan_fallback(&self, reason: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.search.retrieval_stage_queries_total += 1;
+        metrics.search.row_scan_fallback_total += 1;
+        increment_boundary_counter(&mut metrics.search.retrieval_fallback_reasons, reason);
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_vector_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.vector.count += 1;

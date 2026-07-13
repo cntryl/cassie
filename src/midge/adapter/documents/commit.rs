@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use super::super::{CassieError, Midge};
 use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
+use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
 
 impl Midge {
     pub(super) fn finish_document_write_batches(
@@ -42,7 +43,16 @@ impl Midge {
             }
             if let Some(indexes) = fulltext_indexes_by_collection.get(collection) {
                 for index in indexes {
-                    self.rebuild_fulltext_index_in_tx(&mut tx, collection, index, generation)?;
+                    if check_fulltext_maintenance_failure_point().is_err() {
+                        Self::record_fulltext_maintenance_debt_in_tx(
+                            &mut tx,
+                            collection,
+                            &index.name,
+                            generation,
+                        )?;
+                    } else {
+                        self.rebuild_fulltext_index_in_tx(&mut tx, collection, index, generation)?;
+                    }
                 }
             }
             generations.insert(collection.clone(), generation);

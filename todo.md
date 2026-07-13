@@ -284,9 +284,12 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     are rejected instead of silently omitted; the authoritative row-scan path remains equivalent.
   - Tests: `tests/fulltext_retrieval_corruption.rs` covers corrupt postings and query fallback.
 - [ ] Add full-text publication debt replay and retrieval-stage metrics.
-  - Add durable publication/debt replay and stage metrics.
-  - Tests: restart, mutation, cleanup, interrupted publication, corrupt postings, old-generation
-    rejection, and exact fallback equivalence.
+  - Persist full-text publication debt in the existing Midge maintenance journal when publication
+    is interrupted, replay it idempotently at startup, and expose explicit retrieval-stage counters
+    for row-scan fallback and its reason.
+  - Tests: `tests/fulltext_publication_recovery.rs` covers interrupted publication, restart replay,
+    and retrieval-stage metrics; corruption and fallback equivalence remain covered by
+    `tests/fulltext_retrieval_corruption.rs`.
 - [ ] Make ANN storage reads genuinely bounded.
   - Replace full-prefix normalized-vector validation and monolithic HNSW graph reads with an
     addressable generation manifest plus point-readable graph nodes/list membership/candidates.

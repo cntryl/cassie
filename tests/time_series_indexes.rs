@@ -271,6 +271,76 @@ fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
 }
 
 #[test]
+fn should_bound_partitioned_time_series_bucket_reads() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("time_series_bounded_partition_reads");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ts_bounded_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO ts_bounded_events (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:00:00Z', 10), ('acme', '2026-01-01T01:00:00Z', 20), ('acme', '2026-01-01T02:00:00Z', 30), ('globex', '2026-01-01T01:00:00Z', 40), ('acme', '2026-01-01T03:00:00Z', 50)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_ts_bounded_time ON ts_bounded_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+                vec![],
+            )
+            .unwrap();
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT amount FROM ts_bounded_events WHERE tenant = 'acme' AND event_at >= '2026-01-01T01:00:00Z' AND event_at < '2026-01-01T03:00:00Z' ORDER BY event_at",
+                vec![],
+            )
+            .unwrap();
+        let after = cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![cassie::types::Value::Int64(20)],
+                vec![cassie::types::Value::Int64(30)],
+            ]
+        );
+        assert_eq!(
+            after["time_series"]["index_entries_scanned"].as_u64().unwrap()
+                - before["time_series"]["index_entries_scanned"].as_u64().unwrap(),
+            2
+        );
+        assert_eq!(
+            after["time_series"]["row_point_fetches"].as_u64().unwrap()
+                - before["time_series"]["row_point_fetches"].as_u64().unwrap(),
+            2
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_preserve_time_series_range_reads_after_mutations_restart() {
     // Arrange
     with_fallback();

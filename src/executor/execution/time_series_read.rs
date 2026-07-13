@@ -4,6 +4,7 @@ use super::{
     QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
 };
 use crate::midge::adapter::DocumentRef;
+use time::{Duration as TimeDuration, OffsetDateTime};
 
 use super::projected_read::json_to_query_value;
 
@@ -43,77 +44,132 @@ pub(super) fn try_execute_time_series_read(
         .as_ref()
         .map(|filter| timestamp_range_from_filter(filter, &timestamp_field))
         .unwrap_or_default();
-    let mut indexed_total_buckets = None;
-    let mut documents = time_series_documents(
-        cassie,
-        &spec.collection,
-        &scan_fields,
-        &index,
-        &range,
-        &mut indexed_total_buckets,
-    )?;
+    let partition_key = partition_key_from_filter(
+        plan.filter.as_ref(),
+        index.options.get("partition_by").map(String::as_str),
+    );
+    let (lower_bucket_seconds, upper_bucket_seconds) = time_series_bucket_bounds(&index, &range);
+    let scan_request = TimeSeriesScanRequest {
+        collection: &spec.collection,
+        scan_fields: &scan_fields,
+        index: &index,
+        range: &range,
+        partition_key: partition_key.as_deref(),
+        lower_bucket_seconds,
+        upper_bucket_seconds,
+    };
+    let (documents, index_entries_scanned, row_point_fetches, indexed_total_buckets) =
+        time_series_documents(cassie, &scan_request)?;
     let total_buckets = indexed_total_buckets
         .unwrap_or_else(|| bucket_keys(documents.as_slice(), &timestamp_field, &index).len());
+    let context = TimeSeriesExecutionContext {
+        cassie,
+        session,
+        plan,
+        user_functions,
+        params,
+        controls,
+        timestamp_field: &timestamp_field,
+        scan_fields: &scan_fields,
+        index: &index,
+        schema: schema.as_ref(),
+    };
+    execute_time_series_rows(
+        documents,
+        total_buckets,
+        index_entries_scanned,
+        row_point_fetches,
+        &context,
+    )
+}
+
+struct TimeSeriesExecutionContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    plan: &'a LogicalPlan,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    controls: &'a QueryExecutionControls,
+    timestamp_field: &'a str,
+    scan_fields: &'a [String],
+    index: &'a catalog::IndexMeta,
+    schema: Option<&'a CollectionSchema>,
+}
+
+fn execute_time_series_rows(
+    mut documents: Vec<DocumentRef>,
+    total_buckets: usize,
+    index_entries_scanned: usize,
+    row_point_fetches: usize,
+    context: &TimeSeriesExecutionContext<'_>,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
     documents.sort_by(|left, right| {
-        timestamp_sort_key(&left.payload, &timestamp_field)
-            .cmp(&timestamp_sort_key(&right.payload, &timestamp_field))
+        timestamp_sort_key(&left.payload, context.timestamp_field)
+            .cmp(&timestamp_sort_key(&right.payload, context.timestamp_field))
             .then_with(|| left.id.cmp(&right.id))
     });
-
     let mut rows = documents
         .into_iter()
-        .map(|document| document_to_row(document, scan_fields.as_slice(), schema.as_ref()))
+        .map(|document| document_to_row(document, context.scan_fields, context.schema))
         .collect::<Vec<_>>();
-    let before_filter_buckets = row_bucket_keys(rows.as_slice(), &timestamp_field, &index).len();
+    let before_filter_buckets =
+        row_bucket_keys(rows.as_slice(), context.timestamp_field, context.index).len();
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-    ensure_temp_budget(controls, &batches)?;
+    ensure_temp_budget(context.controls, &batches)?;
 
-    if let Some(filter_expr) = &plan.filter {
-        batches =
-            filter::filter_batches(batches, filter_expr, params, None, user_functions, session)?;
-        ensure_temp_budget(controls, &batches)?;
+    if let Some(filter_expr) = &context.plan.filter {
+        batches = filter::filter_batches(
+            batches,
+            filter_expr,
+            context.params,
+            None,
+            context.user_functions,
+            context.session,
+        )?;
+        ensure_temp_budget(context.controls, &batches)?;
     }
 
     rows = batch::flatten_batches(batches);
-    let scanned_buckets = row_bucket_keys(rows.as_slice(), &timestamp_field, &index).len();
-    let skipped_buckets = total_buckets
-        .max(before_filter_buckets)
-        .saturating_sub(scanned_buckets);
+    let (scanned_buckets, skipped_buckets) = time_series_bucket_metrics(
+        rows.as_slice(),
+        context.timestamp_field,
+        context.index,
+        total_buckets,
+        before_filter_buckets,
+    );
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-
-    if !plan.order.is_empty() {
+    if !context.plan.order.is_empty() {
         batches = sort::sort_batches(
             batches,
-            &plan.order,
-            &plan.projection,
-            params,
+            &context.plan.order,
+            &context.plan.projection,
+            context.params,
             None,
-            user_functions,
-            session,
+            context.user_functions,
+            context.session,
         );
-        ensure_temp_budget(controls, &batches)?;
+        ensure_temp_budget(context.controls, &batches)?;
     }
-
     batches = projection::project_batches(
         batches,
-        &plan.projection,
-        params,
+        &context.plan.projection,
+        context.params,
         None,
-        user_functions,
-        session,
+        context.user_functions,
+        context.session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
-
-    if let Some((offset, limit)) = batch_window(plan) {
+    ensure_temp_budget(context.controls, &batches)?;
+    if let Some((offset, limit)) = batch_window(context.plan) {
         batches = batch::slice_batches(batches, offset, limit);
     }
-
     let rows = batch::flatten_batches(batches);
-    cassie.runtime.record_time_series_scan(
-        index.name,
+    context.cassie.runtime.record_time_series_scan(
+        &context.index.name,
         rows.len(),
         scanned_buckets,
         skipped_buckets,
+        index_entries_scanned,
+        row_point_fetches,
     );
     Ok(Some(rows))
 }
@@ -129,40 +185,72 @@ fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> 
     fields
 }
 
+fn time_series_bucket_metrics(
+    rows: &[BatchRow],
+    timestamp_field: &str,
+    index: &catalog::IndexMeta,
+    total_buckets: usize,
+    before_filter_buckets: usize,
+) -> (usize, usize) {
+    let scanned_buckets = row_bucket_keys(rows, timestamp_field, index).len();
+    let skipped_buckets = total_buckets
+        .max(before_filter_buckets)
+        .saturating_sub(scanned_buckets);
+    (scanned_buckets, skipped_buckets)
+}
+
+struct TimeSeriesScanRequest<'a> {
+    collection: &'a str,
+    scan_fields: &'a [String],
+    index: &'a catalog::IndexMeta,
+    range: &'a TimestampRange,
+    partition_key: Option<&'a str>,
+    lower_bucket_seconds: Option<i64>,
+    upper_bucket_seconds: Option<i64>,
+}
+
 fn time_series_documents(
     cassie: &Cassie,
-    collection: &str,
-    scan_fields: &[String],
-    index: &catalog::IndexMeta,
-    range: &TimestampRange,
-    indexed_total_buckets: &mut Option<usize>,
-) -> Result<Vec<DocumentRef>, QueryError> {
-    match cassie.midge.scan_time_series_index(index) {
+    request: &TimeSeriesScanRequest<'_>,
+) -> Result<(Vec<DocumentRef>, usize, usize, Option<usize>), QueryError> {
+    match cassie.midge.scan_time_series_index(
+        request.index,
+        request.partition_key,
+        request.lower_bucket_seconds,
+        request.upper_bucket_seconds,
+    ) {
         Ok(report) if report.hits.is_empty() => {
             cassie
                 .runtime
                 .record_time_series_fallback("missing-bucket-metadata");
-            scan_row_backed_documents(cassie, collection, scan_fields)
+            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                .map(|documents| (documents, report.entries_scanned, 0, None))
         }
         Ok(report) => {
-            *indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
-            let hits = prune_hits_for_range(report.hits, range);
+            let indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
+            let hits = prune_hits_for_range(report.hits, request.range);
             if hits.is_empty() {
                 cassie.runtime.record_time_series_bucket_native_hit();
-                return Ok(Vec::new());
+                return Ok((Vec::new(), report.entries_scanned, 0, indexed_total_buckets));
             }
             let documents = cassie
                 .midge
-                .scan_time_series_hit_documents(collection, &hits, scan_fields)
+                .scan_time_series_hit_documents(request.collection, &hits, request.scan_fields)
                 .map_err(|error| QueryError::General(error.to_string()))?;
             if documents.is_empty() {
                 cassie
                     .runtime
                     .record_time_series_fallback("stale-bucket-metadata");
-                scan_row_backed_documents(cassie, collection, scan_fields)
+                scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                    .map(|documents| (documents, report.entries_scanned, 0, None))
             } else {
                 cassie.runtime.record_time_series_bucket_native_hit();
-                Ok(documents)
+                Ok((
+                    documents,
+                    report.entries_scanned,
+                    hits.len(),
+                    indexed_total_buckets,
+                ))
             }
         }
         Err(error) => {
@@ -172,7 +260,8 @@ fn time_series_documents(
                 "corrupt-bucket-metadata"
             };
             cassie.runtime.record_time_series_fallback(reason);
-            scan_row_backed_documents(cassie, collection, scan_fields)
+            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                .map(|documents| (documents, 0, 0, None))
         }
     }
 }
@@ -181,6 +270,122 @@ fn batch_window(plan: &LogicalPlan) -> Option<(usize, Option<usize>)> {
     let offset = plan.offset.and_then(non_negative_usize).unwrap_or_default();
     let limit = plan.limit.and_then(non_negative_usize);
     (offset > 0 || limit.is_some()).then_some((offset, limit))
+}
+
+fn time_series_bucket_bounds(
+    index: &catalog::IndexMeta,
+    range: &TimestampRange,
+) -> (Option<i64>, Option<i64>) {
+    let Some(width) = time_series_bucket_width(index) else {
+        return (None, None);
+    };
+    let lower = range.lower.as_deref().and_then(|value| {
+        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+            .ok()
+            .map(|timestamp| timestamp.unix_timestamp().div_euclid(width))
+            .map(|bucket| bucket.saturating_mul(width))
+    });
+    let upper = range.upper.as_deref().and_then(|value| {
+        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+            .ok()
+            .map(|timestamp| timestamp.unix_timestamp().div_euclid(width))
+            .and_then(|bucket| {
+                range
+                    .upper_exclusive
+                    .then_some(bucket)
+                    .or_else(|| bucket.checked_add(1))
+            })
+            .map(|bucket| bucket.saturating_mul(width))
+    });
+    (lower, upper)
+}
+
+fn time_series_bucket_width(index: &catalog::IndexMeta) -> Option<i64> {
+    let mut parts = index.options.get("bucket_width")?.split_whitespace();
+    let amount = parts.next()?.parse::<i64>().ok()?;
+    let unit = parts.next()?.to_ascii_lowercase();
+    if amount <= 0 || parts.next().is_some() {
+        return None;
+    }
+    let duration = match unit.as_str() {
+        "minute" | "minutes" => TimeDuration::minutes(amount),
+        "hour" | "hours" => TimeDuration::hours(amount),
+        "day" | "days" => TimeDuration::days(amount),
+        _ => return None,
+    };
+    Some(duration.whole_seconds())
+}
+
+fn partition_key_from_filter(filter: Option<&Expr>, partition_by: Option<&str>) -> Option<String> {
+    let fields = partition_by?
+        .split(',')
+        .map(str::trim)
+        .filter(|field| !field.is_empty())
+        .collect::<Vec<_>>();
+    if fields.is_empty() {
+        return None;
+    }
+    let mut values = vec![None; fields.len()];
+    collect_partition_equalities(filter?, &fields, &mut values);
+    values
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+        .map(|values| values.join("\u{1f}"))
+}
+
+fn collect_partition_equalities(expr: &Expr, fields: &[&str], values: &mut [Option<String>]) {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } => {
+            collect_partition_equalities(left, fields, values);
+            collect_partition_equalities(right, fields, values);
+        }
+        Expr::Binary {
+            left,
+            op: BinaryOp::Eq,
+            right,
+        } => {
+            let (Expr::Column(column), Some(value)) =
+                (left.as_ref(), partition_literal(right.as_ref()))
+            else {
+                if let (Expr::Column(column), Some(value)) =
+                    (right.as_ref(), partition_literal(left.as_ref()))
+                {
+                    set_partition_value(column, value, fields, values);
+                }
+                return;
+            };
+            set_partition_value(column, value, fields, values);
+        }
+        _ => {}
+    }
+}
+
+fn set_partition_value(
+    column: &str,
+    value: String,
+    fields: &[&str],
+    values: &mut [Option<String>],
+) {
+    if let Some(position) = fields
+        .iter()
+        .position(|field| field.eq_ignore_ascii_case(column))
+    {
+        values[position] = Some(value);
+    }
+}
+
+fn partition_literal(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::StringLiteral(value) => Some(value.clone()),
+        Expr::NumberLiteral(value) => Some(value.to_string()),
+        Expr::BoolLiteral(value) => Some(value.to_string()),
+        Expr::Null => Some("null".to_string()),
+        _ => None,
+    }
 }
 
 fn non_negative_usize(value: i64) -> Option<usize> {
@@ -209,6 +414,7 @@ fn prune_hits_for_range(
 struct TimestampRange {
     lower: Option<String>,
     upper: Option<String>,
+    upper_exclusive: bool,
 }
 
 fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampRange {
@@ -220,9 +426,16 @@ fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampR
         } => {
             let left = timestamp_range_from_filter(left, timestamp_field);
             let right = timestamp_range_from_filter(right, timestamp_field);
+            let upper_exclusive = min_bound_exclusive(
+                left.upper.as_deref(),
+                left.upper_exclusive,
+                right.upper.as_deref(),
+                right.upper_exclusive,
+            );
             TimestampRange {
                 lower: max_bound(left.lower, right.lower),
                 upper: min_bound(left.upper, right.upper),
+                upper_exclusive,
             }
         }
         Expr::Binary { left, op, right } => {
@@ -236,6 +449,7 @@ fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampR
         } if is_timestamp_column(expr, timestamp_field) => TimestampRange {
             lower: timestamp_literal(low),
             upper: timestamp_literal(high),
+            upper_exclusive: false,
         },
         _ => TimestampRange::default(),
     }
@@ -253,10 +467,12 @@ fn comparison_timestamp_range(
             BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
                 lower: Some(value),
                 upper: None,
+                ..TimestampRange::default()
             }),
             BinaryOp::Lt | BinaryOp::Lte => Some(TimestampRange {
                 lower: None,
                 upper: Some(value),
+                upper_exclusive: matches!(op, BinaryOp::Lt),
             }),
             _ => None,
         };
@@ -267,10 +483,12 @@ fn comparison_timestamp_range(
             BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
                 lower: None,
                 upper: Some(value),
+                upper_exclusive: matches!(op, BinaryOp::Gt),
             }),
             BinaryOp::Lt | BinaryOp::Lte => Some(TimestampRange {
                 lower: Some(value),
                 upper: None,
+                ..TimestampRange::default()
             }),
             _ => None,
         };
@@ -302,6 +520,22 @@ fn min_bound(left: Option<String>, right: Option<String>) -> Option<String> {
         (Some(left), Some(right)) => Some(left.min(right)),
         (Some(value), None) | (None, Some(value)) => Some(value),
         (None, None) => None,
+    }
+}
+
+fn min_bound_exclusive(
+    left: Option<&str>,
+    left_exclusive: bool,
+    right: Option<&str>,
+    right_exclusive: bool,
+) -> bool {
+    match (left, right) {
+        (Some(left), Some(right)) if left < right => left_exclusive,
+        (Some(left), Some(right)) if right < left => right_exclusive,
+        (Some(_), Some(_)) => left_exclusive || right_exclusive,
+        (Some(_), None) => left_exclusive,
+        (None, Some(_)) => right_exclusive,
+        (None, None) => false,
     }
 }
 

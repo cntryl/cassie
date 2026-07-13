@@ -734,17 +734,39 @@ pub(super) fn time_series_index_entry_key(
     bucket_start_seconds: i64,
     id: &str,
 ) -> Vec<u8> {
-    let mut key = data_scoped_key(
-        FAMILY_TIME_SERIES_INDEX,
-        collection,
-        &[index_name.as_bytes(), b"d", partition_key.as_bytes()],
-    );
+    let mut key = time_series_index_partition_prefix(collection, index_name, partition_key);
     key.push(LexKey::SEPARATOR);
     let mut encoder = Encoder::with_capacity(16);
     encoder.encode_i64_into(bucket_start_seconds);
     key.extend_from_slice(encoder.as_slice());
     key.push(LexKey::SEPARATOR);
     append_terminated_component(&mut key, id.as_bytes());
+    key
+}
+
+pub(super) fn time_series_index_partition_prefix(
+    collection: &str,
+    index_name: &str,
+    partition_key: &str,
+) -> Vec<u8> {
+    data_scoped_key(
+        FAMILY_TIME_SERIES_INDEX,
+        collection,
+        &[index_name.as_bytes(), b"d", partition_key.as_bytes()],
+    )
+}
+
+pub(super) fn time_series_index_bucket_bound_key(
+    collection: &str,
+    index_name: &str,
+    partition_key: &str,
+    bucket_start_seconds: i64,
+) -> Vec<u8> {
+    let mut key = time_series_index_partition_prefix(collection, index_name, partition_key);
+    key.push(LexKey::SEPARATOR);
+    let mut encoder = Encoder::with_capacity(16);
+    encoder.encode_i64_into(bucket_start_seconds);
+    key.extend_from_slice(encoder.as_slice());
     key
 }
 

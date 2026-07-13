@@ -18,12 +18,16 @@ impl RuntimeState {
         rows: usize,
         buckets_scanned: usize,
         buckets_skipped: usize,
+        index_entries_scanned: usize,
+        row_point_fetches: usize,
     ) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.time_series.scans += 1;
         metrics.time_series.rows += rows as u64;
         metrics.time_series.buckets_scanned += buckets_scanned as u64;
         metrics.time_series.buckets_skipped += buckets_skipped as u64;
+        metrics.time_series.index_entries_scanned += index_entries_scanned as u64;
+        metrics.time_series.row_point_fetches += row_point_fetches as u64;
         metrics.time_series.last_index = index.into();
     }
 

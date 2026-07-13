@@ -217,6 +217,8 @@ pub struct TimeSeriesSnapshot {
     pub rows: u64,
     pub buckets_scanned: u64,
     pub buckets_skipped: u64,
+    pub index_entries_scanned: u64,
+    pub row_point_fetches: u64,
     pub last_index: String,
     pub last_fallback_reason: String,
 }

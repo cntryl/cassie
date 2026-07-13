@@ -147,8 +147,9 @@ Unsupported procedural expectations include:
 - `CASSIE_ADAPTIVE_EXECUTION_ENABLED=1` enables experimental adaptive selection among prevalidated read-operator alternatives. `CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS` controls the minimum observed savings required before an adaptive alternative replaces the base operator. `CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS` optionally requires a minimum operator-feedback confidence score before adaptive selection can pass; it defaults to `0`.
 - `CASSIE_OPERATOR_SWITCHING_ENABLED=1` enables experimental runtime switching for explicitly prevalidated switch pairs. The first supported pair is `vectorized_join_to_merge_join`, which replays left/right join inputs before emitting rows when `CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD` is exceeded.
 - Time-series sidecar keys keep dynamic partition values as ordered prefix components but encode
-  bucket start bounds as fixed-width ordered integers; generation fencing and source-row fallback
-  remain active while bounded range reads are completed.
+  bucket start bounds as fixed-width ordered integers. Partition-constrained range reads use
+  bounded bucket scans and point-fetch matching rows, with generation fencing and source-row
+  fallback retained for stale or incomplete metadata; broader concurrent rebuild evidence remains.
 - REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Expired, rotated, and deleted-role sessions are rejected and removed from the session store, and active sessions are bounded at 1,024. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
 - REST TLS accepts configured rustls certificate/key files, fails closed for non-loopback plaintext
   listeners, and has an end-to-end HTTPS health path with TLS-only HSTS.

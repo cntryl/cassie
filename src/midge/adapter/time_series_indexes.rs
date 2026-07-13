@@ -18,6 +18,7 @@ pub(crate) struct TimeSeriesIndexScanHit {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct TimeSeriesIndexScanReport {
     pub hits: Vec<TimeSeriesIndexScanHit>,
+    pub entries_scanned: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -223,6 +224,9 @@ impl Midge {
     pub(crate) fn scan_time_series_index(
         &self,
         index: &IndexMeta,
+        partition_key: Option<&str>,
+        lower_bucket_seconds: Option<i64>,
+        upper_bucket_seconds: Option<i64>,
     ) -> Result<TimeSeriesIndexScanReport, CassieError> {
         if !Self::time_series_index_supports_storage(index) {
             return Err(CassieError::Unsupported(format!(
@@ -232,12 +236,43 @@ impl Midge {
         }
 
         let tx = self.begin_data_readonly_tx_for(&index.collection)?;
-        let scan = collect_scan(
-            tx.scan(&Query::new().prefix(
-                Self::time_series_index_data_prefix(&index.collection, &index.name).into(),
-            ))
-            .map_err(CassieError::from)?,
-        )?;
+        let query = match partition_key {
+            Some(partition_key) => {
+                let prefix = key_encoding::time_series_index_partition_prefix(
+                    &index.collection,
+                    &index.name,
+                    partition_key,
+                );
+                let mut query = Query::new().prefix(prefix.clone().into());
+                if let Some(lower) = lower_bucket_seconds {
+                    query = query.start_key(
+                        key_encoding::time_series_index_bucket_bound_key(
+                            &index.collection,
+                            &index.name,
+                            partition_key,
+                            lower,
+                        )
+                        .into(),
+                    );
+                }
+                if let Some(upper) = upper_bucket_seconds {
+                    query = query.end_key(
+                        key_encoding::time_series_index_bucket_bound_key(
+                            &index.collection,
+                            &index.name,
+                            partition_key,
+                            upper,
+                        )
+                        .into(),
+                    );
+                }
+                query
+            }
+            None => Query::new()
+                .prefix(Self::time_series_index_data_prefix(&index.collection, &index.name).into()),
+        };
+        let scan = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
+        let entries_scanned = scan.len();
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut hits = Vec::new();
         let generation = self.collection_generation(&index.collection)?;
@@ -271,7 +306,10 @@ impl Midge {
             }
         }
 
-        Ok(TimeSeriesIndexScanReport { hits })
+        Ok(TimeSeriesIndexScanReport {
+            hits,
+            entries_scanned,
+        })
     }
 
     pub(crate) fn scan_time_series_hit_documents(
@@ -288,37 +326,26 @@ impl Midge {
             .iter()
             .map(|field| field.to_ascii_lowercase())
             .collect::<std::collections::HashSet<_>>();
-        let mut wanted = hits
-            .iter()
-            .map(|hit| hit.id.clone())
-            .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
-        let mut documents = Vec::with_capacity(wanted.len());
-        let mut seen = std::collections::HashSet::new();
-
-        for (prefix, include_seen) in [
-            (Self::row_prefix(collection), true),
-            (Self::doc_prefix(collection), false),
-        ] {
-            let iter = collect_scan(
-                tx.scan(&Query::new().prefix(prefix.clone().into()))
+        let mut documents = Vec::with_capacity(hits.len());
+        for hit in hits {
+            let raw = match tx
+                .get(&Self::row_key(collection, &hit.id))
+                .map_err(CassieError::from)?
+            {
+                Some(raw) => Some(raw),
+                None => tx
+                    .get(&Self::doc_key(collection, &hit.id))
                     .map_err(CassieError::from)?,
-            )?;
-            for (raw_key, raw_value) in iter {
-                let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
-                    continue;
-                };
-                if id.is_empty() || !wanted.contains(&id) || (!include_seen && seen.contains(&id)) {
-                    continue;
-                }
-                let payload = decode_projected_row(&row_schema, &raw_value, &projection)?;
-                seen.insert(id.clone());
-                wanted.remove(&id);
-                documents.push(DocumentRef { id, payload });
-                if wanted.is_empty() {
-                    return Ok(documents);
-                }
-            }
+            };
+            let Some(raw) = raw else {
+                continue;
+            };
+            let payload = decode_projected_row(&row_schema, &raw, &projection)?;
+            documents.push(DocumentRef {
+                id: hit.id.clone(),
+                payload,
+            });
         }
 
         Ok(documents)

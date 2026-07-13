@@ -137,33 +137,66 @@ impl Midge {
         };
         let metadata: FulltextIndexMetadata = serde_json::from_slice(&raw)
             .map_err(|error| CassieError::Parse(format!("invalid fulltext metadata: {error}")))?;
+        if metadata.version != STATE_VERSION {
+            return Err(CassieError::Parse(format!(
+                "unsupported fulltext metadata version {}",
+                metadata.version
+            )));
+        }
+        let manifest_raw = tx
+            .get(&Self::fulltext_index_manifest_key(
+                &collection,
+                index_name,
+                metadata.built_generation,
+            ))
+            .map_err(CassieError::from)?
+            .ok_or_else(|| {
+                CassieError::Parse("missing fulltext generation manifest".to_string())
+            })?;
+        let manifest: FulltextManifest =
+            serde_json::from_slice(&manifest_raw).map_err(|error| {
+                CassieError::Parse(format!("invalid fulltext generation manifest: {error}"))
+            })?;
+        if manifest.version != STATE_VERSION
+            || manifest.built_generation != metadata.built_generation
+            || manifest.total_documents != metadata.total_documents
+        {
+            return Err(CassieError::Parse(
+                "fulltext generation manifest does not match metadata".to_string(),
+            ));
+        }
+        let postings_prefix = Self::fulltext_postings_prefix(&collection, index_name);
         let postings = collect_scan(
-            tx.scan(
-                &Query::new()
-                    .prefix(Self::fulltext_postings_prefix(&collection, index_name).into()),
-            )
-            .map_err(CassieError::from)?,
+            tx.scan(&Query::new().prefix(postings_prefix.clone().into()))
+                .map_err(CassieError::from)?,
         )?
         .into_iter()
-        .filter_map(|(key, raw)| {
-            let prefix = Self::fulltext_postings_prefix(&collection, index_name);
-            let term = key_encoding::utf8_suffix_after_prefix(&key, &prefix)?;
-            let postings = serde_json::from_slice(&raw).ok()?;
-            Some((term, postings))
+        .map(|(key, raw)| {
+            let term = key_encoding::utf8_suffix_after_prefix(&key, &postings_prefix)
+                .ok_or_else(|| CassieError::Parse("invalid fulltext posting key".to_string()))?;
+            let postings = serde_json::from_slice(&raw).map_err(|error| {
+                CassieError::Parse(format!("invalid fulltext posting for '{term}': {error}"))
+            })?;
+            Ok((term, postings))
         })
-        .collect();
+        .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
         let document_prefix = Self::fulltext_document_stats_prefix(&collection, index_name);
         let document_stats = collect_scan(
             tx.scan(&Query::new().prefix(document_prefix.clone().into()))
                 .map_err(CassieError::from)?,
         )?
         .into_iter()
-        .filter_map(|(key, raw)| {
-            let document_id = key_encoding::utf8_suffix_after_prefix(&key, &document_prefix)?;
-            let stats = serde_json::from_slice(&raw).ok()?;
-            Some((document_id, stats))
+        .map(|(key, raw)| {
+            let document_id = key_encoding::utf8_suffix_after_prefix(&key, &document_prefix)
+                .ok_or_else(|| CassieError::Parse("invalid fulltext document key".to_string()))?;
+            let stats = serde_json::from_slice(&raw).map_err(|error| {
+                CassieError::Parse(format!(
+                    "invalid fulltext document statistics for '{document_id}': {error}"
+                ))
+            })?;
+            Ok((document_id, stats))
         })
-        .collect();
+        .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
         Ok(Some(PersistedFulltextIndexState {
             built_generation: metadata.built_generation,
             total_documents: metadata.total_documents,

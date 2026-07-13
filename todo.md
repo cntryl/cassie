@@ -279,9 +279,12 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     idempotent and clean their dependent artifacts.
   - Tests: `tests/fulltext_persisted_retrieval.rs` covers exact postings/statistics, stale-term
     removal, delete cleanup, and restart reload.
-- [ ] Add full-text publication debt, corruption fencing, and bounded fallback.
-  - Add durable publication/debt replay, corruption detection, deterministic row-scan fallback,
-    and stage metrics.
+- [x] Add full-text corruption fencing and deterministic bounded fallback.
+  - Persisted metadata/manifests are generation-checked and malformed postings/document statistics
+    are rejected instead of silently omitted; the authoritative row-scan path remains equivalent.
+  - Tests: `tests/fulltext_retrieval_corruption.rs` covers corrupt postings and query fallback.
+- [ ] Add full-text publication debt replay and retrieval-stage metrics.
+  - Add durable publication/debt replay and stage metrics.
   - Tests: restart, mutation, cleanup, interrupted publication, corrupt postings, old-generation
     rejection, and exact fallback equivalence.
 - [ ] Make ANN storage reads genuinely bounded.

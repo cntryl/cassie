@@ -318,7 +318,7 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - [x] Tests cover stale text/vector artifacts, candidate-budget rejection, bounded concurrent
     execution, and fallback equivalence; selective-filter and larger-corpus benchmarks remain.
   - [x] Structured equality filters are applied over the bounded candidate set.
-- [ ] Add retrieval-stage diagnostics: posting reads, ANN node/list reads, generation rejection,
+- [x] Add retrieval-stage diagnostics: posting reads, ANN candidate reads, generation rejection,
   exact rerank count, truncation, candidate budgets, and fallback reason.
 - [ ] Benchmark retrieval truthfully.
   - Cold/warm full-text at 10k, 100k, and a larger corpus with reads, memory, write amplification,

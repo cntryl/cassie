@@ -114,7 +114,13 @@ pub(super) fn bounded_hybrid_rows(
     ) {
         Ok(Some(ids)) => ids,
         Ok(None) => return Ok(None),
-        Err(_) => {
+        Err(error) => {
+            let generation_rejection = usize::from(
+                error.to_string().contains("generation") || error.to_string().contains("stale"),
+            );
+            cassie
+                .runtime
+                .record_hybrid_retrieval_diagnostics(0, 0, generation_rejection, 0, 0, 0);
             cassie
                 .runtime
                 .record_hybrid_prefilter_usage(0, 0, Some("vector-artifact"));
@@ -122,11 +128,22 @@ pub(super) fn bounded_hybrid_rows(
         }
     };
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, analyzer);
-    let Ok(stats) =
+    let text_result =
         cassie
             .midge
-            .fulltext_candidate_stats(&spec.collection, &fulltext_index.name, &query_terms)
-    else {
+            .fulltext_candidate_stats(&spec.collection, &fulltext_index.name, &query_terms);
+    let generation_rejection = text_result.as_ref().err().is_some_and(|error| {
+        error.to_string().contains("generation") || error.to_string().contains("stale")
+    });
+    let Ok(stats) = text_result else {
+        cassie.runtime.record_hybrid_retrieval_diagnostics(
+            0,
+            0,
+            usize::from(generation_rejection),
+            0,
+            0,
+            0,
+        );
         cassie
             .runtime
             .record_hybrid_prefilter_usage(0, 0, Some("text-artifact"));

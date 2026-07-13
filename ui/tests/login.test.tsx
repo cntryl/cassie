@@ -3,35 +3,40 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import type { FetchResponse } from "@fgrzl/fetch";
 
 import LoginPage from "@/pages/login";
-import { apiv1, type QuerySchemaResponse } from "@/adapters";
+import { apiv1, type Session } from "@/adapters";
 import { isSignedIn, signOut } from "@/shared/auth";
 
-function mockCatalogSuccess() {
-  const response: FetchResponse<QuerySchemaResponse> = {
+function mockLoginSuccess() {
+  const response: FetchResponse<Session> = {
     ok: true,
     status: 200,
     statusText: "OK",
     headers: new Headers(),
-    url: "/api/v1/admin/catalog",
-    data: { sections: [] },
+    url: "/api/v1/auth/login",
+    data: { user: "admin", database: "postgres", role: "admin" },
     error: null,
   };
 
-  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
+  vi.spyOn(apiv1, "loginRestSession").mockResolvedValue(response);
 }
 
-function mockCatalogUnauthorized() {
-  const response: FetchResponse<QuerySchemaResponse> = {
+function mockLoginUnauthorized() {
+  const response: FetchResponse<Session> = {
     ok: false,
     status: 401,
     statusText: "Unauthorized",
     headers: new Headers(),
-    url: "/api/v1/admin/catalog",
+    url: "/api/v1/auth/login",
     data: null,
-    error: { message: "Invalid username or password.", status: 401, statusText: "Unauthorized", url: "" },
+    error: {
+      message: "Invalid username or password.",
+      status: 401,
+      statusText: "Unauthorized",
+      url: "",
+    },
   };
 
-  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
+  vi.spyOn(apiv1, "loginRestSession").mockResolvedValue(response);
 }
 
 async function flushUi() {
@@ -98,7 +103,7 @@ describe("login page", () => {
   });
 
   it("signs in and navigates to / when the credential is accepted", async () => {
-    mockCatalogSuccess();
+    mockLoginSuccess();
     const root = await mountLogin();
     const usernameInput = root.querySelector("#login-username") as HTMLInputElement;
     const passwordInput = root.querySelector("#login-password") as HTMLInputElement;
@@ -112,13 +117,13 @@ describe("login page", () => {
     await flushUi();
     await flushUi();
 
-    expect(apiv1.listAdminCatalog).toHaveBeenCalled();
+    expect(apiv1.loginRestSession).toHaveBeenCalled();
     expect(window.location.pathname).toBe("/");
     expect(isSignedIn()).toBe(true);
   });
 
   it("shows an inline error and stays on /login when the credential is rejected", async () => {
-    mockCatalogUnauthorized();
+    mockLoginUnauthorized();
     const root = await mountLogin();
     const usernameInput = root.querySelector("#login-username") as HTMLInputElement;
     const passwordInput = root.querySelector("#login-password") as HTMLInputElement;

@@ -332,6 +332,24 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         let client = reqwest::Client::new();
+        let admin_cookie = client
+            .post(format!("http://{addr}/api/v1/auth/login"))
+            .json(&serde_json::json!({
+                "username": "postgres",
+                "password": "route-password"
+            }))
+            .send()
+            .await
+            .expect("login request")
+            .headers()
+            .get("set-cookie")
+            .expect("session cookie")
+            .to_str()
+            .expect("session cookie value")
+            .split(';')
+            .next()
+            .expect("session cookie pair")
+            .to_string();
         let before = cassie.metrics();
         let before_started =
             read_boundary_counter(&before, "rest", "blocking_started_total", "rest_route");
@@ -346,7 +364,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         let create = client
             .post(format!("http://{addr}/api/v1/collections"))
             .header("content-type", "application/json")
-            .header("authorization", "Bearer postgres:route-password")
+            .header("cookie", &admin_cookie)
             .body(create_payload.to_string())
             .send()
             .await
@@ -355,7 +373,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
 
         let list = client
             .get(format!("http://{addr}/api/v1/collections"))
-            .header("authorization", "Bearer postgres:route-password")
+            .header("cookie", &admin_cookie)
             .send()
             .await
             .expect("list request");

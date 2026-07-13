@@ -24,7 +24,7 @@ import {
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
-import { signIn, signOut } from "@/shared/auth";
+import { setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, unwrapResponse } from "@/shared/errors/api";
 
 export default function LoginPage() {
@@ -41,17 +41,16 @@ export default function LoginPage() {
 
     setError(null);
     setIsVerifying(true);
-    // Store the credential first so the request below picks it up (the fetch
-    // client's middleware reads it from the same storage) — this is also the
-    // only real verification cassie has, since the REST API has no dedicated
-    // login endpoint. A lightweight authenticated call either confirms it or
-    // surfaces a 401 immediately, rather than silently redirecting to a query
-    // page that would only then discover a bad password on its first fetch.
-    signIn(username().trim(), password());
-
     try {
-      const response = await apiv1.listAdminCatalog();
-      unwrapResponse(response, "Unable to sign in");
+      const session = unwrapResponse(
+        await apiv1.loginRestSession({
+          username: username().trim(),
+          password: password(),
+        }),
+        "Unable to sign in",
+      );
+      setSession(session);
+      setPassword("");
       navigate("/");
     } catch (caught) {
       signOut();
@@ -130,7 +129,8 @@ export default function LoginPage() {
             </CardContent>
             <CardFooter>
               <Text tone="muted" size="sm">
-                Credentials are sent with each request and kept only in this browser.
+                The server issues an opaque HttpOnly session cookie; your password is not stored in
+                this browser.
               </Text>
             </CardFooter>
           </Card>

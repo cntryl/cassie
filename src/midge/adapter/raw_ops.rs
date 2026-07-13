@@ -6,6 +6,30 @@ use super::{
 impl Midge {
     /// # Errors
     ///
+    /// Returns an error when the raw write cannot be committed.
+    pub fn raw_put(
+        &self,
+        family: StorageFamily,
+        key: &[u8],
+        value: &[u8],
+    ) -> Result<(), CassieError> {
+        let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
+        tx.put(key.to_vec(), value.to_vec(), None)
+            .map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the raw delete cannot be committed.
+    pub fn raw_delete(&self, family: StorageFamily, key: &[u8]) -> Result<(), CassieError> {
+        let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
+        tx.delete(key.to_vec()).map_err(CassieError::from)?;
+        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+    }
+
+    /// # Errors
+    ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn raw_get(
         &self,

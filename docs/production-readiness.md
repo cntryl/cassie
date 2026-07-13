@@ -11,7 +11,10 @@ The Phase 10 local fallback rebaseline closed the ranked local blockers for proj
 REST collection resource routing now creates one request context carrying the authenticated
 session and role, resolves names against that session's database and search path, rejects
 ambiguous or cross-database names, and filters collection listings to the same scope. Opaque
-cookie sessions, configurable session scope, and the remaining HTTP hardening are still open.
+cookie sessions now issue cryptographically random tokens hashed in Midge, validate expiry and
+credential rotation, and support login/current-session/logout with HttpOnly, SameSite=Strict
+cookies. TLS-dependent Secure cookies, configurable session scope, UI bootstrap, and the remaining
+HTTP hardening are still open.
 For scalar-index and read-optimization work, local-dev evidence can validate access paths,
 diagnostics, and fallback behavior, but it does not establish production adaptive thresholds.
 Production use still needs deployment-profile values for adaptive cost savings, feedback confidence,

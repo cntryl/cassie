@@ -17,12 +17,14 @@ import {
   Text,
 } from "@askrjs/themes/components";
 
-import { getCredential, signOut } from "@/shared/auth";
+import { apiv1 } from "@/adapters";
+import { getSession, signOut } from "@/shared/auth";
 
 export default function LogoutPage() {
-  const credential = getCredential();
+  const session = getSession();
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    await apiv1.logoutRestSession();
     signOut();
     navigate("/login");
   }
@@ -39,11 +41,9 @@ export default function LogoutPage() {
                 </BrandMark>
                 <BrandLabel>Cassie Admin</BrandLabel>
               </Brand>
-              <CardTitle>
-                Sign out{credential && credential.username.length > 0 ? ` of ${credential.username}` : ""}?
-              </CardTitle>
+              <CardTitle>Sign out{session?.user ? ` of ${session.user}` : ""}?</CardTitle>
               <CardDescription>
-                This clears the stored credential for this browser only.
+                This revokes the server-backed session and clears its cookie.
               </CardDescription>
             </CardHeader>
             <CardContent>

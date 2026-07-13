@@ -7,4 +7,5 @@ pub mod query;
 pub mod router;
 pub(crate) mod scope;
 pub mod search;
+pub(crate) mod sessions;
 pub(crate) mod static_files;

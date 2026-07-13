@@ -3,6 +3,7 @@ use super::{
     PasswordHasher, PasswordVerifier, RoleMeta, SaltString,
 };
 
+#[derive(Debug)]
 pub(crate) struct AuthenticatedPrincipal {
     pub(crate) session: CassieSession,
     pub(crate) role: RoleMeta,

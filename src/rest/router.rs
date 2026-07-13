@@ -8,7 +8,7 @@ use bytes::Bytes;
 use http_body_util::{BodyExt, Full};
 use hyper::{
     body::Incoming,
-    header::{HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE},
+    header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, SET_COOKIE},
     server::conn::http1,
     service::service_fn,
     Method, Request, Response, StatusCode,
@@ -107,11 +107,11 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
 }
 
 type RestBody = Full<Bytes>;
-const AUTH_TOKEN_PREFIX: &str = "Bearer ";
 #[derive(Clone)]
 struct RestRequestContext {
     session: CassieSession,
     role: Option<RoleMeta>,
+    token: Option<String>,
 }
 
 #[derive(Clone, Copy)]
@@ -221,10 +221,19 @@ async fn route_request_with_admin_ui(
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
     let mut role = None;
-    if !is_route_public(&method, segments.as_slice()) && cassie.authentication_enabled() {
-        let authenticated_role =
+    let mut token = None;
+    let mut session = None;
+    if !is_route_public(&method, segments.as_slice())
+        && !is_authentication_exempt(&method, segments.as_slice())
+        && cassie.authentication_enabled()
+    {
+        let (authenticated_session, authenticated_role, authenticated_token) =
             match authenticate_rest_request(cassie.clone(), request.headers()).await {
-                Ok(role) => role,
+                Ok(principal) => (
+                    principal.session,
+                    principal.role,
+                    cookie_token(request.headers()),
+                ),
                 Err((status, message)) => {
                     cassie.runtime.record_rest_request(
                         method.as_str(),
@@ -245,19 +254,18 @@ async fn route_request_with_admin_ui(
             );
             return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
         }
+        session = Some(authenticated_session);
         role = Some(authenticated_role);
+        token = authenticated_token;
     }
-    let session = role.as_ref().map_or_else(
-        || cassie.create_session(&cassie.auth_user, Some(cassie.default_database.clone())),
-        |role| {
-            CassieSession::authenticated(
-                role.name.clone(),
-                Some(cassie.default_database.clone()),
-                role.is_admin,
-            )
-        },
-    );
-    let request_context = RestRequestContext { session, role };
+    let session = session.unwrap_or_else(|| {
+        cassie.create_session(&cassie.auth_user, Some(cassie.default_database.clone()))
+    });
+    let request_context = RestRequestContext {
+        session,
+        role,
+        token,
+    };
     let body: RestBytes = request
         .into_body()
         .collect()
@@ -307,6 +315,10 @@ async fn route_dispatch(
         return Ok(response);
     }
 
+    if let Some(response) = dispatch_auth_routes(context, cassie.clone(), &body).await? {
+        return Ok(response);
+    }
+
     if let Some(response) = admin_ui.dispatch(context.method, context.segments).await {
         return Ok(response);
     }
@@ -330,6 +342,88 @@ async fn route_dispatch(
     }
 
     unsupported_route(&cassie, context.method, context.path, context.started_at)
+}
+
+async fn dispatch_auth_routes(
+    context: RouteDispatchContext<'_>,
+    cassie: Arc<Cassie>,
+    body: &RestBytes,
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
+    match (context.method.as_str(), context.segments) {
+        ("POST", ["api", "v1", "auth", "login"]) => {
+            let body = body.clone();
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_auth_login",
+                move |cassie| crate::rest::sessions::login(&cassie, body.as_ref()),
+            )
+            .await
+            .map(|(token, principal)| {
+                let mut response = json_response(
+                    StatusCode::OK,
+                    &serde_json::json!({
+                        "user": principal.role.name,
+                        "database": principal.session.current_database(),
+                        "role": principal.role.name,
+                    }),
+                );
+                set_session_cookie(&mut response, &token, false);
+                Some(response)
+            })
+        }
+        ("GET", ["api", "v1", "auth", "session"]) => {
+            if context.request_context.role.is_none() && cassie.authentication_enabled() {
+                return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
+            }
+            Ok(Some(json_response(
+                StatusCode::OK,
+                &serde_json::json!({
+                    "user": context.request_context.session.user,
+                    "database": context.request_context.session.current_database(),
+                    "role": context.request_context.role.as_ref().map(|role| role.name.clone()),
+                }),
+            )))
+        }
+        ("POST", ["api", "v1", "auth", "logout"]) => {
+            if let Some(token) = context.request_context.token.as_deref() {
+                let token = token.to_string();
+                run_rest_blocking_route(
+                    cassie,
+                    context.method,
+                    context.path,
+                    context.started_at,
+                    "rest_auth_logout",
+                    move |cassie| crate::rest::sessions::revoke(&cassie, &token),
+                )
+                .await?;
+            }
+            let mut response =
+                json_response(StatusCode::OK, &serde_json::json!({"logged_out": true}));
+            set_session_cookie(&mut response, "", true);
+            Ok(Some(response))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn set_session_cookie(response: &mut Response<RestBody>, token: &str, clear: bool) {
+    let value = if clear {
+        format!(
+            "{}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
+            crate::rest::sessions::SESSION_COOKIE
+        )
+    } else {
+        format!(
+            "{}={token}; Path=/; HttpOnly; SameSite=Strict",
+            crate::rest::sessions::SESSION_COOKIE
+        )
+    };
+    if let Ok(header) = HeaderValue::from_str(&value) {
+        response.headers_mut().insert(SET_COOKIE, header);
+    }
 }
 
 fn dispatch_health_routes(
@@ -744,22 +838,27 @@ fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     *method == Method::GET && segments.first() != Some(&"api")
 }
 
+fn is_authentication_exempt(method: &Method, segments: &[&str]) -> bool {
+    matches!(
+        (method.as_str(), segments),
+        ("POST", ["api", "v1", "auth", "login"])
+    )
+}
+
 fn default_admin_ui_dir() -> PathBuf {
     std::env::var("CASSIE_ADMIN_UI_DIR").map_or_else(|_| PathBuf::from("./ui/dist"), PathBuf::from)
 }
 
 async fn authenticate_rest_request(
     cassie: Arc<Cassie>,
-    headers: &hyper::HeaderMap,
-) -> Result<RoleMeta, (StatusCode, String)> {
-    let Some((user, password)) = parse_rest_credentials(&cassie, headers) else {
+    headers: &HeaderMap,
+) -> Result<crate::app::AuthenticatedPrincipal, (StatusCode, String)> {
+    let Some(token) = cookie_token(headers) else {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
     };
 
-    let role = run_rest_blocking(cassie.clone(), "rest_auth", move |cassie| {
-        cassie
-            .authenticate_principal(&user, password.as_deref(), None)
-            .map(|principal| principal.role)
+    run_rest_blocking(cassie, "rest_auth", move |cassie| {
+        crate::rest::sessions::authenticate(&cassie, &token)
     })
     .await
     .map_err(|error| match error {
@@ -770,28 +869,16 @@ async fn authenticate_rest_request(
             StatusCode::SERVICE_UNAVAILABLE,
             format!("authentication unavailable: {other}"),
         ),
-    })?;
-
-    Ok(role)
+    })
 }
 
-fn parse_rest_credentials(
-    cassie: &Arc<Cassie>,
-    headers: &hyper::HeaderMap,
-) -> Option<(String, Option<String>)> {
-    let raw = headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())?;
-    let token = raw.strip_prefix(AUTH_TOKEN_PREFIX)?.trim();
-    if token.is_empty() {
-        return None;
-    }
-
-    if let Some((user, password)) = token.split_once(':') {
-        Some((user.trim().to_string(), Some(password.trim().to_string())))
-    } else {
-        Some((cassie.auth_user.clone(), Some(token.to_string())))
-    }
+fn cookie_token(headers: &HeaderMap) -> Option<String> {
+    let raw = headers.get("cookie")?.to_str().ok()?;
+    raw.split(';').find_map(|part| {
+        let (name, value) = part.trim().split_once('=')?;
+        (name == crate::rest::sessions::SESSION_COOKIE && !value.is_empty())
+            .then(|| value.to_string())
+    })
 }
 
 #[cfg(test)]

@@ -171,18 +171,36 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
         let server = tokio::spawn(cassie::rest::router::run(addr.to_string(), cassie));
         tokio::time::sleep(Duration::from_millis(75)).await;
         let client = reqwest::Client::new();
+        let reader_cookie = client
+            .post(format!("http://{addr}/api/v1/auth/login"))
+            .json(&serde_json::json!({
+                "username": "rest_reader",
+                "password": "reader-secret"
+            }))
+            .send()
+            .await
+            .expect("login request")
+            .headers()
+            .get("set-cookie")
+            .expect("session cookie")
+            .to_str()
+            .expect("session cookie value")
+            .split(';')
+            .next()
+            .expect("session cookie pair")
+            .to_string();
 
         // Act
         let select = client
             .post(format!("http://{addr}/api/v1/admin/query/execute"))
-            .header("authorization", "Bearer rest_reader:reader-secret")
+            .header("cookie", &reader_cookie)
             .json(&serde_json::json!({"sql": "SELECT title FROM rest_role_docs"}))
             .send()
             .await
             .expect("reader select");
         let insert = client
             .post(format!("http://{addr}/api/v1/admin/query/execute"))
-            .header("authorization", "Bearer rest_reader:reader-secret")
+            .header("cookie", &reader_cookie)
             .json(&serde_json::json!({
                 "sql": "INSERT INTO rest_role_docs (title) VALUES ('blocked')"
             }))

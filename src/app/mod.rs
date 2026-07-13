@@ -70,6 +70,7 @@ pub(crate) use session::TransactionRowChange;
 pub use state::{Cassie, CassieRuntimeConfigState};
 
 mod auth;
+pub(crate) use auth::AuthenticatedPrincipal;
 mod bulk_ingest;
 mod consistency;
 mod database_images;

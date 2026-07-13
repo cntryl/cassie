@@ -348,13 +348,14 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Tests: duplicate names across databases/schemas and admin/read-only authorization on every
     resource route.
 - [ ] Replace `Bearer <user>:<password>` and browser `localStorage` credentials with opaque server
-  sessions.
-  - Add login/current-session/logout endpoints, random tokens, expiry, revocation, bounded session
-    storage/cleanup, and `HttpOnly`/`Secure`/`SameSite` cookies.
+    sessions.
+  - [x] Add login/current-session/logout endpoints, cryptographically random tokens hashed at rest,
+    expiry, revocation, bounded session storage/cleanup, and `HttpOnly`/`SameSite=Strict` cookies.
+    `Secure` is deferred to the inbound-TLS slice.
   - Remove password/token persistence and per-request password headers from the UI.
   - Add global 401 handling, session bootstrap after reload, and server-backed logout.
-  - Tests: invalid login, expiry, revocation, password rotation/role deletion, cookie flags, session
-    caps, reload, redirect, and logout.
+  - Tests: invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
+    and logout are covered; expiry, role deletion, session caps, UI bootstrap/redirect remain.
 - [ ] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
   - Tests: valid HTTPS, missing/invalid key/certificate, and plaintext policy.
 - [ ] Bound and harden HTTP.

@@ -9,6 +9,32 @@ fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
+async fn rest_login_cookie(
+    client: &reqwest::Client,
+    url: String,
+    user: &str,
+    password: &str,
+) -> String {
+    client
+        .post(url)
+        .json(&serde_json::json!({
+            "username": user,
+            "password": password
+        }))
+        .send()
+        .await
+        .expect("login request")
+        .headers()
+        .get("set-cookie")
+        .expect("session cookie")
+        .to_str()
+        .expect("session cookie value")
+        .split(';')
+        .next()
+        .expect("session cookie pair")
+        .to_string()
+}
+
 #[test]
 fn should_default_new_session_database_from_config() {
     // Arrange
@@ -362,7 +388,7 @@ fn should_reject_authentication_for_dropped_login_role() {
 }
 
 #[test]
-fn should_enforce_deterministic_rest_bearer_auth() {
+fn should_require_opaque_rest_sessions() {
     // Arrange
     let path = data_dir("rest_auth");
     let config = CassieRuntimeConfig {
@@ -399,6 +425,21 @@ fn should_enforce_deterministic_rest_bearer_auth() {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let client = reqwest::Client::new();
 
+        let admin_cookie = rest_login_cookie(
+            &client,
+            format!("http://{addr}/api/v1/auth/login"),
+            "sa",
+            "topsecret",
+        )
+        .await;
+        let reader_cookie = rest_login_cookie(
+            &client,
+            format!("http://{addr}/api/v1/auth/login"),
+            "alice",
+            "alice-secret",
+        )
+        .await;
+
         // Act
         let unauthorized = client
             .get(format!("http://{addr}/api/v1/collections"))
@@ -415,14 +456,14 @@ fn should_enforce_deterministic_rest_bearer_auth() {
 
         let authorized = client
             .get(format!("http://{addr}/api/v1/collections"))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .send()
             .await
             .expect("request with correct auth");
 
         let forbidden = client
             .get(format!("http://{addr}/api/v1/collections"))
-            .header("authorization", "Bearer alice:alice-secret")
+            .header("cookie", &reader_cookie)
             .send()
             .await
             .expect("request with non-admin auth");

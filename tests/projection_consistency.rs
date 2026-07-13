@@ -74,6 +74,27 @@ async fn spawn_rest_server(
     (format!("http://{addr}"), server)
 }
 
+async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
+    client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .json(&serde_json::json!({
+            "username": "sa",
+            "password": "topsecret"
+        }))
+        .send()
+        .await
+        .expect("login request")
+        .headers()
+        .get("set-cookie")
+        .expect("session cookie")
+        .to_str()
+        .expect("session cookie value")
+        .split(';')
+        .next()
+        .expect("session cookie pair")
+        .to_string()
+}
+
 #[test]
 fn should_export_projection_verification_manifest_with_canonical_ordering() {
     // Arrange
@@ -373,6 +394,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
 
         let (base_url, server) = spawn_rest_server(cassie.clone()).await;
         let client = reqwest::Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
         let nonce = Uuid::new_v4().to_string();
 
         // Act
@@ -388,7 +410,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .post(format!(
                 "{base_url}/api/v1/admin/projections/consistency_rest_docs/verification-manifest"
             ))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
                 "instance_id": "rest-a",
                 "generated_ms": 4_000_000_000_000_u64,
@@ -405,7 +427,7 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
             .post(format!(
                 "{base_url}/api/v1/admin/projection-consistency-checks"
             ))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({"manifests": [manifest.clone(), manifest]}))
             .send()
             .await
@@ -465,13 +487,14 @@ fn should_support_restful_projection_consistency_aliases() {
 
         let (base_url, server) = spawn_rest_server(cassie.clone()).await;
         let client = reqwest::Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let manifest_response = client
             .post(format!(
                 "{base_url}/api/v1/admin/projections/consistency_rest_alias_docs/verification-manifests"
             ))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
                 "instance_id": "rest-a",
                 "generated_ms": 4_000_000_000_000_u64,
@@ -489,7 +512,7 @@ fn should_support_restful_projection_consistency_aliases() {
 
         let report_response = client
             .post(format!("{base_url}/api/v1/admin/projection-consistency-reports"))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({"manifests": [manifest.clone(), manifest]}))
             .send()
             .await
@@ -502,7 +525,7 @@ fn should_support_restful_projection_consistency_aliases() {
 
         let report_list_response = client
             .get(format!("{base_url}/api/v1/admin/projection-consistency-reports"))
-            .header("authorization", "Bearer sa:topsecret")
+            .header("cookie", &admin_cookie)
             .send()
             .await
             .expect("reports request");

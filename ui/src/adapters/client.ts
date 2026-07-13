@@ -1,7 +1,5 @@
 import { FetchClient } from "@fgrzl/fetch";
 
-import { getAuthorizationHeader } from "@/shared/auth";
-
 const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_CASSIE_API_BASE_URL) || "/";
 
@@ -30,15 +28,14 @@ client.use((request, next) => {
     headers.set("x-request-id", createRequestId());
   }
 
-  if (!headers.has("Authorization")) {
-    const authHeader = getAuthorizationHeader();
-    if (authHeader !== null) {
-      headers.set("Authorization", authHeader);
-    }
-  }
-
   return next({
     ...request,
     headers,
+  }).then((response) => {
+    const path = new URL(request.url ?? API_BASE_URL, window.location.origin).pathname;
+    if (response.status === 401 && path !== "/api/v1/auth/login") {
+      window.location.assign("/login");
+    }
+    return response;
   });
 });

@@ -19,6 +19,27 @@ fn data_dir(label: &str) -> String {
     temp_path(label).to_string_lossy().to_string()
 }
 
+async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
+    client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .json(&serde_json::json!({
+            "username": "postgres",
+            "password": "postgres"
+        }))
+        .send()
+        .await
+        .expect("login request")
+        .headers()
+        .get("set-cookie")
+        .expect("session cookie")
+        .to_str()
+        .expect("session cookie value")
+        .split(';')
+        .next()
+        .expect("session cookie pair")
+        .to_string()
+}
+
 fn write_dist_fixture(label: &str) -> PathBuf {
     let dist = temp_path(label);
     std::fs::create_dir_all(dist.join("assets")).expect("create assets dir");
@@ -303,11 +324,12 @@ fn should_not_serve_admin_shell_for_unmatched_api_routes() {
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
         let client = reqwest::Client::new();
+        let session_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let response = client
             .get(format!("{base_url}/api/v1/does-not-exist"))
-            .header("authorization", "Bearer postgres:postgres")
+            .header("cookie", &session_cookie)
             .send()
             .await
             .expect("unmatched api request");

@@ -9,7 +9,6 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-const ADMIN_AUTH: &str = "Bearer postgres:postgres";
 type QueryEndpointCase = (reqwest::Method, String, Option<serde_json::Value>);
 
 fn with_fallback() {
@@ -171,15 +170,37 @@ fn plan_feature_enabled(plan: &serde_json::Value, feature_id: &str) -> bool {
         .any(|feature| feature["id"] == feature_id && feature["enabled"] == true)
 }
 
+async fn login_cookie(client: &Client, base_url: &str) -> String {
+    client
+        .post(format!("{base_url}/api/v1/auth/login"))
+        .json(&serde_json::json!({
+            "username": "postgres",
+            "password": "postgres"
+        }))
+        .send()
+        .await
+        .expect("login request")
+        .headers()
+        .get("set-cookie")
+        .expect("session cookie")
+        .to_str()
+        .expect("session cookie value")
+        .split(';')
+        .next()
+        .expect("session cookie pair")
+        .to_string()
+}
+
 async fn post_admin_query(
     client: &Client,
     base_url: &str,
     path: &str,
     sql: &str,
 ) -> reqwest::Response {
+    let session_cookie = login_cookie(client, base_url).await;
     client
         .post(format!("{base_url}{path}"))
-        .header("authorization", ADMIN_AUTH)
+        .header("cookie", session_cookie)
         .json(&serde_json::json!({ "sql": sql }))
         .send()
         .await
@@ -239,11 +260,12 @@ fn should_execute_admin_query_through_rest() {
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let response = client
             .post(format!("{base_url}/api/v1/admin/query/execute"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs ORDER BY title"
             }))
@@ -280,11 +302,12 @@ fn should_validate_admin_query_through_rest() {
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let valid = client
             .post(format!("{base_url}/api/v1/admin/query/validate"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs"
             }))
@@ -295,7 +318,7 @@ fn should_validate_admin_query_through_rest() {
         let valid_payload = valid.json::<serde_json::Value>().await.expect("valid json");
         let malformed = client
             .post(format!("{base_url}/api/v1/admin/query/validate"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({"sql": "SELECT FROM"}))
             .send()
             .await
@@ -482,11 +505,12 @@ fn should_explain_admin_query_through_rest() {
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let response = client
             .post(format!("{base_url}/api/v1/admin/query/explain"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
                 "sql": "SELECT title FROM rest_admin_query_docs WHERE title = 'alpha'"
             }))
@@ -550,11 +574,12 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let response = client
             .get(format!("{base_url}/api/v1/admin/query/schema"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .send()
             .await
             .expect("schema request");
@@ -615,11 +640,12 @@ fn should_serve_restful_admin_aliases() {
         seed_query_catalog(&cassie);
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         // Act
         let catalog_response = client
             .get(format!("{base_url}/api/v1/admin/catalog"))
-            .header("authorization", ADMIN_AUTH)
+            .header("cookie", &admin_cookie)
             .send()
             .await
             .expect("catalog request");
@@ -720,6 +746,7 @@ fn should_return_method_not_allowed_for_known_admin_query_paths() {
         cassie.startup().expect("startup");
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
 
         for path in [
             "/api/v1/admin/query/execute",
@@ -728,7 +755,7 @@ fn should_return_method_not_allowed_for_known_admin_query_paths() {
             // Act
             let response = client
                 .get(format!("{base_url}{path}"))
-                .header("authorization", ADMIN_AUTH)
+                .header("cookie", &admin_cookie)
                 .send()
                 .await
                 .expect("method request");

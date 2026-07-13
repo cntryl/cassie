@@ -225,6 +225,7 @@ fn capacity_category_for_entry(
     match capacity_key_kind(key, prefixes) {
         CapacityKeyKind::RowBlob => CATEGORY_ROW_BLOBS,
         CapacityKeyKind::ScalarIndex => CATEGORY_SCALAR_INDEXES,
+        CapacityKeyKind::FullTextMetadata => CATEGORY_FULLTEXT,
         CapacityKeyKind::IndexMetadata => index_metadata_category(value),
         CapacityKeyKind::VectorSidecar => CATEGORY_VECTOR_SIDECARS,
         CapacityKeyKind::ColumnBatch => CATEGORY_COLUMN_BATCHES,

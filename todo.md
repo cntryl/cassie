@@ -250,23 +250,36 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
     and exact frame counts.
   - Benchmark: `perf.pgwire.multi_statement_query.10k` and `.100k` in Tier 4
     `tier4_integration_pgwire` use real pgwire transport and three-result statement batches.
-- [ ] Finish binary pgwire formats.
-  - Never advertise binary while sending text fallback bytes.
-  - Add exact result and parameter codecs for every advertised OID, especially UUID and
-    date/time/timestamp.
-  - Validate requested formats against prepared result schemas at Bind/Describe.
-  - Reject unsupported binary vector/array/other representations with `0A000`.
-  - Tests: byte-level DataRow coverage for null, bool, all integer widths, float8, bytea, UUID,
-    date/time/timestamp, text-compatible types, mixed formats, and unsupported representations.
-  - Benchmark: Tier-4 10k/100k binary parameter/result round trips.
-- [ ] Complete common SQLSTATE coverage and documentation for all reachable unsupported paths.
+- [x] Finish binary pgwire formats.
+  - `src/pgwire/connection/codecs.rs` now uses an OID-based registry with exact result and
+    parameter codecs for bool, all integer widths, float8, bytea, UUID, date, time, timestamp,
+    text-compatible types, JSON, and unknown text-compatible values; binary values never fall
+    through to text bytes.
+  - Bind validates requested result formats against the prepared result schema; portal Describe
+    and execution repeat the same registry validation before advertising or writing binary rows.
+  - Vector, array, and unregistered binary OIDs are rejected deterministically with `0A000`.
+  - `tests/pgwire_binary_codecs.rs` covers byte-level null/scalar/mixed DataRows, temporal and UUID
+    binary parameters, and vector/array rejection.
+  - Benchmark: `perf.pgwire.binary_query.10k` and `.100k` in Tier 4 use a real raw pgwire
+    extended-protocol client with binary parameter and mixed binary/text result formats.
+- [x] Complete common SQLSTATE coverage and documentation for all reachable unsupported paths.
+  - `docs/postgres-compatibility.md` now inventories protocol framing (`08P01`), invalid
+    statement/portal (`26000`), unsupported feature and binary codec (`0A000`), catalog,
+    transaction, auth, privilege, deadline, admission, and retryable-storage mappings with the
+    owning deterministic tests.
 
 ## Phase 5 — persisted retrieval in lexkey v5
 
-- [ ] Persist full-text retrieval state in Midge.
-  - Store postings, term frequencies, document lengths, and corpus statistics with a built
-    generation; stop rebuilding an `InvertedIndex` from every row on every query.
-  - Maintain it atomically on insert/update/delete and index create/drop/rename/rebuild.
+- [x] Persist full-text retrieval state in Midge.
+  - Full-text metadata, analyzer configuration, generation manifests, postings, document term
+    frequencies, document lengths, and corpus statistics are stored in the owning Midge database
+    family using the compact lexkey v5 artifact markers.
+  - Document insert/update/delete refreshes all full-text artifacts in the same transaction as the
+    base row and generation increment; index publication and collection/field lifecycle replay are
+    idempotent and clean their dependent artifacts.
+  - Tests: `tests/fulltext_persisted_retrieval.rs` covers exact postings/statistics, stale-term
+    removal, delete cleanup, and restart reload.
+- [ ] Add full-text publication debt, corruption fencing, and bounded fallback.
   - Add durable publication/debt replay, corruption detection, deterministic row-scan fallback,
     and stage metrics.
   - Tests: restart, mutation, cleanup, interrupted publication, corrupt postings, old-generation

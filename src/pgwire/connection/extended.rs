@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncWrite, AsyncWriteExt, BufReader};
 
 use super::blocking::run_pgwire_blocking;
+use super::codecs::{binary_to_value, validate_result_formats};
 use super::errors::{PgWireError, PgWireSeverity};
 use super::readers::read_frontend_message;
 use super::state::{DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState};
@@ -21,17 +22,12 @@ use crate::runtime::{ExecutionMode, RuntimeState};
 use crate::types::Value;
 
 const OID_BOOL: i32 = 16;
-const OID_BYTEA: i32 = 17;
 const OID_INT8: i32 = 20;
 const OID_INT2: i32 = 21;
 const OID_INT4: i32 = 23;
-const OID_TEXT: i32 = 25;
 const OID_JSON: i32 = 114;
 const OID_FLOAT8: i32 = 701;
 const OID_UNKNOWN: i32 = 705;
-const OID_BPCHAR: i32 = 1042;
-const OID_VARCHAR: i32 = 1043;
-const OID_UUID: i32 = 2950;
 
 pub(super) async fn handle_frontend_message(
     cassie: Arc<Cassie>,
@@ -120,7 +116,7 @@ async fn dispatch_message(
                 parameters,
                 result_formats,
             };
-            handle_bind(runtime, write_half, state, bind).await?;
+            handle_bind(cassie, runtime, write_half, state, bind).await?;
         }
         FrontendMessage::Describe { target, name } => {
             runtime.record_pgwire_message("describe");
@@ -255,6 +251,7 @@ struct BindRequest {
 }
 
 async fn handle_bind(
+    cassie: Arc<Cassie>,
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
@@ -274,6 +271,11 @@ async fn handle_bind(
         .get(&statement)
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
+    if !result_formats.is_empty() {
+        let columns = describe_prepared(cassie, prepared.clone()).await?;
+        validate_result_formats(&columns, &result_formats)
+            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    }
     if parameters.len() != prepared.parameter_count {
         return Err(ExtendedQueryError::protocol(format!(
             "bind for statement '{}' requires {} parameters but got {}",
@@ -751,47 +753,8 @@ fn decode_text_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQu
 }
 
 fn decode_binary_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQueryError> {
-    match oid {
-        OID_BOOL => fixed_bytes::<1>(parameter, "bool").map(|bytes| Value::Bool(bytes[0] != 0)),
-        OID_INT2 => fixed_bytes::<2>(parameter, "int2")
-            .map(i16::from_be_bytes)
-            .map(|value| Value::Int64(i64::from(value))),
-        OID_INT4 => fixed_bytes::<4>(parameter, "int4")
-            .map(i32::from_be_bytes)
-            .map(|value| Value::Int64(i64::from(value))),
-        OID_INT8 => fixed_bytes::<8>(parameter, "int8")
-            .map(i64::from_be_bytes)
-            .map(Value::Int64),
-        OID_FLOAT8 => fixed_bytes::<8>(parameter, "float8")
-            .map(f64::from_be_bytes)
-            .map(Value::Float64),
-        OID_BYTEA => Ok(Value::String(hex_bytea(parameter))),
-        OID_JSON => {
-            let text = str::from_utf8(parameter)
-                .map_err(|_| ExtendedQueryError::protocol("JSON bind parameter is not UTF-8"))?;
-            serde_json::from_str(text)
-                .map(Value::Json)
-                .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter"))
-        }
-        OID_UUID if parameter.len() == 16 => uuid::Uuid::from_slice(parameter)
-            .map(|value| Value::String(value.to_string()))
-            .map_err(|_| ExtendedQueryError::protocol("invalid UUID bind parameter")),
-        OID_TEXT | OID_BPCHAR | OID_VARCHAR | OID_UNKNOWN | OID_UUID => str::from_utf8(parameter)
-            .map(|text| Value::String(text.to_string()))
-            .map_err(|_| ExtendedQueryError::protocol("bind parameter is not valid UTF-8")),
-        _ => str::from_utf8(parameter)
-            .map(|text| Value::String(text.to_string()))
-            .map_err(|_| ExtendedQueryError::protocol("bind parameter is not valid UTF-8")),
-    }
-}
-
-fn fixed_bytes<const N: usize>(
-    parameter: &[u8],
-    type_name: &str,
-) -> Result<[u8; N], ExtendedQueryError> {
-    parameter.try_into().map_err(|_| {
-        ExtendedQueryError::protocol(format!("invalid binary {type_name} bind parameter"))
-    })
+    binary_to_value(parameter, i64::from(oid))
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))
 }
 
 fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
@@ -802,17 +765,6 @@ fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
             "invalid boolean bind parameter",
         )),
     }
-}
-
-fn hex_bytea(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut out = String::with_capacity(2 + bytes.len().saturating_mul(2));
-    out.push_str("\\x");
-    for byte in bytes {
-        out.push(char::from(HEX[usize::from(byte >> 4)]));
-        out.push(char::from(HEX[usize::from(byte & 0x0f)]));
-    }
-    out
 }
 
 fn missing_statement_error(name: &str) -> ExtendedQueryError {
@@ -857,6 +809,9 @@ impl ExtendedQueryError {
     }
 
     fn protocol_from_io(error: &io::Error) -> Self {
+        if error.kind() == io::ErrorKind::Unsupported {
+            return Self::unsupported(error.to_string());
+        }
         Self::protocol(error.to_string())
     }
 

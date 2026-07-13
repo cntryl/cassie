@@ -9,6 +9,7 @@ use super::{
 
 #[path = "schema_ops_helpers.rs"]
 mod schema_ops_helpers;
+use schema_ops_helpers::PendingFieldDrop;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct PendingCollectionRename {
@@ -28,18 +29,6 @@ struct PendingFieldRename {
     collection: String,
     current_name: String,
     next_name: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct PendingFieldDrop {
-    collection: String,
-    field: String,
-    #[serde(default)]
-    column_names: Vec<String>,
-    scalar_names: Vec<String>,
-    time_series_names: Vec<String>,
-    #[serde(default)]
-    vector_names: Vec<String>,
 }
 
 impl Midge {
@@ -343,6 +332,7 @@ impl Midge {
             Self::doc_prefix(name),
             Self::scalar_index_collection_prefix(name),
             Self::time_series_index_collection_prefix(name),
+            Self::fulltext_index_collection_prefix(name),
             Self::normalized_vector_collection_prefix(name),
             Self::vector_index_state_prefix(name),
             super::key_encoding::unique_constraint_reservation_prefix(name),
@@ -525,6 +515,7 @@ impl Midge {
             column_names: dropped_indexes.columns.clone(),
             scalar_names: dropped_indexes.scalars.clone(),
             time_series_names: dropped_indexes.time_series.clone(),
+            fulltext_names: dropped_indexes.fulltext.clone(),
             vector_names: dropped_indexes.vectors.clone(),
         };
         tx.put(
@@ -938,6 +929,7 @@ impl Midge {
                 columns: pending.column_names.clone(),
                 scalars: pending.scalar_names.clone(),
                 time_series: pending.time_series_names.clone(),
+                fulltext: pending.fulltext_names.clone(),
                 vectors: pending.vector_names.clone(),
             },
         )?;

@@ -4,6 +4,8 @@ const SIMPLE_QUERY_WARMUP_BATCHES: usize = 2;
 const SIMPLE_QUERY_ROWS: usize = 20;
 const MULTI_STATEMENT_QUERY_BATCH: usize = 128;
 const MULTI_STATEMENT_QUERY_ROWS: usize = 60;
+const BINARY_QUERY_BATCH: usize = 128;
+const BINARY_QUERY_ROWS: usize = 20;
 const PREPARED_QUERY_BATCH: usize = 1_024;
 const PREPARED_QUERY_ROWS: usize = 25;
 const CONNECTION_CHURN_BATCH: usize = 32;
@@ -23,6 +25,7 @@ fn main() {
 
     bench_simple_query(&mut runner, &runtime);
     bench_multi_statement_query(&mut runner, &runtime);
+    bench_binary_query(&mut runner, &runtime);
     bench_prepared_query(&mut runner, &runtime);
     bench_legacy_rows(&mut runner, &runtime);
 
@@ -104,6 +107,38 @@ fn bench_simple_query(runner: &mut stress::CassieStressRunner, runtime: &tokio::
             case.metadata("operation_unit", "result_row"),
             logical_operations(SIMPLE_QUERY_BATCH * SIMPLE_QUERY_ROWS),
             || pgwire_simple_query_batch(runtime, &ctx, sql, SIMPLE_QUERY_BATCH),
+        );
+    }
+}
+
+fn bench_binary_query(runner: &mut stress::CassieStressRunner, runtime: &tokio::runtime::Runtime) {
+    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
+        let benchmark =
+            performance_benchmarks::expect_benchmark(BENCHMARK, "pgwire_binary_query", dataset);
+        let case =
+            stress::StressCase::fixed_operations(4, benchmark.workload, benchmark.fixture_scale);
+        if !runner.is_enabled(&case) {
+            continue;
+        }
+        let ctx = runtime
+            .block_on(workloads::pgwire_transport_context(
+                &format!("tier4-pgwire-binary-{dataset}"),
+                rows,
+            ))
+            .expect("binary pgwire benchmark context");
+        let expected_rows = BINARY_QUERY_BATCH * BINARY_QUERY_ROWS;
+        for _ in 0..SIMPLE_QUERY_WARMUP_BATCHES {
+            let measured_rows = pgwire_binary_query_batch(runtime, &ctx, BINARY_QUERY_BATCH);
+            assert_eq!(measured_rows, expected_rows, "binary result cardinality");
+        }
+        runner.fixed_timed_count(
+            case.metadata("operation_unit", "result_row"),
+            logical_operations(expected_rows),
+            || {
+                let measured_rows = pgwire_binary_query_batch(runtime, &ctx, BINARY_QUERY_BATCH);
+                assert_eq!(measured_rows, expected_rows, "binary result cardinality");
+                measured_rows
+            },
         );
     }
 }
@@ -211,6 +246,18 @@ fn pgwire_multi_statement_query_batch(
     for _ in 0..queries {
         rows = rows
             .saturating_add(runtime.block_on(workloads::pgwire_transport_simple_query(ctx, sql)));
+    }
+    std::hint::black_box(rows)
+}
+
+fn pgwire_binary_query_batch(
+    runtime: &tokio::runtime::Runtime,
+    ctx: &workloads::PgwireTransportBenchContext,
+    queries: usize,
+) -> usize {
+    let mut rows = 0usize;
+    for _ in 0..queries {
+        rows = rows.saturating_add(runtime.block_on(workloads::pgwire_transport_binary_query(ctx)));
     }
     std::hint::black_box(rows)
 }

@@ -107,11 +107,13 @@ Supported:
 - Positive extended-query execute row limits can suspend portals and emit portal-suspended frames; `max_rows = 0` executes all remaining rows.
 - Extended-query protocol errors enter sync-drain mode and return deterministic PostgreSQL-style error fields before ReadyForQuery.
 - Row description, data row, command complete, error response, and ready-for-query messages.
-- Text format and limited binary format paths are covered by tests for the currently implemented subset of result types; unsupported binary representations are rejected as unsupported features.
+- Text format plus OID-registered binary result and parameter codecs for bool, all integer widths,
+  float8, bytea, UUID, date, time, timestamp, text-compatible types, and JSON. Binary vector,
+  array, and unregistered OID representations are rejected as unsupported features before rows are
+  advertised or written.
 
-Complete advertised binary codecs and a reachable SQLSTATE inventory remain experimental protocol
-boundaries; the current subset must not be read as binary or error-parity coverage for every
-advertised type and path.
+The common binary codec and SQLSTATE inventory is now executable and documented; it remains a
+Cassie read-model subset and must not be read as complete PostgreSQL protocol or error parity.
 
 Unsupported or not yet guaranteed:
 
@@ -129,6 +131,9 @@ Common pgwire-visible error mappings:
 
 - malformed SQL and invalid query text: SQLSTATE `42601`
 - unsupported features: SQLSTATE `0A000`
+- unsupported binary vector, array, or unregistered OID formats: SQLSTATE `0A000`
+- invalid frontend framing and unsupported protocol format codes/counts: SQLSTATE `08P01`
+- missing prepared statements and portals: SQLSTATE `26000`
 - missing relations and views: SQLSTATE `42P01`
 - missing databases: SQLSTATE `3D000`
 - missing schemas: SQLSTATE `3F000`
@@ -136,6 +141,14 @@ Common pgwire-visible error mappings:
 - retryable-storage/runtime-boundary failures: SQLSTATE `57P03`
 - auth failures: SQLSTATE `28000`
 - insufficient privilege for authenticated read-only roles: SQLSTATE `42501`
+- admission exhaustion: SQLSTATE `53300`
+
+The reachable inventory is exercised by `tests/pgwire_hardening.rs`,
+`tests/pgwire_binary_codecs.rs`, `tests/pgwire_extended_control.rs`,
+`tests/pgwire_extended_metadata.rs`, `tests/pgwire_simple_query.rs`,
+`tests/pgwire_database_scope.rs`, `tests/pgwire_transaction_semantics.rs`,
+`tests/pgwire_startup.rs`, `tests/admission_control.rs`, and the compatibility matrix. These are
+Cassie's deterministic common-path mappings, not a claim of exhaustive PostgreSQL SQLSTATE parity.
 
 ## Catalog Compatibility
 

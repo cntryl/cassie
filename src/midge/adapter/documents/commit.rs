@@ -14,6 +14,7 @@ impl Midge {
             String,
             Vec<(String, Vec<crate::embeddings::NormalizedVectorRecord>)>,
         >,
+        fulltext_indexes_by_collection: &BTreeMap<String, Vec<crate::catalog::IndexMeta>>,
     ) -> Result<BTreeMap<String, DocumentWriteBatchReport>, CassieError> {
         if changed_collections.is_empty() {
             tx.rollback().map_err(CassieError::from)?;
@@ -38,6 +39,11 @@ impl Midge {
                 Self::record_materialized_projection_maintenance_debt_in_tx(
                     &mut tx, collection, generation,
                 )?;
+            }
+            if let Some(indexes) = fulltext_indexes_by_collection.get(collection) {
+                for index in indexes {
+                    self.rebuild_fulltext_index_in_tx(&mut tx, collection, index, generation)?;
+                }
             }
             generations.insert(collection.clone(), generation);
         }

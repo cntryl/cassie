@@ -106,6 +106,9 @@ impl Midge {
                 IndexKind::Column => {
                     self.rebuild_column_batches_for_index(&publication.index)?;
                 }
+                IndexKind::FullText => {
+                    self.rebuild_fulltext_index_for_index(&publication.index)?;
+                }
                 _ => {}
             }
             if self.collection_generation(&publication.index.collection)?

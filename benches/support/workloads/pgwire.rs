@@ -23,6 +23,7 @@ use cassie::search::{bm25, tokenizer};
 use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Notify;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
@@ -130,6 +131,71 @@ pub async fn pgwire_transport_simple_query(ctx: &PgwireTransportBenchContext, sq
         .into_iter()
         .filter(|message| matches!(message, tokio_postgres::SimpleQueryMessage::Row(_)))
         .count();
+    std::hint::black_box(rows)
+}
+
+pub async fn pgwire_transport_binary_query(ctx: &PgwireTransportBenchContext) -> usize {
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", ctx.port))
+        .await
+        .expect("connect binary pgwire benchmark client");
+    stream
+        .write_all(&binary_startup_frame())
+        .await
+        .expect("write binary startup");
+    let authentication = read_binary_frame(&mut stream).await;
+    assert_eq!(
+        authentication.0, b'R',
+        "binary startup authentication frame"
+    );
+    loop {
+        let frame = read_binary_frame(&mut stream).await;
+        if frame.0 == b'Z' {
+            assert_eq!(frame.1, vec![b'I'], "binary startup ready state");
+            break;
+        }
+    }
+
+    stream
+        .write_all(&binary_parse_frame())
+        .await
+        .expect("write binary parse");
+    stream
+        .write_all(&binary_sync_frame())
+        .await
+        .expect("write binary parse sync");
+    stream.flush().await.expect("flush binary parse");
+    loop {
+        if read_binary_frame(&mut stream).await.0 == b'Z' {
+            break;
+        }
+    }
+
+    stream
+        .write_all(&binary_bind_frame())
+        .await
+        .expect("write binary bind");
+    stream
+        .write_all(&binary_execute_frame())
+        .await
+        .expect("write binary execute");
+    stream
+        .write_all(&binary_sync_frame())
+        .await
+        .expect("write binary sync");
+    stream.flush().await.expect("flush binary query");
+
+    let mut rows = 0usize;
+    loop {
+        let frame = read_binary_frame(&mut stream).await;
+        if frame.0 == b'D' {
+            assert_binary_result_row(&frame.1);
+            rows = rows.saturating_add(1);
+        }
+        if frame.0 == b'Z' {
+            assert_eq!(frame.1, vec![b'I'], "binary query ready state");
+            break;
+        }
+    }
     std::hint::black_box(rows)
 }
 
@@ -275,20 +341,23 @@ async fn spawn_pgwire_server(ctx: &BenchContext) -> Result<PgwireServerContext, 
 }
 
 async fn wait_for_pgwire_server(port: u16) -> Result<(), CassieError> {
+    let mut last_error = None;
     for _ in 0..100 {
         match connect_pgwire_client(port).await {
             Ok((_, connection)) => {
                 connection.abort();
                 return Ok(());
             }
-            Err(_) => {
+            Err(error) => {
+                last_error = Some(error.to_string());
                 tokio::time::sleep(Duration::from_millis(10)).await;
             }
         }
     }
-    Err(CassieError::Execution(
-        "pgwire benchmark server did not become ready".to_string(),
-    ))
+    Err(CassieError::Execution(format!(
+        "pgwire benchmark server did not become ready: {}",
+        last_error.unwrap_or_else(|| "no connection attempt completed".to_string())
+    )))
 }
 
 async fn connect_pgwire_client(
@@ -299,10 +368,13 @@ async fn connect_pgwire_client(
     client_config.port(port);
     client_config.user("postgres");
     client_config.dbname("postgres");
-    let (client, connection) = client_config
-        .connect(NoTls)
-        .await
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
+    let (client, connection) = client_config.connect(NoTls).await.map_err(|error| {
+        CassieError::Execution(format!(
+            "{error} (hosts={:?}, ports={:?})",
+            client_config.get_hosts(),
+            client_config.get_ports()
+        ))
+    })?;
     let connection = tokio::spawn(async move {
         connection
             .await
@@ -316,4 +388,86 @@ fn reserve_local_addr() -> std::io::Result<String> {
     let addr = listener.local_addr()?;
     drop(listener);
     Ok(addr.to_string())
+}
+
+fn binary_startup_frame() -> Vec<u8> {
+    let payload = b"\x00\x03\x00\x00user\0postgres\0database\0postgres\0\0";
+    let mut frame = Vec::with_capacity(payload.len() + 4);
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("binary startup payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    frame
+}
+
+fn binary_parse_frame() -> Vec<u8> {
+    let mut payload = b"binary_bench_stmt\0SELECT score, title FROM bench_documents WHERE score = $1 ORDER BY score ASC LIMIT 20\0".to_vec();
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&23_i32.to_be_bytes());
+    binary_frontend_frame(b'P', &payload)
+}
+
+fn binary_bind_frame() -> Vec<u8> {
+    let mut payload = b"binary_bench_portal\0binary_bench_stmt\0".to_vec();
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&4_i32.to_be_bytes());
+    payload.extend_from_slice(&1_i32.to_be_bytes());
+    payload.extend_from_slice(&2_i16.to_be_bytes());
+    payload.extend_from_slice(&1_i16.to_be_bytes());
+    payload.extend_from_slice(&0_i16.to_be_bytes());
+    binary_frontend_frame(b'B', &payload)
+}
+
+fn binary_execute_frame() -> Vec<u8> {
+    let mut payload = b"binary_bench_portal\0".to_vec();
+    payload.extend_from_slice(&0_i32.to_be_bytes());
+    binary_frontend_frame(b'E', &payload)
+}
+
+fn binary_sync_frame() -> Vec<u8> {
+    binary_frontend_frame(b'S', &[])
+}
+
+fn binary_frontend_frame(tag: u8, payload: &[u8]) -> Vec<u8> {
+    let mut frame = Vec::with_capacity(payload.len() + 5);
+    frame.push(tag);
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("binary frontend payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(payload);
+    frame
+}
+
+async fn read_binary_frame(stream: &mut tokio::net::TcpStream) -> (u8, Vec<u8>) {
+    let mut tag = [0_u8; 1];
+    stream
+        .read_exact(&mut tag)
+        .await
+        .expect("read binary frame tag");
+    let mut length = [0_u8; 4];
+    stream
+        .read_exact(&mut length)
+        .await
+        .expect("read binary frame length");
+    let payload_length = usize::try_from(i32::from_be_bytes(length) - 4)
+        .expect("binary frame length should be non-negative");
+    let mut payload = vec![0_u8; payload_length];
+    stream
+        .read_exact(&mut payload)
+        .await
+        .expect("read binary frame payload");
+    (tag[0], payload)
+}
+
+fn assert_binary_result_row(payload: &[u8]) {
+    let field_count = i16::from_be_bytes(payload[0..2].try_into().expect("binary field count"));
+    assert_eq!(field_count, 2, "binary benchmark result field count");
+    let score_length = i32::from_be_bytes(payload[2..6].try_into().expect("binary score length"));
+    assert_eq!(score_length, 4, "binary int4 result width");
 }

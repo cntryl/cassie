@@ -513,7 +513,7 @@ impl Midge {
         key_encoding::column_store_collection_prefix(collection)
     }
 
-    fn column_store_row_prefix(collection: &str) -> Vec<u8> {
+    pub(crate) fn column_store_row_prefix(collection: &str) -> Vec<u8> {
         key_encoding::column_store_row_prefix(collection)
     }
 

@@ -3,9 +3,16 @@ use cntryl_lexkey::{Encoder, LexKey};
 use crate::app::CassieError;
 use crate::catalog::split_identifier_path;
 
+#[path = "key_encoding/fulltext.rs"]
+mod fulltext;
 #[path = "key_encoding/graph.rs"]
 mod graph;
 
+pub(crate) use fulltext::{
+    fulltext_document_stats_key, fulltext_document_stats_prefix, fulltext_index_artifact_prefix,
+    fulltext_index_collection_prefix, fulltext_index_key, fulltext_index_manifest_key,
+    fulltext_postings_prefix, fulltext_term_postings_key,
+};
 pub(super) use graph::{
     graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_prefix, graph_key,
     graph_outbound_edge_key, graph_outbound_prefix, graph_prefix,
@@ -38,6 +45,7 @@ const FAMILY_VECTOR_INDEX: &[u8] = b"vector-index";
 const FAMILY_VECTOR_INDEX_STATE: &[u8] = b"vector-index-state";
 const FAMILY_NORMALIZED_VECTOR: &[u8] = b"normalized-vector";
 const FAMILY_INDEX: &[u8] = b"index";
+const FAMILY_FULLTEXT_INDEX: &[u8] = b"fulltext-index";
 const FAMILY_SCALAR_INDEX: &[u8] = b"scalar-index";
 const FAMILY_TIME_SERIES_INDEX: &[u8] = b"time-series-index";
 const FAMILY_UNIQUE_RESERVATION: &[u8] = b"unique-reservation";
@@ -72,6 +80,31 @@ const FAMILY_DATA_EPOCH: &[u8] = b"data-epoch";
 const FAMILY_COLLECTION_GENERATION: &[u8] = b"collection-generation";
 const FAMILY_MAINTENANCE_DEBT: &[u8] = b"maintenance-debt";
 
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub(crate) enum FulltextArtifactKind {
+    Meta = 1,
+    Manifest = 2,
+    Postings = 3,
+    Document = 4,
+}
+
+impl FulltextArtifactKind {
+    const fn as_segment(self) -> [u8; 1] {
+        match self {
+            Self::Meta => [Self::Meta as u8],
+            Self::Manifest => [Self::Manifest as u8],
+            Self::Postings => [Self::Postings as u8],
+            Self::Document => [Self::Document as u8],
+        }
+    }
+}
+
+pub(crate) const FULLTEXT_ARTIFACT_META: [u8; 1] = FulltextArtifactKind::Meta.as_segment();
+pub(crate) const FULLTEXT_ARTIFACT_MANIFEST: [u8; 1] = FulltextArtifactKind::Manifest.as_segment();
+pub(crate) const FULLTEXT_ARTIFACT_POSTINGS: [u8; 1] = FulltextArtifactKind::Postings.as_segment();
+pub(crate) const FULLTEXT_ARTIFACT_DOCUMENT: [u8; 1] = FulltextArtifactKind::Document.as_segment();
+
 pub(super) const LEGACY_SCHEMA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
 
 pub(super) const LEGACY_DATA_PREFIXES: &[&[u8]] = &[b"__cassie__/", b"r/", b"doc:"];
@@ -82,6 +115,7 @@ pub(super) const LEGACY_TEMP_PREFIXES: &[&[u8]] = &[b"__cassie__/"];
 pub(super) enum CapacityKeyKind {
     RowBlob,
     ScalarIndex,
+    FullTextMetadata,
     IndexMetadata,
     VectorSidecar,
     ColumnBatch,
@@ -126,6 +160,7 @@ pub(super) fn capacity_key_prefixes() -> Vec<CapacityKeyPrefix> {
             CapacityKeyKind::ProjectionMetadata,
             FAMILY_OPERATIONAL_ASSIGNMENT,
         ),
+        (CapacityKeyKind::FullTextMetadata, FAMILY_FULLTEXT_INDEX),
         (CapacityKeyKind::ProjectionMetadata, FAMILY_ROW_HASH),
         (CapacityKeyKind::ProjectionMetadata, FAMILY_RANGE_HASH),
         (CapacityKeyKind::ProjectionMetadata, FAMILY_ROOT_HASH),

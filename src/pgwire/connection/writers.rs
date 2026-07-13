@@ -1,4 +1,4 @@
-use super::codecs::{value_to_binary, value_to_text};
+use super::codecs::{validate_result_formats, value_to_binary, value_to_text};
 use super::errors::PgWireError;
 use super::{AsyncWrite, AsyncWriteExt, CassieSession};
 use crate::types::Value;
@@ -169,7 +169,7 @@ pub(super) fn append_row_description_frame(
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
-    ensure_valid_result_formats(result_formats, columns.len())?;
+    validate_result_formats(columns, result_formats)?;
     let mut payload = Vec::new();
     payload.extend_from_slice(
         &i16::try_from(columns.len())
@@ -204,7 +204,7 @@ pub(super) fn append_data_row_frame(
     columns: &[crate::executor::ColumnMeta],
     result_formats: &[i16],
 ) -> io::Result<()> {
-    ensure_valid_result_formats(result_formats, columns.len())?;
+    validate_result_formats(columns, result_formats)?;
 
     let mut payload = Vec::new();
     payload.extend_from_slice(
@@ -338,25 +338,6 @@ pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8])
             .to_be_bytes(),
     );
     frame.extend_from_slice(payload);
-    Ok(())
-}
-
-fn ensure_valid_result_formats(result_formats: &[i16], column_count: usize) -> io::Result<()> {
-    if !result_formats.iter().all(|format| matches!(*format, 0 | 1)) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "unsupported result format",
-        ));
-    }
-    if !result_formats.is_empty()
-        && result_formats.len() != 1
-        && result_formats.len() != column_count
-    {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "unsupported result format count",
-        ));
-    }
     Ok(())
 }
 

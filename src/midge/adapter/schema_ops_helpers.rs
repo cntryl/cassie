@@ -4,10 +4,25 @@ use super::{
 };
 use crate::catalog::{canonical_relation_name, local_name, ColumnBatchMetadata, RelationId};
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct PendingFieldDrop {
+    pub(super) collection: String,
+    pub(super) field: String,
+    #[serde(default)]
+    pub(super) column_names: Vec<String>,
+    pub(super) scalar_names: Vec<String>,
+    pub(super) time_series_names: Vec<String>,
+    #[serde(default)]
+    pub(super) fulltext_names: Vec<String>,
+    #[serde(default)]
+    pub(super) vector_names: Vec<String>,
+}
+
 pub(super) struct DroppedCollectionIndexes {
     pub columns: Vec<String>,
     pub scalars: Vec<String>,
     pub time_series: Vec<String>,
+    pub fulltext: Vec<String>,
     pub vectors: Vec<String>,
 }
 
@@ -25,6 +40,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
     let mut dropped_column_indexes = Vec::new();
     let mut dropped_scalar_indexes = Vec::new();
     let mut dropped_time_series_indexes = Vec::new();
+    let mut dropped_fulltext_indexes = Vec::new();
     let mut dropped_vector_indexes = Vec::new();
 
     for (key, value) in indexes {
@@ -54,13 +70,14 @@ pub(super) fn drop_referencing_indexes_in_tx(
             }
             IndexKind::Scalar => dropped_scalar_indexes.push((key, metadata.name)),
             IndexKind::TimeSeries => dropped_time_series_indexes.push((key, metadata.name)),
+            IndexKind::FullText => dropped_fulltext_indexes.push((key, metadata.name)),
             IndexKind::Vector => {
                 tx.delete(key).map_err(CassieError::from)?;
                 tx.delete(Midge::vector_index_key(collection, &metadata.field))
                     .map_err(CassieError::from)?;
                 dropped_vector_indexes.push(metadata.field);
             }
-            _ => {}
+            IndexKind::Hybrid => {}
         }
     }
 
@@ -80,10 +97,17 @@ pub(super) fn drop_referencing_indexes_in_tx(
         time_series_names.push(index_name);
     }
 
+    let mut fulltext_names = Vec::new();
+    for (key, index_name) in dropped_fulltext_indexes {
+        tx.delete(key).map_err(CassieError::from)?;
+        fulltext_names.push(index_name);
+    }
+
     Ok(DroppedCollectionIndexes {
         columns: dropped_column_indexes,
         scalars: scalar_names,
         time_series: time_series_names,
+        fulltext: fulltext_names,
         vectors: dropped_vector_indexes,
     })
 }
@@ -124,6 +148,12 @@ pub(super) fn delete_dropped_field_data(
         Midge::delete_keys_with_prefix(
             &mut data_tx,
             Midge::column_batch_index_prefix(collection, index_name),
+        )?;
+    }
+    for index_name in &dropped_indexes.fulltext {
+        Midge::delete_keys_with_prefix(
+            &mut data_tx,
+            Midge::fulltext_index_artifact_prefix(collection, index_name),
         )?;
     }
     for index_name in &dropped_indexes.scalars {
@@ -590,7 +620,7 @@ fn renamed_scoped_relation_name(
 
 type CollectionRenamePrefix = (Vec<u8>, Vec<u8>, bool);
 
-fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [CollectionRenamePrefix; 12] {
+fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [CollectionRenamePrefix; 13] {
     [
         (
             Midge::row_prefix(current_name),
@@ -610,6 +640,11 @@ fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [Collectio
         (
             Midge::time_series_index_collection_prefix(current_name),
             Midge::time_series_index_collection_prefix(next_name),
+            false,
+        ),
+        (
+            Midge::fulltext_index_collection_prefix(current_name),
+            Midge::fulltext_index_collection_prefix(next_name),
             false,
         ),
         (

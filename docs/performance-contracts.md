@@ -150,7 +150,7 @@ Current boundary ownership:
 
 Validation is owned by the same transport slice:
 
-- pgwire boundary behavior: `tests/pgwire_simple_query.rs`, `tests/pgwire_simple_query_batch.rs`, `tests/pgwire_extended_prepared.rs`, `tests/pgwire_extended_execution.rs`, `tests/pgwire_extended_control.rs`, `tests/pgwire_extended_lifecycle.rs`, `tests/pgwire_startup.rs`, `tests/compatibility_matrix.rs`, `tests/metrics_runtime.rs`.
+- pgwire boundary behavior: `tests/pgwire_simple_query.rs`, `tests/pgwire_simple_query_batch.rs`, `tests/pgwire_binary_codecs.rs`, `tests/pgwire_extended_prepared.rs`, `tests/pgwire_extended_execution.rs`, `tests/pgwire_extended_control.rs`, `tests/pgwire_extended_lifecycle.rs`, `tests/pgwire_startup.rs`, `tests/compatibility_matrix.rs`, `tests/metrics_runtime.rs`.
 - REST boundary behavior: `tests/rest.rs`, `tests/rest_embeddings.rs`, `tests/rest_metrics.rs`, and `tests/metrics_runtime.rs`.
 - static/diff audit: `tests/transport_boundaries.rs` contains a focused scriptable check that verifies transport modules do not call synchronous engine/auth/search/storage APIs directly outside approved blocking helpers.
 
@@ -833,6 +833,8 @@ unproven fallbacks from selected bounded probes.
 | `perf.pgwire.simple_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_simple_query` | 100k |
 | `perf.pgwire.multi_statement_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_multi_statement_query` | 10k |
 | `perf.pgwire.multi_statement_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_multi_statement_query` | 100k |
+| `perf.pgwire.binary_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_binary_query` | 10k |
+| `perf.pgwire.binary_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_binary_query` | 100k |
 | `perf.pgwire.prepared_query.10k` | pgwire | `tier4_integration_pgwire` | `pgwire_prepared_query` | 10k |
 | `perf.pgwire.prepared_query.100k` | pgwire | `tier4_integration_pgwire` | `pgwire_prepared_query` | 100k |
 | `perf.http.document_create_get.10k` | HTTP | `tier4_integration_http` | `http_document_create_get` | 10k |
@@ -853,7 +855,7 @@ unproven fallbacks from selected bounded probes.
 | Vector | `vector.candidate_count_total`, `vector.normalized_fallback_count_total` | `access_path=vector`, `vector.latency_ms_total` |
 | Hybrid | `hybrid.candidate_count_total`, `hybrid.prefilter_fallback_count_total` | `mixed_execution`, `hybrid.latency_ms_total` |
 | Time series | `time_series.bucket_native_hits`, `time_series.fallback_reason`, `retention.skipped_rows`, `retention.errors`, `rollups.refreshes`, `rollups.stale_fallbacks` | `time_series_storage=bucket-native-v1`, `time_series.buckets_scanned`, `time_series.scans`, `ENFORCE RETENTION`, `retention.deleted_rows`, `REFRESH ROLLUP`, `rollups.rewrite_hits` |
-| pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire_multi_statement_query`, `pgwire_prepared_query`, `pgwire.simple_queries_total`, `pgwire.extended_queries_total` |
+| pgwire | `pgwire.blocking_elapsed_ms_total`, `pgwire.protocol_errors_total` | `pgwire_simple_query`, `pgwire_multi_statement_query`, `pgwire_binary_query`, `pgwire_prepared_query`, `pgwire.simple_queries_total`, `pgwire.extended_queries_total` |
 | HTTP | `storage.data.writes`, `vector.normalized_fallback_count_total`, `rest.blocking_error_total` | `documents::create/get`, `http_vector_search`, `rest.requests_total` |
 
 ## Example Discipline

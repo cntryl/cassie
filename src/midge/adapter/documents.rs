@@ -55,6 +55,7 @@ struct DocumentWriteBatchContext {
     unique_scalar_indexes: Vec<IndexMeta>,
     scalar_indexes: Vec<super::IndexMeta>,
     time_series_indexes: Vec<super::IndexMeta>,
+    fulltext_indexes: Vec<super::IndexMeta>,
     graph: Option<crate::catalog::GraphMeta>,
     needs_existing_payload: bool,
 }
@@ -304,6 +305,7 @@ impl Midge {
             let mut reports = BTreeMap::new();
             let mut changed_collections = Vec::new();
             let mut vector_records_by_collection = BTreeMap::new();
+            let mut fulltext_indexes_by_collection = BTreeMap::new();
 
             for (collection, context, prepared_collection) in prepared_writes {
                 let (report, vector_records) = self.apply_prepared_collection_writes(
@@ -320,6 +322,8 @@ impl Midge {
                         &vector_records,
                     )?;
                     vector_records_by_collection.insert(collection.clone(), vector_records);
+                    fulltext_indexes_by_collection
+                        .insert(collection.clone(), context.fulltext_indexes.clone());
                     changed_collections.push(collection.clone());
                 }
                 reports.insert(collection, report);
@@ -331,6 +335,7 @@ impl Midge {
                 reports,
                 changed_collections,
                 &vector_records_by_collection,
+                &fulltext_indexes_by_collection,
             ) {
                 Ok(reports) => return Ok(reports),
                 Err(error)
@@ -416,8 +421,14 @@ impl Midge {
             .cloned()
             .collect::<Vec<_>>();
         let time_series_indexes = indexes
-            .into_iter()
+            .iter()
             .filter(|index| index.collection == collection && index.kind == IndexKind::TimeSeries)
+            .cloned()
+            .collect::<Vec<_>>();
+        let fulltext_indexes = indexes
+            .iter()
+            .filter(|index| index.collection == collection && index.kind == IndexKind::FullText)
+            .cloned()
             .collect::<Vec<_>>();
         let graph = self.graph_for_edge_collection(collection)?;
         let constraints = self
@@ -440,6 +451,7 @@ impl Midge {
             unique_scalar_indexes,
             scalar_indexes,
             time_series_indexes,
+            fulltext_indexes,
             graph,
             needs_existing_payload,
         })

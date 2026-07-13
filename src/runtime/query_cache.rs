@@ -14,9 +14,9 @@ use crate::runtime::{stable_fingerprint, PlanCacheKey, RuntimeState};
 const TEMP_ROOT: &[u8] = b"cassie";
 const TEMP_LEXKEY: &[u8] = b"lexkey";
 const TEMP_VERSION: &[u8] = b"v3";
-const TEMP_FAMILY: &[u8] = b"temp";
-const PLAN_ENTRY_FAMILY: &[u8] = b"plan-entry";
-const FULLTEXT_STATS_FAMILY: &[u8] = b"fulltext-stats";
+const TEMP_FAMILY: &[u8] = b"t";
+const PLAN_ENTRY_FAMILY: &[u8] = b"pe";
+const FULLTEXT_STATS_FAMILY: &[u8] = b"fts";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CachedPlanEntry {

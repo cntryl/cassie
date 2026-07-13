@@ -28,6 +28,7 @@ use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 use crate::vector::normalize as normalize_vector;
 
 mod core;
+pub mod fulltext_retrieval;
 mod raw_ops;
 mod transactions;
 

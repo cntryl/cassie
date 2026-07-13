@@ -137,6 +137,22 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     let graph_in_parts = graph_in
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
+    let fulltext_metadata = fulltext_index_key("events", "title_search");
+    let fulltext_metadata_parts = fulltext_metadata
+        .split(|byte| *byte == LexKey::SEPARATOR)
+        .collect::<Vec<_>>();
+    let fulltext_manifest = fulltext_index_manifest_key("events", "title_search", 42);
+    let fulltext_manifest_parts = fulltext_manifest
+        .split(|byte| *byte == LexKey::SEPARATOR)
+        .collect::<Vec<_>>();
+    let fulltext_terms = fulltext_term_postings_key("events", "title_search", "alpha");
+    let fulltext_terms_parts = fulltext_terms
+        .split(|byte| *byte == LexKey::SEPARATOR)
+        .collect::<Vec<_>>();
+    let fulltext_doc = fulltext_document_stats_key("events", "title_search", "doc-id-1");
+    let fulltext_doc_parts = fulltext_doc
+        .split(|byte| *byte == LexKey::SEPARATOR)
+        .collect::<Vec<_>>();
 
     // Assert
     assert!(!scalar_parts.iter().any(|part| part == b"data"));
@@ -153,4 +169,20 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
         !graph_out_parts.iter().any(|part| part == b"out")
             && !graph_in_parts.iter().any(|part| part == b"in")
     );
+    assert!(!fulltext_metadata_parts
+        .iter()
+        .any(|part| part == b"metadata"));
+    assert!(fulltext_metadata_parts.contains(&FULLTEXT_ARTIFACT_META.as_slice()));
+    assert!(!fulltext_manifest_parts
+        .iter()
+        .any(|part| part == b"manifest"));
+    assert!(fulltext_manifest_parts.contains(&FULLTEXT_ARTIFACT_MANIFEST.as_slice()));
+    assert!(fulltext_terms_parts.contains(&FULLTEXT_ARTIFACT_POSTINGS.as_slice()));
+    assert!(!fulltext_terms_parts.iter().any(|part| part == b"postings"));
+    assert!(fulltext_doc_parts.contains(&FULLTEXT_ARTIFACT_DOCUMENT.as_slice()));
+    assert!(!fulltext_doc_parts.iter().any(|part| part == b"documents"));
+    assert_eq!(FULLTEXT_ARTIFACT_META.len(), 1);
+    assert_eq!(FULLTEXT_ARTIFACT_MANIFEST.len(), 1);
+    assert_eq!(FULLTEXT_ARTIFACT_POSTINGS.len(), 1);
+    assert_eq!(FULLTEXT_ARTIFACT_DOCUMENT.len(), 1);
 }

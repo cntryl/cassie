@@ -39,6 +39,7 @@ fn should_pack_internal_key_segments_with_compact_markers() {
 fn populate_compaction_fixtures(cassie: &Cassie, session: &CassieSession) {
     execute_all_queries(cassie, session, SCALAR_INDEX_QUERIES);
     execute_all_queries(cassie, session, GRAPH_QUERIES);
+    execute_all_queries(cassie, session, FULLTEXT_INDEX_QUERIES);
 }
 
 fn execute_all_queries(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
@@ -90,11 +91,26 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
         .iter()
         .filter(|(key, _)| key_family(key) == Some("graph-adjacency"))
         .all(|(key, _)| !has_key_component(key, b"out") && !has_key_component(key, b"in"));
+    let fulltext_checks = data_keys
+        .iter()
+        .filter(|(key, _)| key_family(key) == Some("fulltext-index"))
+        .all(|(key, _)| {
+            let has_legacy_segment = has_key_component(key, b"metadata")
+                || has_key_component(key, b"manifest")
+                || has_key_component(key, b"postings")
+                || has_key_component(key, b"documents");
+            let has_compact_marker = has_key_component(key, b"\x01")
+                || has_key_component(key, b"\x02")
+                || has_key_component(key, b"\x03")
+                || has_key_component(key, b"\x04");
+            !has_legacy_segment && has_compact_marker
+        });
     assert!(scalar_checks);
     assert!(time_series_checks);
     assert!(batch_checks);
     assert!(store_checks);
     assert!(graph_checks);
+    assert!(fulltext_checks);
 }
 
 fn key_family(raw: &[u8]) -> Option<&str> {
@@ -127,4 +143,10 @@ const GRAPH_QUERIES: &[&str] = &[
     "INSERT INTO keyseg_graph_nodes (node_type, node_id, label) VALUES ('person', 'alice', 'Alice')",
     "INSERT INTO keyseg_graph_nodes (node_type, node_id, label) VALUES ('person', 'bob', 'Bob')",
     "INSERT INTO keyseg_graph_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 1)",
+];
+
+const FULLTEXT_INDEX_QUERIES: &[&str] = &[
+    "CREATE TABLE keyseg_fulltext (title TEXT, body TEXT)",
+    "CREATE INDEX keyseg_fulltext_idx ON keyseg_fulltext USING fulltext (body)",
+    "INSERT INTO keyseg_fulltext (title, body) VALUES ('first', 'alpha beta'), ('second', 'alpha gamma')",
 ];

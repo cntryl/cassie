@@ -89,6 +89,21 @@ impl Midge {
             if index.kind == IndexKind::TimeSeries {
                 self.delete_time_series_index_data(&index.collection, &index.name)?;
             }
+            if index.kind == IndexKind::FullText {
+                let mut data_tx = self.begin_data_rw_tx_for(&index.collection)?;
+                let prefix = Self::fulltext_index_artifact_prefix(&index.collection, &index.name);
+                let entries = collect_scan(
+                    data_tx
+                        .scan(&Query::new().prefix(prefix.into()))
+                        .map_err(CassieError::from)?,
+                )?;
+                for (key, _) in entries {
+                    data_tx.delete(key).map_err(CassieError::from)?;
+                }
+                data_tx
+                    .commit(cntryl_midge::WriteOptions::sync())
+                    .map_err(CassieError::from)?;
+            }
             check_index_drop_failure_point()?;
         }
         let mut tx = self.begin_schema_rw_tx()?;

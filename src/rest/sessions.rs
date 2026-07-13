@@ -55,6 +55,16 @@ pub(crate) fn issue(
     role: &RoleMeta,
     database: &str,
 ) -> Result<String, CassieError> {
+    issue_with_limits(cassie, role, database, MAX_SESSIONS, SESSION_TTL_SECONDS)
+}
+
+fn issue_with_limits(
+    cassie: &Cassie,
+    role: &RoleMeta,
+    database: &str,
+    max_sessions: usize,
+    ttl_seconds: u64,
+) -> Result<String, CassieError> {
     cassie.ensure_database_exists(database)?;
     let now = unix_seconds()?;
     let mut active = 0;
@@ -69,7 +79,7 @@ pub(crate) fn issue(
             active += 1;
         }
     }
-    if active >= MAX_SESSIONS {
+    if active >= max_sessions {
         return Err(CassieError::Unsupported(
             "REST session capacity exhausted".to_string(),
         ));
@@ -79,7 +89,7 @@ pub(crate) fn issue(
     let record = PersistedSession {
         user: role.name.clone(),
         database: database.to_string(),
-        expires_at: now.saturating_add(SESSION_TTL_SECONDS),
+        expires_at: now.saturating_add(ttl_seconds),
         credential_fingerprint: credential_fingerprint(cassie, role),
     };
     let value = serde_json::to_vec(&record)
@@ -204,7 +214,7 @@ fn unix_seconds() -> Result<u64, CassieError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{authenticate, issue, revoke, session_key};
+    use super::{authenticate, issue, issue_with_limits, revoke, session_key, SESSION_TTL_SECONDS};
     use crate::app::{Cassie, CassieError};
 
     fn cassie(label: &str) -> Cassie {
@@ -312,5 +322,48 @@ mod tests {
             .raw_get(crate::midge::StorageFamily::Schema, &session_key(&token))
             .expect("session lookup")
             .is_none());
+    }
+
+    #[test]
+    fn should_remove_expired_session_on_authentication() {
+        // Arrange
+        let cassie = cassie("expiry");
+        let role = cassie
+            .authenticate_principal("postgres", Some("postgres"), None)
+            .expect("bootstrap role")
+            .role;
+        let token = super::issue_with_limits(&cassie, &role, "cassie", 1, 0)
+            .expect("issue expired session");
+
+        // Act
+        let error = authenticate(&cassie, &token).expect_err("expired session");
+
+        // Assert
+        assert!(matches!(error, CassieError::Unauthorized));
+        assert!(cassie
+            .midge
+            .raw_get(crate::midge::StorageFamily::Schema, &session_key(&token))
+            .expect("session lookup")
+            .is_none());
+    }
+
+    #[test]
+    fn should_reject_a_new_session_when_active_cap_is_reached() {
+        // Arrange
+        let cassie = cassie("cap");
+        let role = cassie
+            .authenticate_principal("postgres", Some("postgres"), None)
+            .expect("bootstrap role")
+            .role;
+        issue_with_limits(&cassie, &role, "cassie", 1, SESSION_TTL_SECONDS).expect("first session");
+
+        // Act
+        let result = issue_with_limits(&cassie, &role, "cassie", 1, SESSION_TTL_SECONDS);
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(CassieError::Unsupported(message)) if message.contains("capacity exhausted")
+        ));
     }
 }

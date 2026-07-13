@@ -149,7 +149,7 @@ Unsupported procedural expectations include:
 - Time-series sidecar keys keep dynamic partition values as ordered prefix components but encode
   bucket start bounds as fixed-width ordered integers; generation fencing and source-row fallback
   remain active while bounded range reads are completed.
-- REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Expired, rotated, and deleted-role sessions are rejected and removed from the session store. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
+- REST admin auth uses server-owned opaque `cassie_session` cookies issued by login/current-session/logout endpoints; password-bearing `Authorization` headers are rejected. Expired, rotated, and deleted-role sessions are rejected and removed from the session store, and active sessions are bounded at 1,024. Pgwire retains its protocol-native credential flow, while both interfaces share credential validation and role lookup.
 - REST HTTP transport rejects request bodies over 8 MiB, limits HTTP/1 header buffering to 32 KiB,
   and applies 10-second header-read and per-body-frame idle deadlines. API responses emit `no-store`, `nosniff`, frame-deny,
   no-referrer, and baseline CSP headers; body collection and route execution have a 30-second

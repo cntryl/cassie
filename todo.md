@@ -355,8 +355,8 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Remove password/token persistence and per-request password headers from the UI.
   - Add global 401 handling, session bootstrap after reload, and server-backed logout.
   - [x] Invalid login, revocation, password rotation, bearer rejection, cookie flags, reload,
-    logout, and deleted-role session cleanup are covered; expiry and session-cap stress coverage
-    remain.
+    logout, expiry cleanup, active-session cap behavior, and deleted-role session cleanup are
+    covered; larger session-cap stress remains operational evidence.
 - [ ] Add inbound REST TLS with rustls configuration and fail-closed non-loopback policy.
   - [x] Configure rustls certificate/key files, reject partial identities, require TLS for
     non-loopback REST listeners, and fail startup on missing or invalid identities.

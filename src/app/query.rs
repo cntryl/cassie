@@ -213,7 +213,11 @@ impl Cassie {
         mode: ExecutionMode,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
-        let running_guard = self.runtime.begin_running_query();
+        let Some(running_guard) = self.runtime.try_begin_running_query() else {
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_string(),
+            ));
+        };
         let controls = self.runtime.query_controls(query_started);
         let result = self.execute_sql_core(session, sql, params, mode, &controls);
         let elapsed = query_started.elapsed();
@@ -253,7 +257,11 @@ impl Cassie {
         params: Vec<crate::types::Value>,
     ) -> Result<QueryExplainOutput, CassieError> {
         let query_started = Instant::now();
-        let running_guard = self.runtime.begin_running_query();
+        let Some(running_guard) = self.runtime.try_begin_running_query() else {
+            return Err(CassieError::Execution(
+                "query admission exhausted".to_string(),
+            ));
+        };
         let controls = self.runtime.query_controls(query_started);
         let result = self.explain_sql_core(session, sql, params, &controls);
         let elapsed = query_started.elapsed();

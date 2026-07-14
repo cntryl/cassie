@@ -384,6 +384,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("division by zero") {
         return bad_request_descriptor("22012", message.to_string());
     }
+    if message.eq_ignore_ascii_case("query admission exhausted") {
+        return service_unavailable_descriptor("53300", message.to_string());
+    }
     bad_request_descriptor("22000", message.to_string())
 }
 

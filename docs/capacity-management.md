@@ -7,8 +7,10 @@ This is a documented baseline, not a production SLA or capacity-based admission-
 Cassie exposes advisory logical key/value byte usage through `/metrics.capacity` for the local Midge data directory.
 Use that report together with host disk measurements for `CASSIE_MIDGE_DATA_DIR`, EXPLAIN diagnostics, catalog views, and benchmark scenarios.
 Deployment-profile evidence is advisory until a production owner records targets and thresholds for that profile.
-Pgwire and REST have transport-level connection caps, but those caps do not replace capacity
-planning, tenant movement, or workload-specific benchmark thresholds.
+Pgwire and REST have transport-level connection caps, and SQL execution has a local query-worker
+cap through `CASSIE_MAX_QUERY_WORKERS`. Exhausted query permits return SQLSTATE `53300` and are
+released on completion or error. These local caps do not replace capacity planning, tenant
+movement, or workload-specific benchmark thresholds.
 
 ## Signal Sources
 
@@ -28,7 +30,7 @@ planning, tenant movement, or workload-specific benchmark thresholds.
 | Dimension | Watch | Operator action |
 | --- | --- | --- |
 | CPU | Rising `query.latency_ms_total / query.count`, high `pgwire.blocking_elapsed_ms_total` or `rest.blocking_elapsed_ms_total`, growing search/vector/hybrid candidate counts, join/aggregate row counters, and repeated parallel fallback counters. | Add or reshape indexes, materialize projection-specific read shapes, use rollups/column batches for analytical paths, reduce candidate fan-out, or move hot tenants/projections to another independent node. |
-| Memory | `runtime.running_queries`, `plan_cache.entries / plan_cache.max_entries`, `feedback.entries / feedback.max_entries`, query-cache miss rates, candidate counts, vectorized join batch size, and row-blob fallback counts. | Bound result sets, lower query concurrency externally, reduce candidate budgets, split hot read models, tune cache limits, or replace broad interactive scans with projection-shaped reads. |
+| Memory | `runtime.running_queries`, `runtime.query_admission_permits / runtime.query_admission_rejections`, `plan_cache.entries / plan_cache.max_entries`, `feedback.entries / feedback.max_entries`, query-cache miss rates, candidate counts, vectorized join batch size, and row-blob fallback counts. | Tune `CASSIE_MAX_QUERY_WORKERS` with memory headroom, bound result sets, reduce candidate budgets, split hot read models, or replace broad interactive scans with projection-shaped reads. |
 | Disk and storage IO | Host size and free space for `CASSIE_MIDGE_DATA_DIR`, `/metrics.capacity` family/category byte totals, `storage.schema.reads`, `storage.data.reads`, `storage.temp.reads`, corresponding storage writes, storage errors, projection row/index write counters, retention deletes/skips, and column-batch compressed/uncompressed byte totals. | Keep free-space headroom for snapshots and rebuild targets, remove unused indexes, enforce retention deliberately, schedule compaction or host-level cleanup according to Midge guidance, and move tenants before free space or write IO becomes the limiting resource. |
 | Index overhead | `projections.write_index_puts`, `projections.write_index_deletes`, `read_paths.index_seek_scans`, `read_paths.prefix_scans`, `read_paths.range_scans`, `covering_indexes.row_fetches_avoided`, covering-index fallbacks, vector fallback reasons, and column-batch bytes. | Keep indexes that serve documented read-model paths, remove indexes that add write cost without read usage, prefer composite/covering indexes for hot pages, and treat vector/column-batch structures as capacity-bearing sidecars. |
 | Projection count and rebuild pressure | Projection catalog rows, `projections.materialized_builds`, `projections.materialized_refreshes`, `projections.write_rebuild_target_puts`, `projections.version_swaps`, `projections.stale_marks`, verification counters, and mixed-execution fallbacks. | Cap concurrent rebuild work externally, run rebuilds outside hot serving windows, keep inactive rebuild targets within disk headroom, verify before swap, and split heavy projection families across independent Cassie nodes. |

@@ -93,6 +93,7 @@ pub struct CassieRuntimeLimits {
     pub parallel_scan_workers: usize,
     pub parallel_scoring_workers: usize,
     pub parallel_aggregation_workers: usize,
+    pub max_query_workers: usize,
     pub pgwire_max_connections: usize,
     pub rest_max_connections: usize,
 }
@@ -210,6 +211,7 @@ impl Default for CassieRuntimeLimits {
             parallel_scan_workers: 1,
             parallel_scoring_workers: 1,
             parallel_aggregation_workers: 1,
+            max_query_workers: 64,
             pgwire_max_connections: 256,
             rest_max_connections: 512,
         }
@@ -477,6 +479,12 @@ fn adaptive_limits_from_env(
             env_reader,
             "CASSIE_PARALLEL_AGGREGATION_WORKERS",
             defaults.parallel_aggregation_workers,
+        ),
+        max_query_workers: parse_usize_min_from(
+            env_reader,
+            "CASSIE_MAX_QUERY_WORKERS",
+            defaults.max_query_workers,
+            1,
         ),
         pgwire_max_connections: defaults.pgwire_max_connections,
         rest_max_connections: defaults.rest_max_connections,

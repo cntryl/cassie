@@ -414,7 +414,10 @@ Phase 9. Do not widen this phase into general OLTP or distributed transaction wo
   - Tests: rollup generation mismatch, failpoint-after-base-commit, multi-source generation mismatch,
     restart, and no stale serving.
 - [ ] Add local work admission beyond socket counts.
-  - Bound query/blocking workers, embedding requests, rebuild/index builds, and expensive admin
+  - [x] Query workers now use a bounded non-blocking permit controlled by
+    `CASSIE_MAX_QUERY_WORKERS`; saturation returns SQLSTATE `53300`, permits release on drop, and
+    runtime diagnostics expose permit and rejection counters.
+  - Bound blocking workers, embedding requests, rebuild/index builds, and expensive admin
     operations; expose queue depth, wait, rejection, cancellation, and permit metrics.
   - Keep placement/movement external; this is local resource admission only.
   - Tests: saturation, deterministic rejection, release after error/cancellation, fairness,

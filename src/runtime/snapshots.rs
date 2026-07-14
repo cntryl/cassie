@@ -5,6 +5,8 @@ pub struct RuntimeSnapshot {
     pub started: bool,
     pub uptime_seconds: u64,
     pub running_queries: u64,
+    pub query_admission_permits: u64,
+    pub query_admission_rejections: u64,
     pub sql_parse_total: u64,
     pub startup_total: u64,
     pub startup_ms_total: u64,

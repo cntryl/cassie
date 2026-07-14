@@ -27,6 +27,7 @@ Runtime configuration is driven by `CASSIE_*` environment variables.
 | `CASSIE_ADMIN_UI_DIR` | `./ui/dist` | Built admin UI asset directory served at `/` (and any unmatched non-API path, for client-side routing) plus `/assets/*`; all resource APIs live under `/api/v1/*`, with `/health`, `/liveness`, `/targetz`, and `/metrics` reserved as unauthenticated probe endpoints |
 | `CASSIE_PGWIRE_MAX_CONNECTIONS` | `256` | Pgwire admission cap, clamped to at least `1` |
 | `CASSIE_REST_MAX_CONNECTIONS` | `512` | REST admission cap, clamped to at least `1` |
+| `CASSIE_MAX_QUERY_WORKERS` | `64` | Local query-worker admission cap, clamped to at least `1`; exhausted queries return SQLSTATE `53300` |
 | `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | Supported values are `disabled`, `openai`, `openai_compatible`, `tei`, `ollama`, `voyage`, `cohere`, and `local` |
 
 Provider-specific embedding config stays under the matching prefix:

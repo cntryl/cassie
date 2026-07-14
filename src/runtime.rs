@@ -61,6 +61,8 @@ pub struct ExecutionResultCacheKey {
 
 #[path = "runtime/adaptive_metrics.rs"]
 mod adaptive_metrics;
+#[path = "runtime/admission.rs"]
+mod admission;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]
@@ -193,6 +195,7 @@ pub struct RuntimeState {
     schema_epoch: AtomicU64,
     data_epoch: AtomicU64,
     index_feedback_epoch: AtomicU64,
+    active_query_permits: AtomicU64,
 }
 
 pub struct PgwireSessionGuard {
@@ -223,6 +226,7 @@ impl RuntimeState {
             schema_epoch: AtomicU64::new(0),
             data_epoch: AtomicU64::new(0),
             index_feedback_epoch: AtomicU64::new(0),
+            active_query_permits: AtomicU64::new(0),
         }
     }
 

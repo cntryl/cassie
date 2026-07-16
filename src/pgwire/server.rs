@@ -28,9 +28,10 @@ pub async fn run_with_shutdown(
         config.pgwire_tls_cert_file.as_deref(),
         config.pgwire_tls_key_file.as_deref(),
     )?;
-    let require_tls = addr
-        .parse::<std::net::SocketAddr>()
-        .is_ok_and(|address| !address.ip().is_loopback());
+    let require_tls = !config.allow_insecure_non_loopback_listen
+        && addr
+            .parse::<std::net::SocketAddr>()
+            .is_ok_and(|address| !address.ip().is_loopback());
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;

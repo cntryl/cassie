@@ -51,6 +51,7 @@ pub struct CassieRuntimeConfig {
     pub rest_listen: String,
     pub rest_tls_cert_file: Option<String>,
     pub rest_tls_key_file: Option<String>,
+    pub allow_insecure_non_loopback_listen: bool,
     pub admin_ui_dir: String,
     pub user: String,
     pub database: String,
@@ -171,6 +172,7 @@ impl Default for CassieRuntimeConfig {
             rest_listen: "127.0.0.1:8080".to_string(),
             rest_tls_cert_file: None,
             rest_tls_key_file: None,
+            allow_insecure_non_loopback_listen: false,
             admin_ui_dir: "./ui/dist".to_string(),
             user: "postgres".to_string(),
             database: "postgres".to_string(),
@@ -254,6 +256,11 @@ impl CassieRuntimeConfig {
         config.pgwire_tls_key_file = env_reader("CASSIE_PGWIRE_TLS_KEY_FILE");
         config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
         config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
+        config.allow_insecure_non_loopback_listen = parse_bool_from(
+            &env_reader,
+            "CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN",
+            false,
+        );
         if let Some(v) = env_reader("CASSIE_ADMIN_UI_DIR") {
             config.admin_ui_dir = v;
         }
@@ -646,6 +653,26 @@ mod tests {
         // Assert
         assert!(error.to_string().contains("pgwire TLS"));
         assert!(error.to_string().contains("0.0.0.0:5432"));
+    }
+
+    #[test]
+    fn should_allow_explicit_insecure_non_loopback_listener_override() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
+            ("CASSIE_REST_LISTEN", "0.0.0.0:8080"),
+            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN", "1"),
+        ]);
+
+        // Act
+        let config = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect("explicit local-container override");
+
+        // Assert
+        assert!(config.allow_insecure_non_loopback_listen);
+        assert!(config.pgwire_tls_cert_file.is_none());
+        assert!(config.rest_tls_cert_file.is_none());
     }
 
     #[test]

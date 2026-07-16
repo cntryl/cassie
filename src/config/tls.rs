@@ -34,16 +34,19 @@ pub(super) fn validate_transport_tls_policy(
         config.rest_tls_key_file.as_ref(),
         CassieRuntimeConfigError::RestTlsPair,
     )?;
-    require_tls_for_non_loopback(
-        &config.pgwire_listen,
-        config.pgwire_tls_cert_file.is_some(),
-        |listener| CassieRuntimeConfigError::PgwireTlsRequired { listener },
-    )?;
-    require_tls_for_non_loopback(
-        &config.rest_listen,
-        config.rest_tls_cert_file.is_some(),
-        |listener| CassieRuntimeConfigError::RestTlsRequired { listener },
-    )
+    if !config.allow_insecure_non_loopback_listen {
+        require_tls_for_non_loopback(
+            &config.pgwire_listen,
+            config.pgwire_tls_cert_file.is_some(),
+            |listener| CassieRuntimeConfigError::PgwireTlsRequired { listener },
+        )?;
+        require_tls_for_non_loopback(
+            &config.rest_listen,
+            config.rest_tls_cert_file.is_some(),
+            |listener| CassieRuntimeConfigError::RestTlsRequired { listener },
+        )?;
+    }
+    Ok(())
 }
 
 fn validate_pair<T>(

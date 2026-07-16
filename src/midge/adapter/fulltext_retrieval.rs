@@ -262,6 +262,23 @@ impl Midge {
             .map(|candidates| candidates.document_stats)
     }
 
+    /// Reads requested term postings but fetches document statistics only for allowed candidates.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when metadata, postings, or requested document statistics are stale or
+    /// corrupt.
+    pub fn fulltext_candidate_stats_for_ids(
+        &self,
+        collection: &str,
+        index_name: &str,
+        terms: &[String],
+        allowed_ids: &std::collections::BTreeSet<String>,
+    ) -> Result<BTreeMap<String, PersistedFulltextDocumentStats>, CassieError> {
+        self.fulltext_candidate_set_inner(collection, index_name, terms, Some(allowed_ids))
+            .map(|candidates| candidates.document_stats)
+    }
+
     /// Reads only requested posting blocks and point-reads statistics for their documents.
     ///
     /// # Errors
@@ -272,6 +289,16 @@ impl Midge {
         collection: &str,
         index_name: &str,
         terms: &[String],
+    ) -> Result<PersistedFulltextCandidateSet, CassieError> {
+        self.fulltext_candidate_set_inner(collection, index_name, terms, None)
+    }
+
+    fn fulltext_candidate_set_inner(
+        &self,
+        collection: &str,
+        index_name: &str,
+        terms: &[String],
+        allowed_ids: Option<&std::collections::BTreeSet<String>>,
     ) -> Result<PersistedFulltextCandidateSet, CassieError> {
         let collection = self.canonical_collection_name(collection);
         let index = self
@@ -325,7 +352,9 @@ impl Midge {
                 let postings = codec::decode_postings(&raw)?;
                 for posting in postings {
                     term_documents.insert(posting.document_id.clone());
-                    ids.insert(posting.document_id);
+                    if allowed_ids.is_none_or(|allowed| allowed.contains(&posting.document_id)) {
+                        ids.insert(posting.document_id);
+                    }
                 }
             }
             document_frequency.insert(term.clone(), term_documents.len());

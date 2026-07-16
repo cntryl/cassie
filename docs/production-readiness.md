@@ -1,10 +1,12 @@
 # Production Readiness
 
-This document is the canonical owner for readiness evidence and remaining Production-ready blockers. Feature behavior and status live in [Feature Support](feature-support.md). Passing unit or integration tests does not by itself make a feature Production-ready.
+This document is the canonical owner for beta and Production-ready evidence. Feature behavior and status live in [Feature Support](feature-support.md). Passing unit or integration tests does not by itself establish either readiness classification.
 
 ## Current Classification
 
-The Cassie query-engine baseline is not Production-ready. The repository has broad correctness and local benchmark coverage, but it does not yet retain deployment-profile evidence sufficient for a production latency, capacity, cancellation-latency, or sustained-concurrency claim.
+The Cassie query-engine baseline is Beta-ready for the documented pre-release support envelope. Stable capabilities are supported; Experimental capabilities are available for evaluation under their documented limits and may change before 1.0.
+
+Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
 ## Evidence Present
 
@@ -17,16 +19,23 @@ The Cassie query-engine baseline is not Production-ready. The repository has bro
 - Deterministic local-server contracts for OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and local embeddings, including request shape, ordering, dimensions, retry deadlines, transport timeouts, and active cancellation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Container and supply-chain workflows for supported targets.
+- Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
+- Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
 
-## Remaining Blockers
+## Beta Support Envelope
 
-- Complete the bounded pull-execution, memory-accounting, portal, and cancellation contract across every query family.
-- Close execution-result-cache isolation, volatility, byte accounting, and concurrent invalidation evidence.
-- Prove compact query-hot layout ordering, corruption behavior, and the required byte reduction.
-- Prove time-series, graph, and column-batch access paths without hidden full-corpus rebuilds.
-- Close adaptive switching and configured parallel-worker equivalence and oversubscription tests.
+- PostgreSQL wire is the primary SQL interface; REST is secondary and administrative.
+- Only capabilities marked Stable are supported contracts. Experimental capabilities are evaluation surfaces, not compatibility commitments.
+- Midge is the only storage layer. Cassie is permanently single-node and does not provide distributed SQL, cluster management, replication, consensus, sharding or rebalancing, cross-node transactions, distributed planning, remote query forwarding, or automatic cross-node repair.
+- The beta bar requires the validation sequence in [Definition of Done](definition-of-done.md), UI production-dependency audit and gates, benchmark-owner compilation, and a disk-backed smoke run on the release commit.
+- Smoke results are regression diagnostics, not service-level objectives or capacity claims.
+
+## Remaining Production Blockers
+
 - Retain complete same-commit benchmark artifacts from a named disk-backed deployment profile at representative fixture sizes and concurrency.
-- Establish operational thresholds and runbooks for disk growth, resource admission, backup/restore time, failure injection, and sustained mixed workloads.
+- Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
+- Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
+- Define support policy, upgrade compatibility, release rollback, and security response expectations for the production service envelope.
 
 ## Promotion Evidence
 

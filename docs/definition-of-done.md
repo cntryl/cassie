@@ -10,6 +10,7 @@ Production-readiness evidence is tracked in [Production Readiness](production-re
 | Implemented | Code path exists and has targeted tests. Documentation and compatibility may still be incomplete. |
 | Experimental | Feature is usable for supported cases, but compatibility or output shape may change; promotion requires [Experimental Promotion Criteria](experimental-promotion-criteria.md). |
 | Stable | Feature has tests, documentation, known compatibility boundaries, and deterministic failure behavior. |
+| Beta-ready | The documented pre-release support envelope passes the locked release gates, production-dependency audit, benchmark compilation, and disk-backed smoke evidence. Experimental capabilities remain explicitly labelled and may change. |
 | Production-ready | Stable plus benchmark or operational evidence for performance-sensitive paths. |
 
 ## Required for Implemented
@@ -48,6 +49,7 @@ Use this order for feature close-out:
 ```sh
 cargo build --locked
 cargo test --locked
+cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 cargo fmt --all -- --check
 cntryl-tools validate-tests -f <path>
 ```

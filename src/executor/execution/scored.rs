@@ -19,7 +19,9 @@ mod vector_topk;
 
 use fulltext_read::execute_fulltext_filtered_read;
 use fulltext_topk::execute_fulltext_top_k;
-use hybrid::{bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows};
+use hybrid::{
+    bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows, BoundedHybridContext,
+};
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
 };
@@ -327,12 +329,14 @@ fn execute_hybrid_top_k(
     let bounded_rows = bounded_hybrid_rows(
         cassie,
         session,
-        user_functions,
-        params,
         spec,
-        &schema,
-        &analyzer,
-        candidate_limit,
+        &BoundedHybridContext {
+            user_functions,
+            params,
+            schema: &schema,
+            analyzer: &analyzer,
+            candidate_limit,
+        },
     )?;
     let (rows, ann_reads, candidate_row_fetches) = match bounded_rows {
         Some(bounded) => (

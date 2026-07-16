@@ -11,8 +11,12 @@ services:
       CASSIE_PGWIRE_LISTEN: 0.0.0.0:5432
       CASSIE_ADMIN_PASSWORD: ${CASSIE_ADMIN_PASSWORD:?set a non-default bootstrap secret}
       CASSIE_MIDGE_DATA_DIR: /data/midge
+      CASSIE_REST_TLS_CERT_FILE: /run/cassie/tls/cert.pem
+      CASSIE_REST_TLS_KEY_FILE: /run/cassie/tls/key.pem
     volumes:
       - cassie-data:/data
+      - ${CASSIE_REST_TLS_CERT_HOST_FILE:?set the host path to a PEM certificate chain}:/run/cassie/tls/cert.pem:ro
+      - ${CASSIE_REST_TLS_KEY_HOST_FILE:?set the host path to a PEM private key}:/run/cassie/tls/key.pem:ro
 
 volumes:
   cassie-data:

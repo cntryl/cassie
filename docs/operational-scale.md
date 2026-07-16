@@ -4,6 +4,8 @@ Cassie scales operationally by running independent single-node read-model instan
 An external orchestrator decides where tenants, partitions, and projections should be served.
 Cassie records local ownership and routing metadata so operators and orchestrators can inspect those assignments without adding distributed SQL behavior.
 
+This is an integration boundary, not an incremental path toward clustering. Cassie will remain a single-node query engine and will not own cluster membership or management, routing, placement, failover, data movement, replication, consensus, sharding or rebalancing, cross-node queries, or fleet coordination.
+
 ## External Router Contract
 
 External routers read each Cassie node's local `pg_catalog.pg_operational_assignments` view and make routing decisions outside Cassie.
@@ -94,9 +96,12 @@ Cassie also does not replicate assignment data to other nodes, elect owners, or 
 ## Non-Goals
 
 - No distributed SQL execution.
+- No cluster membership or management.
 - No cross-node query planning.
 - No replication or quorum reads.
 - No consensus or leader election.
+- No sharding, rebalancing, routing, or data movement.
+- No remote query forwarding.
 - No automatic repair or remote mutation.
 
 External orchestration owns node placement, tenant routing, partition assignment, failover policy, and traffic movement.

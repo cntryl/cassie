@@ -4,10 +4,10 @@ use super::{
     TokenizedHybridDocument, Value,
 };
 use crate::executor::{batch, filter, scan};
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{HybridRetrievalDiagnostics, QueryExecutionControls};
 use crate::search::analyzer::AnalyzerConfig;
 use std::collections::HashMap;
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::{BTreeSet, BinaryHeap, HashSet};
 
 pub(super) fn search_context_for_fields(
     cassie: &Cassie,
@@ -28,21 +28,29 @@ pub(super) fn record_hybrid_diagnostics(
     candidate_row_fetches: usize,
     exact_reranks: usize,
 ) {
-    cassie.runtime.record_hybrid_retrieval_diagnostics(
-        posting_reads,
-        ann_reads,
-        candidate_row_fetches,
-        0,
-        exact_reranks,
-        0,
-        0,
-    );
+    cassie
+        .runtime
+        .record_hybrid_retrieval_diagnostics(&HybridRetrievalDiagnostics {
+            posting_reads,
+            ann_reads,
+            candidate_row_fetches,
+            exact_reranks,
+            ..HybridRetrievalDiagnostics::default()
+        });
 }
 
 pub(super) struct BoundedHybridRows {
     pub(super) rows: Vec<BatchRow>,
     pub(super) ann_reads: usize,
     pub(super) candidate_row_fetches: usize,
+}
+
+pub(super) struct BoundedHybridContext<'a> {
+    pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
+    pub(super) params: &'a [Value],
+    pub(super) schema: &'a CollectionSchema,
+    pub(super) analyzer: &'a AnalyzerConfig,
+    pub(super) candidate_limit: usize,
 }
 
 pub(super) fn score_hybrid_documents(
@@ -97,12 +105,8 @@ pub(super) fn score_hybrid_documents(
 pub(super) fn bounded_hybrid_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
     spec: &HybridTopKSpec,
-    schema: &CollectionSchema,
-    analyzer: &AnalyzerConfig,
-    candidate_limit: usize,
+    context: &BoundedHybridContext<'_>,
 ) -> Result<Option<BoundedHybridRows>, QueryError> {
     if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
         cassie
@@ -128,7 +132,7 @@ pub(super) fn bounded_hybrid_rows(
         &spec.collection,
         &spec.vector_field,
         &spec.vector_query,
-        candidate_limit,
+        context.candidate_limit,
     ) {
         Ok(Some(ids)) => ids,
         Ok(None) => {
@@ -144,15 +148,12 @@ pub(super) fn bounded_hybrid_rows(
             let generation_rejection = usize::from(
                 error.to_string().contains("generation") || error.to_string().contains("stale"),
             );
-            cassie.runtime.record_hybrid_retrieval_diagnostics(
-                0,
-                0,
-                0,
-                generation_rejection,
-                0,
-                0,
-                0,
-            );
+            cassie
+                .runtime
+                .record_hybrid_retrieval_diagnostics(&HybridRetrievalDiagnostics {
+                    generation_rejections: generation_rejection,
+                    ..HybridRetrievalDiagnostics::default()
+                });
             cassie
                 .runtime
                 .record_hybrid_prefilter_usage(0, 0, Some("vector-artifact"));
@@ -162,24 +163,23 @@ pub(super) fn bounded_hybrid_rows(
             return Ok(None);
         }
     };
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, analyzer);
-    let text_result =
-        cassie
-            .midge
-            .fulltext_candidate_stats(&spec.collection, &fulltext_index.name, &query_terms);
+    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, context.analyzer);
+    let text_result = cassie.midge.fulltext_candidate_stats_for_ids(
+        &spec.collection,
+        &fulltext_index.name,
+        &query_terms,
+        &vector_ids,
+    );
     let generation_rejection = text_result.as_ref().err().is_some_and(|error| {
         error.to_string().contains("generation") || error.to_string().contains("stale")
     });
     let Ok(stats) = text_result else {
-        cassie.runtime.record_hybrid_retrieval_diagnostics(
-            0,
-            0,
-            0,
-            usize::from(generation_rejection),
-            0,
-            0,
-            0,
-        );
+        cassie
+            .runtime
+            .record_hybrid_retrieval_diagnostics(&HybridRetrievalDiagnostics {
+                generation_rejections: usize::from(generation_rejection),
+                ..HybridRetrievalDiagnostics::default()
+            });
         cassie
             .runtime
             .record_hybrid_prefilter_usage(0, 0, Some("text-artifact"));
@@ -200,17 +200,26 @@ pub(super) fn bounded_hybrid_rows(
             .record_hybrid_row_scan_fallback("candidate-budget");
         return Ok(None);
     }
-    let fields = schema
+    fetch_hybrid_candidate_rows(cassie, session, spec, context, stats.keys(), &vector_ids)
+}
+
+fn fetch_hybrid_candidate_rows<'a>(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &HybridTopKSpec,
+    context: &BoundedHybridContext<'_>,
+    text_ids: impl Iterator<Item = &'a String>,
+    vector_ids: &BTreeSet<String>,
+) -> Result<Option<BoundedHybridRows>, QueryError> {
+    let fields = context
+        .schema
         .fields
         .iter()
         .map(|field| field.name.clone())
         .collect::<Vec<_>>();
-    let mut rows = Vec::with_capacity(stats.len().min(vector_ids.len()));
+    let mut rows = Vec::new();
     let mut candidate_row_fetches = 0usize;
-    for id in stats.keys() {
-        if !vector_ids.contains(id) {
-            continue;
-        }
+    for id in text_ids.filter(|id| vector_ids.contains(*id)) {
         candidate_row_fetches += 1;
         let Some(document) = cassie
             .get_document_for_session(session, &spec.collection, id)
@@ -224,18 +233,25 @@ pub(super) fn bounded_hybrid_rows(
         rows.push(scan::projected_document_to_row(
             document,
             &fields,
-            Some(schema),
+            Some(context.schema),
         ));
     }
     if let Some(filter_expr) = &spec.filter {
-        if !vector_prefilter_supported(filter_expr, schema) {
+        if !vector_prefilter_supported(filter_expr, context.schema) {
             cassie
                 .runtime
                 .record_hybrid_row_scan_fallback("unsupported-filter");
             return Ok(None);
         }
         let before = rows.len();
-        rows = filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?;
+        rows = filter::filter_rows(
+            rows,
+            filter_expr,
+            context.params,
+            None,
+            context.user_functions,
+            session,
+        )?;
         cassie
             .runtime
             .record_hybrid_prefilter_usage(before, rows.len(), None);

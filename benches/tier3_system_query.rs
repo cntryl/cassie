@@ -248,7 +248,7 @@ fn bench_indexed_vector_representatives(
     let mut vector_index = None;
     if let Some(case) = hybrid {
         let case_setup = Instant::now();
-        install_vector_index(context, &mut vector_index, VectorIndexKind::Exact);
+        install_vector_index(context, &mut vector_index, VectorIndexKind::Hnsw);
         let preflight = workloads::assert_explain_contains(
             context,
             HYBRID_SQL,
@@ -274,7 +274,9 @@ fn bench_indexed_vector_representatives(
 
     if let Some(case) = hnsw {
         let case_setup = Instant::now();
-        install_vector_index(context, &mut vector_index, VectorIndexKind::Hnsw);
+        if !matches!(vector_index, Some(VectorIndexKind::Hnsw)) {
+            install_vector_index(context, &mut vector_index, VectorIndexKind::Hnsw);
+        }
         bench_ann_case(
             runner,
             case,
@@ -470,7 +472,6 @@ fn execute_ddl(context: &workloads::BenchContext, sql: &str) {
 
 #[derive(Clone, Copy)]
 enum VectorIndexKind {
-    Exact,
     Hnsw,
     IvfFlat,
 }
@@ -478,7 +479,6 @@ enum VectorIndexKind {
 impl VectorIndexKind {
     const fn name(self) -> &'static str {
         match self {
-            Self::Exact => "bench_documents_embedding_exact_idx",
             Self::Hnsw => "bench_documents_embedding_hnsw_idx",
             Self::IvfFlat => "bench_documents_embedding_ivf_idx",
         }
@@ -486,7 +486,6 @@ impl VectorIndexKind {
 
     const fn create_sql(self) -> &'static str {
         match self {
-            Self::Exact => "CREATE INDEX bench_documents_embedding_exact_idx ON bench_documents USING vector (embedding) WITH (source_field = body, metric = cosine)",
             Self::Hnsw => "CREATE INDEX bench_documents_embedding_hnsw_idx ON bench_documents USING vector (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, m = 32, ef_construction = 256, ef_search = 256)",
             Self::IvfFlat => "CREATE INDEX bench_documents_embedding_ivf_idx ON bench_documents USING vector (embedding) WITH (source_field = body, metric = l2, index_type = ivfflat, lists = 64, probes = 16, training_sample_size = 4096, training_seed = 42)",
         }
@@ -500,9 +499,6 @@ fn install_vector_index(
 ) {
     if let Some(index) = current.take() {
         let drop_sql = match index {
-            VectorIndexKind::Exact => {
-                "DROP INDEX bench_documents_embedding_exact_idx ON bench_documents"
-            }
             VectorIndexKind::Hnsw => {
                 "DROP INDEX bench_documents_embedding_hnsw_idx ON bench_documents"
             }
@@ -538,7 +534,7 @@ fn vector_params() -> Vec<Value> {
 
 fn hybrid_params() -> Vec<Value> {
     vec![
-        Value::String("alpha".to_string()),
+        Value::String("alpha delta".to_string()),
         Value::Vector(Vector::new(vec![1.0, 0.0, 0.0])),
     ]
 }

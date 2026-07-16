@@ -615,7 +615,7 @@ fn should_fallback_when_hybrid_vector_artifact_is_corrupt() {
 }
 
 #[test]
-fn should_report_hybrid_candidate_budget_rejection() {
+fn should_bound_hybrid_candidates_before_fulltext_stat_fetch() {
     // Arrange
     let (cassie, path, collection) = bounded_hybrid_fixture_with_max(1);
     let before = cassie.metrics();
@@ -640,7 +640,7 @@ fn should_report_hybrid_candidate_budget_rejection() {
             - before["hybrid"]["candidate_budget_rejections_total"]
                 .as_u64()
                 .unwrap_or_default(),
-        1
+        0
     );
     assert_eq!(
         after["hybrid"]["truncation_count_total"]
@@ -649,7 +649,16 @@ fn should_report_hybrid_candidate_budget_rejection() {
             - before["hybrid"]["truncation_count_total"]
                 .as_u64()
                 .unwrap_or_default(),
-        1
+        0
+    );
+    assert!(
+        after["hybrid"]["ann_reads_total"]
+            .as_u64()
+            .unwrap_or_default()
+            - before["hybrid"]["ann_reads_total"]
+                .as_u64()
+                .unwrap_or_default()
+            <= 1
     );
     let _ = std::fs::remove_dir_all(path);
 }

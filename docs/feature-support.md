@@ -8,9 +8,13 @@ This is the sole canonical behavior and status matrix for Cassie. Each capabilit
 
 `Production-ready` is not a feature status. It is an evidence classification owned by [Production Readiness](production-readiness.md).
 
+The current beta support envelope consists of capabilities marked Stable. Experimental capabilities ship for evaluation with explicit limits and are not compatibility commitments. See [Production Readiness](production-readiness.md) for the release evidence bar.
+
 ## Ownership Boundary
 
 Midge owns persistence, durability, and recovery mechanics. Cassie owns logical query layouts and query-visible failures, including SQL semantics, indexes, planning, execution, caching, cancellation, memory and result limits, and protocol error mapping. Cassie does not implement a parallel WAL, recovery engine, or storage abstraction.
+
+Cassie is permanently a single-node query engine. Distributed SQL, cluster membership or management, replication, consensus, sharding and rebalancing, cross-node transactions, multi-node planning, remote query forwarding, and automatic cross-node repair are product non-goals. External systems may route to independent nodes, but that does not expand Cassie's execution or coordination boundary.
 
 The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v1`. A directory without that marker is rejected with a recreate diagnostic. There is no migration or legacy reader.
 
@@ -77,4 +81,4 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 
 ## Intentional Limits
 
-Cassie does not claim full PostgreSQL syntax or catalog parity, distributed query execution, cross-node transactions, replication, consensus, trigger-based application logic, or general OLTP behavior. Unsupported syntax and resource exhaustion return deterministic query-visible errors instead of silently changing semantics.
+Cassie does not claim full PostgreSQL syntax or catalog parity, distributed execution or cluster management, trigger-based application logic, or general OLTP behavior. Unsupported syntax and resource exhaustion return deterministic query-visible errors instead of silently changing semantics.

@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Setup Rust
-        uses: actions/setup-rust-toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt, clippy
@@ -84,6 +84,12 @@ jobs:
           set -o pipefail
           cd ui
           npm ci 2>&1 | tee ../target/ci-evidence/ui-install.log
+
+      - name: Audit UI production dependencies
+        run: |
+          set -o pipefail
+          cd ui
+          npm audit --omit=dev 2>&1 | tee ../target/ci-evidence/ui-audit.log
 
       - name: Verify generated adapters are fresh
         run: |

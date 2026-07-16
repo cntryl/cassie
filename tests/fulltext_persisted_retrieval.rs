@@ -1,4 +1,5 @@
 use cassie::app::Cassie;
+use std::collections::BTreeSet;
 
 #[path = "support/executor.rs"]
 mod support;
@@ -155,5 +156,45 @@ fn should_bound_persisted_term_candidate_reads() {
     assert!(
         reads < 64,
         "expected bounded persisted reads, observed {reads}"
+    );
+}
+
+#[test]
+fn should_fetch_only_allowed_fulltext_candidate_statistics_given_broad_term() {
+    // Arrange
+    let cassie = cassie_temp("fulltext_allowed_candidates");
+    let collection = "fulltext_allowed_candidates";
+    create_text_collection(&cassie, collection, &["id", "body"]);
+    for index in 0..64 {
+        put_document(
+            &cassie,
+            collection,
+            &format!("d{index}"),
+            serde_json::json!({"body": "common marker"}),
+        );
+    }
+    put_fulltext_index(&cassie, collection, "fulltext_body_idx", "body", &[]);
+    let allowed = BTreeSet::from(["d7".to_string(), "d41".to_string()]);
+    let before = cassie.metrics();
+
+    // Act
+    let candidates = cassie
+        .midge
+        .fulltext_candidate_stats_for_ids(
+            collection,
+            "fulltext_body_idx",
+            &["common".to_string()],
+            &allowed,
+        )
+        .expect("bounded candidate stats");
+    let after = cassie.metrics();
+
+    // Assert
+    assert_eq!(candidates.keys().cloned().collect::<BTreeSet<_>>(), allowed);
+    let reads = after["storage"]["data"]["reads"].as_u64().unwrap()
+        - before["storage"]["data"]["reads"].as_u64().unwrap();
+    assert!(
+        reads < 16,
+        "expected allowed-id point reads, observed {reads}"
     );
 }

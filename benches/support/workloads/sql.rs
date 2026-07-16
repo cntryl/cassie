@@ -25,6 +25,7 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
 use uuid::Uuid;
 
+use super::bound_sql;
 use super::context::{BenchContext, QueryBreakdownMicros};
 
 pub fn sql_binding(ctx: &BenchContext) -> Ready<usize> {
@@ -65,41 +66,46 @@ pub fn plan_cache_hit(ctx: &BenchContext) -> Ready<usize> {
 }
 
 pub fn plan_cache_miss(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
-    let sql = format!(
-        "SELECT id, title FROM bench_documents WHERE score >= 10 AND status IN ('approved', 'pending', 'miss-{nonce}') LIMIT 20"
-    );
+    let statement = bound_sql::plan_cache_miss(nonce);
     let result = ctx
         .cassie
-        .execute_sql(&ctx.session, &sql, vec![])
+        .execute_sql(&ctx.session, &statement.sql, statement.params)
         .expect("plan cache miss");
     ready(std::hint::black_box(result.rows.len()))
 }
 
 pub fn execute_sql(ctx: &BenchContext, sql: &str) -> Ready<usize> {
+    execute_sql_with_params(ctx, sql, vec![])
+}
+
+pub fn execute_sql_with_params(ctx: &BenchContext, sql: &str, params: Vec<Value>) -> Ready<usize> {
     let result = ctx
         .cassie
-        .execute_sql(&ctx.session, sql, vec![])
+        .execute_sql(&ctx.session, sql, params)
         .expect("execute sql");
     ready(std::hint::black_box(result.rows.len()))
 }
 
 pub fn recursive_cte_query(ctx: &BenchContext, upper_bound: usize) -> Ready<usize> {
-    let sql = format!(
-        "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT CAST(seq.n + 1 AS INT) FROM seq JOIN recursive_cte_fanout ON recursive_cte_fanout.n = 1 WHERE seq.n < {upper_bound}) SELECT n FROM seq"
-    );
+    let statement = bound_sql::recursive_cte(upper_bound);
     let result = ctx
         .cassie
-        .execute_sql(&ctx.session, &sql, vec![])
+        .execute_sql(&ctx.session, &statement.sql, statement.params)
         .expect("execute recursive CTE benchmark");
-    let expected_rows = (0..upper_bound)
+    let expected_rows = recursive_cte_result_rows(upper_bound);
+    assert_eq!(result.rows.len(), expected_rows);
+    ready(std::hint::black_box(result.rows.len()))
+}
+
+#[must_use]
+pub fn recursive_cte_result_rows(upper_bound: usize) -> usize {
+    (0..upper_bound)
         .scan(1_usize, |power, _| {
             let current = *power;
             *power = power.saturating_mul(10);
             Some(current)
         })
-        .sum::<usize>();
-    assert_eq!(result.rows.len(), expected_rows);
-    ready(std::hint::black_box(result.rows.len()))
+        .sum()
 }
 
 pub fn window_frame_context(

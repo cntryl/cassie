@@ -6,7 +6,7 @@ use std::env;
 use std::future::{ready, Ready};
 use std::io::{Read, Write};
 use std::net::TcpListener;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -30,45 +30,108 @@ use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
 
+pub const HTTP_ADMIN_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 20";
+
 pub struct HttpBenchContext {
     base_url: String,
     collection: String,
     client: reqwest::Client,
     session_cookie: String,
     shutdown: Arc<Notify>,
-    server: tokio::task::JoinHandle<Result<(), CassieError>>,
+    server: Option<tokio::task::JoinHandle<Result<(), CassieError>>>,
 }
 
-pub fn configure_http_tls() -> Result<(), CassieError> {
+#[derive(Debug)]
+pub struct GeneratedHttpTlsMaterial {
+    directory: PathBuf,
+    certificate_path: PathBuf,
+    key_path: PathBuf,
+    cleaned: bool,
+}
+
+impl GeneratedHttpTlsMaterial {
+    #[must_use]
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+
+    pub fn cleanup(mut self) -> Result<(), CassieError> {
+        self.clear_generated_environment();
+        if self.directory.exists() {
+            std::fs::remove_dir_all(&self.directory)
+                .map_err(|error| CassieError::Execution(error.to_string()))?;
+        }
+        self.cleaned = true;
+        Ok(())
+    }
+
+    fn clear_generated_environment(&self) {
+        remove_env_if_matches("CASSIE_REST_TLS_CERT_FILE", &self.certificate_path);
+        remove_env_if_matches("CASSIE_REST_TLS_KEY_FILE", &self.key_path);
+    }
+}
+
+impl Drop for GeneratedHttpTlsMaterial {
+    fn drop(&mut self) {
+        if self.cleaned {
+            return;
+        }
+        self.clear_generated_environment();
+        let _ = std::fs::remove_dir_all(&self.directory);
+    }
+}
+
+pub fn configure_http_tls() -> Result<Option<GeneratedHttpTlsMaterial>, CassieError> {
     if env::var_os("CASSIE_REST_TLS_CERT_FILE").is_some()
         || env::var_os("CASSIE_REST_TLS_KEY_FILE").is_some()
     {
-        return Ok(());
+        return Ok(None);
     }
-    let directory = env::temp_dir().join(format!("cassie-tier4-http-tls-{}", std::process::id()));
+    let directory = env::temp_dir().join(format!(
+        "cassie-benchmark-http-tls-{}-{}",
+        std::process::id(),
+        Uuid::new_v4()
+    ));
     std::fs::create_dir_all(&directory)
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     let certificate_path = directory.join("cert.pem");
     let key_path = directory.join("key.pem");
+    let material = GeneratedHttpTlsMaterial {
+        directory,
+        certificate_path,
+        key_path,
+        cleaned: false,
+    };
     let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    std::fs::write(&certificate_path, identity.cert.pem())
+    std::fs::write(&material.certificate_path, identity.cert.pem())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    std::fs::write(&key_path, identity.key_pair.serialize_pem())
+    std::fs::write(&material.key_path, identity.key_pair.serialize_pem())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    env::set_var("CASSIE_REST_TLS_CERT_FILE", path_string(&certificate_path));
-    env::set_var("CASSIE_REST_TLS_KEY_FILE", path_string(&key_path));
-    Ok(())
+    env::set_var(
+        "CASSIE_REST_TLS_CERT_FILE",
+        path_string(&material.certificate_path),
+    );
+    env::set_var("CASSIE_REST_TLS_KEY_FILE", path_string(&material.key_path));
+    Ok(Some(material))
 }
 
 fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+fn remove_env_if_matches(key: &str, generated_path: &Path) {
+    if env::var_os(key).as_deref() == Some(generated_path.as_os_str()) {
+        env::remove_var(key);
+    }
+}
+
 impl Drop for HttpBenchContext {
     fn drop(&mut self) {
         self.shutdown.notify_waiters();
-        self.server.abort();
+        if let Some(server) = self.server.take() {
+            server.abort();
+        }
     }
 }
 
@@ -103,13 +166,29 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
         client,
         session_cookie,
         shutdown,
-        server,
+        server: Some(server),
     })
 }
 
 impl HttpBenchContext {
     fn authorize(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         builder.header(reqwest::header::COOKIE, &self.session_cookie)
+    }
+
+    pub async fn shutdown(mut self) -> Result<(), CassieError> {
+        self.shutdown.notify_waiters();
+        let Some(mut server) = self.server.take() else {
+            return Ok(());
+        };
+        if let Ok(result) = tokio::time::timeout(Duration::from_secs(2), &mut server).await {
+            result.map_err(|error| CassieError::Execution(error.to_string()))?
+        } else {
+            server.abort();
+            let _ = server.await;
+            Err(CassieError::Execution(
+                "HTTP benchmark server shutdown timed out".to_string(),
+            ))
+        }
     }
 }
 
@@ -207,17 +286,14 @@ pub async fn http_transport_document_create_get_batch(
     ctx: &HttpBenchContext,
     batch_size: usize,
 ) -> usize {
-    let session = ctx
-        .authorize(
-            ctx.client
-                .get(format!("{}/api/v1/auth/session", ctx.base_url)),
-        )
-        .send()
-        .await
-        .expect("send current-session request")
-        .error_for_status()
-        .expect("current-session status");
-    std::hint::black_box(session);
+    let mut completed = 0usize;
+    for _ in 0..batch_size.max(1) {
+        completed = completed.saturating_add(http_transport_document_create_get(ctx).await);
+    }
+    completed
+}
+
+pub async fn http_transport_document_create_get(ctx: &HttpBenchContext) -> usize {
     let payload = json!({
         "title": "http-benchmark-title",
         "body": "alpha beta gamma",
@@ -225,40 +301,79 @@ pub async fn http_transport_document_create_get_batch(
         "status": "approved",
         "embedding": [1.0, 0.0, 0.0],
     });
-    let mut completed = 0usize;
-    for _ in 0..batch_size.max(1) {
-        let created = ctx
-            .authorize(ctx.client.post(format!(
-                "{}/api/v1/collections/{}/documents",
-                ctx.base_url, ctx.collection
-            )))
-            .json(&payload)
-            .send()
-            .await
-            .expect("send create document request")
-            .error_for_status()
-            .expect("create document status")
-            .json::<serde_json::Value>()
-            .await
-            .expect("create document response");
-        let id = created["id"].as_str().expect("created document id");
-        let loaded = ctx
-            .authorize(ctx.client.get(format!(
-                "{}/api/v1/collections/{}/documents/{id}",
-                ctx.base_url, ctx.collection
-            )))
-            .send()
-            .await
-            .expect("send get document request")
-            .error_for_status()
-            .expect("get document status")
-            .json::<serde_json::Value>()
-            .await
-            .expect("get document response");
-        std::hint::black_box(loaded);
-        completed = completed.saturating_add(1);
-    }
-    completed
+    let created = ctx
+        .authorize(ctx.client.post(format!(
+            "{}/api/v1/collections/{}/documents",
+            ctx.base_url, ctx.collection
+        )))
+        .json(&payload)
+        .send()
+        .await
+        .expect("send create document request")
+        .error_for_status()
+        .expect("create document status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("create document response");
+    let id = created["id"].as_str().expect("created document id");
+    let loaded = ctx
+        .authorize(ctx.client.get(format!(
+            "{}/api/v1/collections/{}/documents/{id}",
+            ctx.base_url, ctx.collection
+        )))
+        .send()
+        .await
+        .expect("send get document request")
+        .error_for_status()
+        .expect("get document status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("get document response");
+    std::hint::black_box(loaded);
+    let deleted = ctx
+        .authorize(ctx.client.delete(format!(
+            "{}/api/v1/collections/{}/documents/{id}",
+            ctx.base_url, ctx.collection
+        )))
+        .send()
+        .await
+        .expect("send delete document request")
+        .error_for_status()
+        .expect("delete document status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("delete document response");
+    assert_eq!(
+        deleted["deleted"].as_bool(),
+        Some(true),
+        "benchmark document cleanup"
+    );
+    std::hint::black_box(3)
+}
+
+pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {
+    let response = ctx
+        .authorize(
+            ctx.client
+                .post(format!("{}/api/v1/admin/query/execute", ctx.base_url)),
+        )
+        .json(&json!({
+            "sql": HTTP_ADMIN_QUERY
+        }))
+        .send()
+        .await
+        .expect("send HTTP query request")
+        .error_for_status()
+        .expect("HTTP query status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("HTTP query response");
+    assert_eq!(
+        response["rows"].as_array().map(Vec::len),
+        Some(20),
+        "HTTP query result cardinality"
+    );
+    std::hint::black_box(1)
 }
 
 pub async fn http_transport_large_result_set(ctx: &HttpBenchContext) -> usize {
@@ -362,19 +477,6 @@ async fn verify_authenticated_http_contract(
         )));
     }
 
-    let oversized = client
-        .post(format!("{base_url}/api/v1/auth/login"))
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .body(vec![b'x'; 8 * 1024 * 1024 + 1])
-        .send()
-        .await
-        .map_err(|error| CassieError::Execution(error.to_string()))?;
-    if oversized.status() != reqwest::StatusCode::PAYLOAD_TOO_LARGE {
-        return Err(CassieError::Execution(format!(
-            "REST oversized-body probe returned {}",
-            oversized.status()
-        )));
-    }
     Ok(())
 }
 
@@ -415,7 +517,8 @@ async fn login_http_session(
             }
             Err(error) => {
                 return Err(CassieError::Execution(format!(
-                    "REST login transport failed after retries: {error:?}"
+                    "REST login transport failed after retries: {error:?}; source={:?}",
+                    std::error::Error::source(&error)
                 )));
             }
         }

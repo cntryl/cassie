@@ -101,6 +101,14 @@ pub(super) fn bind_insert(
                 on_conflict.target_fields
             )));
         }
+
+        if let crate::sql::ast::InsertConflictAction::DoUpdate {
+            assignments,
+            filter,
+        } = &mut on_conflict.action
+        {
+            validate_conflict_update(assignments, filter.as_ref(), &schema, &table, catalog)?;
+        }
     }
 
     if let InsertSource::Select(select) = statement.source {
@@ -112,6 +120,59 @@ pub(super) fn bind_insert(
 
     statement.table = table;
     Ok(statement)
+}
+
+fn validate_conflict_update(
+    assignments: &mut [(String, Expr)],
+    filter: Option<&Expr>,
+    schema: &CollectionSchema,
+    table: &str,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    let mut known_fields = schema
+        .fields
+        .iter()
+        .flat_map(|field| {
+            let name = field.name.to_ascii_lowercase();
+            [name.clone(), format!("excluded.{name}")]
+        })
+        .collect::<HashSet<_>>();
+    known_fields.insert("_id".to_string());
+    known_fields.insert(format!("{table}._id").to_ascii_lowercase());
+    let local_table = table.rsplit('.').next().unwrap_or(table);
+    known_fields.insert(format!("{local_table}._id").to_ascii_lowercase());
+    for field in &schema.fields {
+        known_fields.insert(format!("{table}.{}", field.name).to_ascii_lowercase());
+        known_fields.insert(format!("{local_table}.{}", field.name).to_ascii_lowercase());
+    }
+
+    let mut seen = HashSet::new();
+    let mut functions = Vec::new();
+    for (target, expression) in assignments {
+        let normalized = target.trim().to_string();
+        if !schema
+            .fields
+            .iter()
+            .any(|field| field.name.eq_ignore_ascii_case(&normalized))
+        {
+            return Err(CassieError::Planner(format!(
+                "ON CONFLICT assignment target '{normalized}' does not exist in '{table}'"
+            )));
+        }
+        if !seen.insert(normalized.to_ascii_lowercase()) {
+            return Err(CassieError::Planner(format!(
+                "ON CONFLICT assignment target '{normalized}' is duplicated"
+            )));
+        }
+        validate_expression(expression, &known_fields, &HashSet::new(), false)?;
+        super::collect_expr(expression, &mut functions);
+        *target = normalized;
+    }
+    if let Some(filter) = filter {
+        validate_expression(filter, &known_fields, &HashSet::new(), false)?;
+        super::collect_expr(filter, &mut functions);
+    }
+    validate_function_calls(functions, catalog)
 }
 
 fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[String]) -> bool {

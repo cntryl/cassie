@@ -29,6 +29,11 @@ pub(super) fn bind_create_index(
             "CREATE INDEX requires an index name".into(),
         ));
     }
+    if statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
+        statement.table = table;
+        statement.name = name;
+        return Ok(statement);
+    }
 
     let fields = normalize_fields(&statement.fields);
     let expressions = statement.expressions.clone();

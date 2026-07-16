@@ -152,7 +152,7 @@ impl Midge {
 
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let payload = match tx
-            .get(&Self::row_key(&collection, id))
+            .get(&Self::row_key(row_schema.relation_id, id))
             .map_err(CassieError::from)?
         {
             Some(payload) => Some(payload),
@@ -319,6 +319,7 @@ impl Midge {
                 if report_has_changes(&report) {
                     Self::refresh_vector_index_states_in_tx(
                         &mut tx,
+                        &context.row_schema,
                         &context.vector_indexes,
                         &vector_records,
                     )?;
@@ -385,7 +386,12 @@ impl Midge {
             )?;
         }
         if report_has_changes(&report) {
-            Self::refresh_vector_index_states_in_tx(tx, &context.vector_indexes, &vector_records)?;
+            Self::refresh_vector_index_states_in_tx(
+                tx,
+                &context.row_schema,
+                &context.vector_indexes,
+                &vector_records,
+            )?;
         }
         Ok((report, vector_records))
     }
@@ -583,9 +589,12 @@ impl Midge {
             let row_exists = if context.needs_existing_payload {
                 payload.is_some()
             } else {
-                tx.get(&Self::column_store_row_key(collection, id))
-                    .map_err(CassieError::from)?
-                    .is_some()
+                tx.get(&Self::column_store_row_key(
+                    context.row_schema.relation_id,
+                    id,
+                ))
+                .map_err(CassieError::from)?
+                .is_some()
             };
             let legacy_exists = tx.get(&legacy_key).map_err(CassieError::from)?.is_some();
             return Ok(ExistingDocumentState {
@@ -596,7 +605,7 @@ impl Midge {
         }
 
         let row_raw = tx
-            .get(&Self::row_key(collection, id))
+            .get(&Self::row_key(context.row_schema.relation_id, id))
             .map_err(CassieError::from)?;
         let legacy_raw = tx.get(&legacy_key).map_err(CassieError::from)?;
         let payload = if context.needs_existing_payload {
@@ -637,12 +646,12 @@ impl Midge {
             existing.payload.as_ref(),
             Some(&payload),
         )?;
-        let row_key = Self::row_key(collection, &prepared.id);
+        let row_key = Self::row_key(context.row_schema.relation_id, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
         let replacing = existing.row_exists || existing.legacy_exists;
         let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
             tx,
-            collection,
+            &context.row_schema,
             &prepared.id,
             &context.vector_fields,
         )?;
@@ -656,7 +665,7 @@ impl Midge {
                 collection,
                 &prepared.id,
                 &payload,
-                &context.schema,
+                &context.row_schema,
             )?;
         } else {
             tx.put(row_key, row_blob, None).map_err(CassieError::from)?;
@@ -677,7 +686,11 @@ impl Midge {
                 record.collection = normalized_vector_collection.to_string();
             }
         }
-        Self::write_normalized_vector_records(tx, collection, &prepared.normalized_records)?;
+        Self::write_normalized_vector_records(
+            tx,
+            &context.row_schema,
+            &prepared.normalized_records,
+        )?;
         check_document_write_failure_point(DocumentWriteFailurePoint::NormalizedVector)?;
         let index_changes = Self::sync_secondary_indexes_for_write(
             tx,
@@ -724,14 +737,14 @@ impl Midge {
             existing.payload.as_ref(),
             None,
         )?;
-        let row_key = Self::row_key(collection, &prepared.id);
+        let row_key = Self::row_key(context.row_schema.relation_id, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
         if existing.row_exists && context.uses_column_store {
             Self::delete_column_store_document_to_tx(
                 tx,
                 collection,
                 &prepared.id,
-                &context.schema,
+                &context.row_schema,
             )?;
         } else if existing.row_exists {
             tx.delete(row_key).map_err(CassieError::from)?;
@@ -748,7 +761,7 @@ impl Midge {
         }
         let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
             tx,
-            collection,
+            &context.row_schema,
             &prepared.id,
             &context.vector_fields,
         )?;

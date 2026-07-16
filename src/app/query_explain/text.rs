@@ -147,12 +147,41 @@ fn join_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
     } else {
         physical.join.keys.join(",")
     };
+    let join_order = if physical.join.order.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join.order.join(">")
+    };
+    let legality_barriers = if physical.join.legality_barriers.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join.legality_barriers.join(",")
+    };
+    let required_columns = if physical.join.properties.required_columns.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join.properties.required_columns.join(",")
+    };
+    let required_ordering = if physical.join.properties.required_ordering.is_empty() {
+        "none".to_string()
+    } else {
+        physical.join.properties.required_ordering.join(",")
+    };
     format!(
-        "join_strategy={} join_keys={} join_sort_required={} join_fallback_reason={}",
+        "join_strategy={} join_enumeration={} join_order={} join_keys={} join_sort_required={} join_fallback_reason={} join_legality_barriers={} join_required_columns={} join_required_ordering={} join_parameterized={} join_rewindable={} join_bounded={} join_memory_bound={}",
         physical.join.strategy.as_deref().unwrap_or("none"),
+        physical.join.enumeration,
+        join_order,
         join_keys,
         physical.join.sort_required,
-        physical.join.fallback_reason.as_deref().unwrap_or("none")
+        physical.join.fallback_reason.as_deref().unwrap_or("none"),
+        legality_barriers,
+        required_columns,
+        required_ordering,
+        physical.join.properties.parameterized,
+        physical.join.properties.rewindable,
+        physical.join.properties.bounded,
+        physical.join.properties.memory_bound
     )
 }
 

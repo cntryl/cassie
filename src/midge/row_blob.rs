@@ -8,8 +8,8 @@ mod encoding;
 
 use self::encoding::encode_value;
 
-const MAGIC: &[u8; 4] = b"CRB1";
-const FORMAT_VERSION: u8 = 1;
+const MAGIC: &[u8; 4] = b"CRB2";
+const FORMAT_VERSION: u8 = 2;
 const TYPE_NULL: u8 = 0x00;
 const TYPE_BOOL: u8 = 0x01;
 const TYPE_I64: u8 = 0x02;
@@ -24,8 +24,28 @@ const TYPE_TIMESTAMP: u8 = 0x0B;
 const TYPE_ARRAY: u8 = 0x0C;
 const TYPE_BYTEA: u8 = 0x0D;
 
+pub(crate) fn encode_compact_value(
+    data_type: &DataType,
+    value: &serde_json::Value,
+) -> Result<Vec<u8>, CassieError> {
+    let (type_tag, payload) = encode_value(data_type, value)?;
+    let mut out = Vec::with_capacity(payload.len().saturating_add(1));
+    out.push(type_tag);
+    out.extend_from_slice(&payload);
+    Ok(out)
+}
+
+pub(crate) fn decode_compact_value(bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
+    let (&type_tag, payload) = bytes
+        .split_first()
+        .ok_or_else(|| CassieError::Parse("empty compact value".to_string()))?;
+    decode_directory_value(type_tag, payload)
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RowSchema {
+    #[serde(default)]
+    pub relation_id: u64,
     pub schema_version: u32,
     pub next_field_id: u32,
     pub fields: Vec<RowFieldMeta>,
@@ -63,6 +83,7 @@ impl RowSchema {
         hydrate_normalized_names(fields.as_mut_slice());
 
         Self {
+            relation_id: 0,
             schema_version: 1,
             next_field_id: next_field_id_for_len(fields.len()),
             fields,
@@ -157,24 +178,6 @@ impl RowSchema {
     pub(crate) fn active_fields_by_id(&self) -> Vec<&RowFieldMeta> {
         self.fields.iter().filter(|field| !field.retired).collect()
     }
-
-    fn field_by_id(&self, field_id: u32) -> Option<&RowFieldMeta> {
-        let index = usize::try_from(field_id.checked_sub(1)?).ok()?;
-        self.fields
-            .get(index)
-            .filter(|field| field.field_id == field_id)
-    }
-
-    fn field_by_name_or_alias(
-        &self,
-        name: &str,
-        include_historical_aliases: bool,
-    ) -> Option<&RowFieldMeta> {
-        let normalized = name.to_ascii_lowercase();
-        self.fields
-            .iter()
-            .find(|field| field_matches_name(field, &normalized, include_historical_aliases))
-    }
 }
 
 fn hydrate_normalized_names(fields: &mut [RowFieldMeta]) {
@@ -224,45 +227,66 @@ pub(crate) fn encode_row(
         fields.push((field.field_id, type_tag, encoded));
     }
 
+    let max_field_id = schema
+        .fields
+        .iter()
+        .map(|field| field.field_id)
+        .max()
+        .unwrap_or_default();
+    let bitmap_len = usize::try_from(max_field_id.div_ceil(8)).unwrap_or(usize::MAX);
+    let mut presence = vec![0_u8; bitmap_len];
+    let mut nulls = vec![0_u8; bitmap_len];
+    let mut payload = Vec::new();
+    let mut directory = Vec::with_capacity(fields.len());
+    for (field_id, type_tag, encoded) in &fields {
+        set_field_bit(&mut presence, *field_id);
+        if *type_tag == TYPE_NULL {
+            set_field_bit(&mut nulls, *field_id);
+        }
+        let offset = u32::try_from(payload.len())
+            .map_err(|_| CassieError::Parse("row blob payload offset overflow".to_string()))?;
+        let len = u32::try_from(encoded.len())
+            .map_err(|_| CassieError::Parse("row blob field length overflow".to_string()))?;
+        payload.extend_from_slice(encoded);
+        directory.push((*field_id, *type_tag, offset, len));
+    }
+
     let mut out = Vec::new();
     out.extend_from_slice(MAGIC);
     out.push(FORMAT_VERSION);
     out.extend_from_slice(&schema.schema_version.to_be_bytes());
-    out.push(0);
-    write_varint(u64::try_from(fields.len()).unwrap_or(u64::MAX), &mut out);
-
-    for (field_id, type_tag, encoded) in fields {
-        write_field_value(field_id, type_tag, &encoded, &mut out)?;
+    out.extend_from_slice(&max_field_id.to_be_bytes());
+    out.extend_from_slice(
+        &u32::try_from(bitmap_len)
+            .map_err(|_| CassieError::Parse("row blob bitmap length overflow".to_string()))?
+            .to_be_bytes(),
+    );
+    out.extend_from_slice(&presence);
+    out.extend_from_slice(&nulls);
+    out.extend_from_slice(
+        &u32::try_from(directory.len())
+            .map_err(|_| CassieError::Parse("row blob field count overflow".to_string()))?
+            .to_be_bytes(),
+    );
+    for (field_id, type_tag, offset, len) in directory {
+        out.extend_from_slice(&field_id.to_be_bytes());
+        out.push(type_tag);
+        out.extend_from_slice(&offset.to_be_bytes());
+        out.extend_from_slice(&len.to_be_bytes());
     }
+    out.extend_from_slice(&payload);
 
     Ok(out)
 }
 
-fn write_field_value(
-    field_id: u32,
-    type_tag: u8,
-    encoded: &[u8],
-    out: &mut Vec<u8>,
-) -> Result<(), CassieError> {
-    write_varint(u64::from(field_id), out);
-    out.push(type_tag);
-
-    match type_tag {
-        TYPE_NULL => {}
-        TYPE_BOOL | TYPE_I64 | TYPE_F64 | TYPE_UUID | TYPE_ARRAY => out.extend_from_slice(encoded),
-        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP
-        | TYPE_BYTEA => {
-            write_varint(u64::try_from(encoded.len()).unwrap_or(u64::MAX), out);
-            out.extend_from_slice(encoded);
-        }
-        _ => {
-            return Err(CassieError::Parse(format!(
-                "unsupported row blob type tag {type_tag}"
-            )));
-        }
+fn set_field_bit(bitmap: &mut [u8], field_id: u32) {
+    let Some(zero_based) = field_id.checked_sub(1) else {
+        return;
+    };
+    let byte = usize::try_from(zero_based / 8).unwrap_or(usize::MAX);
+    if let Some(slot) = bitmap.get_mut(byte) {
+        *slot |= 1 << (zero_based % 8);
     }
-
-    Ok(())
 }
 
 pub(crate) fn decode_row(schema: &RowSchema, row: &[u8]) -> Result<serde_json::Value, CassieError> {
@@ -311,59 +335,20 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
     filter_value: &serde_json::Value,
     include_historical_aliases: bool,
 ) -> Result<Option<serde_json::Value>, CassieError> {
-    if row.first() == Some(&b'{') {
-        let payload: serde_json::Value = serde_json::from_slice(row).map_err(|error| {
-            CassieError::Parse(format!("invalid legacy JSON document: {error}"))
-        })?;
-        if !json_object_matches_filter(
-            schema,
-            &payload,
-            filter_field,
-            filter_value,
-            include_historical_aliases,
-        )? {
-            return Ok(None);
-        }
-        return filter_json_object(
-            schema,
-            &payload,
-            Some(projection),
-            include_historical_aliases,
-        )
-        .map(Some);
-    }
-
-    let mut cursor = Cursor::new(row);
-    cursor.expect_bytes(MAGIC)?;
-    let version = cursor.read_u8()?;
-    if version != FORMAT_VERSION {
-        return Err(CassieError::Parse(format!(
-            "unsupported row blob format version {version}"
-        )));
-    }
-
-    let _schema_version = cursor.read_u32()?;
-    let _flags = cursor.read_u8()?;
-    let field_count = cursor.read_varint()?;
+    let directory = RowDirectory::parse(row)?;
     let filter_field = filter_field.to_ascii_lowercase();
     let mut object = serde_json::Map::new();
     let mut matched_filter = false;
     let mut saw_filter = false;
 
-    for _ in 0..field_count {
-        let field_id = u32::try_from(cursor.read_varint()?)
-            .map_err(|_| CassieError::Parse("field id out of range in row blob".to_string()))?;
-        let type_tag = cursor.read_u8()?;
-        let Some(field) = schema.field_by_id(field_id) else {
-            skip_value(type_tag, &mut cursor)?;
-            continue;
-        };
-
+    for field in &schema.fields {
         let include_names =
             included_field_names(field, Some(projection), include_historical_aliases);
         let is_filter_field = field_matches_name(field, &filter_field, include_historical_aliases);
         if !include_names.is_empty() || is_filter_field {
-            let value = decode_value(type_tag, &mut cursor)?;
+            let Some(value) = directory.decode(field.field_id)? else {
+                continue;
+            };
             if is_filter_field {
                 saw_filter = true;
                 matched_filter = value_matches_filter(&value, filter_value);
@@ -371,8 +356,6 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
             for name in include_names {
                 object.insert(name, value.clone());
             }
-        } else {
-            skip_value(type_tag, &mut cursor)?;
         }
     }
 
@@ -385,40 +368,15 @@ fn decode_row_with_projection(
     projection: Option<&HashSet<String>>,
     include_historical_aliases: bool,
 ) -> Result<serde_json::Value, CassieError> {
-    if row.first() == Some(&b'{') {
-        let payload: serde_json::Value = serde_json::from_slice(row).map_err(|error| {
-            CassieError::Parse(format!("invalid legacy JSON document: {error}"))
-        })?;
-        return filter_json_object(schema, &payload, projection, include_historical_aliases);
-    }
-
-    let mut cursor = Cursor::new(row);
-    cursor.expect_bytes(MAGIC)?;
-    let version = cursor.read_u8()?;
-    if version != FORMAT_VERSION {
-        return Err(CassieError::Parse(format!(
-            "unsupported row blob format version {version}"
-        )));
-    }
-
-    let _schema_version = cursor.read_u32()?;
-    let _flags = cursor.read_u8()?;
-    let field_count = cursor.read_varint()?;
+    let directory = RowDirectory::parse(row)?;
     let mut object = serde_json::Map::new();
 
-    for _ in 0..field_count {
-        let field_id = u32::try_from(cursor.read_varint()?)
-            .map_err(|_| CassieError::Parse("field id out of range in row blob".to_string()))?;
-        let type_tag = cursor.read_u8()?;
-        let Some(field) = schema.field_by_id(field_id) else {
-            skip_value(type_tag, &mut cursor)?;
-            continue;
-        };
+    for field in &schema.fields {
         let include_names = included_field_names(field, projection, include_historical_aliases);
-        if include_names.is_empty() {
-            skip_value(type_tag, &mut cursor)?;
-        } else {
-            let value = decode_value(type_tag, &mut cursor)?;
+        if !include_names.is_empty() {
+            let Some(value) = directory.decode(field.field_id)? else {
+                continue;
+            };
             for name in include_names {
                 object.insert(name, value.clone());
             }
@@ -428,59 +386,102 @@ fn decode_row_with_projection(
     Ok(serde_json::Value::Object(object))
 }
 
-fn filter_json_object(
-    schema: &RowSchema,
-    payload: &serde_json::Value,
-    projection: Option<&HashSet<String>>,
-    include_historical_aliases: bool,
-) -> Result<serde_json::Value, CassieError> {
-    let object = payload
-        .as_object()
-        .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
-    let mut out = serde_json::Map::new();
-
-    match projection {
-        Some(projection) => {
-            for field_name in projection {
-                if let Some(field) =
-                    schema.field_by_name_or_alias(field_name, include_historical_aliases)
-                {
-                    if let Some(value) = json_field_value(object, field) {
-                        let output = projected_output_name(field, field_name)
-                            .unwrap_or_else(|| field.name.clone());
-                        out.insert(output, value.clone());
-                    }
-                }
-            }
-        }
-        None => {
-            for field in schema.active_fields_by_id() {
-                if let Some(value) = object.get(&field.name) {
-                    out.insert(field.name.clone(), value.clone());
-                }
-            }
-        }
-    }
-
-    Ok(serde_json::Value::Object(out))
+struct RowDirectory<'a> {
+    presence: &'a [u8],
+    nulls: &'a [u8],
+    entries: std::collections::HashMap<u32, (u8, usize, usize)>,
+    payload: &'a [u8],
 }
 
-fn json_object_matches_filter(
-    schema: &RowSchema,
-    payload: &serde_json::Value,
-    filter_field: &str,
-    filter_value: &serde_json::Value,
-    include_historical_aliases: bool,
-) -> Result<bool, CassieError> {
-    let object = payload
-        .as_object()
-        .ok_or_else(|| CassieError::InvalidVector("document must be object".to_string()))?;
-    let Some(field) = schema.field_by_name_or_alias(filter_field, include_historical_aliases)
-    else {
-        return Ok(false);
+impl<'a> RowDirectory<'a> {
+    fn parse(row: &'a [u8]) -> Result<Self, CassieError> {
+        let mut cursor = Cursor::new(row);
+        cursor.expect_bytes(MAGIC)?;
+        let version = cursor.read_u8()?;
+        if version != FORMAT_VERSION {
+            return Err(CassieError::Parse(format!(
+                "unsupported row blob format version {version}"
+            )));
+        }
+        let _schema_version = cursor.read_u32()?;
+        let _max_field_id = cursor.read_u32()?;
+        let bitmap_len = usize::try_from(cursor.read_u32()?)
+            .map_err(|_| CassieError::Parse("row blob bitmap length overflow".to_string()))?;
+        let presence = cursor.read_exact(bitmap_len)?;
+        let nulls = cursor.read_exact(bitmap_len)?;
+        let field_count = cursor.read_u32()?;
+        let mut entries = std::collections::HashMap::new();
+        for _ in 0..field_count {
+            let field_id = cursor.read_u32()?;
+            let type_tag = cursor.read_u8()?;
+            let offset = usize::try_from(cursor.read_u32()?)
+                .map_err(|_| CassieError::Parse("row blob field offset overflow".to_string()))?;
+            let len = usize::try_from(cursor.read_u32()?)
+                .map_err(|_| CassieError::Parse("row blob field length overflow".to_string()))?;
+            entries.insert(field_id, (type_tag, offset, len));
+        }
+        let payload = cursor.remaining();
+        for (_, offset, len) in entries.values() {
+            if offset
+                .checked_add(*len)
+                .is_none_or(|end| end > payload.len())
+            {
+                return Err(CassieError::Parse(
+                    "invalid row blob field bounds".to_string(),
+                ));
+            }
+        }
+        Ok(Self {
+            presence,
+            nulls,
+            entries,
+            payload,
+        })
+    }
+
+    fn decode(&self, field_id: u32) -> Result<Option<serde_json::Value>, CassieError> {
+        if !field_bit(self.presence, field_id) {
+            return Ok(None);
+        }
+        if field_bit(self.nulls, field_id) {
+            return Ok(Some(serde_json::Value::Null));
+        }
+        let (type_tag, offset, len) = self.entries.get(&field_id).copied().ok_or_else(|| {
+            CassieError::Parse("row blob field missing directory entry".to_string())
+        })?;
+        let bytes = &self.payload[offset..offset + len];
+        decode_directory_value(type_tag, bytes).map(Some)
+    }
+}
+
+fn field_bit(bitmap: &[u8], field_id: u32) -> bool {
+    field_id.checked_sub(1).is_some_and(|zero_based| {
+        let byte = usize::try_from(zero_based / 8).unwrap_or(usize::MAX);
+        bitmap
+            .get(byte)
+            .is_some_and(|value| value & (1 << (zero_based % 8)) != 0)
+    })
+}
+
+fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Value, CassieError> {
+    let mut framed = Vec::new();
+    let input = if matches!(
+        type_tag,
+        TYPE_STRING
+            | TYPE_JSON
+            | TYPE_VECTOR_F32
+            | TYPE_DATE
+            | TYPE_TIME
+            | TYPE_TIMESTAMP
+            | TYPE_BYTEA
+    ) {
+        write_varint(u64::try_from(bytes.len()).unwrap_or(u64::MAX), &mut framed);
+        framed.extend_from_slice(bytes);
+        framed.as_slice()
+    } else {
+        bytes
     };
-    Ok(json_field_value(object, field)
-        .is_some_and(|value| value_matches_filter(value, filter_value)))
+    decode_value(type_tag, &mut Cursor::new(input))
 }
 
 fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {
@@ -526,66 +527,6 @@ fn field_matches_name(
                 .aliases
                 .iter()
                 .any(|alias| alias.eq_ignore_ascii_case(normalized_name)))
-}
-
-fn projected_output_name(field: &RowFieldMeta, requested: &str) -> Option<String> {
-    if !field.retired && field.normalized_name == requested.to_ascii_lowercase() {
-        return Some(field.name.clone());
-    }
-    field
-        .aliases
-        .iter()
-        .find(|alias| alias.eq_ignore_ascii_case(requested))
-        .cloned()
-}
-
-fn json_field_value<'a>(
-    object: &'a serde_json::Map<String, serde_json::Value>,
-    field: &RowFieldMeta,
-) -> Option<&'a serde_json::Value> {
-    object.get(&field.name).or_else(|| {
-        field
-            .aliases
-            .iter()
-            .find_map(|alias| object.get(alias.as_str()))
-    })
-}
-
-fn skip_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> {
-    match type_tag {
-        TYPE_NULL => Ok(()),
-        TYPE_BOOL => cursor.skip_exact(1),
-        TYPE_I64 | TYPE_F64 => cursor.skip_exact(8),
-        TYPE_UUID => cursor.skip_exact(16),
-        TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME | TYPE_TIMESTAMP
-        | TYPE_BYTEA => cursor.skip_len_prefixed(),
-        TYPE_ARRAY => {
-            let count = usize::try_from(cursor.read_varint()?).map_err(|_| {
-                CassieError::Parse("array length out of range in row blob".to_string())
-            })?;
-            for _ in 0..count {
-                let value_type = cursor.read_u8()?;
-                skip_array_value(value_type, cursor)?;
-            }
-            Ok(())
-        }
-        _ => Err(CassieError::Parse(format!(
-            "unsupported row blob type tag {type_tag}"
-        ))),
-    }
-}
-
-fn skip_array_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<(), CassieError> {
-    match type_tag {
-        TYPE_BOOL => cursor.skip_exact(1),
-        TYPE_I64 | TYPE_F64 => cursor.skip_exact(8),
-        TYPE_UUID => cursor.skip_exact(16),
-        TYPE_NULL | TYPE_STRING | TYPE_JSON | TYPE_VECTOR_F32 | TYPE_DATE | TYPE_TIME
-        | TYPE_TIMESTAMP | TYPE_ARRAY | TYPE_BYTEA => cursor.skip_len_prefixed(),
-        _ => Err(CassieError::Parse(format!(
-            "unsupported row blob array type tag {type_tag}"
-        ))),
-    }
 }
 
 fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
@@ -817,16 +758,6 @@ impl<'a> Cursor<'a> {
         Ok(self.read_exact(len)?.to_vec())
     }
 
-    fn skip_len_prefixed(&mut self) -> Result<(), CassieError> {
-        let len = usize::try_from(self.read_varint()?)
-            .map_err(|_| CassieError::Parse("row blob length overflow".to_string()))?;
-        self.skip_exact(len)
-    }
-
-    fn skip_exact(&mut self, len: usize) -> Result<(), CassieError> {
-        self.read_exact(len).map(|_| ())
-    }
-
     fn read_exact(&mut self, len: usize) -> Result<&'a [u8], CassieError> {
         let end = self
             .offset
@@ -839,6 +770,10 @@ impl<'a> Cursor<'a> {
         let bytes = &self.bytes[self.offset..end];
         self.offset = end;
         Ok(bytes)
+    }
+
+    fn remaining(&self) -> &'a [u8] {
+        &self.bytes[self.offset..]
     }
 }
 

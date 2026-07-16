@@ -111,6 +111,12 @@ pub enum CassieError {
     #[error("query timeout exceeded")]
     DeadlineExceeded,
 
+    #[error("query canceled")]
+    QueryCancelled,
+
+    #[error("resource limit exceeded: {0}")]
+    ResourceLimit(String),
+
     #[error("configuration error: {0}")]
     Configuration(String),
 
@@ -170,6 +176,8 @@ impl CassieError {
             }
             Self::Planner(message) => planner_descriptor(message),
             Self::DeadlineExceeded => timeout_descriptor(),
+            Self::QueryCancelled => cancellation_descriptor(),
+            Self::ResourceLimit(message) => resource_limit_descriptor(message.clone()),
             Self::Execution(message) => execution_descriptor(message),
             Self::Configuration(_) => service_unavailable_descriptor("58030", self.to_string()),
             Self::InvalidVector(_) | Self::InvalidEmbedding(_) => {
@@ -323,6 +331,28 @@ fn timeout_descriptor() -> CassieErrorDescriptor {
     }
 }
 
+fn cancellation_descriptor() -> CassieErrorDescriptor {
+    CassieErrorDescriptor {
+        http_status: 499,
+        sql_state: "57014",
+        message: CassieError::QueryCancelled.to_string(),
+        table: None,
+        column: None,
+        constraint: None,
+    }
+}
+
+fn resource_limit_descriptor(message: String) -> CassieErrorDescriptor {
+    CassieErrorDescriptor {
+        http_status: 400,
+        sql_state: "54000",
+        message,
+        table: None,
+        column: None,
+        constraint: None,
+    }
+}
+
 fn unauthorized_descriptor() -> CassieErrorDescriptor {
     CassieErrorDescriptor {
         http_status: 401,
@@ -378,6 +408,9 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
 }
 
 fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message.eq_ignore_ascii_case("query canceled") {
+        return cancellation_descriptor();
+    }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
@@ -386,6 +419,12 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     }
     if message.eq_ignore_ascii_case("query admission exhausted") {
         return service_unavailable_descriptor("53300", message.to_string());
+    }
+    if message.starts_with("query memory budget exceeded:") {
+        return resource_limit_descriptor(message.to_string());
+    }
+    if message.starts_with("query result row limit exceeded:") {
+        return resource_limit_descriptor(message.to_string());
     }
     bad_request_descriptor("22000", message.to_string())
 }
@@ -437,6 +476,19 @@ impl From<QueryError> for CassieError {
             {
                 CassieError::DeadlineExceeded
             }
+            QueryError::General(message) if message.eq_ignore_ascii_case("query canceled") => {
+                CassieError::QueryCancelled
+            }
+            QueryError::General(message)
+                if message.starts_with("query memory budget exceeded:") =>
+            {
+                CassieError::ResourceLimit(message)
+            }
+            QueryError::General(message)
+                if message.starts_with("query result row limit exceeded:") =>
+            {
+                CassieError::ResourceLimit(message)
+            }
             QueryError::General(message) => CassieError::Execution(message),
             QueryError::Cassie(error) => error,
         }
@@ -452,6 +504,7 @@ impl From<crate::config::CassieRuntimeConfigError> for CassieError {
 impl From<EmbeddingError> for CassieError {
     fn from(value: EmbeddingError) -> Self {
         match value {
+            EmbeddingError::Cancelled { .. } => CassieError::QueryCancelled,
             EmbeddingError::InvalidConfiguration(message) | EmbeddingError::ParseError(message) => {
                 CassieError::InvalidEmbedding(message)
             }

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 fn data_dir(label: &str) -> String {
     let mut path = std::env::temp_dir();
-    path.push(format!("cassie-v5-{label}-{}", Uuid::new_v4()));
+    path.push(format!("cassie-layout-v1-{label}-{}", Uuid::new_v4()));
     path.to_string_lossy().into_owned()
 }
 

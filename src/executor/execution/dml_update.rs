@@ -1,8 +1,8 @@
 use super::{
-    batch, build_dml_result, check_timeout, dml_referential_actions, ensure_temp_budget, filter,
-    inserted_row_to_batch_row, row_id_from_batch_row, scan, update_assignment_to_json, BatchRow,
-    Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta, HashMap,
-    QueryError, QueryExecutionControls, QueryResult, Value,
+    batch, build_dml_result, check_timeout, dml_referential_actions, ensure_query_memory_budget,
+    filter, inserted_row_to_batch_row, row_id_from_batch_row, scan, update_assignment_to_json,
+    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
+    HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
 use std::collections::BTreeSet;
 
@@ -98,7 +98,7 @@ fn matched_dml_rows(
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
     let batches = scan::scan(cassie, session, table)?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     if let Some(filter_expr) = filter_expr {
         filter::filter_rows(rows, filter_expr, params, None, user_functions, session)

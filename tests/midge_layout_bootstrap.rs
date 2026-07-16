@@ -144,7 +144,7 @@ fn should_route_schema_data_temp_across_families() {
         assert!(legacy_schema_entries.is_empty());
         assert!(schema_entries
             .iter()
-            .any(|(_, value)| value.as_slice() == b"cassie-midge-lexkey-v5"));
+            .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v1"));
         assert!(
             temp_entries.is_empty(),
             "temp family should start empty in bootstrap state"
@@ -234,7 +234,7 @@ fn should_reject_v1_data_prefix_after_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v5 storage layout"),
+                .contains("incompatible cassie-midge-layout-v1 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -243,7 +243,7 @@ fn should_reject_v1_data_prefix_after_reopen() {
 }
 
 #[test]
-fn should_reject_v4_layout_marker_with_expected_v5_diagnostic() {
+fn should_reject_older_layout_marker() {
     // Arrange
     let path = data_dir("v4_layout_marker_reject");
     {
@@ -254,8 +254,8 @@ fn should_reject_v4_layout_marker_with_expected_v5_diagnostic() {
             .raw_scan_prefix(StorageFamily::Schema, b"")
             .unwrap()
             .into_iter()
-            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-lexkey-v5").then_some(key))
-            .expect("v5 layout marker key");
+            .find_map(|(key, value)| (value.as_slice() == b"cassie-midge-layout-v1").then_some(key))
+            .expect("baseline layout marker key");
         let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(marker_key, b"cassie-midge-lexkey-v4".to_vec(), None)
             .unwrap();
@@ -275,7 +275,7 @@ fn should_reject_v4_layout_marker_with_expected_v5_diagnostic() {
         "unexpected error: {diagnostic}"
     );
     assert!(
-        diagnostic.contains("expected lexkey v5 marker 'cassie-midge-lexkey-v5'"),
+        diagnostic.contains("expected baseline marker 'cassie-midge-layout-v1'"),
         "unexpected error: {diagnostic}"
     );
 

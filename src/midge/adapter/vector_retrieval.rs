@@ -90,28 +90,15 @@ impl Midge {
         field: &str,
     ) -> Result<Option<(crate::embeddings::IvfFlatTrainingState, usize)>, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::vector_index_state_key(&collection, field))
+            .get(&Self::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
-        let raw_json: serde_json::Value = serde_json::from_slice(&raw)
-            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
-        let Ok(persisted) = serde_json::from_value::<super::PersistedVectorIndexState>(raw_json)
-        else {
-            return self
-                .get_vector_index_state(&collection, field)
-                .map(|state| {
-                    state.and_then(|state| {
-                        state.ivfflat_training.map(|training| {
-                            let count = training.assignments.len();
-                            (training, count)
-                        })
-                    })
-                });
-        };
+        let persisted = super::codec::decode_vector_index_state(&raw)?;
         let Some(manifest) = persisted.ivfflat_training else {
             return Ok(None);
         };
@@ -149,11 +136,12 @@ impl Midge {
         probed_lists: &BTreeSet<usize>,
     ) -> Result<Vec<crate::embeddings::NormalizedVectorRecord>, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let summary_raw = tx
             .get(&key_encoding::ivfflat_source_summary_key(
-                &collection,
-                field,
+                relation_id,
+                field_id,
             ))
             .map_err(CassieError::from)?
             .ok_or_else(|| {
@@ -172,7 +160,7 @@ impl Midge {
         }
         let mut ids = Vec::new();
         for list in probed_lists {
-            let prefix = key_encoding::ivfflat_membership_list_prefix(&collection, field, *list);
+            let prefix = key_encoding::ivfflat_membership_list_prefix(relation_id, field_id, *list);
             let entries = collect_scan(
                 tx.scan(&Query::new().prefix(prefix.into()))
                     .map_err(CassieError::from)?,
@@ -180,7 +168,7 @@ impl Midge {
             for (key, _) in entries {
                 let Some((_, id)) = key_encoding::decode_ivfflat_membership_suffix(
                     &key,
-                    &key_encoding::ivfflat_membership_prefix(&collection, field),
+                    &key_encoding::ivfflat_membership_prefix(relation_id, field_id),
                 ) else {
                     return Err(CassieError::Execution(
                         "ivfflat fallback:invalid-membership-key".to_string(),
@@ -211,8 +199,8 @@ impl Midge {
         for id in ids {
             let Some(raw) = tx
                 .get(&key_encoding::normalized_vector_key(
-                    &collection,
-                    field,
+                    relation_id,
+                    field_id,
                     &id,
                 ))
                 .map_err(CassieError::from)?
@@ -221,10 +209,7 @@ impl Midge {
                     "ivfflat fallback:missing-candidate".to_string(),
                 ));
             };
-            let record: crate::embeddings::NormalizedVectorRecord = serde_json::from_slice(&raw)
-                .map_err(|error| {
-                    CassieError::Parse(format!("invalid normalized vector candidate: {error}"))
-                })?;
+            let record = super::codec::decode_normalized_vector(&raw, &collection, field, &id)?;
             if record.built_generation != summary.built_generation {
                 return Err(CassieError::Execution(
                     "ivfflat fallback:stale-candidate-generation".to_string(),
@@ -249,20 +234,15 @@ impl Midge {
         limit: usize,
     ) -> Result<Option<crate::vector::hnsw::HnswSearchResult>, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::vector_index_state_key(&collection, field))
+            .get(&Self::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
-        let value: serde_json::Value = serde_json::from_slice(&raw)
-            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
-        if value["hnsw_graph"]["nodes"].is_array() {
-            return Ok(None);
-        }
-        let persisted: super::PersistedVectorIndexState = serde_json::from_value(value)
-            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
+        let persisted = super::codec::decode_vector_index_state(&raw)?;
         if persisted.built_generation != self.collection_generation(&collection)? {
             return Err(CassieError::Execution(
                 "hnsw fallback:stale-graph".to_string(),
@@ -274,7 +254,10 @@ impl Midge {
             ));
         };
         let summary_raw = tx
-            .get(&key_encoding::hnsw_source_summary_key(&collection, field))
+            .get(&key_encoding::hnsw_source_summary_key(
+                relation_id,
+                field_id,
+            ))
             .map_err(CassieError::from)?
             .ok_or_else(|| {
                 CassieError::Execution("hnsw fallback:missing-source-summary".to_string())
@@ -294,15 +277,14 @@ impl Midge {
                 "hnsw fallback:missing-entry-point".to_string(),
             ));
         };
-        let entry_key = key_encoding::hnsw_graph_node_key(&collection, field, entry_point);
+        let entry_key = key_encoding::hnsw_graph_node_key(relation_id, field_id, entry_point);
         let entry_raw = tx
             .get(&entry_key)
             .map_err(CassieError::from)?
             .ok_or_else(|| {
                 CassieError::Execution("hnsw fallback:missing-entry-point".to_string())
             })?;
-        let entry_node: crate::embeddings::HnswGraphNode = serde_json::from_slice(&entry_raw)
-            .map_err(|error| CassieError::Parse(format!("invalid hnsw graph node: {error}")))?;
+        let entry_node = super::codec::decode_hnsw_node(&entry_raw, entry_point)?;
         if entry_node.layers.len() <= manifest.max_layer {
             return Err(CassieError::Execution(
                 "hnsw fallback:inconsistent-max-layer".to_string(),
@@ -318,10 +300,14 @@ impl Midge {
             limit,
             |id| {
                 let node = tx
-                    .get(&key_encoding::hnsw_graph_node_key(&collection, field, id))
+                    .get(&key_encoding::hnsw_graph_node_key(
+                        relation_id,
+                        field_id,
+                        id,
+                    ))
                     .ok()
                     .flatten()
-                    .and_then(|raw| serde_json::from_slice(&raw).ok());
+                    .and_then(|raw| super::codec::decode_hnsw_node(&raw, id).ok());
                 if node.is_none() {
                     missing_node = true;
                 }
@@ -371,11 +357,12 @@ impl Midge {
         graph: &crate::embeddings::HnswGraphState,
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(collection)?;
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::write_vector_source_summary_to_tx(
             &mut tx,
-            collection,
-            field,
+            relation_id,
+            field_id,
             generation,
             graph.source_fingerprint,
             graph.row_count,
@@ -391,11 +378,12 @@ impl Midge {
         row_count: usize,
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(collection)?;
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::write_vector_source_summary_to_tx(
             &mut tx,
-            collection,
-            field,
+            relation_id,
+            field_id,
             generation,
             source_fingerprint,
             row_count,
@@ -405,15 +393,15 @@ impl Midge {
 
     pub(super) fn write_hnsw_source_summary_to_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
-        field: &str,
+        relation_id: u64,
+        field_id: u32,
         generation: u64,
         graph: &crate::embeddings::HnswGraphState,
     ) -> Result<(), CassieError> {
         Self::write_vector_source_summary_to_tx(
             tx,
-            collection,
-            field,
+            relation_id,
+            field_id,
             generation,
             graph.source_fingerprint,
             graph.row_count,
@@ -422,8 +410,8 @@ impl Midge {
 
     pub(super) fn write_vector_source_summary_to_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
-        field: &str,
+        relation_id: u64,
+        field_id: u32,
         generation: u64,
         source_fingerprint: u64,
         row_count: usize,
@@ -434,7 +422,7 @@ impl Midge {
             row_count,
         };
         tx.put(
-            key_encoding::ivfflat_source_summary_key(collection, field),
+            key_encoding::ivfflat_source_summary_key(relation_id, field_id),
             serde_json::to_vec(&summary).map_err(|error| CassieError::Parse(error.to_string()))?,
             None,
         )

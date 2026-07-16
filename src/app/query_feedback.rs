@@ -227,13 +227,18 @@ impl Cassie {
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let context = self.binding_context_for_session(session);
         let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
-        if controls.is_some_and(QueryExecutionControls::is_timed_out) {
-            return Err(CassieError::DeadlineExceeded);
+        if let Some(controls) = controls {
+            if controls.is_cancelled() {
+                return Err(CassieError::QueryCancelled);
+            }
+            if controls.is_timed_out() {
+                return Err(CassieError::DeadlineExceeded);
+            }
         }
 
-        let logical = crate::planner::logical::plan(&bound)?;
-        let optimized = crate::planner::optimizer::optimize(logical);
         let cardinality_stats = self.catalog.cardinality_snapshot();
+        let logical = crate::planner::logical::plan(&bound)?;
+        let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
         let selection = crate::planner::physical::read_operator_selection(
             &optimized,
             bound.indexes.as_slice(),
@@ -286,8 +291,11 @@ impl Cassie {
         let parsed = parser::parse_statement(sql)?;
         let context = self.binding_context_for_session(Some(session));
         let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
-        let logical = crate::planner::optimizer::optimize(crate::planner::logical::plan(&bound)?);
         let cardinality_stats = self.catalog.cardinality_snapshot();
+        let logical = crate::planner::optimizer::optimize_with_stats(
+            crate::planner::logical::plan(&bound)?,
+            &cardinality_stats,
+        );
         let selection = crate::planner::physical::read_operator_selection(
             &logical,
             bound.indexes.as_slice(),

@@ -1,8 +1,7 @@
 use cassie::app::Cassie;
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::embeddings::{
-    DistanceMetric, HnswIndexOptions, NormalizedVectorRecord, VectorIndexMetadata,
-    VectorIndexRecord, VectorIndexType,
+    DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -25,18 +24,17 @@ fn data_dir(label: &str) -> String {
 }
 
 fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let prefix = cassie
+        .midge
+        .normalized_vector_prefix_for_diagnostics(collection, field)
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap();
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
-    for (key, value) in entries {
-        let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&value) else {
-            continue;
-        };
-        if record.collection == collection && record.field == field {
-            tx.delete(key).unwrap();
-        }
+    for (key, _) in entries {
+        tx.delete(key).unwrap();
     }
     tx.commit(WriteOptions::sync()).unwrap();
 }

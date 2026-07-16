@@ -70,23 +70,6 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
 
     // Act
     let encoded = encode_row(&schema, &payload).unwrap();
-    let mut cursor = Cursor::new(&encoded);
-    cursor.expect_bytes(MAGIC).unwrap();
-    let version = cursor.read_u8().unwrap();
-    assert_eq!(version, FORMAT_VERSION);
-    let _schema_version = cursor.read_u32().unwrap();
-    let _flags = cursor.read_u8().unwrap();
-    let field_count = cursor.read_varint().unwrap();
-    for index in 0..field_count {
-        let field_id = cursor.read_varint().unwrap();
-        let tag = cursor.read_u8().unwrap();
-        let value = decode_value(tag, &mut cursor);
-        assert!(
-            value.is_ok(),
-            "field {index} id={field_id} tag={tag}: {value:?}"
-        );
-    }
-
     let decoded = decode_row(&schema, &encoded).unwrap();
 
     // Assert
@@ -100,7 +83,41 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
             "ints": [1, 2, 3],
         })
     );
-    assert_eq!(&encoded[0..4], b"CRB1");
+    assert_eq!(&encoded[0..4], b"CRB2");
+}
+
+#[test]
+fn should_not_visit_unrequested_field_payloads() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "title".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "body".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    });
+    let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let mut encoded = encode_row(
+        &schema,
+        &serde_json::json!({"title": "alpha", "body": "payload"}),
+    )
+    .unwrap();
+    *encoded.last_mut().expect("body payload byte") = 0xff;
+
+    // Act
+    let projected = decode_projected_row(&schema, &encoded, &projection).unwrap();
+    let full = decode_row(&schema, &encoded);
+
+    // Assert
+    assert_eq!(projected, serde_json::json!({"title": "alpha"}));
+    assert!(full.is_err());
 }
 
 #[test]

@@ -53,11 +53,12 @@ fn should_route_scalar_physical_read_paths_directly_to_scalar_index_executor() {
 fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
     // Arrange
     let plan = plan_for_sql(
-            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha')",
-        );
+        "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1)",
+    );
+    let params = [Value::String("alpha".to_string())];
 
     // Act
-    let spec = scored::fulltext_filtered_read_spec(&plan);
+    let spec = scored::fulltext_filtered_read_spec(&plan, &params);
 
     // Assert
     let spec = spec.expect("unordered fulltext fast path");
@@ -74,37 +75,46 @@ fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
 fn should_reject_unordered_fulltext_fast_path_for_mismatched_search_query() {
     // Arrange
     let plan = plan_for_sql(
-            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'bravo')",
-        );
+        "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $2)",
+    );
+    let params = [
+        Value::String("alpha".to_string()),
+        Value::String("bravo".to_string()),
+    ];
 
     // Act
-    let spec = scored::fulltext_filtered_read_spec(&plan);
+    let spec = scored::fulltext_filtered_read_spec(&plan, &params);
 
     // Assert
     assert!(spec.is_none());
 }
 
 #[test]
-fn should_reject_unordered_fulltext_fast_path_for_additional_filters() {
+fn should_detect_unordered_fulltext_fast_path_for_additional_filters() {
     // Arrange
     let plan = plan_for_sql(
-            "SELECT id, search_score(body, 'alpha') AS score FROM bench_documents WHERE search(body, 'alpha') AND status = 'approved'",
-        );
+        "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) AND status = $2",
+    );
+    let params = [
+        Value::String("alpha".to_string()),
+        Value::String("approved".to_string()),
+    ];
 
     // Act
-    let spec = scored::fulltext_filtered_read_spec(&plan);
+    let spec = scored::fulltext_filtered_read_spec(&plan, &params);
 
     // Assert
-    assert!(spec.is_none());
+    assert!(spec.is_some_and(|spec| spec.residual_filter.is_some()));
 }
 
 #[test]
 fn should_reject_unordered_fulltext_fast_path_for_wildcard_projection() {
     // Arrange
-    let plan = plan_for_sql("SELECT * FROM bench_documents WHERE search(body, 'alpha')");
+    let plan = plan_for_sql("SELECT * FROM bench_documents WHERE search(body, $1)");
+    let params = [Value::String("alpha".to_string())];
 
     // Act
-    let spec = scored::fulltext_filtered_read_spec(&plan);
+    let spec = scored::fulltext_filtered_read_spec(&plan, &params);
 
     // Assert
     assert!(spec.is_none());

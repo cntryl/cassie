@@ -34,7 +34,7 @@ fn should_reject_legacy_doc_prefix_on_reopen() {
     assert!(
         error
             .to_string()
-            .contains("incompatible lexkey v5 storage layout"),
+            .contains("incompatible cassie-midge-layout-v1 storage layout"),
         "unexpected error: {error}"
     );
 
@@ -56,7 +56,7 @@ fn should_reject_legacy_row_prefix_on_reopen() {
     assert!(
         error
             .to_string()
-            .contains("incompatible lexkey v5 storage layout"),
+            .contains("incompatible cassie-midge-layout-v1 storage layout"),
         "unexpected error: {error}"
     );
 

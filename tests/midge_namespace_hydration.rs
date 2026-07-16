@@ -80,7 +80,7 @@ fn should_reject_legacy_collections_index_on_reopen() {
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v5 storage layout"),
+                .contains("incompatible cassie-midge-layout-v1 storage layout"),
             "unexpected error: {error}"
         );
 

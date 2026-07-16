@@ -5,76 +5,52 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-const HANDLER_BATCH: usize = 128;
-const PREPARED_LOOP_BATCH: usize = 512;
-const PREPARED_LOOP_MESSAGES: usize = 5;
-const JSON_SERIALIZATION_BATCH: usize = 16;
-const JSON_SERIALIZATION_ROWS: usize = 512;
-
 fn main() {
-    let runtime = workloads::runtime();
-    let ctx = runtime
-        .block_on(workloads::context("tier2-protocol-handlers", 10_000))
-        .expect("benchmark context");
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier2,
+        "tier2_subsystem_protocol_handlers",
+    );
+    let pgwire = declared_case("pgwire_codec", stress::OperationUnit::Message);
+    let prepared = declared_case("prepared_statement_loop", stress::OperationUnit::Message);
+    let json = declared_case("json_serialization", stress::OperationUnit::Row);
+    let pgwire_enabled = runner.is_enabled(&pgwire);
+    let prepared_enabled = runner.is_enabled(&prepared);
+    let json_enabled = runner.is_enabled(&json);
 
-    let mut runner = stress::runner("tier2_subsystem_protocol_handlers");
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "postgres_wire_handler", "10k")
-            .metadata("operation_unit", "query"),
-        logical_operations(HANDLER_BATCH),
-        || {
-            repeat(HANDLER_BATCH, || {
-                runtime.block_on(workloads::pgwire_simple_query(
-                    &ctx,
-                    "SELECT id, title FROM bench_documents WHERE title = 'title-1' LIMIT 20",
-                ))
-            })
-        },
-    );
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "http_handler", "10k")
-            .metadata("operation_unit", "document_get_request"),
-        logical_operations(HANDLER_BATCH),
-        || {
-            repeat(HANDLER_BATCH, || {
-                runtime.block_on(workloads::http_document_get(&ctx))
-            })
-        },
-    );
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "prepared_statement_loop", "protocol")
-            .metadata("operation_unit", "protocol_message"),
-        logical_operations(PREPARED_LOOP_BATCH * PREPARED_LOOP_MESSAGES),
-        || {
-            repeat(
-                PREPARED_LOOP_BATCH,
-                workloads::pgwire_prepared_statement_protocol_loop,
-            )
-        },
-    );
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "json_serialization_overhead", "512_rows")
-            .metadata("operation_unit", "serialized_row"),
-        logical_operations(JSON_SERIALIZATION_BATCH * JSON_SERIALIZATION_ROWS),
-        || {
-            repeat(
-                JSON_SERIALIZATION_BATCH,
-                workloads::json_serialization_overhead,
-            )
-        },
-    );
+    if pgwire_enabled || prepared_enabled || json_enabled {
+        let setup_started = std::time::Instant::now();
+        let fixture = workloads::ProtocolCodecFixture::new(512);
+        let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
+        if pgwire_enabled {
+            runner.measure_counted(with_setup(pgwire, &setup_time_ns), || {
+                fixture.pgwire_codec()
+            });
+        }
+        if prepared_enabled {
+            runner.measure_counted(with_setup(prepared, &setup_time_ns), || {
+                fixture.prepared_loop()
+            });
+        }
+        if json_enabled {
+            runner.measure_counted(with_setup(json, &setup_time_ns), || {
+                fixture.json_serialization()
+            });
+        }
+    }
     runner.finish();
 }
 
-fn repeat(mut iterations: usize, mut f: impl FnMut() -> usize) -> usize {
-    let mut completed = 0usize;
-    while iterations > 0 {
-        completed = completed.saturating_add(f());
-        iterations -= 1;
-    }
-    std::hint::black_box(completed)
+fn with_setup(case: stress::StressCase, setup_time_ns: &str) -> stress::StressCase {
+    case.metadata("setup_time_ns", setup_time_ns)
 }
 
-fn logical_operations(iterations: usize) -> u64 {
-    u64::try_from(iterations).expect("benchmark batch size should fit u64")
+fn declared_case(workload: &str, operation_unit: stress::OperationUnit) -> stress::StressCase {
+    stress::StressCase::new(workload, "512").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Subsystem,
+            512,
+            "tier2_subsystem_protocol_handlers/512",
+        ),
+        operation_unit,
+    )
 }

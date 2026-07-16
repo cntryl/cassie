@@ -23,7 +23,9 @@ mod search;
 use functions::{evaluate_function, parse_vector_text};
 #[cfg(test)]
 pub(crate) use search::{prepare_query_terms, SingleFieldSearchContext};
-pub(crate) use search::{prepare_query_terms_with_analyzer, SearchContext, SearchTermStats};
+pub(crate) use search::{
+    prepare_query_terms_with_analyzer, PersistedFieldStatistics, SearchContext, SearchTermStats,
+};
 
 thread_local! {
     static FUNCTION_CACHE: RefCell<FunctionCache> = RefCell::new(FunctionCache::new());

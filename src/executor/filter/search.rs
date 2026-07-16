@@ -12,6 +12,16 @@ pub(crate) struct SearchContext {
     field_analyzer: HashMap<String, AnalyzerConfig>,
 }
 
+pub(crate) struct PersistedFieldStatistics<'a> {
+    pub(crate) total_documents: usize,
+    pub(crate) average_document_length: f64,
+    pub(crate) document_frequency: &'a std::collections::BTreeMap<String, usize>,
+    pub(crate) field_boost: &'a HashMap<String, f64>,
+    pub(crate) field_k1: &'a HashMap<String, f64>,
+    pub(crate) field_b: &'a HashMap<String, f64>,
+    pub(crate) field_analyzer: &'a HashMap<String, AnalyzerConfig>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct SearchTermStats {
     has_text: bool,
@@ -50,6 +60,20 @@ impl SearchTermStats {
 
     pub(crate) fn term_counts(&self) -> &HashMap<String, usize> {
         &self.term_counts
+    }
+
+    pub(crate) fn from_persisted(
+        doc_length: usize,
+        term_counts: &std::collections::BTreeMap<String, usize>,
+    ) -> Self {
+        Self {
+            has_text: true,
+            doc_length,
+            term_counts: term_counts
+                .iter()
+                .map(|(term, count)| (term.clone(), *count))
+                .collect(),
+        }
     }
 }
 
@@ -138,6 +162,29 @@ impl SingleFieldSearchContext {
 }
 
 impl SearchContext {
+    pub(crate) fn from_persisted_field_statistics(
+        field: &str,
+        statistics: &PersistedFieldStatistics<'_>,
+    ) -> Self {
+        let field = field.to_ascii_lowercase();
+        Self {
+            total_documents: statistics.total_documents,
+            doc_frequency: HashMap::from([(
+                field.clone(),
+                statistics
+                    .document_frequency
+                    .iter()
+                    .map(|(term, count)| (term.clone(), *count))
+                    .collect(),
+            )]),
+            avg_doc_length: HashMap::from([(field, statistics.average_document_length)]),
+            doc_boost: statistics.field_boost.clone(),
+            field_k1: statistics.field_k1.clone(),
+            field_b: statistics.field_b.clone(),
+            field_analyzer: statistics.field_analyzer.clone(),
+        }
+    }
+
     pub(crate) fn from_rows<'a, I, R>(
         rows: I,
         text_fields: &[String],

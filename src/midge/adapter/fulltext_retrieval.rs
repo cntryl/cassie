@@ -8,43 +8,76 @@ use super::{
 };
 use crate::search::analyzer::AnalyzerConfig;
 
+#[path = "fulltext_retrieval/codec.rs"]
+mod codec;
+
 const STATE_VERSION: u32 = 1;
 
 impl Midge {
-    pub(crate) fn fulltext_index_key(collection: &str, name: &str) -> Vec<u8> {
-        key_encoding::fulltext_index_key(collection, name)
+    #[doc(hidden)]
+    pub fn fulltext_artifact_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let index = self
+            .get_index(collection, index_name)?
+            .ok_or_else(|| CassieError::Parse(format!("missing full-text index: {index_name}")))?;
+        let (relation_id, index_id) = Self::fulltext_storage_ids(&index)?;
+        Ok(Self::fulltext_index_artifact_prefix(relation_id, index_id))
     }
 
-    pub(crate) fn fulltext_index_collection_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::fulltext_index_collection_prefix(collection)
+    pub(crate) fn fulltext_index_key(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::fulltext_index_key(relation_id, index_id)
     }
 
-    pub(crate) fn fulltext_index_artifact_prefix(collection: &str, name: &str) -> Vec<u8> {
-        key_encoding::fulltext_index_artifact_prefix(collection, name)
+    pub(crate) fn fulltext_index_collection_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::fulltext_index_collection_prefix(relation_id)
+    }
+
+    pub(crate) fn fulltext_index_artifact_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::fulltext_index_artifact_prefix(relation_id, index_id)
     }
 
     pub(crate) fn fulltext_index_manifest_key(
-        collection: &str,
-        name: &str,
+        relation_id: u64,
+        index_id: u64,
         generation: u64,
     ) -> Vec<u8> {
-        key_encoding::fulltext_index_manifest_key(collection, name, generation)
+        key_encoding::fulltext_index_manifest_key(relation_id, index_id, generation)
     }
 
-    pub(crate) fn fulltext_postings_prefix(collection: &str, name: &str) -> Vec<u8> {
-        key_encoding::fulltext_postings_prefix(collection, name)
+    pub(crate) fn fulltext_postings_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::fulltext_postings_prefix(relation_id, index_id)
     }
 
-    pub(crate) fn fulltext_term_postings_key(collection: &str, name: &str, term: &str) -> Vec<u8> {
-        key_encoding::fulltext_term_postings_key(collection, name, term)
+    pub(crate) fn fulltext_term_postings_prefix(
+        relation_id: u64,
+        index_id: u64,
+        term: &str,
+    ) -> Vec<u8> {
+        key_encoding::fulltext_term_postings_prefix(relation_id, index_id, term)
     }
 
-    pub(crate) fn fulltext_document_stats_prefix(collection: &str, name: &str) -> Vec<u8> {
-        key_encoding::fulltext_document_stats_prefix(collection, name)
+    pub(crate) fn fulltext_term_postings_block_key(
+        relation_id: u64,
+        index_id: u64,
+        term: &str,
+        block: usize,
+    ) -> Vec<u8> {
+        key_encoding::fulltext_term_postings_block_key(relation_id, index_id, term, block)
     }
 
-    pub(crate) fn fulltext_document_stats_key(collection: &str, name: &str, id: &str) -> Vec<u8> {
-        key_encoding::fulltext_document_stats_key(collection, name, id)
+    pub(crate) fn fulltext_document_stats_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::fulltext_document_stats_prefix(relation_id, index_id)
+    }
+
+    pub(crate) fn fulltext_document_stats_key(
+        relation_id: u64,
+        index_id: u64,
+        id: &str,
+    ) -> Vec<u8> {
+        key_encoding::fulltext_document_stats_key(relation_id, index_id, id)
     }
 }
 
@@ -61,6 +94,16 @@ pub struct PersistedFulltextDocumentStats {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PersistedFulltextCandidateSet {
+    pub total_documents: usize,
+    pub average_document_length: f64,
+    pub analyzer: AnalyzerConfig,
+    pub document_frequency: BTreeMap<String, usize>,
+    pub document_stats: BTreeMap<String, PersistedFulltextDocumentStats>,
+    pub posting_block_reads: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PersistedFulltextIndexState {
     pub built_generation: u64,
     pub total_documents: usize,
@@ -74,9 +117,6 @@ pub struct PersistedFulltextIndexState {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct FulltextIndexMetadata {
     version: u32,
-    collection: String,
-    index_name: String,
-    field: String,
     built_generation: u64,
     total_documents: usize,
     documents_with_text: usize,
@@ -115,8 +155,8 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let documents = self.load_documents_from_tx(tx, collection, &row_schema)?;
         let state = build_state(index, generation, documents)?;
-        Self::delete_fulltext_artifacts_in_tx(tx, collection, &index.name)?;
-        Self::save_fulltext_state_in_tx(tx, collection, index, &state)
+        Self::delete_fulltext_artifacts_in_tx(tx, index)?;
+        Self::save_fulltext_state_in_tx(tx, index, &state)
     }
 
     /// # Errors
@@ -128,15 +168,18 @@ impl Midge {
         index_name: &str,
     ) -> Result<Option<PersistedFulltextIndexState>, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let index = self
+            .get_index(&collection, index_name)?
+            .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
+        let (relation_id, index_id) = Self::fulltext_storage_ids(&index)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::fulltext_index_key(&collection, index_name))
+            .get(&Self::fulltext_index_key(relation_id, index_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
-        let metadata: FulltextIndexMetadata = serde_json::from_slice(&raw)
-            .map_err(|error| CassieError::Parse(format!("invalid fulltext metadata: {error}")))?;
+        let metadata = codec::decode_metadata(&raw)?;
         if metadata.version != STATE_VERSION {
             return Err(CassieError::Parse(format!(
                 "unsupported fulltext metadata version {}",
@@ -145,18 +188,15 @@ impl Midge {
         }
         let manifest_raw = tx
             .get(&Self::fulltext_index_manifest_key(
-                &collection,
-                index_name,
+                relation_id,
+                index_id,
                 metadata.built_generation,
             ))
             .map_err(CassieError::from)?
             .ok_or_else(|| {
                 CassieError::Parse("missing fulltext generation manifest".to_string())
             })?;
-        let manifest: FulltextManifest =
-            serde_json::from_slice(&manifest_raw).map_err(|error| {
-                CassieError::Parse(format!("invalid fulltext generation manifest: {error}"))
-            })?;
+        let manifest = codec::decode_manifest(&manifest_raw)?;
         if manifest.version != STATE_VERSION
             || manifest.built_generation != metadata.built_generation
             || manifest.total_documents != metadata.total_documents
@@ -165,22 +205,21 @@ impl Midge {
                 "fulltext generation manifest does not match metadata".to_string(),
             ));
         }
-        let postings_prefix = Self::fulltext_postings_prefix(&collection, index_name);
-        let postings = collect_scan(
+        let postings_prefix = Self::fulltext_postings_prefix(relation_id, index_id);
+        let posting_entries = collect_scan(
             tx.scan(&Query::new().prefix(postings_prefix.clone().into()))
                 .map_err(CassieError::from)?,
-        )?
-        .into_iter()
-        .map(|(key, raw)| {
-            let term = key_encoding::utf8_suffix_after_prefix(&key, &postings_prefix)
+        )?;
+        let mut postings = BTreeMap::<String, Vec<PersistedFulltextPosting>>::new();
+        for (key, raw) in posting_entries {
+            let term = key_encoding::utf8_first_component_after_prefix(&key, &postings_prefix)
                 .ok_or_else(|| CassieError::Parse("invalid fulltext posting key".to_string()))?;
-            let postings = serde_json::from_slice(&raw).map_err(|error| {
+            let block = codec::decode_postings(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid fulltext posting for '{term}': {error}"))
             })?;
-            Ok((term, postings))
-        })
-        .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
-        let document_prefix = Self::fulltext_document_stats_prefix(&collection, index_name);
+            postings.entry(term).or_default().extend(block);
+        }
+        let document_prefix = Self::fulltext_document_stats_prefix(relation_id, index_id);
         let document_stats = collect_scan(
             tx.scan(&Query::new().prefix(document_prefix.clone().into()))
                 .map_err(CassieError::from)?,
@@ -189,7 +228,7 @@ impl Midge {
         .map(|(key, raw)| {
             let document_id = key_encoding::utf8_suffix_after_prefix(&key, &document_prefix)
                 .ok_or_else(|| CassieError::Parse("invalid fulltext document key".to_string()))?;
-            let stats = serde_json::from_slice(&raw).map_err(|error| {
+            let stats = codec::decode_document_stats(&raw).map_err(|error| {
                 CassieError::Parse(format!(
                     "invalid fulltext document statistics for '{document_id}': {error}"
                 ))
@@ -219,14 +258,32 @@ impl Midge {
         index_name: &str,
         terms: &[String],
     ) -> Result<BTreeMap<String, PersistedFulltextDocumentStats>, CassieError> {
+        self.fulltext_candidate_set(collection, index_name, terms)
+            .map(|candidates| candidates.document_stats)
+    }
+
+    /// Reads only requested posting blocks and point-reads statistics for their documents.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when metadata, postings, or document statistics are stale or corrupt.
+    pub fn fulltext_candidate_set(
+        &self,
+        collection: &str,
+        index_name: &str,
+        terms: &[String],
+    ) -> Result<PersistedFulltextCandidateSet, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let index = self
+            .get_index(&collection, index_name)?
+            .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
+        let (relation_id, index_id) = Self::fulltext_storage_ids(&index)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let metadata_raw = tx
-            .get(&Self::fulltext_index_key(&collection, index_name))
+            .get(&Self::fulltext_index_key(relation_id, index_id))
             .map_err(CassieError::from)?
             .ok_or_else(|| CassieError::Execution("fulltext fallback:missing-index".to_string()))?;
-        let metadata: FulltextIndexMetadata = serde_json::from_slice(&metadata_raw)
-            .map_err(|error| CassieError::Parse(format!("invalid fulltext metadata: {error}")))?;
+        let metadata = codec::decode_metadata(&metadata_raw)?;
         if metadata.version != STATE_VERSION
             || metadata.built_generation != self.collection_generation(&collection)?
         {
@@ -234,30 +291,51 @@ impl Midge {
                 "fulltext fallback:stale-generation".to_string(),
             ));
         }
+        let manifest_raw = tx
+            .get(&Self::fulltext_index_manifest_key(
+                relation_id,
+                index_id,
+                metadata.built_generation,
+            ))
+            .map_err(CassieError::from)?
+            .ok_or_else(|| {
+                CassieError::Parse("missing fulltext generation manifest".to_string())
+            })?;
+        let manifest = codec::decode_manifest(&manifest_raw)?;
+        if manifest.version != STATE_VERSION
+            || manifest.built_generation != metadata.built_generation
+            || manifest.total_documents != metadata.total_documents
+        {
+            return Err(CassieError::Parse(
+                "fulltext generation manifest does not match metadata".to_string(),
+            ));
+        }
         let mut ids = std::collections::BTreeSet::new();
+        let mut document_frequency = BTreeMap::new();
+        let mut posting_block_reads = 0usize;
         for term in terms {
-            let Some(raw) = tx
-                .get(&Self::fulltext_term_postings_key(
-                    &collection,
-                    index_name,
-                    term,
-                ))
-                .map_err(CassieError::from)?
-            else {
-                continue;
-            };
-            let postings: Vec<PersistedFulltextPosting> =
-                serde_json::from_slice(&raw).map_err(|error| {
-                    CassieError::Parse(format!("invalid fulltext posting: {error}"))
-                })?;
-            ids.extend(postings.into_iter().map(|posting| posting.document_id));
+            let prefix = Self::fulltext_term_postings_prefix(relation_id, index_id, term);
+            let entries = collect_scan(
+                tx.scan(&Query::new().prefix(prefix.into()))
+                    .map_err(CassieError::from)?,
+            )?;
+            posting_block_reads = posting_block_reads.saturating_add(entries.len());
+            let mut term_documents = std::collections::BTreeSet::new();
+            for (_, raw) in entries {
+                let postings = codec::decode_postings(&raw)?;
+                for posting in postings {
+                    term_documents.insert(posting.document_id.clone());
+                    ids.insert(posting.document_id);
+                }
+            }
+            document_frequency.insert(term.clone(), term_documents.len());
         }
         let mut stats = BTreeMap::new();
         for id in ids {
             let Some(raw) = tx
                 .get(&Self::fulltext_document_stats_key(
-                    &collection,
-                    index_name,
+                    relation_id,
+                    index_id,
                     &id,
                 ))
                 .map_err(CassieError::from)?
@@ -266,12 +344,17 @@ impl Midge {
                     "fulltext fallback:missing-document-stats".to_string(),
                 ));
             };
-            let document = serde_json::from_slice(&raw).map_err(|error| {
-                CassieError::Parse(format!("invalid fulltext document statistics: {error}"))
-            })?;
+            let document = codec::decode_document_stats(&raw)?;
             stats.insert(id, document);
         }
-        Ok(stats)
+        Ok(PersistedFulltextCandidateSet {
+            total_documents: metadata.total_documents,
+            average_document_length: metadata.average_document_length,
+            analyzer: metadata.analyzer,
+            document_frequency,
+            document_stats: stats,
+            posting_block_reads,
+        })
     }
 
     fn load_documents_from_tx(
@@ -283,7 +366,7 @@ impl Midge {
         let mut documents = BTreeMap::new();
         let uses_column_store = self.collection_uses_column_store(collection)?;
         if uses_column_store {
-            let prefix = Self::column_store_row_prefix(collection);
+            let prefix = Self::column_store_row_prefix(row_schema.relation_id);
             for (key, _) in collect_scan(
                 tx.scan(&Query::new().prefix(prefix.clone().into()))
                     .map_err(CassieError::from)?,
@@ -300,7 +383,10 @@ impl Midge {
             return Ok(documents.into_iter().collect());
         }
 
-        for prefix in [Self::row_prefix(collection), Self::doc_prefix(collection)] {
+        for prefix in [
+            Self::row_prefix(row_schema.relation_id),
+            Self::doc_prefix(collection),
+        ] {
             for (key, raw) in collect_scan(
                 tx.scan(&Query::new().prefix(prefix.clone().into()))
                     .map_err(CassieError::from)?,
@@ -319,10 +405,10 @@ impl Midge {
     /// Returns an error when the persisted full-text state is missing, corrupt, or unreadable.
     fn delete_fulltext_artifacts_in_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
-        index_name: &str,
+        index: &IndexMeta,
     ) -> Result<(), CassieError> {
-        let prefix = Self::fulltext_index_artifact_prefix(collection, index_name);
+        let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
+        let prefix = Self::fulltext_index_artifact_prefix(relation_id, index_id);
         let entries = collect_scan(
             tx.scan(&Query::new().prefix(prefix.into()))
                 .map_err(CassieError::from)?,
@@ -335,15 +421,12 @@ impl Midge {
 
     fn save_fulltext_state_in_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
         index: &IndexMeta,
         state: &PersistedFulltextIndexState,
     ) -> Result<(), CassieError> {
+        let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
         let metadata = FulltextIndexMetadata {
             version: STATE_VERSION,
-            collection: collection.to_string(),
-            index_name: index.name.clone(),
-            field: index.field.clone(),
             built_generation: state.built_generation,
             total_documents: state.total_documents,
             documents_with_text: state.documents_with_text,
@@ -351,8 +434,8 @@ impl Midge {
             analyzer: state.analyzer.clone(),
         };
         tx.put(
-            Self::fulltext_index_key(collection, &index.name),
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
+            Self::fulltext_index_key(relation_id, index_id),
+            codec::encode_metadata(&metadata),
             None,
         )
         .map_err(CassieError::from)?;
@@ -364,29 +447,43 @@ impl Midge {
             document_count: state.document_stats.len(),
         };
         tx.put(
-            Self::fulltext_index_manifest_key(collection, &index.name, state.built_generation),
-            serde_json::to_vec(&manifest).map_err(|error| CassieError::Parse(error.to_string()))?,
+            Self::fulltext_index_manifest_key(relation_id, index_id, state.built_generation),
+            codec::encode_manifest(&manifest),
             None,
         )
         .map_err(CassieError::from)?;
         for (term, postings) in &state.postings {
-            tx.put(
-                Self::fulltext_term_postings_key(collection, &index.name, term),
-                serde_json::to_vec(postings)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
-                None,
-            )
-            .map_err(CassieError::from)?;
+            for (block, encoded) in codec::encode_posting_blocks(postings)?
+                .into_iter()
+                .enumerate()
+            {
+                tx.put(
+                    Self::fulltext_term_postings_block_key(relation_id, index_id, term, block),
+                    encoded,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+            }
         }
         for (document_id, stats) in &state.document_stats {
             tx.put(
-                Self::fulltext_document_stats_key(collection, &index.name, document_id),
-                serde_json::to_vec(stats).map_err(|error| CassieError::Parse(error.to_string()))?,
+                Self::fulltext_document_stats_key(relation_id, index_id, document_id),
+                codec::encode_document_stats(stats),
                 None,
             )
             .map_err(CassieError::from)?;
         }
         Ok(())
+    }
+
+    fn fulltext_storage_ids(index: &IndexMeta) -> Result<(u64, u64), CassieError> {
+        let relation_id = index.relation_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
+        })?;
+        let index_id = index.storage_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
+        })?;
+        Ok((relation_id, index_id))
     }
 }
 

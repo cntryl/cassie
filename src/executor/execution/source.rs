@@ -1,12 +1,12 @@
 use super::plan_inspection;
 use super::{
     aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog, check_timeout,
-    deduce_text_fields, ensure_temp_budget, execute_plan, execute_plan_with_outer_row, filter,
-    graph, load_fulltext_index_options, plan_execution_env, projection, resolve_exists_expr,
-    row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow,
-    BinaryOp, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr, FunctionMeta,
-    HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError, QueryExecutionControls,
-    QuerySource, Value,
+    deduce_text_fields, ensure_query_memory_budget, execute_plan, execute_plan_with_outer_row,
+    filter, graph, load_fulltext_index_options, plan_execution_env, projection,
+    resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig,
+    Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr,
+    FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
+    QueryExecutionControls, QuerySource, Value,
 };
 
 #[path = "source_join.rs"]
@@ -62,7 +62,7 @@ pub(super) fn execute_query_source(
                 },
                 cte_context,
             )?;
-            ensure_temp_budget(env.controls, &batches)?;
+            ensure_query_memory_budget(env.controls, &batches)?;
             Ok((batches, text_fields))
         }
     }
@@ -158,7 +158,7 @@ fn execute_materialized_projection_source(
 
 fn execute_single_row_source(env: &SourceExecutionEnv<'_>) -> SourceExecution {
     let batches = batch::chunk_rows(vec![BatchRow::new(Vec::new())], batch::DEFAULT_BATCH_SIZE);
-    ensure_temp_budget(env.controls, &batches)?;
+    ensure_query_memory_budget(env.controls, &batches)?;
     Ok((batches, Vec::new()))
 }
 
@@ -268,7 +268,7 @@ fn finalize_source_batches(
     if qualify {
         batches = qualify_batches(batches, qualifier);
     }
-    ensure_temp_budget(env.controls, &batches)?;
+    ensure_query_memory_budget(env.controls, &batches)?;
     Ok((batches, text_fields))
 }
 
@@ -399,7 +399,7 @@ fn load_source_batches(
         cte_context,
         false,
         outer_row,
-        source_row_budget(plan),
+        source_row_budget(plan, env.controls.max_result_rows),
     )?;
     if let Some(outer_row) = outer_row {
         batches = combine_batches_with_outer_row(batches, outer_row);
@@ -526,7 +526,7 @@ fn apply_filter_phase(
         user_functions,
         session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     Ok(batches)
 }
 
@@ -550,7 +550,7 @@ fn apply_aggregate_phase(
             controls: env.controls,
         },
     )?;
-    ensure_temp_budget(env.controls, &batches)?;
+    ensure_query_memory_budget(env.controls, &batches)?;
     apply_having_phase(
         batches,
         plan.having.as_ref(),
@@ -583,7 +583,7 @@ fn apply_having_phase(
         user_functions,
         session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     Ok(batches)
 }
 
@@ -603,8 +603,9 @@ fn apply_window_phase(
         search_context,
         user_functions,
         session,
+        controls,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     Ok(batches)
 }
 
@@ -618,16 +619,16 @@ fn apply_sort_phase(
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
     if !plan.distinct_on.is_empty() {
-        batches = sort::sort_batches(
-            batches,
-            &plan.order,
-            &plan.projection,
+        let eval = sort::EvalInput {
+            order: &plan.order,
+            projection: &plan.projection,
             params,
-            search_context,
             user_functions,
             session,
-        );
-        ensure_temp_budget(controls, &batches)?;
+            search_context,
+        };
+        batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
+        ensure_query_memory_budget(controls, &batches)?;
         batches = distinct_on_batches(
             batches,
             &plan.distinct_on,
@@ -635,21 +636,22 @@ fn apply_sort_phase(
             search_context,
             user_functions,
             session,
+            controls,
         )?;
-        ensure_temp_budget(controls, &batches)?;
+        ensure_query_memory_budget(controls, &batches)?;
         return Ok(batches);
     }
     if plan.set.is_none() && !plan.order.is_empty() {
-        batches = sort::sort_batches(
-            batches,
-            &plan.order,
-            &plan.projection,
+        let eval = sort::EvalInput {
+            order: &plan.order,
+            projection: &plan.projection,
             params,
-            search_context,
             user_functions,
             session,
-        );
-        ensure_temp_budget(controls, &batches)?;
+            search_context,
+        };
+        batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
+        ensure_query_memory_budget(controls, &batches)?;
     }
     Ok(batches)
 }
@@ -671,10 +673,10 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     if plan.distinct {
-        batches = distinct_batches(batches);
-        ensure_temp_budget(controls, &batches)?;
+        batches = distinct_batches(batches, controls)?;
+        ensure_query_memory_budget(controls, &batches)?;
     }
     Ok(batches)
 }
@@ -697,18 +699,18 @@ fn finalize_plan_rows(
             env.params,
             env.controls,
         )?;
-        rows = apply_set_operation(rows, right_rows, set)?;
+        rows = apply_set_operation(rows, right_rows, set, env.controls)?;
     }
     if plan.set.is_some() && !plan.order.is_empty() {
-        rows = sort::sort_rows(
-            rows,
-            &plan.order,
-            &plan.projection,
-            env.params,
-            env.search_context,
-            env.user_functions,
-            env.session,
-        );
+        let eval = sort::EvalInput {
+            order: &plan.order,
+            projection: &plan.projection,
+            params: env.params,
+            search_context: env.search_context,
+            user_functions: env.user_functions,
+            session: env.session,
+        };
+        rows = sort::sort_rows_with_controls(rows, &eval, env.controls)?;
     }
     Ok(slice_rows(rows, plan.offset, plan.limit))
 }

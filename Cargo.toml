@@ -53,9 +53,9 @@ harness = false
 path = "benches/tier1_hotpath_search_vector.rs"
 
 [[bench]]
-name = "tier1_hotpath_pgwire_json"
+name = "tier1_hotpath_pgwire"
 harness = false
-path = "benches/tier1_hotpath_pgwire_json.rs"
+path = "benches/tier1_hotpath_pgwire.rs"
 
 [[bench]]
 name = "tier1_hotpath_predicates"
@@ -133,29 +133,14 @@ harness = false
 path = "benches/tier3_system_query.rs"
 
 [[bench]]
-name = "tier3_system_query_breakdown"
-harness = false
-path = "benches/tier3_system_query_breakdown.rs"
-
-[[bench]]
 name = "tier3_system_startup"
 harness = false
 path = "benches/tier3_system_startup.rs"
 
 [[bench]]
-name = "tier3_system_concurrency"
-harness = false
-path = "benches/tier3_system_concurrency.rs"
-
-[[bench]]
 name = "tier3_system_mixed_load"
 harness = false
 path = "benches/tier3_system_mixed_load.rs"
-
-[[bench]]
-name = "tier3_system_rebuild"
-harness = false
-path = "benches/tier3_system_rebuild.rs"
 
 [[bench]]
 name = "tier4_integration_pgwire"
@@ -171,6 +156,36 @@ path = "benches/tier4_integration_http.rs"
 name = "tier4_integration_protocol_compare"
 harness = false
 path = "benches/tier4_integration_protocol_compare.rs"
+
+[[bench]]
+name = "tier5_scaling_query"
+harness = false
+path = "benches/tier5_scaling_query.rs"
+
+[[bench]]
+name = "tier5_scaling_retrieval"
+harness = false
+path = "benches/tier5_scaling_retrieval.rs"
+
+[[bench]]
+name = "tier5_scaling_lifecycle"
+harness = false
+path = "benches/tier5_scaling_lifecycle.rs"
+
+[[bench]]
+name = "tier5_scaling_transport"
+harness = false
+path = "benches/tier5_scaling_transport.rs"
+
+[[bench]]
+name = "tier6_soak_mixed"
+harness = false
+path = "benches/tier6_soak_mixed.rs"
+
+[[bench]]
+name = "tier6_soak_transport"
+harness = false
+path = "benches/tier6_soak_transport.rs"
 
 [profile.dev]
 opt-level = 0

@@ -129,7 +129,7 @@ async fn read_frontend_frame(
     Ok((tag[0], payload))
 }
 
-fn decode_frontend_message(
+pub(super) fn decode_frontend_message(
     tag: u8,
     payload: Vec<u8>,
 ) -> Result<(FrontendMessage, usize), HandshakeError> {
@@ -395,7 +395,20 @@ pub(super) async fn read_startup_frame(
     }
 
     if size == 16 && code == CANCEL_REQUEST_CODE {
-        return Ok(StartupFrame::CancelRequest);
+        let process_id = i32::from_be_bytes(
+            payload[4..8]
+                .try_into()
+                .map_err(|_| HandshakeError::Invalid("malformed cancel request".to_string()))?,
+        );
+        let secret_key = i32::from_be_bytes(
+            payload[8..12]
+                .try_into()
+                .map_err(|_| HandshakeError::Invalid("malformed cancel request".to_string()))?,
+        );
+        return Ok(StartupFrame::CancelRequest {
+            process_id,
+            secret_key,
+        });
     }
 
     if code != PROTOCOL_VERSION_3 {

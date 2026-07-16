@@ -108,6 +108,37 @@ pub struct ColumnBatchValueRun {
 }
 
 impl IndexMeta {
+    const STORAGE_ID_OPTION: &'static str = "__cassie_storage_id";
+    const RELATION_ID_OPTION: &'static str = "__cassie_relation_id";
+
+    #[must_use]
+    pub(crate) fn storage_id(&self) -> Option<u64> {
+        self.options
+            .get(Self::STORAGE_ID_OPTION)
+            .and_then(|value| value.parse().ok())
+    }
+
+    #[must_use]
+    pub(crate) fn relation_id(&self) -> Option<u64> {
+        self.options
+            .get(Self::RELATION_ID_OPTION)
+            .and_then(|value| value.parse().ok())
+    }
+
+    pub(crate) fn set_storage_ids(&mut self, relation_id: u64, storage_id: u64) {
+        self.options.insert(
+            Self::RELATION_ID_OPTION.to_string(),
+            relation_id.to_string(),
+        );
+        self.options
+            .insert(Self::STORAGE_ID_OPTION.to_string(), storage_id.to_string());
+    }
+
+    pub(crate) fn clear_storage_ids(&mut self) {
+        self.options.remove(Self::RELATION_ID_OPTION);
+        self.options.remove(Self::STORAGE_ID_OPTION);
+    }
+
     #[must_use]
     pub fn normalized_fields(&self) -> Vec<String> {
         if self.fields.is_empty() && !self.field.is_empty() {

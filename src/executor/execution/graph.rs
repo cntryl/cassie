@@ -1,6 +1,6 @@
 use std::collections::{HashSet, VecDeque};
 
-use super::{filter, source, BatchRow, FunctionCall, QueryError, Value};
+use super::{check_timeout, filter, source, BatchRow, FunctionCall, QueryError, Value};
 
 #[derive(Debug, Clone)]
 struct GraphPath {
@@ -45,6 +45,7 @@ fn graph_neighbors(
         .midge
         .scan_graph_edges(&graph, &node_type, &node_id, &direction, &edge_types)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    let _edge_memory = reserve_graph_bytes(env, edges.iter().map(graph_edge_bytes).sum::<usize>())?;
     let rows: Vec<BatchRow> = edges
         .into_iter()
         .take(limit)
@@ -92,8 +93,10 @@ fn graph_expand(
     }]);
     let mut rows = Vec::new();
     let mut expanded_edges = 0usize;
+    let mut state_memory = reserve_expand_state(env, &queue, &rows)?;
 
     while let Some(path) = queue.pop_front() {
+        check_timeout(env.controls)?;
         if rows.len() >= max_results {
             break;
         }
@@ -113,6 +116,7 @@ fn graph_expand(
             .map_err(|error| QueryError::General(error.to_string()))?;
         expanded_edges = expanded_edges.saturating_add(edges.len());
         for edge in edges {
+            check_timeout(env.controls)?;
             let (next_type, next_id) = adjacent_node(&edge, &path.node_type, &path.node_id);
             if path
                 .path_nodes
@@ -135,6 +139,8 @@ fn graph_expand(
                 break;
             }
             queue.push_back(next);
+            drop(state_memory);
+            state_memory = reserve_expand_state(env, &queue, &rows)?;
         }
     }
 
@@ -156,16 +162,18 @@ fn graph_shortest_path(
     env: &source::SourceExecutionEnv<'_>,
     args: &[Value],
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let graph_name = text_arg(args, 0, "graph")?;
-    let graph = graph_meta(env, &graph_name)?;
-    let source_type = text_arg(args, 1, "source_type")?;
-    let source_id = text_arg(args, 2, "source_id")?;
-    let target_type = text_arg(args, 3, "target_type")?;
-    let target_id = text_arg(args, 4, "target_id")?;
-    let max_depth = usize_arg(args, 5, "max_depth")?;
-    let direction = direction_arg(args, 6)?;
-    let edge_types = edge_type_arg(args, 7)?;
-    let max_paths = usize_arg(args, 8, "max_paths")?;
+    let request = shortest_path_request(env, args)?;
+    let ShortestPathRequest {
+        graph,
+        source_type,
+        source_id,
+        target_type,
+        target_id,
+        max_depth,
+        direction,
+        edge_types,
+        max_paths,
+    } = request;
     let mut frontier = vec![GraphPath {
         node_type: source_type.clone(),
         node_id: source_id.clone(),
@@ -177,8 +185,10 @@ fn graph_shortest_path(
     }];
     let mut best_seen = HashSet::new();
     let mut found = Vec::new();
+    let mut state_memory = reserve_shortest_path_state(env, &frontier, &best_seen, &found)?;
 
     while !frontier.is_empty() && found.len() < max_paths {
+        check_timeout(env.controls)?;
         frontier.sort_by(|left, right| {
             right
                 .cost
@@ -193,8 +203,12 @@ fn graph_shortest_path(
         {
             continue;
         }
+        drop(state_memory);
+        state_memory = reserve_shortest_path_state(env, &frontier, &best_seen, &found)?;
         if path.node_type == target_type && path.node_id == target_id && path.depth > 0 {
             found.push(path);
+            drop(state_memory);
+            state_memory = reserve_shortest_path_state(env, &frontier, &best_seen, &found)?;
             continue;
         }
         if usize::try_from(path.depth).unwrap_or(usize::MAX) >= max_depth {
@@ -212,6 +226,7 @@ fn graph_shortest_path(
             )
             .map_err(|error| QueryError::General(error.to_string()))?;
         for edge in edges {
+            check_timeout(env.controls)?;
             let (next_type, next_id) = adjacent_node(&edge, &path.node_type, &path.node_id);
             if path
                 .path_nodes
@@ -230,9 +245,20 @@ fn graph_shortest_path(
             next.path_edges.push(edge.edge_id.clone());
             next.last_edge = Some(edge);
             frontier.push(next);
+            drop(state_memory);
+            state_memory = reserve_shortest_path_state(env, &frontier, &best_seen, &found)?;
         }
     }
 
+    Ok(finish_shortest_path(env, &graph, max_depth, found))
+}
+
+fn finish_shortest_path(
+    env: &source::SourceExecutionEnv<'_>,
+    graph: &crate::catalog::GraphMeta,
+    max_depth: usize,
+    found: Vec<GraphPath>,
+) -> Vec<BatchRow> {
     let rows = found
         .into_iter()
         .enumerate()
@@ -249,7 +275,110 @@ fn graph_shortest_path(
             "target"
         },
     );
-    Ok(rows)
+    rows
+}
+
+struct ShortestPathRequest {
+    graph: crate::catalog::GraphMeta,
+    source_type: String,
+    source_id: String,
+    target_type: String,
+    target_id: String,
+    max_depth: usize,
+    direction: String,
+    edge_types: Vec<String>,
+    max_paths: usize,
+}
+
+fn shortest_path_request(
+    env: &source::SourceExecutionEnv<'_>,
+    args: &[Value],
+) -> Result<ShortestPathRequest, QueryError> {
+    let graph_name = text_arg(args, 0, "graph")?;
+    Ok(ShortestPathRequest {
+        graph: graph_meta(env, &graph_name)?,
+        source_type: text_arg(args, 1, "source_type")?,
+        source_id: text_arg(args, 2, "source_id")?,
+        target_type: text_arg(args, 3, "target_type")?,
+        target_id: text_arg(args, 4, "target_id")?,
+        max_depth: usize_arg(args, 5, "max_depth")?,
+        direction: direction_arg(args, 6)?,
+        edge_types: edge_type_arg(args, 7)?,
+        max_paths: usize_arg(args, 8, "max_paths")?,
+    })
+}
+
+fn reserve_expand_state(
+    env: &source::SourceExecutionEnv<'_>,
+    queue: &VecDeque<GraphPath>,
+    rows: &[BatchRow],
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    let bytes = queue
+        .iter()
+        .map(graph_path_bytes)
+        .sum::<usize>()
+        .saturating_add(batch_rows_bytes(rows));
+    reserve_graph_bytes(env, bytes)
+}
+
+fn reserve_shortest_path_state(
+    env: &source::SourceExecutionEnv<'_>,
+    frontier: &[GraphPath],
+    best_seen: &HashSet<String>,
+    found: &[GraphPath],
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    let bytes = frontier
+        .iter()
+        .chain(found)
+        .map(graph_path_bytes)
+        .sum::<usize>()
+        .saturating_add(best_seen.iter().map(String::len).sum());
+    reserve_graph_bytes(env, bytes)
+}
+
+fn reserve_graph_bytes(
+    env: &source::SourceExecutionEnv<'_>,
+    bytes: usize,
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    env.controls
+        .reserve_query_memory(bytes)
+        .map_err(QueryError::from)
+}
+
+fn graph_path_bytes(path: &GraphPath) -> usize {
+    path.node_type
+        .len()
+        .saturating_add(path.node_id.len())
+        .saturating_add(
+            path.path_nodes
+                .iter()
+                .map(|(node_type, node_id)| node_type.len().saturating_add(node_id.len()))
+                .sum(),
+        )
+        .saturating_add(path.path_edges.iter().map(String::len).sum())
+        .saturating_add(path.last_edge.as_ref().map_or(0, graph_edge_bytes))
+        .saturating_add(std::mem::size_of::<GraphPath>())
+}
+
+fn graph_edge_bytes(edge: &crate::midge::adapter::GraphEdgeRecord) -> usize {
+    edge.edge_id
+        .len()
+        .saturating_add(edge.edge_type.len())
+        .saturating_add(edge.source_type.len())
+        .saturating_add(edge.source_id.len())
+        .saturating_add(edge.target_type.len())
+        .saturating_add(edge.target_id.len())
+        .saturating_add(std::mem::size_of_val(&edge.weight))
+}
+
+fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
+    rows.iter()
+        .map(|row| {
+            serde_json::to_vec(row.entries())
+                .map(|bytes| bytes.len())
+                .unwrap_or_default()
+        })
+        .sum()
 }
 
 fn evaluate_args(

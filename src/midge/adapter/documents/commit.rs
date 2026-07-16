@@ -26,8 +26,12 @@ impl Midge {
         for collection in &changed_collections {
             let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
             if let Some(records) = vector_records_by_collection.get(collection) {
+                let row_schema = self.row_schema(collection)?;
                 Self::stamp_normalized_vectors_generation_in_tx(
-                    &mut tx, collection, generation, records,
+                    &mut tx,
+                    &row_schema,
+                    generation,
+                    records,
                 )?;
             }
             self.stamp_vector_index_states_generation_in_tx(&mut tx, collection, generation)?;

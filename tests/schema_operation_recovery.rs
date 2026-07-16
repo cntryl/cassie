@@ -370,7 +370,13 @@ fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
         .get_schema("drop_index_recovery")
         .expect("catalog collection")
         .collection;
-    let prefix = Midge::scalar_index_collection_prefix_for_diagnostics(&collection);
+    let relation_id = cassie
+        .midge
+        .collection_metadata(&collection)
+        .expect("read collection metadata")
+        .expect("collection metadata")
+        .storage_id;
+    let prefix = Midge::scalar_index_collection_prefix_for_diagnostics(relation_id);
     assert!(!cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, &prefix)

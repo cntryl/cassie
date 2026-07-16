@@ -295,37 +295,70 @@ fn valid_window_bound_order(start: WindowFrameBound, end: WindowFrameBound) -> b
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
     let raw = raw.trim();
-    if let Some((left, right)) = split_top_level(raw, " outer apply ") {
-        return parse_apply_source(left, right, true);
-    }
-    if let Some((left, right)) = split_top_level(raw, " cross apply ") {
-        return parse_apply_source(left, right, false);
-    }
-    if let Some((left, right)) = split_top_level(raw, " full outer join ") {
-        return parse_join_source(left, right, JoinKind::Full);
-    }
-    if let Some((left, right)) = split_top_level(raw, " full join ") {
-        return parse_join_source(left, right, JoinKind::Full);
-    }
-    if let Some((left, right)) = split_top_level(raw, " right join ") {
-        return parse_join_source(left, right, JoinKind::Right);
-    }
-    if let Some((left, right)) = split_top_level(raw, " left join ") {
-        return parse_join_source(left, right, JoinKind::Left);
-    }
-    if let Some((left, right)) = split_top_level(raw, " cross join ") {
-        return Ok(QuerySource::Join {
-            left: Box::new(parse_query_source(left)?),
-            right: Box::new(parse_query_source(right)?),
-            kind: JoinKind::Cross,
-            on: Expr::BoolLiteral(true),
-        });
-    }
-    if let Some((left, right)) = split_top_level(raw, " join ") {
-        return parse_join_source(left, right, JoinKind::Inner);
+    if let Some(join) = rightmost_join(raw) {
+        let left = raw[..join.position].trim();
+        let right = raw[join.position + join.token.len()..].trim();
+        return match join.kind {
+            SourceJoinKind::OuterApply => parse_apply_source(left, right, true),
+            SourceJoinKind::CrossApply => parse_apply_source(left, right, false),
+            SourceJoinKind::Join(kind) if kind == JoinKind::Cross => Ok(QuerySource::Join {
+                left: Box::new(parse_query_source(left)?),
+                right: Box::new(parse_query_source(right)?),
+                kind,
+                on: Expr::BoolLiteral(true),
+            }),
+            SourceJoinKind::Join(kind) => parse_join_source(left, right, kind),
+        };
     }
 
     parse_single_query_source(raw)
+}
+
+#[derive(Clone, Copy)]
+enum SourceJoinKind {
+    OuterApply,
+    CrossApply,
+    Join(JoinKind),
+}
+
+#[derive(Clone, Copy)]
+struct SourceJoinMatch {
+    position: usize,
+    token: &'static str,
+    kind: SourceJoinKind,
+}
+
+fn rightmost_join(raw: &str) -> Option<SourceJoinMatch> {
+    let candidates = [
+        ("outer apply", SourceJoinKind::OuterApply),
+        ("cross apply", SourceJoinKind::CrossApply),
+        ("full outer join", SourceJoinKind::Join(JoinKind::Full)),
+        ("full join", SourceJoinKind::Join(JoinKind::Full)),
+        ("right join", SourceJoinKind::Join(JoinKind::Right)),
+        ("left join", SourceJoinKind::Join(JoinKind::Left)),
+        ("cross join", SourceJoinKind::Join(JoinKind::Cross)),
+        ("join", SourceJoinKind::Join(JoinKind::Inner)),
+    ];
+    let mut rightmost = None;
+    for (token, kind) in candidates {
+        let mut start = 0;
+        while let Some(position) = find_top_level_keyword(raw, start, token) {
+            let candidate = SourceJoinMatch {
+                position,
+                token,
+                kind,
+            };
+            if rightmost.is_none_or(|current: SourceJoinMatch| {
+                position + token.len() > current.position + current.token.len()
+                    || (position + token.len() == current.position + current.token.len()
+                        && token.len() > current.token.len())
+            }) {
+                rightmost = Some(candidate);
+            }
+            start = position + token.len();
+        }
+    }
+    rightmost
 }
 
 pub(super) fn parse_join_source(

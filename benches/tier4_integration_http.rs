@@ -1,107 +1,113 @@
 const BENCHMARK: &str = "tier4_integration_http";
-const HTTP_BATCH_SIZE: usize = 16;
+const FIXTURE_SCALE: &str = "10k";
+const FIXTURE_ROWS: usize = 10_000;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
+#[path = "support/transport_external.rs"]
+mod transport_external;
 #[path = "support/workloads.rs"]
 mod workloads;
 
 fn main() {
-    workloads::configure_http_tls().expect("configure benchmark REST TLS identity");
+    let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier4, BENCHMARK);
+    let document = declared_case("document_create_get");
+    let vector = declared_case("vector_search");
+    let query = declared_case("query");
+    let enabled = [
+        runner.is_enabled(&document),
+        runner.is_enabled(&vector),
+        runner.is_enabled(&query),
+    ];
+    if !enabled.iter().any(|selected| *selected) {
+        runner.finish();
+        return;
+    }
+
+    let setup_started = std::time::Instant::now();
+    let generated_http_tls =
+        workloads::configure_http_tls().expect("configure benchmark REST TLS identity");
     let runtime = workloads::runtime();
-    let mut runner = stress::runner(BENCHMARK);
+    let fixture = runtime
+        .block_on(workloads::context_with_mock_tei_embeddings(
+            "tier4-http-10k",
+            FIXTURE_ROWS,
+            FIXTURE_ROWS,
+        ))
+        .expect("Tier 4 HTTP fixture");
+    let context = runtime
+        .block_on(workloads::http_transport_context(&fixture))
+        .expect("Tier 4 HTTP transport context");
+    let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
 
-    bench_document_create_get(&mut runner, &runtime);
-    bench_legacy_rows(&mut runner, &runtime);
-
-    runner.finish();
-}
-
-fn bench_document_create_get(
-    runner: &mut stress::CassieStressRunner,
-    runtime: &tokio::runtime::Runtime,
-) {
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
-        let benchmark = performance_benchmarks::expect_benchmark(
-            BENCHMARK,
-            "http_document_create_get",
-            dataset,
-        );
-        let case =
-            stress::StressCase::fixed_operations(4, benchmark.workload, benchmark.fixture_scale);
-        if !runner.is_enabled(&case) {
-            continue;
-        }
-        let context = runtime
-            .block_on(workloads::unindexed_context(
-                &format!("tier4-http-{dataset}"),
-                rows,
-            ))
-            .expect("benchmark context");
-        let http = runtime
-            .block_on(workloads::http_transport_context(&context))
-            .expect("http transport context");
-        runner.fixed_timed_count(
-            case.metadata("operation_unit", "document_create_get_workflow"),
-            u64::try_from(HTTP_BATCH_SIZE).expect("HTTP batch size should fit u64"),
-            || {
-                runtime.block_on(workloads::http_transport_document_create_get_batch(
-                    &http,
-                    HTTP_BATCH_SIZE,
-                ))
+    if enabled[0] {
+        runner.record_external(
+            evidenced(document, &setup_time_ns, 1, &fixture),
+            |sample_duration| {
+                transport_external::sample_until_deadline(sample_duration, || {
+                    u64::try_from(
+                        runtime.block_on(workloads::http_transport_document_create_get(&context)),
+                    )
+                    .expect("HTTP document request count should fit u64")
+                })
             },
         );
     }
+    if enabled[1] {
+        runner.record_external(
+            evidenced(vector, &setup_time_ns, 10, &fixture),
+            |sample_duration| {
+                transport_external::sample_until_deadline(sample_duration, || {
+                    let rows = runtime.block_on(workloads::http_transport_vector_search(&context));
+                    assert_eq!(rows, 10, "HTTP vector result cardinality");
+                    1
+                })
+            },
+        );
+    }
+    if enabled[2] {
+        runner.record_external(
+            evidenced(query, &setup_time_ns, 20, &fixture),
+            |sample_duration| {
+                transport_external::sample_until_deadline(sample_duration, || {
+                    u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
+                        .expect("HTTP query request count should fit u64")
+                })
+            },
+        );
+    }
+
+    runtime
+        .block_on(context.shutdown())
+        .expect("graceful HTTP benchmark shutdown");
+    if let Some(material) = generated_http_tls {
+        material
+            .cleanup()
+            .expect("clean up generated REST TLS identity");
+    }
+    runner.finish();
 }
 
-fn bench_legacy_rows(runner: &mut stress::CassieStressRunner, runtime: &tokio::runtime::Runtime) {
-    let standard_rows = [
-        stress::StressCase::fixed_operations(4, "http_large_result_set", "512_rows"),
-        stress::StressCase::fixed_operations(4, "http_concurrent_requests", "8x10k")
-            .parameter("client_count", "8"),
-    ];
-    let needs_standard_context = standard_rows.iter().any(|case| runner.is_enabled(case));
-    let vector_case = stress::StressCase::fixed_operations(4, "http_vector_search", "10k");
+fn declared_case(workload: &str) -> stress::StressCase {
+    stress::StressCase::new(workload, FIXTURE_SCALE).runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Integration,
+            FIXTURE_ROWS,
+            "tier4_integration_http/10k",
+        ),
+        stress::OperationUnit::Request,
+    )
+}
 
-    if runner.is_enabled(&vector_case) {
-        let vector_ctx = runtime
-            .block_on(workloads::context_with_mock_tei_embeddings(
-                "tier4-http-vector",
-                10_000,
-            ))
-            .expect("vector benchmark context");
-        let http = runtime
-            .block_on(workloads::http_transport_context(&vector_ctx))
-            .expect("http transport context");
-        runner.fixed_timed_count(
-            vector_case.metadata("operation_unit", "result_row"),
-            10,
-            || runtime.block_on(workloads::http_transport_vector_search(&http)),
-        );
-    }
-
-    if needs_standard_context {
-        let standard_context = runtime
-            .block_on(workloads::unindexed_context("tier4-http", 10_000))
-            .expect("benchmark context");
-        let http = runtime
-            .block_on(workloads::http_transport_context(&standard_context))
-            .expect("http transport context");
-        runner.fixed_timed_count(
-            standard_rows[0]
-                .clone()
-                .metadata("operation_unit", "document_get_request"),
-            512,
-            || runtime.block_on(workloads::http_transport_large_result_set(&http)),
-        );
-        runner.fixed_batch(
-            standard_rows[1]
-                .clone()
-                .metadata("operation_unit", "document_get_request"),
-            8,
-            || runtime.block_on(workloads::http_transport_concurrent_document_gets(&http, 8)),
-        );
-    }
+fn evidenced(
+    case: stress::StressCase,
+    setup_time_ns: &str,
+    result_cardinality: u64,
+    fixture: &workloads::BenchContext,
+) -> stress::StressCase {
+    case.metadata("setup_time_ns", setup_time_ns)
+        .metadata("result_cardinality", result_cardinality.to_string())
+        .runtime_evidence(fixture.cassie.clone())
 }

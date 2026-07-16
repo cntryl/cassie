@@ -81,6 +81,22 @@ pub fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+pub fn cancel_request_frame(process_id: i32, secret_key: i32) -> Vec<u8> {
+    let mut frame = Vec::with_capacity(16);
+    frame.extend_from_slice(&16_i32.to_be_bytes());
+    frame.extend_from_slice(&80_877_102_i32.to_be_bytes());
+    frame.extend_from_slice(&process_id.to_be_bytes());
+    frame.extend_from_slice(&secret_key.to_be_bytes());
+    frame
+}
+
+pub fn simple_query_frame(sql: &str) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(sql.len() + 1);
+    payload.extend_from_slice(sql.as_bytes());
+    payload.push(0);
+    frontend_frame(b'Q', &payload)
+}
+
 pub fn password_message(password: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(password.as_bytes());
@@ -205,6 +221,13 @@ pub async fn complete_startup(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),
 ) {
+    let _ = complete_startup_with_backend_key(reader, writer).await;
+}
+
+pub async fn complete_startup_with_backend_key(
+    reader: &mut (impl AsyncRead + Unpin),
+    writer: &mut (impl AsyncWrite + Unpin),
+) -> (i32, i32) {
     writer
         .write_all(&startup_frame("postgres", "postgres"))
         .await
@@ -225,8 +248,19 @@ pub async fn complete_startup(
             "password auth should complete with auth ok"
         );
     }
-    let ready = read_until_ready(reader).await;
-    assert_eq!(ready, vec![b'I']);
+    let mut backend_key = None;
+    loop {
+        let (tag, payload) = read_wire_frame(reader).await;
+        if tag == b'K' {
+            let process_id = i32::from_be_bytes(payload[..4].try_into().expect("process id"));
+            let secret_key = i32::from_be_bytes(payload[4..].try_into().expect("secret key"));
+            backend_key = Some((process_id, secret_key));
+        }
+        if tag == b'Z' {
+            assert_eq!(payload, vec![b'I']);
+            return backend_key.expect("backend key data");
+        }
+    }
 }
 
 pub async fn write_frames(writer: &mut (impl AsyncWrite + Unpin), frames: Vec<Vec<u8>>) {

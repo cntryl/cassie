@@ -1,5 +1,4 @@
 use cntryl_midge::{Query, WriteOptions};
-use serde::{Deserialize, Serialize};
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
 use super::{
@@ -21,17 +20,46 @@ pub(crate) struct TimeSeriesIndexScanReport {
     pub entries_scanned: usize,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct TimeSeriesIndexRecord {
-    collection: String,
-    index_name: String,
-    id: String,
-    bucket_key: String,
-    timestamp: String,
-    generation: u64,
-}
-
 type TimeSeriesIndexEntry = (Vec<u8>, Vec<u8>);
+
+fn time_series_scan_query(
+    relation_id: u64,
+    index_id: u64,
+    partition_key: Option<&str>,
+    lower_bucket_seconds: Option<i64>,
+    upper_bucket_seconds: Option<i64>,
+) -> Query {
+    let Some(partition_key) = partition_key else {
+        return Query::new()
+            .prefix(key_encoding::time_series_index_data_prefix(relation_id, index_id).into());
+    };
+    let prefix =
+        key_encoding::time_series_index_partition_prefix(relation_id, index_id, partition_key);
+    let mut query = Query::new().prefix(prefix.into());
+    if let Some(lower) = lower_bucket_seconds {
+        query = query.start_key(
+            key_encoding::time_series_index_bucket_bound_key(
+                relation_id,
+                index_id,
+                partition_key,
+                lower,
+            )
+            .into(),
+        );
+    }
+    if let Some(upper) = upper_bucket_seconds {
+        query = query.end_key(
+            key_encoding::time_series_index_bucket_bound_key(
+                relation_id,
+                index_id,
+                partition_key,
+                upper,
+            )
+            .into(),
+        );
+    }
+    query
+}
 
 impl Midge {
     /// Load documents for a newly-created time-series fixture collection.
@@ -50,7 +78,8 @@ impl Midge {
         if documents.is_empty() {
             return Ok(Vec::new());
         }
-        if self.collection_uses_column_store(collection)? {
+        let collection = self.canonical_collection_name(collection);
+        if self.collection_uses_column_store(&collection)? {
             return Err(CassieError::Unsupported(
                 "fresh time-series document load requires row storage".to_string(),
             ));
@@ -58,7 +87,7 @@ impl Midge {
         if self
             .list_vector_indexes_canonical()?
             .iter()
-            .any(|index| index.collection.eq_ignore_ascii_case(collection))
+            .any(|index| index.collection.eq_ignore_ascii_case(&collection))
         {
             return Err(CassieError::Unsupported(
                 "fresh time-series document load does not maintain vector indexes".to_string(),
@@ -68,7 +97,7 @@ impl Midge {
         let indexes = self
             .list_indexes()?
             .into_iter()
-            .filter(|index| index.collection.eq_ignore_ascii_case(collection))
+            .filter(|index| index.collection.eq_ignore_ascii_case(&collection))
             .collect::<Vec<_>>();
         if indexes
             .iter()
@@ -80,22 +109,22 @@ impl Midge {
         }
 
         let schema = self
-            .collection_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-        let row_schema = self.row_schema(collection)?;
-        let generation = self.collection_generation(collection)?.saturating_add(1);
-        let write_gate = self.collection_write_gate(collection);
+            .collection_schema(&collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
+        let row_schema = self.row_schema(&collection)?;
+        let generation = self.collection_generation(&collection)?.saturating_add(1);
+        let write_gate = self.collection_write_gate(&collection);
         let _write_guard = write_gate.lock();
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
             Self::validate_document(&schema, &payload)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(collection, &id), row_blob, None)
+            tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
                 .map_err(CassieError::from)?;
-            Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
+            Self::write_document_hash_to_tx(&mut tx, &collection, &id, &row_schema, &payload)?;
             Self::sync_time_series_indexes_for_document(
                 &mut tx,
                 &id,
@@ -108,13 +137,13 @@ impl Midge {
         }
 
         let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
-        let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
-        Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
-        Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
+        let generation = Self::increment_collection_generation_in_tx(&mut tx, &collection)?;
+        Self::record_column_batch_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
+        Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        let _ = self.complete_column_batch_maintenance(collection, generation);
-        let _ = self.complete_projection_hash_maintenance(collection, generation, row_delta);
+        let _ = self.complete_column_batch_maintenance(&collection, generation);
+        let _ = self.complete_projection_hash_maintenance(&collection, generation, row_delta);
         Ok(ids)
     }
 
@@ -191,10 +220,11 @@ impl Midge {
         let _write_guard = write_gate.lock();
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
         let generation = self.collection_generation(&index.collection)?;
+        let (relation_id, index_id) = Self::time_series_storage_ids(index)?;
         let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
-            Self::time_series_index_data_prefix(&index.collection, &index.name),
+            Self::time_series_index_data_prefix(relation_id, index_id),
         )?;
 
         for row in rows {
@@ -214,10 +244,14 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<(), CassieError> {
+        let Some(index) = self.get_index(collection, index_name)? else {
+            return Ok(());
+        };
+        let (relation_id, index_id) = Self::time_series_storage_ids(&index)?;
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_keys_with_prefix(
             &mut tx,
-            Self::time_series_index_data_prefix(collection, index_name),
+            Self::time_series_index_data_prefix(relation_id, index_id),
         )?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
@@ -230,7 +264,22 @@ impl Midge {
         lower_bucket_seconds: Option<i64>,
         upper_bucket_seconds: Option<i64>,
     ) -> Result<TimeSeriesIndexScanReport, CassieError> {
-        if !Self::time_series_index_supports_storage(index) {
+        let mut index = index.clone();
+        index.collection = self.canonical_collection_name(&index.collection);
+        if index.storage_id().is_none() || index.relation_id().is_none() {
+            let stored = self
+                .get_index(&index.collection, &index.name)?
+                .ok_or_else(|| CassieError::Parse(format!("index '{}' not found", index.name)))?;
+            index.set_storage_ids(
+                stored.relation_id().ok_or_else(|| {
+                    CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
+                })?,
+                stored.storage_id().ok_or_else(|| {
+                    CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
+                })?,
+            );
+        }
+        if !Self::time_series_index_supports_storage(&index) {
             return Err(CassieError::Unsupported(format!(
                 "time-series index '{}' has unsupported bucket storage options",
                 index.name
@@ -238,72 +287,51 @@ impl Midge {
         }
 
         let tx = self.begin_data_readonly_tx_for(&index.collection)?;
-        let query = match partition_key {
-            Some(partition_key) => {
-                let prefix = key_encoding::time_series_index_partition_prefix(
-                    &index.collection,
-                    &index.name,
-                    partition_key,
-                );
-                let mut query = Query::new().prefix(prefix.clone().into());
-                if let Some(lower) = lower_bucket_seconds {
-                    query = query.start_key(
-                        key_encoding::time_series_index_bucket_bound_key(
-                            &index.collection,
-                            &index.name,
-                            partition_key,
-                            lower,
-                        )
-                        .into(),
-                    );
-                }
-                if let Some(upper) = upper_bucket_seconds {
-                    query = query.end_key(
-                        key_encoding::time_series_index_bucket_bound_key(
-                            &index.collection,
-                            &index.name,
-                            partition_key,
-                            upper,
-                        )
-                        .into(),
-                    );
-                }
-                query
-            }
-            None => Query::new()
-                .prefix(Self::time_series_index_data_prefix(&index.collection, &index.name).into()),
-        };
+        let (relation_id, index_id) = Self::time_series_storage_ids(&index)?;
+        let data_prefix = Self::time_series_index_data_prefix(relation_id, index_id);
+        let query = time_series_scan_query(
+            relation_id,
+            index_id,
+            partition_key,
+            lower_bucket_seconds,
+            upper_bucket_seconds,
+        );
         let scan = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
         let entries_scanned = scan.len();
         let mut seen_ids = std::collections::BTreeSet::new();
         let mut hits = Vec::new();
-        let generation = self.collection_generation(&index.collection)?;
 
-        for (_key, raw_value) in scan {
-            let record: TimeSeriesIndexRecord =
-                serde_json::from_slice(&raw_value).map_err(|error| {
-                    CassieError::Parse(format!(
-                        "invalid time-series index entry for '{}': {error}",
-                        index.name
-                    ))
+        for (key, raw_value) in scan {
+            if !raw_value.is_empty() {
+                return Err(CassieError::Parse(
+                    "time-series index values must be empty".to_string(),
+                ));
+            }
+            let (partition, bucket_seconds, timestamp_seconds, timestamp_nanos, id) =
+                key_encoding::decode_time_series_entry_key(&key, &data_prefix).ok_or_else(
+                    || {
+                        CassieError::Parse(format!(
+                            "invalid time-series index key for '{}'",
+                            index.name
+                        ))
+                    },
+                )?;
+            let bucket_start = OffsetDateTime::from_unix_timestamp(bucket_seconds)
+                .map_err(|error| CassieError::Parse(format!("invalid bucket time: {error}")))?
+                .format(&Rfc3339)
+                .map_err(|error| CassieError::Parse(format!("invalid bucket format: {error}")))?;
+            let timestamp = OffsetDateTime::from_unix_timestamp(timestamp_seconds)
+                .and_then(|value| value.replace_nanosecond(timestamp_nanos))
+                .map_err(|error| CassieError::Parse(format!("invalid timestamp: {error}")))?
+                .format(&Rfc3339)
+                .map_err(|error| {
+                    CassieError::Parse(format!("invalid timestamp format: {error}"))
                 })?;
-            if record.collection != index.collection || record.index_name != index.name {
-                return Err(CassieError::Parse(format!(
-                    "invalid time-series index entry for '{}': mismatched metadata",
-                    index.name
-                )));
-            }
-            if record.generation != generation {
-                return Err(CassieError::Unsupported(format!(
-                    "time-series index '{}' has stale generation {} (current {})",
-                    index.name, record.generation, generation
-                )));
-            }
-            if seen_ids.insert(record.id.clone()) {
+            if seen_ids.insert(id.clone()) {
                 hits.push(TimeSeriesIndexScanHit {
-                    id: record.id,
-                    bucket_key: record.bucket_key,
-                    timestamp: record.timestamp,
+                    id,
+                    bucket_key: format!("{partition}\t{bucket_start}"),
+                    timestamp,
                 });
             }
         }
@@ -332,7 +360,7 @@ impl Midge {
         let mut documents = Vec::with_capacity(hits.len());
         for hit in hits {
             let raw = match tx
-                .get(&Self::row_key(collection, &hit.id))
+                .get(&Self::row_key(row_schema.relation_id, &hit.id))
                 .map_err(CassieError::from)?
             {
                 Some(raw) => Some(raw),
@@ -359,11 +387,21 @@ impl Midge {
             && bucket_width_duration(index).is_some()
     }
 
+    fn time_series_storage_ids(index: &IndexMeta) -> Result<(u64, u64), CassieError> {
+        let relation_id = index.relation_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
+        })?;
+        let index_id = index.storage_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
+        })?;
+        Ok((relation_id, index_id))
+    }
+
     fn time_series_index_entry(
         index: &IndexMeta,
         id: &str,
         payload: &serde_json::Value,
-        generation: u64,
+        _generation: u64,
     ) -> Result<Option<TimeSeriesIndexEntry>, CassieError> {
         if !Self::time_series_index_supports_storage(index) {
             return Ok(None);
@@ -384,23 +422,23 @@ impl Midge {
             .ok()
             .map(OffsetDateTime::unix_timestamp)
             .ok_or_else(|| CassieError::Parse("invalid time-series bucket bound".to_string()))?;
+        let parsed_timestamp = OffsetDateTime::parse(timestamp, &Rfc3339).map_err(|error| {
+            CassieError::Parse(format!("invalid time-series timestamp: {error}"))
+        })?;
         let key = key_encoding::time_series_index_entry_key(
-            &index.collection,
-            &index.name,
+            index.relation_id().ok_or_else(|| {
+                CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
+            })?,
+            index.storage_id().ok_or_else(|| {
+                CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
+            })?,
             partition_key,
             bucket_start_seconds,
+            parsed_timestamp.unix_timestamp(),
+            parsed_timestamp.nanosecond(),
             id,
         );
-        let value = serde_json::to_vec(&TimeSeriesIndexRecord {
-            collection: index.collection.clone(),
-            index_name: index.name.clone(),
-            id: id.to_string(),
-            bucket_key,
-            timestamp: timestamp.to_string(),
-            generation,
-        })
-        .map_err(|error| CassieError::Parse(error.to_string()))?;
-        Ok(Some((key, value)))
+        Ok(Some((key, Vec::new())))
     }
 }
 

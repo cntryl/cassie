@@ -22,7 +22,7 @@ fn should_reject_vector_state_from_an_older_collection_generation() {
         cassie
             .execute_sql(
                 &session,
-                "CREATE TABLE vector_state_docs (title TEXT)",
+                "CREATE TABLE vector_state_docs (title TEXT, embedding VECTOR(3))",
                 vec![],
             )
             .expect("create table");

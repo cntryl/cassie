@@ -1,7 +1,6 @@
 use cassie::app::Cassie;
 use cassie::embeddings::{
-    DistanceMetric, HnswIndexOptions, NormalizedVectorRecord, VectorIndexMetadata,
-    VectorIndexRecord, VectorIndexType,
+    DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
 };
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
@@ -80,27 +79,22 @@ fn should_reject_normalized_vectors_from_an_older_collection_generation() {
 }
 
 fn rewrite_sidecar_generation(cassie: &Cassie, collection: &str, generation: u64) {
+    let prefix = cassie
+        .midge
+        .normalized_vector_prefix_for_diagnostics(collection, "embedding")
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .expect("scan data");
     let mut tx = cassie
         .midge
         .data_tx(TransactionMode::ReadWrite)
         .expect("open data transaction");
-    for (key, raw) in entries {
-        let Ok(mut record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw) else {
-            continue;
-        };
-        if record.collection == collection && record.field == "embedding" {
-            record.built_generation = generation;
-            tx.put(
-                key,
-                serde_json::to_vec(&record).expect("serialize sidecar"),
-                None,
-            )
-            .expect("write stale sidecar");
-        }
+    for (key, mut raw) in entries {
+        assert_eq!(raw.first(), Some(&1), "normalized-vector format marker");
+        raw[5..13].copy_from_slice(&generation.to_be_bytes());
+        tx.put(key, raw, None).expect("write stale sidecar");
     }
     tx.commit(WriteOptions::sync())
         .expect("commit stale sidecar");

@@ -358,7 +358,12 @@ fn execute_insert_conflict_update(
                 context.statement.table
             ))
         })?;
-    let existing_row = inserted_row_to_batch_row(conflict_id, context.schema, &current.payload);
+    let existing_row = conflict_existing_row(
+        conflict_id,
+        context.schema,
+        &current.payload,
+        &context.statement.table,
+    );
     let excluded_args = excluded_local_args(payload);
     if let Some(filter_expr) = conflict_filter {
         let matches = filter::eval_scalar(
@@ -405,6 +410,22 @@ fn execute_insert_conflict_update(
         )
         .map_err(QueryError::from)?;
     Ok(Some(conflict_id.to_string()))
+}
+
+fn conflict_existing_row(
+    row_id: &str,
+    schema: &CollectionSchema,
+    payload: &serde_json::Value,
+    table: &str,
+) -> BatchRow {
+    let row = inserted_row_to_batch_row(row_id, schema, payload);
+    let (values, mut aliases) = row.into_parts();
+    let local_table = table.rsplit('.').next().unwrap_or(table);
+    for (index, (field, _)) in values.iter().enumerate() {
+        aliases.push((format!("{table}.{field}"), index));
+        aliases.push((format!("{local_table}.{field}"), index));
+    }
+    BatchRow::with_aliases(values, aliases)
 }
 
 fn merged_conflict_payload(

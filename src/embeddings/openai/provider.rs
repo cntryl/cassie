@@ -1,4 +1,8 @@
+use crate::embeddings::provider::{
+    controlled_backoff, controlled_request_timeout, run_controlled_request,
+};
 use crate::embeddings::EmbeddingProvider;
+use crate::runtime::QueryExecutionControls;
 use std::time::{Duration, Instant};
 
 use reqwest::blocking::Client;
@@ -27,8 +31,8 @@ pub struct OpenAiProviderConfig {
 }
 
 #[derive(Debug, Serialize, Clone)]
-struct EmbeddingRequest<'a> {
-    model: &'a str,
+struct EmbeddingRequest {
+    model: String,
     input: Vec<String>,
 }
 
@@ -56,6 +60,7 @@ pub struct OpenAiProvider {
     model: String,
     dimensions: usize,
     client: Client,
+    request_timeout: Duration,
     base_url: String,
     max_batch_size: usize,
     max_retries: usize,
@@ -107,6 +112,7 @@ impl OpenAiProvider {
             model: config.model,
             dimensions,
             client,
+            request_timeout: config.timeout,
             base_url: config.base_url,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
@@ -134,13 +140,41 @@ impl OpenAiProvider {
         status == 429 || status.is_server_error()
     }
 
-    fn embed_documents_batch(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
+    fn request_embedding_batch(
+        &self,
+        endpoint: &str,
+        request: EmbeddingRequest,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<reqwest::Result<(reqwest::StatusCode, String)>, EmbeddingError> {
+        let timeout =
+            controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
+        let endpoint = endpoint.to_string();
+        let client = self.client.clone();
+        let api_key = self.api_key.clone();
+        run_controlled_request(self.provider_name(), controls, move || {
+            let response = client
+                .post(&endpoint)
+                .timeout(timeout)
+                .header("Authorization", format!("Bearer {api_key}"))
+                .json(&request)
+                .send()?;
+            let status = response.status();
+            let body = response.text()?;
+            Ok((status, body))
+        })
+    }
+
+    fn embed_documents_batch(
+        &self,
+        inputs: &[String],
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }
 
         let request = EmbeddingRequest {
-            model: &self.model,
+            model: self.model.clone(),
             input: inputs.to_vec(),
         };
         let endpoint = format!("{}/v1/embeddings", self.base_url.trim_end_matches('/'));
@@ -149,20 +183,7 @@ impl OpenAiProvider {
         loop {
             attempt += 1;
             let started = Instant::now();
-            let endpoint = endpoint.clone();
-
-            let request_snapshot = request.clone();
-            let response = Self::run_blocking(move || {
-                let response = self
-                    .client
-                    .post(&endpoint)
-                    .header("Authorization", format!("Bearer {}", self.api_key))
-                    .json(&request_snapshot)
-                    .send()?;
-                let status = response.status();
-                let body = response.text()?;
-                Ok::<_, reqwest::Error>((status, body))
-            });
+            let response = self.request_embedding_batch(&endpoint, request.clone(), controls)?;
 
             match response {
                 Ok((status, response_body)) => {
@@ -186,7 +207,7 @@ impl OpenAiProvider {
                             "transient OpenAI response; retrying"
                         );
                         let delay = Duration::from_millis(50 * attempt as u64);
-                        std::thread::sleep(delay);
+                        controlled_backoff(self.provider_name(), delay, controls)?;
                         continue;
                     }
 
@@ -205,7 +226,11 @@ impl OpenAiProvider {
                             max_retries = self.max_retries,
                             "transient OpenAI network error; retrying"
                         );
-                        std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                        controlled_backoff(
+                            self.provider_name(),
+                            Duration::from_millis(50 * attempt as u64),
+                            controls,
+                        )?;
                         continue;
                     }
 
@@ -230,17 +255,14 @@ impl OpenAiProvider {
                         attempt,
                         "retrying OpenAI request"
                     );
-                    std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                    controlled_backoff(
+                        self.provider_name(),
+                        Duration::from_millis(50 * attempt as u64),
+                        controls,
+                    )?;
                 }
             }
         }
-    }
-
-    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
-    where
-        F: FnOnce() -> reqwest::Result<T>,
-    {
-        f()
     }
 
     fn parse_successful_embeddings(
@@ -322,8 +344,20 @@ impl EmbeddingProvider for OpenAiProvider {
 
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            let chunk = self.embed_documents_batch(chunk)?;
+            let chunk = self.embed_documents_batch(chunk, None)?;
             out.extend(chunk);
+        }
+        Ok(out)
+    }
+
+    fn embed_documents_with_controls(
+        &self,
+        inputs: &[String],
+        controls: &QueryExecutionControls,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
+        let mut out = Vec::with_capacity(inputs.len());
+        for chunk in inputs.chunks(self.max_batch_size) {
+            out.extend(self.embed_documents_batch(chunk, Some(controls))?);
         }
         Ok(out)
     }

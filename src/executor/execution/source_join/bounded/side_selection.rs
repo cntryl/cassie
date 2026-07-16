@@ -68,7 +68,7 @@ fn should_build_left_from_hydrated_counts(
             "left_build_row_count_overflow",
         ));
     };
-    if estimate_vectorized_join_bytes(left_rows_usize, 0) > env.controls.temp_spill_budget_bytes {
+    if estimate_vectorized_join_bytes(left_rows_usize, 0) > env.controls.query_memory_budget_bytes {
         return Ok(StreamingSideSelection::keep_right(
             "left_build_budget_exceeded",
         ));
@@ -188,7 +188,7 @@ fn left_row_count_within_build_budget(
 
 fn left_build_budget_rows(env: &SourceExecutionEnv<'_>) -> usize {
     let bytes_per_row = estimate_vectorized_join_bytes(1, 0).max(1);
-    env.controls.temp_spill_budget_bytes / bytes_per_row
+    env.controls.query_memory_budget_bytes / bytes_per_row
 }
 
 fn has_at_least_rows(

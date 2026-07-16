@@ -1,4 +1,6 @@
 pub mod app;
+#[doc(hidden)]
+pub mod benchmark;
 pub mod catalog;
 pub mod config;
 pub mod embeddings;

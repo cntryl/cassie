@@ -75,18 +75,17 @@ pub fn put_legacy_document(
 }
 
 pub fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
+    let prefix = cassie
+        .midge
+        .normalized_vector_prefix_for_diagnostics(collection, field)
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap();
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
-    for (key, value) in entries {
-        let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&value) else {
-            continue;
-        };
-        if record.collection == collection && record.field == field {
-            tx.delete(key).unwrap();
-        }
+    for (key, _) in entries {
+        tx.delete(key).unwrap();
     }
     tx.commit(WriteOptions::sync()).unwrap();
 }
@@ -98,29 +97,42 @@ pub fn time_series_sidecar_records(
 ) -> Vec<TimeSeriesSidecarRecord> {
     let collection = canonical_test_collection(cassie, collection);
     let index_name = canonical_test_index(cassie, &collection, index_name);
+    let prefix = cassie
+        .midge
+        .time_series_index_prefix_for_diagnostics(&collection, &index_name)
+        .unwrap();
+    let generation = cassie.midge.collection_generation(&collection).unwrap();
     cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap()
         .into_iter()
-        .filter_map(|(_key, value)| serde_json::from_slice::<TimeSeriesSidecarRecord>(&value).ok())
-        .filter(|record| record.collection == collection && record.index_name == index_name)
+        .filter(|(_, value)| value.is_empty())
+        .map(|_| TimeSeriesSidecarRecord {
+            collection: collection.clone(),
+            index_name: index_name.clone(),
+            id: String::new(),
+            bucket_key: String::new(),
+            timestamp: String::new(),
+            generation,
+        })
         .collect()
 }
 
 pub fn clear_time_series_sidecars(cassie: &Cassie, collection: &str, index_name: &str) {
     let collection = canonical_test_collection(cassie, collection);
     let index_name = canonical_test_index(cassie, &collection, index_name);
+    let prefix = cassie
+        .midge
+        .time_series_index_prefix_for_diagnostics(&collection, &index_name)
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap();
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
     for (key, value) in entries {
-        let Ok(record) = serde_json::from_slice::<TimeSeriesSidecarRecord>(&value) else {
-            continue;
-        };
-        if record.collection == collection && record.index_name == index_name {
+        if value.is_empty() {
             tx.delete(key).unwrap();
         }
     }

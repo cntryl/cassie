@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -9,6 +9,19 @@ use super::{
     current_time_millis, touch, ExecutionResultCacheKey, L1PlanEntry, L1PlanHit, PlanCacheKey,
     RuntimeState,
 };
+
+#[derive(Debug, Default)]
+pub(super) struct ExecutionResultCacheState {
+    pub(super) entries: HashMap<ExecutionResultCacheKey, ExecutionResultCacheEntry>,
+    pub(super) order: VecDeque<ExecutionResultCacheKey>,
+    pub(super) bytes: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ExecutionResultCacheEntry {
+    result: QueryResult,
+    bytes: usize,
+}
 
 impl RuntimeState {
     /// # Panics
@@ -119,19 +132,37 @@ impl RuntimeState {
             .execution_result_cache
             .lock()
             .expect("execution result cache");
-        if let Some(result) = cache.entries.get(key).cloned() {
+        if let Some(entry) = cache.entries.get(key).cloned() {
             Self::execution_result_cache_touch(&mut cache.order, key);
             drop(cache);
-            return Some(result);
+            self.record_execution_result_cache_hit();
+            return Some(entry.result);
         }
+        drop(cache);
+        self.record_execution_result_cache_miss();
         None
     }
 
     /// # Panics
     ///
     /// Panics if an internal invariant required by this operation is violated.
-    pub fn execution_result_cache_store(&self, key: ExecutionResultCacheKey, result: QueryResult) {
-        const MAX_ENTRIES: usize = 64;
+    pub fn execution_result_cache_store(&self, key: &ExecutionResultCacheKey, result: QueryResult) {
+        let max_entries = self.limits.execution_result_cache_max_entries;
+        let max_bytes = self.limits.execution_result_cache_max_bytes;
+        if !self.limits.execution_result_cache_enabled.is_enabled()
+            || max_entries == 0
+            || max_bytes == 0
+        {
+            return;
+        }
+        let Ok(bytes) = serde_json::to_vec(&result).map(|payload| payload.len()) else {
+            self.record_execution_result_cache_bypass("serialization");
+            return;
+        };
+        if bytes > max_bytes {
+            self.record_execution_result_cache_bypass("oversized_entry");
+            return;
+        }
         let mut cache = self
             .execution_result_cache
             .lock()
@@ -139,16 +170,33 @@ impl RuntimeState {
         if let std::collections::hash_map::Entry::Occupied(mut entry) =
             cache.entries.entry(key.clone())
         {
-            entry.insert(result);
-            return;
+            let previous_bytes = entry.get().bytes;
+            entry.insert(ExecutionResultCacheEntry { result, bytes });
+            cache.bytes = cache
+                .bytes
+                .saturating_sub(previous_bytes)
+                .saturating_add(bytes);
+            Self::execution_result_cache_touch(&mut cache.order, key);
+        } else {
+            cache
+                .entries
+                .insert(key.clone(), ExecutionResultCacheEntry { result, bytes });
+            cache.bytes = cache.bytes.saturating_add(bytes);
+            cache.order.push_back(key.clone());
         }
-        if cache.entries.len() >= MAX_ENTRIES {
+        let mut evictions = 0;
+        while cache.entries.len() > max_entries || cache.bytes > max_bytes {
             if let Some(oldest) = cache.order.pop_front() {
-                cache.entries.remove(&oldest);
+                if let Some(removed) = cache.entries.remove(&oldest) {
+                    cache.bytes = cache.bytes.saturating_sub(removed.bytes);
+                    evictions += 1;
+                }
+            } else {
+                break;
             }
         }
-        cache.entries.insert(key.clone(), result);
-        cache.order.push_back(key);
+        drop(cache);
+        self.record_execution_result_cache_eviction(evictions);
     }
 
     /// # Panics
@@ -161,6 +209,7 @@ impl RuntimeState {
             .expect("execution result cache");
         cache.entries.clear();
         cache.order.clear();
+        cache.bytes = 0;
     }
 
     pub fn data_epoch(&self) -> u64 {
@@ -202,6 +251,50 @@ impl RuntimeState {
             order.remove(position);
         }
         order.push_back(key.clone());
+    }
+
+    pub(super) fn execution_result_cache_size(&self) -> (usize, usize) {
+        let cache = self
+            .execution_result_cache
+            .lock()
+            .expect("execution result cache");
+        (cache.entries.len(), cache.bytes)
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_execution_result_cache_hit(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.execution_result_cache.hits += 1;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_execution_result_cache_miss(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.execution_result_cache.misses += 1;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_execution_result_cache_bypass(&self, reason: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        *metrics
+            .execution_result_cache
+            .bypass_reasons
+            .entry(reason.to_string())
+            .or_default() += 1;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_execution_result_cache_eviction(&self, evictions: u64) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.execution_result_cache.evictions += evictions;
     }
 
     /// # Panics

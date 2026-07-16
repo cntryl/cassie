@@ -12,6 +12,9 @@ use crate::types::Value;
 
 use super::{aggregate_signature, check_timeout, group_expr_name, value_sort_key, QueryError};
 
+#[path = "aggregate_exec/memory.rs"]
+mod memory;
+
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
     pub(super) params: &'a [Value],
@@ -46,8 +49,10 @@ pub(super) fn aggregate_query_batches(
         parallel_aggregation_eligibility(context.plan, &specs, context.user_functions);
     if worker_limit > 1 && rows.len() >= batch::DEFAULT_BATCH_SIZE {
         if let Ok(()) = eligibility {
-            let workers = worker_limit.min(partition_count(rows.len(), batch::DEFAULT_BATCH_SIZE));
-            if workers > 1 {
+            let requested =
+                worker_limit.min(partition_count(rows.len(), batch::DEFAULT_BATCH_SIZE));
+            if let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(requested) {
+                let workers = worker_guard.workers().min(requested);
                 return aggregate_query_batches_parallel(cassie, &rows, &specs, context, workers);
             }
         }
@@ -72,8 +77,10 @@ fn aggregate_query_batches_serial(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
     let mut groups = BTreeMap::<String, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+    let mut group_memory = memory::replace_serial(None, context.controls, &groups)?;
 
     for row in rows {
+        check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_group_signature(&group_values);
         groups
@@ -81,6 +88,7 @@ fn aggregate_query_batches_serial(
             .or_insert_with(|| (group_values, Vec::new()))
             .1
             .push(row);
+        group_memory = memory::replace_serial(Some(group_memory), context.controls, &groups)?;
     }
 
     if groups.is_empty() && context.plan.group_by.is_empty() {
@@ -89,6 +97,7 @@ fn aggregate_query_batches_serial(
 
     let mut out = Vec::with_capacity(groups.len());
     for (_signature, (group_values, group_rows)) in groups {
+        check_timeout(context.controls)?;
         let mut values = group_values;
         for spec in specs {
             let value = evaluate_aggregate(&spec.function, &group_rows, context)?;
@@ -115,6 +124,8 @@ fn aggregate_query_batches_parallel(
             .map(|chunk| {
                 scope.spawn(move || {
                     let mut groups = BTreeMap::<String, PartialAggregateGroup>::new();
+                    let mut group_memory =
+                        memory::replace_partial(None, context.controls, &groups)?;
                     for row in chunk {
                         check_timeout(context.controls)?;
                         let group_values = aggregate_group_values(row, context)?;
@@ -123,6 +134,8 @@ fn aggregate_query_batches_parallel(
                             .entry(signature)
                             .or_insert_with(|| PartialAggregateGroup::new(group_values, specs));
                         group.update(row, specs, context)?;
+                        group_memory =
+                            memory::replace_partial(Some(group_memory), context.controls, &groups)?;
                     }
                     Ok::<_, QueryError>(groups)
                 })
@@ -140,12 +153,15 @@ fn aggregate_query_batches_parallel(
     let partitions = partials.len();
     let input_rows = rows.len();
     let mut merged = BTreeMap::<String, PartialAggregateGroup>::new();
+    let mut merged_memory = memory::replace_partial(None, context.controls, &merged)?;
     for partial in partials.drain(..) {
         for (signature, group) in partial {
             merged
                 .entry(signature)
                 .and_modify(|existing| existing.merge(&group))
                 .or_insert(group);
+            merged_memory =
+                memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
         }
     }
 

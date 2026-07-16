@@ -1,8 +1,8 @@
 use super::dml_referential_actions;
 use super::{
-    aggregate, batch, check_timeout, ensure_temp_budget, execute_plan, filter, projection, scan,
-    BatchRow, Cassie, CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType, Expr,
-    FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    aggregate, batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, projection,
+    scan, BatchRow, Cassie, CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType,
+    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
     QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
 };
 

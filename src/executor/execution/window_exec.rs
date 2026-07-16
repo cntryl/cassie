@@ -5,12 +5,13 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
+use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
     SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
-use super::{compare_query_values, value_sort_key, QueryError};
+use super::{check_timeout, compare_query_values, value_sort_key, QueryError};
 
 pub(super) fn apply_window_functions(
     batches: Vec<Batch>,
@@ -19,7 +20,9 @@ pub(super) fn apply_window_functions(
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
+    check_timeout(controls)?;
     let windows = collect_window_functions(projection);
     if windows.is_empty() {
         return Ok(batches);
@@ -30,8 +33,12 @@ pub(super) fn apply_window_functions(
         search_context,
         user_functions,
         session,
+        controls,
     };
     let mut rows = batch::flatten_batches(batches);
+    let _rows_memory = context
+        .controls
+        .reserve_query_memory(batch_rows_bytes(&rows))?;
     for (function, alias) in windows {
         apply_single_window(&mut rows, function, alias.as_deref(), &context)?;
     }
@@ -44,6 +51,7 @@ struct WindowExecutionContext<'a> {
     search_context: Option<&'a filter::SearchContext>,
     user_functions: &'a HashMap<String, FunctionMeta>,
     session: Option<&'a CassieSession>,
+    controls: &'a QueryExecutionControls,
 }
 
 fn collect_window_functions(
@@ -66,9 +74,35 @@ fn apply_single_window(
 ) -> Result<(), QueryError> {
     let function_name = validated_window_function_name(function)?;
     let mut partitions = partition_window_rows(rows, function, context)?;
+    let _partition_memory = context
+        .controls
+        .reserve_query_memory(window_partition_bytes(&partitions))?;
     let values = evaluate_window_values(rows, function, &function_name, &mut partitions, context)?;
+    let _value_memory = context
+        .controls
+        .reserve_query_memory(values.len().saturating_mul(std::mem::size_of::<Value>()))?;
     append_window_values(rows, alias.unwrap_or(function.name.as_str()), values);
     Ok(())
+}
+
+fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
+    rows.iter()
+        .map(|row| {
+            serde_json::to_vec(row.entries())
+                .map(|bytes| bytes.len())
+                .unwrap_or_default()
+        })
+        .sum()
+}
+
+fn window_partition_bytes(partitions: &BTreeMap<String, Vec<usize>>) -> usize {
+    partitions
+        .iter()
+        .map(|(key, indices)| {
+            key.len()
+                .saturating_add(indices.len().saturating_mul(std::mem::size_of::<usize>()))
+        })
+        .sum()
 }
 
 fn validated_window_function_name(function: &WindowFunctionCall) -> Result<String, QueryError> {
@@ -92,6 +126,7 @@ fn partition_window_rows(
 ) -> Result<BTreeMap<String, Vec<usize>>, QueryError> {
     let mut partitions = BTreeMap::<String, Vec<usize>>::new();
     for (index, row) in rows.iter().enumerate() {
+        check_timeout(context.controls)?;
         let key = partition_key(row, function, context)?;
         partitions.entry(key).or_default().push(index);
     }
@@ -134,6 +169,7 @@ fn evaluate_window_values(
 ) -> Result<Vec<Value>, QueryError> {
     let mut values = vec![Value::Null; rows.len()];
     for indices in partitions.values_mut() {
+        check_timeout(context.controls)?;
         evaluate_window_partition(rows, function, function_name, indices, &mut values, context)?;
     }
     Ok(values)
@@ -152,6 +188,7 @@ fn evaluate_window_partition(
     let mut dense_rank = 1i64;
     let mut previous_peer_key: Option<String> = None;
     for (position, index) in indices.iter().enumerate() {
+        check_timeout(context.controls)?;
         let peer_key = window_peer_key(&rows[*index], &function.order_by, context)?;
         if position > 0 && previous_peer_key.as_ref() != Some(&peer_key) {
             dense_rank += 1;

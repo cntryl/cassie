@@ -560,26 +560,96 @@ fn should_fall_back_when_hnsw_graph_max_layer_is_invalid() {
 }
 
 #[test]
-fn should_store_hnsw_manifest_separately_from_point_readable_nodes() {
+fn should_store_hnsw_nodes_as_point_readable_binary_records() {
     // Arrange
-    with_fallback();
-    let path = data_dir("hnsw_manifest_nodes");
-    let cassie = Cassie::new_with_data_dir(&path).unwrap();
-    cassie.startup().unwrap();
-    let collection = "hnsw_manifest_nodes";
-    register_hnsw_collection(&cassie, collection);
-    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
-    put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    let (cassie, path, collection) = hnsw_layout_fixture("hnsw_point_nodes");
 
     // Act
     put_hnsw_index(&cassie, collection, 2);
+    let (_, entries, _, node_count, monolithic_graph_count) =
+        inspect_hnsw_layout(&cassie, collection);
+
+    // Assert
+    assert_eq!(node_count, 2);
+    assert_eq!(monolithic_graph_count, 0);
+    assert!(entries.iter().all(|(_, raw)| raw.first() != Some(&0x7b)));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_store_hnsw_manifest_as_binary_record() {
+    // Arrange
+    let (cassie, path, collection) = hnsw_layout_fixture("hnsw_binary_manifest");
+
+    // Act
+    put_hnsw_index(&cassie, collection, 2);
+    let (_, _, state_value, _, _) = inspect_hnsw_layout(&cassie, collection);
+
+    // Assert
+    assert_eq!(state_value.first(), Some(&3));
+    assert_ne!(state_value.first(), Some(&0x7b));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_omit_names_from_hnsw_hot_keys() {
+    // Arrange
+    let (cassie, path, collection) = hnsw_layout_fixture("hnsw_numeric_keys");
+
+    // Act
+    put_hnsw_index(&cassie, collection, 2);
+    let (prefix, _, _, _, _) = inspect_hnsw_layout(&cassie, collection);
+
+    // Assert
+    assert!(!prefix
+        .windows(collection.len())
+        .any(|window| window == collection.as_bytes()));
+    assert!(!prefix
+        .windows("embedding".len())
+        .any(|window| window == b"embedding"));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+fn hnsw_layout_fixture(label: &str) -> (Cassie, String, &'static str) {
+    with_fallback();
+    let path = data_dir(label);
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.startup().unwrap();
+    let collection = "hnsw_layout_records";
+    register_hnsw_collection(&cassie, collection);
+    put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+    put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+    (cassie, path, collection)
+}
+
+type HnswLayoutInspection = (Vec<u8>, Vec<(Vec<u8>, Vec<u8>)>, Vec<u8>, usize, usize);
+
+fn inspect_hnsw_layout(cassie: &Cassie, collection: &str) -> HnswLayoutInspection {
+    let prefix = cassie
+        .midge
+        .hnsw_node_prefix_for_diagnostics(collection, "embedding")
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap();
+    let state_key = cassie
+        .midge
+        .vector_state_key_for_diagnostics(collection, "embedding")
+        .unwrap();
+    let state_value = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &state_key)
+        .unwrap()
+        .into_iter()
+        .find_map(|(key, value)| (key == state_key).then_some(value))
+        .expect("vector state manifest");
     let node_count = entries
         .iter()
-        .filter(|(_, raw)| serde_json::from_slice::<cassie::embeddings::HnswGraphNode>(raw).is_ok())
+        .filter(|(_, raw)| raw.first() == Some(&2))
         .count();
     let monolithic_graph_count = entries
         .iter()
@@ -587,12 +657,13 @@ fn should_store_hnsw_manifest_separately_from_point_readable_nodes() {
             serde_json::from_slice::<cassie::embeddings::HnswGraphState>(raw).is_ok()
         })
         .count();
-
-    // Assert
-    assert_eq!(node_count, 2);
-    assert_eq!(monolithic_graph_count, 0);
-
-    let _ = std::fs::remove_dir_all(path);
+    (
+        prefix,
+        entries,
+        state_value,
+        node_count,
+        monolithic_graph_count,
+    )
 }
 
 #[test]

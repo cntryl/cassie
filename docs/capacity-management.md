@@ -23,7 +23,7 @@ movement, or workload-specific benchmark thresholds.
 | `pg_catalog.pg_table_storage` | Effective table storage mode: row-store, column-indexed, or column-store. |
 | `pg_catalog.pg_projection_integrity_reports` and `pg_catalog.pg_projection_repair_reports` | Verification and repair pressure after rebuilds or divergence checks. |
 | `pg_catalog.pg_maintenance_debt` | Persisted derived-state retry pressure, target generations, redacted errors, and fallback reasons for rollup and other maintenance artifacts. |
-| [Performance Contracts](performance-contracts.md) | Manual 10k/100k benchmark scenarios, deployment-profile ids, and the evidence labels that tie workloads to metrics. |
+| [Performance Contracts](performance-contracts.md) | Tier 5 manual 10k/100k/250k scaling scenarios, deployment-profile ids, and the evidence labels that tie workloads to metrics. |
 
 ## Capacity Dimensions
 
@@ -42,8 +42,8 @@ movement, or workload-specific benchmark thresholds.
 
 These thresholds are starting points for manual operations and local development feedback.
 Tune them per deployment profile before using them as alerts.
-The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not capacity-admission or SLA evidence.
-The Phase 10 rebaseline moved several local blockers into measurable ranges, including projection refresh, graph 100k setup, time-series 100k scans, HTTP document create/get at 100k, mixed ingest/query, and HTTP vector search. Treat those numbers as the current local comparison baseline when judging regressions, not as production thresholds.
+The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not capacity-admission or SLA evidence. The 250k fixture class is reserved for manual Tier 5 scale evidence and carries the same limitation.
+Local benchmark runs cover projection refresh, graph setup, time-series scans, HTTP document create/get, mixed ingest/query, and HTTP vector search. Treat those observations as environment-labelled comparisons, not as production thresholds; the canonical evidence rules live in [Performance Contracts](performance-contracts.md).
 
 | Signal | Advisory threshold | Response |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Move before disk pressure blocks snapshots, restores, index builds, projection r
 ## Sizing Workflow
 
 1. Start from the query shapes in [Performance Contracts](performance-contracts.md), not from generic database benchmarks.
-2. Choose the closest deployment profile, usually `local-dev-fallback-10k` for fast feedback or `local-dev-fallback-100k` for heavier local evidence.
+2. Choose the closest deployment profile, usually `local-dev-fallback-10k` for fast feedback or `local-dev-fallback-100k` for heavier local evidence; use the 250k fixture class only for manual Tier 5 scale work.
 3. Run the matching manual cntryl-stress scenarios for the feature family you are changing and keep the profile id in the report line.
 4. Capture `/metrics`, including `capacity.families` and `capacity.categories`, representative `EXPLAIN ANALYZE` output, host CPU, memory, and `CASSIE_MIDGE_DATA_DIR` disk usage before and after the change.
 5. Compare fallback counters, cache occupancy, candidate counts, storage-family operations, advisory capacity bytes, and rebuild/write-amplification counters against earlier evidence for the same profile.

@@ -1,8 +1,32 @@
 use super::{
-    collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge,
-    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta,
+    collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
+    RetentionPolicyMeta,
 };
 use crate::catalog::{canonical_relation_name, local_name, ColumnBatchMetadata, RelationId};
+
+pub(super) fn clear_pending_collection_rename(
+    midge: &Midge,
+    current: &str,
+    next: &str,
+) -> Result<(), CassieError> {
+    let mut tx = midge.begin_schema_rw_tx()?;
+    tx.delete(Midge::schema_operation_key(current, next))
+        .map_err(CassieError::from)?;
+    tx.commit(cntryl_midge::WriteOptions::sync())
+        .map_err(CassieError::from)
+}
+
+pub(super) fn clear_pending_field_drop(
+    midge: &Midge,
+    collection: &str,
+    field: &str,
+) -> Result<(), CassieError> {
+    let mut tx = midge.begin_schema_rw_tx()?;
+    tx.delete(Midge::field_drop_operation_key(collection, field))
+        .map_err(CassieError::from)?;
+    tx.commit(cntryl_midge::WriteOptions::sync())
+        .map_err(CassieError::from)
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(super) struct PendingFieldDrop {
@@ -10,19 +34,31 @@ pub(super) struct PendingFieldDrop {
     pub(super) field: String,
     #[serde(default)]
     pub(super) column_names: Vec<String>,
+    #[serde(default)]
+    pub(super) column_storage_ids: Vec<(u64, u64)>,
     pub(super) scalar_names: Vec<String>,
+    #[serde(default)]
+    pub(super) scalar_storage_ids: Vec<(u64, u64)>,
     pub(super) time_series_names: Vec<String>,
     #[serde(default)]
+    pub(super) time_series_storage_ids: Vec<(u64, u64)>,
+    #[serde(default)]
     pub(super) fulltext_names: Vec<String>,
+    #[serde(default)]
+    pub(super) fulltext_storage_ids: Vec<(u64, u64)>,
     #[serde(default)]
     pub(super) vector_names: Vec<String>,
 }
 
 pub(super) struct DroppedCollectionIndexes {
     pub columns: Vec<String>,
+    pub column_storage_ids: Vec<(u64, u64)>,
     pub scalars: Vec<String>,
+    pub scalar_storage_ids: Vec<(u64, u64)>,
     pub time_series: Vec<String>,
+    pub time_series_storage_ids: Vec<(u64, u64)>,
     pub fulltext: Vec<String>,
+    pub fulltext_storage_ids: Vec<(u64, u64)>,
     pub vectors: Vec<String>,
 }
 
@@ -66,11 +102,11 @@ pub(super) fn drop_referencing_indexes_in_tx(
         match metadata.kind {
             IndexKind::Column => {
                 dropped_column_index_keys.push(key);
-                dropped_column_indexes.push(metadata.name);
+                dropped_column_indexes.push(metadata);
             }
-            IndexKind::Scalar => dropped_scalar_indexes.push((key, metadata.name)),
-            IndexKind::TimeSeries => dropped_time_series_indexes.push((key, metadata.name)),
-            IndexKind::FullText => dropped_fulltext_indexes.push((key, metadata.name)),
+            IndexKind::Scalar => dropped_scalar_indexes.push((key, metadata)),
+            IndexKind::TimeSeries => dropped_time_series_indexes.push((key, metadata)),
+            IndexKind::FullText => dropped_fulltext_indexes.push((key, metadata)),
             IndexKind::Vector => {
                 tx.delete(key).map_err(CassieError::from)?;
                 tx.delete(Midge::vector_index_key(collection, &metadata.field))
@@ -84,30 +120,54 @@ pub(super) fn drop_referencing_indexes_in_tx(
     for key in dropped_column_index_keys {
         tx.delete(key).map_err(CassieError::from)?;
     }
+    let column_storage_ids = dropped_column_indexes
+        .iter()
+        .filter_map(|index| Some((index.relation_id()?, index.storage_id()?)))
+        .collect();
+    let column_names = dropped_column_indexes
+        .into_iter()
+        .map(|index| index.name)
+        .collect();
 
     let mut scalar_names = Vec::new();
-    for (key, index_name) in dropped_scalar_indexes {
+    let mut scalar_storage_ids = Vec::new();
+    for (key, index) in dropped_scalar_indexes {
         tx.delete(key).map_err(CassieError::from)?;
-        scalar_names.push(index_name);
+        if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
+            scalar_storage_ids.push((relation_id, index_id));
+        }
+        scalar_names.push(index.name);
     }
 
     let mut time_series_names = Vec::new();
-    for (key, index_name) in dropped_time_series_indexes {
+    let mut time_series_storage_ids = Vec::new();
+    for (key, index) in dropped_time_series_indexes {
         tx.delete(key).map_err(CassieError::from)?;
-        time_series_names.push(index_name);
+        if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
+            time_series_storage_ids.push((relation_id, index_id));
+        }
+        time_series_names.push(index.name);
     }
 
     let mut fulltext_names = Vec::new();
-    for (key, index_name) in dropped_fulltext_indexes {
+    let mut fulltext_storage_ids = Vec::new();
+    for (key, index) in dropped_fulltext_indexes {
         tx.delete(key).map_err(CassieError::from)?;
-        fulltext_names.push(index_name);
+        if let (Some(relation_id), Some(index_id)) = (index.relation_id(), index.storage_id()) {
+            fulltext_storage_ids.push((relation_id, index_id));
+        }
+        fulltext_names.push(index.name);
     }
 
     Ok(DroppedCollectionIndexes {
-        columns: dropped_column_indexes,
+        columns: column_names,
+        column_storage_ids,
         scalars: scalar_names,
+        scalar_storage_ids,
         time_series: time_series_names,
+        time_series_storage_ids,
         fulltext: fulltext_names,
+        fulltext_storage_ids,
         vectors: dropped_vector_indexes,
     })
 }
@@ -118,42 +178,44 @@ pub(super) fn delete_dropped_field_data(
     field: &str,
     dropped_indexes: &DroppedCollectionIndexes,
 ) -> Result<(), CassieError> {
+    let (relation_id, field_id) = midge.vector_storage_ids(collection, field)?;
     let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
     Midge::delete_normalized_vector_keys_with_prefix(
         &mut data_tx,
-        Midge::normalized_vector_prefix(collection, field),
+        Midge::normalized_vector_prefix(relation_id, field_id),
     )?;
     for vector_field in &dropped_indexes.vectors {
+        let (relation_id, field_id) = midge.vector_storage_ids(collection, vector_field)?;
         Midge::delete_normalized_vector_keys_with_prefix(
             &mut data_tx,
-            Midge::normalized_vector_prefix(collection, vector_field),
+            Midge::normalized_vector_prefix(relation_id, field_id),
         )?;
         data_tx
-            .delete(Midge::vector_index_state_key(collection, vector_field))
+            .delete(Midge::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?;
     }
-    for index_name in &dropped_indexes.scalars {
+    for (relation_id, index_id) in &dropped_indexes.scalar_storage_ids {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::scalar_index_data_prefix(collection, index_name),
+            Midge::scalar_index_data_prefix(*relation_id, *index_id),
         )?;
     }
-    for index_name in &dropped_indexes.time_series {
+    for (relation_id, index_id) in &dropped_indexes.time_series_storage_ids {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::time_series_index_data_prefix(collection, index_name),
+            Midge::time_series_index_data_prefix(*relation_id, *index_id),
         )?;
     }
-    for index_name in &dropped_indexes.columns {
+    for (relation_id, index_id) in &dropped_indexes.column_storage_ids {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::column_batch_index_prefix(collection, index_name),
+            Midge::column_batch_index_prefix(*relation_id, *index_id),
         )?;
     }
-    for index_name in &dropped_indexes.fulltext {
+    for (relation_id, index_id) in &dropped_indexes.fulltext_storage_ids {
         Midge::delete_keys_with_prefix(
             &mut data_tx,
-            Midge::fulltext_index_artifact_prefix(collection, index_name),
+            Midge::fulltext_index_artifact_prefix(*relation_id, *index_id),
         )?;
     }
     for index_name in &dropped_indexes.scalars {
@@ -319,47 +381,11 @@ pub(super) fn rename_vector_indexes_in_tx(
 }
 
 pub(super) fn rename_normalized_vector_records(
-    midge: &Midge,
-    collection: &str,
-    current_name: &str,
-    next_name: &str,
-) -> Result<(), CassieError> {
-    let mut data_tx = midge.begin_data_rw_tx_for(collection)?;
-    let scan = collect_scan(
-        data_tx
-            .scan(
-                &Query::new()
-                    .prefix(Midge::normalized_vector_prefix(collection, current_name).into()),
-            )
-            .map_err(CassieError::from)?,
-    )?;
-    let mut entries = Vec::new();
-    for (key, value) in scan {
-        entries.push((key, value));
-    }
-    for (key, value) in entries {
-        let mut record: NormalizedVectorRecord =
-            serde_json::from_slice(&value).map_err(|error| {
-                CassieError::Parse(format!(
-                    "invalid normalized vector metadata for '{collection}.{current_name}': {error}"
-                ))
-            })?;
-        record.field = next_name.to_string();
-        let next_key = Midge::normalized_vector_key(collection, next_name, &record.id);
-        data_tx.delete(key).map_err(CassieError::from)?;
-        data_tx
-            .put(
-                next_key,
-                serde_json::to_vec(&record)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
-                None,
-            )
-            .map_err(CassieError::from)?;
-    }
-    data_tx
-        .commit(super::WriteOptions::sync())
-        .map_err(CassieError::from)?;
-    Ok(())
+    _midge: &Midge,
+    _collection: &str,
+    _current_name: &str,
+    _next_name: &str,
+) {
 }
 
 pub(super) fn rename_collection_projection_metadata(
@@ -564,9 +590,10 @@ pub(super) fn rename_collection_column_batch_metadata(
     tx: &mut cntryl_midge::Transaction,
     current_name: &str,
     next_name: &str,
+    relation_id: u64,
 ) -> Result<(), CassieError> {
     let entries = collect_scan(
-        tx.scan(&Query::new().prefix(Midge::column_batch_collection_prefix(current_name).into()))
+        tx.scan(&Query::new().prefix(Midge::column_batch_collection_prefix(relation_id).into()))
             .map_err(CassieError::from)?,
     )?;
     for (key, value) in entries {
@@ -577,9 +604,8 @@ pub(super) fn rename_collection_column_batch_metadata(
             renamed_scoped_relation_name(current_name, next_name, &metadata.index_name);
         metadata.collection = next_name.to_string();
         metadata.index_name.clone_from(&next_index_name);
-        tx.delete(key).map_err(CassieError::from)?;
         tx.put(
-            Midge::column_batch_metadata_key(next_name, &next_index_name),
+            key,
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
             None,
         )
@@ -620,11 +646,15 @@ fn renamed_scoped_relation_name(
 
 type CollectionRenamePrefix = (Vec<u8>, Vec<u8>, bool);
 
-fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [CollectionRenamePrefix; 13] {
+fn collection_rename_prefixes(
+    current_name: &str,
+    next_name: &str,
+    relation_id: u64,
+) -> [CollectionRenamePrefix; 13] {
     [
         (
-            Midge::row_prefix(current_name),
-            Midge::row_prefix(next_name),
+            Midge::row_prefix(relation_id),
+            Midge::row_prefix(relation_id),
             false,
         ),
         (
@@ -633,28 +663,28 @@ fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [Collectio
             false,
         ),
         (
-            Midge::scalar_index_collection_prefix(current_name),
-            Midge::scalar_index_collection_prefix(next_name),
+            Midge::scalar_index_collection_prefix(relation_id),
+            Midge::scalar_index_collection_prefix(relation_id),
             false,
         ),
         (
-            Midge::time_series_index_collection_prefix(current_name),
-            Midge::time_series_index_collection_prefix(next_name),
+            Midge::time_series_index_collection_prefix(relation_id),
+            Midge::time_series_index_collection_prefix(relation_id),
             false,
         ),
         (
-            Midge::fulltext_index_collection_prefix(current_name),
-            Midge::fulltext_index_collection_prefix(next_name),
+            Midge::fulltext_index_collection_prefix(relation_id),
+            Midge::fulltext_index_collection_prefix(relation_id),
             false,
         ),
         (
-            Midge::normalized_vector_collection_prefix(current_name),
-            Midge::normalized_vector_collection_prefix(next_name),
-            true,
+            Midge::normalized_vector_collection_prefix(relation_id),
+            Midge::normalized_vector_collection_prefix(relation_id),
+            false,
         ),
         (
-            Midge::vector_index_state_prefix(current_name),
-            Midge::vector_index_state_prefix(next_name),
+            Midge::vector_index_state_prefix(relation_id),
+            Midge::vector_index_state_prefix(relation_id),
             false,
         ),
         (
@@ -668,13 +698,13 @@ fn collection_rename_prefixes(current_name: &str, next_name: &str) -> [Collectio
             false,
         ),
         (
-            Midge::column_store_collection_prefix(current_name),
-            Midge::column_store_collection_prefix(next_name),
+            Midge::column_store_collection_prefix(relation_id),
+            Midge::column_store_collection_prefix(relation_id),
             false,
         ),
         (
-            Midge::column_batch_collection_prefix(current_name),
-            Midge::column_batch_collection_prefix(next_name),
+            Midge::column_batch_collection_prefix(relation_id),
+            Midge::column_batch_collection_prefix(relation_id),
             false,
         ),
         (
@@ -694,9 +724,10 @@ pub(super) fn rename_collection_prefixed_data(
     data_tx: &mut cntryl_midge::Transaction,
     current_name: &str,
     next_name: &str,
+    relation_id: u64,
 ) -> Result<(), CassieError> {
-    for (current_prefix, next_prefix, is_normalized_vector) in
-        collection_rename_prefixes(current_name, next_name)
+    for (current_prefix, next_prefix, _is_normalized_vector) in
+        collection_rename_prefixes(current_name, next_name, relation_id)
     {
         let documents = collect_scan(
             data_tx
@@ -713,22 +744,8 @@ pub(super) fn rename_collection_prefixed_data(
                 continue;
             };
             let id = id.to_vec();
-            let (next_key, next_value) = if is_normalized_vector {
-                let mut record: NormalizedVectorRecord =
-                    serde_json::from_slice(&value).map_err(|error| {
-                        CassieError::Parse(format!(
-                            "invalid normalized vector metadata for '{current_name}': {error}"
-                        ))
-                    })?;
-                record.collection = next_name.to_string();
-                let next_key =
-                    Midge::normalized_vector_key(&record.collection, &record.field, &record.id);
-                let next_value = serde_json::to_vec(&record)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?;
-                (next_key, next_value)
-            } else {
-                ([next_prefix.as_slice(), id.as_slice()].concat(), value)
-            };
+            let next_key = [next_prefix.as_slice(), id.as_slice()].concat();
+            let next_value = value;
             data_tx.delete(key).map_err(CassieError::from)?;
             if data_tx.get(&next_key).map_err(CassieError::from)?.is_none() {
                 data_tx

@@ -37,9 +37,21 @@ pub(super) fn try_execute_indexed_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
     spec: &JoinExecutionSpec<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if env
+        .cassie
+        .runtime
+        .limits()
+        .operator_switching_enabled
+        .is_enabled()
+    {
+        return Ok(None);
+    }
     let Some(output_budget) = spec.row_budget else {
         return Ok(None);
     };
+    if !bounded_batch_fits_memory(env, output_budget) {
+        return Ok(None);
+    }
     if output_budget == 0 {
         return Ok(Some(Vec::new()));
     }
@@ -247,8 +259,23 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
     join: &JoinExecutionSpec<'_>,
     cte_context: &mut CteContext,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if env
+        .cassie
+        .runtime
+        .limits()
+        .operator_switching_enabled
+        .is_enabled()
+    {
+        return Ok(None);
+    }
     if join.row_budget == Some(0) {
         return Ok(Some(Vec::new()));
+    }
+    let Some(output_budget) = join.row_budget else {
+        return Ok(None);
+    };
+    if !bounded_batch_fits_memory(env, output_budget) {
+        return Ok(None);
     }
     let Some(spec) = streaming_join_spec(
         env,
@@ -833,15 +860,28 @@ fn should_preemptively_dense_stream(
         .max(1);
     let estimated_batch_bytes = estimate_vectorized_join_bytes(batch_size, batch_size);
     Ok(
-        env.controls.temp_spill_budget_bytes <= estimated_batch_bytes
+        env.controls.query_memory_budget_bytes <= estimated_batch_bytes
             && can_dense_stream(env, left_collection, right_collection)?,
     )
+}
+
+fn bounded_batch_fits_memory(env: &SourceExecutionEnv<'_>, output_budget: usize) -> bool {
+    if output_budget < env.controls.max_result_rows.saturating_add(1) {
+        return true;
+    }
+    let batch_size = env
+        .cassie
+        .runtime
+        .limits()
+        .vectorized_join_batch_size
+        .max(1);
+    estimate_vectorized_join_bytes(batch_size, batch_size) <= env.controls.query_memory_budget_bytes
 }
 
 fn is_temp_budget_error(error: &QueryError) -> bool {
     matches!(
         error,
         QueryError::General(message)
-            if message.starts_with("temporary storage budget exceeded:")
+            if message.starts_with("query memory budget exceeded:")
     )
 }

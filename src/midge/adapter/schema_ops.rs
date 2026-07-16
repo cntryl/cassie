@@ -2,9 +2,8 @@ use super::{
     check_collection_drop_failure_point, check_collection_rename_failure_point,
     check_field_add_failure_point, check_field_drop_failure_point,
     check_field_rename_failure_point, collect_scan, key_encoding, CassieError, CollectionMeta,
-    FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta,
-    NormalizedVectorRecord, ProjectionMeta, Query, RetentionPolicyMeta, RowSchema, Schema,
-    WriteOptions,
+    FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta,
+    Query, RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
 };
 
 #[path = "schema_ops_helpers.rs"]
@@ -239,6 +238,9 @@ impl Midge {
         {
             return Err(CassieError::CollectionNotFound(name.to_string()));
         }
+        let relation_id = Self::load_row_schema_from_tx(&schema_tx, name)?
+            .ok_or_else(|| CassieError::Parse("missing row schema metadata".to_string()))?
+            .relation_id;
 
         let vector_prefix = Self::vector_index_collection_prefix(name);
         let vector_indexes = collect_scan(
@@ -308,12 +310,16 @@ impl Midge {
             .map_err(CassieError::from)?;
         check_collection_drop_failure_point()?;
 
-        self.delete_collection_data(name)?;
+        self.delete_collection_data(name, relation_id)?;
 
         Ok(())
     }
 
-    pub(super) fn delete_collection_data(&self, name: &str) -> Result<(), CassieError> {
+    pub(super) fn delete_collection_data(
+        &self,
+        name: &str,
+        relation_id: u64,
+    ) -> Result<(), CassieError> {
         let graph_adjacency_prefixes = self
             .list_graphs()?
             .into_iter()
@@ -323,22 +329,22 @@ impl Midge {
                     || crate::catalog::name_matches(&graph.edge_collection, name)
                     || crate::catalog::name_matches(name, &graph.edge_collection)
             })
-            .map(|graph| Self::graph_adjacency_prefix(&graph.name))
+            .map(|graph| Self::graph_adjacency_prefix(graph.storage_id))
             .collect::<Vec<_>>();
         let mut data_tx = self.begin_data_rw_tx_for(name)?;
         let mut document_keys = Vec::new();
         let mut data_prefixes = vec![
-            Self::row_prefix(name),
+            Self::row_prefix(relation_id),
             Self::doc_prefix(name),
-            Self::scalar_index_collection_prefix(name),
-            Self::time_series_index_collection_prefix(name),
-            Self::fulltext_index_collection_prefix(name),
-            Self::normalized_vector_collection_prefix(name),
-            Self::vector_index_state_prefix(name),
+            Self::scalar_index_collection_prefix(relation_id),
+            Self::time_series_index_collection_prefix(relation_id),
+            Self::fulltext_index_collection_prefix(relation_id),
+            Self::normalized_vector_collection_prefix(relation_id),
+            Self::vector_index_state_prefix(relation_id),
             super::key_encoding::unique_constraint_reservation_prefix(name),
             super::key_encoding::unique_index_reservation_prefix(name),
-            Self::column_batch_collection_prefix(name),
-            Self::column_store_collection_prefix(name),
+            Self::column_batch_collection_prefix(relation_id),
+            Self::column_store_collection_prefix(relation_id),
             Self::row_hash_prefix(name),
             Self::range_hash_prefix(name),
         ];
@@ -513,9 +519,13 @@ impl Midge {
             collection: collection.to_string(),
             field: field.to_string(),
             column_names: dropped_indexes.columns.clone(),
+            column_storage_ids: dropped_indexes.column_storage_ids.clone(),
             scalar_names: dropped_indexes.scalars.clone(),
+            scalar_storage_ids: dropped_indexes.scalar_storage_ids.clone(),
             time_series_names: dropped_indexes.time_series.clone(),
+            time_series_storage_ids: dropped_indexes.time_series_storage_ids.clone(),
             fulltext_names: dropped_indexes.fulltext.clone(),
+            fulltext_storage_ids: dropped_indexes.fulltext_storage_ids.clone(),
             vector_names: dropped_indexes.vectors.clone(),
         };
         tx.put(
@@ -528,7 +538,7 @@ impl Midge {
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         check_field_drop_failure_point()?;
         self.complete_field_drop_data(&pending)?;
-        self.clear_pending_field_drop(collection, field)
+        schema_ops_helpers::clear_pending_field_drop(self, collection, field)
     }
 
     /// # Errors
@@ -668,7 +678,7 @@ impl Midge {
             .map_err(CassieError::from)?;
         check_collection_rename_failure_point()?;
         self.complete_collection_rename_data(current_name, next_name)?;
-        self.clear_pending_collection_rename(current_name, next_name)
+        schema_ops_helpers::clear_pending_collection_rename(self, current_name, next_name)
     }
 
     fn complete_collection_rename_data(
@@ -676,13 +686,20 @@ impl Midge {
         current_name: &str,
         next_name: &str,
     ) -> Result<(), CassieError> {
+        let relation_id = self.row_schema(next_name)?.relation_id;
         let mut data_tx = self.begin_data_rw_tx_for(current_name)?;
         schema_ops_helpers::rename_collection_column_batch_metadata(
             &mut data_tx,
             current_name,
             next_name,
+            relation_id,
         )?;
-        schema_ops_helpers::rename_collection_prefixed_data(&mut data_tx, current_name, next_name)?;
+        schema_ops_helpers::rename_collection_prefixed_data(
+            &mut data_tx,
+            current_name,
+            next_name,
+            relation_id,
+        )?;
         Self::rename_collection_maintenance_debt_in_tx(&mut data_tx, current_name, next_name)?;
         if let Some(generation) = data_tx
             .get(&Self::collection_generation_key(current_name))
@@ -771,7 +788,11 @@ impl Midge {
             if self.collection_schema(&rename.next_name).is_some() {
                 self.complete_collection_rename_data(&rename.current_name, &rename.next_name)?;
             }
-            self.clear_pending_collection_rename(&rename.current_name, &rename.next_name)?;
+            schema_ops_helpers::clear_pending_collection_rename(
+                self,
+                &rename.current_name,
+                &rename.next_name,
+            )?;
         }
         self.replay_pending_field_adds()?;
         self.replay_pending_field_renames()?;
@@ -792,10 +813,11 @@ impl Midge {
                 )
                 .map_err(CassieError::from)?;
         }
-        Self::delete_normalized_vector_keys_with_prefix(
-            &mut data_tx,
-            Self::normalized_vector_prefix(&pending.collection, &pending.field.name),
-        )?;
+        Self::delete_normalized_vector_keys_with_prefix(&mut data_tx, {
+            let (relation_id, field_id) =
+                self.vector_storage_ids(&pending.collection, &pending.field.name)?;
+            Self::normalized_vector_prefix(relation_id, field_id)
+        })?;
         Self::record_column_batch_maintenance_debt_in_tx(
             &mut data_tx,
             &pending.collection,
@@ -857,7 +879,7 @@ impl Midge {
         current: &str,
         next: &str,
     ) -> Result<(), CassieError> {
-        schema_ops_helpers::rename_normalized_vector_records(self, collection, current, next)?;
+        schema_ops_helpers::rename_normalized_vector_records(self, collection, current, next);
         self.rebuild_scalar_indexes_for_collection(collection)?;
         self.rebuild_time_series_indexes_for_collection(collection)?;
         let _ = self.rebuild_column_batches_for_collection(collection)?;
@@ -927,9 +949,13 @@ impl Midge {
             &pending.field,
             &schema_ops_helpers::DroppedCollectionIndexes {
                 columns: pending.column_names.clone(),
+                column_storage_ids: pending.column_storage_ids.clone(),
                 scalars: pending.scalar_names.clone(),
+                scalar_storage_ids: pending.scalar_storage_ids.clone(),
                 time_series: pending.time_series_names.clone(),
+                time_series_storage_ids: pending.time_series_storage_ids.clone(),
                 fulltext: pending.fulltext_names.clone(),
+                fulltext_storage_ids: pending.fulltext_storage_ids.clone(),
                 vectors: pending.vector_names.clone(),
             },
         )?;
@@ -966,26 +992,8 @@ impl Midge {
             if committed {
                 self.complete_field_drop_data(&drop)?;
             }
-            self.clear_pending_field_drop(&drop.collection, &drop.field)?;
+            schema_ops_helpers::clear_pending_field_drop(self, &drop.collection, &drop.field)?;
         }
         Ok(())
-    }
-
-    fn clear_pending_field_drop(&self, collection: &str, field: &str) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::field_drop_operation_key(collection, field))
-            .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
-    }
-
-    fn clear_pending_collection_rename(
-        &self,
-        current: &str,
-        next: &str,
-    ) -> Result<(), CassieError> {
-        let mut tx = self.begin_schema_rw_tx()?;
-        tx.delete(Self::schema_operation_key(current, next))
-            .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 }

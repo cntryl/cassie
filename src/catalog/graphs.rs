@@ -6,6 +6,8 @@ use crate::types::DataType;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GraphMeta {
     pub name: String,
+    #[serde(default)]
+    pub storage_id: u64,
     pub node_collection: String,
     pub edge_collection: String,
     pub node_type_field: String,
@@ -24,6 +26,7 @@ impl GraphMeta {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
+            storage_id: 0,
             node_collection: derive_scoped_name(name, |local| format!("{local}_nodes")),
             edge_collection: derive_scoped_name(name, |local| format!("{local}_edges")),
             node_type_field: "node_type".to_string(),

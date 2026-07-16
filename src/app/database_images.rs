@@ -7,7 +7,7 @@ use super::{Cassie, CassieError};
 use crate::midge::adapter::StagedDatabaseFamily;
 
 pub const DATABASE_IMAGE_VERSION: u16 = 1;
-const DATABASE_IMAGE_LAYOUT_VERSION: &str = "5";
+const DATABASE_IMAGE_LAYOUT_VERSION: &str = "cassie-midge-layout-v1";
 const DATABASE_IMAGE_MAGIC: &[u8] = b"CASSIEDB";
 const FRAME_HEADER: u8 = b'H';
 const FRAME_CATALOG: u8 = b'C';

@@ -166,7 +166,7 @@ fn should_record_vectorized_join_spill_fallback() {
 
     runtime.block_on(async {
         let mut config = vectorized_join_config(2);
-        config.limits.temp_spill_budget_bytes = 800;
+        config.limits.query_memory_budget_bytes = 800;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);

@@ -64,8 +64,8 @@ pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
 
 use cte::{execute_cte, CteContext};
 use dispatch::{
-    build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_temp_budget,
-    ensure_temp_budget_for_rows, execute_physical_plan, execute_plan,
+    build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
+    ensure_query_memory_budget_for_rows, execute_physical_plan, execute_plan,
     execute_plan_with_execution_breakdown, execute_plan_with_outer_row, plan_execution_env,
     resolve_exists_expr, ExistsResolutionContext,
 };
@@ -86,6 +86,7 @@ mod retention;
 mod role_command;
 mod rollups;
 mod schema_command;
+mod schema_creation;
 mod sequence_command;
 mod session_command;
 mod vector_index_command;

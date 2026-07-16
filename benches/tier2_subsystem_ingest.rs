@@ -1,6 +1,3 @@
-const BENCHMARK: &str = "tier2_subsystem_ingest";
-const INGEST_BATCH_SIZE: u64 = 64;
-
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -9,53 +6,58 @@ pub mod stress;
 mod workloads;
 
 fn main() {
-    let runtime = workloads::runtime();
-    let mut runner = stress::runner(BENCHMARK);
-    let write_context = runtime
-        .block_on(workloads::context("tier2-ingest", 10_000))
-        .expect("benchmark context");
-    let mut replay_nonce = 0usize;
-
-    runner.external_timed_batch(
-        stress::StressCase::fixed_operations(2, "projection_write_path", "10k"),
-        INGEST_BATCH_SIZE,
-        || runtime.block_on(workloads::timed_ingest_document_batch(&write_context, 64)),
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier2,
+        "tier2_subsystem_ingest",
     );
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "projection_duplicate_replay", "10k")
-            .metadata("operation_unit", "replay_event"),
-        2,
-        || {
-            replay_nonce = replay_nonce.wrapping_add(1);
-            runtime.block_on(workloads::projection_duplicate_replay(
-                &write_context,
-                replay_nonce,
-            ))
-        },
-    );
+    let write = stress::StressCase::new("projection_write_batch", "2k");
+    let replay = stress::StressCase::new("projection_replay_batch", "2k");
+    let write_enabled = runner.is_enabled(&write);
+    let replay_enabled = runner.is_enabled(&replay);
 
-    for (dataset, rows) in [("10k", 10_000), ("100k", 100_000)] {
-        let benchmark =
-            performance_benchmarks::expect_benchmark(BENCHMARK, "projection_lag_catchup", dataset);
-        let case =
-            stress::StressCase::fixed_operations(2, benchmark.workload, benchmark.fixture_scale);
-        if !runner.is_enabled(&case) {
-            continue;
+    if write_enabled || replay_enabled {
+        let setup_started = std::time::Instant::now();
+        let runtime = workloads::runtime();
+        let fixture = workloads::ProjectionBatchFixture::new(&runtime, 2_048);
+        let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
+        let fixture_identity = fixture.fixture_identity().to_string();
+        if write_enabled {
+            let write = declared_case(
+                "projection_write_batch",
+                stress::OperationUnit::Document,
+                &fixture_identity,
+            );
+            let case = with_setup(write, &setup_time_ns).runtime_evidence(fixture.cassie());
+            runner.measure_counted(case, || fixture.write_batch());
         }
-        let context = if dataset == "10k" {
-            workloads::replay_context("tier2-ingest-replay-10k", rows)
-        } else {
-            workloads::replay_context("tier2-ingest-100k", rows)
-        };
-        let replay_context = runtime.block_on(context).expect("replay benchmark context");
-        runner.fixed_batch(case.metadata("operation_unit", "replay_event"), 64, || {
-            replay_nonce = replay_nonce.wrapping_add(1);
-            runtime.block_on(workloads::projection_lag_catchup(
-                &replay_context,
-                replay_nonce,
-            ))
-        });
+        if replay_enabled {
+            let replay = declared_case(
+                "projection_replay_batch",
+                stress::OperationUnit::Event,
+                &fixture_identity,
+            );
+            let case = with_setup(replay, &setup_time_ns).runtime_evidence(fixture.cassie());
+            runner.measure_counted(case, || fixture.replay_batch());
+        }
     }
-
     runner.finish();
+}
+
+fn with_setup(case: stress::StressCase, setup_time_ns: &str) -> stress::StressCase {
+    case.metadata("setup_time_ns", setup_time_ns)
+}
+
+fn declared_case(
+    workload: &str,
+    operation_unit: stress::OperationUnit,
+    fixture_identity: &str,
+) -> stress::StressCase {
+    stress::StressCase::new(workload, "2k").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Subsystem,
+            2_048,
+            fixture_identity,
+        ),
+        operation_unit,
+    )
 }

@@ -1,5 +1,5 @@
 #![allow(unused_imports, dead_code)]
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieError};
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
 use cassie::embeddings::{openai::OpenAiConfig, DistanceMetric, DEFAULT_EMBEDDING_MODEL};
@@ -224,7 +224,7 @@ fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
 }
 
 #[test]
-fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
+fn should_fail_query_with_resource_limit_when_memory_budget_is_exceeded() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -234,7 +234,7 @@ fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
         // Arrange
         with_fallback();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.temp_spill_budget_bytes = 16;
+        config.limits.query_memory_budget_bytes = 16;
         let path = data_dir("spill_budget");
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
 
@@ -264,7 +264,7 @@ fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
             .put_document(
                 collection,
                 Some("doc-1".to_string()),
-                serde_json::json!({"payload": "very long payload data for spill budget test"}),
+                serde_json::json!({"payload": "very long payload data for memory budget test"}),
             )
             .unwrap();
 
@@ -274,13 +274,9 @@ fn should_fail_query_when_temporary_spill_budget_is_exceeded() {
         let result = cassie.execute_sql(&session, "SELECT payload FROM exec_spill", vec![]);
 
         // Assert
-        let message = result
-            .expect_err("query should fail when temp spill budget is exhausted")
-            .to_string();
-        assert!(
-            message.contains("temporary storage budget exceeded"),
-            "expected spill budget error, got {message}"
-        );
+        let error = result.expect_err("query should fail when memory budget is exhausted");
+        assert!(matches!(error, CassieError::ResourceLimit(_)));
+        assert!(error.to_string().contains("query memory budget exceeded"));
 
         let _ = std::fs::remove_dir_all(path);
     });

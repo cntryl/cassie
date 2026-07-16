@@ -3,6 +3,10 @@ use std::net::SocketAddr;
 
 use crate::embeddings::openai::OpenAiConfig;
 
+#[path = "config/limits.rs"]
+mod limits;
+use limits::limits_from_env;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
     #[error("{key} is set but could not be read from '{path}': {source}")]
@@ -68,12 +72,41 @@ impl Default for OperatorSwitchingEnabled {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionResultCacheEnabled(bool);
+
+impl ExecutionResultCacheEnabled {
+    #[must_use]
+    pub const fn disabled() -> Self {
+        Self(false)
+    }
+
+    #[must_use]
+    pub const fn enabled() -> Self {
+        Self(true)
+    }
+
+    #[must_use]
+    pub const fn is_enabled(self) -> bool {
+        self.0
+    }
+}
+
+impl Default for ExecutionResultCacheEnabled {
+    fn default() -> Self {
+        Self::enabled()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeLimits {
     pub query_timeout_ms: u64,
     pub max_result_rows: usize,
     pub cte_recursion_depth: usize,
-    pub temp_spill_budget_bytes: usize,
+    pub query_memory_budget_bytes: usize,
+    pub execution_result_cache_enabled: ExecutionResultCacheEnabled,
+    pub execution_result_cache_max_entries: usize,
+    pub execution_result_cache_max_bytes: usize,
     pub plan_cache_entries: usize,
     pub cf2_plan_ttl_seconds: u64,
     pub cf2_plan_candidate_ttl_seconds: u64,
@@ -191,7 +224,10 @@ impl Default for CassieRuntimeLimits {
             query_timeout_ms: 30_000,
             max_result_rows: 100_000,
             cte_recursion_depth: 64,
-            temp_spill_budget_bytes: 10 * 1024 * 1024,
+            query_memory_budget_bytes: 10 * 1024 * 1024,
+            execution_result_cache_enabled: ExecutionResultCacheEnabled::enabled(),
+            execution_result_cache_max_entries: 64,
+            execution_result_cache_max_bytes: 64 * 1024 * 1024,
             plan_cache_entries: 128,
             cf2_plan_ttl_seconds: 900,
             cf2_plan_candidate_ttl_seconds: 300,
@@ -325,170 +361,6 @@ fn validate_rest_tls_policy(config: &CassieRuntimeConfig) -> Result<(), CassieRu
         });
     }
     Ok(())
-}
-
-fn limits_from_env(
-    env_reader: &impl Fn(&str) -> Option<String>,
-    defaults: &CassieRuntimeLimits,
-) -> CassieRuntimeLimits {
-    CassieRuntimeLimits {
-        query_timeout_ms: parse_u64_from(
-            env_reader,
-            "CASSIE_QUERY_TIMEOUT_MS",
-            defaults.query_timeout_ms,
-        ),
-        max_result_rows: parse_usize_from(
-            env_reader,
-            "CASSIE_MAX_RESULT_ROWS",
-            defaults.max_result_rows,
-        ),
-        cte_recursion_depth: parse_usize_from(
-            env_reader,
-            "CASSIE_CTE_RECURSION_DEPTH",
-            defaults.cte_recursion_depth,
-        ),
-        temp_spill_budget_bytes: parse_usize_from(
-            env_reader,
-            "CASSIE_TEMP_SPILL_BUDGET_BYTES",
-            defaults.temp_spill_budget_bytes,
-        ),
-        plan_cache_entries: parse_usize_from(
-            env_reader,
-            "CASSIE_PLAN_CACHE_ENTRIES",
-            defaults.plan_cache_entries,
-        ),
-        cf2_plan_ttl_seconds: parse_u64_from(
-            env_reader,
-            "CASSIE_CF2_PLAN_TTL_SECONDS",
-            defaults.cf2_plan_ttl_seconds,
-        ),
-        cf2_plan_candidate_ttl_seconds: parse_u64_from(
-            env_reader,
-            "CASSIE_CF2_PLAN_CANDIDATE_TTL_SECONDS",
-            defaults.cf2_plan_candidate_ttl_seconds,
-        ),
-        cf2_fulltext_stats_ttl_seconds: parse_u64_from(
-            env_reader,
-            "CASSIE_CF2_FULLTEXT_STATS_TTL_SECONDS",
-            defaults.cf2_fulltext_stats_ttl_seconds,
-        ),
-        feedback_entries: parse_usize_from(
-            env_reader,
-            "CASSIE_FEEDBACK_ENTRIES",
-            defaults.feedback_entries,
-        ),
-        feedback_ttl_seconds: parse_u64_from(
-            env_reader,
-            "CASSIE_FEEDBACK_TTL_SECONDS",
-            defaults.feedback_ttl_seconds,
-        ),
-        operator_feedback_enabled: parse_bool_from(
-            env_reader,
-            "CASSIE_OPERATOR_FEEDBACK_ENABLED",
-            defaults.operator_feedback_enabled,
-        ),
-        vectorized_joins_enabled: parse_bool_from(
-            env_reader,
-            "CASSIE_VECTORIZED_JOINS_ENABLED",
-            defaults.vectorized_joins_enabled,
-        ),
-        vectorized_join_batch_size: parse_usize_from(
-            env_reader,
-            "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
-            defaults.vectorized_join_batch_size,
-        ),
-        pgwire_max_connections: parse_usize_min_from(
-            env_reader,
-            "CASSIE_PGWIRE_MAX_CONNECTIONS",
-            defaults.pgwire_max_connections,
-            1,
-        ),
-        rest_max_connections: parse_usize_min_from(
-            env_reader,
-            "CASSIE_REST_MAX_CONNECTIONS",
-            defaults.rest_max_connections,
-            1,
-        ),
-        ..adaptive_limits_from_env(env_reader, defaults)
-    }
-}
-
-fn adaptive_limits_from_env(
-    env_reader: &impl Fn(&str) -> Option<String>,
-    defaults: &CassieRuntimeLimits,
-) -> CassieRuntimeLimits {
-    CassieRuntimeLimits {
-        query_timeout_ms: defaults.query_timeout_ms,
-        max_result_rows: defaults.max_result_rows,
-        cte_recursion_depth: defaults.cte_recursion_depth,
-        temp_spill_budget_bytes: defaults.temp_spill_budget_bytes,
-        plan_cache_entries: defaults.plan_cache_entries,
-        cf2_plan_ttl_seconds: defaults.cf2_plan_ttl_seconds,
-        cf2_plan_candidate_ttl_seconds: defaults.cf2_plan_candidate_ttl_seconds,
-        cf2_fulltext_stats_ttl_seconds: defaults.cf2_fulltext_stats_ttl_seconds,
-        feedback_entries: defaults.feedback_entries,
-        feedback_ttl_seconds: defaults.feedback_ttl_seconds,
-        operator_feedback_enabled: defaults.operator_feedback_enabled,
-        vectorized_joins_enabled: defaults.vectorized_joins_enabled,
-        vectorized_join_batch_size: defaults.vectorized_join_batch_size,
-        adaptive_execution_enabled: parse_bool_from(
-            env_reader,
-            "CASSIE_ADAPTIVE_EXECUTION_ENABLED",
-            defaults.adaptive_execution_enabled,
-        ),
-        adaptive_min_cost_savings_bps: parse_usize_from(
-            env_reader,
-            "CASSIE_ADAPTIVE_MIN_COST_SAVINGS_BPS",
-            defaults.adaptive_min_cost_savings_bps,
-        ),
-        adaptive_min_confidence_bps: parse_u16_from(
-            env_reader,
-            "CASSIE_ADAPTIVE_MIN_CONFIDENCE_BPS",
-            defaults.adaptive_min_confidence_bps,
-        ),
-        operator_switching_enabled: parse_operator_switching_enabled_from(
-            env_reader,
-            defaults.operator_switching_enabled,
-        ),
-        operator_switch_join_row_threshold: parse_usize_from(
-            env_reader,
-            "CASSIE_OPERATOR_SWITCH_JOIN_ROW_THRESHOLD",
-            defaults.operator_switch_join_row_threshold,
-        ),
-        adaptive_candidate_min: parse_usize_from(
-            env_reader,
-            "CASSIE_ADAPTIVE_CANDIDATE_MIN",
-            defaults.adaptive_candidate_min,
-        ),
-        adaptive_candidate_max: parse_usize_from(
-            env_reader,
-            "CASSIE_ADAPTIVE_CANDIDATE_MAX",
-            defaults.adaptive_candidate_max,
-        ),
-        parallel_scan_workers: parse_usize_from(
-            env_reader,
-            "CASSIE_PARALLEL_SCAN_WORKERS",
-            defaults.parallel_scan_workers,
-        ),
-        parallel_scoring_workers: parse_usize_from(
-            env_reader,
-            "CASSIE_PARALLEL_SCORING_WORKERS",
-            defaults.parallel_scoring_workers,
-        ),
-        parallel_aggregation_workers: parse_usize_from(
-            env_reader,
-            "CASSIE_PARALLEL_AGGREGATION_WORKERS",
-            defaults.parallel_aggregation_workers,
-        ),
-        max_query_workers: parse_usize_min_from(
-            env_reader,
-            "CASSIE_MAX_QUERY_WORKERS",
-            defaults.max_query_workers,
-            1,
-        ),
-        pgwire_max_connections: defaults.pgwire_max_connections,
-        rest_max_connections: defaults.rest_max_connections,
-    }
 }
 
 fn read_password_from_file_from(
@@ -748,11 +620,18 @@ mod tests {
 
     #[test]
     fn should_accept_explicit_embedding_providers_with_runtime_variants() {
-        // Arrange / Act / Assert
-        for provider in ["voyage", "cohere", "local"] {
+        // Arrange
+        let providers = ["voyage", "cohere", "local"];
+
+        // Act
+        let configs = providers.map(|provider| {
             let values = HashMap::from([("CASSIE_EMBEDDINGS_PROVIDER", provider.to_string())]);
-            let config = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
-                .expect("explicit provider should parse");
+            CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
+                .expect("explicit provider should parse")
+        });
+
+        // Assert
+        for (provider, config) in providers.into_iter().zip(configs) {
             match (provider, config.embeddings) {
                 ("voyage", EmbeddingsRuntimeConfig::Voyage(_))
                 | ("cohere", EmbeddingsRuntimeConfig::Cohere(_))
@@ -876,7 +755,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_and_clamp_connection_admission_limits() {
+    fn should_clamp_connection_admission_limits() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_MAX_CONNECTIONS", "0".to_string()),
@@ -890,6 +769,45 @@ mod tests {
         // Assert
         assert_eq!(config.limits.pgwire_max_connections, 1);
         assert_eq!(config.limits.rest_max_connections, 7);
+    }
+
+    #[test]
+    fn should_parse_execution_result_cache_limits() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false"),
+            ("CASSIE_EXECUTION_RESULT_CACHE_MAX_ENTRIES", "7"),
+            ("CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES", "4096"),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader(values)).expect("runtime config");
+
+        // Assert
+        assert!(!config.limits.execution_result_cache_enabled.is_enabled());
+        assert_eq!(config.limits.execution_result_cache_max_entries, 7);
+        assert_eq!(config.limits.execution_result_cache_max_bytes, 4096);
+    }
+
+    #[test]
+    fn should_use_only_query_memory_budget_environment_name() {
+        // Arrange
+        let current = HashMap::from([("CASSIE_QUERY_MEMORY_BUDGET_BYTES", "4096")]);
+        let obsolete = HashMap::from([("CASSIE_TEMP_SPILL_BUDGET_BYTES", "1024")]);
+
+        // Act
+        let configured = CassieRuntimeConfig::from_env_reader(env_reader(current))
+            .expect("current memory budget");
+        let defaulted = CassieRuntimeConfig::from_env_reader(env_reader(obsolete))
+            .expect("obsolete name should be ignored");
+
+        // Assert
+        assert_eq!(configured.limits.query_memory_budget_bytes, 4096);
+        assert_eq!(
+            defaulted.limits.query_memory_budget_bytes,
+            CassieRuntimeLimits::default().query_memory_budget_bytes
+        );
     }
 
     #[test]

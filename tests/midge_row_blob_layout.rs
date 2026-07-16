@@ -97,6 +97,135 @@ fn should_store_rows_as_field_id_blobs_in_data_family() {
 }
 
 #[test]
+fn should_preserve_monotonic_relation_ids_across_object_lifecycle() {
+    // Arrange
+    let path = data_dir("relation_ids");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let schema = Schema { fields: Vec::new() };
+        cassie
+            .midge
+            .create_collection("relation_id_first", schema.clone())
+            .unwrap();
+        let first = cassie
+            .midge
+            .collection_metadata("relation_id_first")
+            .unwrap()
+            .expect("first metadata")
+            .storage_id;
+
+        // Act
+        cassie
+            .midge
+            .rename_collection("relation_id_first", "relation_id_renamed")
+            .unwrap();
+        let renamed = cassie
+            .midge
+            .collection_metadata("relation_id_renamed")
+            .unwrap()
+            .expect("renamed metadata")
+            .storage_id;
+        cassie.midge.drop_collection("relation_id_renamed").unwrap();
+        cassie
+            .midge
+            .create_collection("relation_id_second", schema)
+            .unwrap();
+        let second = cassie
+            .midge
+            .collection_metadata("relation_id_second")
+            .unwrap()
+            .expect("second metadata")
+            .storage_id;
+
+        // Assert
+        assert!(first > 0);
+        assert_eq!(renamed, first);
+        assert!(second > first);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_reduce_fixed_query_hot_row_fixture_by_at_least_twenty_five_percent() {
+    // Arrange
+    let path = data_dir("query_hot_bytes");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "public.customer_activity_observation_records";
+        let field_names = [
+            "customer_account_external_identifier",
+            "activity_observation_category_name",
+            "activity_observation_source_system",
+            "activity_observation_region_code",
+            "activity_observation_status_description",
+            "activity_observation_correlation_identifier",
+        ];
+        let schema = Schema {
+            fields: field_names
+                .iter()
+                .map(|name| FieldSchema {
+                    name: (*name).to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                })
+                .collect(),
+        };
+        let payload = serde_json::Value::Object(
+            field_names
+                .iter()
+                .enumerate()
+                .map(|(index, name)| {
+                    (
+                        (*name).to_string(),
+                        serde_json::json!(format!("value-{index}")),
+                    )
+                })
+                .collect(),
+        );
+        cassie.midge.create_collection(collection, schema).unwrap();
+        let id = "fixed-row-00000001";
+        cassie
+            .midge
+            .put_document(collection, Some(id.to_string()), payload.clone())
+            .unwrap();
+
+        // Act
+        let (key, value) = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .unwrap()
+            .into_iter()
+            .find(|(_, value)| value.starts_with(b"CRB2"))
+            .expect("binary row record");
+        let baseline_key_bytes =
+            b"cassie\0lexkey\0v5\0row\0".len() + collection.len() + id.len() + 2;
+        let baseline_value_bytes = serde_json::to_vec(&payload).unwrap().len();
+        let baseline_bytes = baseline_key_bytes + baseline_value_bytes;
+        let compact_bytes = key.len() + value.len();
+
+        // Assert
+        assert!(value.starts_with(b"CRB2"));
+        assert!(!key
+            .windows(collection.len())
+            .any(|window| window == collection.as_bytes()));
+        assert!(compact_bytes.saturating_mul(4) <= baseline_bytes.saturating_mul(3));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_preserve_retired_field_ids_in_row_schema_metadata() {
     // Arrange
     let path = data_dir("row_schema_ids");

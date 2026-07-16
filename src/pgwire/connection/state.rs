@@ -16,7 +16,7 @@ pub(super) enum HandshakeState {
 #[derive(Debug)]
 pub(super) enum StartupFrame {
     SslRequest,
-    CancelRequest,
+    CancelRequest { process_id: i32, secret_key: i32 },
     Startup(HashMap<String, String>),
 }
 
@@ -77,7 +77,9 @@ pub(super) struct SessionState {
     pub(super) ready: ReadyState,
     pub(super) prepared_statements: HashMap<String, PreparedStatement>,
     pub(super) portals: HashMap<String, Portal>,
+    pub(super) portal_cursors: HashMap<String, crate::midge::adapter::MidgeRowCursor>,
     pub(super) next_prepared_id: u64,
+    pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
 }
 
 impl SessionState {
@@ -90,7 +92,9 @@ impl SessionState {
             ready: ReadyState::InTransaction,
             prepared_statements: HashMap::new(),
             portals: HashMap::new(),
+            portal_cursors: HashMap::new(),
             next_prepared_id: 1,
+            backend_registration: None,
         }
     }
 
@@ -109,6 +113,7 @@ impl SessionState {
         });
         self.prepared_statements.clear();
         self.portals.clear();
+        self.portal_cursors.clear();
     }
 }
 

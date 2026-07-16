@@ -556,7 +556,7 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
     runtime.block_on(async {
         let mut config = vectorized_join_config();
         config.limits.vectorized_join_batch_size = 8;
-        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        config.limits.query_memory_budget_bytes = 4 * 1024;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
@@ -648,7 +648,7 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
     runtime.block_on(async {
         let mut config = vectorized_join_config();
         config.limits.vectorized_join_batch_size = 8;
-        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        config.limits.query_memory_budget_bytes = 4 * 1024;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
@@ -688,7 +688,7 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
     runtime.block_on(async {
         let mut config = vectorized_join_config();
         config.limits.vectorized_join_batch_size = 8;
-        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        config.limits.query_memory_budget_bytes = 4 * 1024;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);
@@ -795,7 +795,7 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
     runtime.block_on(async {
         let mut config = vectorized_join_config();
         config.limits.vectorized_join_batch_size = 8;
-        config.limits.temp_spill_budget_bytes = 4 * 1024;
+        config.limits.query_memory_budget_bytes = 4 * 1024;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);

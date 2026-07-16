@@ -38,7 +38,7 @@ struct DatabaseLifecycleRecord {
 
 impl Midge {
     /// Create the initial logical database without recursing through the public
-    /// `ensure_families_ready` path. This is called while the v5 fixed families
+    /// `ensure_families_ready` path. This is called while the baseline fixed families
     /// are being bootstrapped.
     pub(super) fn ensure_default_database(
         &self,

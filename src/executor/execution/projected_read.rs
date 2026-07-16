@@ -1,7 +1,8 @@
 use super::{
-    batch, catalog, ensure_temp_budget, filter, projection, scan, sort, virtual_views, BatchRow,
-    BinaryOp, Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap,
-    Instant, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
+    batch, catalog, ensure_query_memory_budget, filter, projection, scan, sort, virtual_views,
+    BatchRow, BinaryOp, Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta,
+    HashMap, Instant, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem,
+    Value,
 };
 
 pub(super) fn is_row_id_column(column: &str) -> bool {
@@ -74,12 +75,46 @@ pub(super) fn execute_projected_filtered_read(
         .as_ref()
         .and_then(projected_scan_pushdown_filter);
     let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
+    let scan_limit = projected_result_scan_limit(plan, controls, spec.scan_limit);
+    if pushdown_filter.is_none() && column_filter.is_none() {
+        if let Some(mut stream) = scan::projected_scan_stream(
+            cassie,
+            session,
+            &spec.collection,
+            &spec.scan_fields,
+            scan_limit,
+            controls,
+        )? {
+            let (rows, scan_memory) = batch::collect_batch_stream_accounted(&mut stream, controls)?;
+            cassie.runtime.record_read_path_collection_scan(
+                &spec.collection,
+                spec.scan_fields.len(),
+                rows.len(),
+            );
+            let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
+            drop(scan_memory);
+            return Ok(Some(finalize_projected_filtered_read(
+                ProjectedReadFinalization {
+                    cassie,
+                    session,
+                    plan,
+                    user_functions,
+                    params,
+                    controls,
+                    apply_filter: true,
+                    apply_sort: true,
+                    index_usage: None,
+                },
+                &mut batches,
+            )?));
+        }
+    }
     let mut batches = scan::scan_projected_filtered(
         cassie,
         session,
         &spec.collection,
         &spec.scan_fields,
-        spec.scan_limit,
+        scan_limit,
         pushdown_filter.as_ref(),
         column_filter.as_ref(),
     )?;
@@ -88,8 +123,6 @@ pub(super) fn execute_projected_filtered_read(
     cassie
         .runtime
         .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
-
-    ensure_temp_budget(controls, &batches)?;
 
     Ok(Some(finalize_projected_filtered_read(
         ProjectedReadFinalization {
@@ -143,11 +176,13 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     finalization: ProjectedReadFinalization<'_>,
     batches: &mut Vec<Vec<BatchRow>>,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    let mut batch_memory = ensure_query_memory_budget(finalization.controls, batches)?;
     let mut heap_top_k_collection_name = None;
     if finalization.apply_filter {
         if let Some(filter_expr) = &finalization.plan.filter {
             let filter_started = Instant::now();
-            *batches = filter::filter_batches(
+            let cloned_input_memory = ensure_query_memory_budget(finalization.controls, batches)?;
+            let filtered_batches = filter::filter_batches(
                 batches.clone(),
                 filter_expr,
                 finalization.params,
@@ -155,27 +190,39 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
                 finalization.user_functions,
                 finalization.session,
             )?;
-            ensure_temp_budget(finalization.controls, batches)?;
+            let replacement_memory =
+                ensure_query_memory_budget(finalization.controls, &filtered_batches)?;
+            drop(cloned_input_memory);
+            drop(batch_memory);
+            *batches = filtered_batches;
+            batch_memory = replacement_memory;
             let _ = filter_started;
         }
     }
 
     if finalization.apply_sort && !finalization.plan.order.is_empty() {
         let sort_started = Instant::now();
+        let cloned_input_memory = ensure_query_memory_budget(finalization.controls, batches)?;
         let (sorted_batches, collection_name) = sort_projected_batches(
             batches.clone(),
             finalization.plan,
             finalization.params,
             finalization.user_functions,
             finalization.session,
-        );
-        *batches = sorted_batches;
+            finalization.controls,
+        )?;
+        let replacement_memory =
+            ensure_query_memory_budget(finalization.controls, &sorted_batches)?;
         heap_top_k_collection_name = collection_name;
-        ensure_temp_budget(finalization.controls, batches)?;
+        drop(cloned_input_memory);
+        drop(batch_memory);
+        *batches = sorted_batches;
+        batch_memory = replacement_memory;
         let _ = sort_started;
     }
 
-    *batches = projection::project_batches(
+    let cloned_input_memory = ensure_query_memory_budget(finalization.controls, batches)?;
+    let projected_batches = projection::project_batches(
         batches.clone(),
         &finalization.plan.projection,
         finalization.params,
@@ -183,7 +230,11 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
         finalization.user_functions,
         finalization.session,
     )?;
-    ensure_temp_budget(finalization.controls, batches)?;
+    let replacement_memory = ensure_query_memory_budget(finalization.controls, &projected_batches)?;
+    drop(cloned_input_memory);
+    drop(batch_memory);
+    *batches = projected_batches;
+    batch_memory = replacement_memory;
 
     *batches = slice_batches_for_plan(
         batches.clone(),
@@ -191,7 +242,8 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
         finalization.plan.limit,
     );
 
-    let rows = batch::flatten_batches(std::mem::take(batches));
+    let rows = batch::try_flatten_batches(std::mem::take(batches))?;
+    drop(batch_memory);
     if let Some(collection) = heap_top_k_collection_name {
         finalization
             .cassie
@@ -317,7 +369,7 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
                 user_functions,
                 session,
             )?;
-            ensure_temp_budget(controls, &batches)?;
+            ensure_query_memory_budget(controls, &batches)?;
             breakdown.filter += filter_started.elapsed();
         }
     }
@@ -326,10 +378,10 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
     if !plan.order.is_empty() {
         let sort_started = Instant::now();
         let (sorted_batches, collection_name) =
-            sort_projected_batches(batches, plan, params, user_functions, session);
+            sort_projected_batches(batches, plan, params, user_functions, session, controls)?;
         batches = sorted_batches;
         heap_top_k_collection_name = collection_name;
-        ensure_temp_budget(controls, &batches)?;
+        ensure_query_memory_budget(controls, &batches)?;
         breakdown.sort += sort_started.elapsed();
     }
 
@@ -342,12 +394,12 @@ pub(super) fn execute_projected_filtered_read_with_breakdown(
         user_functions,
         session,
     )?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     breakdown.projection += projection_started.elapsed();
 
     let result_started = Instant::now();
     batches = slice_batches_for_plan(batches, plan.offset, plan.limit);
-    let rows = batch::flatten_batches(batches);
+    let rows = batch::try_flatten_batches(batches)?;
     breakdown.result_build += result_started.elapsed();
 
     if let Some(collection) = heap_top_k_collection_name {
@@ -522,7 +574,8 @@ fn sort_projected_batches(
     params: &[Value],
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
-) -> (Vec<Vec<BatchRow>>, Option<String>) {
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<Vec<BatchRow>>, Option<String>), QueryError> {
     if let Some(top_needed) = projected_scan_limit(plan.limit, plan.offset) {
         let eval = sort::EvalInput {
             order: &plan.order,
@@ -532,24 +585,24 @@ fn sort_projected_batches(
             user_functions,
             session,
         };
-        return (
-            sort::top_k_batches(batches, &eval, top_needed),
+        return Ok((
+            sort::top_k_batches_with_controls(batches, &eval, top_needed, controls)?,
             heap_top_k_collection(plan),
-        );
+        ));
     }
 
-    (
-        sort::sort_batches(
-            batches,
-            &plan.order,
-            &plan.projection,
-            params,
-            None,
-            user_functions,
-            session,
-        ),
+    let eval = sort::EvalInput {
+        order: &plan.order,
+        projection: &plan.projection,
+        params,
+        search_context: None,
+        user_functions,
+        session,
+    };
+    Ok((
+        sort::sort_batches_with_controls(batches, &eval, controls)?,
         None,
-    )
+    ))
 }
 
 fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {
@@ -596,6 +649,18 @@ fn projected_scan_limit(limit: Option<i64>, offset: Option<i64>) -> Option<usize
     let limit = usize::try_from(limit.max(0)).ok()?;
     let offset = usize::try_from(offset.unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
+}
+
+fn projected_result_scan_limit(
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+    planned_limit: Option<usize>,
+) -> Option<usize> {
+    if plan.filter.is_some() || !plan.order.is_empty() {
+        return planned_limit;
+    }
+    let result_cap = controls.max_result_rows.saturating_add(1);
+    Some(planned_limit.unwrap_or(result_cap).min(result_cap))
 }
 
 fn heap_top_k_collection(plan: &LogicalPlan) -> Option<String> {
@@ -859,12 +924,13 @@ fn scan_projected_read_batches(
         .as_ref()
         .and_then(projected_scan_pushdown_filter);
     let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
+    let scan_limit = projected_result_scan_limit(plan, controls, spec.scan_limit);
     let (batches, scan_timings) = scan::scan_projected_filtered_with_timings(
         cassie,
         session,
         &spec.collection,
         &spec.scan_fields,
-        spec.scan_limit,
+        scan_limit,
         pushdown_filter.as_ref(),
         column_filter.as_ref(),
     )?;
@@ -872,7 +938,7 @@ fn scan_projected_read_batches(
     cassie
         .runtime
         .record_read_path_collection_scan(&spec.collection, spec.scan_fields.len(), rows);
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     Ok(ProjectedReadScan {
         batches,
         scan_timings,

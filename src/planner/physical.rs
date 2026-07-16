@@ -43,9 +43,10 @@ pub(crate) use index_selection::{
 };
 pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath, ScalarIndexPlanShape};
 pub use state::{
-    EarlyStopMode, PaginationStrategy, PhysicalAggregatePlan, PhysicalJoinPlan, PhysicalPlan,
-    PhysicalProjectionPlan, PhysicalReadPlan, PhysicalTopKPlan, PhysicalVectorizedJoinPlan,
-    PlanEstimates, ProjectionShape, ReadAccessPath, TopKMode,
+    EarlyStopMode, PaginationStrategy, PhysicalAggregatePlan, PhysicalJoinPlan,
+    PhysicalJoinProperties, PhysicalPlan, PhysicalProjectionPlan, PhysicalReadPlan,
+    PhysicalTopKPlan, PhysicalVectorizedJoinPlan, PlanEstimates, ProjectionShape, ReadAccessPath,
+    TopKMode,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -215,6 +216,10 @@ fn top_k_plan(plan: &LogicalPlan, access_path: &ReadAccessPath) -> PhysicalTopKP
 fn join_plan(plan: &LogicalPlan) -> PhysicalJoinPlan {
     let strategy = join_paths::join_strategy(plan);
     PhysicalJoinPlan {
+        enumeration: crate::planner::optimizer::join_enumeration(&plan.source).to_string(),
+        order: crate::planner::optimizer::join_order(&plan.source),
+        legality_barriers: crate::planner::optimizer::join_legality_barriers(&plan.source),
+        properties: join_properties(plan),
         keys: join_paths::join_keys(plan),
         sort_required: join_paths::join_sort_required(plan, strategy.as_deref()),
         fallback_reason: join_paths::join_fallback_reason(plan, strategy.as_deref()),
@@ -223,6 +228,32 @@ fn join_plan(plan: &LogicalPlan) -> PhysicalJoinPlan {
             fallback_reason: join_paths::vectorized_join_fallback_reason(plan),
         },
         strategy,
+    }
+}
+
+fn join_properties(plan: &LogicalPlan) -> PhysicalJoinProperties {
+    let parameterized = crate::planner::optimizer::join_is_parameterized(&plan.source);
+    PhysicalJoinProperties {
+        required_columns: crate::planner::optimizer::join_required_columns(&plan.source),
+        required_ordering: plan
+            .order
+            .iter()
+            .map(|order| {
+                let expression = match &order.expr {
+                    Expr::Column(column) => column.clone(),
+                    other => format!("{other:?}"),
+                };
+                let direction = match order.direction {
+                    crate::sql::ast::SortDirection::Asc => "asc",
+                    crate::sql::ast::SortDirection::Desc => "desc",
+                };
+                format!("{expression}:{direction}")
+            })
+            .collect(),
+        parameterized,
+        rewindable: !parameterized,
+        bounded: plan.limit.is_some(),
+        memory_bound: "accounted_query_budget".to_string(),
     }
 }
 

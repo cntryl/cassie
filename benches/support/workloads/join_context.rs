@@ -4,10 +4,12 @@ use std::sync::Arc;
 use cassie::app::{Cassie, CassieError};
 use cassie::catalog::CollectionCardinalityStats;
 use cassie::config::CassieRuntimeConfig;
-use cassie::types::{DataType, FieldSchema, Schema};
 use serde_json::json;
 
-use super::context::{benchmark_data_dir, usize_mod_i64, usize_to_i64, BenchContext};
+use super::context::{
+    benchmark_data_dir, configure_benchmark_environment, usize_mod_i64, usize_to_i64, BenchContext,
+    ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+};
 
 pub fn vectorized_join_context(
     label: &str,
@@ -156,27 +158,24 @@ fn vectorized_join_context_with_budget(
     shape: JoinLoadShape,
     temp_budget_bytes: Option<usize>,
 ) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    configure_benchmark_environment();
     let dir = benchmark_data_dir(label);
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1024;
     config.limits.operator_switch_join_row_threshold = dataset_rows.saturating_mul(2).max(1);
-    config.limits.temp_spill_budget_bytes = temp_budget_bytes.unwrap_or_else(|| {
-        config
-            .limits
-            .temp_spill_budget_bytes
-            .max(dataset_rows.saturating_mul(1024))
-    });
+    config.limits.query_memory_budget_bytes =
+        temp_budget_bytes.unwrap_or(ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES);
 
-    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir.clone(), config)?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_join_users".to_string(),
+        data_dir: dir,
         _embedding_server: None,
     };
     prepare_vectorized_join_collections(&ctx, dataset_rows, shape)?;
@@ -253,56 +252,16 @@ fn prepare_vectorized_join_collections(
         return Ok(());
     }
 
-    let user_schema = Schema {
-        fields: vec![
-            FieldSchema {
-                name: "user_key".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            },
-            FieldSchema {
-                name: "name".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
-        ],
-    };
-    let order_schema = Schema {
-        fields: vec![
-            FieldSchema {
-                name: "order_user_key".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            },
-            FieldSchema {
-                name: "total".to_string(),
-                data_type: DataType::Int,
-                nullable: true,
-            },
-        ],
-    };
-    ctx.cassie
-        .midge
-        .create_collection("bench_join_users", user_schema.clone())?;
-    ctx.cassie
-        .midge
-        .create_collection("bench_join_orders", order_schema.clone())?;
-    ctx.cassie.register_collection(
-        "bench_join_users",
-        user_schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
-    ctx.cassie.register_collection(
-        "bench_join_orders",
-        order_schema
-            .fields
-            .iter()
-            .map(|field| (field.name.clone(), field.data_type.clone()))
-            .collect(),
-    );
+    ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE TABLE bench_join_users (user_key INT, name TEXT)",
+        vec![],
+    )?;
+    ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE TABLE bench_join_orders (order_user_key INT, total INT)",
+        vec![],
+    )?;
 
     let users = join_user_documents(shape, dataset_rows);
     let orders = join_order_documents(shape);
@@ -317,6 +276,162 @@ fn prepare_vectorized_join_collections(
             .put_fresh_documents("bench_join_orders", orders)?;
     }
 
+    Ok(())
+}
+
+pub(super) fn prepare_scaling_join_collections(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+) -> Result<(), CassieError> {
+    prepare_vectorized_join_collections(
+        ctx,
+        dataset_rows,
+        JoinLoadShape::OneToOne {
+            order_rows: dataset_rows,
+        },
+    )
+}
+
+pub fn prepare_legacy_scaling_join_collection(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+    workload: &str,
+) -> Result<(), CassieError> {
+    match workload {
+        "vectorized_left_join_limited"
+        | "vectorized_indexed_inner_join"
+        | "vectorized_right_indexed_inner_join" => Ok(()),
+        "vectorized_streaming_inner_join" => prepare_named_join_collections(
+            ctx,
+            dataset_rows,
+            JoinLoadShape::OneToOne { order_rows: 50 },
+            LegacyJoinVariant::Sparse,
+        ),
+        "vectorized_dense_streaming_inner_join" => prepare_named_join_collections(
+            ctx,
+            dataset_rows,
+            JoinLoadShape::DenseRight {
+                order_rows: dataset_rows,
+            },
+            LegacyJoinVariant::Dense,
+        ),
+        "vectorized_late_match_inner_join" => prepare_named_join_collections(
+            ctx,
+            dataset_rows,
+            JoinLoadShape::LateMatchRight {
+                user_rows: 50,
+                order_rows: dataset_rows,
+            },
+            LegacyJoinVariant::LateMatch,
+        ),
+        "vectorized_fanout_inner_join" => prepare_named_join_collections(
+            ctx,
+            dataset_rows,
+            JoinLoadShape::FanoutRight {
+                user_rows: dataset_rows / 3,
+                order_rows: dataset_rows,
+                key_count: 10,
+            },
+            LegacyJoinVariant::Fanout,
+        ),
+        other => Err(CassieError::Execution(format!(
+            "unsupported legacy join scaling workload '{other}'"
+        ))),
+    }
+}
+
+pub fn activate_legacy_join_variant(ctx: &BenchContext, workload: &str) -> Result<(), CassieError> {
+    let statement = match workload {
+        "vectorized_indexed_inner_join" => Some(
+            "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+        ),
+        "vectorized_right_indexed_inner_join" => Some(
+            "CREATE INDEX bench_join_orders_key_idx ON bench_join_orders USING btree (order_user_key)",
+        ),
+        _ => None,
+    };
+    statement.map_or(Ok(()), |sql| {
+        ctx.cassie
+            .execute_sql(&ctx.session, sql, vec![])
+            .map(|_| ())
+    })
+}
+
+pub fn deactivate_legacy_join_variant(
+    ctx: &BenchContext,
+    workload: &str,
+) -> Result<(), CassieError> {
+    let statement = match workload {
+        "vectorized_indexed_inner_join" => {
+            Some("DROP INDEX bench_join_users_key_idx ON bench_join_users")
+        }
+        "vectorized_right_indexed_inner_join" => {
+            Some("DROP INDEX bench_join_orders_key_idx ON bench_join_orders")
+        }
+        _ => None,
+    };
+    statement.map_or(Ok(()), |sql| {
+        ctx.cassie
+            .execute_sql(&ctx.session, sql, vec![])
+            .map(|_| ())
+    })
+}
+
+#[derive(Debug, Clone, Copy)]
+enum LegacyJoinVariant {
+    Sparse,
+    Dense,
+    LateMatch,
+    Fanout,
+}
+
+impl LegacyJoinVariant {
+    const fn collections(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Sparse => ("bench_sparse_users", "bench_sparse_orders"),
+            Self::Dense => ("bench_dense_users", "bench_dense_orders"),
+            Self::LateMatch => ("bench_late_users", "bench_late_orders"),
+            Self::Fanout => ("bench_fanout_users", "bench_fanout_orders"),
+        }
+    }
+}
+
+fn prepare_named_join_collections(
+    ctx: &BenchContext,
+    dataset_rows: usize,
+    shape: JoinLoadShape,
+    variant: LegacyJoinVariant,
+) -> Result<(), CassieError> {
+    let (users_collection, orders_collection) = variant.collections();
+    if ctx.cassie.catalog.exists(users_collection) {
+        return Ok(());
+    }
+    ctx.cassie.execute_sql(
+        &ctx.session,
+        &format!("CREATE TABLE {users_collection} (user_key INT, name TEXT)"),
+        vec![],
+    )?;
+    ctx.cassie.execute_sql(
+        &ctx.session,
+        &format!("CREATE TABLE {orders_collection} (order_user_key INT, total INT)"),
+        vec![],
+    )?;
+    let users = join_user_documents(shape, dataset_rows);
+    let orders = join_order_documents(shape);
+    if !users.is_empty() {
+        ctx.cassie
+            .midge
+            .put_fresh_documents(users_collection, users)?;
+    }
+    if !orders.is_empty() {
+        ctx.cassie
+            .midge
+            .put_fresh_documents(orders_collection, orders)?;
+    }
+    if matches!(variant, LegacyJoinVariant::Fanout) {
+        hydrate_join_row_count(ctx, users_collection, shape.user_rows(dataset_rows));
+        hydrate_join_row_count(ctx, orders_collection, shape.order_rows());
+    }
     Ok(())
 }
 

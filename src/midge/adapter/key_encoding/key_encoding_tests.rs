@@ -5,10 +5,10 @@ use serde_json::json;
 #[test]
 fn should_build_deterministic_lexkey_storage_keys() {
     // Arrange
-    let left = row_key("events", "id-1");
+    let left = row_key(7, "id-1");
 
     // Act
-    let right = row_key("events", "id-1");
+    let right = row_key(7, "id-1");
     let other_family = row_hash_key("events", "id-1");
 
     // Assert
@@ -21,9 +21,9 @@ fn should_build_deterministic_lexkey_storage_keys() {
 #[test]
 fn should_build_prefix_that_matches_only_child_keys() {
     // Arrange
-    let prefix = row_prefix("orders");
-    let matching = row_key("orders", "1");
-    let sibling = row_key("orders-archive", "1");
+    let prefix = row_prefix(11);
+    let matching = row_key(11, "1");
+    let sibling = row_key(12, "1");
 
     // Act
     let decoded = utf8_suffix_after_prefix(&matching, &prefix);
@@ -32,6 +32,7 @@ fn should_build_prefix_that_matches_only_child_keys() {
     assert!(matching.starts_with(&prefix));
     assert!(!sibling.starts_with(&prefix));
     assert_eq!(decoded.as_deref(), Some("1"));
+    assert!(!matching.windows(6).any(|window| window == b"orders"));
 }
 
 #[test]
@@ -82,8 +83,8 @@ fn should_reject_unsupported_scalar_value_without_panicking() {
 #[test]
 fn should_include_embedded_nul_text_in_scalar_order() {
     // Arrange
-    let before = scalar_index_entry_key("events", "idx", &[json!("a\u{0}a")], "1").unwrap();
-    let after = scalar_index_entry_key("events", "idx", &[json!("aa")], "1").unwrap();
+    let before = scalar_index_entry_key(7, 9, &[json!("a\u{0}a")], "1").unwrap();
+    let after = scalar_index_entry_key(7, 9, &[json!("aa")], "1").unwrap();
 
     // Act
     let is_ordered = before < after;
@@ -97,11 +98,11 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     // Arrange
     let collection = "events";
     let index = "email_idx";
-    let key = scalar_index_data_prefix(collection, index);
-    let ts = time_series_index_data_prefix(collection, index);
-    let row = column_store_row_prefix(collection);
-    let metadata = column_batch_metadata_key(collection, index);
-    let segment = column_batch_segment_key(collection, index, 1);
+    let key = scalar_index_data_prefix(7, 9);
+    let ts = time_series_index_data_prefix(7, 9);
+    let row = column_store_row_prefix(7);
+    let metadata = column_batch_metadata_key(7, 9);
+    let segment = column_batch_segment_key(7, 9, 1);
     let reservation_constraint =
         unique_constraint_reservation_key(collection, "email", &json!("tenant")).unwrap();
     let reservation_index =
@@ -129,27 +130,27 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     let reservation_index_parts = reservation_index
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let graph_out = graph_outbound_prefix("social", "person", "a1");
-    let graph_in = graph_inbound_prefix("social", "person", "a1");
+    let graph_out = graph_outbound_prefix(13, "person", "a1");
+    let graph_in = graph_inbound_prefix(13, "person", "a1");
     let graph_out_parts = graph_out
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
     let graph_in_parts = graph_in
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_metadata = fulltext_index_key("events", "title_search");
+    let fulltext_metadata = fulltext_index_key(7, 11);
     let fulltext_metadata_parts = fulltext_metadata
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_manifest = fulltext_index_manifest_key("events", "title_search", 42);
+    let fulltext_manifest = fulltext_index_manifest_key(7, 11, 42);
     let fulltext_manifest_parts = fulltext_manifest
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_terms = fulltext_term_postings_key("events", "title_search", "alpha");
+    let fulltext_terms = fulltext_term_postings_block_key(7, 11, "alpha", 0);
     let fulltext_terms_parts = fulltext_terms
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
-    let fulltext_doc = fulltext_document_stats_key("events", "title_search", "doc-id-1");
+    let fulltext_doc = fulltext_document_stats_key(7, 11, "doc-id-1");
     let fulltext_doc_parts = fulltext_doc
         .split(|byte| *byte == LexKey::SEPARATOR)
         .collect::<Vec<_>>();
@@ -190,15 +191,21 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
 #[test]
 fn should_encode_time_series_bucket_bounds_as_ordered_integers() {
     // Arrange
-    let before = time_series_index_entry_key("events", "idx", "tenant", -1, "a");
-    let middle = time_series_index_entry_key("events", "idx", "tenant", 0, "a");
-    let after = time_series_index_entry_key("events", "idx", "tenant", 1, "a");
+    let before = time_series_index_entry_key(7, 9, "tenant", -1, -1, 0, "a");
+    let middle = time_series_index_entry_key(7, 9, "tenant", 0, 0, 0, "a");
+    let after = time_series_index_entry_key(7, 9, "tenant", 1, 1, 0, "a");
+    let data_prefix = time_series_index_data_prefix(7, 9);
 
     // Act
     let ordered = before < middle && middle < after;
 
     // Assert
     assert!(ordered);
+    assert!(middle.starts_with(&data_prefix));
+    assert_eq!(
+        decode_time_series_entry_key(&middle, &data_prefix),
+        Some(("tenant".to_string(), 0, 0, 0, "a".to_string()))
+    );
     assert!(!middle
         .windows(b"1970-01-01".len())
         .any(|window| window == b"1970-01-01"));

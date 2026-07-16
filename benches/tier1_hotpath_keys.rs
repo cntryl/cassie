@@ -5,9 +5,29 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+use std::time::Instant;
+
 fn main() {
-    let mut runner = stress::runner("tier1_hotpath_keys");
-    runner.tier1_micro("key_encode_decode", workloads::key_encode_decode);
-    runner.tier1_micro("field_lookup", workloads::field_lookup);
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier1,
+        "tier1_hotpath_keys",
+    );
+    let key_case = stress::StressCase::new("key_encode_decode", "micro").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Kernel,
+            0,
+            "tier1_hotpath_keys/micro",
+        ),
+        stress::OperationUnit::Key,
+    );
+    if runner.is_enabled(&key_case) {
+        let setup_started = Instant::now();
+        workloads::prepare_hotpath("key_encode_decode").expect("registered Tier 1 workload");
+        let key_case = key_case.metadata(
+            "setup_time_ns",
+            setup_started.elapsed().as_nanos().max(1).to_string(),
+        );
+        runner.measure_micro(key_case, workloads::key_encode_decode);
+    }
     runner.finish();
 }

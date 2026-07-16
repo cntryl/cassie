@@ -3,6 +3,7 @@ use super::{
     CassieSession, CmpOrdering, Expr, FunctionCall, FunctionMeta, HashMap, LogicalPlan, QueryError,
     QuerySource, SelectItem, SortDirection, Value,
 };
+use crate::runtime::QueryExecutionControls;
 
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,
@@ -10,22 +11,51 @@ pub(crate) fn execute_vector_distance_top_k(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(spec) = vector_distance_top_k_spec(plan) else {
+    super::super::check_timeout(controls)?;
+    let Some(spec) = vector_distance_top_k_spec(plan, params) else {
         return Ok(None);
     };
+    let started_at = std::time::Instant::now();
 
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
     validate_vector_top_k_dimensions(&schema, &spec)?;
-    if plan.filter.is_none() {
-        if let Some(rows) = execute_hnsw_vector_top_k(cassie, &spec)? {
+    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+        record_transaction_overlay_exact_fallback(cassie, &spec)?;
+    } else if plan.filter.is_none() {
+        if let Some(rows) = execute_hnsw_vector_top_k(cassie, session, &spec, controls)? {
             return Ok(Some(rows));
         }
-        if let Some(rows) = execute_ivfflat_vector_top_k(cassie, &spec)? {
+        if let Some(rows) = execute_ivfflat_vector_top_k(cassie, session, &spec, controls)? {
             return Ok(Some(rows));
         }
+    } else {
+        record_filtered_ann_exact_fallback(cassie, &spec)?;
+    }
+    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
+    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
+    let request = ExactVectorRequest {
+        session,
+        user_functions,
+        params,
+        filter_expr: plan.filter.as_ref(),
+        controls,
+        top_needed,
+    };
+    if let Some((top, final_candidate_count)) =
+        stream_exact_vector_candidates(cassie, &spec, &request)?
+    {
+        let rows = vector_rows_from_top(top, &spec);
+        cassie.runtime.record_vector_execution(
+            started_at.elapsed(),
+            final_candidate_count,
+            rows.len(),
+        );
+        record_adaptive_candidate_decision(cassie, &adaptive, final_candidate_count, rows.len());
+        return Ok(Some(rows));
     }
     let mut candidates = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
     if let Some(filter_expr) = &plan.filter {
@@ -46,12 +76,11 @@ pub(crate) fn execute_vector_distance_top_k(
             return Ok(None);
         }
     }
-    let top_needed = spec.limit.saturating_add(spec.offset).max(1);
-    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
 
     let final_candidate_count = candidates.len();
     for candidate in candidates {
+        super::super::check_timeout(controls)?;
         let vector = candidate
             .get(&spec.vector_field)
             .and_then(value_to_vector)
@@ -80,9 +109,139 @@ pub(crate) fn execute_vector_distance_top_k(
         );
     }
 
+    let rows = vector_rows_from_top(top, &spec);
+    cassie
+        .runtime
+        .record_vector_execution(started_at.elapsed(), final_candidate_count, rows.len());
+    record_adaptive_candidate_decision(cassie, &adaptive, final_candidate_count, rows.len());
+    Ok(Some(rows))
+}
+
+struct ExactVectorRequest<'a> {
+    session: Option<&'a CassieSession>,
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    params: &'a [Value],
+    filter_expr: Option<&'a Expr>,
+    controls: &'a QueryExecutionControls,
+    top_needed: usize,
+}
+
+fn stream_exact_vector_candidates(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    request: &ExactVectorRequest<'_>,
+) -> Result<Option<(BinaryHeap<SqlVectorCandidate>, usize)>, QueryError> {
+    if request
+        .session
+        .is_some_and(|session| !session.collection_changes(&spec.collection).is_empty())
+    {
+        return Ok(None);
+    }
+    let decode = if request.filter_expr.is_some() {
+        crate::midge::adapter::RowDecode::Full
+    } else {
+        crate::midge::adapter::RowDecode::ProjectedHistorical(vec![spec.vector_field.clone()])
+    };
+    let Some(mut cursor) = cassie
+        .midge
+        .open_row_cursor(&spec.collection, decode)
+        .map_err(|error| QueryError::General(error.to_string()))?
+    else {
+        return Ok(None);
+    };
+    let _top_memory = request.controls.reserve_query_memory(
+        request
+            .top_needed
+            .saturating_mul(std::mem::size_of::<SqlVectorCandidate>() + 64),
+    )?;
+    let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
+    let mut candidate_count = 0usize;
+    let mut scanned_count = 0usize;
+    loop {
+        let documents = cursor
+            .next_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, request.controls)
+            .map_err(QueryError::from)?;
+        if documents.is_empty() {
+            break;
+        }
+        let batch_bytes = documents
+            .iter()
+            .map(|document| document.id.len() + document.payload.to_string().len())
+            .sum();
+        let _batch_memory = request.controls.reserve_query_memory(batch_bytes)?;
+        for document in documents {
+            scanned_count = scanned_count.saturating_add(1);
+            if !document_matches_filter(
+                &document,
+                request.filter_expr,
+                request.params,
+                request.user_functions,
+                request.session,
+            )? {
+                continue;
+            }
+            let vector =
+                vector_from_json(&document.payload[&spec.vector_field]).ok_or_else(|| {
+                    QueryError::General("exact vector candidate is invalid".to_string())
+                })?;
+            let score = crate::vector::l2_distance(&vector, &spec.query);
+            candidate_count = candidate_count.saturating_add(1);
+            push_top_candidate(
+                &mut top,
+                SqlVectorCandidate {
+                    sort_value: candidate_sort_value(&spec.direction, score),
+                    score,
+                    id: document.id,
+                },
+                request.top_needed,
+            );
+        }
+    }
+    if request.filter_expr.is_some() {
+        cassie
+            .runtime
+            .record_vector_prefilter_usage(scanned_count, candidate_count, None);
+    }
+    Ok(Some((top, candidate_count)))
+}
+
+fn document_matches_filter(
+    document: &crate::midge::adapter::DocumentRef,
+    filter_expr: Option<&Expr>,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+) -> Result<bool, QueryError> {
+    let Some(filter_expr) = filter_expr else {
+        return Ok(true);
+    };
+    let mut entries = vec![("id".to_string(), Value::String(document.id.clone()))];
+    if let Some(payload) = document.payload.as_object() {
+        entries.extend(payload.iter().map(|(name, value)| {
+            (
+                name.clone(),
+                super::super::projected_read::json_to_query_value(value),
+            )
+        }));
+    }
+    filter::filter_rows(
+        vec![BatchRow::new(entries)],
+        filter_expr,
+        params,
+        None,
+        user_functions,
+        session,
+    )
+    .map(|rows| !rows.is_empty())
+}
+
+fn vector_rows_from_top(
+    top: BinaryHeap<SqlVectorCandidate>,
+    spec: &VectorDistanceTopKSpec,
+) -> Vec<BatchRow> {
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_sql_vector_candidates);
-    let rows: Vec<BatchRow> = ranked
+    ranked
         .into_iter()
         .skip(spec.offset)
         .take(spec.limit)
@@ -92,14 +251,49 @@ pub(crate) fn execute_vector_distance_top_k(
                 (spec.score_column.clone(), Value::Float64(candidate.score)),
             ])
         })
-        .collect();
-    record_adaptive_candidate_decision(cassie, &adaptive, final_candidate_count, rows.len());
-    Ok(Some(rows))
+        .collect()
+}
+
+fn record_transaction_overlay_exact_fallback(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<(), QueryError> {
+    record_ann_exact_fallback(cassie, spec, "transaction-overlay-exact")
+}
+
+fn record_filtered_ann_exact_fallback(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<(), QueryError> {
+    record_ann_exact_fallback(cassie, spec, "structured-filter-exact")
+}
+
+fn record_ann_exact_fallback(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    reason: &str,
+) -> Result<(), QueryError> {
+    let index = cassie
+        .midge
+        .get_vector_index_definition(&spec.collection, &spec.vector_field)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    match index.map(|record| record.metadata.index_type) {
+        Some(crate::embeddings::VectorIndexType::Hnsw) => {
+            cassie.runtime.record_hnsw_fallback(reason);
+        }
+        Some(crate::embeddings::VectorIndexType::IvfFlat) => {
+            cassie.runtime.record_ivfflat_fallback(reason);
+        }
+        Some(crate::embeddings::VectorIndexType::BruteForce) | None => {}
+    }
+    Ok(())
 }
 
 fn execute_hnsw_vector_top_k(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     spec: &VectorDistanceTopKSpec,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let Some(index) = hnsw_index(cassie, spec)? else {
         return Ok(None);
@@ -118,13 +312,24 @@ fn execute_hnsw_vector_top_k(
     };
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
+    let candidate_limit = if top_needed < 10 {
+        top_needed
+    } else {
+        options.ef_search.max(top_needed.saturating_mul(64)).min(
+            cassie
+                .runtime
+                .limits()
+                .adaptive_candidate_max
+                .max(top_needed),
+        )
+    };
     let started_at = std::time::Instant::now();
     let search = match cassie.midge.search_hnsw_graph_point_read(
         &spec.collection,
         &spec.vector_field,
         &spec.query,
         options,
-        top_needed,
+        candidate_limit,
     ) {
         Ok(Some(search)) => search,
         Ok(None) => {
@@ -143,18 +348,31 @@ fn execute_hnsw_vector_top_k(
             return Err(QueryError::General(message));
         }
     };
-    let rows = search
-        .candidates
+    let mut reranked = Vec::with_capacity(search.candidates.len());
+    for candidate in search.candidates {
+        super::super::check_timeout(controls)?;
+        let document = cassie
+            .get_document_for_session(session, &spec.collection, &candidate.id)
+            .map_err(|error| QueryError::General(error.to_string()))?
+            .ok_or_else(|| QueryError::General("HNSW candidate row is missing".to_string()))?;
+        let vector = vector_from_json(&document.payload[&spec.vector_field])
+            .ok_or_else(|| QueryError::General("HNSW candidate vector is invalid".to_string()))?;
+        let score = crate::vector::l2_distance(&vector, &spec.query);
+        reranked.push(SqlVectorCandidate {
+            sort_value: score,
+            score,
+            id: candidate.id,
+        });
+    }
+    reranked.sort_by(compare_sql_vector_candidates);
+    let rows = reranked
         .into_iter()
         .skip(spec.offset)
         .take(spec.limit)
         .map(|candidate| {
             BatchRow::new(vec![
                 (spec.id_column.clone(), Value::String(candidate.id)),
-                (
-                    spec.score_column.clone(),
-                    Value::Float64(candidate.distance),
-                ),
+                (spec.score_column.clone(), Value::Float64(candidate.score)),
             ])
         })
         .collect::<Vec<_>>();
@@ -188,7 +406,9 @@ fn hnsw_index(
 
 fn execute_ivfflat_vector_top_k(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     spec: &VectorDistanceTopKSpec,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let Some((training, membership_count)) = ivfflat_training(cassie, spec)? else {
         return Ok(None);
@@ -230,8 +450,13 @@ fn execute_ivfflat_vector_top_k(
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
     let mut candidate_count = 0usize;
     for record in normalized_vectors {
-        let vector = crate::vector::ivfflat::denormalized_vector(&record).ok_or_else(|| {
-            QueryError::General("invalid normalized vector magnitude".to_string())
+        super::super::check_timeout(controls)?;
+        let document = cassie
+            .get_document_for_session(session, &spec.collection, &record.id)
+            .map_err(|error| QueryError::General(error.to_string()))?
+            .ok_or_else(|| QueryError::General("IVFFlat candidate row is missing".to_string()))?;
+        let vector = vector_from_json(&document.payload[&spec.vector_field]).ok_or_else(|| {
+            QueryError::General("IVFFlat candidate vector is invalid".to_string())
         })?;
         let score = crate::vector::l2_distance(&vector, &spec.query);
         candidate_count += 1;
@@ -305,9 +530,19 @@ fn ivfflat_training(
     Ok(Some(training))
 }
 
+const ANN_CANDIDATE_OVERSAMPLE: usize = 64;
+
 pub(super) struct AdaptiveCandidateDecision {
     initial_budget: usize,
     feedback_budget: Option<usize>,
+}
+
+impl AdaptiveCandidateDecision {
+    pub(super) fn ann_candidate_budget(&self, max_budget: usize) -> usize {
+        self.initial_budget
+            .saturating_mul(ANN_CANDIDATE_OVERSAMPLE)
+            .min(max_budget.max(1))
+    }
 }
 
 pub(super) fn adaptive_candidate_decision(
@@ -407,7 +642,10 @@ struct VectorDistanceTopKSpec {
     offset: usize,
 }
 
-fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSpec> {
+fn vector_distance_top_k_spec(
+    plan: &LogicalPlan,
+    params: &[Value],
+) -> Option<VectorDistanceTopKSpec> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
@@ -432,11 +670,11 @@ fn vector_distance_top_k_spec(plan: &LogicalPlan) -> Option<VectorDistanceTopKSp
 
     let (id_column, function, score_column) =
         vector_distance_projection(plan.projection.as_slice())?;
-    if !order_matches_vector_distance_score(&plan.order[0], function, &score_column) {
+    if !order_matches_vector_distance_score(&plan.order[0], function, &score_column, params) {
         return None;
     }
 
-    let (vector_field, query) = vector_distance_args(function)?;
+    let (vector_field, query) = vector_distance_args(function, params)?;
     Some(VectorDistanceTopKSpec {
         collection: collection.clone(),
         vector_field,
@@ -475,28 +713,36 @@ fn order_matches_vector_distance_score(
     order: &crate::sql::ast::OrderExpr,
     function: &FunctionCall,
     score_column: &str,
+    params: &[Value],
 ) -> bool {
     match &order.expr {
         Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
         Expr::Function(order_function) => {
             order_function.name.eq_ignore_ascii_case("vector_distance")
-                && vector_distance_args(order_function) == vector_distance_args(function)
+                && vector_distance_args(order_function, params)
+                    == vector_distance_args(function, params)
         }
         _ => false,
     }
 }
 
-fn vector_distance_args(function: &FunctionCall) -> Option<(String, Vec<f32>)> {
+fn vector_distance_args(function: &FunctionCall, params: &[Value]) -> Option<(String, Vec<f32>)> {
     if function.args.len() != 2 {
         return None;
     }
     let Expr::Column(vector_field) = &function.args[0] else {
         return None;
     };
-    let Expr::StringLiteral(query) = &function.args[1] else {
-        return None;
+    let query = match &function.args[1] {
+        Expr::StringLiteral(query) => parse_vector_literal(query)?,
+        Expr::Param(index) => match params.get(*index)? {
+            Value::String(query) => parse_vector_literal(query)?,
+            Value::Vector(query) => query.values.clone(),
+            _ => return None,
+        },
+        _ => return None,
     };
-    Some((vector_field.clone(), parse_vector_literal(query)?))
+    Some((vector_field.clone(), query))
 }
 
 pub(crate) fn parse_vector_literal(value: &str) -> Option<Vec<f32>> {

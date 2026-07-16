@@ -1,7 +1,5 @@
 #![allow(dead_code, unused_imports)]
 
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,179 +8,138 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use cassie::app::{Cassie, CassieError, CassieSession};
-use cassie::catalog::{CollectionSchema, FieldMeta};
 use cassie::config::{
     CassieRuntimeConfig, EmbeddingsRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
 };
-use cassie::pgwire::protocol::ServerMessage;
 use cassie::planner::{logical, physical};
 use cassie::rest::{documents, search};
 use cassie::runtime::ExecutionMode;
 use cassie::search::{bm25, tokenizer};
-use cassie::sql::{binder, parameter_count, parameter_type_oids, parse_statement};
+use cassie::sql::{binder, parse_statement};
 use cassie::types::{DataType, FieldSchema, Schema, Value};
-use cntryl_lexkey::Encoder;
 use serde_json::json;
-use uuid::Uuid;
 
 use super::context::{usize_to_f32, BenchContext, QueryBreakdownMicros};
 
-static FIELD_LOOKUP_FIELDS: LazyLock<[FieldMeta; 4]> = LazyLock::new(|| {
-    [
-        FieldMeta {
-            name: "id".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "title".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "body".to_string(),
-            data_type: DataType::Text,
-            is_indexed: true,
-            boost: Some(1.0),
-        },
-        FieldMeta {
-            name: "score".to_string(),
-            data_type: DataType::Int,
-            is_indexed: true,
-            boost: None,
-        },
-    ]
+static ROW_CODEC_KERNEL: LazyLock<cassie::benchmark::RowCodecKernel> =
+    LazyLock::new(cassie::benchmark::RowCodecKernel::sample);
+static ROW_KEY_KERNEL: LazyLock<cassie::benchmark::RowKeyKernel> =
+    LazyLock::new(cassie::benchmark::RowKeyKernel::default);
+static EXECUTOR_KERNEL: LazyLock<cassie::benchmark::ExecutorKernel> =
+    LazyLock::new(cassie::benchmark::ExecutorKernel::sample);
+static PGWIRE_ROW: LazyLock<cassie::benchmark::PgwireRowCodecKernel> =
+    LazyLock::new(|| cassie::benchmark::PgwireRowCodecKernel::sample(1));
+
+type VectorPair = ([f32; 8], [f32; 8]);
+type Bm25Input = (f64, f64, f64, f64, f64);
+
+static BM25_INPUTS: [Bm25Input; 8] = [
+    (3.0, 10.0, 1_000.0, 120.0, 100.0),
+    (4.0, 11.0, 1_000.0, 118.0, 100.0),
+    (5.0, 12.0, 1_000.0, 116.0, 100.0),
+    (6.0, 13.0, 1_000.0, 114.0, 100.0),
+    (7.0, 14.0, 1_000.0, 112.0, 100.0),
+    (8.0, 15.0, 1_000.0, 110.0, 100.0),
+    (9.0, 16.0, 1_000.0, 108.0, 100.0),
+    (10.0, 17.0, 1_000.0, 106.0, 100.0),
+];
+
+static COSINE_INPUTS: LazyLock<[VectorPair; 32]> = LazyLock::new(|| {
+    std::array::from_fn(|index| {
+        let shift = usize_to_f32(index) / 1_000.0;
+        (
+            [1.0 + shift, 0.0, 0.0, 0.5, 0.25, 0.75, 0.125, 0.875],
+            [0.5, 0.5 + shift, 0.0, 0.25, 0.75, 0.125, 0.875, 1.0],
+        )
+    })
+});
+static DOT_L2_INPUTS: LazyLock<[VectorPair; 32]> = LazyLock::new(|| {
+    std::array::from_fn(|index| {
+        let shift = usize_to_f32(index) / 1_000.0;
+        (
+            [1.0 + shift, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0],
+            [
+                0.5,
+                0.5 + shift,
+                0.5,
+                0.25,
+                0.125,
+                0.0625,
+                0.03125,
+                0.015_625,
+            ],
+        )
+    })
 });
 
+pub fn prepare_hotpath(workload: &str) -> Result<(), &'static str> {
+    match workload {
+        "row_encode_decode" => {
+            LazyLock::force(&ROW_CODEC_KERNEL);
+        }
+        "key_encode_decode" => {
+            LazyLock::force(&ROW_KEY_KERNEL);
+        }
+        "batch_filter"
+        | "batch_projection"
+        | "value_comparison"
+        | "predicate_evaluation"
+        | "top_k_heap_maintenance" => {
+            LazyLock::force(&EXECUTOR_KERNEL);
+        }
+        "row_to_pgwire_encoding" => {
+            LazyLock::force(&PGWIRE_ROW);
+        }
+        "cosine_distance" => {
+            LazyLock::force(&COSINE_INPUTS);
+        }
+        "dot_product" | "l2_distance" => {
+            LazyLock::force(&DOT_L2_INPUTS);
+        }
+        "tokenization" | "bm25_scoring" => {}
+        _ => return Err("unknown Tier 1 hot-path workload"),
+    }
+    Ok(())
+}
+
 pub fn row_encode_decode() -> usize {
-    let input = std::hint::black_box(br#"{"id":"doc-1","title":"alpha","score":42}"#);
-    let decoded: serde_json::Value = serde_json::from_slice(input).expect("decode row");
-    let encoded = serde_json::to_vec(std::hint::black_box(&decoded)).expect("encode row");
-    std::hint::black_box(encoded.len())
+    let (encoded, decoded) = ROW_CODEC_KERNEL.round_trip();
+    let encoded_len = encoded.len();
+    std::hint::black_box((encoded, decoded));
+    encoded_len
 }
 
 pub fn key_encode_decode() -> usize {
-    let id = Uuid::new_v4().to_string();
-    let prefix = lexkey_prefix(b"schema");
-    let mut encoder = Encoder::with_capacity(prefix.len() + id.len());
-    encoder.encode_bytes_into(&prefix);
-    encoder.encode_string_into(&id);
-    let key = encoder.into_vec();
-    let decoded = std::str::from_utf8(key.strip_prefix(prefix.as_slice()).expect("key prefix"))
-        .expect("utf8 suffix");
-    let mut reencoder = Encoder::with_capacity(prefix.len() + decoded.len());
-    reencoder.encode_bytes_into(&prefix);
-    reencoder.encode_string_into(decoded);
-    let encoded_again = reencoder.into_vec();
-    std::hint::black_box(encoded_again);
-    1
-}
-
-fn lexkey_prefix(family: &[u8]) -> Vec<u8> {
-    let parts = [
-        b"cassie".as_slice(),
-        b"lexkey".as_slice(),
-        b"v2".as_slice(),
-        family,
-    ];
-    let capacity = parts.iter().map(|part| part.len()).sum::<usize>() + parts.len();
-    let mut encoder = Encoder::with_capacity(capacity);
-    encoder.encode_composite_into_buf(&parts);
-    encoder.push_separator();
-    encoder.into_vec()
-}
-
-pub fn field_lookup() -> usize {
-    let schema = CollectionSchema {
-        collection: "bench".to_string(),
-        fields: vec![
-            FieldMeta {
-                name: "id".to_string(),
-                data_type: DataType::Text,
-                is_indexed: true,
-                boost: Some(1.0),
-            },
-            FieldMeta {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                is_indexed: true,
-                boost: Some(1.0),
-            },
-        ],
-    };
-    std::hint::black_box(schema.field("title").expect("field"));
-    1
-}
-
-pub fn field_lookup_by_field_id() -> usize {
-    let mut hits = 0usize;
-    for index in 0..64 {
-        let field_id = std::hint::black_box(index % FIELD_LOOKUP_FIELDS.len());
-        if !FIELD_LOOKUP_FIELDS[field_id].name.is_empty() {
-            hits = hits.saturating_add(1);
-        }
-    }
-    std::hint::black_box(hits)
+    let (encoded, decoded) = ROW_KEY_KERNEL.encode_decode();
+    let encoded_len = encoded.len();
+    std::hint::black_box((encoded, decoded));
+    encoded_len
 }
 
 pub fn predicate_evaluation() -> usize {
-    let row = json!({"score": 42, "status": "approved"});
-    let passes = row["score"].as_i64().unwrap_or_default() >= 40
-        && row["status"].as_str() == Some("approved");
-    std::hint::black_box(usize::from(passes))
+    std::hint::black_box(usize::from(EXECUTOR_KERNEL.predicate_matches()))
 }
 
 pub fn batch_filter() -> usize {
-    let scores = [
-        1_i64, 10, 100, 3, 25, 8, 99, 7, 44, 61, 2, 88, 13, 55, 34, 21, 5, 89, 144, 233, 377, 610,
-        987, 1_597, 4, 6, 9, 12, 18, 27, 81, 243,
-    ];
-    let threshold = std::hint::black_box(10_i64);
-    let rows = scores
-        .iter()
-        .filter(|score| std::hint::black_box(**score) >= threshold)
-        .count();
-    std::hint::black_box(rows)
+    std::hint::black_box(EXECUTOR_KERNEL.filter_batch())
 }
 
 pub fn batch_projection() -> usize {
-    let row = json!({"id":"doc-1","title":"alpha","body":"beta"});
-    let projected = json!({"title": row["title"].clone()});
-    std::hint::black_box(projected.as_object().map_or(0, serde_json::Map::len))
+    std::hint::black_box(EXECUTOR_KERNEL.project_row().len())
 }
 
 pub fn value_comparison() -> usize {
-    let values = [
-        (Value::Int64(1), Value::Int64(2)),
-        (Value::Int64(3), Value::Int64(5)),
-        (Value::Int64(8), Value::Int64(13)),
-        (Value::Int64(21), Value::Int64(34)),
-        (Value::Int64(55), Value::Int64(89)),
-        (Value::Int64(144), Value::Int64(233)),
-        (Value::Int64(377), Value::Int64(610)),
-        (Value::Int64(987), Value::Int64(1_597)),
-    ];
-    let matches = values
-        .iter()
-        .filter(|(left, right)| {
-            std::hint::black_box(left.as_i64().unwrap_or_default())
-                < std::hint::black_box(right.as_i64().unwrap_or_default())
-        })
-        .count();
-    std::hint::black_box(matches)
+    std::hint::black_box(usize::from(EXECUTOR_KERNEL.value_comparison_matches()))
 }
 
-pub fn top_k_update() -> usize {
-    let mut heap = BinaryHeap::new();
-    for score in [3, 1, 7, 2, 9, 4] {
-        heap.push(Reverse(score));
-        if heap.len() > 3 {
-            let _ = heap.pop();
-        }
-    }
-    std::hint::black_box(heap.len())
+pub fn top_k_update() -> cassie::benchmark::KernelObservation {
+    let scores = EXECUTOR_KERNEL.top_k_scores();
+    let result_cardinality = u64::try_from(scores.len()).expect("top-k result should fit u64");
+    let candidate_count = u64::try_from(EXECUTOR_KERNEL.top_k_candidate_count())
+        .expect("top-k candidates should fit u64");
+    std::hint::black_box(scores);
+    cassie::benchmark::KernelObservation::new(1, result_cardinality)
+        .with_candidate_count(candidate_count)
 }
 
 pub fn tokenization() -> usize {
@@ -191,84 +148,42 @@ pub fn tokenization() -> usize {
 }
 
 pub fn bm25_score() -> usize {
-    let inputs = [
-        (3.0, 10.0, 1_000.0, 120.0, 100.0),
-        (4.0, 11.0, 1_000.0, 118.0, 100.0),
-        (5.0, 12.0, 1_000.0, 116.0, 100.0),
-        (6.0, 13.0, 1_000.0, 114.0, 100.0),
-        (7.0, 14.0, 1_000.0, 112.0, 100.0),
-        (8.0, 15.0, 1_000.0, 110.0, 100.0),
-        (9.0, 16.0, 1_000.0, 108.0, 100.0),
-        (10.0, 17.0, 1_000.0, 106.0, 100.0),
-    ];
-    let mut total = 0.0;
-    for (term_frequency, document_frequency, document_count, document_len, average_len) in inputs {
-        total += bm25::bm25_score(
-            std::hint::black_box(term_frequency),
-            std::hint::black_box(document_frequency),
-            std::hint::black_box(document_count),
-            std::hint::black_box(1.2),
-            std::hint::black_box(0.75),
-            std::hint::black_box(document_len),
-            std::hint::black_box(average_len),
-        );
-    }
-    std::hint::black_box(total);
-    inputs.len()
+    let (term_frequency, document_frequency, document_count, document_len, average_len) =
+        BM25_INPUTS[0];
+    let score = bm25::bm25_score(
+        std::hint::black_box(term_frequency),
+        std::hint::black_box(document_frequency),
+        std::hint::black_box(document_count),
+        std::hint::black_box(1.2),
+        std::hint::black_box(0.75),
+        std::hint::black_box(document_len),
+        std::hint::black_box(average_len),
+    );
+    std::hint::black_box(score);
+    1
 }
 
 pub fn cosine_distance() -> usize {
-    let mut total = 0.0;
-    for index in 0..32 {
-        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
-        let left = [1.0 + shift, 0.0, 0.0, 0.5, 0.25, 0.75, 0.125, 0.875];
-        let right = [0.5, 0.5 + shift, 0.0, 0.25, 0.75, 0.125, 0.875, 1.0];
-        total += cassie::vector::cosine_distance(&left, &right);
-    }
-    std::hint::black_box(total);
-    32
+    let (left, right) = &COSINE_INPUTS[0];
+    let distance =
+        cassie::vector::cosine_distance(std::hint::black_box(left), std::hint::black_box(right));
+    std::hint::black_box(distance);
+    1
 }
 
 pub fn dot_product() -> usize {
-    let mut total = 0.0;
-    for index in 0..32 {
-        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
-        let left = [1.0 + shift, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0];
-        let right = [
-            0.5,
-            0.5 + shift,
-            0.5,
-            0.25,
-            0.125,
-            0.0625,
-            0.03125,
-            0.015_625,
-        ];
-        total += cassie::vector::dot_score(&left, &right);
-    }
-    std::hint::black_box(total);
-    32
+    let (left, right) = &DOT_L2_INPUTS[0];
+    let score = cassie::vector::dot_score(std::hint::black_box(left), std::hint::black_box(right));
+    std::hint::black_box(score);
+    1
 }
 
 pub fn l2_distance() -> usize {
-    let mut total = 0.0;
-    for index in 0..32 {
-        let shift = std::hint::black_box(usize_to_f32(index) / 1_000.0);
-        let left = [1.0 + shift, 2.0, 3.0, 5.0, 8.0, 13.0, 21.0, 34.0];
-        let right = [
-            0.5,
-            0.5 + shift,
-            0.5,
-            0.25,
-            0.125,
-            0.0625,
-            0.03125,
-            0.015_625,
-        ];
-        total += cassie::vector::l2_distance(&left, &right);
-    }
-    std::hint::black_box(total);
-    32
+    let (left, right) = &DOT_L2_INPUTS[0];
+    let distance =
+        cassie::vector::l2_distance(std::hint::black_box(left), std::hint::black_box(right));
+    std::hint::black_box(distance);
+    1
 }
 
 pub fn hnsw_candidate_search() -> usize {
@@ -288,15 +203,6 @@ pub fn hnsw_candidate_search() -> usize {
         cassie::vector::l2_distance,
     );
     std::hint::black_box(selected.len())
-}
-
-pub fn parameter_binding() -> usize {
-    let parsed =
-        parse_statement("SELECT * FROM bench WHERE id = $1 AND score = $2").expect("parse");
-    let count = parameter_count(&parsed);
-    let types = parameter_type_oids(&parsed, &[25, 23]);
-    std::hint::black_box(types);
-    count
 }
 
 pub fn sql_lexing() -> usize {
@@ -324,14 +230,7 @@ pub fn sql_lexing() -> usize {
 }
 
 pub fn row_to_pgwire_encoding() -> usize {
-    let message = ServerMessage::DataRow(vec!["alpha".to_string(), "1".to_string()]);
-    let encoded = cassie::pgwire::protocol::encode(&message);
-    std::hint::black_box(encoded.len())
-}
-
-pub fn row_to_json_encoding() -> usize {
-    let row = json!({"id":"doc-1","title":"alpha","score":1});
-    let encoded = serde_json::to_vec(&row).expect("json encode");
+    let encoded = PGWIRE_ROW.encode();
     std::hint::black_box(encoded.len())
 }
 

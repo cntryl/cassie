@@ -48,6 +48,17 @@ pub(super) async fn write_parameter_statuses(
     Ok(())
 }
 
+pub(super) async fn write_backend_key_data(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    process_id: i32,
+    secret_key: i32,
+) -> io::Result<()> {
+    let mut payload = Vec::with_capacity(8);
+    payload.extend_from_slice(&process_id.to_be_bytes());
+    payload.extend_from_slice(&secret_key.to_be_bytes());
+    write_backend_frame(write_half, b'K', &payload).await
+}
+
 pub(super) async fn write_ssl_not_supported(
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> io::Result<()> {

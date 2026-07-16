@@ -10,7 +10,7 @@ use cassie::config::{
     SelfHostedEmbeddingRuntimeConfig,
 };
 use cassie::embeddings::openai::OpenAiConfig;
-use cassie::embeddings::{NormalizedVectorRecord, DEFAULT_EMBEDDING_MODEL};
+use cassie::embeddings::DEFAULT_EMBEDDING_MODEL;
 use cassie::midge::adapter::StorageFamily;
 use cassie::rest;
 use cntryl_midge::{TransactionMode, WriteOptions};
@@ -156,18 +156,17 @@ fn ollama_response_body(vectors: &[Vec<f32>]) -> String {
 
 fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
     let collection = canonical_collection(collection);
+    let prefix = cassie
+        .midge
+        .normalized_vector_prefix_for_diagnostics(&collection, field)
+        .unwrap();
     let entries = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
         .unwrap();
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
-    for (key, value) in entries {
-        let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&value) else {
-            continue;
-        };
-        if record.collection == collection && record.field == field {
-            tx.delete(key).unwrap();
-        }
+    for (key, _) in entries {
+        tx.delete(key).unwrap();
     }
     tx.commit(WriteOptions::sync()).unwrap();
 }

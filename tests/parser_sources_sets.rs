@@ -33,6 +33,35 @@ fn should_parse_inner_join_source() {
 }
 
 #[test]
+fn should_parse_chained_joins_as_left_associative_sources() {
+    // Arrange
+    let sql = "SELECT users.name FROM users JOIN orders ON users.id = orders.user_id JOIN regions ON orders.region_id = regions.id";
+
+    // Act
+    let parsed = parse_statement(sql).expect("join chain should parse");
+
+    // Assert
+    let QueryStatement::Select(statement) = parsed.statement else {
+        panic!("expected select statement");
+    };
+    let QuerySource::Join {
+        left, right, kind, ..
+    } = statement.source
+    else {
+        panic!("expected outer join source");
+    };
+    assert_eq!(kind, JoinKind::Inner);
+    assert!(matches!(*right, QuerySource::Collection(ref name) if name == "regions"));
+    assert!(matches!(
+        *left,
+        QuerySource::Join {
+            kind: JoinKind::Inner,
+            ..
+        }
+    ));
+}
+
+#[test]
 fn should_parse_left_join_source() {
     // Arrange
     let sql = "SELECT users.name FROM users LEFT JOIN orders ON users.id = orders.user_id";

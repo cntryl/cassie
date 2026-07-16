@@ -9,6 +9,10 @@ use super::{
     DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter, WriteOptions,
 };
 
+mod codec;
+
+use self::codec::{decode_column_batch, encode_column_batch};
+
 const COLUMN_BATCH_ENCODING_VERSION: u32 = 1;
 const COLUMN_BATCH_CODEC_VERSION: u32 = 1;
 
@@ -18,6 +22,7 @@ struct EncodedColumnBatch {
     uncompressed_len: usize,
     compressed_len: usize,
     checksum: String,
+    bytes: Vec<u8>,
 }
 
 struct ColumnBatchScanPlan {
@@ -152,7 +157,8 @@ impl Midge {
                 .collect::<Vec<_>>();
             let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice());
             let value_count = rows.len().saturating_mul(fields.len());
-            let (payload, codec) = encode_column_batch_payload(rows.as_slice(), fields.as_slice())?;
+            let (_, codec) = encode_column_batch_payload(rows.as_slice(), fields.as_slice())?;
+            let payload = codec.bytes.clone();
             segments.push(ColumnBatchSegmentMeta {
                 segment_id,
                 row_id_start: chunk.first().map(|document| document.id.clone()),
@@ -166,7 +172,7 @@ impl Midge {
                     uncompressed_len: codec.uncompressed_len,
                     compressed_len: codec.compressed_len,
                     value_count,
-                    null_bitmap_encoding: "inline-json-null".to_string(),
+                    null_bitmap_encoding: "validity-bitmap".to_string(),
                     checksum: Some(codec.checksum),
                 },
                 summaries,
@@ -183,15 +189,16 @@ impl Midge {
             segment_size,
             segments,
         };
+        let (relation_id, index_id) = Self::column_batch_storage_ids(&index)?;
 
         let mut data_tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
             &mut data_tx,
-            Self::column_batch_index_prefix(&index.collection, &index.name),
+            Self::column_batch_index_prefix(relation_id, index_id),
         )?;
         data_tx
             .put(
-                Self::column_batch_metadata_key(&index.collection, &index.name),
+                Self::column_batch_metadata_key(relation_id, index_id),
                 serde_json::to_vec(&metadata)
                     .map_err(|error| CassieError::Parse(error.to_string()))?,
                 None,
@@ -200,9 +207,8 @@ impl Midge {
         for (segment_id, payload) in payloads {
             data_tx
                 .put(
-                    Self::column_batch_segment_key(&index.collection, &index.name, segment_id),
-                    serde_json::to_vec(&payload)
-                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    Self::column_batch_segment_key(relation_id, index_id, segment_id),
+                    payload,
                     None,
                 )
                 .map_err(CassieError::from)?;
@@ -222,19 +228,14 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<Option<ColumnBatchMetadata>, CassieError> {
-        let stored_index = self.get_index(collection, index_name)?;
-        let stored_collection = stored_index
-            .as_ref()
-            .map_or_else(|| collection.to_string(), |index| index.collection.clone());
-        let stored_index_name = stored_index
-            .as_ref()
-            .map_or_else(|| index_name.to_string(), |index| index.name.clone());
+        let Some(stored_index) = self.get_index(collection, index_name)? else {
+            return Ok(None);
+        };
+        let stored_collection = stored_index.collection.clone();
+        let (relation_id, index_id) = Self::column_batch_storage_ids(&stored_index)?;
         let tx = self.begin_data_readonly_tx_for(&stored_collection)?;
         let Some(raw) = tx
-            .get(&Self::column_batch_metadata_key(
-                &stored_collection,
-                &stored_index_name,
-            ))
+            .get(&Self::column_batch_metadata_key(relation_id, index_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
@@ -252,17 +253,15 @@ impl Midge {
         collection: &str,
         index_name: &str,
     ) -> Result<(), CassieError> {
-        let stored_index = self.get_index(collection, index_name)?;
-        let stored_collection = stored_index
-            .as_ref()
-            .map_or_else(|| collection.to_string(), |index| index.collection.clone());
-        let stored_index_name = stored_index
-            .as_ref()
-            .map_or_else(|| index_name.to_string(), |index| index.name.clone());
+        let Some(stored_index) = self.get_index(collection, index_name)? else {
+            return Ok(());
+        };
+        let stored_collection = stored_index.collection.clone();
+        let (relation_id, index_id) = Self::column_batch_storage_ids(&stored_index)?;
         let mut data_tx = self.begin_data_rw_tx_for(&stored_collection)?;
         Self::delete_keys_with_prefix(
             &mut data_tx,
-            Self::column_batch_index_prefix(&stored_collection, &stored_index_name),
+            Self::column_batch_index_prefix(relation_id, index_id),
         )?;
         data_tx
             .commit(WriteOptions::sync())
@@ -360,11 +359,10 @@ impl Midge {
                 state.skipped_segments += 1;
                 continue;
             }
-            let loaded =
-                match load_column_batch_segment(&data_tx, collection, &plan.index.name, segment)? {
-                    Ok(loaded) => loaded,
-                    Err(reason) => return Ok(ColumnBatchScanDecision::Fallback(reason)),
-                };
+            let loaded = match load_column_batch_segment(&data_tx, &plan.index, segment)? {
+                Ok(loaded) => loaded,
+                Err(reason) => return Ok(ColumnBatchScanDecision::Fallback(reason)),
+            };
             state.record_segment(&loaded, plan.wanted.len());
             for row in loaded.rows {
                 if state.emitted >= plan.limit {
@@ -434,6 +432,16 @@ impl Midge {
                 wanted.is_subset(&available)
             }))
     }
+
+    fn column_batch_storage_ids(index: &IndexMeta) -> Result<(u64, u64), CassieError> {
+        let relation_id = index.relation_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
+        })?;
+        let index_id = index.storage_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
+        })?;
+        Ok((relation_id, index_id))
+    }
 }
 
 fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
@@ -454,14 +462,14 @@ fn available_column_batch_fields(metadata: &ColumnBatchMetadata) -> BTreeSet<Str
 
 fn load_column_batch_segment(
     data_tx: &cntryl_midge::Transaction,
-    collection: &str,
-    index_name: &str,
+    index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<LoadedColumnBatchSegment, ColumnBatchScanFallbackReason>, CassieError> {
+    let (relation_id, index_id) = Midge::column_batch_storage_ids(index)?;
     let Some(raw) = data_tx
         .get(&Midge::column_batch_segment_key(
-            collection,
-            index_name,
+            relation_id,
+            index_id,
             segment.segment_id,
         ))
         .map_err(CassieError::from)?
@@ -476,7 +484,7 @@ fn load_column_batch_segment(
     {
         return Ok(Err(ColumnBatchScanFallbackReason::SegmentChecksumMismatch));
     }
-    let Ok(payload) = serde_json::from_slice::<ColumnBatchPayload>(&raw) else {
+    let Ok(payload) = decode_column_batch(&raw) else {
         return Ok(Err(ColumnBatchScanFallbackReason::InvalidPayload));
     };
     if payload.encoding_version != COLUMN_BATCH_ENCODING_VERSION {
@@ -521,12 +529,11 @@ fn encode_column_batch_payload(
         rows: rows.to_owned(),
         columns: Vec::new(),
     };
-    let uncompressed_bytes =
-        serde_json::to_vec(&uncompressed).map_err(|error| CassieError::Parse(error.to_string()))?;
+    let uncompressed_bytes = encode_column_batch(&uncompressed)?;
+    let uncompressed_len = uncompressed_bytes.len();
 
     let rle = dictionary_rle_payload(rows, fields);
-    let rle_bytes =
-        serde_json::to_vec(&rle).map_err(|error| CassieError::Parse(error.to_string()))?;
+    let rle_bytes = encode_column_batch(&rle)?;
 
     let (payload, bytes) = if rle_bytes.len() < uncompressed_bytes.len() {
         (rle, rle_bytes)
@@ -536,11 +543,10 @@ fn encode_column_batch_payload(
     let codec = EncodedColumnBatch {
         codec_name: payload.codec_name.clone(),
         codec_version: payload.codec_version,
-        uncompressed_len: serde_json::to_vec(rows)
-            .map_err(|error| CassieError::Parse(error.to_string()))?
-            .len(),
+        uncompressed_len,
         compressed_len: bytes.len(),
         checksum: checksum_hex(&bytes),
+        bytes,
     };
     Ok((payload, codec))
 }

@@ -214,8 +214,8 @@ fn execute_schema_object_group(
     command: &LogicalCommand,
 ) -> Option<CommandExecution> {
     match command {
-        LogicalCommand::CreateTable(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_table(cassie, statement),
+        LogicalCommand::CreateTable(statement) => Some(CommandExecution::creation(
+            super::schema_creation::create_table(cassie, statement),
         )),
         LogicalCommand::CreateGraph(statement) => Some(CommandExecution::invalidating(
             super::schema_command::create_graph(cassie, statement),
@@ -256,8 +256,8 @@ fn execute_schema_object_group(
         LogicalCommand::DropRole(statement) => Some(CommandExecution::invalidating(
             super::role_command::drop_role(cassie, statement),
         )),
-        LogicalCommand::CreateIndex(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_index(cassie, statement),
+        LogicalCommand::CreateIndex(statement) => Some(CommandExecution::creation(
+            super::schema_creation::create_index(cassie, statement),
         )),
         LogicalCommand::DropIndex(statement) => Some(CommandExecution::invalidating(
             super::schema_command::drop_index(cassie, statement),
@@ -316,6 +316,16 @@ impl CommandExecution {
         Self {
             result,
             invalidate_plan_cache: true,
+        }
+    }
+
+    fn creation(result: Result<super::schema_creation::CreationOutcome, QueryError>) -> Self {
+        match result {
+            Ok(outcome) => Self {
+                result: Ok(outcome.result),
+                invalidate_plan_cache: outcome.created,
+            },
+            Err(error) => Self::new(Err(error)),
         }
     }
 }

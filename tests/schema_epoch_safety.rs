@@ -22,8 +22,14 @@ fn compile_physical_plan(
 }
 
 fn scalar_index_sidecars(cassie: &Cassie, collection: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let relation_id = cassie
+        .midge
+        .collection_metadata(collection)
+        .unwrap()
+        .expect("collection metadata")
+        .storage_id;
     let prefix =
-        cassie::midge::adapter::Midge::scalar_index_collection_prefix_for_diagnostics(collection);
+        cassie::midge::adapter::Midge::scalar_index_collection_prefix_for_diagnostics(relation_id);
     cassie
         .midge
         .raw_scan_prefix(StorageFamily::Data, prefix.as_slice())

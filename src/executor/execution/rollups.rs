@@ -176,15 +176,15 @@ pub(super) fn try_execute_rollup_query(
 
     let mut batches = scan::scan(cassie, None, &rollup.output_collection)?;
     if !plan.order.is_empty() {
-        batches = sort::sort_batches(
-            batches,
-            &plan.order,
-            &plan.projection,
+        let eval = sort::EvalInput {
+            order: &plan.order,
+            projection: &plan.projection,
             params,
-            None,
             user_functions,
-            None,
-        );
+            search_context: None,
+            session: None,
+        };
+        batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
     }
     batches = projection::project_batches(
         batches,

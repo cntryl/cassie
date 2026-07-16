@@ -1,7 +1,8 @@
 use super::{
-    batch, check_timeout, dml_referential_actions, dml_returning_columns, ensure_temp_budget,
-    filter, inserted_row_to_batch_row, projection, row_id_from_batch_row, scan, BatchRow, Cassie,
-    CassieSession, FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
+    batch, check_timeout, dml_referential_actions, dml_returning_columns,
+    ensure_query_memory_budget, filter, inserted_row_to_batch_row, projection,
+    row_id_from_batch_row, scan, BatchRow, Cassie, CassieSession, FunctionMeta, HashMap,
+    QueryError, QueryExecutionControls, QueryResult, Value,
 };
 
 pub(in crate::executor::execution) fn execute_delete(
@@ -39,7 +40,7 @@ fn execute_delete_with_held_referential_gates(
     })?;
 
     let batches = scan::scan(cassie, session, &statement.table)?;
-    ensure_temp_budget(controls, &batches)?;
+    ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
         filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?

@@ -127,6 +127,28 @@ pub(crate) const DEFAULT_BATCH_SIZE: usize = 1024;
 
 pub(crate) type Batch = Vec<BatchRow>;
 
+pub(crate) trait BatchStream {
+    fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError>;
+}
+
+pub(crate) struct VecBatchStream {
+    batches: std::vec::IntoIter<Batch>,
+}
+
+impl VecBatchStream {
+    pub(crate) fn new(batches: Vec<Batch>) -> Self {
+        Self {
+            batches: batches.into_iter(),
+        }
+    }
+}
+
+impl BatchStream for VecBatchStream {
+    fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
+        Ok(self.batches.next())
+    }
+}
+
 static BATCH_BUFFERS_BUILT: AtomicU64 = AtomicU64::new(0);
 static ROW_TIE_KEYS_BUILT: AtomicU64 = AtomicU64::new(0);
 
@@ -155,6 +177,41 @@ pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
 
 pub(crate) fn flatten_batches(batches: Vec<Batch>) -> Vec<BatchRow> {
     batches.into_iter().flatten().collect()
+}
+
+pub(crate) fn try_flatten_batches(
+    batches: Vec<Batch>,
+) -> Result<Vec<BatchRow>, crate::executor::QueryError> {
+    let mut stream = VecBatchStream::new(batches);
+    collect_batch_stream(&mut stream)
+}
+
+pub(crate) fn collect_batch_stream(
+    stream: &mut dyn BatchStream,
+) -> Result<Vec<BatchRow>, crate::executor::QueryError> {
+    let mut rows = Vec::new();
+    while let Some(batch) = stream.next_batch()? {
+        rows.extend(batch);
+    }
+    Ok(rows)
+}
+
+pub(crate) fn collect_batch_stream_accounted(
+    stream: &mut dyn BatchStream,
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(Vec<BatchRow>, Vec<crate::runtime::QueryMemoryReservation>), crate::executor::QueryError>
+{
+    let mut rows = Vec::new();
+    let mut reservations = Vec::new();
+    while let Some(batch) = stream.next_batch()? {
+        let bytes = batch
+            .iter()
+            .map(|row| serde_json::to_vec(row.entries()).map_or(0, |bytes| bytes.len()))
+            .sum();
+        reservations.push(controls.reserve_query_memory(bytes)?);
+        rows.extend(batch);
+    }
+    Ok((rows, reservations))
 }
 
 pub(crate) fn slice_batches(
@@ -245,6 +302,52 @@ pub(crate) fn row_tie_keys_built_for_tests() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_pull_batches_until_stream_is_exhausted() {
+        // Arrange
+        let first = vec![BatchRow::new(vec![("id".to_string(), Value::Int64(1))])];
+        let second = vec![BatchRow::new(vec![("id".to_string(), Value::Int64(2))])];
+        let mut stream = VecBatchStream::new(vec![first, second]);
+
+        // Act
+        let first = stream.next_batch().expect("first batch");
+        let second = stream.next_batch().expect("second batch");
+        let exhausted = stream.next_batch().expect("exhausted stream");
+
+        // Assert
+        assert_eq!(
+            first.expect("first rows")[0].get("id"),
+            Some(&Value::Int64(1))
+        );
+        assert_eq!(
+            second.expect("second rows")[0].get("id"),
+            Some(&Value::Int64(2))
+        );
+        assert!(exhausted.is_none());
+    }
+
+    #[test]
+    fn should_propagate_fallible_batch_stream_error() {
+        struct FailingStream;
+
+        impl BatchStream for FailingStream {
+            fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
+                Err(crate::executor::QueryError::General(
+                    "stream failed".to_string(),
+                ))
+            }
+        }
+
+        // Arrange
+        let mut stream = FailingStream;
+
+        // Act
+        let error = collect_batch_stream(&mut stream).expect_err("stream should fail");
+
+        // Assert
+        assert_eq!(error.to_string(), "stream failed");
+    }
 
     #[test]
     fn should_chunk_rows_into_batches() {

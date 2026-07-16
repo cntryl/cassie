@@ -5,12 +5,29 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+use std::time::Instant;
+
 fn main() {
-    let mut runner = stress::runner("tier1_hotpath_bm25");
-    runner.micro(
-        stress::StressCase::tier1_micro("bm25_scoring")
-            .metadata("logical_operations_per_iteration", "8"),
-        workloads::bm25_score,
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier1,
+        "tier1_hotpath_bm25",
     );
+    let case = stress::StressCase::new("bm25_scoring", "micro").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Kernel,
+            0,
+            "tier1_hotpath_bm25/micro",
+        ),
+        stress::OperationUnit::Score,
+    );
+    if runner.is_enabled(&case) {
+        let setup_started = Instant::now();
+        workloads::prepare_hotpath("bm25_scoring").expect("registered Tier 1 workload");
+        let case = case.metadata(
+            "setup_time_ns",
+            setup_started.elapsed().as_nanos().max(1).to_string(),
+        );
+        runner.measure_micro(case, workloads::bm25_score);
+    }
     runner.finish();
 }

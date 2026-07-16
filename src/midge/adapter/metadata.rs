@@ -8,12 +8,56 @@ use super::{
 use crate::catalog::name_matches;
 
 impl Midge {
+    pub(super) fn collection_generation_key(collection: &str) -> Vec<u8> {
+        key_encoding::collection_generation_key(collection)
+    }
+
+    pub(super) fn allocate_object_id_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+    ) -> Result<u64, CassieError> {
+        let key = key_encoding::object_id_counter_key();
+        let current = tx
+            .get(&key)
+            .map_err(CassieError::from)?
+            .map_or(Ok(0_u64), |raw| {
+                serde_json::from_slice(&raw).map_err(|error| {
+                    CassieError::Parse(format!("invalid object id counter: {error}"))
+                })
+            })?;
+        let next = current
+            .checked_add(1)
+            .ok_or_else(|| CassieError::Execution("object id space exhausted".to_string()))?;
+        tx.put(
+            key,
+            serde_json::to_vec(&next).map_err(|error| CassieError::Parse(error.to_string()))?,
+            None,
+        )
+        .map_err(CassieError::from)?;
+        Ok(next)
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
+        let relation_id = self
+            .collection_metadata(&metadata.collection)?
+            .ok_or_else(|| CassieError::CollectionNotFound(metadata.collection.clone()))?
+            .storage_id;
+        let storage_id =
+            if let Some(existing) = self.get_index(&metadata.collection, &metadata.name)? {
+                existing.storage_id().ok_or_else(|| {
+                    CassieError::Parse("index metadata is missing its storage id".to_string())
+                })?
+            } else {
+                let mut tx = self.begin_schema_rw_tx()?;
+                let id = Self::allocate_object_id_to_tx(&mut tx)?;
+                tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+                id
+            };
+        metadata.set_storage_ids(relation_id, storage_id);
         self.prepare_index_publication(&metadata)?;
         check_index_publication_failure_point()?;
         self.replay_pending_index_publications()
@@ -91,7 +135,14 @@ impl Midge {
             }
             if index.kind == IndexKind::FullText {
                 let mut data_tx = self.begin_data_rw_tx_for(&index.collection)?;
-                let prefix = Self::fulltext_index_artifact_prefix(&index.collection, &index.name);
+                let prefix = Self::fulltext_index_artifact_prefix(
+                    index.relation_id().ok_or_else(|| {
+                        CassieError::Parse("fulltext index is missing its relation id".to_string())
+                    })?,
+                    index.storage_id().ok_or_else(|| {
+                        CassieError::Parse("fulltext index is missing its storage id".to_string())
+                    })?,
+                );
                 let entries = collect_scan(
                     data_tx
                         .scan(&Query::new().prefix(prefix.into()))
@@ -200,9 +251,24 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_graph(&self, metadata: &crate::catalog::GraphMeta) -> Result<(), CassieError> {
+        let mut metadata = metadata.clone();
+        metadata.storage_id = if let Some(existing) = self
+            .list_graphs()?
+            .into_iter()
+            .find(|graph| name_matches(&graph.name, &metadata.name))
+        {
+            existing.storage_id
+        } else {
+            let mut counter_tx = self.begin_schema_rw_tx()?;
+            let id = Self::allocate_object_id_to_tx(&mut counter_tx)?;
+            counter_tx
+                .commit(WriteOptions::sync())
+                .map_err(CassieError::from)?;
+            id
+        };
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
-            serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
+            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::graph_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
@@ -241,6 +307,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn delete_vector_index(&self, collection: &str, field: &str) -> Result<(), CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::vector_index_key(collection, field))
             .map_err(CassieError::from)?;
@@ -250,13 +317,13 @@ impl Midge {
         let mut data_tx = self.begin_data_rw_tx_for(collection)?;
         Self::delete_normalized_vector_keys_with_prefix(
             &mut data_tx,
-            Self::normalized_vector_prefix(collection, field),
+            Self::normalized_vector_prefix(relation_id, field_id),
         )?;
         let node_keys = collect_scan(
             data_tx
                 .scan(
                     &Query::new()
-                        .prefix(key_encoding::hnsw_graph_node_prefix(collection, field).into()),
+                        .prefix(key_encoding::hnsw_graph_node_prefix(relation_id, field_id).into()),
                 )
                 .map_err(CassieError::from)?,
         )?
@@ -266,25 +333,25 @@ impl Midge {
         for key in node_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
-        let membership_keys = collect_scan(
-            data_tx
-                .scan(
-                    &Query::new()
-                        .prefix(key_encoding::ivfflat_membership_prefix(collection, field).into()),
-                )
-                .map_err(CassieError::from)?,
-        )?
-        .into_iter()
-        .map(|(key, _)| key)
-        .collect::<Vec<_>>();
+        let membership_keys =
+            collect_scan(
+                data_tx
+                    .scan(&Query::new().prefix(
+                        key_encoding::ivfflat_membership_prefix(relation_id, field_id).into(),
+                    ))
+                    .map_err(CassieError::from)?,
+            )?
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<Vec<_>>();
         for key in membership_keys {
             data_tx.delete(key).map_err(CassieError::from)?;
         }
         data_tx
-            .delete(Self::vector_index_state_key(collection, field))
+            .delete(Self::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?;
         data_tx
-            .delete(key_encoding::hnsw_source_summary_key(collection, field))
+            .delete(key_encoding::hnsw_source_summary_key(relation_id, field_id))
             .map_err(CassieError::from)?;
         data_tx
             .commit(cntryl_midge::WriteOptions::sync())

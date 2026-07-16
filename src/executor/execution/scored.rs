@@ -2,18 +2,23 @@ use super::{
     batch, expr_key, filter, load_fulltext_index_options, query_cache, scan, virtual_views,
     AnalyzerConfig, BatchRow, BinaryHeap, BinaryOp, Cassie, CassieSession, CmpOrdering,
     CollectionSchema, DataType, Expr, FulltextIndexOptions, FunctionCall, FunctionMeta, HashMap,
-    HashSet, Instant, LogicalPlan, QueryError, QuerySource, RowDecode, SelectItem, SortDirection,
-    Value,
+    HashSet, Instant, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem,
+    SortDirection, Value,
 };
 
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
+#[path = "scored/fulltext_topk.rs"]
+mod fulltext_topk;
 #[path = "scored/hybrid.rs"]
 mod hybrid;
+#[path = "scored/memory.rs"]
+mod memory;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
 use fulltext_read::execute_fulltext_filtered_read;
+use fulltext_topk::execute_fulltext_top_k;
 use hybrid::{bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows};
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
@@ -26,20 +31,29 @@ pub(super) fn execute_scored_search_top_k(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    if let Some(spec) = fulltext_top_k_spec(plan) {
-        return execute_fulltext_top_k(cassie, &spec).map(Some);
+    if let Some(spec) = fulltext_top_k_spec(plan, params) {
+        return execute_fulltext_top_k(cassie, session, &spec, controls).map(Some);
     }
-    if let Some(spec) = hybrid_top_k_spec(plan) {
-        return execute_hybrid_top_k(cassie, session, user_functions, params, &spec);
+    if let Some(spec) = hybrid_top_k_spec(plan, params) {
+        return execute_hybrid_top_k(cassie, session, user_functions, params, &spec, controls);
     }
-    if let Some(spec) = fulltext_filtered_read_spec(plan) {
+    if let Some(spec) = fulltext_filtered_read_spec(plan, params) {
         if virtual_views::schema(&spec.collection).is_some()
             || cassie.catalog.get_view(&spec.collection).is_some()
         {
             return Ok(None);
         }
-        return execute_fulltext_filtered_read(cassie, session, &spec).map(Some);
+        return execute_fulltext_filtered_read(
+            cassie,
+            session,
+            user_functions,
+            params,
+            &spec,
+            controls,
+        )
+        .map(Some);
     }
     Ok(None)
 }
@@ -169,80 +183,6 @@ where
     Ok(context)
 }
 
-fn execute_fulltext_top_k(
-    cassie: &Cassie,
-    spec: &FulltextTopKSpec,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let started_at = Instant::now();
-    let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
-    let documents = cassie
-        .midge
-        .scan_rows_for_rebuild(
-            &spec.collection,
-            RowDecode::ProjectedHistorical(vec![spec.text_field.clone()]),
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_index_options = hybrid::search_context_for_fields(
-        cassie,
-        &spec.collection,
-        std::slice::from_ref(&spec.text_field),
-    )?;
-    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let search_documents = documents
-        .into_iter()
-        .map(|document| TokenizedFulltextDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(document.payload.get(&spec.text_field), &analyzer),
-        })
-        .collect::<Vec<_>>();
-    let search_context = cached_search_context(
-        cassie,
-        &spec.collection,
-        &spec.text_field,
-        &search_documents,
-        FulltextSearchTuning {
-            boost: &search_index_options.field_boost,
-            k1: &search_index_options.field_k1,
-            b: &search_index_options.field_b,
-            analyzer: &search_index_options.field_analyzer,
-        },
-    )?;
-    let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidate_ids = if spec.require_match {
-        Some(posting_list_candidate_ids(&search_documents, &query_terms))
-    } else {
-        None
-    };
-    let top = score_fulltext_top_k_candidates(
-        cassie,
-        FulltextCandidateScoringRequest {
-            documents: &search_documents,
-            candidate_ids: candidate_ids.as_ref(),
-            search_context: &search_context,
-            text_field: &spec.text_field,
-            query_terms: &query_terms,
-            require_match: spec.require_match,
-            top_needed: spec.top_needed(),
-        },
-    );
-
-    let rows = scored_candidates_to_rows(
-        top,
-        spec.offset,
-        spec.limit,
-        &spec.id_column,
-        &spec.score_column,
-    );
-    let candidate_count = candidate_ids
-        .as_ref()
-        .map_or(search_documents.len(), HashSet::len);
-    cassie
-        .runtime
-        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
-    record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
-    Ok(rows)
-}
-
 #[derive(Clone, Copy)]
 struct FulltextCandidateScoringRequest<'a> {
     documents: &'a [TokenizedFulltextDocument],
@@ -252,54 +192,65 @@ struct FulltextCandidateScoringRequest<'a> {
     query_terms: &'a [String],
     require_match: bool,
     top_needed: usize,
+    controls: &'a QueryExecutionControls,
+}
+
+#[derive(Clone, Copy)]
+struct FulltextPartitionScoringRequest<'a> {
+    candidate_ids: Option<&'a HashSet<String>>,
+    search_context: &'a filter::SearchContext,
+    text_field: &'a str,
+    query_terms: &'a [String],
+    require_match: bool,
+    top_needed: usize,
+    controls: &'a QueryExecutionControls,
 }
 
 fn score_fulltext_top_k_candidates(
     cassie: &Cassie,
     request: FulltextCandidateScoringRequest<'_>,
-) -> BinaryHeap<ScoredSearchCandidate> {
+) -> Result<BinaryHeap<ScoredSearchCandidate>, QueryError> {
+    let partition_request = FulltextPartitionScoringRequest {
+        candidate_ids: request.candidate_ids,
+        search_context: request.search_context,
+        text_field: request.text_field,
+        query_terms: request.query_terms,
+        require_match: request.require_match,
+        top_needed: request.top_needed,
+        controls: request.controls,
+    };
     let worker_limit = cassie.runtime.limits().parallel_scoring_workers.max(1);
     if worker_limit == 1 || request.documents.len() < batch::DEFAULT_BATCH_SIZE {
         cassie.runtime.record_parallel_scoring_fallback();
-        return score_fulltext_partition(
-            request.documents,
-            request.candidate_ids,
-            request.search_context,
-            request.text_field,
-            request.query_terms,
-            request.require_match,
-            request.top_needed,
-        );
+        return score_fulltext_partition(request.documents, &partition_request);
     }
 
-    let workers = worker_limit.min(
+    let requested_workers = worker_limit.min(
         request
             .documents
             .len()
             .div_ceil(batch::DEFAULT_BATCH_SIZE)
             .max(1),
     );
+    let Some(worker_guard) = cassie
+        .runtime
+        .try_acquire_operator_workers(requested_workers)
+    else {
+        cassie.runtime.record_parallel_scoring_fallback();
+        return score_fulltext_partition(request.documents, &partition_request);
+    };
+    let workers = worker_guard.workers().min(requested_workers);
     let chunk_size = request.documents.len().div_ceil(workers).max(1);
     let partials = std::thread::scope(|scope| {
         let mut handles = Vec::new();
         for chunk in request.documents.chunks(chunk_size) {
-            handles.push(scope.spawn(move || {
-                score_fulltext_partition(
-                    chunk,
-                    request.candidate_ids,
-                    request.search_context,
-                    request.text_field,
-                    request.query_terms,
-                    request.require_match,
-                    request.top_needed,
-                )
-            }));
+            handles.push(scope.spawn(move || score_fulltext_partition(chunk, &partition_request)));
         }
         handles
             .into_iter()
             .map(|handle| handle.join().expect("parallel scoring worker"))
-            .collect::<Vec<_>>()
-    });
+            .collect::<Result<Vec<_>, QueryError>>()
+    })?;
 
     let partitions = partials.len();
     let mut merged = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
@@ -313,41 +264,42 @@ fn score_fulltext_top_k_candidates(
     cassie
         .runtime
         .record_parallel_scoring(workers, partitions, rows);
-    merged
+    Ok(merged)
 }
 
 fn score_fulltext_partition(
     documents: &[TokenizedFulltextDocument],
-    candidate_ids: Option<&HashSet<String>>,
-    search_context: &filter::SearchContext,
-    text_field: &str,
-    query_terms: &[String],
-    require_match: bool,
-    top_needed: usize,
-) -> BinaryHeap<ScoredSearchCandidate> {
-    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    request: &FulltextPartitionScoringRequest<'_>,
+) -> Result<BinaryHeap<ScoredSearchCandidate>, QueryError> {
+    let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
+    let mut top_memory = memory::replace_scored_candidates(None, request.controls, &top)?;
     for document in documents {
-        if let Some(candidate_ids) = candidate_ids {
+        super::check_timeout(request.controls)?;
+        if let Some(candidate_ids) = request.candidate_ids {
             if !candidate_ids.contains(document.id.as_str()) {
                 continue;
             }
         }
-        let score =
-            search_context.score_term_stats(Some(text_field), &document.text_stats, query_terms);
-        if require_match && score == 0.0 {
+        let score = request.search_context.score_term_stats(
+            Some(request.text_field),
+            &document.text_stats,
+            request.query_terms,
+        );
+        if request.require_match && score == 0.0 {
             continue;
         }
         push_top_k(
             &mut top,
-            top_needed,
+            request.top_needed,
             ScoredSearchCandidate {
                 sort_value: -score,
                 score,
                 id: document.id.clone(),
             },
         );
+        top_memory = memory::replace_scored_candidates(Some(top_memory), request.controls, &top)?;
     }
-    top
+    Ok(top)
 }
 
 fn execute_hybrid_top_k(
@@ -356,7 +308,9 @@ fn execute_hybrid_top_k(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     spec: &HybridTopKSpec,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    super::check_timeout(controls)?;
     let started_at = Instant::now();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
@@ -368,6 +322,8 @@ fn execute_hybrid_top_k(
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let candidate_limit =
+        adaptive.ann_candidate_budget(cassie.runtime.limits().adaptive_candidate_max);
     let bounded_rows = bounded_hybrid_rows(
         cassie,
         session,
@@ -376,12 +332,17 @@ fn execute_hybrid_top_k(
         spec,
         &schema,
         &analyzer,
+        candidate_limit,
     )?;
-    let rows = match bounded_rows {
-        Some(rows) => rows,
+    let (rows, ann_reads, candidate_row_fetches) = match bounded_rows {
+        Some(bounded) => (
+            bounded.rows,
+            bounded.ann_reads,
+            bounded.candidate_row_fetches,
+        ),
         None => {
             match prefilter_hybrid_rows(cassie, session, user_functions, params, spec, &schema)? {
-                Some(rows) => rows,
+                Some(rows) => (rows, 0, 0),
                 None => return Ok(None),
             }
         }
@@ -389,6 +350,9 @@ fn execute_hybrid_top_k(
     if rows.is_empty() {
         return Ok(None);
     }
+    let _candidate_memory =
+        controls.reserve_query_memory(rows.iter().map(memory::batch_row_bytes).sum::<usize>())?;
+    super::check_timeout(controls)?;
     let search_documents = hybrid_search_documents(rows, spec, &analyzer);
     let search_context = cached_search_context(
         cassie,
@@ -410,6 +374,7 @@ fn execute_hybrid_top_k(
         &search_context,
         spec,
         &query_terms,
+        controls,
     )?;
 
     let rows = scored_candidates_to_rows(
@@ -423,7 +388,8 @@ fn execute_hybrid_top_k(
     hybrid::record_hybrid_diagnostics(
         cassie,
         query_terms.len(),
-        candidate_count,
+        ann_reads,
+        candidate_row_fetches,
         text_candidate_count,
     );
     cassie
@@ -435,7 +401,12 @@ fn execute_hybrid_top_k(
     cassie
         .runtime
         .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
-    record_adaptive_candidate_decision(cassie, &adaptive, text_candidate_count, rows.len());
+    record_adaptive_candidate_decision(
+        cassie,
+        &adaptive,
+        ann_reads.max(text_candidate_count),
+        rows.len(),
+    );
     Ok(Some(rows))
 }
 
@@ -456,17 +427,14 @@ impl FulltextTopKSpec {
     }
 }
 
-pub(super) struct SearchProjectionColumn {
-    pub(super) name: String,
-    pub(super) output_name: String,
-}
-
 pub(super) struct FulltextFilteredReadSpec {
     pub(super) collection: String,
     pub(super) text_field: String,
     pub(super) query: String,
-    pub(super) columns: Vec<SearchProjectionColumn>,
+    pub(super) columns: Vec<fulltext_read::SearchProjectionColumn>,
+    pub(super) snippets: Vec<fulltext_read::SearchSnippetProjection>,
     pub(super) score_column: String,
+    pub(super) residual_filter: Option<Expr>,
     limit: Option<usize>,
     offset: usize,
 }
@@ -490,7 +458,7 @@ impl HybridTopKSpec {
     }
 }
 
-fn fulltext_top_k_spec(plan: &LogicalPlan) -> Option<FulltextTopKSpec> {
+fn fulltext_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<FulltextTopKSpec> {
     if !simple_scored_top_k_plan(plan) {
         return None;
     }
@@ -507,11 +475,11 @@ fn fulltext_top_k_spec(plan: &LogicalPlan) -> Option<FulltextTopKSpec> {
     if !order_matches_function_score(&plan.order[0], function, &score_column) {
         return None;
     }
-    let (text_field, query) = search_function_args(function)?;
+    let (text_field, query) = search_function_args_with_params(function, params)?;
     let require_match = match &plan.filter {
         None => false,
         Some(Expr::Function(filter)) => {
-            let (filter_field, filter_query) = search_predicate_args(filter)?;
+            let (filter_field, filter_query) = search_predicate_args_with_params(filter, params)?;
             filter_field.eq_ignore_ascii_case(&text_field) && filter_query == query
         }
         _ => return None,
@@ -532,7 +500,10 @@ fn fulltext_top_k_spec(plan: &LogicalPlan) -> Option<FulltextTopKSpec> {
     })
 }
 
-pub(super) fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<FulltextFilteredReadSpec> {
+pub(super) fn fulltext_filtered_read_spec(
+    plan: &LogicalPlan,
+    params: &[Value],
+) -> Option<FulltextFilteredReadSpec> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
@@ -547,17 +518,24 @@ pub(super) fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<Fulltext
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let (columns, function, score_column) =
-        fulltext_filtered_projection(plan.projection.as_slice())?;
-    let (text_field, query) = search_function_args(function)?;
-    let filter = plan.filter.as_ref()?;
-    let Expr::Function(filter_function) = filter else {
-        return None;
-    };
-    let (filter_field, filter_query) = search_predicate_args(filter_function)?;
-    if !filter_field.eq_ignore_ascii_case(&text_field) || filter_query != query {
+    let (columns, snippets, function, score_column) =
+        fulltext_filtered_projection(plan.projection.as_slice(), params)?;
+    let (text_field, query) = search_function_args_with_params(function, params)?;
+    if snippets
+        .iter()
+        .any(|snippet| !snippet.field.eq_ignore_ascii_case(&text_field) || snippet.query != query)
+    {
         return None;
     }
+    let residual_filter = match fulltext_read::extract_fulltext_residual_filter(
+        plan.filter.as_ref()?,
+        &text_field,
+        &query,
+        params,
+    )? {
+        fulltext_read::FulltextFilterMatch::Exact => None,
+        fulltext_read::FulltextFilterMatch::Residual(residual) => Some(residual),
+    };
 
     let limit = if let Some(limit) = plan.limit {
         Some(usize::try_from(limit.max(0)).ok()?)
@@ -574,15 +552,23 @@ pub(super) fn fulltext_filtered_read_spec(plan: &LogicalPlan) -> Option<Fulltext
         text_field,
         query,
         columns,
+        snippets,
         score_column,
+        residual_filter,
         limit,
         offset,
     })
 }
 
-fn fulltext_filtered_projection(
-    projection: &[SelectItem],
-) -> Option<(Vec<SearchProjectionColumn>, &FunctionCall, String)> {
+fn fulltext_filtered_projection<'a>(
+    projection: &'a [SelectItem],
+    params: &[Value],
+) -> Option<(
+    Vec<fulltext_read::SearchProjectionColumn>,
+    Vec<fulltext_read::SearchSnippetProjection>,
+    &'a FunctionCall,
+    String,
+)> {
     let (last, columns) = projection.split_last()?;
     let SelectItem::Function {
         function,
@@ -594,28 +580,42 @@ fn fulltext_filtered_projection(
     if !function.name.eq_ignore_ascii_case("search_score") {
         return None;
     }
-    let columns = columns
-        .iter()
-        .map(|item| match item {
-            SelectItem::Column { name, alias } => Some(SearchProjectionColumn {
-                name: name.clone(),
-                output_name: alias.clone().unwrap_or_else(|| name.clone()),
-            }),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if columns.is_empty() {
+    let mut projected_columns = Vec::new();
+    let mut snippets = Vec::new();
+    for item in columns {
+        match item {
+            SelectItem::Column { name, alias } => {
+                projected_columns.push(fulltext_read::SearchProjectionColumn {
+                    name: name.clone(),
+                    output_name: alias.clone().unwrap_or_else(|| name.clone()),
+                });
+            }
+            SelectItem::Function { function, alias }
+                if function.name.eq_ignore_ascii_case("snippet") =>
+            {
+                let (field, query) = search_query_function_args(function, "snippet", params)?;
+                snippets.push(fulltext_read::SearchSnippetProjection {
+                    field,
+                    query,
+                    output_name: alias.clone().unwrap_or_else(|| function.name.clone()),
+                });
+            }
+            _ => return None,
+        }
+    }
+    if projected_columns.is_empty() && snippets.is_empty() {
         return None;
     }
 
     Some((
-        columns,
+        projected_columns,
+        snippets,
         function,
         score_alias.clone().unwrap_or_else(|| function.name.clone()),
     ))
 }
 
-fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
+fn hybrid_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<HybridTopKSpec> {
     if !simple_scored_top_k_plan(plan) {
         return None;
     }
@@ -632,7 +632,7 @@ fn hybrid_top_k_spec(plan: &LogicalPlan) -> Option<HybridTopKSpec> {
     if !order_matches_function_score(&plan.order[0], function, &score_column) {
         return None;
     }
-    let (text_field, query, vector_field, vector_query) = hybrid_function_args(function)?;
+    let (text_field, query, vector_field, vector_query) = hybrid_function_args(function, params)?;
 
     Some(HybridTopKSpec {
         collection: collection.clone(),
@@ -703,20 +703,43 @@ fn order_matches_function_score(
     }
 }
 
-fn search_function_args(function: &FunctionCall) -> Option<(String, String)> {
+fn search_function_args_with_params(
+    function: &FunctionCall,
+    params: &[Value],
+) -> Option<(String, String)> {
     if !function.name.eq_ignore_ascii_case("search_score") || function.args.len() != 2 {
         return None;
     }
     let Expr::Column(field) = &function.args[0] else {
         return None;
     };
-    let Expr::StringLiteral(query) = &function.args[1] else {
-        return None;
-    };
-    Some((field.clone(), query.clone()))
+    Some((
+        field.clone(),
+        search_query_argument(&function.args[1], params)?,
+    ))
 }
 
-fn search_predicate_args(function: &FunctionCall) -> Option<(String, String)> {
+fn search_query_function_args(
+    function: &FunctionCall,
+    name: &str,
+    params: &[Value],
+) -> Option<(String, String)> {
+    if !function.name.eq_ignore_ascii_case(name) || function.args.len() != 2 {
+        return None;
+    }
+    let Expr::Column(field) = &function.args[0] else {
+        return None;
+    };
+    Some((
+        field.clone(),
+        search_query_argument(&function.args[1], params)?,
+    ))
+}
+
+fn search_predicate_args_with_params(
+    function: &FunctionCall,
+    params: &[Value],
+) -> Option<(String, String)> {
     if !matches!(
         function.name.to_ascii_lowercase().as_str(),
         "search" | "search_score"
@@ -727,13 +750,27 @@ fn search_predicate_args(function: &FunctionCall) -> Option<(String, String)> {
     let Expr::Column(field) = &function.args[0] else {
         return None;
     };
-    let Expr::StringLiteral(query) = &function.args[1] else {
-        return None;
-    };
-    Some((field.clone(), query.clone()))
+    Some((
+        field.clone(),
+        search_query_argument(&function.args[1], params)?,
+    ))
 }
 
-fn hybrid_function_args(function: &FunctionCall) -> Option<(String, String, String, Vec<f32>)> {
+fn search_query_argument(expr: &Expr, params: &[Value]) -> Option<String> {
+    match expr {
+        Expr::StringLiteral(query) => Some(query.clone()),
+        Expr::Param(index) => params
+            .get(*index)
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        _ => None,
+    }
+}
+
+fn hybrid_function_args(
+    function: &FunctionCall,
+    params: &[Value],
+) -> Option<(String, String, String, Vec<f32>)> {
     if !function.name.eq_ignore_ascii_case("hybrid_score") || function.args.len() != 2 {
         return None;
     }
@@ -743,22 +780,28 @@ fn hybrid_function_args(function: &FunctionCall) -> Option<(String, String, Stri
     let Expr::Function(vector_function) = &function.args[1] else {
         return None;
     };
-    let (text_field, query) = search_function_args(search_function)?;
-    let (vector_field, vector_query) = vector_score_args(vector_function)?;
+    let (text_field, query) = search_function_args_with_params(search_function, params)?;
+    let (vector_field, vector_query) = vector_score_args(vector_function, params)?;
     Some((text_field, query, vector_field, vector_query))
 }
 
-fn vector_score_args(function: &FunctionCall) -> Option<(String, Vec<f32>)> {
+fn vector_score_args(function: &FunctionCall, params: &[Value]) -> Option<(String, Vec<f32>)> {
     if !function.name.eq_ignore_ascii_case("vector_score") || function.args.len() != 2 {
         return None;
     }
     let Expr::Column(field) = &function.args[0] else {
         return None;
     };
-    let Expr::StringLiteral(query) = &function.args[1] else {
-        return None;
+    let query = match &function.args[1] {
+        Expr::StringLiteral(query) => parse_vector_literal(query)?,
+        Expr::Param(index) => match params.get(*index)? {
+            Value::String(query) => parse_vector_literal(query)?,
+            Value::Vector(query) => query.values.clone(),
+            _ => return None,
+        },
+        _ => return None,
     };
-    Some((field.clone(), parse_vector_literal(query)?))
+    Some((field.clone(), query))
 }
 
 fn function_call_key(function: &FunctionCall) -> String {

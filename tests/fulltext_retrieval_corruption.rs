@@ -1,10 +1,13 @@
 use cassie::app::Cassie;
 use cassie::midge::adapter::StorageFamily;
+use cassie::types::Value;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/executor.rs"]
 mod support;
-use support::{cassie_temp, create_text_collection, put_document, put_fulltext_index};
+use support::{
+    cassie_temp, create_text_collection, fulltext_index, put_document, put_fulltext_index,
+};
 
 fn seed_corruptible_index() -> Cassie {
     let cassie = cassie_temp("fulltext_retrieval_corruption");
@@ -18,6 +21,9 @@ fn seed_corruptible_index() -> Cassie {
     );
     put_fulltext_index(&cassie, collection, "fulltext_body_idx", "body", &[]);
     cassie
+        .catalog
+        .register_index(fulltext_index(collection, "fulltext_body_idx", "body", &[]));
+    cassie
 }
 
 fn corrupt_one_posting(cassie: &Cassie) {
@@ -27,10 +33,7 @@ fn corrupt_one_posting(cassie: &Cassie) {
         .unwrap();
     let (key, _) = entries
         .into_iter()
-        .find(|(_, value)| {
-            serde_json::from_slice::<Vec<serde_json::Value>>(value)
-                .is_ok_and(|postings| !postings.is_empty())
-        })
+        .find(|(_, value)| value.starts_with(b"FTB1"))
         .expect("persisted posting");
     let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
     tx.put(key, b"corrupt-posting".to_vec(), None).unwrap();
@@ -59,13 +62,14 @@ fn should_fallback_to_rows_when_persisted_fulltext_postings_are_corrupt() {
     let cassie = seed_corruptible_index();
     corrupt_one_posting(&cassie);
     let session = cassie.create_session("tester", None);
+    let before = cassie.metrics();
 
     // Act
     let result = cassie
         .execute_sql(
             &session,
-            "SELECT id FROM fulltext_retrieval_corruption WHERE search(body, 'alpha')",
-            vec![],
+            "SELECT id, search_score(body, $1) AS score FROM fulltext_retrieval_corruption WHERE search(body, $1)",
+            vec![Value::String("alpha".to_string())],
         )
         .expect("query must use deterministic row fallback");
 
@@ -74,5 +78,17 @@ fn should_fallback_to_rows_when_persisted_fulltext_postings_are_corrupt() {
     assert_eq!(
         result.rows[0][0],
         cassie::types::Value::String("d1".to_string())
+    );
+    let after = cassie.metrics();
+    assert!(
+        after["search"]["row_scan_fallback_total"].as_u64().unwrap()
+            > before["search"]["row_scan_fallback_total"]
+                .as_u64()
+                .unwrap()
+    );
+    assert!(
+        after["search"]["retrieval_fallback_reasons"]["invalid_persisted_artifact"]
+            .as_u64()
+            .is_some_and(|count| count > 0)
     );
 }

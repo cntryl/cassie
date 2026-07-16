@@ -4,6 +4,7 @@ use super::{
     TokenizedHybridDocument, Value,
 };
 use crate::executor::{batch, filter, scan};
+use crate::runtime::QueryExecutionControls;
 use crate::search::analyzer::AnalyzerConfig;
 use std::collections::HashMap;
 use std::collections::{BinaryHeap, HashSet};
@@ -24,16 +25,24 @@ pub(super) fn record_hybrid_diagnostics(
     cassie: &Cassie,
     posting_reads: usize,
     ann_reads: usize,
+    candidate_row_fetches: usize,
     exact_reranks: usize,
 ) {
     cassie.runtime.record_hybrid_retrieval_diagnostics(
         posting_reads,
         ann_reads,
+        candidate_row_fetches,
         0,
         exact_reranks,
         0,
         0,
     );
+}
+
+pub(super) struct BoundedHybridRows {
+    pub(super) rows: Vec<BatchRow>,
+    pub(super) ann_reads: usize,
+    pub(super) candidate_row_fetches: usize,
 }
 
 pub(super) fn score_hybrid_documents(
@@ -42,10 +51,12 @@ pub(super) fn score_hybrid_documents(
     search_context: &filter::SearchContext,
     spec: &HybridTopKSpec,
     query_terms: &[String],
+    controls: &QueryExecutionControls,
 ) -> Result<(BinaryHeap<super::ScoredSearchCandidate>, usize), QueryError> {
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
     let mut text_candidate_count = 0usize;
     for document in documents {
+        super::super::check_timeout(controls)?;
         if !candidate_ids.contains(document.id.as_str()) {
             continue;
         }
@@ -91,8 +102,12 @@ pub(super) fn bounded_hybrid_rows(
     spec: &HybridTopKSpec,
     schema: &CollectionSchema,
     analyzer: &AnalyzerConfig,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    candidate_limit: usize,
+) -> Result<Option<BoundedHybridRows>, QueryError> {
     if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+        cassie
+            .runtime
+            .record_hybrid_row_scan_fallback("transaction-overlay");
         return Ok(None);
     }
     let Some(fulltext_index) = cassie
@@ -104,26 +119,46 @@ pub(super) fn bounded_hybrid_rows(
                 && index.field.eq_ignore_ascii_case(&spec.text_field)
         })
     else {
+        cassie
+            .runtime
+            .record_hybrid_row_scan_fallback("missing-text-index");
         return Ok(None);
     };
     let vector_ids = match cassie.midge.persisted_vector_candidate_ids(
         &spec.collection,
         &spec.vector_field,
         &spec.vector_query,
-        cassie.runtime.limits().adaptive_candidate_max,
+        candidate_limit,
     ) {
         Ok(Some(ids)) => ids,
-        Ok(None) => return Ok(None),
+        Ok(None) => {
+            cassie
+                .runtime
+                .record_hybrid_prefilter_usage(0, 0, Some("vector-artifact"));
+            cassie
+                .runtime
+                .record_hybrid_row_scan_fallback("missing-ann-state");
+            return Ok(None);
+        }
         Err(error) => {
             let generation_rejection = usize::from(
                 error.to_string().contains("generation") || error.to_string().contains("stale"),
             );
-            cassie
-                .runtime
-                .record_hybrid_retrieval_diagnostics(0, 0, generation_rejection, 0, 0, 0);
+            cassie.runtime.record_hybrid_retrieval_diagnostics(
+                0,
+                0,
+                0,
+                generation_rejection,
+                0,
+                0,
+                0,
+            );
             cassie
                 .runtime
                 .record_hybrid_prefilter_usage(0, 0, Some("vector-artifact"));
+            cassie
+                .runtime
+                .record_hybrid_row_scan_fallback("invalid-vector-artifact");
             return Ok(None);
         }
     };
@@ -139,6 +174,7 @@ pub(super) fn bounded_hybrid_rows(
         cassie.runtime.record_hybrid_retrieval_diagnostics(
             0,
             0,
+            0,
             usize::from(generation_rejection),
             0,
             0,
@@ -147,6 +183,9 @@ pub(super) fn bounded_hybrid_rows(
         cassie
             .runtime
             .record_hybrid_prefilter_usage(0, 0, Some("text-artifact"));
+        cassie
+            .runtime
+            .record_hybrid_row_scan_fallback("invalid-text-artifact");
         return Ok(None);
     };
     if stats.len() > cassie.runtime.limits().adaptive_candidate_max {
@@ -156,6 +195,9 @@ pub(super) fn bounded_hybrid_rows(
             stats.len(),
             Some("candidate-budget"),
         );
+        cassie
+            .runtime
+            .record_hybrid_row_scan_fallback("candidate-budget");
         return Ok(None);
     }
     let fields = schema
@@ -164,14 +206,19 @@ pub(super) fn bounded_hybrid_rows(
         .map(|field| field.name.clone())
         .collect::<Vec<_>>();
     let mut rows = Vec::with_capacity(stats.len().min(vector_ids.len()));
+    let mut candidate_row_fetches = 0usize;
     for id in stats.keys() {
         if !vector_ids.contains(id) {
             continue;
         }
+        candidate_row_fetches += 1;
         let Some(document) = cassie
             .get_document_for_session(session, &spec.collection, id)
             .map_err(|error| QueryError::General(error.to_string()))?
         else {
+            cassie
+                .runtime
+                .record_hybrid_row_scan_fallback("missing-candidate-row");
             return Ok(None);
         };
         rows.push(scan::projected_document_to_row(
@@ -182,6 +229,9 @@ pub(super) fn bounded_hybrid_rows(
     }
     if let Some(filter_expr) = &spec.filter {
         if !vector_prefilter_supported(filter_expr, schema) {
+            cassie
+                .runtime
+                .record_hybrid_row_scan_fallback("unsupported-filter");
             return Ok(None);
         }
         let before = rows.len();
@@ -190,7 +240,11 @@ pub(super) fn bounded_hybrid_rows(
             .runtime
             .record_hybrid_prefilter_usage(before, rows.len(), None);
     }
-    Ok(Some(rows))
+    Ok(Some(BoundedHybridRows {
+        rows,
+        ann_reads: vector_ids.len(),
+        candidate_row_fetches,
+    }))
 }
 
 pub(super) fn prefilter_hybrid_rows(

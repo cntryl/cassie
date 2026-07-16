@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::catalog::qualifier_variants;
 use crate::catalog::virtual_views;
+use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem, SelectSet, SetOperator};
 use crate::types::{DataType, Schema, Value};
 
@@ -9,6 +10,8 @@ use super::{
     batch, filter, row_signature, Batch, BatchRow, CassieSession, FunctionMeta, LogicalPlan,
     QueryError,
 };
+
+type SetMemory = Vec<crate::runtime::QueryMemoryReservation>;
 
 pub(super) fn schema_text_fields(schema: &Schema) -> Vec<String> {
     schema
@@ -46,10 +49,7 @@ pub(super) fn combine_batches_with_outer_row(
         .collect()
 }
 
-pub(super) fn source_row_budget(plan: &LogicalPlan) -> Option<usize> {
-    let QuerySource::Join { .. } = &plan.source else {
-        return None;
-    };
+pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> Option<usize> {
     if plan.filter.is_some()
         || plan.having.is_some()
         || plan.offset.unwrap_or(0) > 0
@@ -74,8 +74,12 @@ pub(super) fn source_row_budget(plan: &LogicalPlan) -> Option<usize> {
         return None;
     }
 
-    let limit = plan.limit?;
-    usize::try_from(limit.max(0)).ok()
+    let result_cap = max_result_rows.saturating_add(1);
+    let limit = plan
+        .limit
+        .and_then(|limit| usize::try_from(limit.max(0)).ok())
+        .unwrap_or(result_cap);
+    Some(limit.min(result_cap))
 }
 
 pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySource) -> bool {
@@ -203,12 +207,29 @@ pub(super) fn project_rows_to_schema(
     Ok(projected)
 }
 
-pub(super) fn distinct_batches(batches: Vec<Batch>) -> Vec<Batch> {
+pub(super) fn distinct_batches(
+    batches: Vec<Batch>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
     let mut rows = BTreeMap::<String, BatchRow>::new();
+    let mut memory = Vec::new();
     for row in batch::flatten_batches(batches) {
-        rows.entry(row_signature(&row)).or_insert(row);
+        super::check_timeout(controls)?;
+        let signature = row_signature(&row);
+        let bytes = signature.len().saturating_add(
+            serde_json::to_vec(row.entries())
+                .map(|bytes| bytes.len())
+                .unwrap_or_default(),
+        );
+        if let std::collections::btree_map::Entry::Vacant(entry) = rows.entry(signature) {
+            memory.push(controls.reserve_query_memory(bytes)?);
+            entry.insert(row);
+        }
     }
-    batch::chunk_rows(rows.into_values().collect(), batch::DEFAULT_BATCH_SIZE)
+    Ok(batch::chunk_rows(
+        rows.into_values().collect(),
+        batch::DEFAULT_BATCH_SIZE,
+    ))
 }
 
 pub(super) fn distinct_on_batches(
@@ -218,10 +239,13 @@ pub(super) fn distinct_on_batches(
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
     let mut seen = HashSet::<String>::new();
     let mut rows = Vec::new();
+    let mut memory = Vec::new();
     for row in batch::flatten_batches(batches) {
+        super::check_timeout(controls)?;
         let key = distinct_on
             .iter()
             .map(|expr| {
@@ -238,7 +262,12 @@ pub(super) fn distinct_on_batches(
             })
             .collect::<Result<Vec<_>, _>>()?
             .join("|");
+        let key_bytes = key.len();
         if seen.insert(key) {
+            let row_bytes = serde_json::to_vec(row.entries())
+                .map(|bytes| bytes.len())
+                .unwrap_or_default();
+            memory.push(controls.reserve_query_memory(key_bytes.saturating_add(row_bytes))?);
             rows.push(row);
         }
     }
@@ -249,47 +278,86 @@ pub(super) fn apply_set_operation(
     left: Vec<BatchRow>,
     right: Vec<BatchRow>,
     set: &SelectSet,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    super::check_timeout(controls)?;
     validate_set_width(&left, &right)?;
     match set.operator {
         SetOperator::UnionAll => {
             let mut rows = left;
             rows.extend(right);
             rows.sort_by_key(row_signature);
+            super::check_timeout(controls)?;
             Ok(rows)
         }
         SetOperator::Union => {
             let mut rows = left;
             rows.extend(right);
             let mut unique = BTreeMap::<String, BatchRow>::new();
+            let mut memory = Vec::new();
             for row in rows {
-                unique.entry(row_signature(&row)).or_insert(row);
+                super::check_timeout(controls)?;
+                let signature = row_signature(&row);
+                let signature_bytes = signature.len();
+                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                    memory.push(controls.reserve_query_memory(signature_bytes)?);
+                    entry.insert(row);
+                }
             }
             Ok(unique.into_values().collect())
         }
         SetOperator::Intersect => {
-            let right_signatures = right.iter().map(row_signature).collect::<HashSet<_>>();
+            let (right_signatures, mut memory) = set_signatures(&right, controls)?;
             let mut unique = BTreeMap::<String, BatchRow>::new();
             for row in left {
+                super::check_timeout(controls)?;
                 let signature = row_signature(&row);
-                if right_signatures.contains(&signature) {
-                    unique.entry(signature).or_insert(row);
+                if !right_signatures.contains(&signature) {
+                    continue;
+                }
+                let signature_bytes = signature.len();
+                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                    memory.push(controls.reserve_query_memory(signature_bytes)?);
+                    entry.insert(row);
                 }
             }
             Ok(unique.into_values().collect())
         }
         SetOperator::Except => {
-            let right_signatures = right.iter().map(row_signature).collect::<HashSet<_>>();
+            let (right_signatures, mut memory) = set_signatures(&right, controls)?;
             let mut unique = BTreeMap::<String, BatchRow>::new();
             for row in left {
+                super::check_timeout(controls)?;
                 let signature = row_signature(&row);
-                if !right_signatures.contains(&signature) {
-                    unique.entry(signature).or_insert(row);
+                if right_signatures.contains(&signature) {
+                    continue;
+                }
+                let signature_bytes = signature.len();
+                if let std::collections::btree_map::Entry::Vacant(entry) = unique.entry(signature) {
+                    memory.push(controls.reserve_query_memory(signature_bytes)?);
+                    entry.insert(row);
                 }
             }
             Ok(unique.into_values().collect())
         }
     }
+}
+
+fn set_signatures(
+    rows: &[BatchRow],
+    controls: &QueryExecutionControls,
+) -> Result<(HashSet<String>, SetMemory), QueryError> {
+    let mut signatures = HashSet::new();
+    let mut memory = Vec::new();
+    for row in rows {
+        super::check_timeout(controls)?;
+        let signature = row_signature(row);
+        let signature_bytes = signature.len();
+        if signatures.insert(signature) {
+            memory.push(controls.reserve_query_memory(signature_bytes)?);
+        }
+    }
+    Ok((signatures, memory))
 }
 
 pub(in crate::executor::execution) fn slice_rows(

@@ -43,7 +43,8 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let cacheable = name != "coalesce" && has_only_constant_args(&function.args);
+    let cacheable = function_result_is_cacheable(&name, context.user_functions)
+        && has_only_constant_args(&function.args);
     let cache_key = if cacheable {
         Some(function_cache_key(&name, &args))
     } else {
@@ -75,6 +76,27 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     }
 
     result
+}
+
+fn function_result_is_cacheable(
+    name: &str,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> bool {
+    if matches!(
+        name,
+        "coalesce"
+            | "current_user"
+            | "session_user"
+            | "current_role"
+            | "current_database"
+            | "current_schema"
+    ) {
+        return false;
+    }
+    user_functions
+        .values()
+        .find(|metadata| name_matches(&metadata.name, name))
+        .is_none_or(|metadata| metadata.volatility == crate::catalog::Volatility::Immutable)
 }
 
 fn evaluate_builtin_function<R: RowAccess + ?Sized>(

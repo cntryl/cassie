@@ -7,6 +7,8 @@ use crate::catalog::derive_scoped_name;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionMeta {
     pub name: String,
+    #[serde(default)]
+    pub storage_id: u64,
     pub description: Option<String>,
     #[serde(default)]
     pub storage_mode: CollectionStorageMode,
@@ -385,6 +387,7 @@ impl CollectionMeta {
     ) -> Self {
         Self {
             name: name.into(),
+            storage_id: 0,
             description,
             storage_mode,
             storage_version: default_collection_storage_version(),

@@ -5,6 +5,7 @@ pub struct RuntimeSnapshot {
     pub started: bool,
     pub uptime_seconds: u64,
     pub running_queries: u64,
+    pub active_operator_workers: u64,
     pub query_admission_permits: u64,
     pub query_admission_rejections: u64,
     pub sql_parse_total: u64,
@@ -22,6 +23,7 @@ pub struct QuerySnapshot {
     pub rows_returned_total: u64,
     pub errors_total: u64,
     pub errors_by_class: BTreeMap<String, u64>,
+    pub peak_accounted_memory_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -82,6 +84,7 @@ pub struct ExecutionSnapshot {
     pub last_fallback_reason: String,
     pub retrieval_stage_queries_total: u64,
     pub posting_reads_total: u64,
+    pub candidate_row_fetches_total: u64,
     pub ann_reads_total: u64,
     pub generation_rejections_total: u64,
     pub exact_reranks_total: u64,
@@ -112,6 +115,18 @@ pub struct QueryCacheSnapshot {
     pub deserialize_rejects: u64,
     pub fulltext_stats_hits: u64,
     pub fulltext_stats_misses: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct ExecutionResultCacheSnapshot {
+    pub hits: u64,
+    pub misses: u64,
+    pub bypass_reasons: BTreeMap<String, u64>,
+    pub evictions: u64,
+    pub entries: u64,
+    pub bytes: u64,
+    pub max_entries: u64,
+    pub max_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -388,6 +403,7 @@ pub struct RuntimeMetricsSnapshot {
     pub storage: StorageSnapshot,
     pub plan_cache: PlanCacheSnapshot,
     pub query_cache: QueryCacheSnapshot,
+    pub execution_result_cache: ExecutionResultCacheSnapshot,
     pub cardinality: CardinalitySnapshot,
     pub feedback: FeedbackSnapshot,
     pub adaptive_candidates: AdaptiveCandidateSnapshot,

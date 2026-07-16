@@ -1,6 +1,6 @@
 # Per-Database Midge Column Families
 
-Cassie storage layout v5 uses one physical Midge column family for each logical
+Cassie's `cassie-midge-layout-v1` baseline uses one physical Midge column family for each logical
 database:
 
 | Family | Ownership |
@@ -26,7 +26,7 @@ Database creation journals the intended family before creating it and commits
 the catalog record only after the family exists. Empty-only database drops use
 the same journal so startup can finish an interrupted drop or remove an
 orphaned create/restore family. A registry/family mismatch is a startup error.
-There is no online migration: v4 and older stores must be recreated for v5.
+There is no online migration: directories from an older baseline must be recreated.
 
 ## Logical database images
 

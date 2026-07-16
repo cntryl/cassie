@@ -27,9 +27,10 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
 use uuid::Uuid;
 
+use super::bound_sql;
 use super::context::{
-    duration_divisor, u64_to_usize_saturating, usize_mod_i64, usize_to_i64, usize_to_u64,
-    BenchContext, QueryBreakdownMicros,
+    duration_divisor, u64_to_usize_saturating, usize_to_i64, usize_to_u64, BenchContext,
+    QueryBreakdownMicros,
 };
 use super::sql::execute_sql;
 
@@ -133,8 +134,8 @@ pub fn mixed_ingest_query(ctx: &BenchContext) -> Ready<usize> {
         .cassie
         .execute_sql(
             &ctx.session,
-            "SELECT id, title FROM bench_documents WHERE title = 'benchmark-title' LIMIT 20",
-            vec![],
+            "SELECT id, title FROM bench_documents WHERE title = $1 LIMIT 20",
+            vec![Value::String("benchmark-title".to_string())],
         )
         .expect("mixed ingest query");
     ready(std::hint::black_box(written + result.rows.len()))
@@ -146,12 +147,14 @@ pub async fn concurrent_queries(ctx: &BenchContext, concurrency: usize) -> usize
         let cassie = ctx.cassie.clone();
         let session = ctx.session.clone();
         tasks.spawn(async move {
-            let sql = format!(
-                "SELECT id, title FROM bench_documents WHERE score >= {} LIMIT 20",
-                index % 16
-            );
             cassie
-                .execute_sql(&session, &sql, vec![])
+                .execute_sql(
+                    &session,
+                    "SELECT id, title FROM bench_documents WHERE score >= $1 LIMIT 20",
+                    vec![Value::Int64(
+                        i64::try_from(index % 16).expect("benchmark score should fit i64"),
+                    )],
+                )
                 .expect("concurrent query")
                 .rows
                 .len()
@@ -225,22 +228,13 @@ pub fn projection_version_swap(ctx: &BenchContext, _nonce: usize) -> Ready<usize
             vec![],
         )
         .expect("build projection version");
-    let version_id = ctx
-        .cassie
-        .catalog
-        .get_materialized_projection("bench_projection")
-        .and_then(|metadata| {
-            metadata
-                .versions
-                .last()
-                .map(|version| version.version_id.clone())
-        })
-        .unwrap_or_else(|| "v1".to_string());
-    let sql =
-        format!("ALTER MATERIALIZED PROJECTION bench_projection ACTIVATE VERSION {version_id}");
     let command_len = ctx
         .cassie
-        .execute_sql(&ctx.session, &sql, vec![])
+        .execute_sql(
+            &ctx.session,
+            "ALTER MATERIALIZED PROJECTION bench_projection ACTIVATE VERSION v1",
+            vec![],
+        )
         .expect("activate projection version")
         .command
         .len();
@@ -334,21 +328,16 @@ pub fn projection_lag_catchup(ctx: &BenchContext, nonce: usize) -> Ready<usize> 
 
 pub fn index_rebuild_ddl(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let name = format!("bench_rebuild_idx_{nonce}");
-    let create = format!(
-        "CREATE INDEX {name} ON {} USING btree (status)",
-        ctx.collection
-    );
-    let drop = format!("DROP INDEX {name} ON {}", ctx.collection);
+    let (create, drop) = rebuild_index_statements(nonce);
     let created = ctx
         .cassie
-        .execute_sql(&ctx.session, &create, vec![])
+        .execute_sql(&ctx.session, create, vec![])
         .expect("create index")
         .command
         .len();
     let dropped = ctx
         .cassie
-        .execute_sql(&ctx.session, &drop, vec![])
+        .execute_sql(&ctx.session, drop, vec![])
         .expect("drop index")
         .command
         .len();
@@ -373,13 +362,10 @@ pub fn ten_million_row_query_shape(ctx: &BenchContext) -> Ready<usize> {
 }
 
 pub fn time_series_window_scan(ctx: &BenchContext) -> Ready<usize> {
-    let sql = format!(
-        "SELECT tenant, amount FROM {} WHERE event_at >= '2026-01-10T00:00:00Z' AND event_at < '2026-01-12T00:00:00Z' ORDER BY event_at LIMIT 512",
-        ctx.collection
-    );
+    let statement = bound_sql::time_series_window("2026-01-10T00:00:00Z", "2026-01-12T00:00:00Z");
     let result = ctx
         .cassie
-        .execute_sql(&ctx.session, &sql, vec![])
+        .execute_sql(&ctx.session, &statement.sql, statement.params)
         .expect("time-series window scan");
     let metrics = ctx.cassie.metrics();
     let buckets = metrics["time_series"]["buckets_scanned"]
@@ -393,76 +379,73 @@ pub fn time_series_window_scan(ctx: &BenchContext) -> Ready<usize> {
     ready(std::hint::black_box(result.rows.len()))
 }
 
-pub fn time_series_retention_enforcement(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
-    put_time_series_event(
-        ctx,
-        &format!("ts-retention-expired-{nonce}"),
-        "tenant-retention",
-        "2026-01-01T00:00:00Z",
-        nonce,
-    );
+fn rebuild_index_statements(nonce: usize) -> (&'static str, &'static str) {
+    const STATEMENTS: [(&str, &str); 4] = [
+        (
+            "CREATE INDEX bench_rebuild_idx_0 ON bench_documents USING btree (status)",
+            "DROP INDEX bench_rebuild_idx_0 ON bench_documents",
+        ),
+        (
+            "CREATE INDEX bench_rebuild_idx_1 ON bench_documents USING btree (status)",
+            "DROP INDEX bench_rebuild_idx_1 ON bench_documents",
+        ),
+        (
+            "CREATE INDEX bench_rebuild_idx_2 ON bench_documents USING btree (status)",
+            "DROP INDEX bench_rebuild_idx_2 ON bench_documents",
+        ),
+        (
+            "CREATE INDEX bench_rebuild_idx_3 ON bench_documents USING btree (status)",
+            "DROP INDEX bench_rebuild_idx_3 ON bench_documents",
+        ),
+    ];
+    STATEMENTS[nonce % STATEMENTS.len()]
+}
+
+pub fn time_series_retention_enforcement(ctx: &BenchContext) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let command_len = ctx
+    let result = ctx
         .cassie
         .execute_sql(
             &ctx.session,
             "ENFORCE RETENTION POLICY bench_time_series_retention AT '2026-01-10T00:00:00Z'",
             vec![],
         )
-        .expect("time-series retention enforcement")
-        .command
-        .len();
+        .expect("time-series retention enforcement");
     let after = ctx.cassie.metrics();
-    let deleted = counter_delta(&after, &before, "retention", "deleted_rows");
-    ready(std::hint::black_box(deleted + command_len))
+    assert!(
+        counter_delta(&after, &before, "retention", "enforcements") > 0,
+        "time-series retention must record an enforcement"
+    );
+    assert_eq!(
+        counter_delta(&after, &before, "retention", "errors"),
+        0,
+        "time-series retention must not record an error"
+    );
+    assert!(!result.command.is_empty(), "retention command report");
+    ready(std::hint::black_box(usize::from(
+        !result.command.is_empty(),
+    )))
 }
 
-pub fn time_series_rollup_refresh(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
-    put_time_series_event(
-        ctx,
-        &format!("ts-rollup-refresh-{nonce}"),
-        "tenant-rollup",
-        "2026-01-12T12:00:00Z",
-        nonce,
-    );
+pub fn time_series_rollup_refresh(ctx: &BenchContext) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let command_len = ctx
+    let result = ctx
         .cassie
         .execute_sql(
             &ctx.session,
             "REFRESH ROLLUP bench_time_series_hourly",
             vec![],
         )
-        .expect("time-series rollup refresh")
-        .command
-        .len();
+        .expect("time-series rollup refresh");
     let after = ctx.cassie.metrics();
-    let refreshes = counter_delta(&after, &before, "rollups", "refreshes");
-    ready(std::hint::black_box(refreshes + command_len))
-}
-
-fn put_time_series_event(
-    ctx: &BenchContext,
-    id: &str,
-    tenant: &str,
-    event_at: &str,
-    amount: usize,
-) {
-    ctx.cassie
-        .midge
-        .put_documents(
-            &ctx.collection,
-            vec![(
-                Some(id.to_string()),
-                json!({
-                    "tenant": tenant,
-                    "event_at": event_at,
-                    "amount": usize_mod_i64(amount, 100),
-                    "status": "bench",
-                }),
-            )],
-        )
-        .expect("put time-series benchmark event");
+    assert!(
+        counter_delta(&after, &before, "rollups", "refreshes") > 0,
+        "time-series rollup must record a refresh"
+    );
+    assert!(!result.command.is_empty(), "rollup command report");
+    ready(std::hint::black_box(usize::from(
+        !result.command.is_empty(),
+    )))
 }
 
 pub fn timed_ingest_document(ctx: &BenchContext) -> Ready<Duration> {

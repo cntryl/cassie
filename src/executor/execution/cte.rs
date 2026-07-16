@@ -1,7 +1,7 @@
 use super::{
-    build_logical_plan, check_timeout, ensure_temp_budget_for_rows, execute_plan, row_signature,
-    BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap,
-    HashSet, QueryError, QueryExecutionControls, Value,
+    build_logical_plan, check_timeout, ensure_query_memory_budget_for_rows, execute_plan,
+    row_signature, BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta,
+    HashMap, HashSet, QueryError, QueryExecutionControls, Value,
 };
 use crate::sql::ast::SetOperator;
 
@@ -64,7 +64,7 @@ pub(super) fn execute_cte<'a>(
                 rows.retain(|row| seen.insert(row_signature(row)));
             }
             let mut delta = rows.clone();
-            ensure_temp_budget_for_rows(controls, &rows)?;
+            let mut memory = replace_recursive_memory(None, controls, &rows, &delta)?;
             cte_context.insert(cte_name.clone(), delta.clone());
             let mut stabilized = false;
 
@@ -104,8 +104,7 @@ pub(super) fn execute_cte<'a>(
 
                 rows.extend(new_rows.iter().cloned());
                 delta = new_rows;
-                ensure_temp_budget_for_rows(controls, &rows)?;
-                ensure_temp_budget_for_rows(controls, &delta)?;
+                memory = replace_recursive_memory(Some(memory), controls, &rows, &delta)?;
                 cte_context.insert(cte_name.clone(), delta.clone());
             }
 
@@ -128,6 +127,27 @@ pub(super) fn execute_cte<'a>(
     }
 
     Ok(output)
+}
+
+fn replace_recursive_memory(
+    previous: Option<(
+        crate::runtime::QueryMemoryReservation,
+        crate::runtime::QueryMemoryReservation,
+    )>,
+    controls: &QueryExecutionControls,
+    rows: &CteRows,
+    delta: &CteRows,
+) -> Result<
+    (
+        crate::runtime::QueryMemoryReservation,
+        crate::runtime::QueryMemoryReservation,
+    ),
+    QueryError,
+> {
+    drop(previous);
+    let rows_memory = ensure_query_memory_budget_for_rows(controls, rows)?;
+    let delta_memory = ensure_query_memory_budget_for_rows(controls, delta)?;
+    Ok((rows_memory, delta_memory))
 }
 
 fn rename_cte_rows(rows: CteRows, aliases: &[String]) -> CteRows {

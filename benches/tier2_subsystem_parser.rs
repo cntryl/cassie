@@ -5,35 +5,29 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
-const LEXER_BATCH: usize = 16_384;
-const PARSER_BATCH: usize = 512;
-
 fn main() {
-    let mut runner = stress::runner("tier2_subsystem_parser");
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "sql_lexer", "10k")
-            .metadata("operation_unit", "sql_statement"),
-        logical_operations(LEXER_BATCH),
-        || repeat(LEXER_BATCH, workloads::sql_lexing),
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier2,
+        "tier2_subsystem_parser",
     );
-    runner.fixed_batch(
-        stress::StressCase::fixed_operations(2, "sql_parser", "10k")
-            .metadata("operation_unit", "sql_statement"),
-        logical_operations(PARSER_BATCH),
-        || repeat(PARSER_BATCH, workloads::sql_parsing),
+    let case = stress::StressCase::new("sql_parser", "128").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Subsystem,
+            128,
+            "tier2_subsystem_parser/128",
+        ),
+        stress::OperationUnit::Statement,
     );
-    runner.finish();
-}
-
-fn repeat(mut iterations: usize, mut f: impl FnMut() -> usize) -> usize {
-    let mut completed = 0usize;
-    while iterations > 0 {
-        completed = completed.saturating_add(f());
-        iterations -= 1;
+    if runner.is_enabled(&case) {
+        let setup_started = std::time::Instant::now();
+        let fixture = workloads::ParserFixture::new(128);
+        runner.measure_counted(
+            case.metadata(
+                "setup_time_ns",
+                setup_started.elapsed().as_nanos().to_string(),
+            ),
+            || fixture.parse(),
+        );
     }
-    std::hint::black_box(completed)
-}
-
-fn logical_operations(iterations: usize) -> u64 {
-    u64::try_from(iterations).expect("benchmark batch size should fit u64")
+    runner.finish();
 }

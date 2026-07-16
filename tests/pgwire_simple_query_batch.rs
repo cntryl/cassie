@@ -118,17 +118,24 @@ async fn start_session(
         ),
         0
     );
+    let mut saw_backend_key = false;
     loop {
         let frame = read_wire_frame(reader).await;
         if frame.0 == b'Z' {
             assert_eq!(frame.1, vec![b'I']);
             break;
         }
-        assert_eq!(
-            frame.0, b'S',
-            "startup should only emit parameter statuses before ready"
-        );
+        match frame.0 {
+            b'S' => {}
+            b'K' => {
+                assert!(!saw_backend_key, "startup emitted duplicate backend key");
+                assert_eq!(frame.1.len(), 8, "backend key payload");
+                saw_backend_key = true;
+            }
+            tag => panic!("unexpected startup frame: {}", char::from(tag)),
+        }
     }
+    assert!(saw_backend_key, "startup should emit backend key data");
 }
 
 async fn send_query(

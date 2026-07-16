@@ -240,12 +240,12 @@ fn should_reject_multiple_recursive_references() {
 }
 
 #[test]
-fn should_reject_recursive_working_table_over_temp_budget() {
+fn should_reject_recursive_working_table_over_memory_budget() {
     // Arrange
     with_fallback();
     let path = data_dir("recursive_temp_budget");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.temp_spill_budget_bytes = 1;
+    config.limits.query_memory_budget_bytes = 1;
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
 
@@ -257,11 +257,9 @@ fn should_reject_recursive_working_table_over_temp_budget() {
     );
 
     // Assert
-    let error = result.expect_err("recursive working table should honor temp budget");
+    let error = result.expect_err("recursive working table should honor memory budget");
     assert!(
-        error
-            .to_string()
-            .contains("temporary storage budget exceeded"),
+        error.to_string().contains("query memory budget exceeded"),
         "error={error}"
     );
     let _ = std::fs::remove_dir_all(path);

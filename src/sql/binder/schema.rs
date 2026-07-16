@@ -28,12 +28,15 @@ pub(super) fn bind_create_table(
             "CREATE TABLE requires a table name".into(),
         ));
     }
-    if !statement.if_not_exists
-        && (catalog.relation_exists(&name) || virtual_views::schema(&name).is_some())
-    {
+    let already_exists = catalog.relation_exists(&name) || virtual_views::schema(&name).is_some();
+    if !statement.if_not_exists && already_exists {
         return Err(CassieError::Planner(format!(
             "collection '{name}' already exists"
         )));
+    }
+    if statement.if_not_exists && already_exists {
+        statement.table = name;
+        return Ok(statement);
     }
 
     if matches!(

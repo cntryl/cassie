@@ -259,6 +259,7 @@ fn vector_distance_path(context: &mut AccessPathContext<'_>) -> AccessPathResult
         context.env.user_functions,
         context.env.params,
         context.plan,
+        context.env.controls,
     )
 }
 
@@ -269,6 +270,7 @@ fn scored_search_path(context: &mut AccessPathContext<'_>) -> AccessPathResult {
         context.env.user_functions,
         context.env.params,
         context.plan,
+        context.env.controls,
     )
 }
 
@@ -637,6 +639,9 @@ fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
 }
 
 pub(super) fn check_timeout(controls: &QueryExecutionControls) -> Result<(), QueryError> {
+    if controls.is_cancelled() {
+        return Err(QueryError::General("query canceled".to_string()));
+    }
     if controls.is_timed_out() {
         return Err(QueryError::General("query timeout exceeded".to_string()));
     }
@@ -644,25 +649,20 @@ pub(super) fn check_timeout(controls: &QueryExecutionControls) -> Result<(), Que
     Ok(())
 }
 
-pub(super) fn ensure_temp_budget(
+pub(super) fn ensure_query_memory_budget(
     controls: &QueryExecutionControls,
     batches: &[batch::Batch],
-) -> Result<(), QueryError> {
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
     let bytes = estimate_batch_bytes(batches);
-    if bytes > controls.temp_spill_budget_bytes {
-        return Err(QueryError::General(format!(
-            "temporary storage budget exceeded: {bytes} > {}",
-            controls.temp_spill_budget_bytes
-        )));
-    }
-
-    Ok(())
+    controls
+        .reserve_query_memory(bytes)
+        .map_err(QueryError::from)
 }
 
-pub(super) fn ensure_temp_budget_for_rows(
+pub(super) fn ensure_query_memory_budget_for_rows(
     controls: &QueryExecutionControls,
     rows: &[Vec<(String, Value)>],
-) -> Result<(), QueryError> {
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
     let bytes = rows
         .iter()
         .map(|row| {
@@ -672,14 +672,9 @@ pub(super) fn ensure_temp_budget_for_rows(
         })
         .sum::<usize>();
 
-    if bytes > controls.temp_spill_budget_bytes {
-        return Err(QueryError::General(format!(
-            "temporary storage budget exceeded: {bytes} > {}",
-            controls.temp_spill_budget_bytes
-        )));
-    }
-
-    Ok(())
+    controls
+        .reserve_query_memory(bytes)
+        .map_err(QueryError::from)
 }
 
 fn estimate_batch_bytes(batches: &[batch::Batch]) -> usize {

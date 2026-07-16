@@ -289,7 +289,7 @@ impl Midge {
 
         for (id, payload) in documents {
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(collection, &id), row_blob, None)
+            tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
                 .map_err(CassieError::from)?;
             let record =
                 compute_row_hash_record(collection, collection, None, &row_schema, &id, &payload);

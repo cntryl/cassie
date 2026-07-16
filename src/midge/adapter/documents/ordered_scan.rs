@@ -161,6 +161,7 @@ impl Midge {
         let mut sources = Self::ordered_scan_sources(
             &tx,
             &collection,
+            row_schema.relation_id,
             request.start_bound,
             request.end_bound,
             request.reverse,
@@ -180,11 +181,12 @@ impl Midge {
     fn ordered_scan_sources(
         tx: &cntryl_midge::Transaction,
         collection: &str,
+        relation_id: u64,
         start_bound: Option<&OrderedRowBound>,
         end_bound: Option<&OrderedRowBound>,
         reverse: bool,
     ) -> Result<OrderedScanSources, CassieError> {
-        let row_prefix = Self::row_prefix(collection);
+        let row_prefix = Self::row_prefix(relation_id);
         let doc_prefix = Self::doc_prefix(collection);
         let row_iter = crate::midge::adapter::collect_scan(
             tx.scan(&Self::ordered_row_query(

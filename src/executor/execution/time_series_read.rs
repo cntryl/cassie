@@ -1,7 +1,7 @@
 use super::{
-    batch, catalog, ensure_temp_budget, filter, projection, sort, BatchRow, BinaryOp, Cassie,
-    CassieSession, CollectionSchema, DataType, Expr, FunctionMeta, HashMap, LogicalPlan,
-    QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
+    batch, catalog, check_timeout, ensure_query_memory_budget, filter, projection, sort, BatchRow,
+    BinaryOp, Cassie, CassieSession, CollectionSchema, DataType, Expr, FunctionMeta, HashMap,
+    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
 };
 use crate::midge::adapter::DocumentRef;
 use time::{Duration as TimeDuration, OffsetDateTime};
@@ -16,6 +16,7 @@ pub(super) fn try_execute_time_series_read(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    check_timeout(controls)?;
     let Some(spec) = super::projected_read::projected_filtered_read_spec(plan) else {
         return Ok(None);
     };
@@ -42,11 +43,12 @@ pub(super) fn try_execute_time_series_read(
     let range = plan
         .filter
         .as_ref()
-        .map(|filter| timestamp_range_from_filter(filter, &timestamp_field))
+        .map(|filter| timestamp_range_from_filter(filter, &timestamp_field, params))
         .unwrap_or_default();
     let partition_key = partition_key_from_filter(
         plan.filter.as_ref(),
         index.options.get("partition_by").map(String::as_str),
+        params,
     );
     let (lower_bucket_seconds, upper_bucket_seconds) = time_series_bucket_bounds(&index, &range);
     let scan_request = TimeSeriesScanRequest {
@@ -103,19 +105,25 @@ fn execute_time_series_rows(
     row_point_fetches: usize,
     context: &TimeSeriesExecutionContext<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    check_timeout(context.controls)?;
     documents.sort_by(|left, right| {
         timestamp_sort_key(&left.payload, context.timestamp_field)
             .cmp(&timestamp_sort_key(&right.payload, context.timestamp_field))
             .then_with(|| left.id.cmp(&right.id))
     });
-    let mut rows = documents
-        .into_iter()
-        .map(|document| document_to_row(document, context.scan_fields, context.schema))
-        .collect::<Vec<_>>();
+    let mut rows = Vec::with_capacity(documents.len());
+    for document in documents {
+        check_timeout(context.controls)?;
+        rows.push(document_to_row(
+            document,
+            context.scan_fields,
+            context.schema,
+        ));
+    }
     let before_filter_buckets =
         row_bucket_keys(rows.as_slice(), context.timestamp_field, context.index).len();
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-    ensure_temp_budget(context.controls, &batches)?;
+    ensure_query_memory_budget(context.controls, &batches)?;
 
     if let Some(filter_expr) = &context.plan.filter {
         batches = filter::filter_batches(
@@ -126,7 +134,7 @@ fn execute_time_series_rows(
             context.user_functions,
             context.session,
         )?;
-        ensure_temp_budget(context.controls, &batches)?;
+        ensure_query_memory_budget(context.controls, &batches)?;
     }
 
     rows = batch::flatten_batches(batches);
@@ -139,16 +147,16 @@ fn execute_time_series_rows(
     );
     let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     if !context.plan.order.is_empty() {
-        batches = sort::sort_batches(
-            batches,
-            &context.plan.order,
-            &context.plan.projection,
-            context.params,
-            None,
-            context.user_functions,
-            context.session,
-        );
-        ensure_temp_budget(context.controls, &batches)?;
+        let eval = sort::EvalInput {
+            order: &context.plan.order,
+            projection: &context.plan.projection,
+            params: context.params,
+            search_context: None,
+            user_functions: context.user_functions,
+            session: context.session,
+        };
+        batches = sort::sort_batches_with_controls(batches, &eval, context.controls)?;
+        ensure_query_memory_budget(context.controls, &batches)?;
     }
     batches = projection::project_batches(
         batches,
@@ -158,7 +166,7 @@ fn execute_time_series_rows(
         context.user_functions,
         context.session,
     )?;
-    ensure_temp_budget(context.controls, &batches)?;
+    ensure_query_memory_budget(context.controls, &batches)?;
     if let Some((offset, limit)) = batch_window(context.plan) {
         batches = batch::slice_batches(batches, offset, limit);
     }
@@ -288,12 +296,20 @@ fn time_series_bucket_bounds(
     let upper = range.upper.as_deref().and_then(|value| {
         OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
             .ok()
-            .map(|timestamp| timestamp.unix_timestamp().div_euclid(width))
-            .and_then(|bucket| {
-                range
-                    .upper_exclusive
-                    .then_some(bucket)
-                    .or_else(|| bucket.checked_add(1))
+            .and_then(|timestamp| {
+                let seconds = timestamp.unix_timestamp();
+                let bucket = seconds.div_euclid(width);
+                // Midge end keys are exclusive. An exclusive predicate at a bucket boundary
+                // can end at that boundary; every other upper bound needs its containing
+                // bucket, followed by exact timestamp pruning.
+                if range.upper_exclusive
+                    && seconds.rem_euclid(width) == 0
+                    && timestamp.nanosecond() == 0
+                {
+                    Some(bucket)
+                } else {
+                    bucket.checked_add(1)
+                }
             })
             .map(|bucket| bucket.saturating_mul(width))
     });
@@ -316,7 +332,11 @@ fn time_series_bucket_width(index: &catalog::IndexMeta) -> Option<i64> {
     Some(duration.whole_seconds())
 }
 
-fn partition_key_from_filter(filter: Option<&Expr>, partition_by: Option<&str>) -> Option<String> {
+fn partition_key_from_filter(
+    filter: Option<&Expr>,
+    partition_by: Option<&str>,
+    params: &[Value],
+) -> Option<String> {
     let fields = partition_by?
         .split(',')
         .map(str::trim)
@@ -326,22 +346,27 @@ fn partition_key_from_filter(filter: Option<&Expr>, partition_by: Option<&str>) 
         return None;
     }
     let mut values = vec![None; fields.len()];
-    collect_partition_equalities(filter?, &fields, &mut values);
+    collect_partition_equalities(filter?, &fields, &mut values, params);
     values
         .into_iter()
         .collect::<Option<Vec<_>>>()
         .map(|values| values.join("\u{1f}"))
 }
 
-fn collect_partition_equalities(expr: &Expr, fields: &[&str], values: &mut [Option<String>]) {
+fn collect_partition_equalities(
+    expr: &Expr,
+    fields: &[&str],
+    values: &mut [Option<String>],
+    params: &[Value],
+) {
     match expr {
         Expr::Binary {
             left,
             op: BinaryOp::And,
             right,
         } => {
-            collect_partition_equalities(left, fields, values);
-            collect_partition_equalities(right, fields, values);
+            collect_partition_equalities(left, fields, values, params);
+            collect_partition_equalities(right, fields, values, params);
         }
         Expr::Binary {
             left,
@@ -349,10 +374,10 @@ fn collect_partition_equalities(expr: &Expr, fields: &[&str], values: &mut [Opti
             right,
         } => {
             let (Expr::Column(column), Some(value)) =
-                (left.as_ref(), partition_literal(right.as_ref()))
+                (left.as_ref(), partition_literal(right.as_ref(), params))
             else {
                 if let (Expr::Column(column), Some(value)) =
-                    (right.as_ref(), partition_literal(left.as_ref()))
+                    (right.as_ref(), partition_literal(left.as_ref(), params))
                 {
                     set_partition_value(column, value, fields, values);
                 }
@@ -378,12 +403,13 @@ fn set_partition_value(
     }
 }
 
-fn partition_literal(expr: &Expr) -> Option<String> {
+fn partition_literal(expr: &Expr, params: &[Value]) -> Option<String> {
     match expr {
         Expr::StringLiteral(value) => Some(value.clone()),
         Expr::NumberLiteral(value) => Some(value.to_string()),
         Expr::BoolLiteral(value) => Some(value.to_string()),
         Expr::Null => Some("null".to_string()),
+        Expr::Param(index) => value_text(params.get(*index)?),
         _ => None,
     }
 }
@@ -417,15 +443,19 @@ struct TimestampRange {
     upper_exclusive: bool,
 }
 
-fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampRange {
+fn timestamp_range_from_filter(
+    expr: &Expr,
+    timestamp_field: &str,
+    params: &[Value],
+) -> TimestampRange {
     match expr {
         Expr::Binary {
             left,
             op: BinaryOp::And,
             right,
         } => {
-            let left = timestamp_range_from_filter(left, timestamp_field);
-            let right = timestamp_range_from_filter(right, timestamp_field);
+            let left = timestamp_range_from_filter(left, timestamp_field, params);
+            let right = timestamp_range_from_filter(right, timestamp_field, params);
             let upper_exclusive = min_bound_exclusive(
                 left.upper.as_deref(),
                 left.upper_exclusive,
@@ -439,7 +469,7 @@ fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampR
             }
         }
         Expr::Binary { left, op, right } => {
-            comparison_timestamp_range(left, op, right, timestamp_field).unwrap_or_default()
+            comparison_timestamp_range(left, op, right, timestamp_field, params).unwrap_or_default()
         }
         Expr::Between {
             expr,
@@ -447,8 +477,8 @@ fn timestamp_range_from_filter(expr: &Expr, timestamp_field: &str) -> TimestampR
             high,
             negated: false,
         } if is_timestamp_column(expr, timestamp_field) => TimestampRange {
-            lower: timestamp_literal(low),
-            upper: timestamp_literal(high),
+            lower: timestamp_literal(low, params),
+            upper: timestamp_literal(high, params),
             upper_exclusive: false,
         },
         _ => TimestampRange::default(),
@@ -460,9 +490,10 @@ fn comparison_timestamp_range(
     op: &BinaryOp,
     right: &Expr,
     timestamp_field: &str,
+    params: &[Value],
 ) -> Option<TimestampRange> {
     if is_timestamp_column(left, timestamp_field) {
-        let value = timestamp_literal(right)?;
+        let value = timestamp_literal(right, params)?;
         return match op {
             BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
                 lower: Some(value),
@@ -478,7 +509,7 @@ fn comparison_timestamp_range(
         };
     }
     if is_timestamp_column(right, timestamp_field) {
-        let value = timestamp_literal(left)?;
+        let value = timestamp_literal(left, params)?;
         return match op {
             BinaryOp::Gt | BinaryOp::Gte => Some(TimestampRange {
                 lower: None,
@@ -500,10 +531,22 @@ fn is_timestamp_column(expr: &Expr, timestamp_field: &str) -> bool {
     matches!(expr, Expr::Column(field) if field.eq_ignore_ascii_case(timestamp_field))
 }
 
-fn timestamp_literal(expr: &Expr) -> Option<String> {
+fn timestamp_literal(expr: &Expr, params: &[Value]) -> Option<String> {
     match expr {
         Expr::StringLiteral(value) => Some(value.clone()),
+        Expr::Param(index) => value_text(params.get(*index)?),
         _ => None,
+    }
+}
+
+fn value_text(value: &Value) -> Option<String> {
+    match value {
+        Value::String(value) => Some(value.clone()),
+        Value::Int64(value) => Some(value.to_string()),
+        Value::Float64(value) => Some(value.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        Value::Null => Some("null".to_string()),
+        Value::Json(_) | Value::Vector(_) => None,
     }
 }
 

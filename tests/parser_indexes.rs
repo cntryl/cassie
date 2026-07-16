@@ -37,6 +37,30 @@ fn should_parse_create_index_statement() {
 }
 
 #[test]
+fn should_parse_create_index_if_not_exists_variants() {
+    // Arrange
+    let statements = [
+        ("CREATE INDEX IF NOT EXISTS idx_a ON docs (title)", false),
+        (
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_b ON docs (title)",
+            true,
+        ),
+    ];
+
+    for (sql, unique) in statements {
+        // Act
+        let parsed = parse_statement(sql).expect("parse should succeed");
+        let QueryStatement::CreateIndex(statement) = parsed.statement else {
+            panic!("expected create index statement");
+        };
+
+        // Assert
+        assert!(statement.if_not_exists);
+        assert_eq!(statement.unique, unique);
+    }
+}
+
+#[test]
 fn should_parse_composite_create_index_statement() {
     // Arrange
     let sql = "CREATE INDEX idx_docs_title_score ON docs USING btree (title, score)";

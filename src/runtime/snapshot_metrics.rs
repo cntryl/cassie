@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::time::Instant;
 
 use super::{QueryExecutionControls, RuntimeMetricsSnapshot, RuntimeState};
@@ -27,6 +28,7 @@ impl RuntimeState {
             storage: metrics.storage.clone(),
             plan_cache: metrics.plan_cache.clone(),
             query_cache: metrics.query_cache.clone(),
+            execution_result_cache: metrics.execution_result_cache.clone(),
             cardinality: metrics.cardinality.clone(),
             feedback: metrics.feedback.clone(),
             adaptive_candidates: metrics.adaptive_candidates.clone(),
@@ -46,8 +48,18 @@ impl RuntimeState {
         };
         snapshot.runtime.uptime_seconds = uptime_seconds;
         snapshot.runtime.running_queries = metrics.runtime.running_queries;
+        snapshot.runtime.active_operator_workers =
+            self.active_operator_workers.load(Ordering::Acquire);
         snapshot.plan_cache.entries = self.plan_cache_entry_count() as u64;
         snapshot.plan_cache.max_entries = self.limits.plan_cache_entries as u64;
+        let (execution_result_cache_entries, execution_result_cache_bytes) =
+            self.execution_result_cache_size();
+        snapshot.execution_result_cache.entries = execution_result_cache_entries as u64;
+        snapshot.execution_result_cache.bytes = execution_result_cache_bytes as u64;
+        snapshot.execution_result_cache.max_entries =
+            self.limits.execution_result_cache_max_entries as u64;
+        snapshot.execution_result_cache.max_bytes =
+            self.limits.execution_result_cache_max_bytes as u64;
         snapshot.feedback.entries = self.feedback_entry_count() as u64;
         snapshot.feedback.max_entries = self.limits.feedback_entries as u64;
         snapshot

@@ -343,6 +343,57 @@ fn should_cleanup_column_store_keys_after_collection_rename_then_drop() {
 }
 
 #[test]
+fn should_store_column_values_under_numeric_ids_without_json_wrappers() {
+    // Arrange
+    let path = data_dir("column_store_compact_layout");
+    let cassie = Cassie::new_with_data_dir(&path).unwrap();
+    cassie.midge.ensure_families_ready().unwrap();
+    let collection = "column_store_compact_layout";
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "title".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    };
+    let metadata =
+        CollectionMeta::new_with_storage_mode(collection, None, CollectionStorageMode::ColumnStore);
+    cassie
+        .midge
+        .create_collection_with_meta(collection, &schema, &metadata)
+        .unwrap();
+    cassie
+        .midge
+        .put_document(
+            collection,
+            Some("row-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+
+    // Act
+    let prefix = cassie
+        .midge
+        .column_store_prefix_for_diagnostics(collection)
+        .unwrap();
+    let entries = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
+        .unwrap();
+
+    // Assert
+    assert!(!entries.is_empty());
+    assert!(entries.iter().all(|(key, _)| !key
+        .windows(collection.len())
+        .any(|window| window == collection.as_bytes())));
+    assert!(entries
+        .iter()
+        .all(|(_, value)| value.first() != Some(&b'"')));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_persist_projection_metadata_in_schema_family() {
     // Arrange
     let path = data_dir("projection_metadata");
@@ -471,11 +522,11 @@ fn should_reject_legacy_projection_metadata_on_reopen() {
         let result = restarted.startup();
 
         // Assert
-        let error = result.expect_err("legacy projection metadata should reject v5 startup");
+        let error = result.expect_err("legacy projection metadata should reject baseline startup");
         assert!(
             error
                 .to_string()
-                .contains("incompatible lexkey v5 storage layout"),
+                .contains("incompatible cassie-midge-layout-v1 storage layout"),
             "unexpected error: {error}"
         );
 

@@ -64,6 +64,8 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Planner(_) => "planner",
         CassieError::Execution(_) => "execution",
         CassieError::DeadlineExceeded => "deadline_exceeded",
+        CassieError::QueryCancelled => "query_cancelled",
+        CassieError::ResourceLimit(_) => "resource_limit",
         CassieError::Configuration(_) => "configuration",
         CassieError::InvalidVector(_) => "invalid_vector",
         CassieError::InvalidEmbedding(_) => "invalid_embedding",

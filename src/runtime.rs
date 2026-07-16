@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::hash::{Hash, Hasher};
 use std::io::{self, Write};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;
 use crate::config::CassieRuntimeLimits;
-use crate::executor::QueryResult;
 use crate::planner::physical::PhysicalPlan;
 use crate::search::analyzer::AnalyzerConfig;
 use crate::types::Value;
@@ -54,6 +53,7 @@ pub struct ExecutionResultCacheKey {
     pub params_hash: u64,
     pub schema_epoch: u64,
     pub data_epoch: u64,
+    pub user: String,
     pub database: Option<String>,
     pub search_path: Vec<String>,
     pub mode: ExecutionMode,
@@ -79,6 +79,10 @@ mod helpers;
 mod join_metrics;
 #[path = "runtime/operator_feedback_state.rs"]
 mod operator_feedback_state;
+#[path = "runtime/operator_workers.rs"]
+mod operator_workers;
+#[path = "runtime/pgwire_state.rs"]
+mod pgwire_state;
 #[path = "runtime/projection_metrics.rs"]
 mod projection_metrics;
 #[path = "runtime/query_cache.rs"]
@@ -100,7 +104,8 @@ mod time_series_metrics;
 #[path = "runtime/vector_metrics.rs"]
 mod vector_metrics;
 
-pub use controls::QueryExecutionControls;
+use cache_state::ExecutionResultCacheState;
+pub use controls::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
 pub(crate) use feedback::{
     normalized_feedback_key, observation_is_outlier, recompute_feedback_confidence,
     OperatorFeedbackEstimate, RuntimeFeedbackLookup, RuntimeFeedbackLookupState,
@@ -115,16 +120,12 @@ use helpers::{
 };
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub(crate) use join_metrics::VectorizedJoinInputRows;
+pub(crate) use pgwire_state::PgwireBackendRegistration;
+pub use pgwire_state::PgwireSessionGuard;
 pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
 use schema_epochs::SchemaEpochTracker;
 pub use snapshots::*;
-
-#[derive(Debug, Default)]
-struct ExecutionResultCacheState {
-    entries: HashMap<ExecutionResultCacheKey, QueryResult>,
-    order: VecDeque<ExecutionResultCacheKey>,
-}
 
 #[derive(Debug, Default)]
 struct RuntimeFeedbackState {
@@ -144,6 +145,7 @@ struct RuntimeMetricsState {
     storage: StorageSnapshot,
     plan_cache: PlanCacheSnapshot,
     query_cache: QueryCacheSnapshot,
+    execution_result_cache: ExecutionResultCacheSnapshot,
     cardinality: CardinalitySnapshot,
     feedback: FeedbackSnapshot,
     adaptive_candidates: AdaptiveCandidateSnapshot,
@@ -196,16 +198,8 @@ pub struct RuntimeState {
     data_epoch: AtomicU64,
     index_feedback_epoch: AtomicU64,
     active_query_permits: AtomicU64,
-}
-
-pub struct PgwireSessionGuard {
-    runtime: Arc<RuntimeState>,
-}
-
-impl Drop for PgwireSessionGuard {
-    fn drop(&mut self) {
-        self.runtime.finish_pgwire_session();
-    }
+    active_operator_workers: AtomicU64,
+    pgwire_backends: pgwire_state::PgwireBackendRegistry,
 }
 
 impl RuntimeState {
@@ -214,6 +208,9 @@ impl RuntimeState {
         let mut metrics = RuntimeMetricsState::default();
         metrics.plan_cache.max_entries = limits.plan_cache_entries as u64;
         metrics.feedback.max_entries = limits.feedback_entries as u64;
+        metrics.execution_result_cache.max_entries =
+            limits.execution_result_cache_max_entries as u64;
+        metrics.execution_result_cache.max_bytes = limits.execution_result_cache_max_bytes as u64;
         Self {
             limits,
             metrics: Mutex::new(metrics),
@@ -227,6 +224,8 @@ impl RuntimeState {
             data_epoch: AtomicU64::new(0),
             index_feedback_epoch: AtomicU64::new(0),
             active_query_permits: AtomicU64::new(0),
+            active_operator_workers: AtomicU64::new(0),
+            pgwire_backends: pgwire_state::PgwireBackendRegistry::default(),
         }
     }
 
@@ -286,27 +285,6 @@ impl RuntimeState {
     pub fn record_sql_parse(&self) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.runtime.sql_parse_total += 1;
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub fn begin_pgwire_session(self: &Arc<Self>) -> PgwireSessionGuard {
-        {
-            let mut metrics = self.metrics.lock().expect("runtime metrics");
-            metrics.pgwire.active_sessions += 1;
-            metrics.pgwire.sessions_started_total += 1;
-        }
-
-        PgwireSessionGuard {
-            runtime: Arc::clone(self),
-        }
-    }
-
-    fn finish_pgwire_session(&self) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.pgwire.active_sessions = metrics.pgwire.active_sessions.saturating_sub(1);
-        metrics.pgwire.sessions_finished_total += 1;
     }
 
     /// # Panics
@@ -540,6 +518,20 @@ impl RuntimeState {
     /// # Panics
     ///
     /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_fulltext_retrieval_diagnostics(
+        &self,
+        posting_reads: usize,
+        candidate_row_fetches: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.search.retrieval_stage_queries_total += 1;
+        metrics.search.posting_reads_total += posting_reads as u64;
+        metrics.search.candidate_row_fetches_total += candidate_row_fetches as u64;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
     pub fn record_vector_execution(&self, elapsed: Duration, candidates: usize, results: usize) {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.vector.count += 1;
@@ -623,6 +615,7 @@ impl RuntimeState {
         &self,
         posting_reads: usize,
         ann_reads: usize,
+        candidate_row_fetches: usize,
         generation_rejections: usize,
         exact_reranks: usize,
         truncations: usize,
@@ -632,10 +625,20 @@ impl RuntimeState {
         metrics.hybrid.retrieval_stage_queries_total += 1;
         metrics.hybrid.posting_reads_total += posting_reads as u64;
         metrics.hybrid.ann_reads_total += ann_reads as u64;
+        metrics.hybrid.candidate_row_fetches_total += candidate_row_fetches as u64;
         metrics.hybrid.generation_rejections_total += generation_rejections as u64;
         metrics.hybrid.exact_reranks_total += exact_reranks as u64;
         metrics.hybrid.truncation_count_total += truncations as u64;
         metrics.hybrid.candidate_budget_rejections_total += budget_rejections as u64;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if an internal invariant required by this operation is violated.
+    pub fn record_hybrid_row_scan_fallback(&self, reason: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.hybrid.row_scan_fallback_total += 1;
+        increment_boundary_counter(&mut metrics.hybrid.retrieval_fallback_reasons, reason);
     }
 
     /// # Panics

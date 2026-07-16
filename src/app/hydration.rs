@@ -172,7 +172,8 @@ impl Cassie {
             CassieError::Storage(format!("list indexes: {error}"))
         })?;
         self.runtime.record_storage_access("schema", false, true);
-        for index in indexes {
+        for mut index in indexes {
+            index.clear_storage_ids();
             self.catalog.register_index(index);
         }
 

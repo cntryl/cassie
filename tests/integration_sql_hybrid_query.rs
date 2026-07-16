@@ -14,6 +14,13 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::*;
 
+fn hybrid_params(query: &str) -> Vec<Value> {
+    vec![
+        Value::String(query.to_string()),
+        Value::Vector(Vector::new(vec![1.0, 0.0])),
+    ]
+}
+
 #[test]
 fn should_order_hybrid_top_k_by_score_with_limit() {
     // Arrange
@@ -78,8 +85,8 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_top_k_limit ORDER BY score DESC LIMIT 1",
-                vec![],
+                "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM sql_hybrid_top_k_limit ORDER BY score DESC LIMIT 1",
+                hybrid_params("red"),
             )
 
 .unwrap();
@@ -159,8 +166,8 @@ fn should_generate_hybrid_candidates_from_text_matches() {
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_text_candidates ORDER BY score DESC LIMIT 1",
-                vec![],
+                "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM sql_hybrid_text_candidates ORDER BY score DESC LIMIT 1",
+                hybrid_params("red"),
             )
             .unwrap();
         let after = cassie.metrics();
@@ -222,8 +229,8 @@ fn should_explain_mixed_text_vector_execution_stages() {
         let result = cassie
             .execute_sql(
                 &session,
-                "EXPLAIN SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_explain_mixed_stages ORDER BY score DESC LIMIT 5",
-                vec![],
+                "EXPLAIN SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM sql_hybrid_explain_mixed_stages ORDER BY score DESC LIMIT 5",
+                hybrid_params("red"),
             )
             .unwrap();
 
@@ -303,8 +310,8 @@ fn should_reject_hybrid_text_candidate_without_vector() {
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS score FROM sql_hybrid_missing_vector ORDER BY score DESC LIMIT 1",
-                vec![],
+                "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM sql_hybrid_missing_vector ORDER BY score DESC LIMIT 1",
+                hybrid_params("red"),
             );
 
         // Assert
@@ -316,14 +323,24 @@ fn should_reject_hybrid_text_candidate_without_vector() {
 }
 
 fn bounded_hybrid_fixture() -> (Cassie, String, &'static str) {
-    bounded_hybrid_fixture_with_max(100_000)
+    bounded_hybrid_fixture_with_limits(100_000, None)
 }
 
 fn bounded_hybrid_fixture_with_max(max_candidates: usize) -> (Cassie, String, &'static str) {
+    bounded_hybrid_fixture_with_limits(max_candidates, None)
+}
+
+fn bounded_hybrid_fixture_with_limits(
+    max_candidates: usize,
+    query_memory_budget_bytes: Option<usize>,
+) -> (Cassie, String, &'static str) {
     with_fallback();
     let path = data_dir("hybrid_bounded_candidates");
     let mut config = CassieRuntimeConfig::from_env().unwrap();
     config.limits.adaptive_candidate_max = max_candidates;
+    if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
+        config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+    }
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
     let collection = "hybrid_bounded_candidates";
     let schema = Schema {
@@ -431,6 +448,23 @@ fn corrupt_matching_data_value(cassie: &Cassie, predicate: impl Fn(&serde_json::
     tx.commit(WriteOptions::sync()).unwrap();
 }
 
+fn corrupt_fulltext_artifact(cassie: &Cassie, collection: &str, index_name: &str) {
+    let prefix = cassie
+        .midge
+        .fulltext_artifact_prefix_for_diagnostics(collection, index_name)
+        .unwrap();
+    let key = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &prefix)
+        .unwrap()
+        .into_iter()
+        .find_map(|(key, value)| value.starts_with(b"FTM1").then_some(key))
+        .expect("full-text manifest artifact");
+    let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
+    tx.put(key, b"corrupt".to_vec(), None).unwrap();
+    tx.commit(WriteOptions::sync()).unwrap();
+}
+
 #[test]
 fn should_bound_hybrid_reads_to_persisted_text_candidates() {
     // Arrange
@@ -442,8 +476,8 @@ fn should_bound_hybrid_reads_to_persisted_text_candidates() {
     let result = cassie
         .execute_sql(
             &session,
-            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
-            vec![],
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            hybrid_params("alpha"),
         )
         .unwrap();
     let after = cassie.metrics();
@@ -483,8 +517,12 @@ fn should_push_structured_filter_over_bounded_hybrid_candidates() {
     let result = cassie
         .execute_sql(
             &session,
-            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} WHERE status = 'approved' ORDER BY score DESC LIMIT 1"),
-            vec![],
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} WHERE status = $3 ORDER BY score DESC LIMIT 1"),
+            {
+                let mut params = hybrid_params("alpha");
+                params.push(Value::String("approved".to_string()));
+                params
+            },
         )
         .unwrap();
     let after = cassie.metrics();
@@ -512,9 +550,7 @@ fn should_push_structured_filter_over_bounded_hybrid_candidates() {
 fn should_fallback_when_hybrid_text_artifact_is_corrupt() {
     // Arrange
     let (cassie, path, collection) = bounded_hybrid_fixture();
-    corrupt_matching_data_value(&cassie, |value| {
-        value.get("index_name") == Some(&serde_json::json!("fulltext_body_idx"))
-    });
+    corrupt_fulltext_artifact(&cassie, collection, "fulltext_body_idx");
     let before = cassie.metrics();
     let session = cassie.create_session("tester", None);
 
@@ -522,8 +558,8 @@ fn should_fallback_when_hybrid_text_artifact_is_corrupt() {
     let result = cassie
         .execute_sql(
             &session,
-            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
-            vec![],
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            hybrid_params("alpha"),
         )
         .unwrap();
     let after = cassie.metrics();
@@ -558,8 +594,8 @@ fn should_fallback_when_hybrid_vector_artifact_is_corrupt() {
     let result = cassie
         .execute_sql(
             &session,
-            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
-            vec![],
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            hybrid_params("alpha"),
         )
         .unwrap();
     let after = cassie.metrics();
@@ -589,8 +625,8 @@ fn should_report_hybrid_candidate_budget_rejection() {
     let result = cassie
         .execute_sql(
             &session,
-            &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
-            vec![],
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            hybrid_params("alpha"),
         )
         .unwrap();
     let after = cassie.metrics();
@@ -619,6 +655,29 @@ fn should_report_hybrid_candidate_budget_rejection() {
 }
 
 #[test]
+fn should_enforce_query_memory_budget_for_hybrid_candidates() {
+    // Arrange
+    let (cassie, path, collection) = bounded_hybrid_fixture_with_limits(100_000, Some(16));
+    let session = cassie.create_session("tester", None);
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+            hybrid_params("alpha"),
+        )
+        .expect_err("hybrid candidates should exceed the query memory budget");
+
+    // Assert
+    assert!(
+        error.to_string().contains("query memory budget"),
+        "unexpected error: {error}"
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_execute_bounded_hybrid_queries_concurrently() {
     // Arrange
     let (cassie, path, collection) = bounded_hybrid_fixture();
@@ -634,8 +693,8 @@ fn should_execute_bounded_hybrid_queries_concurrently() {
                 cassie
                     .execute_sql(
                         &session,
-                        &format!("SELECT id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
-                        vec![],
+                        &format!("SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM {collection} ORDER BY score DESC LIMIT 1"),
+                        hybrid_params("alpha"),
                     )
                     .unwrap()
                     .rows[0][0]

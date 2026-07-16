@@ -218,7 +218,7 @@ Current guarantee:
 
 - Parser, binder, catalog metadata, restart hydration, and EXPLAIN planner selection are supported for timestamp range predicates.
 - EXPLAIN includes selected bucket width, partition fields, and range-filter diagnostics for selected time-series indexes.
-- Bucket-native membership is persisted in the owning per-database Midge family under the lexkey v5 `time-series-index` key family with local schema/relation segments. The stored JSON value carries `collection`, `index_name`, `id`, `bucket_key`, and `timestamp`.
+- Bucket-native membership is persisted in the owning per-database Midge family under the `cassie-midge-layout-v1` time-series family. The canonical format and access-path requirements live in [Performance Contracts](performance-contracts.md).
 - Bucket-native hits load authoritative row blobs and then run the normal filter, sort, and projection path, so bucket metadata is a candidate accelerator rather than the source of truth.
 - Row-backed time-series range execution remains the correctness fallback when planner proof selects a time-series index but bucket-native data is missing, corrupt, or unsupported.
 - Runtime metrics expose bucket-native hits, selected scans, rows, scanned buckets, skipped buckets, last index, and fallback reasons.

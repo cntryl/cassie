@@ -323,12 +323,23 @@ mod schema_ops;
 mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
+pub(crate) use streaming_scans::MidgeRowCursor;
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
 mod verification;
 #[cfg(test)]
 #[path = "verification_tests.rs"]
 mod verification_tests;
+
+pub(crate) fn benchmark_row_key_round_trip(
+    relation_id: u64,
+    id: &str,
+) -> Option<(Vec<u8>, String)> {
+    let prefix = key_encoding::row_prefix(relation_id);
+    let key = key_encoding::row_key(relation_id, id);
+    let decoded = key_encoding::utf8_suffix_after_prefix(&key, &prefix)?;
+    Some((key, decoded))
+}
 
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
 pub(crate) use graphs::GraphEdgeRecord;
@@ -436,20 +447,16 @@ impl Midge {
         key_encoding::vector_index_prefix()
     }
 
-    fn vector_index_state_key(collection: &str, field: &str) -> Vec<u8> {
-        key_encoding::vector_index_state_key(collection, field)
+    fn vector_index_state_key(relation_id: u64, field_id: u32) -> Vec<u8> {
+        key_encoding::vector_index_state_key(relation_id, field_id)
     }
 
-    fn vector_index_state_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::vector_index_state_prefix(collection)
+    fn vector_index_state_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::vector_index_state_prefix(relation_id)
     }
 
     fn data_epoch_key() -> Vec<u8> {
         key_encoding::data_epoch_key()
-    }
-
-    fn collection_generation_key(collection: &str) -> Vec<u8> {
-        key_encoding::collection_generation_key(collection)
     }
 
     fn maintenance_debt_key(collection: &str, artifact: &str) -> Vec<u8> {
@@ -480,16 +487,16 @@ impl Midge {
         key_encoding::vector_index_collection_prefix(collection)
     }
 
-    fn normalized_vector_key(collection: &str, field: &str, id: &str) -> Vec<u8> {
-        key_encoding::normalized_vector_key(collection, field, id)
+    fn normalized_vector_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
+        key_encoding::normalized_vector_key(relation_id, field_id, id)
     }
 
-    fn normalized_vector_prefix(collection: &str, field: &str) -> Vec<u8> {
-        key_encoding::normalized_vector_prefix(collection, field)
+    fn normalized_vector_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
+        key_encoding::normalized_vector_prefix(relation_id, field_id)
     }
 
-    fn normalized_vector_collection_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::normalized_vector_collection_prefix(collection)
+    fn normalized_vector_collection_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::normalized_vector_collection_prefix(relation_id)
     }
 
     fn index_key(collection: &str, name: &str) -> Vec<u8> {
@@ -520,56 +527,24 @@ impl Midge {
         key_encoding::graph_key(name)
     }
 
-    fn graph_adjacency_prefix(graph: &str) -> Vec<u8> {
-        key_encoding::graph_adjacency_prefix(graph)
+    fn graph_adjacency_prefix(graph_id: u64) -> Vec<u8> {
+        key_encoding::graph_adjacency_prefix(graph_id)
     }
 
-    fn graph_outbound_prefix(graph: &str, source_type: &str, source_id: &str) -> Vec<u8> {
-        key_encoding::graph_outbound_prefix(graph, source_type, source_id)
+    fn graph_outbound_prefix(graph_id: u64, source_type: &str, source_id: &str) -> Vec<u8> {
+        key_encoding::graph_outbound_prefix(graph_id, source_type, source_id)
     }
 
-    fn graph_inbound_prefix(graph: &str, target_type: &str, target_id: &str) -> Vec<u8> {
-        key_encoding::graph_inbound_prefix(graph, target_type, target_id)
+    fn graph_inbound_prefix(graph_id: u64, target_type: &str, target_id: &str) -> Vec<u8> {
+        key_encoding::graph_inbound_prefix(graph_id, target_type, target_id)
     }
 
-    fn graph_outbound_edge_key(
-        graph: &str,
-        source_type: &str,
-        source_id: &str,
-        edge_type: &str,
-        target_type: &str,
-        target_id: &str,
-        edge_id: &str,
-    ) -> Vec<u8> {
-        key_encoding::graph_outbound_edge_key(
-            graph,
-            source_type,
-            source_id,
-            edge_type,
-            target_type,
-            target_id,
-            edge_id,
-        )
+    fn graph_outbound_edge_key(record: &graphs::GraphEdgeRecord) -> Vec<u8> {
+        key_encoding::graph_outbound_edge_key(record)
     }
 
-    fn graph_inbound_edge_key(
-        graph: &str,
-        target_type: &str,
-        target_id: &str,
-        edge_type: &str,
-        source_type: &str,
-        source_id: &str,
-        edge_id: &str,
-    ) -> Vec<u8> {
-        key_encoding::graph_inbound_edge_key(
-            graph,
-            target_type,
-            target_id,
-            edge_type,
-            source_type,
-            source_id,
-            edge_id,
-        )
+    fn graph_inbound_edge_key(record: &graphs::GraphEdgeRecord) -> Vec<u8> {
+        key_encoding::graph_inbound_edge_key(record)
     }
 
     fn index_prefix() -> Vec<u8> {
@@ -580,36 +555,36 @@ impl Midge {
         key_encoding::index_collection_prefix(collection)
     }
 
-    fn scalar_index_collection_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::scalar_index_collection_prefix(collection)
+    fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::scalar_index_collection_prefix(relation_id)
     }
 
-    fn scalar_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-        key_encoding::scalar_index_data_prefix(collection, index_name)
+    fn scalar_index_data_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::scalar_index_data_prefix(relation_id, index_id)
     }
 
-    fn time_series_index_collection_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::time_series_index_collection_prefix(collection)
+    fn time_series_index_collection_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::time_series_index_collection_prefix(relation_id)
     }
 
-    fn time_series_index_data_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-        key_encoding::time_series_index_data_prefix(collection, index_name)
+    fn time_series_index_data_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::time_series_index_data_prefix(relation_id, index_id)
     }
 
-    fn column_batch_metadata_key(collection: &str, index_name: &str) -> Vec<u8> {
-        key_encoding::column_batch_metadata_key(collection, index_name)
+    fn column_batch_metadata_key(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::column_batch_metadata_key(relation_id, index_id)
     }
 
-    fn column_batch_segment_key(collection: &str, index_name: &str, segment_id: u64) -> Vec<u8> {
-        key_encoding::column_batch_segment_key(collection, index_name, segment_id)
+    fn column_batch_segment_key(relation_id: u64, index_id: u64, segment_id: u64) -> Vec<u8> {
+        key_encoding::column_batch_segment_key(relation_id, index_id, segment_id)
     }
 
-    fn column_batch_index_prefix(collection: &str, index_name: &str) -> Vec<u8> {
-        key_encoding::column_batch_index_prefix(collection, index_name)
+    fn column_batch_index_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
+        key_encoding::column_batch_index_prefix(relation_id, index_id)
     }
 
-    fn column_batch_collection_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::column_batch_collection_prefix(collection)
+    fn column_batch_collection_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::column_batch_collection_prefix(relation_id)
     }
 
     fn function_key(name: &str) -> Vec<u8> {
@@ -720,12 +695,12 @@ impl Midge {
         key_encoding::collections_key()
     }
 
-    fn row_prefix(collection: &str) -> Vec<u8> {
-        key_encoding::row_prefix(collection)
+    fn row_prefix(relation_id: u64) -> Vec<u8> {
+        key_encoding::row_prefix(relation_id)
     }
 
-    fn row_key(collection: &str, id: &str) -> Vec<u8> {
-        key_encoding::row_key(collection, id)
+    fn row_key(relation_id: u64, id: &str) -> Vec<u8> {
+        key_encoding::row_key(relation_id, id)
     }
 
     fn doc_prefix(collection: &str) -> Vec<u8> {

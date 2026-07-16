@@ -1,4 +1,8 @@
+use crate::embeddings::provider::{
+    controlled_backoff, controlled_request_timeout, run_controlled_request,
+};
 use crate::embeddings::EmbeddingProvider;
+use crate::runtime::QueryExecutionControls;
 use std::time::Duration;
 
 use reqwest::blocking::{Client, RequestBuilder};
@@ -24,6 +28,7 @@ pub struct OpenAiCompatibleProvider {
     model: String,
     dimensions: usize,
     client: Client,
+    request_timeout: Duration,
     max_batch_size: usize,
     max_retries: usize,
 }
@@ -81,12 +86,17 @@ impl OpenAiCompatibleProvider {
             model: config.model,
             dimensions: config.dimensions,
             client,
+            request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
         })
     }
 
-    fn embed_documents_batch(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
+    fn embed_documents_batch(
+        &self,
+        inputs: &[String],
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
         }
@@ -100,18 +110,23 @@ impl OpenAiCompatibleProvider {
         let mut attempt = 0usize;
         loop {
             attempt += 1;
+            let timeout =
+                controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
             let client = self.client.clone();
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
-            let response = Self::run_blocking(move || {
-                let builder = client.post(endpoint).json(&request_snapshot);
+            let response = run_controlled_request(self.provider_name(), controls, move || {
+                let builder = client
+                    .post(endpoint)
+                    .timeout(timeout)
+                    .json(&request_snapshot);
                 let builder = add_auth_header(builder, api_key.as_deref());
                 let response = builder.send()?;
                 let status = response.status();
                 let body = response.text()?;
                 Ok::<_, reqwest::Error>((status, body))
-            });
+            })?;
 
             match response {
                 Ok((status, body)) if status.is_success() => {
@@ -124,7 +139,11 @@ impl OpenAiCompatibleProvider {
                     return validate_embeddings(parsed.data, inputs.len(), self.dimensions);
                 }
                 Ok((status, _)) if is_transient_status(status) && attempt < self.max_retries => {
-                    std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                    controlled_backoff(
+                        self.provider_name(),
+                        Duration::from_millis(50 * attempt as u64),
+                        controls,
+                    )?;
                 }
                 Ok((status, body)) if is_transient_status(status) => {
                     return Err(EmbeddingError::RetryExhausted {
@@ -143,7 +162,11 @@ impl OpenAiCompatibleProvider {
                 Err(error)
                     if (error.is_timeout() || error.is_connect()) && attempt < self.max_retries =>
                 {
-                    std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                    controlled_backoff(
+                        self.provider_name(),
+                        Duration::from_millis(50 * attempt as u64),
+                        controls,
+                    )?;
                 }
                 Err(error) if error.is_timeout() => {
                     return Err(EmbeddingError::Timeout {
@@ -156,13 +179,6 @@ impl OpenAiCompatibleProvider {
                 }
             }
         }
-    }
-
-    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
-    where
-        F: FnOnce() -> reqwest::Result<T>,
-    {
-        f()
     }
 }
 
@@ -182,7 +198,19 @@ impl EmbeddingProvider for OpenAiCompatibleProvider {
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_documents_batch(chunk)?);
+            out.extend(self.embed_documents_batch(chunk, None)?);
+        }
+        Ok(out)
+    }
+
+    fn embed_documents_with_controls(
+        &self,
+        inputs: &[String],
+        controls: &QueryExecutionControls,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
+        let mut out = Vec::with_capacity(inputs.len());
+        for chunk in inputs.chunks(self.max_batch_size) {
+            out.extend(self.embed_documents_batch(chunk, Some(controls))?);
         }
         Ok(out)
     }

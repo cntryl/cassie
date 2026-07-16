@@ -122,6 +122,8 @@ pub struct PortalSuspended {
     pub command: String,
     pub next_row: usize,
     pub row_description_sent: bool,
+    pub query_offset: Option<usize>,
+    pub cancellation: Option<crate::runtime::QueryCancellationHandle>,
 }
 
 impl ServerMessage {

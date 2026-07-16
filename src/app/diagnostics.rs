@@ -31,6 +31,7 @@ impl Cassie {
             "storage": snapshot.storage,
             "plan_cache": snapshot.plan_cache,
             "query_cache": snapshot.query_cache,
+            "execution_result_cache": snapshot.execution_result_cache,
             "cardinality": snapshot.cardinality,
             "feedback": snapshot.feedback,
             "adaptive_candidates": snapshot.adaptive_candidates,

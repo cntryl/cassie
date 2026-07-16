@@ -53,7 +53,7 @@ impl Midge {
             Self::validate_document(&schema, &payload)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(&collection, &id), row_blob, None)
+            tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
                 .map_err(CassieError::from)?;
             Self::write_document_hash_to_tx(&mut tx, &collection, &id, &row_schema, &payload)?;
             ids.push(id);

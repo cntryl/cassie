@@ -6,8 +6,8 @@ use super::query_metrics::{
 use super::{
     current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
-    QueryExecutionControls, QueryResult, QueryStatement, TransactionAction, TransactionStatement,
-    Value,
+    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
+    TransactionAction, TransactionStatement, Value,
 };
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 2;
 
@@ -25,7 +25,13 @@ struct QueryFeedbackCapture {
 
 impl Cassie {
     fn is_query_cacheable(statement: &QueryStatement) -> bool {
-        matches!(statement, QueryStatement::Select(_))
+        let QueryStatement::Select(select) = statement else {
+            return false;
+        };
+        let encoded = serde_json::to_string(select).unwrap_or_default();
+        !["current_user", "session_user", "current_role"]
+            .iter()
+            .any(|function| encoded.contains(function))
     }
 
     pub(super) fn plan_cache_key_from_fingerprint(
@@ -188,7 +194,28 @@ impl Cassie {
         sql: &str,
         params: Vec<crate::types::Value>,
     ) -> Result<QueryResult, CassieError> {
-        self.execute_sql_with_mode(session, sql, params, ExecutionMode::SimpleQuery)
+        self.execute_sql_with_cancellation(session, sql, params, &QueryCancellationHandle::new())
+    }
+
+    /// Executes SQL with a caller-controlled cooperative cancellation handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, execution, or cancellation fails.
+    pub fn execute_sql_with_cancellation(
+        &self,
+        session: &CassieSession,
+        sql: &str,
+        params: Vec<crate::types::Value>,
+        cancellation: &QueryCancellationHandle,
+    ) -> Result<QueryResult, CassieError> {
+        self.execute_sql_with_mode_and_cancellation(
+            session,
+            sql,
+            params,
+            ExecutionMode::SimpleQuery,
+            cancellation.clone(),
+        )
     }
 
     /// # Errors
@@ -205,12 +232,13 @@ impl Cassie {
         self.describe_parsed_statement(parsed, sql_fingerprint)
     }
 
-    pub(crate) fn execute_sql_with_mode(
+    fn execute_sql_with_mode_and_cancellation(
         &self,
         session: &CassieSession,
         sql: &str,
         params: Vec<crate::types::Value>,
         mode: ExecutionMode,
+        cancellation: QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
         let query_started = Instant::now();
         let Some(running_guard) = self.runtime.try_begin_running_query() else {
@@ -218,9 +246,15 @@ impl Cassie {
                 "query admission exhausted".to_string(),
             ));
         };
-        let controls = self.runtime.query_controls(query_started);
+        let controls = QueryExecutionControls::with_cancellation(
+            &self.runtime.limits(),
+            query_started,
+            cancellation,
+        );
         let result = self.execute_sql_core(session, sql, params, mode, &controls);
         let elapsed = query_started.elapsed();
+        self.runtime
+            .record_query_peak_memory(controls.peak_query_memory_bytes());
 
         match &result {
             Ok(result) => self
@@ -265,6 +299,8 @@ impl Cassie {
         let controls = self.runtime.query_controls(query_started);
         let result = self.explain_sql_core(session, sql, params, &controls);
         let elapsed = query_started.elapsed();
+        self.runtime
+            .record_query_peak_memory(controls.peak_query_memory_bytes());
 
         match &result {
             Ok(output) => self
@@ -302,6 +338,9 @@ impl Cassie {
             return Err(error);
         }
 
+        if controls.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
@@ -351,6 +390,9 @@ impl Cassie {
             return Err(error);
         }
 
+        if controls.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
@@ -386,16 +428,23 @@ impl Cassie {
 
         let cache_context =
             self.query_cache_context(session, &parsed, sql_fingerprint, &params, mode);
-        if let Some(cached) =
-            self.try_execution_result_cache(&parsed, &cache_context, session, controls)?
-        {
-            return Ok(cached);
-        }
-
         let (physical, provenance) =
             self.resolve_statement_plan(parsed, &cache_context, session, controls)?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
+        let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
+        if let Some(reason) = result_cache_bypass {
+            self.runtime.record_execution_result_cache_bypass(reason);
+        } else if let Some(cached) = self.try_execution_result_cache(&cache_context) {
+            if let Some(key) = cache_context.cache_key.as_ref() {
+                self.observe_query_plan_usage(key, &physical, &provenance)?;
+            }
+            return Ok(cached);
+        }
+
+        if controls.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
@@ -413,7 +462,9 @@ impl Cassie {
 
         Self::validate_result_limit(&result, controls)?;
 
-        self.store_execution_result(&cache_context, &result);
+        if result_cache_bypass.is_none() {
+            self.store_execution_result(&cache_context, &result);
+        }
 
         if let Some(key) = cache_context.cache_key.as_ref() {
             self.observe_query_plan_usage(key, &physical, &provenance)?;
@@ -427,6 +478,9 @@ impl Cassie {
         parsed: &crate::sql::ast::ParsedStatement,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
+        if controls.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
         if controls.is_timed_out() {
             return Err(CassieError::DeadlineExceeded);
         }
@@ -476,6 +530,7 @@ impl Cassie {
             params_hash: crate::runtime::hash_params(params),
             schema_epoch: self.runtime.schema_epoch(),
             data_epoch: self.runtime.data_epoch(),
+            user: session.user.clone(),
             database: session.database.clone(),
             search_path: session.search_path(),
             mode,
@@ -487,40 +542,43 @@ impl Cassie {
         }
     }
 
-    fn try_execution_result_cache(
-        &self,
-        parsed: &crate::sql::ast::ParsedStatement,
-        cache_context: &QueryCacheContext,
-        session: &CassieSession,
-        controls: &QueryExecutionControls,
-    ) -> Result<Option<QueryResult>, CassieError> {
-        let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() else {
-            return Ok(None);
-        };
-        let Some(cached) = self.runtime.execution_result_cache_lookup(exec_cache_key) else {
-            return Ok(None);
-        };
-        if let Some(key) = cache_context.cache_key.as_ref() {
-            self.observe_cached_result_plan(parsed.clone(), key, session, controls)?;
-        }
-        Ok(Some(cached))
+    fn try_execution_result_cache(&self, cache_context: &QueryCacheContext) -> Option<QueryResult> {
+        let exec_cache_key = cache_context.exec_cache_key.as_ref()?;
+        self.runtime.execution_result_cache_lookup(exec_cache_key)
     }
 
-    fn observe_cached_result_plan(
+    fn execution_result_cache_bypass_reason(
         &self,
-        parsed: crate::sql::ast::ParsedStatement,
-        key: &PlanCacheKey,
         session: &CassieSession,
-        controls: &QueryExecutionControls,
-    ) -> Result<(), CassieError> {
-        let (physical, provenance) = if let Some(hit) = self.runtime.plan_cache_lookup(key) {
-            Self::plan_cache_provenance(hit)
-        } else {
-            self.resolve_physical_plan(parsed, key.clone(), Some(session), Some(controls))?
-        };
-        self.runtime
-            .record_adaptive_plan_decision(&physical.adaptive_plan);
-        self.observe_query_plan_usage(key, &physical, &provenance)
+        physical: &crate::planner::physical::PhysicalPlan,
+    ) -> Option<&'static str> {
+        if !self
+            .runtime
+            .limits()
+            .execution_result_cache_enabled
+            .is_enabled()
+        {
+            return Some("disabled");
+        }
+        if session.transaction_status() != "idle" {
+            return Some("active_transaction");
+        }
+        if logical_plan_uses_virtual_catalog(&physical.logical) {
+            return Some("virtual_catalog");
+        }
+        if crate::executor::plan_needs_user_functions(&physical.logical) {
+            let encoded = serde_json::to_string(&physical.logical).unwrap_or_default();
+            let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
+                let serialized_name =
+                    serde_json::to_string(&metadata.name.to_ascii_lowercase()).unwrap_or_default();
+                encoded.contains(&format!("\"name\":{serialized_name}"))
+                    && metadata.volatility != crate::catalog::Volatility::Immutable
+            });
+            if has_non_immutable {
+                return Some("non_immutable_function");
+            }
+        }
+        None
     }
 
     fn resolve_statement_plan(
@@ -615,7 +673,7 @@ impl Cassie {
         if result.rows.len() <= controls.max_result_rows {
             return Ok(());
         }
-        Err(CassieError::Execution(format!(
+        Err(CassieError::ResourceLimit(format!(
             "query result row limit exceeded: {} > {}",
             result.rows.len(),
             controls.max_result_rows
@@ -623,7 +681,7 @@ impl Cassie {
     }
 
     fn store_execution_result(&self, cache_context: &QueryCacheContext, result: &QueryResult) {
-        if let Some(exec_cache_key) = cache_context.exec_cache_key.clone() {
+        if let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() {
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
         }
@@ -720,5 +778,58 @@ impl Cassie {
             feedback_keys,
             &deltas.to_success_observation(result, elapsed_ms),
         );
+    }
+}
+
+fn logical_plan_uses_virtual_catalog(plan: &crate::planner::logical::LogicalPlan) -> bool {
+    query_source_uses_virtual_catalog(&plan.source)
+        || plan.ctes.iter().any(|cte| match &cte.query {
+            crate::sql::ast::CteQuery::Simple(statement) => {
+                parsed_statement_uses_virtual_catalog(statement)
+            }
+            crate::sql::ast::CteQuery::Recursive {
+                base, recursive, ..
+            } => {
+                parsed_statement_uses_virtual_catalog(base)
+                    || parsed_statement_uses_virtual_catalog(recursive)
+            }
+        })
+        || plan.set.as_ref().is_some_and(|set| {
+            query_source_uses_virtual_catalog(&set.right.source)
+                || set.right.ctes.iter().any(|cte| match &cte.query {
+                    crate::sql::ast::CteQuery::Simple(statement) => {
+                        parsed_statement_uses_virtual_catalog(statement)
+                    }
+                    crate::sql::ast::CteQuery::Recursive {
+                        base, recursive, ..
+                    } => {
+                        parsed_statement_uses_virtual_catalog(base)
+                            || parsed_statement_uses_virtual_catalog(recursive)
+                    }
+                })
+        })
+}
+
+fn parsed_statement_uses_virtual_catalog(statement: &crate::sql::ast::ParsedStatement) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => query_source_uses_virtual_catalog(&select.source),
+        _ => false,
+    }
+}
+
+fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> bool {
+    match source {
+        crate::sql::ast::QuerySource::Collection(name) => {
+            crate::catalog::virtual_views::schema(name).is_some()
+        }
+        crate::sql::ast::QuerySource::Subquery { select, .. } => {
+            query_source_uses_virtual_catalog(&select.source)
+        }
+        crate::sql::ast::QuerySource::Join { left, right, .. } => {
+            query_source_uses_virtual_catalog(left) || query_source_uses_virtual_catalog(right)
+        }
+        crate::sql::ast::QuerySource::Cte(_)
+        | crate::sql::ast::QuerySource::SingleRow
+        | crate::sql::ast::QuerySource::TableFunction { .. } => false,
     }
 }

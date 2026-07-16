@@ -50,10 +50,40 @@ use state::{
     DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame,
 };
 use writers::{
-    write_auth_cleartext, write_auth_ok, write_copy_data, write_copy_done, write_copy_in_response,
-    write_copy_out_response, write_error_response, write_parameter_statuses, write_ready_for_query,
-    write_simple_query_result, write_ssl_not_supported,
+    write_auth_cleartext, write_auth_ok, write_backend_key_data, write_copy_data, write_copy_done,
+    write_copy_in_response, write_copy_out_response, write_error_response,
+    write_parameter_statuses, write_ready_for_query, write_simple_query_result,
+    write_ssl_not_supported,
 };
+
+pub(crate) fn benchmark_encode_data_row(
+    row: Vec<crate::types::Value>,
+    columns: &[crate::executor::ColumnMeta],
+    result_formats: &[i16],
+) -> io::Result<Vec<u8>> {
+    let mut frame = Vec::new();
+    writers::append_data_row_frame(&mut frame, row, columns, result_formats)?;
+    Ok(frame)
+}
+
+pub(crate) fn benchmark_decode_frontend(tag: u8, payload: Vec<u8>) -> Result<usize, String> {
+    let payload_len = payload.len();
+    let (message, consumed) =
+        readers::decode_frontend_message(tag, payload).map_err(|error| format!("{error:?}"))?;
+    if consumed != payload_len {
+        return Err("frontend benchmark frame was not fully consumed".to_string());
+    }
+    std::hint::black_box(message);
+    Ok(consumed)
+}
+
+pub(crate) fn benchmark_decode_parameter(
+    parameter: &[u8],
+    format: i16,
+    oid: i32,
+) -> Result<crate::types::Value, String> {
+    extended::benchmark_decode_parameter(parameter, format, oid)
+}
 
 pub async fn run_connection(
     mut socket: TcpStream,
@@ -193,13 +223,28 @@ async fn handle_startup(
                 state.session = Some(session.clone());
                 state.ready = ReadyState::Idle;
                 runtime.record_pgwire_auth_ok();
+                let registration = cassie.runtime.register_pgwire_backend();
                 let _ = write_auth_ok(write_half).await;
                 let _ = write_parameter_statuses(write_half).await;
+                let _ = write_backend_key_data(
+                    write_half,
+                    registration.process_id(),
+                    registration.secret_key(),
+                )
+                .await;
+                state.backend_registration = Some(registration);
                 let _ = write_ready_for_query(write_half, &session).await;
                 ConnectionStep::Continue(HandshakeState::Ready)
             }
         }
-        Ok(StartupFrame::CancelRequest) | Err(HandshakeError::Closed) => ConnectionStep::Break,
+        Ok(StartupFrame::CancelRequest {
+            process_id,
+            secret_key,
+        }) => {
+            runtime.cancel_pgwire_backend(process_id, secret_key);
+            ConnectionStep::Break
+        }
+        Err(HandshakeError::Closed) => ConnectionStep::Break,
         Err(HandshakeError::Invalid(_)) => {
             runtime.record_pgwire_protocol_error();
             let _ = write_error_response(
@@ -224,7 +269,7 @@ async fn handle_password(
     match read_password_message(reader).await {
         Ok(password) => {
             runtime.record_pgwire_message("password");
-            let auth_result = run_pgwire_blocking(cassie, "pgwire_auth", move |cassie| {
+            let auth_result = run_pgwire_blocking(cassie.clone(), "pgwire_auth", move |cassie| {
                 cassie
                     .authenticate_principal(&user, Some(&password), database.clone())
                     .map(|principal| principal.session)
@@ -236,8 +281,16 @@ async fn handle_password(
                     state.session = Some(session.clone());
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
+                    let registration = cassie.runtime.register_pgwire_backend();
                     let _ = write_auth_ok(write_half).await;
                     let _ = write_parameter_statuses(write_half).await;
+                    let _ = write_backend_key_data(
+                        write_half,
+                        registration.process_id(),
+                        registration.secret_key(),
+                    )
+                    .await;
+                    state.backend_registration = Some(registration);
                     let _ = write_ready_for_query(write_half, &session).await;
                     ConnectionStep::Continue(HandshakeState::Ready)
                 }
@@ -412,27 +465,19 @@ async fn handle_simple_query(
     }
 
     for statement in statements {
-        let session_for_query = session.clone();
-        let statement_for_query = statement.clone();
-        let query_result =
-            run_pgwire_blocking(cassie.clone(), "pgwire_simple_query", move |cassie| {
-                cassie.execute_sql(&session_for_query, &statement_for_query, Vec::new())
-            })
-            .await;
-        match query_result {
-            Ok(result) => {
-                if write_simple_query_result(write_half, result).await.is_err() {
-                    return ConnectionStep::Break;
-                }
-            }
-            Err(error) => {
-                runtime.record_pgwire_protocol_error();
-                let pg_error = cassie_pg_error(&error);
-                if write_error_response(write_half, &pg_error).await.is_err() {
-                    return ConnectionStep::Break;
-                }
-                break;
-            }
+        match execute_simple_statement(
+            cassie.clone(),
+            runtime,
+            write_half,
+            state,
+            session,
+            statement,
+        )
+        .await
+        {
+            Ok(true) => {}
+            Ok(false) => break,
+            Err(()) => return ConnectionStep::Break,
         }
     }
 
@@ -440,4 +485,38 @@ async fn handle_simple_query(
         return ConnectionStep::Break;
     }
     ConnectionStep::Continue(HandshakeState::Ready)
+}
+
+async fn execute_simple_statement(
+    cassie: Arc<Cassie>,
+    runtime: &crate::runtime::RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &SessionState,
+    session: &CassieSession,
+    statement: String,
+) -> Result<bool, ()> {
+    let registration = state.backend_registration.as_ref().ok_or(())?;
+    let cancellation = registration.begin_query();
+    let cancellation_handle = cancellation.handle();
+    let session = session.clone();
+    let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
+        cassie.execute_sql_with_cancellation(&session, &statement, Vec::new(), &cancellation_handle)
+    })
+    .await;
+    drop(cancellation);
+
+    match query_result {
+        Ok(result) => write_simple_query_result(write_half, result)
+            .await
+            .map(|()| true)
+            .map_err(|_| ()),
+        Err(error) => {
+            runtime.record_pgwire_protocol_error();
+            let pg_error = cassie_pg_error(&error);
+            write_error_response(write_half, &pg_error)
+                .await
+                .map(|()| false)
+                .map_err(|_| ())
+        }
+    }
 }

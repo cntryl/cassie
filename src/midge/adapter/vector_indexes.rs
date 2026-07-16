@@ -3,52 +3,73 @@ use super::{
     DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
     VectorIndexRecord, VectorIndexState, WriteOptions,
 };
-use serde::{Deserialize, Serialize};
-
+#[path = "vector_indexes/codec.rs"]
+pub(super) mod codec;
+#[path = "vector_indexes/math.rs"]
+mod math;
 #[path = "vector_retrieval.rs"]
 mod vector_retrieval;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PersistedHnswManifest {
-    version: u32,
-    source_fingerprint: u64,
-    row_count: usize,
-    dimensions: usize,
-    metric: crate::embeddings::DistanceMetric,
-    entry_point: Option<String>,
-    max_layer: usize,
-}
+use self::codec::{
+    decode_hnsw_node, decode_normalized_vector, decode_vector_index_state, encode_hnsw_node,
+    encode_normalized_vector, encode_vector_index_state, PersistedHnswManifest,
+    PersistedIvfManifest, PersistedVectorIndexState,
+};
+use self::math::{ivfflat_training_order, nearest_ivfflat_centroid};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct PersistedIvfManifest {
-    version: u32,
-    source_fingerprint: u64,
-    trained: bool,
-    row_count: usize,
-    lists: usize,
-    probes: usize,
-    training_seed: u64,
-    centroid_ids: Vec<String>,
-    centroids: Vec<Vec<f32>>,
-    list_sizes: Vec<usize>,
-    membership_count: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PersistedVectorIndexState {
-    built_generation: u64,
-    hnsw_graph: Option<PersistedHnswManifest>,
-    ivfflat_training: Option<PersistedIvfManifest>,
-}
-
-#[derive(Debug, Deserialize)]
-struct LegacyPersistedVectorIndexState {
-    built_generation: u64,
-    hnsw_graph: Option<PersistedHnswManifest>,
-    ivfflat_training: Option<crate::embeddings::IvfFlatTrainingState>,
+fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, CassieError> {
+    row_schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+        .map(|candidate| candidate.field_id)
+        .ok_or_else(|| CassieError::Parse(format!("missing vector field storage id: {field}")))
 }
 
 impl Midge {
+    #[doc(hidden)]
+    pub fn hnsw_node_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(super::key_encoding::hnsw_graph_node_prefix(
+            relation_id,
+            field_id,
+        ))
+    }
+
+    #[doc(hidden)]
+    pub fn normalized_vector_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(Self::normalized_vector_prefix(relation_id, field_id))
+    }
+
+    #[doc(hidden)]
+    pub fn vector_state_key_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(Self::vector_index_state_key(relation_id, field_id))
+    }
+
+    pub(super) fn vector_storage_ids(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<(u64, u32), CassieError> {
+        let row_schema = self.row_schema(collection)?;
+        let field_id = vector_field_id(&row_schema, field)?;
+        Ok((row_schema.relation_id, field_id))
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -110,64 +131,25 @@ impl Midge {
         field: &str,
     ) -> Result<Option<VectorIndexState>, CassieError> {
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let Some(raw) = tx
-            .get(&Self::vector_index_state_key(&collection, field))
+            .get(&Self::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?
         else {
             return Ok(None);
         };
-        let raw_json: serde_json::Value = serde_json::from_slice(&raw)
-            .map_err(|error| CassieError::Parse(format!("invalid vector index state: {error}")))?;
-        let state = if raw_json["hnsw_graph"].get("nodes").is_some() {
-            serde_json::from_value(raw_json).map_err(|error| {
-                CassieError::Parse(format!("invalid vector index state: {error}"))
-            })?
-        } else {
-            let persisted = serde_json::from_value::<PersistedVectorIndexState>(raw_json.clone())
-                .map(|state| {
-                    (
-                        state.built_generation,
-                        state.hnsw_graph,
-                        state.ivfflat_training,
-                    )
-                })
-                .or_else(|_| {
-                    serde_json::from_value::<LegacyPersistedVectorIndexState>(raw_json).map(
-                        |state| {
-                            (
-                                state.built_generation,
-                                state.hnsw_graph,
-                                state.ivfflat_training.map(|training| PersistedIvfManifest {
-                                    version: training.version,
-                                    source_fingerprint: training.source_fingerprint,
-                                    trained: training.trained,
-                                    row_count: training.row_count,
-                                    lists: training.lists,
-                                    probes: training.probes,
-                                    training_seed: training.training_seed,
-                                    centroid_ids: training.centroid_ids,
-                                    centroids: training.centroids,
-                                    list_sizes: training.list_sizes,
-                                    membership_count: training.assignments.len(),
-                                }),
-                            )
-                        },
-                    )
-                })
-                .map_err(|error| {
-                    CassieError::Parse(format!("invalid vector index state: {error}"))
-                })?;
-            let (built_generation, persisted_hnsw_graph, persisted_ivfflat_training) = persisted;
-            let hnsw_graph = persisted_hnsw_graph
-                .map(|manifest| load_hnsw_manifest(&tx, &collection, field, manifest))
-                .transpose()?;
-            VectorIndexState {
-                built_generation,
-                hnsw_graph,
-                ivfflat_training: persisted_ivfflat_training
-                    .map(|manifest| load_ivfflat_manifest(&tx, &collection, field, manifest)),
-            }
+        let persisted = decode_vector_index_state(&raw)?;
+        let hnsw_graph = persisted
+            .hnsw_graph
+            .map(|manifest| load_hnsw_manifest(&tx, relation_id, field_id, manifest))
+            .transpose()?;
+        let state = VectorIndexState {
+            built_generation: persisted.built_generation,
+            hnsw_graph,
+            ivfflat_training: persisted
+                .ivfflat_training
+                .map(|manifest| load_ivfflat_manifest(&tx, relation_id, field_id, manifest)),
         };
         if state.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
@@ -198,19 +180,20 @@ impl Midge {
         mut state: VectorIndexState,
     ) -> Result<(), CassieError> {
         state.built_generation = self.collection_generation(collection)?;
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
         let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::write_vector_index_state_to_tx(&mut tx, collection, field, &state)?;
+        Self::write_vector_index_state_to_tx(&mut tx, relation_id, field_id, &state)?;
         drop(state);
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)
     }
 
     pub(super) fn write_vector_index_state_to_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
-        field: &str,
+        relation_id: u64,
+        field_id: u32,
         state: &VectorIndexState,
     ) -> Result<(), CassieError> {
-        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(collection, field);
+        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
         let old_node_keys = collect_scan(
             tx.scan(&Query::new().prefix(node_prefix.into()))
                 .map_err(CassieError::from)?,
@@ -221,7 +204,8 @@ impl Midge {
         for key in old_node_keys {
             tx.delete(key).map_err(CassieError::from)?;
         }
-        let membership_prefix = super::key_encoding::ivfflat_membership_prefix(collection, field);
+        let membership_prefix =
+            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
         let old_membership_keys = collect_scan(
             tx.scan(&Query::new().prefix(membership_prefix.into()))
                 .map_err(CassieError::from)?,
@@ -249,8 +233,12 @@ impl Midge {
             .as_ref()
             .map(|training| {
                 for (id, list) in &training.assignments {
-                    let key =
-                        super::key_encoding::ivfflat_membership_key(collection, field, *list, id);
+                    let key = super::key_encoding::ivfflat_membership_key(
+                        relation_id,
+                        field_id,
+                        *list,
+                        id,
+                    );
                     tx.put(key, Vec::new(), None).map_err(CassieError::from)?;
                 }
                 Ok::<PersistedIvfManifest, CassieError>(PersistedIvfManifest {
@@ -273,16 +261,18 @@ impl Midge {
             hnsw_graph,
             ivfflat_training,
         };
-        let value = serde_json::to_vec(&persisted)
-            .map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(Self::vector_index_state_key(collection, field), value, None)
-            .map_err(CassieError::from)?;
+        let value = encode_vector_index_state(&persisted)?;
+        tx.put(
+            Self::vector_index_state_key(relation_id, field_id),
+            value,
+            None,
+        )
+        .map_err(CassieError::from)?;
         if let Some(graph) = &state.hnsw_graph {
             for node in &graph.nodes {
                 tx.put(
-                    super::key_encoding::hnsw_graph_node_key(collection, field, &node.id),
-                    serde_json::to_vec(node)
-                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
+                    encode_hnsw_node(node)?,
                     None,
                 )
                 .map_err(CassieError::from)?;
@@ -294,10 +284,12 @@ impl Midge {
 
     pub(super) fn refresh_vector_index_states_in_tx(
         tx: &mut cntryl_midge::Transaction,
+        row_schema: &super::RowSchema,
         indexes: &[VectorIndexRecord],
         records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
     ) -> Result<(), CassieError> {
         for index in indexes {
+            let field_id = vector_field_id(row_schema, &index.field)?;
             let records = records_by_field
                 .iter()
                 .find(|(field, _)| field == &index.field)
@@ -317,20 +309,20 @@ impl Midge {
                 },
                 crate::embeddings::VectorIndexType::BruteForce => continue,
             };
-            Self::write_vector_index_state_to_tx(tx, &index.collection, &index.field, &state)?;
+            Self::write_vector_index_state_to_tx(tx, row_schema.relation_id, field_id, &state)?;
             if let Some(graph) = state.hnsw_graph.as_ref() {
                 Self::write_hnsw_source_summary_to_tx(
                     tx,
-                    &index.collection,
-                    &index.field,
+                    row_schema.relation_id,
+                    field_id,
                     0,
                     graph,
                 )?;
             } else if let Some(training) = state.ivfflat_training.as_ref() {
                 Self::write_vector_source_summary_to_tx(
                     tx,
-                    &index.collection,
-                    &index.field,
+                    row_schema.relation_id,
+                    field_id,
                     0,
                     training.source_fingerprint,
                     training.row_count,
@@ -346,28 +338,23 @@ impl Midge {
         collection: &str,
         built_generation: u64,
     ) -> Result<(), CassieError> {
+        let row_schema = self.row_schema(collection)?;
         for index in self
             .list_vector_indexes_canonical()?
             .into_iter()
             .filter(|index| index.collection == collection)
         {
-            let key = Self::vector_index_state_key(collection, &index.field);
+            let field_id = vector_field_id(&row_schema, &index.field)?;
+            let key = Self::vector_index_state_key(row_schema.relation_id, field_id);
             let Some(raw) = tx.get(&key).map_err(CassieError::from)? else {
                 continue;
             };
-            let Ok(mut state) = serde_json::from_slice::<serde_json::Value>(&raw) else {
-                continue;
-            };
-            state["built_generation"] = serde_json::json!(built_generation);
-            tx.put(
-                key,
-                serde_json::to_vec(&state)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
-                None,
-            )
-            .map_err(CassieError::from)?;
+            let mut state = decode_vector_index_state(&raw)?;
+            state.built_generation = built_generation;
+            tx.put(key, encode_vector_index_state(&state)?, None)
+                .map_err(CassieError::from)?;
             let summary_key =
-                super::key_encoding::hnsw_source_summary_key(collection, &index.field);
+                super::key_encoding::hnsw_source_summary_key(row_schema.relation_id, field_id);
             if let Some(raw) = tx.get(&summary_key).map_err(CassieError::from)? {
                 if let Ok(mut summary) =
                     serde_json::from_slice::<vector_retrieval::HnswSourceSummary>(&raw)
@@ -388,18 +375,18 @@ impl Midge {
 
     pub(super) fn stamp_normalized_vectors_generation_in_tx(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
+        row_schema: &super::RowSchema,
         built_generation: u64,
         records_by_field: &[(String, Vec<NormalizedVectorRecord>)],
     ) -> Result<(), CassieError> {
         for (field, records) in records_by_field {
+            let field_id = vector_field_id(row_schema, field)?;
             for record in records {
                 let mut record = record.clone();
                 record.built_generation = built_generation;
                 tx.put(
-                    Self::normalized_vector_key(collection, field, &record.id),
-                    serde_json::to_vec(&record)
-                        .map_err(|error| CassieError::Parse(error.to_string()))?,
+                    Self::normalized_vector_key(row_schema.relation_id, field_id, &record.id),
+                    encode_normalized_vector(&record)?,
                     None,
                 )
                 .map_err(CassieError::from)?;
@@ -563,14 +550,14 @@ impl Midge {
 
     pub(super) fn write_normalized_vector_records(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
+        row_schema: &super::RowSchema,
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
         for record in records {
+            let field_id = vector_field_id(row_schema, &record.field)?;
             tx.put(
-                Self::normalized_vector_key(collection, &record.field, &record.id),
-                serde_json::to_vec(record)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                Self::normalized_vector_key(row_schema.relation_id, field_id, &record.id),
+                encode_normalized_vector(record)?,
                 None,
             )
             .map_err(CassieError::from)?;
@@ -601,13 +588,14 @@ impl Midge {
 
     pub(super) fn delete_normalized_vector_keys_for_document(
         tx: &mut cntryl_midge::Transaction,
-        collection: &str,
+        row_schema: &super::RowSchema,
         id: &str,
         fields: &[String],
     ) -> Result<usize, CassieError> {
         let mut deleted_keys = 0usize;
         for field in fields {
-            let key = Self::normalized_vector_key(collection, field, id);
+            let field_id = vector_field_id(row_schema, field)?;
+            let key = Self::normalized_vector_key(row_schema.relation_id, field_id, id);
             if tx.get(&key).map_err(CassieError::from)?.is_some() {
                 tx.delete(key).map_err(CassieError::from)?;
                 deleted_keys = deleted_keys.saturating_add(1);
@@ -661,6 +649,7 @@ impl Midge {
         records: &[NormalizedVectorRecord],
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(&index.collection)?;
+        let (relation_id, field_id) = self.vector_storage_ids(&index.collection, &index.field)?;
         let mut records = records.to_vec();
         for record in &mut records {
             record.built_generation = generation;
@@ -668,13 +657,12 @@ impl Midge {
         let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_normalized_vector_keys_with_prefix(
             &mut tx,
-            Self::normalized_vector_prefix(&index.collection, &index.field),
+            Self::normalized_vector_prefix(relation_id, field_id),
         )?;
         for record in &records {
             tx.put(
-                Self::normalized_vector_key(&index.collection, &record.field, &record.id),
-                serde_json::to_vec(record)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                Self::normalized_vector_key(relation_id, field_id, &record.id),
+                encode_normalized_vector(record)?,
                 None,
             )
             .map_err(CassieError::from)?;
@@ -847,14 +835,21 @@ impl Midge {
     ) -> Result<Vec<NormalizedVectorRecord>, CassieError> {
         let requested_collection = collection.to_string();
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let entries = self.raw_scan_prefix_for_collection(
             &collection,
-            &Self::normalized_vector_prefix(&collection, field),
+            &Self::normalized_vector_prefix(relation_id, field_id),
         )?;
         let mut out: Vec<NormalizedVectorRecord> = Vec::with_capacity(entries.len());
 
-        for (_key, raw_value) in entries {
-            let Ok(record) = serde_json::from_slice::<NormalizedVectorRecord>(&raw_value) else {
+        let prefix = Self::normalized_vector_prefix(relation_id, field_id);
+        for (key, raw_value) in entries {
+            let Some(id) = super::key_encoding::utf8_suffix_after_prefix(&key, &prefix) else {
+                continue;
+            };
+            let Ok(record) =
+                decode_normalized_vector(&raw_value, &requested_collection, field, &id)
+            else {
                 continue;
             };
             let mut record = record;
@@ -884,17 +879,16 @@ impl Midge {
     ) -> Result<Option<NormalizedVectorRecord>, CassieError> {
         let requested_collection = collection.to_string();
         let collection = self.canonical_collection_name(collection);
+        let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
         let raw = tx
-            .get(&Self::normalized_vector_key(&collection, field, id))
+            .get(&Self::normalized_vector_key(relation_id, field_id, id))
             .map_err(CassieError::from)?;
         let Some(raw) = raw else {
             return Ok(None);
         };
 
-        let mut record: NormalizedVectorRecord = serde_json::from_slice(&raw).map_err(|error| {
-            CassieError::Parse(format!("invalid normalized vector metadata: {error}"))
-        })?;
+        let mut record = decode_normalized_vector(&raw, &collection, field, id)?;
         if record.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
         }
@@ -903,52 +897,22 @@ impl Midge {
     }
 }
 
-fn ivfflat_training_order(seed: u64, id: &str) -> u64 {
-    let mut state = 0xcbf2_9ce4_8422_2325_u64 ^ seed;
-    for byte in id.as_bytes() {
-        state ^= u64::from(*byte);
-        state = state.wrapping_mul(0x0100_0000_01b3);
-    }
-    state
-}
-
-fn nearest_ivfflat_centroid(vector: &[f32], centroids: &[Vec<f32>]) -> usize {
-    centroids
-        .iter()
-        .enumerate()
-        .min_by(|(left_index, left), (right_index, right)| {
-            squared_l2(vector, left)
-                .total_cmp(&squared_l2(vector, right))
-                .then_with(|| left_index.cmp(right_index))
-        })
-        .map_or(0, |(index, _)| index)
-}
-
-fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
-    left.iter()
-        .zip(right.iter())
-        .map(|(left, right)| {
-            let delta = f64::from(*left) - f64::from(*right);
-            delta * delta
-        })
-        .sum()
-}
-
 fn load_hnsw_manifest(
     tx: &cntryl_midge::Transaction,
-    collection: &str,
-    field: &str,
+    relation_id: u64,
+    field_id: u32,
     manifest: PersistedHnswManifest,
 ) -> Result<crate::embeddings::HnswGraphState, CassieError> {
-    let prefix = super::key_encoding::hnsw_graph_node_prefix(collection, field);
+    let prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
     let nodes = collect_scan(
-        tx.scan(&Query::new().prefix(prefix.into()))
+        tx.scan(&Query::new().prefix(prefix.clone().into()))
             .map_err(CassieError::from)?,
     )?
     .into_iter()
-    .map(|(_, raw)| {
-        serde_json::from_slice(raw.as_slice())
-            .map_err(|error| CassieError::Parse(format!("invalid hnsw graph node: {error}")))
+    .map(|(key, raw)| {
+        let id = super::key_encoding::utf8_suffix_after_prefix(&key, &prefix)
+            .ok_or_else(|| CassieError::Parse("invalid HNSW node key".to_string()))?;
+        decode_hnsw_node(raw.as_slice(), &id)
     })
     .collect::<Result<Vec<crate::embeddings::HnswGraphNode>, CassieError>>()?;
     Ok(crate::embeddings::HnswGraphState {
@@ -965,11 +929,11 @@ fn load_hnsw_manifest(
 
 fn load_ivfflat_manifest(
     tx: &cntryl_midge::Transaction,
-    collection: &str,
-    field: &str,
+    relation_id: u64,
+    field_id: u32,
     manifest: PersistedIvfManifest,
 ) -> crate::embeddings::IvfFlatTrainingState {
-    let prefix = super::key_encoding::ivfflat_membership_prefix(collection, field);
+    let prefix = super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
     let mut assignments = std::collections::BTreeMap::new();
     if let Ok(scan) = tx.scan(&Query::new().prefix(prefix.clone().into())) {
         if let Ok(entries) = collect_scan(scan) {

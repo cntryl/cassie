@@ -69,6 +69,7 @@ pub(super) fn execute_join_source<'a>(
         execute_query_source(env, spec.right, cte_context, true, spec.outer_row, None)?;
     let left_rows = batch::flatten_batches(left_batches);
     let right_rows = batch::flatten_batches(right_batches);
+    let _input_memory = reserve_join_rows(env, &left_rows, &right_rows)?;
     let left_columns = row_columns(&left_rows);
     let right_columns = row_columns(&right_rows);
     let left_lookup_columns = row_lookup_columns(&left_rows);
@@ -117,6 +118,9 @@ pub(super) fn execute_join_source<'a>(
             },
         )?,
     };
+    let _output_memory = env
+        .controls
+        .reserve_query_memory(batch_rows_bytes(&joined))?;
 
     Ok(finish_join(joined))
 }
@@ -128,6 +132,9 @@ fn execute_lateral_join<'a>(
     left_batches: Vec<Batch>,
 ) -> SourceExecution {
     let left_rows = batch::flatten_batches(left_batches);
+    let _left_memory = env
+        .controls
+        .reserve_query_memory(batch_rows_bytes(&left_rows))?;
     let mut joined = Vec::new();
     let mut matched_rows = 0usize;
 
@@ -170,6 +177,9 @@ fn execute_lateral_join<'a>(
         joined.len(),
         None,
     );
+    let _output_memory = env
+        .controls
+        .reserve_query_memory(batch_rows_bytes(&joined))?;
     Ok(finish_join(joined))
 }
 
@@ -316,6 +326,14 @@ fn execute_vectorized_join(
             build.entry(key).or_default().push(right);
         }
     }
+    let build_bytes = build
+        .iter()
+        .map(|(key, rows)| {
+            key.len()
+                .saturating_add(rows.len().saturating_mul(std::mem::size_of::<&BatchRow>()))
+        })
+        .sum();
+    let _build_memory = env.controls.reserve_query_memory(build_bytes)?;
 
     let mut probe_rows = 0usize;
     let build_rows = build.values().map(Vec::len).sum::<usize>();
@@ -378,6 +396,16 @@ fn execute_merge_join(
     let right_len = spec.right_rows.len();
     let mut left_keyed = keyed_rows(spec.left_rows, &keys.left);
     let mut right_keyed = keyed_rows(spec.right_rows, &keys.right);
+    let keyed_bytes = left_keyed
+        .iter()
+        .chain(&right_keyed)
+        .map(|row| {
+            std::mem::size_of::<KeyedRow>()
+                .saturating_add(row.key.as_ref().map_or(0, String::len))
+                .saturating_add(batch_row_bytes(&row.row))
+        })
+        .sum();
+    let _keyed_memory = env.controls.reserve_query_memory(keyed_bytes)?;
     left_keyed.sort_by(|left, right| left.key.cmp(&right.key));
     right_keyed.sort_by(|left, right| left.key.cmp(&right.key));
 
@@ -490,6 +518,26 @@ fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize 
         .saturating_mul(std::mem::size_of::<BatchRow>().max(512))
 }
 
+fn reserve_join_rows(
+    env: &SourceExecutionEnv<'_>,
+    left: &[BatchRow],
+    right: &[BatchRow],
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    env.controls
+        .reserve_query_memory(batch_rows_bytes(left).saturating_add(batch_rows_bytes(right)))
+        .map_err(QueryError::from)
+}
+
+fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
+    rows.iter().map(batch_row_bytes).sum()
+}
+
+fn batch_row_bytes(row: &BatchRow) -> usize {
+    serde_json::to_vec(row.entries())
+        .map(|bytes| bytes.len())
+        .unwrap_or_default()
+}
+
 fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {
     let key = &rows[start].key;
     let mut end = start + 1;
@@ -600,7 +648,7 @@ fn vectorized_join_batch_size(
     }
 
     let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
-    if estimated_bytes > env.controls.temp_spill_budget_bytes {
+    if estimated_bytes > env.controls.query_memory_budget_bytes {
         if limits.operator_switching_enabled.is_enabled() {
             env.cassie.runtime.record_runtime_operator_switch_fallback(
                 VECTOR_TO_MERGE_SWITCH_PAIR,

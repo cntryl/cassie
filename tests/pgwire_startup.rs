@@ -248,6 +248,69 @@ fn should_emit_startup_parameter_statuses_without_password() {
 }
 
 #[test]
+fn should_emit_backend_key_data_after_authentication() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("backend_key_data");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        config.password.clear();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        tokio::io::AsyncWriteExt::write_all(
+            &mut write_half,
+            &startup_frame("postgres", "postgres"),
+        )
+        .await
+        .expect("write startup");
+
+        // Act
+        let mut backend_key = None;
+        loop {
+            let (tag, _, payload) = read_wire_frame(&mut reader).await;
+            if tag == b'K' {
+                backend_key = Some(payload);
+            }
+            if tag == b'Z' {
+                break;
+            }
+        }
+
+        // Assert
+        let payload = backend_key.expect("backend key data");
+        assert_eq!(payload.len(), 8);
+        assert_ne!(i32::from_be_bytes(payload[..4].try_into().unwrap()), 0);
+        assert_ne!(i32::from_be_bytes(payload[4..].try_into().unwrap()), 0);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_accept_libpq_startup_hints_without_password() {
     // Arrange
     with_fallback();

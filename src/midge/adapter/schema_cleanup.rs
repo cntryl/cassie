@@ -10,7 +10,7 @@ pub(crate) struct PendingSchemaCleanup {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) enum PendingSchemaCleanupAction {
     #[serde(rename = "DropTable")]
-    Table { table: String },
+    Table { table: String, relation_id: u64 },
     #[serde(rename = "DropIndex")]
     Index { table: String, index: String },
     #[serde(rename = "DropView")]
@@ -20,8 +20,28 @@ pub(crate) enum PendingSchemaCleanupAction {
 impl Midge {
     #[doc(hidden)]
     #[must_use]
-    pub fn scalar_index_collection_prefix_for_diagnostics(collection: &str) -> Vec<u8> {
-        Self::scalar_index_collection_prefix(collection)
+    pub fn scalar_index_collection_prefix_for_diagnostics(relation_id: u64) -> Vec<u8> {
+        Self::scalar_index_collection_prefix(relation_id)
+    }
+
+    /// # Errors
+    ///
+    /// Returns an error when the index metadata is missing or invalid.
+    pub fn time_series_index_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let index = self
+            .get_index(collection, index_name)?
+            .ok_or_else(|| CassieError::Parse(format!("index '{index_name}' not found")))?;
+        let relation_id = index.relation_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{index_name}' is missing its relation id"))
+        })?;
+        let index_id = index.storage_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{index_name}' is missing its storage id"))
+        })?;
+        Ok(Self::time_series_index_data_prefix(relation_id, index_id))
     }
 
     /// # Errors
@@ -42,10 +62,11 @@ impl Midge {
             return Err(CassieError::CollectionNotFound(table));
         }
         drop(tx);
+        let relation_id = self.row_schema(&table)?.relation_id;
         self.save_pending_schema_cleanup(&PendingSchemaCleanup {
             cleanup_id: Uuid::new_v4().to_string(),
             blocked_by_epoch,
-            action: PendingSchemaCleanupAction::Table { table },
+            action: PendingSchemaCleanupAction::Table { table, relation_id },
         })
     }
 
@@ -101,11 +122,11 @@ impl Midge {
         cleanup: &PendingSchemaCleanup,
     ) -> Result<(), CassieError> {
         match &cleanup.action {
-            PendingSchemaCleanupAction::Table { table } => {
+            PendingSchemaCleanupAction::Table { table, relation_id } => {
                 if self.collection_schema(table).is_some() {
                     self.drop_collection(table)?;
                 } else {
-                    self.delete_collection_data(table)?;
+                    self.delete_collection_data(table, *relation_id)?;
                 }
             }
             PendingSchemaCleanupAction::Index { table, index } => {

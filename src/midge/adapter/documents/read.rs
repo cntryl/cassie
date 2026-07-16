@@ -1,5 +1,5 @@
 use super::super::{
-    collect_scan, decode_projected_row, decode_projected_row_matching_with_aliases,
+    decode_projected_row, decode_projected_row_matching_with_aliases,
     decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
     ColumnStoreScanRequest, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, Query,
     RowDecode, RowFilter, RowSchema,
@@ -222,7 +222,7 @@ impl Midge {
                 },
             ));
         }
-        Self::scan_row_blobs_batched(RowBlobScanRequest {
+        self.scan_row_blobs_batched(RowBlobScanRequest {
             collection: &collection,
             row_schema: &row_schema,
             tx: &tx,
@@ -237,6 +237,7 @@ impl Midge {
     }
 
     fn scan_row_blobs_batched(
+        &self,
         request: RowBlobScanRequest<'_>,
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let RowBlobScanRequest {
@@ -257,14 +258,15 @@ impl Midge {
         let mut emitted = 0usize;
 
         for (prefix, include_seen) in [
-            (Self::row_prefix(collection), true),
+            (Self::row_prefix(row_schema.relation_id), true),
             (Self::doc_prefix(collection), false),
         ] {
-            let iter = collect_scan(
-                tx.scan(&Query::new().prefix(prefix.clone().into()))
-                    .map_err(CassieError::from)?,
-            )?;
-            for (raw_key, raw_value) in iter {
+            let iter = tx
+                .scan(&Query::new().prefix(prefix.clone().into()))
+                .map_err(CassieError::from)?;
+            for entry in iter {
+                let (raw_key, raw_value) = entry.map_err(CassieError::from)?;
+                self.record_query_scan_entry();
                 let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
                     continue;
                 };

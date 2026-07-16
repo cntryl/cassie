@@ -8,6 +8,7 @@ use crate::catalog::name_matches;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GraphEdgeRecord {
     pub graph: String,
+    pub graph_id: u64,
     pub edge_id: String,
     pub source_type: String,
     pub source_id: String,
@@ -15,6 +16,16 @@ pub(crate) struct GraphEdgeRecord {
     pub target_id: String,
     pub edge_type: String,
     pub weight: f64,
+}
+
+struct GraphEdgeScan<'a> {
+    graph: &'a crate::catalog::GraphMeta,
+    database: &'a str,
+    prefix: &'a [u8],
+    direction: &'a str,
+    node_type: &'a str,
+    node_id: &'a str,
+    edge_types: &'a [String],
 }
 
 impl Midge {
@@ -67,7 +78,7 @@ impl Midge {
             Self::validate_document(&schema, &payload)?;
             let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(collection, &id), row_blob, None)
+            tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
                 .map_err(CassieError::from)?;
             Self::write_document_hash_to_tx(&mut tx, collection, &id, &row_schema, &payload)?;
 
@@ -144,27 +155,44 @@ impl Midge {
         direction: &str,
         edge_types: &[String],
     ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
+        let mut graph = graph.clone();
+        if graph.storage_id == 0 {
+            graph.storage_id = self
+                .list_graphs()?
+                .into_iter()
+                .find(|stored| crate::catalog::name_matches(&stored.name, &graph.name))
+                .ok_or_else(|| CassieError::Parse(format!("graph '{}' not found", graph.name)))?
+                .storage_id;
+        }
         let mut out = Vec::new();
         if direction.eq_ignore_ascii_case("out") || direction.eq_ignore_ascii_case("both") {
             out.extend(
-                self.scan_graph_edges_by_prefix(
-                    crate::catalog::relation_database_name(&graph.name)
+                self.scan_graph_edges_by_prefix(&GraphEdgeScan {
+                    graph: &graph,
+                    database: crate::catalog::relation_database_name(&graph.name)
                         .as_deref()
                         .unwrap_or(self.default_database.as_str()),
-                    &Self::graph_outbound_prefix(&graph.name, node_type, node_id),
+                    prefix: &Self::graph_outbound_prefix(graph.storage_id, node_type, node_id),
+                    direction: "out",
+                    node_type,
+                    node_id,
                     edge_types,
-                )?,
+                })?,
             );
         }
         if direction.eq_ignore_ascii_case("in") || direction.eq_ignore_ascii_case("both") {
             out.extend(
-                self.scan_graph_edges_by_prefix(
-                    crate::catalog::relation_database_name(&graph.name)
+                self.scan_graph_edges_by_prefix(&GraphEdgeScan {
+                    graph: &graph,
+                    database: crate::catalog::relation_database_name(&graph.name)
                         .as_deref()
                         .unwrap_or(self.default_database.as_str()),
-                    &Self::graph_inbound_prefix(&graph.name, node_type, node_id),
+                    prefix: &Self::graph_inbound_prefix(graph.storage_id, node_type, node_id),
+                    direction: "in",
+                    node_type,
+                    node_id,
                     edge_types,
-                )?,
+                })?,
             );
         }
         out.sort_by(|left, right| {
@@ -177,17 +205,27 @@ impl Midge {
 
     fn scan_graph_edges_by_prefix(
         &self,
-        database: &str,
-        prefix: &[u8],
-        edge_types: &[String],
+        request: &GraphEdgeScan<'_>,
     ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
-        let entries = self.raw_scan_prefix_database(database, prefix)?;
+        let entries = self.raw_scan_prefix_database(request.database, request.prefix)?;
         let mut out = Vec::with_capacity(entries.len());
-        for (_key, raw_value) in entries {
-            let record: GraphEdgeRecord = serde_json::from_slice(&raw_value)
-                .map_err(|error| CassieError::Parse(format!("invalid graph edge: {error}")))?;
-            if edge_types.is_empty()
-                || edge_types
+        for (key, raw_value) in entries {
+            if !raw_value.is_empty() {
+                return Err(CassieError::Parse(
+                    "graph adjacency values must be empty".to_string(),
+                ));
+            }
+            let record = decode_graph_edge_key(
+                request.graph,
+                request.prefix,
+                &key,
+                request.direction,
+                request.node_type,
+                request.node_id,
+            )?;
+            if request.edge_types.is_empty()
+                || request
+                    .edge_types
                     .iter()
                     .any(|edge_type| edge_type.eq_ignore_ascii_case(&record.edge_type))
             {
@@ -201,36 +239,10 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {
-        let value =
-            serde_json::to_vec(record).map_err(|error| CassieError::Parse(error.to_string()))?;
-        tx.put(
-            Self::graph_outbound_edge_key(
-                &record.graph,
-                &record.source_type,
-                &record.source_id,
-                &record.edge_type,
-                &record.target_type,
-                &record.target_id,
-                &record.edge_id,
-            ),
-            value.clone(),
-            None,
-        )
-        .map_err(CassieError::from)?;
-        tx.put(
-            Self::graph_inbound_edge_key(
-                &record.graph,
-                &record.target_type,
-                &record.target_id,
-                &record.edge_type,
-                &record.source_type,
-                &record.source_id,
-                &record.edge_id,
-            ),
-            value,
-            None,
-        )
-        .map_err(CassieError::from)?;
+        tx.put(Self::graph_outbound_edge_key(record), Vec::new(), None)
+            .map_err(CassieError::from)?;
+        tx.put(Self::graph_inbound_edge_key(record), Vec::new(), None)
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -238,28 +250,64 @@ impl Midge {
         tx: &mut cntryl_midge::Transaction,
         record: &GraphEdgeRecord,
     ) -> Result<(), CassieError> {
-        tx.delete(Self::graph_outbound_edge_key(
-            &record.graph,
-            &record.source_type,
-            &record.source_id,
-            &record.edge_type,
-            &record.target_type,
-            &record.target_id,
-            &record.edge_id,
-        ))
-        .map_err(CassieError::from)?;
-        tx.delete(Self::graph_inbound_edge_key(
-            &record.graph,
-            &record.target_type,
-            &record.target_id,
-            &record.edge_type,
-            &record.source_type,
-            &record.source_id,
-            &record.edge_id,
-        ))
-        .map_err(CassieError::from)?;
+        tx.delete(Self::graph_outbound_edge_key(record))
+            .map_err(CassieError::from)?;
+        tx.delete(Self::graph_inbound_edge_key(record))
+            .map_err(CassieError::from)?;
         Ok(())
     }
+}
+
+fn decode_graph_edge_key(
+    graph: &crate::catalog::GraphMeta,
+    prefix: &[u8],
+    key: &[u8],
+    direction: &str,
+    node_type: &str,
+    node_id: &str,
+) -> Result<GraphEdgeRecord, CassieError> {
+    let suffix = key
+        .strip_prefix(prefix)
+        .ok_or_else(|| CassieError::Parse("invalid graph adjacency prefix".to_string()))?;
+    let components = suffix
+        .split(|byte| *byte == 0)
+        .filter(|component| !component.is_empty())
+        .map(std::str::from_utf8)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| CassieError::Parse(format!("invalid graph adjacency key: {error}")))?;
+    let [edge_type, weight, other_type, other_id, edge_id] = components.as_slice() else {
+        return Err(CassieError::Parse(
+            "invalid graph adjacency component count".to_string(),
+        ));
+    };
+    let weight = decode_sortable_weight(weight)?;
+    let (source_type, source_id, target_type, target_id) = if direction == "out" {
+        (node_type, node_id, *other_type, *other_id)
+    } else {
+        (*other_type, *other_id, node_type, node_id)
+    };
+    Ok(GraphEdgeRecord {
+        graph: graph.name.clone(),
+        graph_id: graph.storage_id,
+        edge_id: (*edge_id).to_string(),
+        source_type: source_type.to_string(),
+        source_id: source_id.to_string(),
+        target_type: target_type.to_string(),
+        target_id: target_id.to_string(),
+        edge_type: (*edge_type).to_string(),
+        weight,
+    })
+}
+
+fn decode_sortable_weight(value: &str) -> Result<f64, CassieError> {
+    let ordered = u64::from_str_radix(value, 16)
+        .map_err(|error| CassieError::Parse(format!("invalid graph weight: {error}")))?;
+    let bits = if ordered & (1_u64 << 63) == 0 {
+        !ordered
+    } else {
+        ordered ^ (1_u64 << 63)
+    };
+    Ok(f64::from_bits(bits))
 }
 
 fn graph_edge_record_from_payload(
@@ -292,6 +340,7 @@ fn graph_edge_record_from_payload(
     }
     Ok(Some(GraphEdgeRecord {
         graph: graph.name.clone(),
+        graph_id: graph.storage_id,
         edge_id,
         source_type,
         source_id,

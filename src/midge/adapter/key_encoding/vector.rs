@@ -1,45 +1,43 @@
 use cntryl_lexkey::LexKey;
 
 use super::{
-    data_scoped_key, data_scoped_prefix, hnsw_source_summary_key, FAMILY_VECTOR_INDEX_STATE,
+    hnsw_source_summary_key, vector_hot_key, vector_hot_prefix, FAMILY_VECTOR_INDEX_STATE,
 };
 
-pub(crate) fn ivfflat_source_summary_key(collection: &str, field: &str) -> Vec<u8> {
-    hnsw_source_summary_key(collection, field)
+pub(crate) fn ivfflat_source_summary_key(relation_id: u64, field_id: u32) -> Vec<u8> {
+    hnsw_source_summary_key(relation_id, field_id)
 }
 
 pub(crate) fn ivfflat_membership_key(
-    collection: &str,
-    field: &str,
+    relation_id: u64,
+    field_id: u32,
     list: usize,
     id: &str,
 ) -> Vec<u8> {
     let list = u64::try_from(list).unwrap_or(u64::MAX).to_be_bytes();
-    data_scoped_key(
+    vector_hot_key(
         FAMILY_VECTOR_INDEX_STATE,
-        collection,
-        &[field.as_bytes(), b"l", &list, id.as_bytes()],
+        relation_id,
+        field_id,
+        &[b"l", &list, id.as_bytes()],
     )
 }
 
-pub(crate) fn ivfflat_membership_prefix(collection: &str, field: &str) -> Vec<u8> {
-    data_scoped_prefix(
-        FAMILY_VECTOR_INDEX_STATE,
-        collection,
-        &[field.as_bytes(), b"l"],
-    )
+pub(crate) fn ivfflat_membership_prefix(relation_id: u64, field_id: u32) -> Vec<u8> {
+    vector_hot_prefix(FAMILY_VECTOR_INDEX_STATE, relation_id, field_id, &[b"l"])
 }
 
 pub(crate) fn ivfflat_membership_list_prefix(
-    collection: &str,
-    field: &str,
+    relation_id: u64,
+    field_id: u32,
     list: usize,
 ) -> Vec<u8> {
     let list = u64::try_from(list).unwrap_or(u64::MAX).to_be_bytes();
-    data_scoped_prefix(
+    vector_hot_prefix(
         FAMILY_VECTOR_INDEX_STATE,
-        collection,
-        &[field.as_bytes(), b"l", &list],
+        relation_id,
+        field_id,
+        &[b"l", &list],
     )
 }
 

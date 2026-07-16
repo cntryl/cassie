@@ -5,14 +5,29 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+use std::time::Instant;
+
 fn main() {
-    let mut runner = stress::runner("tier1_hotpath_predicates");
-    runner.micro(
-        stress::StressCase::tier1_micro("field_lookup_by_field_id")
-            .metadata("logical_operations_per_iteration", "64"),
-        workloads::field_lookup_by_field_id,
+    let mut runner = stress::runner(
+        performance_benchmarks::BenchmarkTier::Tier1,
+        "tier1_hotpath_predicates",
     );
-    runner.tier1_micro("predicate_evaluation", workloads::predicate_evaluation);
-    runner.tier1_micro("query_parameter_binding", workloads::parameter_binding);
+    let predicate_case = stress::StressCase::new("predicate_evaluation", "micro").runtime_contract(
+        stress::FixtureDeclaration::new(
+            performance_benchmarks::FixtureClass::Kernel,
+            0,
+            "tier1_hotpath_predicates/micro",
+        ),
+        stress::OperationUnit::Predicate,
+    );
+    if runner.is_enabled(&predicate_case) {
+        let setup_started = Instant::now();
+        workloads::prepare_hotpath("predicate_evaluation").expect("registered Tier 1 workload");
+        let predicate_case = predicate_case.metadata(
+            "setup_time_ns",
+            setup_started.elapsed().as_nanos().max(1).to_string(),
+        );
+        runner.measure_micro(predicate_case, workloads::predicate_evaluation);
+    }
     runner.finish();
 }

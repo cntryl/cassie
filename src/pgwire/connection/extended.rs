@@ -21,6 +21,13 @@ use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
 use crate::runtime::{ExecutionMode, RuntimeState};
 use crate::types::Value;
 
+#[path = "extended/portal_streaming.rs"]
+mod portal_streaming;
+use portal_streaming::{
+    execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
+    StreamingPortalPageRequest, SuspendedPortalRequest,
+};
+
 const OID_BOOL: i32 = 16;
 const OID_INT8: i32 = 20;
 const OID_INT2: i32 = 21;
@@ -299,6 +306,7 @@ async fn handle_bind(
         .collect::<Result<Vec<_>, _>>()?;
 
     let replaced_portal = state.portals.contains_key(&portal);
+    state.portal_cursors.remove(&portal);
     state.portals.insert(
         portal.clone(),
         Portal {
@@ -381,34 +389,67 @@ async fn handle_execute(
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
     if let Some(suspended) = portal.suspended.clone() {
-        write_suspended_result(
+        return resume_suspended_portal(
+            cassie,
             write_half,
-            state,
-            &portal_name,
-            suspended,
-            &portal.result_formats,
-            max_rows,
+            SuspendedPortalRequest {
+                state,
+                session,
+                portal_name: &portal_name,
+                portal: &portal,
+                suspended,
+                max_rows,
+            },
         )
-        .await?;
-        return Ok(());
+        .await;
     }
 
     let prepared = prepared_for_portal(state, &portal)?;
+    if streamable_portal_query(&prepared, max_rows) {
+        return execute_streaming_portal_page(
+            cassie,
+            write_half,
+            StreamingPortalPageRequest {
+                state,
+                session,
+                portal_name: &portal_name,
+                portal: &portal,
+                prepared: &prepared,
+                max_rows,
+                query_offset: 0,
+            },
+        )
+        .await;
+    }
     let session = session.clone();
     let params = portal.params.clone();
     let parsed = prepared.parsed.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
+    let registration = state
+        .backend_registration
+        .as_ref()
+        .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
+    let cancellation = registration.begin_query();
+    let cancellation_handle = cancellation.handle();
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
-        cassie.execute_parsed_sql_with_mode(
+        cassie.execute_parsed_sql_with_cancellation(
             &session,
             parsed,
             sql_fingerprint,
             params,
             ExecutionMode::ExtendedQuery,
+            &cancellation_handle,
         )
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    let suspended_cancellation =
+        if execution_end_row(0, result.rows.len(), max_rows) < result.rows.len() {
+            Some(cancellation.suspend())
+        } else {
+            drop(cancellation);
+            None
+        };
 
     write_fresh_result(
         write_half,
@@ -416,7 +457,10 @@ async fn handle_execute(
         &portal_name,
         &portal,
         &prepared,
-        result,
+        FreshPortalResult {
+            result,
+            cancellation: suspended_cancellation,
+        },
         max_rows,
     )
     .await
@@ -439,10 +483,12 @@ async fn handle_close(
             remove_portals_for_prepared_id(state, runtime, prepared.id);
         }
         DescribeTarget::Portal => {
-            state
+            let portal = state
                 .portals
                 .remove(&name)
                 .ok_or_else(|| missing_portal_error(&name))?;
+            clear_portal_cancellation(state, &portal);
+            state.portal_cursors.remove(&name);
             runtime.record_pgwire_portal_delta(-1);
         }
     }
@@ -486,9 +532,13 @@ async fn write_fresh_result(
     portal_name: &str,
     portal: &Portal,
     prepared: &PreparedStatement,
-    result: QueryResult,
+    fresh: FreshPortalResult,
     max_rows: usize,
 ) -> Result<(), ExtendedQueryError> {
+    let FreshPortalResult {
+        result,
+        cancellation,
+    } = fresh;
     let QueryResult {
         columns,
         rows,
@@ -508,16 +558,31 @@ async fn write_fresh_result(
     update_portal_after_execute(
         state,
         portal_name,
-        columns,
-        rows,
-        command,
+        FreshPortalState {
+            columns,
+            rows,
+            command,
+            cancellation,
+        },
         row_description_sent,
         max_rows,
     );
     Ok(())
 }
 
-async fn write_suspended_result(
+struct FreshPortalResult {
+    result: QueryResult,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+}
+
+struct FreshPortalState {
+    columns: Vec<ColumnMeta>,
+    rows: Vec<Vec<Value>>,
+    command: String,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+}
+
+pub(super) async fn write_suspended_result(
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     portal_name: &str,
@@ -531,6 +596,8 @@ async fn write_suspended_result(
         command,
         next_row,
         row_description_sent,
+        query_offset: _,
+        cancellation,
     } = suspended;
     let end_row = execution_end_row(next_row, rows.len(), max_rows);
     let remains_suspended = end_row < rows.len();
@@ -563,6 +630,8 @@ async fn write_suspended_result(
             command,
             next_row: end_row,
             row_description_sent,
+            query_offset: None,
+            cancellation,
         });
     }
     Ok(())
@@ -605,12 +674,16 @@ async fn write_result_frames(
 fn update_portal_after_execute(
     state: &mut SessionState,
     portal_name: &str,
-    columns: Vec<ColumnMeta>,
-    rows: Vec<Vec<Value>>,
-    command: String,
+    fresh: FreshPortalState,
     row_description_sent: bool,
     max_rows: usize,
 ) {
+    let FreshPortalState {
+        columns,
+        rows,
+        command,
+        cancellation,
+    } = fresh;
     let end_row = execution_end_row(0, rows.len(), max_rows);
     let remains_suspended = end_row < rows.len();
     if let Some(portal) = state.portals.get_mut(portal_name) {
@@ -621,6 +694,8 @@ fn update_portal_after_execute(
             command,
             next_row: end_row,
             row_description_sent,
+            query_offset: None,
+            cancellation,
         });
     }
 }
@@ -670,14 +745,44 @@ fn remove_portals_for_prepared_id(
     runtime: &RuntimeState,
     prepared_id: u64,
 ) {
+    let cancellations = state
+        .portals
+        .values()
+        .filter(|portal| portal.prepared_id == prepared_id)
+        .filter_map(|portal| portal.suspended.as_ref()?.cancellation.clone())
+        .collect::<Vec<_>>();
     let before = state.portals.len();
     state
         .portals
         .retain(|_, portal| portal.prepared_id != prepared_id);
+    state.portal_cursors.retain(|portal_name, _| {
+        state
+            .portals
+            .get(portal_name)
+            .is_some_and(|portal| portal.prepared_id != prepared_id)
+    });
     let removed = before.saturating_sub(state.portals.len());
     if removed > 0 {
         let delta = isize::try_from(removed).unwrap_or(isize::MAX);
         runtime.record_pgwire_portal_delta(-delta);
+    }
+    if let Some(registration) = state.backend_registration.as_ref() {
+        for cancellation in cancellations {
+            registration.clear_query(&cancellation);
+        }
+    }
+}
+
+fn clear_portal_cancellation(state: &SessionState, portal: &Portal) {
+    let Some(cancellation) = portal
+        .suspended
+        .as_ref()
+        .and_then(|suspended| suspended.cancellation.as_ref())
+    else {
+        return;
+    };
+    if let Some(registration) = state.backend_registration.as_ref() {
+        registration.clear_query(cancellation);
     }
 }
 
@@ -732,6 +837,14 @@ fn decode_parameter(
     decode_binary_parameter(parameter, oid)
 }
 
+pub(super) fn benchmark_decode_parameter(
+    parameter: &[u8],
+    format: i16,
+    oid: i32,
+) -> Result<Value, String> {
+    decode_parameter(Some(parameter), format, oid).map_err(|error| error.pg_error.message.clone())
+}
+
 fn decode_text_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQueryError> {
     let text = str::from_utf8(parameter)
         .map_err(|_| ExtendedQueryError::protocol("bind parameter is not valid UTF-8"))?;
@@ -776,7 +889,7 @@ fn missing_portal_error(name: &str) -> ExtendedQueryError {
 }
 
 #[derive(Debug)]
-struct ExtendedQueryError {
+pub(super) struct ExtendedQueryError {
     pg_error: Box<PgWireError>,
     record_protocol_error: bool,
 }

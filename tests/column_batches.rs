@@ -1,7 +1,7 @@
 #![allow(unused_imports, dead_code)]
 
 use cassie::app::Cassie;
-use cassie::catalog::{ColumnBatchPayload, IndexKind};
+use cassie::catalog::IndexKind;
 use cassie::midge::adapter::StorageFamily;
 use cassie::sql::ast::QueryStatement;
 use cassie::sql::parse_statement;
@@ -299,11 +299,7 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
             .unwrap();
         let segment_key = entries
             .into_iter()
-            .find_map(|(key, value)| {
-                serde_json::from_slice::<ColumnBatchPayload>(&value)
-                    .ok()
-                    .map(|_| key)
-            })
+            .find_map(|(key, value)| value.starts_with(b"CCB1").then_some(key))
             .expect("column batch segment should be persisted");
         let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(segment_key, b"not-json".to_vec(), None)

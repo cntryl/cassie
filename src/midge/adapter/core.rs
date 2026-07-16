@@ -5,6 +5,7 @@ use super::{
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -15,6 +16,7 @@ pub struct Midge {
     pub(super) default_database: String,
     collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
+    query_scan_entries: AtomicU64,
 }
 
 impl Drop for Midge {
@@ -76,6 +78,7 @@ impl Midge {
             default_database: default_database.into(),
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
+            query_scan_entries: AtomicU64::new(0),
         })
     }
 
@@ -103,7 +106,18 @@ impl Midge {
             default_database: default_database.into(),
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
+            query_scan_entries: AtomicU64::new(0),
         })
+    }
+
+    #[doc(hidden)]
+    #[must_use]
+    pub fn query_scan_entries_for_diagnostics(&self) -> u64 {
+        self.query_scan_entries.load(Ordering::Relaxed)
+    }
+
+    pub(super) fn record_query_scan_entry(&self) {
+        self.query_scan_entries.fetch_add(1, Ordering::Relaxed);
     }
 
     /// # Errors
@@ -168,8 +182,7 @@ impl Midge {
                 let version = String::from_utf8_lossy(&value);
                 let expected = String::from_utf8_lossy(key_encoding::LAYOUT_MARKER_VALUE);
                 Err(CassieError::StorageBootstrap(format!(
-                    "incompatible Midge storage layout: found marker '{version}'; expected lexkey v{} marker '{expected}'; recreate the Midge data directory",
-                    key_encoding::LAYOUT_VERSION
+                    "incompatible Midge storage layout: found marker '{version}'; expected baseline marker '{expected}'; recreate the Midge data directory"
                 )))
             }
             None => {
@@ -210,21 +223,23 @@ impl Midge {
                     .map_err(CassieError::from)?;
                 if !scan.is_empty() {
                     return Err(CassieError::StorageBootstrap(format!(
-                        "incompatible lexkey v{} storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
+                        "incompatible {} storage layout: found legacy key prefix '{}' in {family_name}; recreate the Midge data directory",
                         key_encoding::LAYOUT_VERSION,
                         String::from_utf8_lossy(prefix)
                     )));
                 }
             }
 
-            let mut v2_scan = tx
-                .scan(&Query::new().prefix(key_encoding::legacy_v2_layout_prefix().into()))
-                .map_err(CassieError::from)?;
-            if v2_scan.next().is_some() {
-                return Err(CassieError::StorageBootstrap(format!(
-                    "incompatible lexkey v{} storage layout: found v2 keys in {family_name}; recreate the Midge data directory",
-                    key_encoding::LAYOUT_VERSION
-                )));
+            for prefix in key_encoding::legacy_layout_prefixes() {
+                let mut scan = tx
+                    .scan(&Query::new().prefix(prefix.into()))
+                    .map_err(CassieError::from)?;
+                if scan.next().is_some() {
+                    return Err(CassieError::StorageBootstrap(format!(
+                        "incompatible {} storage layout: found an older Cassie key baseline in {family_name}; recreate the Midge data directory",
+                        key_encoding::LAYOUT_VERSION
+                    )));
+                }
             }
         }
         Ok(())

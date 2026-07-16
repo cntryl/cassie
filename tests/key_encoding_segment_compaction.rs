@@ -51,37 +51,37 @@ fn execute_all_queries(cassie: &Cassie, session: &CassieSession, statements: &[&
 fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
     assert!(data_keys
         .iter()
-        .any(|(key, _)| key_family(key) == Some("scalar-index")));
+        .any(|(key, _)| key_family(key) == Some(b"\x11".as_slice())));
     assert!(data_keys
         .iter()
-        .any(|(key, _)| key_family(key) == Some("time-series-index")));
+        .any(|(key, _)| key_family(key) == Some(b"\x15".as_slice())));
     assert!(data_keys
         .iter()
-        .any(|(key, _)| key_family(key) == Some("column-batch")));
+        .any(|(key, _)| key_family(key) == Some(b"\x17".as_slice())));
     assert!(data_keys
         .iter()
-        .any(|(key, _)| key_family(key) == Some("column-store")));
+        .any(|(key, _)| key_family(key) == Some(b"\x18".as_slice())));
     assert!(data_keys
         .iter()
-        .any(|(key, _)| key_family(key) == Some("graph-adjacency")));
+        .any(|(key, _)| key_family(key) == Some(b"\x16".as_slice())));
 
     let scalar_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("scalar-index"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x11".as_slice()))
         .all(|(key, _)| !has_key_component(key, b"data"));
     let time_series_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("time-series-index"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x15".as_slice()))
         .all(|(key, _)| !has_key_component(key, b"data"));
     let batch_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("column-batch"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x17".as_slice()))
         .all(|(key, _)| {
             !has_key_component(key, b"metadata") && !has_key_component(key, b"segment")
         });
     let store_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("column-store"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x18".as_slice()))
         .all(|(key, _)| {
             !has_key_component(key, b"row")
                 && !has_key_component(key, b"deleted")
@@ -89,11 +89,11 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
         });
     let graph_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("graph-adjacency"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x16".as_slice()))
         .all(|(key, _)| !has_key_component(key, b"out") && !has_key_component(key, b"in"));
     let fulltext_checks = data_keys
         .iter()
-        .filter(|(key, _)| key_family(key) == Some("fulltext-index"))
+        .filter(|(key, _)| key_family(key) == Some(b"\x12".as_slice()))
         .all(|(key, _)| {
             let has_legacy_segment = has_key_component(key, b"metadata")
                 || has_key_component(key, b"manifest")
@@ -113,10 +113,8 @@ fn assert_key_encoding_marker_compaction(data_keys: &[(Vec<u8>, Vec<u8>)]) {
     assert!(fulltext_checks);
 }
 
-fn key_family(raw: &[u8]) -> Option<&str> {
-    raw.split(|byte| *byte == LexKey::SEPARATOR)
-        .nth(3)
-        .and_then(|component| std::str::from_utf8(component).ok())
+fn key_family(raw: &[u8]) -> Option<&[u8]> {
+    raw.split(|byte| *byte == LexKey::SEPARATOR).nth(2)
 }
 
 fn has_key_component(raw: &[u8], target: &[u8]) -> bool {

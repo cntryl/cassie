@@ -13,13 +13,13 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 8;
-    config.limits.temp_spill_budget_bytes = 1024 * 1024;
+    config.limits.query_memory_budget_bytes = 1024 * 1024;
     config
 }
 
-fn vectorized_join_budget_config(temp_spill_budget_bytes: usize) -> CassieRuntimeConfig {
+fn vectorized_join_budget_config(query_memory_budget_bytes: usize) -> CassieRuntimeConfig {
     let mut config = vectorized_join_config();
-    config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+    config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     config
 }
 

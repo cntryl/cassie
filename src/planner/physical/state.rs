@@ -174,6 +174,14 @@ pub struct PhysicalTopKPlan {
 pub struct PhysicalJoinPlan {
     pub strategy: Option<String>,
     #[serde(default)]
+    pub enumeration: String,
+    #[serde(default)]
+    pub order: Vec<String>,
+    #[serde(default)]
+    pub legality_barriers: Vec<String>,
+    #[serde(default)]
+    pub properties: PhysicalJoinProperties,
+    #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default)]
     pub sort_required: bool,
@@ -181,6 +189,22 @@ pub struct PhysicalJoinPlan {
     pub fallback_reason: Option<String>,
     #[serde(default)]
     pub vectorized: PhysicalVectorizedJoinPlan,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PhysicalJoinProperties {
+    #[serde(default)]
+    pub required_columns: Vec<String>,
+    #[serde(default)]
+    pub required_ordering: Vec<String>,
+    #[serde(default)]
+    pub parameterized: bool,
+    #[serde(default)]
+    pub rewindable: bool,
+    #[serde(default)]
+    pub bounded: bool,
+    #[serde(default)]
+    pub memory_bound: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

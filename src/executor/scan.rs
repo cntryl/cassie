@@ -1,8 +1,11 @@
 use crate::app::{Cassie, CassieSession};
 use crate::catalog::{CollectionSchema, IndexKind};
-use crate::executor::batch::{Batch, BatchRow, DEFAULT_BATCH_SIZE};
+use crate::executor::batch::{Batch, BatchRow, BatchStream, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::RowFilter;
-use crate::midge::adapter::{ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef};
+use crate::midge::adapter::{
+    ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef, MidgeRowCursor, RowDecode,
+};
+use crate::runtime::QueryExecutionControls;
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -17,6 +20,70 @@ pub(crate) struct ScanTimings {
 pub(crate) struct ProjectedDocumentFilter {
     pub(crate) field: String,
     pub(crate) value: Value,
+}
+
+pub(crate) struct ProjectedScanStream<'a> {
+    cassie: &'a Cassie,
+    cursor: MidgeRowCursor,
+    fields: Vec<String>,
+    schema: Option<CollectionSchema>,
+    controls: &'a QueryExecutionControls,
+    remaining: usize,
+}
+
+impl BatchStream for ProjectedScanStream<'_> {
+    fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
+        if self.remaining == 0 {
+            return Ok(None);
+        }
+        let batch_size = self.remaining.min(DEFAULT_BATCH_SIZE);
+        let documents = self
+            .cursor
+            .next_documents(&self.cassie.midge, batch_size, self.controls)
+            .map_err(crate::executor::QueryError::from)?;
+        if documents.is_empty() {
+            return Ok(None);
+        }
+        self.remaining = self.remaining.saturating_sub(documents.len());
+        Ok(Some(projected_document_batch_to_rows(
+            documents,
+            &self.fields,
+            None,
+            self.schema.as_ref(),
+        )))
+    }
+}
+
+pub(crate) fn projected_scan_stream<'a>(
+    cassie: &'a Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    fields: &[String],
+    limit: Option<usize>,
+    controls: &'a QueryExecutionControls,
+) -> Result<Option<ProjectedScanStream<'a>>, crate::executor::QueryError> {
+    if session.is_some_and(|session| !session.collection_changes(collection).is_empty()) {
+        return Ok(None);
+    }
+    if cassie.runtime.limits().parallel_scan_workers.max(1) > 1 {
+        return Ok(None);
+    }
+    let Some(cursor) = cassie
+        .midge
+        .open_row_cursor(collection, RowDecode::ProjectedHistorical(fields.to_vec()))
+        .map_err(crate::executor::QueryError::from)?
+    else {
+        return Ok(None);
+    };
+    cassie.runtime.record_parallel_scan_fallback();
+    Ok(Some(ProjectedScanStream {
+        cassie,
+        cursor,
+        fields: fields.to_vec(),
+        schema: cassie.catalog.get_schema(collection),
+        controls,
+        remaining: limit.unwrap_or(usize::MAX),
+    }))
 }
 
 pub(crate) fn scan(
@@ -235,15 +302,28 @@ fn document_batches_to_rows(
             .collect();
     }
 
-    let workers = worker_limit.min(document_batches.len());
+    let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
+        cassie.runtime.record_parallel_scan_fallback();
+        return document_batches
+            .into_iter()
+            .map(|documents| document_batch_to_rows(documents, schema))
+            .collect();
+    };
+    let workers = worker_guard.workers().min(document_batches.len());
+    let partitions = partition_document_batches(document_batches, workers);
     let mut indexed = std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(document_batches.len());
-        for (index, documents) in document_batches.into_iter().enumerate() {
-            handles.push(scope.spawn(move || (index, document_batch_to_rows(documents, schema))));
+        let mut handles = Vec::with_capacity(workers);
+        for partition in partitions {
+            handles.push(scope.spawn(move || {
+                partition
+                    .into_iter()
+                    .map(|(index, documents)| (index, document_batch_to_rows(documents, schema)))
+                    .collect::<Vec<_>>()
+            }));
         }
         handles
             .into_iter()
-            .map(|handle| handle.join().expect("parallel scan worker"))
+            .flat_map(|handle| handle.join().expect("parallel scan worker"))
             .collect::<Vec<_>>()
     });
     indexed.sort_by_key(|(index, _)| *index);
@@ -306,20 +386,42 @@ fn projected_document_batches_to_rows(
             .collect();
     }
 
-    let workers = worker_limit.min(document_batches.len());
+    let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
+        cassie.runtime.record_parallel_scan_fallback();
+        return document_batches
+            .into_iter()
+            .filter_map(|documents| {
+                let rows =
+                    projected_document_batch_to_rows(documents, fields, document_filter, schema);
+                (!rows.is_empty()).then_some(rows)
+            })
+            .collect();
+    };
+    let workers = worker_guard.workers().min(document_batches.len());
+    let partitions = partition_document_batches(document_batches, workers);
     let mut indexed = std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(document_batches.len());
-        for (index, documents) in document_batches.into_iter().enumerate() {
+        let mut handles = Vec::with_capacity(workers);
+        for partition in partitions {
             handles.push(scope.spawn(move || {
-                (
-                    index,
-                    projected_document_batch_to_rows(documents, fields, document_filter, schema),
-                )
+                partition
+                    .into_iter()
+                    .map(|(index, documents)| {
+                        (
+                            index,
+                            projected_document_batch_to_rows(
+                                documents,
+                                fields,
+                                document_filter,
+                                schema,
+                            ),
+                        )
+                    })
+                    .collect::<Vec<_>>()
             }));
         }
         handles
             .into_iter()
-            .map(|handle| handle.join().expect("parallel projected scan worker"))
+            .flat_map(|handle| handle.join().expect("parallel projected scan worker"))
             .collect::<Vec<_>>()
     });
     indexed.sort_by_key(|(index, _)| *index);
@@ -331,6 +433,17 @@ fn projected_document_batches_to_rows(
         .into_iter()
         .filter_map(|(_, batch)| (!batch.is_empty()).then_some(batch))
         .collect()
+}
+
+fn partition_document_batches(
+    document_batches: Vec<Vec<DocumentRef>>,
+    workers: usize,
+) -> Vec<Vec<(usize, Vec<DocumentRef>)>> {
+    let mut partitions = (0..workers).map(|_| Vec::new()).collect::<Vec<_>>();
+    for (index, documents) in document_batches.into_iter().enumerate() {
+        partitions[index % workers].push((index, documents));
+    }
+    partitions
 }
 
 fn projected_document_batch_to_rows(

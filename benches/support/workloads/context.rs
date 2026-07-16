@@ -4,19 +4,13 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::fmt::Write as _;
 use std::future::{ready, Ready};
-use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread;
 use std::time::{Duration, Instant};
 
 use cassie::app::{Cassie, CassieError, CassieSession};
 use cassie::catalog::{canonical_relation_name, CollectionSchema, FieldMeta};
-use cassie::config::{
-    CassieRuntimeConfig, EmbeddingsRuntimeConfig, SelfHostedEmbeddingRuntimeConfig,
-};
+use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
 use cassie::pgwire::protocol::ServerMessage;
 use cassie::planner::{logical, physical};
 use cassie::rest::{documents, search};
@@ -28,13 +22,18 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
 use uuid::Uuid;
 
+use super::mock_tei::MockTeiEmbeddingServer;
+
 #[derive(Clone)]
 pub struct BenchContext {
     pub cassie: Arc<Cassie>,
     pub session: CassieSession,
     pub collection: String,
+    pub data_dir: PathBuf,
     pub(super) _embedding_server: Option<Arc<MockTeiEmbeddingServer>>,
 }
+
+pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
@@ -68,17 +67,16 @@ pub struct QueryBreakdownMicros {
     pub total: u64,
 }
 
-pub struct MockTeiEmbeddingServer {
-    base_url: String,
-    shutdown: Arc<AtomicBool>,
-    thread: Option<thread::JoinHandle<()>>,
-}
-
 pub fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("benchmark runtime")
+}
+
+pub(super) fn configure_benchmark_environment() {
+    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
 }
 
 pub fn context(label: &str, dataset_rows: usize) -> Ready<Result<BenchContext, CassieError>> {
@@ -92,11 +90,121 @@ pub fn context(label: &str, dataset_rows: usize) -> Ready<Result<BenchContext, C
 pub fn scalar_context(
     label: &str,
     dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    max_result_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    ready(context_with_index_options(
+    ready(context_with_index_options_and_runtime(
         label,
         dataset_rows,
         BenchIndexOptions::scalar(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+            config.limits.max_result_rows = max_result_rows;
+        },
+    ))
+}
+
+pub(super) fn scaling_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+) -> Result<BenchContext, CassieError> {
+    scaling_query_context_with_mode_now(
+        label,
+        dataset_rows,
+        aggregation_workers,
+        BenchmarkStorageMode::Default,
+    )
+}
+
+pub(super) fn scaling_query_disk_context_now(
+    label: &str,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+) -> Result<BenchContext, CassieError> {
+    scaling_query_context_with_mode_now(
+        label,
+        dataset_rows,
+        aggregation_workers,
+        BenchmarkStorageMode::Disk,
+    )
+}
+
+fn scaling_query_context_with_mode_now(
+    label: &str,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+    storage_mode: BenchmarkStorageMode,
+) -> Result<BenchContext, CassieError> {
+    context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::scalar(),
+        storage_mode,
+        |config| {
+            configure_scaling_query_runtime(config, dataset_rows, aggregation_workers);
+        },
+    )
+}
+
+pub(super) fn reopen_scaling_query_context_now(
+    data_dir: PathBuf,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+    query_memory_budget_bytes: usize,
+    vectorized_join_batch_size: usize,
+) -> Result<BenchContext, CassieError> {
+    configure_benchmark_environment();
+    let mut config = CassieRuntimeConfig::from_env()
+        .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    configure_scaling_query_runtime(&mut config, dataset_rows, aggregation_workers);
+    config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+    config.limits.vectorized_join_batch_size = vectorized_join_batch_size;
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(
+        data_dir.clone(),
+        config,
+    )?);
+    cassie.startup()?;
+    let session = cassie.create_session("benchmark", None);
+    Ok(BenchContext {
+        cassie,
+        session,
+        collection: "bench_documents".to_string(),
+        data_dir,
+        _embedding_server: None,
+    })
+}
+
+fn configure_scaling_query_runtime(
+    config: &mut CassieRuntimeConfig,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+) {
+    config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+    config.limits.max_result_rows = dataset_rows.max(111_111);
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 1_024;
+    config.limits.operator_switch_join_row_threshold = dataset_rows.saturating_mul(2).max(1);
+    config.limits.parallel_aggregation_workers = aggregation_workers;
+    config.limits.max_query_workers = aggregation_workers.max(1);
+}
+
+pub fn worker_scaling_context(
+    label: &str,
+    dataset_rows: usize,
+    aggregation_workers: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+            config.limits.parallel_aggregation_workers = aggregation_workers;
+            config.limits.max_query_workers = aggregation_workers.max(1);
+        },
     ))
 }
 
@@ -108,12 +216,20 @@ pub fn column_batch_context(
 }
 
 fn column_batch_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    let ctx = context_with_index_options(label, dataset_rows, BenchIndexOptions::none())?;
-    let statement = format!(
-        "CREATE INDEX {}_column_idx ON {} USING column (title, body, status, score) WITH (segment_size = 256)",
-        ctx.collection, ctx.collection
-    );
-    let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+    let ctx = context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+        },
+    )?;
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE INDEX bench_documents_column_idx ON bench_documents USING column (title, body, status, score) WITH (segment_size = 256)",
+        vec![],
+    )?;
     Ok(ctx)
 }
 
@@ -131,7 +247,7 @@ pub fn unindexed_context(
 pub fn unindexed_disk_context_with_temp_budget(
     label: &str,
     dataset_rows: usize,
-    temp_spill_budget_bytes: usize,
+    query_memory_budget_bytes: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
     ready(context_with_index_options_and_runtime(
         label,
@@ -139,7 +255,7 @@ pub fn unindexed_disk_context_with_temp_budget(
         BenchIndexOptions::none(),
         BenchmarkStorageMode::Disk,
         |config| {
-            config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
         },
     ))
 }
@@ -147,7 +263,7 @@ pub fn unindexed_disk_context_with_temp_budget(
 pub fn disk_context_with_temp_budget(
     label: &str,
     dataset_rows: usize,
-    temp_spill_budget_bytes: usize,
+    query_memory_budget_bytes: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
     ready(context_with_index_options_and_runtime(
         label,
@@ -155,7 +271,7 @@ pub fn disk_context_with_temp_budget(
         BenchIndexOptions::full(),
         BenchmarkStorageMode::Disk,
         |config| {
-            config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
         },
     ))
 }
@@ -168,16 +284,17 @@ pub fn replay_context(
 }
 
 fn replay_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    configure_benchmark_environment();
     let dir = benchmark_data_dir(label);
 
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+    let cassie = Arc::new(Cassie::new_with_data_dir(dir.clone())?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_documents".to_string(),
+        data_dir: dir,
         _embedding_server: None,
     };
     prepare_replay_collection(&ctx, dataset_rows)?;
@@ -187,30 +304,40 @@ fn replay_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, 
 pub fn time_series_context(
     label: &str,
     dataset_rows: usize,
+    query_memory_budget_bytes: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    ready(time_series_context_now(label, dataset_rows))
+    ready(time_series_context_now(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+    ))
 }
 
-fn time_series_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn time_series_context_now(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+) -> Result<BenchContext, CassieError> {
+    configure_benchmark_environment();
     let dir = benchmark_data_dir(label);
-    let config = CassieRuntimeConfig::from_env()
+    let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
+    config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     time_series_context_with_dir_and_config(dataset_rows, dir, config)
 }
 
 pub fn time_series_disk_context_with_temp_budget(
     label: &str,
     dataset_rows: usize,
-    temp_spill_budget_bytes: usize,
+    query_memory_budget_bytes: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    configure_benchmark_environment();
     let dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
     ready(
         CassieRuntimeConfig::from_env()
             .map_err(|error| CassieError::Configuration(error.to_string()))
             .and_then(|mut config| {
-                config.limits.temp_spill_budget_bytes = temp_spill_budget_bytes;
+                config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
                 time_series_context_with_dir_and_config(dataset_rows, dir, config)
             }),
     )
@@ -221,13 +348,14 @@ fn time_series_context_with_dir_and_config(
     dir: PathBuf,
     config: CassieRuntimeConfig,
 ) -> Result<BenchContext, CassieError> {
-    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir.clone(), config)?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_time_series_events".to_string(),
+        data_dir: dir,
         _embedding_server: None,
     };
     prepare_time_series_collection(&ctx, dataset_rows)?;
@@ -239,16 +367,17 @@ pub fn graph_context(label: &str, dataset_rows: usize) -> Ready<Result<BenchCont
 }
 
 fn graph_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    configure_benchmark_environment();
     let dir = benchmark_data_dir(label);
 
-    let cassie = Arc::new(Cassie::new_with_data_dir(dir)?);
+    let cassie = Arc::new(Cassie::new_with_data_dir(dir.clone())?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_graph".to_string(),
+        data_dir: dir,
         _embedding_server: None,
     };
     prepare_graph(&ctx, dataset_rows)?;
@@ -256,13 +385,13 @@ fn graph_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, C
 }
 
 #[derive(Debug, Clone, Copy)]
-struct BenchIndexOptions {
+pub(super) struct BenchIndexOptions {
     include_scalar_indexes: bool,
     include_fulltext_index: bool,
 }
 
 impl BenchIndexOptions {
-    fn full() -> Self {
+    pub(super) fn full() -> Self {
         Self {
             include_scalar_indexes: true,
             include_fulltext_index: true,
@@ -298,8 +427,23 @@ fn context_with_index_options(
     )
 }
 
+pub fn execution_result_cache_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::full(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::enabled();
+        },
+    ))
+}
+
 #[derive(Debug, Clone, Copy)]
-enum BenchmarkStorageMode {
+pub(super) enum BenchmarkStorageMode {
     Default,
     Disk,
 }
@@ -311,20 +455,21 @@ fn context_with_index_options_and_runtime(
     storage_mode: BenchmarkStorageMode,
     configure: impl FnOnce(&mut CassieRuntimeConfig),
 ) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    configure_benchmark_environment();
     let dir = benchmark_data_dir_for_mode(label, storage_mode);
 
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
     configure(&mut config);
 
-    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
+    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir.clone(), config)?);
     cassie.startup()?;
     let session = cassie.create_session("benchmark", None);
     let ctx = BenchContext {
         cassie,
         session,
         collection: "bench_documents".to_string(),
+        data_dir: dir,
         _embedding_server: None,
     };
     prepare_collection(&ctx, dataset_rows, index_options)?;
@@ -352,7 +497,7 @@ fn recursive_cte_context_now(
             config.limits.query_timeout_ms = 0;
             config.limits.cte_recursion_depth = recursion_depth;
             config.limits.max_result_rows = expected_rows;
-            config.limits.temp_spill_budget_bytes = 512 * 1024 * 1024;
+            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
         },
     )?;
     context.cassie.execute_sql(
@@ -380,55 +525,14 @@ fn recursive_cte_expected_rows(recursion_depth: usize) -> usize {
         .sum()
 }
 
-pub fn context_with_mock_tei_embeddings(
-    label: &str,
-    dataset_rows: usize,
-) -> Ready<Result<BenchContext, CassieError>> {
-    ready(context_with_mock_tei_embeddings_now(label, dataset_rows))
-}
-
-fn context_with_mock_tei_embeddings_now(
-    label: &str,
-    dataset_rows: usize,
-) -> Result<BenchContext, CassieError> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    let server = Arc::new(MockTeiEmbeddingServer::spawn());
-    let mut config = CassieRuntimeConfig::from_env()
-        .map_err(|error| CassieError::Configuration(error.to_string()))?;
-    config.embeddings = EmbeddingsRuntimeConfig::Tei(SelfHostedEmbeddingRuntimeConfig {
-        base_url: server.base_url(),
-        model: "BAAI/bge-small-en-v1.5".to_string(),
-        dimensions: 3,
-        timeout_seconds: 2,
-        max_batch_size: 16,
-        max_retries: 1,
-    });
-
-    let dir = benchmark_data_dir(label);
-
-    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir, config)?);
-    cassie.startup()?;
-    let session = cassie.create_session("benchmark", None);
-    let ctx = BenchContext {
-        cassie,
-        session,
-        collection: "bench_documents".to_string(),
-        _embedding_server: Some(server),
-    };
-    prepare_collection(&ctx, dataset_rows, BenchIndexOptions::full())?;
-    let statement = format!(
-        "CREATE INDEX {}_embedding_idx ON {} USING vector (embedding) WITH (source_field = body, metric = cosine)",
-        ctx.collection, ctx.collection
-    );
-    let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
-    Ok(ctx)
-}
-
 pub(super) fn benchmark_data_dir(label: &str) -> PathBuf {
     benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Default)
 }
 
-fn benchmark_data_dir_for_mode(label: &str, storage_mode: BenchmarkStorageMode) -> PathBuf {
+pub(super) fn benchmark_data_dir_for_mode(
+    label: &str,
+    storage_mode: BenchmarkStorageMode,
+) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
     if matches!(storage_mode, BenchmarkStorageMode::Disk)
@@ -470,67 +574,7 @@ pub(super) fn duration_divisor(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX).max(1)
 }
 
-impl MockTeiEmbeddingServer {
-    fn spawn() -> Self {
-        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind mock tei server");
-        listener
-            .set_nonblocking(true)
-            .expect("set mock tei nonblocking");
-        let base_url = format!(
-            "http://{}",
-            listener.local_addr().expect("mock tei server address")
-        );
-        let shutdown = Arc::new(AtomicBool::new(false));
-        let shutdown_thread = shutdown.clone();
-        let thread = thread::spawn(move || {
-            while !shutdown_thread.load(Ordering::Relaxed) {
-                match listener.accept() {
-                    Ok((mut stream, _)) => {
-                        let _ = stream.set_nonblocking(false);
-                        let body = read_http_body(&mut stream);
-                        let inputs = serde_json::from_slice::<serde_json::Value>(&body)
-                            .ok()
-                            .and_then(|value| value["inputs"].as_array().map(std::vec::Vec::len))
-                            .unwrap_or(1);
-                        let vectors = vec![vec![1.0_f32, 0.0, 0.0]; inputs];
-                        let response = serde_json::to_string(&vectors).expect("tei response");
-                        let output = format!(
-                            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
-                            response.len(),
-                            response
-                        );
-                        let _ = stream.write_all(output.as_bytes());
-                        let _ = stream.flush();
-                    }
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(std::time::Duration::from_millis(1));
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-        Self {
-            base_url,
-            shutdown,
-            thread: Some(thread),
-        }
-    }
-
-    fn base_url(&self) -> String {
-        self.base_url.clone()
-    }
-}
-
-impl Drop for MockTeiEmbeddingServer {
-    fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::Relaxed);
-        if let Some(handle) = self.thread.take() {
-            let _ = handle.join();
-        }
-    }
-}
-
-fn prepare_collection(
+pub(super) fn prepare_collection(
     ctx: &BenchContext,
     dataset_rows: usize,
     index_options: BenchIndexOptions,
@@ -614,11 +658,11 @@ fn create_bench_fulltext_index(
         return Ok(());
     }
 
-    let statement = format!(
-        "CREATE INDEX {}_body_idx ON {} USING fulltext (body)",
-        ctx.collection, ctx.collection
-    );
-    let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE INDEX bench_documents_body_idx ON bench_documents USING fulltext (body)",
+        vec![],
+    )?;
     Ok(())
 }
 
@@ -648,6 +692,24 @@ fn build_bench_documents(dataset_rows: usize) -> Vec<(Option<String>, serde_json
             } else {
                 "pending"
             };
+            let raw_embedding = [
+                usize_mod_f32(index, 7),
+                usize_mod_f32(index, 11),
+                usize_mod_f32(index, 13),
+            ];
+            let magnitude = raw_embedding
+                .iter()
+                .map(|value| value * value)
+                .sum::<f32>()
+                .sqrt();
+            let embedding = if magnitude == 0.0 {
+                vec![1.0, 0.0, 0.0]
+            } else {
+                raw_embedding
+                    .iter()
+                    .map(|value| value / magnitude)
+                    .collect::<Vec<_>>()
+            };
 
             (
                 Some(format!("doc-{index}")),
@@ -656,11 +718,7 @@ fn build_bench_documents(dataset_rows: usize) -> Vec<(Option<String>, serde_json
                     "body": body,
                     "score": usize_mod_i64(index, 100),
                     "status": status,
-                    "embedding": [
-                        usize_mod_f32(index, 7),
-                        usize_mod_f32(index, 11),
-                        usize_mod_f32(index, 13),
-                    ],
+                    "embedding": embedding,
                 }),
             )
         })
@@ -676,26 +734,14 @@ fn create_bench_scalar_indexes(
     }
 
     let statements = [
-        format!(
-            "CREATE INDEX {}_title_idx ON {} USING btree (title)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
-            "CREATE INDEX {}_score_idx ON {} USING btree (score)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
-            "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
-            "CREATE INDEX {}_lower_title_idx ON {} USING btree (lower(title))",
-            ctx.collection, ctx.collection
-        ),
+        "CREATE INDEX bench_documents_title_idx ON bench_documents USING btree (title)",
+        "CREATE INDEX bench_documents_score_idx ON bench_documents USING btree (score)",
+        "CREATE INDEX bench_documents_status_score_idx ON bench_documents USING btree (status, score)",
+        "CREATE INDEX bench_documents_lower_title_idx ON bench_documents USING btree (lower(title))",
     ];
 
     for statement in statements {
-        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+        let _ = ctx.cassie.execute_sql(&ctx.session, statement, vec![])?;
     }
 
     Ok(())
@@ -782,18 +828,12 @@ fn prepare_replay_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<
     }
 
     let statements = [
-        format!(
-            "CREATE INDEX {}_score_idx ON {} USING btree (score)",
-            ctx.collection, ctx.collection
-        ),
-        format!(
-            "CREATE INDEX {}_status_score_idx ON {} USING btree (status, score)",
-            ctx.collection, ctx.collection
-        ),
+        "CREATE INDEX bench_documents_score_idx ON bench_documents USING btree (score)",
+        "CREATE INDEX bench_documents_status_score_idx ON bench_documents USING btree (status, score)",
     ];
 
     for statement in statements {
-        let _ = ctx.cassie.execute_sql(&ctx.session, &statement, vec![])?;
+        let _ = ctx.cassie.execute_sql(&ctx.session, statement, vec![])?;
     }
 
     Ok(())
@@ -862,11 +902,11 @@ fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieEr
         return Ok(());
     }
 
-    let create = format!(
-        "CREATE GRAPH {} (NODES (label TEXT), EDGES (source TEXT))",
-        ctx.collection
-    );
-    ctx.cassie.execute_sql(&ctx.session, &create, vec![])?;
+    ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE GRAPH bench_documents (NODES (label TEXT), EDGES (source TEXT))",
+        vec![],
+    )?;
 
     let mut nodes = Vec::with_capacity(dataset_rows);
     for index in 0..dataset_rows {
@@ -908,52 +948,4 @@ fn prepare_graph(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieEr
     }
 
     Ok(())
-}
-
-fn read_http_body(stream: &mut std::net::TcpStream) -> Vec<u8> {
-    let mut buffer = Vec::new();
-    let mut chunk = [0u8; 1024];
-    let mut headers_end = 0usize;
-    let mut content_length = 0usize;
-    while headers_end == 0 {
-        let read = stream.read(&mut chunk).expect("read request");
-        if read == 0 {
-            return Vec::new();
-        }
-
-        buffer.extend_from_slice(&chunk[..read]);
-        if let Some(separator) = find_request_body_start(&buffer) {
-            headers_end = separator;
-            content_length = parse_content_length(&buffer);
-        }
-    }
-
-    while buffer.len() < headers_end.saturating_add(content_length) {
-        let read = stream.read(&mut chunk).expect("read request body");
-        if read == 0 {
-            break;
-        }
-
-        buffer.extend_from_slice(&chunk[..read]);
-    }
-
-    buffer[headers_end..headers_end.saturating_add(content_length)].to_vec()
-}
-
-fn find_request_body_start(value: &[u8]) -> Option<usize> {
-    let text = String::from_utf8_lossy(value);
-    text.find("\r\n\r\n").map(|index| index + 4)
-}
-
-fn parse_content_length(value: &[u8]) -> usize {
-    let header = String::from_utf8_lossy(value);
-    for line in header.lines() {
-        let lower = line.to_ascii_lowercase();
-        if let Some(value) = lower.strip_prefix("content-length:") {
-            if let Ok(parsed) = value.trim().parse::<usize>() {
-                return parsed;
-            }
-        }
-    }
-    0
 }

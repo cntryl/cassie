@@ -38,8 +38,8 @@ use crate::executor::{
 };
 use crate::midge::adapter::{DocumentRef, Midge, MidgeScanTimings, RowDecode, RowFilter};
 use crate::runtime::{
-    query_cache, ExecutionMode, PlanCacheKey, QueryExecutionControls, RuntimeFeedbackKey,
-    RuntimeFeedbackObservation, RuntimeState,
+    query_cache, ExecutionMode, PlanCacheKey, QueryCancellationHandle, QueryExecutionControls,
+    RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeState,
 };
 use crate::sql::ast::{
     QueryStatement, TransactionAction, TransactionIsolation, TransactionStatement,

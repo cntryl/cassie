@@ -3,8 +3,12 @@ use std::time::Duration;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::embeddings::provider::{
+    controlled_backoff, controlled_request_timeout, run_controlled_request,
+};
 use crate::embeddings::EmbeddingProvider;
 use crate::embeddings::{Embedding, EmbeddingError};
+use crate::runtime::QueryExecutionControls;
 
 #[derive(Debug, Clone)]
 pub struct VoyageProviderConfig {
@@ -23,6 +27,7 @@ pub struct VoyageProvider {
     model: String,
     dimensions: usize,
     client: Client,
+    request_timeout: Duration,
     max_batch_size: usize,
     max_retries: usize,
     base_url: String,
@@ -89,6 +94,7 @@ impl VoyageProvider {
             model: config.model,
             dimensions: config.dimensions,
             client,
+            request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
             base_url: config.base_url,
@@ -99,6 +105,7 @@ impl VoyageProvider {
         &self,
         inputs: &[String],
         input_type: &'static str,
+        controls: Option<&QueryExecutionControls>,
     ) -> Result<Vec<Embedding>, EmbeddingError> {
         if inputs.is_empty() {
             return Ok(Vec::new());
@@ -117,21 +124,24 @@ impl VoyageProvider {
         let mut attempt = 0usize;
         loop {
             attempt += 1;
+            let timeout =
+                controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
             let client = self.client.clone();
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
 
-            let response = Self::run_blocking(move || {
+            let response = run_controlled_request(self.provider_name(), controls, move || {
                 let response = client
                     .post(endpoint)
+                    .timeout(timeout)
                     .header("Authorization", format!("Bearer {api_key}"))
                     .json(&request_snapshot)
                     .send()?;
                 let status = response.status();
                 let body = response.text()?;
                 Ok::<_, reqwest::Error>((status, body))
-            });
+            })?;
 
             match response {
                 Ok((status, body)) if status.is_success() => {
@@ -144,7 +154,11 @@ impl VoyageProvider {
                     return validate_embeddings(parsed.data, inputs.len(), self.dimensions);
                 }
                 Ok((status, body)) if is_transient_status(status) && attempt < self.max_retries => {
-                    std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                    controlled_backoff(
+                        self.provider_name(),
+                        Duration::from_millis(50 * attempt as u64),
+                        controls,
+                    )?;
                     tracing::warn!(
                         provider = %self.provider_name(),
                         model = %self.model,
@@ -169,7 +183,11 @@ impl VoyageProvider {
                 Err(error)
                     if (error.is_timeout() || error.is_connect()) && attempt < self.max_retries =>
                 {
-                    std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+                    controlled_backoff(
+                        self.provider_name(),
+                        Duration::from_millis(50 * attempt as u64),
+                        controls,
+                    )?;
                 }
                 Err(error) if error.is_timeout() => {
                     return Err(EmbeddingError::Timeout {
@@ -182,13 +200,6 @@ impl VoyageProvider {
                 }
             }
         }
-    }
-
-    fn run_blocking<T, F>(f: F) -> reqwest::Result<T>
-    where
-        F: FnOnce() -> reqwest::Result<T>,
-    {
-        f()
     }
 }
 
@@ -208,14 +219,39 @@ impl EmbeddingProvider for VoyageProvider {
     fn embed_documents(&self, inputs: &[String]) -> Result<Vec<Embedding>, EmbeddingError> {
         let mut out = Vec::with_capacity(inputs.len());
         for chunk in inputs.chunks(self.max_batch_size) {
-            out.extend(self.embed_batch(chunk, "document")?);
+            out.extend(self.embed_batch(chunk, "document", None)?);
         }
         Ok(out)
     }
 
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
-        self.embed_batch(std::slice::from_ref(&input.to_string()), "query")
+        self.embed_batch(std::slice::from_ref(&input.to_string()), "query", None)
             .map(|mut embeddings| embeddings.remove(0))
+    }
+
+    fn embed_documents_with_controls(
+        &self,
+        inputs: &[String],
+        controls: &QueryExecutionControls,
+    ) -> Result<Vec<Embedding>, EmbeddingError> {
+        let mut out = Vec::with_capacity(inputs.len());
+        for chunk in inputs.chunks(self.max_batch_size) {
+            out.extend(self.embed_batch(chunk, "document", Some(controls))?);
+        }
+        Ok(out)
+    }
+
+    fn embed_query_with_controls(
+        &self,
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Embedding, EmbeddingError> {
+        self.embed_batch(
+            std::slice::from_ref(&input.to_string()),
+            "query",
+            Some(controls),
+        )
+        .map(|mut embeddings| embeddings.remove(0))
     }
 }
 

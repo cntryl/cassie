@@ -393,18 +393,29 @@ fn should_store_ivfflat_membership_outside_training_manifest() {
 
     // Act
     put_ivfflat_index(&cassie, collection, 17);
-    let entries = cassie
+    let state_key = cassie
         .midge
-        .raw_scan_prefix(StorageFamily::Data, b"")
+        .vector_state_key_for_diagnostics(collection, "embedding")
         .unwrap();
-    let state = entries
-        .iter()
-        .filter_map(|(_, raw)| serde_json::from_slice::<serde_json::Value>(raw).ok())
-        .find(|value| value.get("ivfflat_training").is_some())
+    let state = cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, &state_key)
+        .unwrap();
+    let state = state
+        .into_iter()
+        .find_map(|(key, value)| (key == state_key).then_some(value))
         .expect("persisted ivfflat state");
+    let (training, membership_count) = cassie
+        .midge
+        .get_ivfflat_training_manifest(collection, "embedding")
+        .unwrap()
+        .expect("ivfflat manifest");
 
     // Assert
-    assert!(state["ivfflat_training"].get("assignments").is_none());
+    assert_eq!(state.first(), Some(&3));
+    assert_ne!(state.first(), Some(&0x7b));
+    assert!(training.assignments.is_empty());
+    assert_eq!(membership_count, 2);
 
     let _ = std::fs::remove_dir_all(path);
 }

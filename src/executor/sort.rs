@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, VecDeque};
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
@@ -8,89 +8,146 @@ use crate::executor::batch::{chunk_rows, flatten_batches, row_tie_key, Batch, DE
 use crate::executor::filter;
 use crate::executor::filter::ScalarValue;
 use crate::executor::filter::SearchContext;
+use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
 
-pub(crate) fn sort_rows<R>(
-    mut rows: Vec<R>,
-    order: &[OrderExpr],
-    projection: &[SelectItem],
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &std::collections::HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-) -> Vec<R>
+pub(crate) fn sort_batches_with_controls(
+    batches: Vec<Batch>,
+    eval: &EvalInput<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    if eval.order.is_empty() {
+        return Ok(batches);
+    }
+    let rows = sort_rows_with_controls(flatten_batches(batches), eval, controls)?;
+    Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
+}
+
+pub(crate) fn sort_rows_with_controls<R>(
+    rows: Vec<R>,
+    eval: &EvalInput<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<R>, crate::executor::QueryError>
 where
     R: RowAccess,
 {
-    if order.is_empty() {
-        return rows;
+    let mut runs = Vec::with_capacity(rows.len());
+    let mut key_memory = Vec::with_capacity(rows.len());
+    for row in rows {
+        check_query_controls(controls)?;
+        let key = eval.row_key(&row);
+        key_memory.push(controls.reserve_query_memory(row_key_bytes(&key))?);
+        runs.push(VecDeque::from([(key, row)]));
     }
-
-    let eval = EvalInput {
-        order,
-        projection,
-        params,
-        search_context,
-        user_functions,
-        session,
-    };
-    rows.sort_by(|left, right| eval.compare_rows(left, right));
-
-    rows
+    while runs.len() > 1 {
+        let mut merged = Vec::with_capacity(runs.len().div_ceil(2));
+        let mut run_iter = runs.into_iter();
+        while let Some(left) = run_iter.next() {
+            let Some(right) = run_iter.next() else {
+                merged.push(left);
+                break;
+            };
+            merged.push(merge_sorted_runs(left, right, controls)?);
+        }
+        runs = merged;
+    }
+    Ok(runs
+        .pop()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_, row)| row)
+        .collect())
 }
 
-pub(crate) fn sort_batches(
-    batches: Vec<Batch>,
-    order: &[OrderExpr],
-    projection: &[SelectItem],
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &std::collections::HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-) -> Vec<Batch> {
-    if order.is_empty() {
-        return batches;
+fn merge_sorted_runs<R>(
+    mut left: VecDeque<(RowKey, R)>,
+    mut right: VecDeque<(RowKey, R)>,
+    controls: &QueryExecutionControls,
+) -> Result<VecDeque<(RowKey, R)>, crate::executor::QueryError> {
+    let mut merged = VecDeque::with_capacity(left.len() + right.len());
+    while !left.is_empty() && !right.is_empty() {
+        check_query_controls(controls)?;
+        if compare_row_keys(&left[0].0, &right[0].0) == Ordering::Greater {
+            merged.push_back(right.pop_front().expect("right run is nonempty"));
+        } else {
+            merged.push_back(left.pop_front().expect("left run is nonempty"));
+        }
     }
-
-    let rows = flatten_batches(batches);
-    let rows = sort_rows(
-        rows,
-        order,
-        projection,
-        params,
-        search_context,
-        user_functions,
-        session,
-    );
-    chunk_rows(rows, DEFAULT_BATCH_SIZE)
+    merged.append(&mut left);
+    merged.append(&mut right);
+    Ok(merged)
 }
 
-pub(crate) fn top_k_batches(
+fn check_query_controls(
+    controls: &QueryExecutionControls,
+) -> Result<(), crate::executor::QueryError> {
+    if controls.is_cancelled() {
+        return Err(crate::executor::QueryError::General(
+            "query canceled".to_string(),
+        ));
+    }
+    if controls.is_timed_out() {
+        return Err(crate::executor::QueryError::General(
+            "query timeout exceeded".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn top_k_batches_with_controls(
     batches: Vec<Batch>,
     eval: &EvalInput<'_>,
     top_needed: usize,
-) -> Vec<Batch> {
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    if eval.order.is_empty() || top_needed == 0 {
+        return Ok(Vec::new());
+    }
+    let mut top = BinaryHeap::with_capacity(top_needed.min(DEFAULT_BATCH_SIZE).saturating_add(1));
+    let mut top_memory = controls.reserve_query_memory(0)?;
+    for row in flatten_batches(batches) {
+        check_query_controls(controls)?;
+        let candidate = TopCandidate {
+            key: eval.row_key(&row),
+            row,
+        };
+        push_top_candidate(&mut top, top_needed, candidate);
+        drop(top_memory);
+        top_memory = controls.reserve_query_memory(
+            top.iter()
+                .map(|candidate| row_key_bytes(&candidate.key))
+                .sum(),
+        )?;
+    }
+    let mut ranked = top.into_vec();
+    ranked.sort_by(compare_top_candidates);
+    Ok(chunk_rows(
+        ranked.into_iter().map(|candidate| candidate.row).collect(),
+        DEFAULT_BATCH_SIZE,
+    ))
+}
+
+/// Maintains the production top-k heap without query-runtime orchestration.
+pub(crate) fn maintain_top_k_kernel(
+    rows: Vec<crate::executor::batch::BatchRow>,
+    eval: &EvalInput<'_>,
+    top_needed: usize,
+) -> Vec<crate::executor::batch::BatchRow> {
     if eval.order.is_empty() || top_needed == 0 {
         return Vec::new();
     }
-
-    let mut top = BinaryHeap::with_capacity(top_needed.min(DEFAULT_BATCH_SIZE).saturating_add(1));
-    for row in flatten_batches(batches) {
+    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    for row in rows {
         let candidate = TopCandidate {
             key: eval.row_key(&row),
             row,
         };
         push_top_candidate(&mut top, top_needed, candidate);
     }
-
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_top_candidates);
-    let rows = ranked
-        .into_iter()
-        .map(|candidate| candidate.row)
-        .collect::<Vec<_>>();
-    chunk_rows(rows, DEFAULT_BATCH_SIZE)
+    ranked.into_iter().map(|candidate| candidate.row).collect()
 }
 
 fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
@@ -160,26 +217,6 @@ pub(crate) struct EvalInput<'a> {
 }
 
 impl EvalInput<'_> {
-    fn compare_rows<R: RowAccess>(&self, left: &R, right: &R) -> Ordering {
-        for OrderExpr {
-            expr,
-            direction,
-            nulls,
-        } in self.order
-        {
-            let left_value = self.value(left, expr);
-            let right_value = self.value(right, expr);
-            let cmp = compare_ordered_values(&left_value, &right_value, direction, *nulls);
-            if cmp != Ordering::Equal {
-                return cmp;
-            }
-        }
-
-        let left_key = row_tie_key(left);
-        let right_key = row_tie_key(right);
-        left_key.cmp(&right_key)
-    }
-
     fn row_key<R: RowAccess>(&self, row: &R) -> RowKey {
         let parts = self
             .order
@@ -289,6 +326,28 @@ fn compare_row_keys(left: &RowKey, right: &RowKey) -> Ordering {
         .len()
         .cmp(&right.parts.len())
         .then_with(|| left.tie_key.cmp(&right.tie_key))
+}
+
+fn row_key_bytes(key: &RowKey) -> usize {
+    key.tie_key
+        .len()
+        .saturating_add(
+            key.parts
+                .len()
+                .saturating_mul(std::mem::size_of::<KeyPart>()),
+        )
+        .saturating_add(
+            key.parts
+                .iter()
+                .map(|part| match &part.value {
+                    ScalarValue::Str(value) => value.len(),
+                    ScalarValue::Null
+                    | ScalarValue::Bool(_)
+                    | ScalarValue::Int(_)
+                    | ScalarValue::Float(_) => 0,
+                })
+                .sum(),
+        )
 }
 
 fn compare_ordered_values(

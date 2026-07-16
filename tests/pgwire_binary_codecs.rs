@@ -132,25 +132,6 @@ fn read_i32(payload: &[u8], cursor: &mut usize) -> i32 {
     i32::from_be_bytes(bytes)
 }
 
-fn error_code(payload: &[u8]) -> Option<String> {
-    let mut cursor = 0usize;
-    while cursor < payload.len() && payload[cursor] != 0 {
-        let field = payload[cursor];
-        cursor += 1;
-        let end = payload[cursor..]
-            .iter()
-            .position(|byte| *byte == 0)
-            .expect("error field terminator");
-        if field == b'C' {
-            return Some(
-                String::from_utf8(payload[cursor..cursor + end].to_vec()).expect("SQLSTATE UTF-8"),
-            );
-        }
-        cursor += end + 1;
-    }
-    None
-}
-
 #[test]
 fn should_encode_binary_result_codecs_with_exact_bytes() {
     // Arrange
@@ -279,7 +260,7 @@ fn should_decode_binary_temporal_uuid_parameters() {
 }
 
 #[test]
-fn should_reject_binary_vector_array_codecs() {
+fn should_encode_binary_vector_array_codecs() {
     // Arrange
     support::with_fallback();
     let path = support::data_dir("binary-unsupported-codecs");
@@ -308,15 +289,111 @@ fn should_reject_binary_vector_array_codecs() {
         .await;
 
         // Assert
-        let error = frames
+        let row = frames
             .iter()
-            .find(|frame| frame.0 == b'E')
-            .expect("error response");
-        assert_eq!(error_code(&error.1).as_deref(), Some("0A000"));
-        assert!(!frames.iter().any(|frame| frame.0 == b'D'));
+            .find(|frame| frame.0 == b'D')
+            .expect("data row");
+        assert_eq!(
+            read_binary_row(&row.1),
+            vec![
+                Some(
+                    [
+                        2_i16.to_be_bytes().as_slice(),
+                        0_i16.to_be_bytes().as_slice(),
+                        1.0_f32.to_be_bytes().as_slice(),
+                        2.0_f32.to_be_bytes().as_slice(),
+                    ]
+                    .concat()
+                ),
+                Some(
+                    [
+                        1_i32.to_be_bytes().as_slice(),
+                        0_i32.to_be_bytes().as_slice(),
+                        23_i32.to_be_bytes().as_slice(),
+                        2_i32.to_be_bytes().as_slice(),
+                        1_i32.to_be_bytes().as_slice(),
+                        4_i32.to_be_bytes().as_slice(),
+                        1_i32.to_be_bytes().as_slice(),
+                        4_i32.to_be_bytes().as_slice(),
+                        2_i32.to_be_bytes().as_slice(),
+                    ]
+                    .concat()
+                ),
+            ]
+        );
         assert_eq!(
             frames.last().map(|frame| frame.1.as_slice()),
             Some(b"I".as_slice())
+        );
+
+        server.stop().await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_decode_binary_vector_array_parameters() {
+    // Arrange
+    support::with_fallback();
+    let path = support::data_dir("binary-vector-array-parameters");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE binary_parameter_complex (embedding VECTOR(2), values INT[])",
+                Vec::new(),
+            )
+            .expect("create complex parameter table");
+        let vector = [
+            2_i16.to_be_bytes().as_slice(),
+            0_i16.to_be_bytes().as_slice(),
+            1.5_f32.to_be_bytes().as_slice(),
+            (-2.0_f32).to_be_bytes().as_slice(),
+        ]
+        .concat();
+        let array = [
+            1_i32.to_be_bytes().as_slice(),
+            0_i32.to_be_bytes().as_slice(),
+            23_i32.to_be_bytes().as_slice(),
+            3_i32.to_be_bytes().as_slice(),
+            1_i32.to_be_bytes().as_slice(),
+            4_i32.to_be_bytes().as_slice(),
+            7_i32.to_be_bytes().as_slice(),
+            4_i32.to_be_bytes().as_slice(),
+            8_i32.to_be_bytes().as_slice(),
+            4_i32.to_be_bytes().as_slice(),
+            9_i32.to_be_bytes().as_slice(),
+        ]
+        .concat();
+
+        // Act
+        let (frames, server) = start_extended_query(
+            cassie,
+            support::parse_frame_with_types(
+                "binary_complex_parameter_stmt",
+                "INSERT INTO binary_parameter_complex (embedding, values) VALUES ($1, $2) RETURNING embedding, values",
+                &[33_002, 34_023],
+            ),
+            support::bind_frame_with_formats(
+                "binary_complex_parameter_portal",
+                "binary_complex_parameter_stmt",
+                &[1],
+                &[Some(&vector), Some(&array)],
+                &[0],
+            ),
+            support::execute_frame("binary_complex_parameter_portal"),
+        )
+        .await;
+
+        // Assert
+        let row = frames.iter().find(|frame| frame.0 == b'D').expect("data row");
+        assert_eq!(
+            support::parse_data_row(&row.1),
+            vec![Some("[1.5,-2.0]".to_string()), Some("[7,8,9]".to_string())]
         );
 
         server.stop().await;

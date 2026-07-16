@@ -254,31 +254,15 @@ impl CassieSession {
         &self,
         collections: &[String],
     ) -> Result<(), CassieError> {
-        let mut transaction = self.transaction.lock();
-        if transaction.status != SessionTransactionStatus::InTransaction {
-            return Ok(());
+        if collections
+            .iter()
+            .any(|collection| self.collection_is_cross_database(collection))
+        {
+            self.mark_transaction_failed();
+            return Err(CassieError::Unsupported(
+                "cross-database transactions are not supported".to_string(),
+            ));
         }
-
-        let mut requested = Vec::new();
-        for collection in collections {
-            if !requested
-                .iter()
-                .any(|existing: &String| existing.eq_ignore_ascii_case(collection))
-            {
-                requested.push(collection.clone());
-            }
-        }
-
-        let conflicts_with_staged = transaction.writes.keys().any(|staged| {
-            !requested
-                .iter()
-                .any(|requested| requested.eq_ignore_ascii_case(staged))
-        });
-        if requested.len() > 1 || conflicts_with_staged {
-            transaction.status = SessionTransactionStatus::Failed;
-            return Err(single_collection_transaction_error());
-        }
-
         Ok(())
     }
 
@@ -306,15 +290,8 @@ impl CassieSession {
         id: String,
         payload: serde_json::Value,
     ) -> Result<(), CassieError> {
+        self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
-        if transaction
-            .writes
-            .keys()
-            .any(|staged| !staged.eq_ignore_ascii_case(collection))
-        {
-            transaction.status = SessionTransactionStatus::Failed;
-            return Err(single_collection_transaction_error());
-        }
         transaction
             .writes
             .entry(collection.to_string())
@@ -328,15 +305,8 @@ impl CassieSession {
         collection: &str,
         id: String,
     ) -> Result<(), CassieError> {
+        self.preflight_transaction_collections(&[collection.to_string()])?;
         let mut transaction = self.transaction.lock();
-        if transaction
-            .writes
-            .keys()
-            .any(|staged| !staged.eq_ignore_ascii_case(collection))
-        {
-            transaction.status = SessionTransactionStatus::Failed;
-            return Err(single_collection_transaction_error());
-        }
         transaction
             .writes
             .entry(collection.to_string())
@@ -374,8 +344,12 @@ impl CassieSession {
     ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
         self.transaction.lock().writes.clone()
     }
-}
 
-fn single_collection_transaction_error() -> CassieError {
-    CassieError::Unsupported("transactions may modify only one collection".to_string())
+    fn collection_is_cross_database(&self, collection: &str) -> bool {
+        let Some(current_database) = self.current_database() else {
+            return false;
+        };
+        crate::catalog::relation_database_name(collection)
+            .is_some_and(|database| !database.eq_ignore_ascii_case(current_database))
+    }
 }

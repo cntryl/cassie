@@ -1,6 +1,8 @@
 use cassie::app::{Cassie, CassieError};
-use cassie::sql::ast::{QueryStatement, SelectItem, WindowFrameBound, WindowFrameUnit};
-use cassie::sql::{parse_statement, SqlErrorKind};
+use cassie::sql::ast::{
+    QueryStatement, SelectItem, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
+};
+use cassie::sql::parse_statement;
 use cassie::types::Value;
 use tokio_postgres::{Config, NoTls};
 
@@ -74,6 +76,7 @@ fn should_parse_explicit_rows_frame_bounds() {
             unit: WindowFrameUnit::Rows,
             start: WindowFrameBound::Preceding(1),
             end: WindowFrameBound::CurrentRow,
+            exclusion: WindowFrameExclusion::NoOthers,
         })
     );
 }
@@ -218,42 +221,84 @@ fn should_handle_empty_window_partition() {
 }
 
 #[test]
-fn should_reject_range_window_frame() {
+fn should_apply_range_window_frame_to_peers() {
     // Arrange
-    let sql = "SELECT first_value(value) OVER (ORDER BY ordinal RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM window_frame_values";
+    let query = "SELECT ordinal, first_value(value) OVER (ORDER BY value RANGE BETWEEN CURRENT ROW AND CURRENT ROW), last_value(value) OVER (ORDER BY value RANGE BETWEEN CURRENT ROW AND CURRENT ROW) FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
 
     // Act
-    let error = parse_statement(sql).expect_err("RANGE should be unsupported");
+    let result = execute_window_query("window_range_peers", query).expect("execute RANGE frame");
 
     // Assert
-    assert_eq!(error.kind(), SqlErrorKind::Unsupported);
-    assert!(error.message().contains("RANGE"));
+    assert_eq!(
+        result.rows,
+        vec![
+            vec![Value::Int64(1), Value::Int64(10), Value::Int64(10)],
+            vec![Value::Int64(2), Value::Int64(20), Value::Int64(20)],
+            vec![Value::Int64(3), Value::Int64(20), Value::Int64(20)],
+            vec![Value::Int64(4), Value::Int64(30), Value::Int64(30)],
+        ]
+    );
 }
 
 #[test]
-fn should_reject_groups_window_frame() {
+fn should_apply_groups_window_frame_offsets() {
     // Arrange
-    let sql = "SELECT first_value(value) OVER (ORDER BY ordinal GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM window_frame_values";
+    let query = "SELECT ordinal, first_value(value) OVER (ORDER BY value GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW), last_value(value) OVER (ORDER BY value GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
 
     // Act
-    let error = parse_statement(sql).expect_err("GROUPS should be unsupported");
+    let result =
+        execute_window_query("window_groups_offsets", query).expect("execute GROUPS frame");
 
     // Assert
-    assert_eq!(error.kind(), SqlErrorKind::Unsupported);
-    assert!(error.message().contains("GROUPS"));
+    assert_eq!(
+        result.rows,
+        vec![
+            vec![Value::Int64(1), Value::Int64(10), Value::Int64(20)],
+            vec![Value::Int64(2), Value::Int64(10), Value::Int64(30)],
+            vec![Value::Int64(3), Value::Int64(10), Value::Int64(30)],
+            vec![Value::Int64(4), Value::Int64(20), Value::Int64(30)],
+        ]
+    );
 }
 
 #[test]
-fn should_reject_exclude_window_frame() {
+fn should_apply_window_frame_exclusions() {
     // Arrange
-    let sql = "SELECT first_value(value) OVER (ORDER BY ordinal ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW EXCLUDE CURRENT ROW) FROM window_frame_values";
+    let query = "SELECT ordinal, last_value(value) OVER (ORDER BY value ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW) AS without_current, first_value(value) OVER (ORDER BY value ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP) AS without_group, first_value(value) OVER (ORDER BY value ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) AS without_ties FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
 
     // Act
-    let error = parse_statement(sql).expect_err("EXCLUDE should be unsupported");
+    let result = execute_window_query("window_exclusions", query).expect("execute exclusions");
 
     // Assert
-    assert_eq!(error.kind(), SqlErrorKind::Unsupported);
-    assert!(error.message().contains("EXCLUDE"));
+    assert_eq!(
+        result.rows,
+        vec![
+            vec![
+                Value::Int64(1),
+                Value::Int64(30),
+                Value::Int64(20),
+                Value::Int64(10)
+            ],
+            vec![
+                Value::Int64(2),
+                Value::Int64(30),
+                Value::Int64(10),
+                Value::Int64(10)
+            ],
+            vec![
+                Value::Int64(3),
+                Value::Int64(30),
+                Value::Int64(10),
+                Value::Int64(10)
+            ],
+            vec![
+                Value::Int64(4),
+                Value::Int64(20),
+                Value::Int64(10),
+                Value::Int64(10)
+            ],
+        ]
+    );
 }
 
 #[test]
@@ -283,20 +328,20 @@ fn should_reject_negative_window_frame_offset() {
 }
 
 #[test]
-fn should_reject_unsupported_window_frame_parser() {
+fn should_default_deserialized_window_frame_exclusion() {
     // Arrange
-    let sql = "SELECT first_value(value) OVER (ORDER BY ordinal RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM window_frame_values";
+    let serialized = r#"{"unit":"Rows","start":"UnboundedPreceding","end":"CurrentRow"}"#;
 
     // Act
-    let error = parse_statement(sql).expect_err("unsupported frame should fail deterministically");
+    let frame: cassie::sql::ast::WindowFrame =
+        serde_json::from_str(serialized).expect("deserialize legacy frame");
 
     // Assert
-    assert_eq!(error.kind(), SqlErrorKind::Unsupported);
-    assert!(error.message().contains("RANGE"));
+    assert_eq!(frame.exclusion, WindowFrameExclusion::NoOthers);
 }
 
 #[test]
-fn should_return_unsupported_window_frame_sqlstate() {
+fn should_not_return_unsupported_window_frame_sqlstate() {
     // Arrange
     with_fallback();
     let path = data_dir("window_pgwire_error");
@@ -327,10 +372,10 @@ fn should_return_unsupported_window_frame_sqlstate() {
                 &[],
             )
             .await
-            .expect_err("RANGE frame should be rejected");
+            .expect_err("missing relation should be reported");
 
         // Assert
-        assert_eq!(
+        assert_ne!(
             error
                 .as_db_error()
                 .expect("database error")

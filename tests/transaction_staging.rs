@@ -1,4 +1,4 @@
-use cassie::app::{Cassie, CassieError};
+use cassie::app::Cassie;
 use cassie::types::Value;
 
 #[path = "support/sql.rs"]
@@ -33,16 +33,8 @@ fn with_two_collections<T>(
     result
 }
 
-fn assert_multi_collection_error(error: CassieError) {
-    assert!(matches!(
-        error,
-        CassieError::Unsupported(message)
-            if message.contains("transactions may modify only one collection")
-    ));
-}
-
 #[test]
-fn should_reject_second_collection_while_staging_write() {
+fn should_stage_writes_across_collections() {
     // Arrange
     with_two_collections("transaction_stage_write", |cassie, session| {
         cassie.execute_sql(session, "BEGIN", vec![]).expect("begin");
@@ -55,22 +47,24 @@ fn should_reject_second_collection_while_staging_write() {
             .expect("stage first collection");
 
         // Act
-        let error = cassie
+        cassie
             .execute_sql(
                 session,
                 "INSERT INTO transaction_stage_b (id, title) VALUES (1, 'beta')",
                 vec![],
             )
-            .expect_err("second collection should fail before commit");
+            .expect("stage second collection");
+        cassie
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("commit");
 
         // Assert
-        assert_multi_collection_error(error);
-        assert_eq!(session.transaction_status(), "failed");
+        assert_eq!(session.transaction_status(), "idle");
     });
 }
 
 #[test]
-fn should_reject_second_collection_while_staging_delete() {
+fn should_stage_delete_across_collections() {
     // Arrange
     with_two_collections("transaction_stage_delete", |cassie, session| {
         cassie
@@ -90,22 +84,27 @@ fn should_reject_second_collection_while_staging_delete() {
             .expect("stage first collection");
 
         // Act
-        let error = cassie
+        cassie
             .execute_sql(
                 session,
                 "DELETE FROM transaction_stage_b WHERE title = 'beta'",
                 vec![],
             )
-            .expect_err("second collection delete should fail while staging");
+            .expect("stage second collection delete");
+        cassie
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("commit");
 
         // Assert
-        assert_multi_collection_error(error);
-        assert_eq!(session.transaction_status(), "failed");
+        let rows = cassie
+            .execute_sql(session, "SELECT id FROM transaction_stage_b", vec![])
+            .expect("read deleted collection");
+        assert!(rows.rows.is_empty());
     });
 }
 
 #[test]
-fn should_discard_staged_rows_after_rejected_collection_rollback() {
+fn should_discard_multi_collection_staged_rows_after_rollback() {
     // Arrange
     with_two_collections("transaction_stage_rollback", |cassie, session| {
         cassie.execute_sql(session, "BEGIN", vec![]).expect("begin");
@@ -116,18 +115,18 @@ fn should_discard_staged_rows_after_rejected_collection_rollback() {
                 vec![],
             )
             .expect("stage first collection");
-        let _ = cassie
+        cassie
             .execute_sql(
                 session,
                 "INSERT INTO transaction_stage_b (id, title) VALUES (1, 'beta')",
                 vec![],
             )
-            .expect_err("second collection should fail");
+            .expect("stage second collection");
 
         // Act
         cassie
             .execute_sql(session, "ROLLBACK", vec![])
-            .expect("rollback failed transaction");
+            .expect("rollback transaction");
         let first_rows = cassie
             .execute_sql(session, "SELECT id FROM transaction_stage_a", vec![])
             .expect("read first collection");
@@ -139,7 +138,7 @@ fn should_discard_staged_rows_after_rejected_collection_rollback() {
 }
 
 #[test]
-fn should_recover_after_staging_limit_rollback() {
+fn should_recover_after_multi_collection_rollback() {
     // Arrange
     with_two_collections("transaction_stage_recovery", |cassie, session| {
         cassie.execute_sql(session, "BEGIN", vec![]).expect("begin");
@@ -150,16 +149,16 @@ fn should_recover_after_staging_limit_rollback() {
                 vec![],
             )
             .expect("stage first collection");
-        let _ = cassie
+        cassie
             .execute_sql(
                 session,
                 "INSERT INTO transaction_stage_b (id, title) VALUES (1, 'beta')",
                 vec![],
             )
-            .expect_err("second collection should fail");
+            .expect("stage second collection");
         cassie
             .execute_sql(session, "ROLLBACK", vec![])
-            .expect("rollback failed transaction");
+            .expect("rollback transaction");
 
         // Act
         cassie
@@ -189,7 +188,7 @@ fn should_recover_after_staging_limit_rollback() {
 }
 
 #[test]
-fn should_preflight_cross_collection_delete_cascade() {
+fn should_commit_cross_collection_delete_cascade() {
     // Arrange
     with_fallback();
     let path = data_dir("transaction_stage_cascade");
@@ -229,20 +228,18 @@ fn should_preflight_cross_collection_delete_cascade() {
         .expect("begin");
 
     // Act
-    let error = cassie
+    cassie
         .execute_sql(
             &session,
             "DELETE FROM transaction_cascade_parent WHERE title = 'alpha'",
             vec![],
         )
-        .expect_err("cross-collection cascade should fail before staging");
+        .expect("stage cross-collection cascade");
+    cassie
+        .execute_sql(&session, "COMMIT", vec![])
+        .expect("commit cascade");
 
     // Assert
-    assert_multi_collection_error(error);
-    assert_eq!(session.transaction_status(), "failed");
-    cassie
-        .execute_sql(&session, "ROLLBACK", vec![])
-        .expect("rollback cascade rejection");
     let parent = cassie
         .execute_sql(
             &session,
@@ -253,14 +250,14 @@ fn should_preflight_cross_collection_delete_cascade() {
     let child = cassie
         .execute_sql(&session, "SELECT id FROM transaction_cascade_child", vec![])
         .expect("read child after rollback");
-    assert_eq!(parent.rows.len(), 1);
-    assert_eq!(child.rows.len(), 1);
+    assert!(parent.rows.is_empty());
+    assert!(child.rows.is_empty());
 
     let _ = std::fs::remove_dir_all(path);
 }
 
 #[test]
-fn should_preflight_cross_collection_update_cascade() {
+fn should_commit_cross_collection_update_cascade() {
     // Arrange
     with_fallback();
     let path = data_dir("transaction_stage_update_cascade");
@@ -300,20 +297,18 @@ fn should_preflight_cross_collection_update_cascade() {
         .expect("begin");
 
     // Act
-    let error = cassie
+    cassie
         .execute_sql(
             &session,
             "UPDATE transaction_update_parent SET code = 'two' WHERE title = 'alpha'",
             vec![],
         )
-        .expect_err("cross-collection update cascade should fail before staging");
+        .expect("stage cross-collection update cascade");
+    cassie
+        .execute_sql(&session, "COMMIT", vec![])
+        .expect("commit update cascade");
 
     // Assert
-    assert_multi_collection_error(error);
-    assert_eq!(session.transaction_status(), "failed");
-    cassie
-        .execute_sql(&session, "ROLLBACK", vec![])
-        .expect("rollback cascade rejection");
     let parent = cassie
         .execute_sql(
             &session,
@@ -328,8 +323,8 @@ fn should_preflight_cross_collection_update_cascade() {
             vec![],
         )
         .expect("read child after rollback");
-    assert_eq!(parent.rows, vec![vec![Value::String("one".to_string())]]);
-    assert_eq!(child.rows, vec![vec![Value::String("one".to_string())]]);
+    assert_eq!(parent.rows, vec![vec![Value::String("two".to_string())]]);
+    assert_eq!(child.rows, vec![vec![Value::String("two".to_string())]]);
 
     let _ = std::fs::remove_dir_all(path);
 }

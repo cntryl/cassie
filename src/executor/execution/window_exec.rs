@@ -7,7 +7,8 @@ use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameUnit, WindowFunctionCall,
+    SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
@@ -293,6 +294,7 @@ fn effective_window_frame(function: &WindowFunctionCall) -> WindowFrame {
         } else {
             WindowFrameBound::CurrentRow
         },
+        exclusion: WindowFrameExclusion::NoOthers,
     })
 }
 
@@ -305,16 +307,246 @@ fn framed_window_arg_value(
     first: bool,
     context: &WindowExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
-    if !matches!(frame.unit, WindowFrameUnit::Rows) {
-        return Err(QueryError::General(
-            "unsupported window frame unit".to_string(),
-        ));
-    }
-    let Some((start, end)) = frame_row_bounds(position, indices.len(), frame) else {
+    let positions = frame_positions(position, indices, rows, function, frame, context)?;
+    let Some(target) = (if first {
+        positions.first()
+    } else {
+        positions.last()
+    }) else {
         return Ok(Value::Null);
     };
-    let target = if first { start } else { end };
-    window_arg_value(Some(indices[target]), rows, function, context)
+    window_arg_value(Some(indices[*target]), rows, function, context)
+}
+
+fn frame_positions(
+    position: usize,
+    indices: &[usize],
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    frame: &WindowFrame,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Vec<usize>, QueryError> {
+    let bounds = match frame.unit {
+        WindowFrameUnit::Rows => frame_row_bounds(position, indices.len(), frame),
+        WindowFrameUnit::Groups => {
+            frame_group_bounds(position, indices, rows, function, frame, context)?
+        }
+        WindowFrameUnit::Range => {
+            frame_range_bounds(position, indices, rows, function, frame, context)?
+        }
+    };
+    let Some((start, end)) = bounds else {
+        return Ok(Vec::new());
+    };
+    let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
+    Ok((start..=end)
+        .filter(|candidate| {
+            let is_current = *candidate == position;
+            let is_peer = window_peer_key(&rows[indices[*candidate]], &function.order_by, context)
+                .is_ok_and(|key| key == current_key);
+            match frame.exclusion {
+                WindowFrameExclusion::NoOthers => true,
+                WindowFrameExclusion::CurrentRow => !is_current,
+                WindowFrameExclusion::Group => !is_peer,
+                WindowFrameExclusion::Ties => !is_peer || is_current,
+            }
+        })
+        .collect())
+}
+
+fn peer_groups(
+    indices: &[usize],
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Vec<(usize, usize)>, QueryError> {
+    let mut groups = Vec::new();
+    let mut start = 0;
+    for position in 1..indices.len() {
+        let previous = window_peer_key(&rows[indices[position - 1]], &function.order_by, context)?;
+        let current = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
+        if previous != current {
+            groups.push((start, position - 1));
+            start = position;
+        }
+    }
+    if !indices.is_empty() {
+        groups.push((start, indices.len() - 1));
+    }
+    Ok(groups)
+}
+
+fn frame_group_bounds(
+    position: usize,
+    indices: &[usize],
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    frame: &WindowFrame,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Option<(usize, usize)>, QueryError> {
+    let groups = peer_groups(indices, rows, function, context)?;
+    let current = groups
+        .iter()
+        .position(|(start, end)| (*start..=*end).contains(&position))
+        .ok_or_else(|| QueryError::General("window peer group is missing".to_string()))?;
+    let group_frame = WindowFrame {
+        unit: WindowFrameUnit::Rows,
+        start: frame.start,
+        end: frame.end,
+        exclusion: WindowFrameExclusion::NoOthers,
+    };
+    Ok(frame_row_bounds(current, groups.len(), &group_frame)
+        .map(|(start, end)| (groups[start].0, groups[end].1)))
+}
+
+fn frame_range_bounds(
+    position: usize,
+    indices: &[usize],
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    frame: &WindowFrame,
+    context: &WindowExecutionContext<'_>,
+) -> Result<Option<(usize, usize)>, QueryError> {
+    let groups = peer_groups(indices, rows, function, context)?;
+    if !matches!(
+        frame.start,
+        WindowFrameBound::Preceding(_) | WindowFrameBound::Following(_)
+    ) && !matches!(
+        frame.end,
+        WindowFrameBound::Preceding(_) | WindowFrameBound::Following(_)
+    ) {
+        return peer_range_bounds(position, indices.len(), &groups, frame);
+    }
+    if function.order_by.len() != 1 {
+        return Err(QueryError::General(
+            "RANGE offset frames require exactly one ordering expression".to_string(),
+        ));
+    }
+    let order = &function.order_by[0];
+    let values = indices
+        .iter()
+        .map(|index| {
+            filter::evaluate_expr_value(
+                &rows[*index],
+                &order.expr,
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+                None,
+            )
+            .and_then(|value| {
+                value.as_f64().ok_or_else(|| {
+                    QueryError::General(
+                        "RANGE offset ordering expression must be numeric".to_string(),
+                    )
+                })
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let current = values[position];
+    let signed = |bound: WindowFrameBound| -> Option<f64> {
+        match bound {
+            WindowFrameBound::Preceding(offset) => {
+                offset.to_string().parse::<f64>().ok().map(|offset| {
+                    if matches!(order.direction, SortDirection::Asc) {
+                        current - offset
+                    } else {
+                        current + offset
+                    }
+                })
+            }
+            WindowFrameBound::Following(offset) => {
+                offset.to_string().parse::<f64>().ok().map(|offset| {
+                    if matches!(order.direction, SortDirection::Asc) {
+                        current + offset
+                    } else {
+                        current - offset
+                    }
+                })
+            }
+            _ => None,
+        }
+    };
+    let start = match frame.start {
+        WindowFrameBound::UnboundedPreceding => 0,
+        WindowFrameBound::CurrentRow => groups
+            .iter()
+            .find(|(start, end)| (*start..=*end).contains(&position))
+            .map_or(position, |group| group.0),
+        bound => range_boundary(
+            &values,
+            signed(bound).unwrap_or(current),
+            &order.direction,
+            true,
+        ),
+    };
+    let end = match frame.end {
+        WindowFrameBound::UnboundedFollowing => indices.len().saturating_sub(1),
+        WindowFrameBound::CurrentRow => groups
+            .iter()
+            .find(|(start, end)| (*start..=*end).contains(&position))
+            .map_or(position, |group| group.1),
+        bound => range_boundary(
+            &values,
+            signed(bound).unwrap_or(current),
+            &order.direction,
+            false,
+        ),
+    };
+    Ok((start <= end && start < indices.len())
+        .then_some((start, end.min(indices.len().saturating_sub(1)))))
+}
+
+fn peer_range_bounds(
+    position: usize,
+    partition_len: usize,
+    groups: &[(usize, usize)],
+    frame: &WindowFrame,
+) -> Result<Option<(usize, usize)>, QueryError> {
+    let current = groups
+        .iter()
+        .position(|(start, end)| (*start..=*end).contains(&position))
+        .ok_or_else(|| QueryError::General("window peer group is missing".to_string()))?;
+    let start = match frame.start {
+        WindowFrameBound::UnboundedPreceding => 0,
+        WindowFrameBound::CurrentRow => groups[current].0,
+        WindowFrameBound::UnboundedFollowing => partition_len,
+        _ => unreachable!(),
+    };
+    let end = match frame.end {
+        WindowFrameBound::UnboundedFollowing => partition_len.saturating_sub(1),
+        WindowFrameBound::CurrentRow => groups[current].1,
+        WindowFrameBound::UnboundedPreceding => 0,
+        _ => unreachable!(),
+    };
+    Ok((start <= end && start < partition_len).then_some((start, end)))
+}
+
+fn range_boundary(values: &[f64], target: f64, direction: &SortDirection, start: bool) -> usize {
+    if start {
+        values
+            .iter()
+            .position(|value| {
+                if matches!(direction, SortDirection::Asc) {
+                    *value >= target
+                } else {
+                    *value <= target
+                }
+            })
+            .unwrap_or(values.len())
+    } else {
+        values
+            .iter()
+            .rposition(|value| {
+                if matches!(direction, SortDirection::Asc) {
+                    *value <= target
+                } else {
+                    *value >= target
+                }
+            })
+            .unwrap_or(0)
+    }
 }
 
 fn frame_row_bounds(

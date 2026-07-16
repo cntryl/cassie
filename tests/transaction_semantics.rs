@@ -208,28 +208,35 @@ fn should_preserve_staged_data_after_ddl_rejection() {
 }
 
 #[test]
-fn should_reject_copy_in_active_transaction() {
+fn should_stage_copy_in_active_transaction() {
     // Arrange
     with_source_table("transaction_semantics_copy", |cassie, session| {
         cassie.execute_sql(session, "BEGIN", vec![]).expect("begin");
         let statement = CopyStatement {
             table: "transaction_semantics_source".to_string(),
-            columns: vec!["title".to_string()],
+            columns: vec!["id".to_string(), "title".to_string()],
             format: CopyFormat::Csv,
             header: false,
         };
 
         // Act
-        let error = cassie
-            .copy_from_csv_stdin(session, &statement, b"copied\n")
-            .expect_err("COPY should be rejected in an active transaction");
+        cassie
+            .copy_from_csv_stdin(session, &statement, b"1,copied\n")
+            .expect("stage COPY rows");
 
         // Assert
-        assert_unsupported(&error);
-        assert_eq!(session.transaction_status(), "failed");
+        assert_eq!(session.transaction_status(), "in_transaction");
+        let staged = cassie
+            .execute_sql(
+                session,
+                "SELECT title FROM transaction_semantics_source",
+                vec![],
+            )
+            .expect("read staged COPY row");
+        assert_eq!(staged.rows, vec![vec![Value::String("copied".into())]]);
         cassie
-            .execute_sql(session, "ROLLBACK", vec![])
-            .expect("rollback COPY rejection");
+            .execute_sql(session, "COMMIT", vec![])
+            .expect("commit COPY");
         let rows = cassie
             .execute_sql(
                 session,
@@ -237,11 +244,6 @@ fn should_reject_copy_in_active_transaction() {
                 vec![],
             )
             .expect("read source after COPY rollback");
-        assert!(rows.rows.is_empty());
-        assert!(!rows
-            .rows
-            .iter()
-            .flatten()
-            .any(|value| { matches!(value, Value::String(title) if title == "copied") }));
+        assert_eq!(rows.rows, vec![vec![Value::String("copied".into())]]);
     });
 }

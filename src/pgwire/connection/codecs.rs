@@ -145,6 +145,12 @@ pub(super) fn value_to_text(value: Value) -> String {
 }
 
 pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+        return encode_vector(value, type_oid);
+    }
+    if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
+        return encode_array(value, type_oid);
+    }
     let codec = binary_codec_for_oid(type_oid)?;
     match codec.kind {
         BinaryCodecKind::Bool => match value {
@@ -197,6 +203,20 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<BinaryCodec> {
         .ok_or_else(|| unsupported_codec(type_oid))
 }
 
+fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
+    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+        let dimensions = type_oid - OID_VECTOR_BASE;
+        return (dimensions > 0 && dimensions <= i64::from(i16::MAX))
+            .then_some(())
+            .ok_or_else(|| unsupported_codec(type_oid));
+    }
+    if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
+        binary_codec_for_oid(type_oid - OID_ARRAY_BASE).map(|_| ())
+    } else {
+        binary_codec_for_oid(type_oid).map(|_| ())
+    }
+}
+
 pub(super) fn validate_result_formats(
     columns: &[ColumnMeta],
     result_formats: &[i16],
@@ -218,13 +238,19 @@ pub(super) fn validate_result_formats(
     }
     for (index, column) in columns.iter().enumerate() {
         if result_format_for_index(result_formats, index) == 1 {
-            binary_codec_for_oid(column.type_oid)?;
+            validate_binary_oid(column.type_oid)?;
         }
     }
     Ok(())
 }
 
 pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+        return decode_vector(parameter, type_oid);
+    }
+    if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
+        return decode_array(parameter, type_oid);
+    }
     let codec = binary_codec_for_oid(type_oid)?;
     match codec.kind {
         BinaryCodecKind::Bool => {
@@ -264,6 +290,175 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
         BinaryCodecKind::Date => decode_date(parameter).map(Value::String),
         BinaryCodecKind::Time => decode_time(parameter).map(Value::String),
         BinaryCodecKind::Timestamp => decode_timestamp(parameter).map(Value::String),
+    }
+}
+
+fn encode_vector(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    let Value::Vector(vector) = value else {
+        return invalid_value("vector");
+    };
+    let dimensions =
+        usize::try_from(type_oid - OID_VECTOR_BASE).map_err(|_| unsupported_codec(type_oid))?;
+    if vector.values.len() != dimensions || dimensions > i16::MAX as usize {
+        return Err(invalid_data("vector"));
+    }
+    let mut encoded = Vec::with_capacity(4 + dimensions.saturating_mul(4));
+    encoded.extend_from_slice(
+        &i16::try_from(dimensions)
+            .map_err(|_| invalid_data("vector"))?
+            .to_be_bytes(),
+    );
+    encoded.extend_from_slice(&0_i16.to_be_bytes());
+    for value in vector.values {
+        if !value.is_finite() {
+            return Err(invalid_data("vector"));
+        }
+        encoded.extend_from_slice(&value.to_be_bytes());
+    }
+    Ok(encoded)
+}
+
+fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+    if parameter.len() < 4 {
+        return Err(invalid_data("vector"));
+    }
+    let dimensions = usize::from(u16::from_be_bytes([parameter[0], parameter[1]]));
+    let reserved = i16::from_be_bytes([parameter[2], parameter[3]]);
+    let expected =
+        usize::try_from(type_oid - OID_VECTOR_BASE).map_err(|_| unsupported_codec(type_oid))?;
+    if dimensions != expected || reserved != 0 || parameter.len() != 4 + dimensions * 4 {
+        return Err(invalid_data("vector"));
+    }
+    let mut values = Vec::with_capacity(dimensions);
+    for bytes in parameter[4..].chunks_exact(4) {
+        let value = f32::from_be_bytes(bytes.try_into().expect("four-byte vector chunk"));
+        if !value.is_finite() {
+            return Err(invalid_data("vector"));
+        }
+        values.push(value);
+    }
+    Ok(Value::Vector(crate::types::Vector::new(values)))
+}
+
+fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
+    let Value::Json(serde_json::Value::Array(values)) = value else {
+        return invalid_value("array");
+    };
+    let element_oid = type_oid - OID_ARRAY_BASE;
+    let codec = binary_codec_for_oid(element_oid)?;
+    let has_null = values.iter().any(serde_json::Value::is_null);
+    let mut encoded = Vec::new();
+    encoded.extend_from_slice(&1_i32.to_be_bytes());
+    encoded.extend_from_slice(&i32::from(has_null).to_be_bytes());
+    encoded.extend_from_slice(
+        &i32::try_from(element_oid)
+            .map_err(|_| unsupported_codec(type_oid))?
+            .to_be_bytes(),
+    );
+    encoded.extend_from_slice(
+        &i32::try_from(values.len())
+            .map_err(|_| invalid_data("array"))?
+            .to_be_bytes(),
+    );
+    encoded.extend_from_slice(&1_i32.to_be_bytes());
+    for value in values {
+        if value.is_null() {
+            encoded.extend_from_slice(&(-1_i32).to_be_bytes());
+            continue;
+        }
+        let value = json_to_value(value, codec.name)?;
+        let element = value_to_binary(value, element_oid)?;
+        encoded.extend_from_slice(
+            &i32::try_from(element.len())
+                .map_err(|_| invalid_data("array"))?
+                .to_be_bytes(),
+        );
+        encoded.extend_from_slice(&element);
+    }
+    Ok(encoded)
+}
+
+fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
+    let mut cursor = 0;
+    let dimensions = read_i32(parameter, &mut cursor, "array")?;
+    let has_null = read_i32(parameter, &mut cursor, "array")?;
+    let element_oid = i64::from(read_i32(parameter, &mut cursor, "array")?);
+    let expected_oid = type_oid - OID_ARRAY_BASE;
+    if dimensions != 1 || !matches!(has_null, 0 | 1) || element_oid != expected_oid {
+        return Err(invalid_data("array"));
+    }
+    binary_codec_for_oid(element_oid)?;
+    let length = usize::try_from(read_i32(parameter, &mut cursor, "array")?)
+        .map_err(|_| invalid_data("array"))?;
+    if read_i32(parameter, &mut cursor, "array")? != 1 {
+        return Err(invalid_data("array"));
+    }
+    let mut values = Vec::with_capacity(length);
+    for _ in 0..length {
+        let element_length = read_i32(parameter, &mut cursor, "array")?;
+        if element_length == -1 {
+            values.push(serde_json::Value::Null);
+            continue;
+        }
+        let element_length = usize::try_from(element_length).map_err(|_| invalid_data("array"))?;
+        let end = cursor
+            .checked_add(element_length)
+            .ok_or_else(|| invalid_data("array"))?;
+        let bytes = parameter
+            .get(cursor..end)
+            .ok_or_else(|| invalid_data("array"))?;
+        cursor = end;
+        values.push(value_to_json(binary_to_value(bytes, element_oid)?));
+    }
+    if cursor != parameter.len() || (has_null == 0 && values.iter().any(serde_json::Value::is_null))
+    {
+        return Err(invalid_data("array"));
+    }
+    Ok(Value::Json(serde_json::Value::Array(values)))
+}
+
+fn read_i32(parameter: &[u8], cursor: &mut usize, type_name: &str) -> io::Result<i32> {
+    let end = cursor
+        .checked_add(4)
+        .ok_or_else(|| invalid_data(type_name))?;
+    let bytes = parameter
+        .get(*cursor..end)
+        .ok_or_else(|| invalid_data(type_name))?;
+    *cursor = end;
+    Ok(i32::from_be_bytes(
+        bytes.try_into().expect("four-byte integer"),
+    ))
+}
+
+fn json_to_value(value: serde_json::Value, type_name: &str) -> io::Result<Value> {
+    match value {
+        serde_json::Value::Bool(value) => Ok(Value::Bool(value)),
+        serde_json::Value::Number(value) => value
+            .as_i64()
+            .map(Value::Int64)
+            .or_else(|| value.as_f64().map(Value::Float64))
+            .ok_or_else(|| invalid_data(type_name)),
+        serde_json::Value::String(value) => Ok(Value::String(value)),
+        serde_json::Value::Object(value) => Ok(Value::Json(serde_json::Value::Object(value))),
+        _ => Err(invalid_data(type_name)),
+    }
+}
+
+fn value_to_json(value: Value) -> serde_json::Value {
+    match value {
+        Value::Null => serde_json::Value::Null,
+        Value::Bool(value) => serde_json::Value::Bool(value),
+        Value::Int64(value) => serde_json::Value::from(value),
+        Value::Float64(value) => serde_json::Value::from(value),
+        Value::String(value) => serde_json::Value::String(value),
+        Value::Json(value) => value,
+        Value::Vector(vector) => serde_json::Value::Array(
+            vector
+                .values
+                .into_iter()
+                .map(serde_json::Value::from)
+                .collect(),
+        ),
     }
 }
 

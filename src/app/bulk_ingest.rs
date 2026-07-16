@@ -19,20 +19,53 @@ impl Cassie {
         statement: &CopyStatement,
         payload: &[u8],
     ) -> Result<usize, CassieError> {
-        validate_copy_request(self, session, statement)?;
+        let transactional = session.is_transaction_active();
+        let result = self.copy_from_csv_stdin_inner(session, statement, payload);
+        if result.is_err() && transactional {
+            session.mark_transaction_failed();
+        }
+        result
+    }
+
+    fn copy_from_csv_stdin_inner(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        payload: &[u8],
+    ) -> Result<usize, CassieError> {
+        let database = session.current_database().unwrap_or(&self.default_database);
+        let context = crate::sql::binder::BindingContext::scoped(database, session.search_path());
+        let mut statement = statement.clone();
+        if let Some(relation_database) = crate::catalog::relation_database_name(&statement.table) {
+            if !relation_database.eq_ignore_ascii_case(database) {
+                return Err(CassieError::Unsupported(
+                    "cross-database relation references are not supported".to_string(),
+                ));
+            }
+        } else {
+            statement.table =
+                crate::sql::binder::normalize_relation_name(&statement.table, &context)?;
+        }
+        validate_copy_request(self, session, &statement)?;
 
         let schema = self
             .catalog
             .get_schema(&statement.table)
             .ok_or_else(|| CassieError::CollectionNotFound(statement.table.clone()))?;
-        let columns = copy_columns(statement, schema.fields.as_slice())?;
+        let columns = copy_columns(&statement, schema.fields.as_slice())?;
         let mut rows = parse_csv_payload(payload)?;
         if statement.header && !rows.is_empty() {
             rows.remove(0);
         }
 
-        let staging = CassieSession::new(session.user.clone(), session.database.clone());
-        staging.begin_transaction(None)?;
+        let staging = (!session.is_transaction_active()).then(|| {
+            let staging = CassieSession::new(session.user.clone(), session.database.clone());
+            staging
+                .begin_transaction(None)
+                .expect("new COPY staging session begins a transaction");
+            staging
+        });
+        let staging = staging.as_ref().unwrap_or(session);
         let mut seen_ids = BTreeSet::new();
         let mut affected = 0usize;
 
@@ -75,7 +108,7 @@ impl Cassie {
             }
 
             let prepared = self.prepare_document_write_for_session(
-                Some(&staging),
+                Some(staging),
                 &statement.table,
                 serde_json::Value::Object(payload),
                 true,
@@ -83,6 +116,10 @@ impl Cassie {
             )?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
+        }
+
+        if std::ptr::eq(staging, session) {
+            return Ok(affected);
         }
 
         let writes = staging
@@ -100,7 +137,7 @@ impl Cassie {
             operations,
             &options,
         )?;
-        finish_copy_batch(self, statement, &report.stats)?;
+        finish_copy_batch(self, &statement, &report.stats)?;
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(affected)
     }
@@ -114,12 +151,6 @@ fn validate_copy_request(
     if session.is_transaction_failed() {
         return Err(CassieError::Execution(
             "transaction is failed; rollback required".to_string(),
-        ));
-    }
-    if session.is_transaction_active() {
-        session.mark_transaction_failed();
-        return Err(CassieError::Unsupported(
-            "COPY inside an active transaction is not supported".to_string(),
         ));
     }
     if statement.format != CopyFormat::Csv {

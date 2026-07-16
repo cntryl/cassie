@@ -82,22 +82,6 @@ pub(super) async fn try_handle_simple_copy_query(
         return SimpleCopyOutcome::Handled;
     }
 
-    if session.is_transaction_active() {
-        session.mark_transaction_failed();
-        let error = PgWireError::from_cassie_error(
-            PgWireSeverity::Error,
-            &CassieError::Unsupported(
-                "COPY inside an active transaction is not supported".to_string(),
-            ),
-        );
-        if write_error_response(write_half, &error).await.is_err()
-            || write_ready_for_query(write_half, &session).await.is_err()
-        {
-            return SimpleCopyOutcome::ConnectionClosed;
-        }
-        return SimpleCopyOutcome::Handled;
-    }
-
     let column_count = copy_response_column_count(&cassie, &statement);
     if write_copy_in_response(write_half, column_count)
         .await
@@ -467,6 +451,9 @@ async fn handle_simple_copy_from_stdin(
                     return write_ready_for_query(write_half, &session).await.is_ok();
                 };
                 if next_len > MAX_FRONTEND_MESSAGE_BYTES {
+                    if session.is_transaction_active() {
+                        session.mark_transaction_failed();
+                    }
                     let error = PgWireError::protocol("COPY payload exceeds supported bounds");
                     if write_error_response(write_half, &error).await.is_err() {
                         return false;
@@ -502,6 +489,9 @@ async fn handle_simple_copy_from_stdin(
                 return write_ready_for_query(write_half, &session).await.is_ok();
             }
             Ok(FrontendMessage::CopyFail(message)) => {
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
+                }
                 let error = PgWireError::new(
                     PgWireSeverity::Error,
                     "57014",
@@ -514,6 +504,9 @@ async fn handle_simple_copy_from_stdin(
             }
             Ok(FrontendMessage::Terminate) | Err(HandshakeError::Closed) => return false,
             Ok(_) => {
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
+                }
                 let error = PgWireError::protocol(
                     "unexpected frontend message during COPY FROM STDIN".to_string(),
                 );
@@ -523,6 +516,9 @@ async fn handle_simple_copy_from_stdin(
                 return write_ready_for_query(write_half, &session).await.is_ok();
             }
             Err(HandshakeError::Invalid(error)) => {
+                if session.is_transaction_active() {
+                    session.mark_transaction_failed();
+                }
                 let error = PgWireError::protocol(format!("invalid COPY message: {error}"));
                 if write_error_response(write_half, &error).await.is_err() {
                     return false;

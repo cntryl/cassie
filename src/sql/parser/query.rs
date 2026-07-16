@@ -7,7 +7,9 @@ use super::{
     parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
 };
-use crate::sql::ast::{SetOperator, WindowFrame, WindowFrameBound, WindowFrameUnit};
+use crate::sql::ast::{
+    SetOperator, WindowFrame, WindowFrameBound, WindowFrameExclusion, WindowFrameUnit,
+};
 
 #[path = "query_select.rs"]
 mod query_select;
@@ -159,28 +161,23 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
         return Ok((Vec::new(), Vec::new(), None));
     }
 
-    let rows_pos = find_top_level_keyword(raw, 0, "rows");
-    for (keyword, label) in [("range", "RANGE"), ("groups", "GROUPS")] {
-        if find_top_level_keyword(raw, 0, keyword).is_some() {
-            return Err(SqlError::unsupported(format!(
-                "{label} window frames are unsupported"
-            )));
-        }
-    }
-    if find_top_level_keyword(raw, 0, "exclude").is_some() {
-        return Err(SqlError::unsupported(
-            "EXCLUDE window frames are unsupported".into(),
-        ));
-    }
+    let frame_start = [
+        ("rows", WindowFrameUnit::Rows),
+        ("range", WindowFrameUnit::Range),
+        ("groups", WindowFrameUnit::Groups),
+    ]
+    .into_iter()
+    .filter_map(|(keyword, unit)| {
+        find_top_level_keyword(raw, 0, keyword).map(|position| (position, keyword, unit))
+    })
+    .min_by_key(|(position, _, _)| *position);
 
-    let (spec_raw, frame) = if let Some(rows_pos) = rows_pos {
-        let frame_raw = raw[rows_pos + "rows".len()..].trim();
+    let (spec_raw, frame) = if let Some((position, keyword, unit)) = frame_start {
+        let frame_raw = raw[position + keyword.len()..].trim();
         if frame_raw.is_empty() {
-            return Err(SqlError::unsupported(
-                "ROWS window frame requires bounds".into(),
-            ));
+            return Err(SqlError::unsupported("window frame requires bounds".into()));
         }
-        (&raw[..rows_pos], Some(parse_rows_frame(frame_raw)?))
+        (&raw[..position], Some(parse_window_frame(frame_raw, unit)?))
     } else {
         (raw, None)
     };
@@ -214,15 +211,16 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     ))
 }
 
-fn parse_rows_frame(raw: &str) -> Result<WindowFrame, SqlError> {
+fn parse_window_frame(raw: &str, unit: WindowFrameUnit) -> Result<WindowFrame, SqlError> {
     let lower = raw.to_ascii_lowercase();
-    let (start_raw, end_raw) = if let Some(body) = lower.strip_prefix("between ") {
+    let (bounds, exclusion) = split_window_exclusion(&lower)?;
+    let (start_raw, end_raw) = if let Some(body) = bounds.strip_prefix("between ") {
         let (start, end) = split_top_level(body, " and ").ok_or_else(|| {
             SqlError::unsupported("ROWS BETWEEN requires start and end bounds".into())
         })?;
         (start.trim(), end.trim())
     } else {
-        (lower.trim(), "current row")
+        (bounds.trim(), "current row")
     };
     let start = parse_window_bound(start_raw)?;
     let end = parse_window_bound(end_raw)?;
@@ -232,10 +230,29 @@ fn parse_rows_frame(raw: &str) -> Result<WindowFrame, SqlError> {
         ));
     }
     Ok(WindowFrame {
-        unit: WindowFrameUnit::Rows,
+        unit,
         start,
         end,
+        exclusion,
     })
+}
+
+fn split_window_exclusion(raw: &str) -> Result<(&str, WindowFrameExclusion), SqlError> {
+    let Some(position) = find_top_level_keyword(raw, 0, "exclude") else {
+        return Ok((raw, WindowFrameExclusion::NoOthers));
+    };
+    let exclusion = match raw[position + "exclude".len()..].trim() {
+        "no others" => WindowFrameExclusion::NoOthers,
+        "current row" => WindowFrameExclusion::CurrentRow,
+        "group" => WindowFrameExclusion::Group,
+        "ties" => WindowFrameExclusion::Ties,
+        value => {
+            return Err(SqlError::unsupported(format!(
+                "invalid window frame exclusion '{value}'"
+            )))
+        }
+    };
+    Ok((raw[..position].trim(), exclusion))
 }
 
 fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {

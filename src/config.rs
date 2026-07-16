@@ -1,11 +1,16 @@
 use std::env;
-use std::net::SocketAddr;
 
 use crate::embeddings::openai::OpenAiConfig;
 
 #[path = "config/limits.rs"]
 mod limits;
 use limits::limits_from_env;
+#[path = "config/tls.rs"]
+mod tls;
+use tls::{validate_bootstrap_password, validate_transport_tls_policy};
+#[path = "config/switches.rs"]
+mod switches;
+pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
@@ -44,58 +49,6 @@ pub struct CassieRuntimeConfig {
     pub password: String,
     pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OperatorSwitchingEnabled(bool);
-
-impl OperatorSwitchingEnabled {
-    #[must_use]
-    pub const fn disabled() -> Self {
-        Self(false)
-    }
-
-    #[must_use]
-    pub const fn enabled() -> Self {
-        Self(true)
-    }
-
-    #[must_use]
-    pub const fn is_enabled(self) -> bool {
-        self.0
-    }
-}
-
-impl Default for OperatorSwitchingEnabled {
-    fn default() -> Self {
-        Self::disabled()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ExecutionResultCacheEnabled(bool);
-
-impl ExecutionResultCacheEnabled {
-    #[must_use]
-    pub const fn disabled() -> Self {
-        Self(false)
-    }
-
-    #[must_use]
-    pub const fn enabled() -> Self {
-        Self(true)
-    }
-
-    #[must_use]
-    pub const fn is_enabled(self) -> bool {
-        self.0
-    }
-}
-
-impl Default for ExecutionResultCacheEnabled {
-    fn default() -> Self {
-        Self::enabled()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -237,10 +190,10 @@ impl Default for CassieRuntimeLimits {
             operator_feedback_enabled: false,
             vectorized_joins_enabled: false,
             vectorized_join_batch_size: 1024,
-            adaptive_execution_enabled: false,
+            adaptive_execution_enabled: true,
             adaptive_min_cost_savings_bps: 500,
             adaptive_min_confidence_bps: 0,
-            operator_switching_enabled: OperatorSwitchingEnabled::disabled(),
+            operator_switching_enabled: OperatorSwitchingEnabled::enabled(),
             operator_switch_join_row_threshold: 4096,
             adaptive_candidate_min: 16,
             adaptive_candidate_max: 100_000,
@@ -320,47 +273,10 @@ impl CassieRuntimeConfig {
         config.limits = limits_from_env(&env_reader, &config.limits);
 
         validate_bootstrap_password(&config)?;
-        validate_rest_tls_policy(&config)?;
+        validate_transport_tls_policy(&config)?;
 
         Ok(config)
     }
-}
-
-fn validate_bootstrap_password(
-    config: &CassieRuntimeConfig,
-) -> Result<(), CassieRuntimeConfigError> {
-    if config.password != "postgres" {
-        return Ok(());
-    }
-    for listener in [&config.pgwire_listen, &config.rest_listen] {
-        let Ok(address) = listener.parse::<SocketAddr>() else {
-            continue;
-        };
-        if !address.ip().is_loopback() {
-            return Err(CassieRuntimeConfigError::UnsafeDefaultPassword {
-                listener: listener.clone(),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn validate_rest_tls_policy(config: &CassieRuntimeConfig) -> Result<(), CassieRuntimeConfigError> {
-    if config.rest_tls_cert_file.is_some() != config.rest_tls_key_file.is_some() {
-        return Err(CassieRuntimeConfigError::RestTlsPair);
-    }
-
-    let Ok(address) = config.rest_listen.parse::<SocketAddr>() else {
-        return Ok(());
-    };
-    if !address.ip().is_loopback()
-        && (config.rest_tls_cert_file.is_none() || config.rest_tls_key_file.is_none())
-    {
-        return Err(CassieRuntimeConfigError::RestTlsRequired {
-            listener: config.rest_listen.clone(),
-        });
-    }
-    Ok(())
 }
 
 fn read_password_from_file_from(

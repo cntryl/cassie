@@ -140,6 +140,17 @@ pub struct WindowFrame {
     pub unit: WindowFrameUnit,
     pub start: WindowFrameBound,
     pub end: WindowFrameBound,
+    #[serde(default)]
+    pub exclusion: WindowFrameExclusion,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WindowFrameExclusion {
+    #[default]
+    NoOthers,
+    CurrentRow,
+    Group,
+    Ties,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -14,6 +14,8 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 8;
     config.limits.query_memory_budget_bytes = 1024 * 1024;
+    config.limits.adaptive_execution_enabled = false;
+    config.limits.operator_switching_enabled = cassie::config::OperatorSwitchingEnabled::disabled();
     config
 }
 

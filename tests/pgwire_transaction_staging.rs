@@ -20,15 +20,8 @@ fn simple_query_frame(query: &str) -> Vec<u8> {
     frame
 }
 
-fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
-    fields
-        .iter()
-        .find(|(field, _)| *field == tag)
-        .map(|(_, value)| value.as_str())
-}
-
 #[test]
-fn should_report_staging_error_with_failed_ready_status() {
+fn should_commit_multi_collection_staging_with_transaction_ready_status() {
     // Arrange
     sql::with_fallback();
     let path = sql::data_dir("pgwire_transaction_staging");
@@ -82,24 +75,21 @@ fn should_report_staging_error_with_failed_ready_status() {
             )],
         )
         .await;
-        let rejected_frames = wire::read_frames_until_ready(&mut reader).await;
+        let second_frames = wire::read_frames_until_ready(&mut reader).await;
+
+        wire::write_frames(&mut writer, vec![simple_query_frame("COMMIT")]).await;
+        let commit_frames = wire::read_frames_until_ready(&mut reader).await;
 
         // Assert
         assert_eq!(begin_frames.last().expect("begin ready").1, vec![b'T']);
         assert_eq!(first_frames.last().expect("first ready").1, vec![b'T']);
-        let error = rejected_frames
-            .iter()
-            .find(|(tag, _)| *tag == b'E')
-            .expect("staging error response");
-        let fields = wire::parse_error_fields(&error.1);
-        assert_eq!(error_field(&fields, 'C'), Some("0A000"));
-        assert_eq!(rejected_frames.last().expect("failed ready").1, vec![b'E']);
-
-        wire::write_frames(&mut writer, vec![simple_query_frame("ROLLBACK")]).await;
-        let rollback_frames = wire::read_frames_until_ready(&mut reader).await;
+        assert!(!second_frames.iter().any(|(tag, _)| *tag == b'E'));
+        assert_eq!(second_frames.last().expect("second ready").1, vec![b'T']);
+        assert_eq!(commit_frames.last().expect("commit ready").1, vec![b'I']);
         assert_eq!(
-            rollback_frames.last().expect("rollback ready").1,
-            vec![b'I']
+            setup.transaction_status(),
+            "idle",
+            "setup session remains independent"
         );
 
         server.stop().await;

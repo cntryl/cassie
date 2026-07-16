@@ -70,12 +70,6 @@ impl Cassie {
                 writes.insert(collection, write_ops);
             }
         }
-        if writes.len() > 1 {
-            return Err(CassieError::Unsupported(
-                "transactions may modify only one collection".to_string(),
-            ));
-        }
-
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
             let collection = writes.keys().next().expect("non-empty writes");

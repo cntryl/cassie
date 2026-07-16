@@ -39,4 +39,5 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Experimental Promotion Criteria](experimental-promotion-criteria.md)
 - [Feature Ownership](feature-ownership.md)
 - [Module Organization](module-organization.md)
+- [Database Jargon Glossary](database-jargon-glossary.md)
 - [Security Model](security-model.md)

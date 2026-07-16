@@ -678,7 +678,7 @@ fn should_reject_work_after_transaction_error_until_rollback() {
 }
 
 #[test]
-fn should_reject_multi_collection_transaction_commit() {
+fn should_commit_multi_collection_transaction_atomically() {
     // Arrange
     with_fallback();
     let path = data_dir("transaction_multi_collection_atomic");
@@ -707,23 +707,21 @@ fn should_reject_multi_collection_transaction_commit() {
                 vec![],
             )
             .unwrap();
-        let second_collection = cassie.execute_sql(
-            &session,
-            "INSERT INTO tx_multi_b (email) VALUES ('alice@example.com')",
-            vec![],
-        );
-        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO tx_multi_b (email) VALUES ('alice@example.com')",
+                vec![],
+            )
+            .unwrap();
+        cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
 
         // Assert
-        assert!(second_collection
-            .expect_err("second collection should fail while staging")
-            .to_string()
-            .contains("only one collection"));
         let collected_from_a = cassie
             .execute_sql(&session, "SELECT id FROM tx_multi_a", vec![])
             .unwrap()
             .rows;
-        assert!(collected_from_a.is_empty());
+        assert_eq!(collected_from_a.len(), 1);
         let collected_from_b = cassie
             .execute_sql(
                 &session,
@@ -732,7 +730,10 @@ fn should_reject_multi_collection_transaction_commit() {
             )
             .unwrap()
             .rows;
-        assert!(collected_from_b.is_empty());
+        assert_eq!(
+            collected_from_b,
+            vec![vec![Value::String("alice@example.com".into())]]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     });

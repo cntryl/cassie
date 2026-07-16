@@ -38,7 +38,7 @@ pub use consistency::{
 };
 pub use constraints::{
     generated_constraint_name, merge_constraint_set, ConstraintCheck, ConstraintOperator,
-    DefaultSequenceOwnership, FieldConstraint,
+    DefaultSequenceOwnership, FieldConstraint, NotNullOwnership,
 };
 pub use graphs::GraphMeta;
 pub use indexes::{

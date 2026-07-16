@@ -515,6 +515,13 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                 ));
             }
         }
+        AlterTableOperation::DropConstraint { name, .. } => {
+            if name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE DROP CONSTRAINT requires a constraint name".into(),
+                ));
+            }
+        }
         AlterTableOperation::DropColumn { field } => {
             if field.trim().is_empty() {
                 return Err(CassieError::Planner(

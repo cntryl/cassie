@@ -1,5 +1,5 @@
 use super::{
-    io, str, AsyncReadExt, BufReader, DescribeTarget, FrontendMessage, HandshakeError,
+    io, str, AsyncReadExt, DescribeTarget, FrontendMessage, HandshakeError, PgwireReader,
     StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG,
     PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
 };
@@ -7,7 +7,7 @@ use crate::pgwire::connection::CANCEL_REQUEST_CODE;
 use std::collections::HashMap;
 
 pub(super) async fn read_simple_query_message(
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
 ) -> Result<String, HandshakeError> {
     let mut tag = [0u8; 1];
     reader.read_exact(&mut tag).await.map_err(|error| {
@@ -66,7 +66,7 @@ pub(super) async fn read_simple_query_message(
 }
 
 pub(super) async fn read_frontend_message(
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
 ) -> Result<FrontendMessage, HandshakeError> {
     let (tag, payload) = read_frontend_frame(reader).await?;
     let payload_len = payload.len();
@@ -80,9 +80,7 @@ pub(super) async fn read_frontend_message(
     Ok(message)
 }
 
-async fn read_frontend_frame(
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
-) -> Result<(u8, Vec<u8>), HandshakeError> {
+async fn read_frontend_frame(reader: &mut PgwireReader) -> Result<(u8, Vec<u8>), HandshakeError> {
     let mut tag = [0u8; 1];
     reader.read_exact(&mut tag).await.map_err(|error| {
         if error.kind() == io::ErrorKind::UnexpectedEof {
@@ -343,7 +341,7 @@ pub(super) fn read_frontend_i32(payload: &[u8], cursor: &mut usize) -> Result<i3
 }
 
 pub(super) async fn read_startup_frame(
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
 ) -> Result<StartupFrame, HandshakeError> {
     let mut length = [0u8; 4];
     reader.read_exact(&mut length).await.map_err(|error| {
@@ -422,7 +420,7 @@ pub(super) async fn read_startup_frame(
 }
 
 pub(super) async fn read_password_message(
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
 ) -> Result<String, HandshakeError> {
     let mut header = [0u8; 5];
     reader.read_exact(&mut header).await.map_err(|error| {

@@ -38,6 +38,9 @@ pub(super) fn build_select_result(
 }
 
 pub(super) fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
+    if let (Value::Int64(left), Value::Int64(right)) = (left, right) {
+        return left.cmp(right);
+    }
     if let (Some(left), Some(right)) = (left.as_f64(), right.as_f64()) {
         return left.partial_cmp(&right).unwrap_or(CmpOrdering::Equal);
     }

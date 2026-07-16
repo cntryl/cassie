@@ -31,6 +31,7 @@ pub(crate) fn check_materialized_projection_maintenance_failure_point(
     }
     Ok(())
 }
+pub(crate) use execution::resolve_transaction_conflict_intents;
 pub(crate) use execution::{plan_needs_user_functions, run_with_session_controls};
 pub use execution::{
     run, run_with_controls, run_with_execution_breakdown, ColumnMeta, ExecutionBreakdownMicros,

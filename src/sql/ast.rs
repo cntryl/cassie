@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{FieldConstraint, IndexKind};
 use crate::types::DataType;
 
+#[path = "ast_schema.rs"]
+mod ast_schema;
+pub use ast_schema::{AlterTableOperation, AlterTableStatement};
+
 #[path = "ast_query.rs"]
 mod ast_query;
 pub use ast_query::{
@@ -864,48 +868,6 @@ pub struct CreateSequenceStatement {
 pub struct DropSequenceStatement {
     pub name: String,
     pub if_exists: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlterTableStatement {
-    pub table: String,
-    pub operation: AlterTableOperation,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum AlterTableOperation {
-    AddColumn {
-        field: String,
-        data_type: DataType,
-    },
-    AddConstraint {
-        constraints: Vec<FieldConstraint>,
-    },
-    DropColumn {
-        field: String,
-    },
-    RenameColumn {
-        from: String,
-        to: String,
-    },
-    RenameTo {
-        table: String,
-    },
-    AlterColumnSetDefault {
-        field: String,
-        default_value: Option<serde_json::Value>,
-        default_expression: Option<String>,
-        default_sequence: Option<String>,
-    },
-    AlterColumnDropDefault {
-        field: String,
-    },
-    AlterColumnSetNotNull {
-        field: String,
-    },
-    AlterColumnDropNotNull {
-        field: String,
-    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

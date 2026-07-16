@@ -2,7 +2,7 @@ use std::io;
 use std::str;
 use std::sync::Arc;
 
-use tokio::io::{AsyncWrite, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use super::blocking::run_pgwire_blocking;
 use super::codecs::{binary_to_value, validate_result_formats};
@@ -14,7 +14,7 @@ use super::writers::{
     append_row_description_frame, write_bind_complete, write_close_complete, write_error_response,
     write_no_data, write_parameter_description, write_parse_complete, write_ready_for_query,
 };
-use super::ConnectionStep;
+use super::{ConnectionStep, PgwireReader};
 use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
@@ -39,7 +39,7 @@ const OID_UNKNOWN: i32 = 705;
 pub(super) async fn handle_frontend_message(
     cassie: Arc<Cassie>,
     runtime: &RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     awaiting_sync: &mut bool,

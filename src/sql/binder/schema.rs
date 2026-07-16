@@ -453,6 +453,13 @@ pub(super) fn validate_alter_schema(
         AlterTableOperation::AddConstraint { constraints } => {
             validate_alter_add_constraints(table, constraints, existing_fields)?;
         }
+        AlterTableOperation::DropConstraint { name, .. } => {
+            if name.trim().is_empty() {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE DROP CONSTRAINT requires a constraint name".into(),
+                ));
+            }
+        }
         AlterTableOperation::DropColumn { field } => {
             validate_alter_drop_column(table, field, existing_fields)?;
         }

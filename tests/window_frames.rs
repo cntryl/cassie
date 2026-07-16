@@ -241,6 +241,58 @@ fn should_apply_range_window_frame_to_peers() {
 }
 
 #[test]
+fn should_keep_large_integer_range_offsets_exact() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("window_range_exact_integer");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE exact_range_values (ordinal BIGINT)",
+            vec![],
+        )
+        .expect("create table");
+    for value in [9_007_199_254_740_992_i64, 9_007_199_254_740_993_i64] {
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO exact_range_values (ordinal) VALUES ($1)",
+                vec![Value::Int64(value)],
+            )
+            .expect("insert exact integer");
+    }
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT ordinal, last_value(ordinal) OVER (ORDER BY ordinal RANGE BETWEEN 0 PRECEDING AND 0 FOLLOWING) FROM exact_range_values ORDER BY ordinal",
+            vec![],
+        )
+        .expect("execute exact RANGE frame");
+
+    // Assert
+    assert_eq!(
+        result.rows,
+        vec![
+            vec![
+                Value::Int64(9_007_199_254_740_992),
+                Value::Int64(9_007_199_254_740_992),
+            ],
+            vec![
+                Value::Int64(9_007_199_254_740_993),
+                Value::Int64(9_007_199_254_740_993),
+            ],
+        ]
+    );
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_apply_groups_window_frame_offsets() {
     // Arrange
     let query = "SELECT ordinal, first_value(value) OVER (ORDER BY value GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW), last_value(value) OVER (ORDER BY value GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";

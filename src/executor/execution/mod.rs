@@ -74,6 +74,7 @@ use dispatch::{preferred_access_path_route, AccessPathRoute};
 use result::{build_select_result, compare_query_values, deduce_text_fields, row_signature};
 
 mod dml;
+pub(crate) use dml::resolve_transaction_conflict_intents;
 mod dml_command;
 mod dml_referential_actions;
 mod graph_command;

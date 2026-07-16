@@ -380,6 +380,17 @@ pub(super) fn parse_alter_table_operation(
             constraints: parse_named_add_constraint(raw)?,
         });
     }
+    if lower.starts_with("drop constraint") {
+        let rest = raw["drop constraint".len()..].trim();
+        let (if_exists, rest) = parse_if_exists(rest);
+        let name = parse_identifier(rest)?;
+        if name.is_empty() {
+            return Err(SqlError::new(
+                "DROP CONSTRAINT requires a constraint name".into(),
+            ));
+        }
+        return Ok(AlterTableOperation::DropConstraint { name, if_exists });
+    }
     if lower.starts_with("drop column") {
         let field = parse_identifier(raw["drop column".len()..].trim())?;
         if field.is_empty() {

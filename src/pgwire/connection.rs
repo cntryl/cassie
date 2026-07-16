@@ -37,6 +37,8 @@ mod state;
 #[cfg(test)]
 #[path = "connection/tests.rs"]
 mod tests;
+#[path = "connection/transport.rs"]
+mod transport;
 #[path = "connection/writers.rs"]
 mod writers;
 
@@ -49,6 +51,9 @@ use startup_params::validate_startup_parameters;
 use state::{
     DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame,
 };
+use transport::PgwireTransport;
+
+type PgwireReader = BufReader<tokio::io::ReadHalf<PgwireTransport>>;
 use writers::{
     write_auth_cleartext, write_auth_ok, write_backend_key_data, write_copy_data, write_copy_done,
     write_copy_in_response, write_copy_out_response, write_error_response,
@@ -86,13 +91,21 @@ pub(crate) fn benchmark_decode_parameter(
 }
 
 pub async fn run_connection(
-    mut socket: TcpStream,
+    socket: TcpStream,
     cassie: Arc<Cassie>,
     config: CassieRuntimeConfig,
+    tls_config: Option<Arc<rustls::ServerConfig>>,
+    require_tls: bool,
 ) {
     let runtime = cassie.runtime.clone();
     let _session_guard = runtime.begin_pgwire_session();
-    let (read_half, mut write_half) = socket.split();
+    let Ok(transport) = PgwireTransport::negotiate(socket, tls_config).await else {
+        return;
+    };
+    if require_tls && !transport.is_tls() {
+        return;
+    }
+    let (read_half, mut write_half) = tokio::io::split(transport);
     let mut reader = BufReader::new(read_half);
     let mut state = SessionState::new();
     let mut handshake_state = HandshakeState::AwaitStartup;
@@ -177,7 +190,7 @@ async fn handle_startup(
     cassie: Arc<Cassie>,
     config: &CassieRuntimeConfig,
     runtime: &crate::runtime::RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
 ) -> ConnectionStep {
@@ -260,7 +273,7 @@ async fn handle_startup(
 async fn handle_password(
     cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     user: String,
@@ -328,7 +341,7 @@ async fn handle_password(
 async fn handle_ready(
     cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
     awaiting_sync: &mut bool,
@@ -366,7 +379,7 @@ async fn handle_ready(
 
 async fn handle_sync_wait(
     runtime: &crate::runtime::RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     awaiting_sync: &mut bool,
     session: &CassieSession,
@@ -392,7 +405,7 @@ async fn handle_sync_wait(
 async fn handle_simple_query(
     cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
 ) -> ConnectionStep {

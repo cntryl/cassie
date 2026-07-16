@@ -317,18 +317,121 @@ fn execute_insert_source_row(
         (_, Some(_)) => Err(QueryError::General(
             "INSERT conflict detected without ON CONFLICT clause".to_string(),
         )),
-        (_, None) => context
-            .cassie
-            .write_document_for_session(
-                context.session,
-                &context.statement.table,
-                None,
-                payload,
-                true,
-                None,
-            )
-            .map(Some)
-            .map_err(QueryError::from),
+        (_, None) => match context.cassie.write_document_for_session(
+            context.session,
+            &context.statement.table,
+            None,
+            payload.clone(),
+            true,
+            None,
+        ) {
+            Ok(row_id) => {
+                if context.statement.on_conflict.is_some() {
+                    if let Some(session) = context
+                        .session
+                        .filter(|session| session.is_transaction_active())
+                    {
+                        session.stage_conflict_intent(crate::app::TransactionConflictIntent {
+                            provisional_id: row_id.clone(),
+                            statement: context.statement.clone(),
+                            payload,
+                            params: context.params.to_vec(),
+                            user_functions: context.user_functions.clone(),
+                            schema: context.schema.clone(),
+                        });
+                    }
+                }
+                Ok(Some(row_id))
+            }
+            Err(error @ crate::app::CassieError::UniqueViolation { .. })
+                if context.statement.on_conflict.is_some()
+                    && !context
+                        .session
+                        .is_some_and(CassieSession::is_transaction_active) =>
+            {
+                resolve_autocommit_insert_conflict(context, &payload, &error)
+            }
+            Err(error) => Err(QueryError::from(error)),
+        },
+    }
+}
+
+pub(crate) fn resolve_transaction_conflict_intents(
+    cassie: &Cassie,
+    session: &CassieSession,
+) -> Result<(), QueryError> {
+    for intent in session.transaction_conflict_intents() {
+        session.remove_document_change(&intent.statement.table, &intent.provisional_id);
+        let context = InsertExecutionContext {
+            cassie,
+            session: Some(session),
+            statement: &intent.statement,
+            params: &intent.params,
+            user_functions: &intent.user_functions,
+            schema: &intent.schema,
+        };
+        let Some(conflict_id) =
+            find_insert_conflict_row_id(cassie, Some(session), &intent.statement, &intent.payload)?
+        else {
+            session
+                .stage_document_write(
+                    &intent.statement.table,
+                    intent.provisional_id,
+                    intent.payload,
+                )
+                .map_err(QueryError::from)?;
+            continue;
+        };
+        let on_conflict = intent
+            .statement
+            .on_conflict
+            .as_ref()
+            .expect("transaction conflict intent has a conflict clause");
+        if let crate::sql::ast::InsertConflictAction::DoUpdate {
+            assignments,
+            filter,
+        } = &on_conflict.action
+        {
+            execute_insert_conflict_update(
+                &context,
+                &intent.payload,
+                &conflict_id,
+                assignments,
+                filter.as_ref(),
+            )?;
+        }
+    }
+    session.clear_conflict_intents();
+    Ok(())
+}
+
+fn resolve_autocommit_insert_conflict(
+    context: &InsertExecutionContext<'_>,
+    payload: &serde_json::Value,
+    original_error: &crate::app::CassieError,
+) -> Result<Option<String>, QueryError> {
+    let Some(conflict_id) =
+        find_insert_conflict_row_id(context.cassie, context.session, context.statement, payload)?
+    else {
+        return Err(QueryError::General(original_error.to_string()));
+    };
+    let on_conflict = context
+        .statement
+        .on_conflict
+        .as_ref()
+        .expect("conflict clause checked by caller");
+    match &on_conflict.action {
+        crate::sql::ast::InsertConflictAction::DoNothing => Ok(None),
+        crate::sql::ast::InsertConflictAction::DoUpdate {
+            assignments,
+            filter,
+        } => execute_insert_conflict_update(
+            context,
+            payload,
+            &conflict_id,
+            assignments,
+            filter.as_ref(),
+        ),
     }
 }
 

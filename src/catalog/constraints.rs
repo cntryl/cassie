@@ -46,6 +46,48 @@ impl Default for DefaultSequenceOwnership {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum NotNullOwnership {
+    #[default]
+    None,
+    Explicit,
+    PrimaryKey,
+    ExplicitAndPrimaryKey,
+}
+
+impl NotNullOwnership {
+    #[must_use]
+    pub const fn with_explicit(self) -> Self {
+        match self {
+            Self::None | Self::Explicit => Self::Explicit,
+            Self::PrimaryKey | Self::ExplicitAndPrimaryKey => Self::ExplicitAndPrimaryKey,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_primary_key(self) -> Self {
+        match self {
+            Self::None | Self::PrimaryKey => Self::PrimaryKey,
+            Self::Explicit | Self::ExplicitAndPrimaryKey => Self::ExplicitAndPrimaryKey,
+        }
+    }
+
+    #[must_use]
+    pub const fn without_primary_key(self) -> Self {
+        match self {
+            Self::PrimaryKey => Self::None,
+            Self::ExplicitAndPrimaryKey => Self::Explicit,
+            other => other,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_explicit(self) -> bool {
+        matches!(self, Self::Explicit | Self::ExplicitAndPrimaryKey)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FieldConstraint {
     pub field: String,
@@ -69,6 +111,8 @@ pub struct FieldConstraint {
     pub foreign_key_on_update: Option<String>,
     #[serde(default)]
     pub not_null: bool,
+    #[serde(default)]
+    pub not_null_ownership: NotNullOwnership,
     #[serde(default)]
     pub unique: bool,
     #[serde(default)]
@@ -103,6 +147,7 @@ impl FieldConstraint {
             foreign_key_on_delete: None,
             foreign_key_on_update: None,
             not_null: false,
+            not_null_ownership: NotNullOwnership::None,
             unique: false,
             primary_key: false,
             default_value: None,
@@ -158,6 +203,15 @@ fn is_constraint_populated(constraint: &FieldConstraint) -> bool {
 
 fn merge_constraint(existing: &mut FieldConstraint, next: FieldConstraint) {
     existing.not_null |= next.not_null;
+    if next.not_null_ownership.is_explicit() {
+        existing.not_null_ownership = existing.not_null_ownership.with_explicit();
+    }
+    if matches!(
+        next.not_null_ownership,
+        NotNullOwnership::PrimaryKey | NotNullOwnership::ExplicitAndPrimaryKey
+    ) {
+        existing.not_null_ownership = existing.not_null_ownership.with_primary_key();
+    }
     existing.unique |= next.unique;
     existing.primary_key |= next.primary_key;
     if next.primary_key_name.is_some() {

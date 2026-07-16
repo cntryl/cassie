@@ -435,34 +435,87 @@ fn frame_range_bounds(
                 context.session,
                 None,
             )
-            .and_then(|value| {
-                value.as_f64().ok_or_else(|| {
-                    QueryError::General(
-                        "RANGE offset ordering expression must be numeric".to_string(),
-                    )
-                })
-            })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let current = values[position];
-    let signed = |bound: WindowFrameBound| -> Option<f64> {
+    if matches!(values[position], Value::Null) {
+        let null_frame = WindowFrame {
+            unit: frame.unit,
+            start: range_null_bound(frame.start),
+            end: range_null_bound(frame.end),
+            exclusion: frame.exclusion,
+        };
+        return peer_range_bounds(position, indices.len(), &groups, &null_frame);
+    }
+    if values
+        .iter()
+        .all(|value| matches!(value, Value::Null | Value::Int64(_)))
+    {
+        let integer_values = values
+            .iter()
+            .map(|value| match value {
+                Value::Int64(value) => Some(i128::from(*value)),
+                Value::Null => None,
+                _ => unreachable!("integer RANGE values checked above"),
+            })
+            .collect::<Vec<_>>();
+        return range_offset_bounds(
+            position,
+            indices.len(),
+            &groups,
+            frame,
+            &order.direction,
+            &integer_values,
+            i128::from,
+        );
+    }
+    let numeric_values = values
+        .iter()
+        .map(|value| match value {
+            Value::Null => Ok(None),
+            _ => value.as_f64().map(Some).ok_or_else(|| {
+                QueryError::General("RANGE offset ordering expression must be numeric".to_string())
+            }),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    range_offset_bounds(
+        position,
+        indices.len(),
+        &groups,
+        frame,
+        &order.direction,
+        &numeric_values,
+        |offset| offset.to_string().parse::<f64>().unwrap_or(f64::INFINITY),
+    )
+}
+
+fn range_offset_bounds<T>(
+    position: usize,
+    partition_len: usize,
+    groups: &[(usize, usize)],
+    frame: &WindowFrame,
+    direction: &SortDirection,
+    values: &[Option<T>],
+    offset_value: impl Fn(u64) -> T,
+) -> Result<Option<(usize, usize)>, QueryError>
+where
+    T: Copy + PartialOrd + std::ops::Add<Output = T> + std::ops::Sub<Output = T>,
+{
+    let current = values[position]
+        .ok_or_else(|| QueryError::General("window RANGE value is missing".to_string()))?;
+    let signed = |bound: WindowFrameBound| -> Option<T> {
         match bound {
             WindowFrameBound::Preceding(offset) => {
-                offset.to_string().parse::<f64>().ok().map(|offset| {
-                    if matches!(order.direction, SortDirection::Asc) {
-                        current - offset
-                    } else {
-                        current + offset
-                    }
+                Some(if matches!(direction, SortDirection::Asc) {
+                    current - offset_value(offset)
+                } else {
+                    current + offset_value(offset)
                 })
             }
             WindowFrameBound::Following(offset) => {
-                offset.to_string().parse::<f64>().ok().map(|offset| {
-                    if matches!(order.direction, SortDirection::Asc) {
-                        current + offset
-                    } else {
-                        current - offset
-                    }
+                Some(if matches!(direction, SortDirection::Asc) {
+                    current + offset_value(offset)
+                } else {
+                    current - offset_value(offset)
                 })
             }
             _ => None,
@@ -474,28 +527,27 @@ fn frame_range_bounds(
             .iter()
             .find(|(start, end)| (*start..=*end).contains(&position))
             .map_or(position, |group| group.0),
-        bound => range_boundary(
-            &values,
-            signed(bound).unwrap_or(current),
-            &order.direction,
-            true,
-        ),
+        bound => range_boundary(values, signed(bound).unwrap_or(current), direction, true),
     };
     let end = match frame.end {
-        WindowFrameBound::UnboundedFollowing => indices.len().saturating_sub(1),
+        WindowFrameBound::UnboundedFollowing => partition_len.saturating_sub(1),
         WindowFrameBound::CurrentRow => groups
             .iter()
             .find(|(start, end)| (*start..=*end).contains(&position))
             .map_or(position, |group| group.1),
-        bound => range_boundary(
-            &values,
-            signed(bound).unwrap_or(current),
-            &order.direction,
-            false,
-        ),
+        bound => range_boundary(values, signed(bound).unwrap_or(current), direction, false),
     };
-    Ok((start <= end && start < indices.len())
-        .then_some((start, end.min(indices.len().saturating_sub(1)))))
+    Ok((start <= end && start < partition_len)
+        .then_some((start, end.min(partition_len.saturating_sub(1)))))
+}
+
+const fn range_null_bound(bound: WindowFrameBound) -> WindowFrameBound {
+    match bound {
+        WindowFrameBound::Preceding(_) | WindowFrameBound::Following(_) => {
+            WindowFrameBound::CurrentRow
+        }
+        other => other,
+    }
 }
 
 fn peer_range_bounds(
@@ -523,27 +575,36 @@ fn peer_range_bounds(
     Ok((start <= end && start < partition_len).then_some((start, end)))
 }
 
-fn range_boundary(values: &[f64], target: f64, direction: &SortDirection, start: bool) -> usize {
+fn range_boundary<T: Copy + PartialOrd>(
+    values: &[Option<T>],
+    target: T,
+    direction: &SortDirection,
+    start: bool,
+) -> usize {
     if start {
         values
             .iter()
             .position(|value| {
-                if matches!(direction, SortDirection::Asc) {
-                    *value >= target
-                } else {
-                    *value <= target
-                }
+                value.is_some_and(|value| {
+                    if matches!(direction, SortDirection::Asc) {
+                        value >= target
+                    } else {
+                        value <= target
+                    }
+                })
             })
             .unwrap_or(values.len())
     } else {
         values
             .iter()
             .rposition(|value| {
-                if matches!(direction, SortDirection::Asc) {
-                    *value <= target
-                } else {
-                    *value >= target
-                }
+                value.is_some_and(|value| {
+                    if matches!(direction, SortDirection::Asc) {
+                        value <= target
+                    } else {
+                        value >= target
+                    }
+                })
             })
             .unwrap_or(0)
     }

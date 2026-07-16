@@ -57,28 +57,39 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
-        let mut writes = BTreeMap::new();
-        for (collection, collection_writes) in session.transaction_writes() {
-            let write_ops = collection_writes
-                .into_iter()
-                .map(|(id, change)| match change {
-                    TransactionRowChange::Upsert(payload) => DocumentWriteOp::Put { id, payload },
-                    TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
-                })
-                .collect::<Vec<_>>();
-            if !write_ops.is_empty() {
-                writes.insert(collection, write_ops);
-            }
-        }
+        let mut writes = transaction_write_batches(session);
         let mut changed_collections = Vec::new();
         if !writes.is_empty() {
             let collection = writes.keys().next().expect("non-empty writes");
             let mut options = self.document_write_options(collection);
             options.refresh_after_commit = false;
-            let reports = self
+            let reports = match self
                 .midge
                 .apply_document_write_batches_with_options(&writes, &options)
-                .inspect_err(|_| session.mark_transaction_failed())?;
+            {
+                Ok(reports) => reports,
+                Err(CassieError::UniqueViolation { .. })
+                    if !session.transaction_conflict_intents().is_empty() =>
+                {
+                    crate::executor::resolve_transaction_conflict_intents(self, session)
+                        .inspect_err(|_| session.mark_transaction_failed())?;
+                    writes = transaction_write_batches(session);
+                    if writes.is_empty() {
+                        BTreeMap::new()
+                    } else {
+                        let retry_collection = writes.keys().next().expect("non-empty writes");
+                        let mut retry_options = self.document_write_options(retry_collection);
+                        retry_options.refresh_after_commit = false;
+                        self.midge
+                            .apply_document_write_batches_with_options(&writes, &retry_options)
+                            .inspect_err(|_| session.mark_transaction_failed())?
+                    }
+                }
+                Err(error) => {
+                    session.mark_transaction_failed();
+                    return Err(error);
+                }
+            };
             let mut latest_epoch = None;
             for (collection, report) in reports {
                 self.runtime
@@ -116,4 +127,21 @@ impl Cassie {
         }
         Ok(())
     }
+}
+
+fn transaction_write_batches(session: &CassieSession) -> BTreeMap<String, Vec<DocumentWriteOp>> {
+    session
+        .transaction_writes()
+        .into_iter()
+        .filter_map(|(collection, collection_writes)| {
+            let write_ops = collection_writes
+                .into_iter()
+                .map(|(id, change)| match change {
+                    TransactionRowChange::Upsert(payload) => DocumentWriteOp::Put { id, payload },
+                    TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
+                })
+                .collect::<Vec<_>>();
+            (!write_ops.is_empty()).then_some((collection, write_ops))
+        })
+        .collect()
 }

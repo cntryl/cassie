@@ -15,6 +15,7 @@ mod dml_update;
 
 pub(super) use dml_delete::execute_delete;
 pub(super) use dml_insert::execute_insert;
+pub(crate) use dml_insert::resolve_transaction_conflict_intents;
 pub(super) use dml_update::execute_update;
 
 fn value_to_json(value: &Value) -> serde_json::Value {

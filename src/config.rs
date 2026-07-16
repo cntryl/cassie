@@ -35,11 +35,19 @@ pub enum CassieRuntimeConfigError {
 
     #[error("REST TLS is required for non-loopback listener '{listener}'")]
     RestTlsRequired { listener: String },
+
+    #[error("pgwire TLS certificate and key must be configured together")]
+    PgwireTlsPair,
+
+    #[error("pgwire TLS is required for non-loopback listener '{listener}'")]
+    PgwireTlsRequired { listener: String },
 }
 
 #[derive(Debug, Clone)]
 pub struct CassieRuntimeConfig {
     pub pgwire_listen: String,
+    pub pgwire_tls_cert_file: Option<String>,
+    pub pgwire_tls_key_file: Option<String>,
     pub rest_listen: String,
     pub rest_tls_cert_file: Option<String>,
     pub rest_tls_key_file: Option<String>,
@@ -158,6 +166,8 @@ impl Default for CassieRuntimeConfig {
     fn default() -> Self {
         Self {
             pgwire_listen: "127.0.0.1:5432".to_string(),
+            pgwire_tls_cert_file: None,
+            pgwire_tls_key_file: None,
             rest_listen: "127.0.0.1:8080".to_string(),
             rest_tls_cert_file: None,
             rest_tls_key_file: None,
@@ -240,6 +250,8 @@ impl CassieRuntimeConfig {
         if let Some(v) = env_reader("CASSIE_REST_LISTEN") {
             config.rest_listen = v;
         }
+        config.pgwire_tls_cert_file = env_reader("CASSIE_PGWIRE_TLS_CERT_FILE");
+        config.pgwire_tls_key_file = env_reader("CASSIE_PGWIRE_TLS_KEY_FILE");
         config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
         config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
         if let Some(v) = env_reader("CASSIE_ADMIN_UI_DIR") {
@@ -602,11 +614,13 @@ mod tests {
     }
 
     #[test]
-    fn should_allow_explicit_password_on_non_loopback_listener() {
+    fn should_allow_explicit_password_and_tls_on_non_loopback_listener() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
             ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_PGWIRE_TLS_CERT_FILE", "/etc/cassie/tls/cert.pem"),
+            ("CASSIE_PGWIRE_TLS_KEY_FILE", "/etc/cassie/tls/key.pem"),
         ]);
 
         // Act
@@ -615,6 +629,59 @@ mod tests {
 
         // Assert
         assert_eq!(config.password, "different-secret");
+    }
+
+    #[test]
+    fn should_require_pgwire_tls_for_non_loopback_listener() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
+            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+        ]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("non-loopback pgwire must require TLS");
+
+        // Assert
+        assert!(error.to_string().contains("pgwire TLS"));
+        assert!(error.to_string().contains("0.0.0.0:5432"));
+    }
+
+    #[test]
+    fn should_reject_partial_pgwire_tls_configuration() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_PGWIRE_TLS_CERT_FILE", "/tmp/cassie-cert.pem")]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("pgwire TLS requires both certificate and key");
+
+        // Assert
+        assert!(error.to_string().contains("certificate and key"));
+    }
+
+    #[test]
+    fn should_parse_pgwire_tls_file_paths() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_PGWIRE_TLS_CERT_FILE", "/etc/cassie/tls/cert.pem"),
+            ("CASSIE_PGWIRE_TLS_KEY_FILE", "/etc/cassie/tls/key.pem"),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader(values)).expect("pgwire TLS paths");
+
+        // Assert
+        assert_eq!(
+            config.pgwire_tls_cert_file.as_deref(),
+            Some("/etc/cassie/tls/cert.pem")
+        );
+        assert_eq!(
+            config.pgwire_tls_key_file.as_deref(),
+            Some("/etc/cassie/tls/key.pem")
+        );
     }
 
     #[test]

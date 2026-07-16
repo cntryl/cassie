@@ -153,6 +153,7 @@ pub(super) fn alter_column_set_not_null(
 
     mutate_field_constraint(cassie, table, field, |constraint| {
         constraint.not_null = true;
+        constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
     })
 }
 
@@ -163,6 +164,7 @@ pub(super) fn alter_column_drop_not_null(
 ) -> Result<(), QueryError> {
     mutate_field_constraint(cassie, table, field, |constraint| {
         constraint.not_null = false;
+        constraint.not_null_ownership = crate::catalog::NotNullOwnership::None;
     })
 }
 

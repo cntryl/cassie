@@ -25,9 +25,19 @@ pub(super) fn validate_transport_tls_policy(
     config: &CassieRuntimeConfig,
 ) -> Result<(), CassieRuntimeConfigError> {
     validate_pair(
+        config.pgwire_tls_cert_file.as_ref(),
+        config.pgwire_tls_key_file.as_ref(),
+        CassieRuntimeConfigError::PgwireTlsPair,
+    )?;
+    validate_pair(
         config.rest_tls_cert_file.as_ref(),
         config.rest_tls_key_file.as_ref(),
         CassieRuntimeConfigError::RestTlsPair,
+    )?;
+    require_tls_for_non_loopback(
+        &config.pgwire_listen,
+        config.pgwire_tls_cert_file.is_some(),
+        |listener| CassieRuntimeConfigError::PgwireTlsRequired { listener },
     )?;
     require_tls_for_non_loopback(
         &config.rest_listen,

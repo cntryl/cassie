@@ -66,7 +66,7 @@ use cache::{
 pub(crate) use error::unsupported_sql_error;
 pub use error::{CassieError, CatalogObjectKind};
 pub use session::CassieSession;
-pub(crate) use session::TransactionRowChange;
+pub(crate) use session::{TransactionConflictIntent, TransactionRowChange};
 pub use state::{Cassie, CassieRuntimeConfigState};
 
 mod auth;

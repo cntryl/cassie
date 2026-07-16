@@ -2,8 +2,8 @@ use super::writers::write_command_complete;
 use super::{
     cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_data,
     write_copy_done, write_copy_in_response, write_copy_out_response, write_error_response,
-    write_ready_for_query, Arc, AsyncWrite, BufReader, Cassie, CassieError, CassieSession,
-    FrontendMessage, HandshakeError, PgWireError, PgWireSeverity, MAX_FRONTEND_MESSAGE_BYTES,
+    write_ready_for_query, Arc, AsyncWrite, Cassie, CassieError, CassieSession, FrontendMessage,
+    HandshakeError, PgWireError, PgWireSeverity, PgwireReader, MAX_FRONTEND_MESSAGE_BYTES,
 };
 use crate::sql::ast::{CopyStatement, QueryStatement};
 
@@ -30,7 +30,7 @@ pub(super) async fn try_handle_simple_copy_query(
     cassie: Arc<Cassie>,
     session: CassieSession,
     sql: &str,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     if let Some(command) = parse_database_copy_command(sql) {
@@ -135,7 +135,7 @@ async fn handle_database_copy(
     cassie: Arc<Cassie>,
     session: CassieSession,
     command: DatabaseCopyCommand,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     if session.is_authenticated_read_only() {
@@ -244,7 +244,7 @@ async fn handle_database_restore(
     cassie: Arc<Cassie>,
     session: CassieSession,
     target: String,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     let restore = run_pgwire_blocking(
@@ -276,7 +276,7 @@ async fn consume_database_restore(
     cassie: Arc<Cassie>,
     session: CassieSession,
     mut restore: crate::app::DatabaseRestoreSession,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     loop {
@@ -435,7 +435,7 @@ async fn handle_simple_copy_from_stdin(
     cassie: Arc<Cassie>,
     session: CassieSession,
     statement: CopyStatement,
-    reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> bool {
     let mut payload = Vec::new();

@@ -24,6 +24,7 @@ pub(super) fn parse_field_definition_for_table(
     if let Some(sequence) = serial_sequence {
         saw_constraint = true;
         constraint.not_null = true;
+        constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
         constraint.default_sequence = Some(sequence.clone());
         constraint.default_sequence_owned = DefaultSequenceOwnership::owned();
         constraint.default_expression =
@@ -110,6 +111,7 @@ fn apply_field_constraint(
             }
             *saw_constraint = true;
             constraint.not_null = true;
+            constraint.not_null_ownership = constraint.not_null_ownership.with_explicit();
         }
         "null" => return Err(SqlError::new("unexpected NULL constraint".to_string())),
         "unique" => {
@@ -128,6 +130,8 @@ fn apply_field_constraint(
                 )));
             }
             *saw_constraint = true;
+            constraint.not_null = true;
+            constraint.not_null_ownership = constraint.not_null_ownership.with_primary_key();
             constraint.primary_key = true;
             constraint.primary_key_name = pending_constraint_name.take();
             constraint.primary_key_ordinal = Some(1);

@@ -29,6 +29,7 @@ struct SessionTransactionState {
     status: SessionTransactionStatus,
     isolation: Option<TransactionIsolation>,
     writes: BTreeMap<String, BTreeMap<String, TransactionRowChange>>,
+    conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
 }
 
@@ -36,6 +37,7 @@ struct SessionTransactionState {
 struct SessionSavepoint {
     name: String,
     writes: BTreeMap<String, BTreeMap<String, TransactionRowChange>>,
+    conflict_intents: Vec<TransactionConflictIntent>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +51,16 @@ enum SessionTransactionStatus {
 pub(crate) enum TransactionRowChange {
     Upsert(serde_json::Value),
     Delete,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TransactionConflictIntent {
+    pub(crate) provisional_id: String,
+    pub(crate) statement: crate::sql::ast::InsertStatement,
+    pub(crate) payload: serde_json::Value,
+    pub(crate) params: Vec<crate::types::Value>,
+    pub(crate) user_functions: std::collections::HashMap<String, crate::catalog::FunctionMeta>,
+    pub(crate) schema: crate::catalog::CollectionSchema,
 }
 
 impl CassieSession {
@@ -76,6 +88,7 @@ impl CassieSession {
                 status: SessionTransactionStatus::Idle,
                 isolation: None,
                 writes: BTreeMap::new(),
+                conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
@@ -148,6 +161,7 @@ impl CassieSession {
         transaction.status = SessionTransactionStatus::InTransaction;
         transaction.isolation = isolation;
         transaction.writes.clear();
+        transaction.conflict_intents.clear();
         transaction.savepoints.clear();
         Ok(())
     }
@@ -157,6 +171,7 @@ impl CassieSession {
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
         transaction.writes.clear();
+        transaction.conflict_intents.clear();
         transaction.savepoints.clear();
     }
 
@@ -165,6 +180,7 @@ impl CassieSession {
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
         transaction.writes.clear();
+        transaction.conflict_intents.clear();
         transaction.savepoints.clear();
     }
 
@@ -177,9 +193,11 @@ impl CassieSession {
         }
 
         let writes = transaction.writes.clone();
+        let conflict_intents = transaction.conflict_intents.clone();
         transaction.savepoints.push(SessionSavepoint {
             name: name.to_ascii_lowercase(),
             writes,
+            conflict_intents,
         });
         Ok(())
     }
@@ -207,6 +225,8 @@ impl CassieSession {
         };
 
         transaction.writes = transaction.savepoints[index].writes.clone();
+        let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
+        transaction.conflict_intents = conflict_intents;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
         Ok(())
@@ -343,6 +363,29 @@ impl CassieSession {
         &self,
     ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {
         self.transaction.lock().writes.clone()
+    }
+
+    pub(crate) fn stage_conflict_intent(&self, intent: TransactionConflictIntent) {
+        self.transaction.lock().conflict_intents.push(intent);
+    }
+
+    pub(crate) fn transaction_conflict_intents(&self) -> Vec<TransactionConflictIntent> {
+        self.transaction.lock().conflict_intents.clone()
+    }
+
+    pub(crate) fn clear_conflict_intents(&self) {
+        self.transaction.lock().conflict_intents.clear();
+    }
+
+    pub(crate) fn remove_document_change(&self, collection: &str, id: &str) {
+        let mut transaction = self.transaction.lock();
+        let Some(writes) = transaction.writes.get_mut(collection) else {
+            return;
+        };
+        writes.remove(id);
+        if writes.is_empty() {
+            transaction.writes.remove(collection);
+        }
     }
 
     fn collection_is_cross_database(&self, collection: &str) -> bool {

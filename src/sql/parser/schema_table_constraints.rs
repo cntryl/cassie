@@ -110,7 +110,7 @@ fn parse_table_constraint_body(
             .map(|(idx, field)| {
                 let mut constraint = FieldConstraint::new(field);
                 constraint.not_null = true;
-                constraint.unique = true;
+                constraint.not_null_ownership = constraint.not_null_ownership.with_primary_key();
                 constraint.primary_key = true;
                 constraint.primary_key_name = constraint_name.map(str::to_string);
                 constraint.primary_key_ordinal = Some(u32::try_from(idx + 1).unwrap_or(u32::MAX));

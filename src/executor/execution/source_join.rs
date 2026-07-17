@@ -1,25 +1,23 @@
 use super::{
     batch, catalog, check_timeout, combine_nulls_with_row, combine_row_with_nulls, combine_rows,
     deduce_text_fields, execute_query_source, filter, qualify_row, row_columns, row_lookup_columns,
-    scan, source_contains_lateral, value_sort_key, Batch, BatchRow, BinaryOp, CteContext, Expr,
-    JoinKind, QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    scan, source_contains_lateral, Batch, BatchRow, BinaryOp, CteContext, Expr, JoinKind,
+    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
 };
+use crate::executor::semantic::SemanticKey;
 
 const VECTOR_TO_MERGE_SWITCH_PAIR: &str = "vectorized_join_to_merge_join";
 
 #[path = "source_join/bounded.rs"]
 mod bounded;
 
+#[path = "source_join/merge.rs"]
+mod merge;
+
 #[derive(Debug, Clone)]
 struct EquiJoinKeys {
     left: String,
     right: String,
-}
-
-#[derive(Debug)]
-struct KeyedRow {
-    key: Option<String>,
-    row: BatchRow,
 }
 
 #[derive(Clone, Copy)]
@@ -37,6 +35,10 @@ pub(super) fn execute_join_source<'a>(
     spec: JoinExecutionSpec<'a>,
     cte_context: &'a mut CteContext,
 ) -> SourceExecution {
+    if spec.row_budget == Some(0) {
+        return Ok(finish_join(Vec::new()));
+    }
+
     if !source_contains_lateral(spec.right) {
         if let Some(joined) = bounded::try_execute_indexed_bounded_inner_join(env, &spec)? {
             return Ok(finish_join(joined));
@@ -48,7 +50,7 @@ pub(super) fn execute_join_source<'a>(
         }
     }
 
-    let left_row_budget = if matches!(spec.kind, JoinKind::Left) {
+    let left_row_budget = if matches!(spec.kind, JoinKind::Left | JoinKind::Cross) {
         spec.row_budget
     } else {
         None
@@ -65,8 +67,17 @@ pub(super) fn execute_join_source<'a>(
         return execute_lateral_join(env, &spec, cte_context, left_batches);
     }
 
-    let (right_batches, _right_text) =
-        execute_query_source(env, spec.right, cte_context, true, spec.outer_row, None)?;
+    let right_row_budget = matches!(spec.kind, JoinKind::Cross)
+        .then_some(spec.row_budget)
+        .flatten();
+    let (right_batches, _right_text) = execute_query_source(
+        env,
+        spec.right,
+        cte_context,
+        true,
+        spec.outer_row,
+        right_row_budget,
+    )?;
     let left_rows = batch::flatten_batches(left_batches);
     let right_rows = batch::flatten_batches(right_batches);
     let _input_memory = reserve_join_rows(env, &left_rows, &right_rows)?;
@@ -91,7 +102,7 @@ pub(super) fn execute_join_source<'a>(
         )?
         .map_or_else(
             || {
-                execute_merge_join(
+                merge::execute_merge_join(
                     env,
                     &keys,
                     JoinRowsSpec {
@@ -101,6 +112,7 @@ pub(super) fn execute_join_source<'a>(
                         right_rows: &right_rows,
                         left_columns: &left_columns,
                         right_columns: &right_columns,
+                        row_budget: spec.row_budget,
                     },
                 )
             },
@@ -115,6 +127,7 @@ pub(super) fn execute_join_source<'a>(
                 right_rows: &right_rows,
                 left_columns: &left_columns,
                 right_columns: &right_columns,
+                row_budget: spec.row_budget,
             },
         )?,
     };
@@ -137,14 +150,25 @@ fn execute_lateral_join<'a>(
         .reserve_query_memory(batch_rows_bytes(&left_rows))?;
     let mut joined = Vec::new();
     let mut matched_rows = 0usize;
+    let output_budget = spec.row_budget.unwrap_or(usize::MAX);
 
-    for left_row in &left_rows {
-        let (right_batches, _right_text) =
-            execute_query_source(env, spec.right, cte_context, true, Some(left_row), None)?;
+    'left: for left_row in &left_rows {
+        check_timeout(env.controls)?;
+        let right_budget = matches!(spec.kind, JoinKind::Cross)
+            .then_some(output_budget.saturating_sub(joined.len()));
+        let (right_batches, _right_text) = execute_query_source(
+            env,
+            spec.right,
+            cte_context,
+            true,
+            Some(left_row),
+            right_budget,
+        )?;
         let right_rows = batch::flatten_batches(right_batches);
         let right_columns = row_columns(&right_rows);
         let mut matched = false;
         for right_row in &right_rows {
+            check_timeout(env.controls)?;
             let combined = combine_rows(left_row, right_row);
             let passes = matches!(spec.kind, JoinKind::Cross)
                 || filter::eval_scalar(
@@ -161,11 +185,17 @@ fn execute_lateral_join<'a>(
                 matched = true;
                 matched_rows += 1;
                 joined.push(combined);
+                if joined.len() >= output_budget {
+                    break 'left;
+                }
             }
         }
 
         if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
             joined.push(combine_row_with_nulls(left_row, &right_columns));
+            if joined.len() >= output_budget {
+                break;
+            }
         }
     }
 
@@ -191,6 +221,7 @@ struct JoinRowsSpec<'a> {
     right_rows: &'a [BatchRow],
     left_columns: &'a [String],
     right_columns: &'a [String],
+    row_budget: Option<usize>,
 }
 
 fn execute_nested_loop_join(
@@ -200,10 +231,12 @@ fn execute_nested_loop_join(
     let mut joined = Vec::new();
     let mut right_matched = vec![false; spec.right_rows.len()];
     let mut matched_rows = 0usize;
+    let output_budget = spec.row_budget.unwrap_or(usize::MAX);
 
-    for left_row in spec.left_rows {
+    'left: for left_row in spec.left_rows {
         let mut matched = false;
         for (right_index, right_row) in spec.right_rows.iter().enumerate() {
+            check_timeout(env.controls)?;
             let combined = combine_rows(left_row, right_row);
             let passes = matches!(spec.kind, JoinKind::Cross)
                 || filter::eval_scalar(
@@ -221,18 +254,28 @@ fn execute_nested_loop_join(
                 matched_rows += 1;
                 right_matched[right_index] = true;
                 joined.push(combined);
+                if joined.len() >= output_budget {
+                    break 'left;
+                }
             }
         }
 
         if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
             joined.push(combine_row_with_nulls(left_row, spec.right_columns));
+            if joined.len() >= output_budget {
+                break;
+            }
         }
     }
 
-    if matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
+    if joined.len() < output_budget && matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
         for (right_index, right_row) in spec.right_rows.iter().enumerate() {
+            check_timeout(env.controls)?;
             if !right_matched[right_index] {
                 joined.push(combine_nulls_with_row(spec.left_columns, right_row));
+                if joined.len() >= output_budget {
+                    break;
+                }
             }
         }
     }
@@ -320,7 +363,7 @@ fn execute_vectorized_join(
         return Ok(Some(Vec::new()));
     }
 
-    let mut build = std::collections::HashMap::<String, Vec<&BatchRow>>::new();
+    let mut build = std::collections::HashMap::<SemanticKey, Vec<&BatchRow>>::new();
     for right in spec.right_rows {
         if let Some(key) = row_join_key(right, &spec.keys.right) {
             build.entry(key).or_default().push(right);
@@ -329,7 +372,7 @@ fn execute_vectorized_join(
     let build_bytes = build
         .iter()
         .map(|(key, rows)| {
-            key.len()
+            key.estimated_bytes()
                 .saturating_add(rows.len().saturating_mul(std::mem::size_of::<&BatchRow>()))
         })
         .sum();
@@ -387,129 +430,10 @@ fn execute_vectorized_join(
     Ok(Some(joined))
 }
 
-fn execute_merge_join(
-    env: &SourceExecutionEnv<'_>,
-    keys: &EquiJoinKeys,
-    spec: JoinRowsSpec<'_>,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let left_len = spec.left_rows.len();
-    let right_len = spec.right_rows.len();
-    let mut left_keyed = keyed_rows(spec.left_rows, &keys.left);
-    let mut right_keyed = keyed_rows(spec.right_rows, &keys.right);
-    let keyed_bytes = left_keyed
-        .iter()
-        .chain(&right_keyed)
-        .map(|row| {
-            std::mem::size_of::<KeyedRow>()
-                .saturating_add(row.key.as_ref().map_or(0, String::len))
-                .saturating_add(batch_row_bytes(&row.row))
-        })
-        .sum();
-    let _keyed_memory = env.controls.reserve_query_memory(keyed_bytes)?;
-    left_keyed.sort_by(|left, right| left.key.cmp(&right.key));
-    right_keyed.sort_by(|left, right| left.key.cmp(&right.key));
-
-    let mut joined = Vec::new();
-    let mut matched_rows = 0usize;
-    let mut left_index = 0usize;
-    let mut right_index = 0usize;
-
-    while left_index < left_keyed.len() && right_index < right_keyed.len() {
-        match left_keyed[left_index]
-            .key
-            .cmp(&right_keyed[right_index].key)
-        {
-            std::cmp::Ordering::Less => {
-                let group_end = keyed_group_end(&left_keyed, left_index);
-                if matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
-                    for left in &left_keyed[left_index..group_end] {
-                        joined.push(combine_row_with_nulls(&left.row, spec.right_columns));
-                    }
-                }
-                left_index = group_end;
-            }
-            std::cmp::Ordering::Greater => {
-                let group_end = keyed_group_end(&right_keyed, right_index);
-                if matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
-                    for right in &right_keyed[right_index..group_end] {
-                        joined.push(combine_nulls_with_row(spec.left_columns, &right.row));
-                    }
-                }
-                right_index = group_end;
-            }
-            std::cmp::Ordering::Equal => {
-                let left_end = keyed_group_end(&left_keyed, left_index);
-                let right_end = keyed_group_end(&right_keyed, right_index);
-                if left_keyed[left_index].key.is_some() {
-                    let result = merge_equal_key_groups(
-                        env,
-                        spec.kind,
-                        spec.on,
-                        &left_keyed[left_index..left_end],
-                        &right_keyed[right_index..right_end],
-                        spec.left_columns,
-                        spec.right_columns,
-                    )?;
-                    matched_rows += result.matched_rows;
-                    joined.extend(result.joined);
-                } else {
-                    append_left_unmatched(
-                        &mut joined,
-                        spec.kind,
-                        &left_keyed[left_index..left_end],
-                        spec.right_columns,
-                    );
-                    append_right_unmatched(
-                        &mut joined,
-                        spec.kind,
-                        spec.left_columns,
-                        &right_keyed[right_index..right_end],
-                    );
-                }
-                left_index = left_end;
-                right_index = right_end;
-            }
-        }
-    }
-
-    append_left_unmatched(
-        &mut joined,
-        spec.kind,
-        &left_keyed[left_index..],
-        spec.right_columns,
-    );
-    append_right_unmatched(
-        &mut joined,
-        spec.kind,
-        spec.left_columns,
-        &right_keyed[right_index..],
-    );
-
-    env.cassie.runtime.record_join_execution(
-        "merge",
-        left_len,
-        right_len,
-        matched_rows,
-        joined.len(),
-        None,
-    );
-    Ok(joined)
-}
-
-fn keyed_rows(rows: &[BatchRow], key_column: &str) -> Vec<KeyedRow> {
-    rows.iter()
-        .cloned()
-        .map(|row| {
-            let key = row_join_key(&row, key_column);
-            KeyedRow { key, row }
-        })
-        .collect()
-}
-
-fn row_join_key(row: &BatchRow, key_column: &str) -> Option<String> {
+fn row_join_key(row: &BatchRow, key_column: &str) -> Option<SemanticKey> {
     row.get(key_column)
         .filter(|value| !matches!(value, Value::Null))
-        .map(value_sort_key)
+        .map(SemanticKey::single)
 }
 
 fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize {
@@ -532,19 +456,10 @@ fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
     rows.iter().map(batch_row_bytes).sum()
 }
 
-fn batch_row_bytes(row: &BatchRow) -> usize {
+pub(super) fn batch_row_bytes(row: &BatchRow) -> usize {
     serde_json::to_vec(row.entries())
         .map(|bytes| bytes.len())
         .unwrap_or_default()
-}
-
-fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {
-    let key = &rows[start].key;
-    let mut end = start + 1;
-    while end < rows.len() && &rows[end].key == key {
-        end += 1;
-    }
-    end
 }
 
 fn merge_join_keys(
@@ -665,100 +580,6 @@ fn vectorized_join_batch_size(
     }
 
     Ok(Some(batch_size))
-}
-
-struct MergeEqualGroupsResult {
-    joined: Vec<BatchRow>,
-    matched_rows: usize,
-}
-
-fn merge_equal_key_groups(
-    env: &SourceExecutionEnv<'_>,
-    kind: JoinKind,
-    on: &Expr,
-    left_group: &[KeyedRow],
-    right_group: &[KeyedRow],
-    left_columns: &[String],
-    right_columns: &[String],
-) -> Result<MergeEqualGroupsResult, QueryError> {
-    let mut left_matched = vec![false; left_group.len()];
-    let mut right_matched = vec![false; right_group.len()];
-    let mut joined = Vec::new();
-    let mut matched_rows = 0usize;
-
-    for (left_offset, left) in left_group.iter().enumerate() {
-        for (right_offset, right) in right_group.iter().enumerate() {
-            let combined = combine_rows(&left.row, &right.row);
-            if filter::eval_scalar(
-                &combined,
-                on,
-                env.params,
-                None,
-                env.user_functions,
-                None,
-                env.session,
-            )?
-            .is_true()
-            {
-                left_matched[left_offset] = true;
-                right_matched[right_offset] = true;
-                matched_rows += 1;
-                joined.push(combined);
-            }
-        }
-    }
-
-    if matches!(kind, JoinKind::Left | JoinKind::Full) {
-        for (offset, matched) in left_matched.iter().enumerate() {
-            if !matched {
-                joined.push(combine_row_with_nulls(
-                    &left_group[offset].row,
-                    right_columns,
-                ));
-            }
-        }
-    }
-    if matches!(kind, JoinKind::Right | JoinKind::Full) {
-        for (offset, matched) in right_matched.iter().enumerate() {
-            if !matched {
-                joined.push(combine_nulls_with_row(
-                    left_columns,
-                    &right_group[offset].row,
-                ));
-            }
-        }
-    }
-
-    Ok(MergeEqualGroupsResult {
-        joined,
-        matched_rows,
-    })
-}
-
-fn append_left_unmatched(
-    joined: &mut Vec<BatchRow>,
-    kind: JoinKind,
-    rows: &[KeyedRow],
-    right_columns: &[String],
-) {
-    if matches!(kind, JoinKind::Left | JoinKind::Full) {
-        for left in rows {
-            joined.push(combine_row_with_nulls(&left.row, right_columns));
-        }
-    }
-}
-
-fn append_right_unmatched(
-    joined: &mut Vec<BatchRow>,
-    kind: JoinKind,
-    left_columns: &[String],
-    rows: &[KeyedRow],
-) {
-    if matches!(kind, JoinKind::Right | JoinKind::Full) {
-        for right in rows {
-            joined.push(combine_nulls_with_row(left_columns, &right.row));
-        }
-    }
 }
 
 #[cfg(test)]

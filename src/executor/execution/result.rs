@@ -3,6 +3,7 @@ use super::{
     QueryError, QueryExecutionControls, QueryResult, Value,
 };
 use crate::executor::batch::RowAccess;
+use crate::executor::semantic::{compare_values, SemanticKey};
 
 pub(super) fn build_select_result(
     cassie: &Cassie,
@@ -38,20 +39,11 @@ pub(super) fn build_select_result(
 }
 
 pub(super) fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {
-    if let (Value::Int64(left), Value::Int64(right)) = (left, right) {
-        return left.cmp(right);
-    }
-    if let (Some(left), Some(right)) = (left.as_f64(), right.as_f64()) {
-        return left.partial_cmp(&right).unwrap_or(CmpOrdering::Equal);
-    }
-    if let (Some(left), Some(right)) = (left.as_str(), right.as_str()) {
-        return left.cmp(right);
-    }
-    CmpOrdering::Equal
+    compare_values(left, right)
 }
 
-pub(super) fn row_signature(row: &impl RowAccess) -> String {
-    serde_json::to_string(row.entries()).unwrap_or_else(|_| String::new())
+pub(super) fn row_signature(row: &impl RowAccess) -> SemanticKey {
+    SemanticKey::from_values(row.entries().iter().map(|(_, value)| value))
 }
 
 pub(super) fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {

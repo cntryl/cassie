@@ -253,8 +253,7 @@ impl Cassie {
         );
         let result = self.execute_sql_core(session, sql, params, mode, &controls);
         let elapsed = query_started.elapsed();
-        self.runtime
-            .record_query_peak_memory(controls.peak_query_memory_bytes());
+        self.runtime.record_query_memory(&controls);
 
         match &result {
             Ok(result) => self
@@ -299,8 +298,7 @@ impl Cassie {
         let controls = self.runtime.query_controls(query_started);
         let result = self.explain_sql_core(session, sql, params, &controls);
         let elapsed = query_started.elapsed();
-        self.runtime
-            .record_query_peak_memory(controls.peak_query_memory_bytes());
+        self.runtime.record_query_memory(&controls);
 
         match &result {
             Ok(output) => self

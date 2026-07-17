@@ -44,6 +44,61 @@ impl Midge {
         Ok(Self::time_series_index_data_prefix(relation_id, index_id))
     }
 
+    /// Returns the latest-only time-series manifest key for corruption and recovery diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the index metadata is missing or invalid.
+    #[doc(hidden)]
+    pub fn time_series_manifest_key_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, index_id) =
+            self.time_series_storage_ids_for_diagnostics(collection, index_name)?;
+        Ok(super::key_encoding::time_series_index_manifest_key(
+            relation_id,
+            index_id,
+        ))
+    }
+
+    /// Returns the latest-only time-series bucket-count prefix for diagnostics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the index metadata is missing or invalid.
+    #[doc(hidden)]
+    pub fn time_series_bucket_count_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, index_id) =
+            self.time_series_storage_ids_for_diagnostics(collection, index_name)?;
+        Ok(super::key_encoding::time_series_index_bucket_count_prefix(
+            relation_id,
+            index_id,
+        ))
+    }
+
+    fn time_series_storage_ids_for_diagnostics(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<(u64, u64), CassieError> {
+        let index = self
+            .get_index(collection, index_name)?
+            .ok_or_else(|| CassieError::Parse(format!("index '{index_name}' not found")))?;
+        let relation_id = index.relation_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{index_name}' is missing its relation id"))
+        })?;
+        let index_id = index.storage_id().ok_or_else(|| {
+            CassieError::Parse(format!("index '{index_name}' is missing its storage id"))
+        })?;
+        Ok((relation_id, index_id))
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

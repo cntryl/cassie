@@ -1,12 +1,12 @@
 use super::plan_inspection;
 use super::{
-    aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog, check_timeout,
-    deduce_text_fields, ensure_query_memory_budget, execute_plan, execute_plan_with_outer_row,
-    filter, graph, load_fulltext_index_options, plan_execution_env, projection,
-    resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec, AnalyzerConfig,
-    Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext, ExistsResolutionContext, Expr,
-    FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan, QueryError,
-    QueryExecutionControls, QuerySource, Value,
+    aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
+    check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan,
+    execute_plan_with_outer_row, filter, graph, load_fulltext_index_options, plan_execution_env,
+    projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
+    AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext,
+    ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan,
+    QueryError, QueryExecutionControls, QuerySource, Value,
 };
 
 #[path = "source_join.rs"]
@@ -92,7 +92,7 @@ fn execute_collection_source(
         return execute_materialized_projection_source(env, name, &projection, qualify, row_budget);
     }
 
-    let batches = scan::scan_limit(env.cassie, env.session, name, row_budget)?;
+    let batches = scan::scan_limit(env.cassie, env.session, name, row_budget, env.controls)?;
     finalize_source_batches(
         env,
         batches,
@@ -147,7 +147,13 @@ fn execute_materialized_projection_source(
             ))
         })?
         .to_string();
-    let batches = scan::scan_limit(env.cassie, env.session, &output_collection, row_budget)?;
+    let batches = scan::scan_limit(
+        env.cassie,
+        env.session,
+        &output_collection,
+        row_budget,
+        env.controls,
+    )?;
     let text_fields = projection
         .materialized
         .as_ref()
@@ -274,7 +280,7 @@ fn finalize_source_batches(
 
 #[path = "source_rows.rs"]
 mod source_rows;
-pub(crate) use source_rows::{aggregate_signature, expr_key, group_expr_name, value_sort_key};
+pub(crate) use source_rows::{aggregate_signature, expr_key, group_expr_name};
 use source_rows::{
     apply_set_operation, combine_batches_with_outer_row, distinct_batches, distinct_on_batches,
     materialize_virtual_rows, plan_uses_aggregate, project_rows_to_schema, qualify_batches,
@@ -689,6 +695,7 @@ fn finalize_plan_rows(
 ) -> Result<Vec<BatchRow>, QueryError> {
     let mut rows = batch::flatten_batches(batches);
     if let Some(set) = &plan.set {
+        let left_output_names = set_left_output_names(env, plan, &rows);
         let right_plan = plan_inspection::logical_plan_from_select(&set.right);
         let right_rows = execute_plan(
             env.cassie,
@@ -699,7 +706,7 @@ fn finalize_plan_rows(
             env.params,
             env.controls,
         )?;
-        rows = apply_set_operation(rows, right_rows, set, env.controls)?;
+        rows = apply_set_operation(rows, right_rows, &left_output_names, set, env.controls)?;
     }
     if plan.set.is_some() && !plan.order.is_empty() {
         let eval = sort::EvalInput {
@@ -713,6 +720,26 @@ fn finalize_plan_rows(
         rows = sort::sort_rows_with_controls(rows, &eval, env.controls)?;
     }
     Ok(slice_rows(rows, plan.offset, plan.limit))
+}
+
+fn set_left_output_names(
+    env: &PhaseExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    left_rows: &[BatchRow],
+) -> Vec<String> {
+    if let Some(row) = left_rows.first() {
+        return row.entries().iter().map(|(name, _)| name.clone()).collect();
+    }
+
+    let collection_schema = env.cassie.catalog.get_schema(&plan.collection);
+    aggregate::columns_from_projection(
+        &plan.projection,
+        collection_schema.as_ref(),
+        env.user_functions,
+    )
+    .into_iter()
+    .map(|column| column.name)
+    .collect()
 }
 
 fn record_plan_metrics(

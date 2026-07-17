@@ -6,6 +6,8 @@ use super::{
     SortDirection, Value,
 };
 
+#[path = "scored/candidate.rs"]
+mod candidate;
 #[path = "scored/fulltext_read.rs"]
 mod fulltext_read;
 #[path = "scored/fulltext_topk.rs"]
@@ -17,11 +19,13 @@ mod memory;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
+use candidate::{push_top_k, scored_candidates_to_rows, ScoredSearchCandidate};
 use fulltext_read::execute_fulltext_filtered_read;
 use fulltext_topk::execute_fulltext_top_k;
 use hybrid::{
     bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows, BoundedHybridContext,
 };
+pub(crate) use vector_topk::install_ann_rerank_barriers;
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
 };
@@ -345,7 +349,15 @@ fn execute_hybrid_top_k(
             bounded.candidate_row_fetches,
         ),
         None => {
-            match prefilter_hybrid_rows(cassie, session, user_functions, params, spec, &schema)? {
+            match prefilter_hybrid_rows(
+                cassie,
+                session,
+                user_functions,
+                params,
+                spec,
+                &schema,
+                controls,
+            )? {
                 Some(rows) => (rows, 0, 0),
                 None => return Ok(None),
             }
@@ -389,29 +401,51 @@ fn execute_hybrid_top_k(
         &spec.score_column,
     );
     let candidate_count = candidate_ids.len();
+    record_hybrid_metrics(
+        cassie,
+        started_at,
+        HybridMetricCounts {
+            query_terms: query_terms.len(),
+            ann_reads,
+            candidate_row_fetches,
+            text_candidates: text_candidate_count,
+            candidates: candidate_count,
+            results: rows.len(),
+        },
+    );
+    let adaptive_candidates = ann_reads.max(text_candidate_count);
+    record_adaptive_candidate_decision(cassie, &adaptive, adaptive_candidates, rows.len());
+    Ok(Some(rows))
+}
+
+#[derive(Clone, Copy)]
+struct HybridMetricCounts {
+    query_terms: usize,
+    ann_reads: usize,
+    candidate_row_fetches: usize,
+    text_candidates: usize,
+    candidates: usize,
+    results: usize,
+}
+
+fn record_hybrid_metrics(cassie: &Cassie, started_at: Instant, counts: HybridMetricCounts) {
     hybrid::record_hybrid_diagnostics(
         cassie,
-        query_terms.len(),
-        ann_reads,
-        candidate_row_fetches,
-        text_candidate_count,
+        counts.query_terms,
+        counts.ann_reads,
+        counts.candidate_row_fetches,
+        counts.text_candidates,
     );
+    let elapsed = started_at.elapsed();
     cassie
         .runtime
-        .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
+        .record_search_execution(elapsed, counts.candidates, counts.results);
     cassie
         .runtime
-        .record_vector_execution(started_at.elapsed(), text_candidate_count, rows.len());
+        .record_vector_execution(elapsed, counts.text_candidates, counts.results);
     cassie
         .runtime
-        .record_hybrid_execution(started_at.elapsed(), text_candidate_count, rows.len());
-    record_adaptive_candidate_decision(
-        cassie,
-        &adaptive,
-        ann_reads.max(text_candidate_count),
-        rows.len(),
-    );
-    Ok(Some(rows))
+        .record_hybrid_execution(elapsed, counts.text_candidates, counts.results);
 }
 
 struct FulltextTopKSpec {
@@ -944,77 +978,4 @@ fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
         | Expr::Null
         | Expr::Param(_) => false,
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct ScoredSearchCandidate {
-    sort_value: f64,
-    score: f64,
-    id: String,
-}
-
-impl ScoredSearchCandidate {
-    fn is_better_than(&self, other: &Self) -> bool {
-        compare_scored_search_candidates(self, other) == CmpOrdering::Less
-    }
-}
-
-impl Eq for ScoredSearchCandidate {}
-
-impl PartialOrd for ScoredSearchCandidate {
-    fn partial_cmp(&self, other: &Self) -> Option<CmpOrdering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for ScoredSearchCandidate {
-    fn cmp(&self, other: &Self) -> CmpOrdering {
-        compare_scored_search_candidates(self, other)
-    }
-}
-
-fn compare_scored_search_candidates(
-    left: &ScoredSearchCandidate,
-    right: &ScoredSearchCandidate,
-) -> CmpOrdering {
-    left.sort_value
-        .total_cmp(&right.sort_value)
-        .then_with(|| left.id.cmp(&right.id))
-}
-
-fn push_top_k(
-    top: &mut BinaryHeap<ScoredSearchCandidate>,
-    top_needed: usize,
-    candidate: ScoredSearchCandidate,
-) {
-    if top.len() < top_needed {
-        top.push(candidate);
-    } else if let Some(worst) = top.peek() {
-        if candidate.is_better_than(worst) {
-            top.pop();
-            top.push(candidate);
-        }
-    }
-}
-
-fn scored_candidates_to_rows(
-    top: BinaryHeap<ScoredSearchCandidate>,
-    offset: usize,
-    limit: usize,
-    id_column: &str,
-    score_column: &str,
-) -> Vec<BatchRow> {
-    let mut ranked = top.into_vec();
-    ranked.sort_by(compare_scored_search_candidates);
-    ranked
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .map(|candidate| {
-            BatchRow::new(vec![
-                (id_column.to_string(), Value::String(candidate.id)),
-                (score_column.to_string(), Value::Float64(candidate.score)),
-            ])
-        })
-        .collect()
 }

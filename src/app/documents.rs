@@ -3,29 +3,10 @@ use super::{
     BTreeMap, Cassie, CassieError, CassieSession, ConstraintCheck, ConstraintOperator, DocumentRef,
     FieldConstraint, Instant, MidgeScanTimings, RowDecode, RowFilter, TransactionRowChange, Uuid,
 };
+
+mod controlled;
+
 impl Cassie {
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn ingest_document(
-        &self,
-        collection: &str,
-        payload: serde_json::Value,
-    ) -> Result<String, CassieError> {
-        self.write_document(collection, None, payload, true, None)
-    }
-
-    pub(crate) fn write_document(
-        &self,
-        collection: &str,
-        id: Option<String>,
-        payload: serde_json::Value,
-        apply_defaults: bool,
-        exclude_id: Option<&str>,
-    ) -> Result<String, CassieError> {
-        self.write_document_for_session(None, collection, id, payload, apply_defaults, exclude_id)
-    }
-
     pub(crate) fn write_document_for_session(
         &self,
         session: Option<&CassieSession>,
@@ -35,16 +16,22 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<String, CassieError> {
+        self.write_document_for_session_with_cancellation(
+            session,
+            collection,
+            controlled::DocumentWriteRequest::new(id, payload, apply_defaults, exclude_id),
+        )
+    }
+
+    fn write_document_for_session_with_cancellation(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        request: controlled::DocumentWriteRequest<'_>,
+    ) -> Result<String, CassieError> {
         let collections = self.referential_write_collections(collection);
         self.midge.with_collection_write_gates(&collections, || {
-            self.write_document_for_session_with_held_collection_gates(
-                session,
-                collection,
-                id,
-                payload,
-                apply_defaults,
-                exclude_id,
-            )
+            self.write_document_for_session_with_held_collection_gates(session, collection, request)
         })
     }
 
@@ -52,11 +39,15 @@ impl Cassie {
         &self,
         session: Option<&CassieSession>,
         collection: &str,
-        id: Option<String>,
-        payload: serde_json::Value,
-        apply_defaults: bool,
-        exclude_id: Option<&str>,
+        request: controlled::DocumentWriteRequest<'_>,
     ) -> Result<String, CassieError> {
+        let controlled::DocumentWriteRequest {
+            id,
+            payload,
+            apply_defaults,
+            exclude_id,
+            cancellation,
+        } = request;
         let payload = self.prepare_document_write_for_session(
             session,
             collection,
@@ -64,6 +55,7 @@ impl Cassie {
             apply_defaults,
             exclude_id,
         )?;
+        controlled::check_document_cancellation(cancellation)?;
 
         if let Some(session) = session {
             if session.is_transaction_active() {
@@ -151,9 +143,24 @@ impl Cassie {
         collection: &str,
         id: &str,
     ) -> Result<bool, CassieError> {
+        self.delete_document_for_session_with_cancellation(session, collection, id, None)
+    }
+
+    fn delete_document_for_session_with_cancellation(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        id: &str,
+        cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+    ) -> Result<bool, CassieError> {
         let collections = self.referential_write_collections(collection);
         self.midge.with_collection_write_gates(&collections, || {
-            self.delete_document_for_session_with_held_collection_gates(session, collection, id)
+            self.delete_document_for_session_with_held_collection_gates(
+                session,
+                collection,
+                id,
+                cancellation,
+            )
         })
     }
 
@@ -162,7 +169,9 @@ impl Cassie {
         session: Option<&CassieSession>,
         collection: &str,
         id: &str,
+        cancellation: Option<&crate::runtime::QueryCancellationHandle>,
     ) -> Result<bool, CassieError> {
+        controlled::check_document_cancellation(cancellation)?;
         if let Some(session) = session {
             if session.is_transaction_active() {
                 let existed = self

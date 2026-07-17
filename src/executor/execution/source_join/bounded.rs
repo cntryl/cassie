@@ -4,6 +4,8 @@ use super::{
     merge_join_keys, qualify_row, row_join_key, scan, BatchRow, CteContext, EquiJoinKeys, Expr,
     JoinExecutionSpec, JoinKind, QueryError, QuerySource, SourceExecutionEnv, Value,
 };
+use crate::executor::semantic::SemanticKey;
+use crate::types::DataType;
 
 #[path = "bounded/side_selection.rs"]
 mod side_selection;
@@ -213,6 +215,15 @@ fn indexed_join_plan(
 ) -> Option<IndexedJoinPlan> {
     let left_field = join_field_for_collection(&keys.left, left_collection)?;
     let right_field = join_field_for_collection(&keys.right, right_collection)?;
+    if has_mixed_numeric_index_encoding(
+        env,
+        left_collection,
+        &left_field,
+        right_collection,
+        &right_field,
+    ) {
+        return None;
+    }
     let left_index = usable_scalar_join_index(env, left_collection, &left_field);
     let right_index = usable_scalar_join_index(env, right_collection, &right_field);
     let indexed_side = match (&left_index, &right_index) {
@@ -238,6 +249,50 @@ fn indexed_join_plan(
         indexed_scan_fields: collection_scan_fields(env, indexed_collection)?,
         stream_scan_fields: collection_scan_fields(env, stream_collection)?,
     })
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NumericIndexEncoding {
+    Integer,
+    Float,
+}
+
+fn has_mixed_numeric_index_encoding(
+    env: &SourceExecutionEnv<'_>,
+    left_collection: &str,
+    left_field: &str,
+    right_collection: &str,
+    right_field: &str,
+) -> bool {
+    let left = collection_field_data_type(env, left_collection, left_field)
+        .and_then(|data_type| numeric_index_encoding(&data_type));
+    let right = collection_field_data_type(env, right_collection, right_field)
+        .and_then(|data_type| numeric_index_encoding(&data_type));
+    matches!((left, right), (Some(left), Some(right)) if left != right)
+}
+
+fn collection_field_data_type(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+    field: &str,
+) -> Option<DataType> {
+    env.cassie
+        .catalog
+        .get_schema(collection)?
+        .fields
+        .into_iter()
+        .find(|metadata| metadata.name.eq_ignore_ascii_case(field))
+        .map(|metadata| metadata.data_type)
+}
+
+const fn numeric_index_encoding(data_type: &DataType) -> Option<NumericIndexEncoding> {
+    match data_type {
+        DataType::SmallInt | DataType::Int | DataType::BigInt => {
+            Some(NumericIndexEncoding::Integer)
+        }
+        DataType::Float => Some(NumericIndexEncoding::Float),
+        _ => None,
+    }
 }
 
 fn indexed_side_for_dual_indexes(
@@ -319,7 +374,7 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
         return Ok(Some(Vec::new()));
     }
 
-    let mut build = std::collections::HashMap::<String, Vec<usize>>::new();
+    let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
     for (index, right_row) in right_rows.iter().enumerate() {
         if let Some(key) = row_join_key(right_row, &spec.keys.right) {
             build.entry(key).or_default().push(index);
@@ -354,7 +409,7 @@ fn execute_left_build_streaming_bounded_inner_join(
         return Ok(Vec::new());
     }
 
-    let mut build = std::collections::HashMap::<String, Vec<usize>>::new();
+    let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
     for (index, left_row) in left_rows.iter().enumerate() {
         if let Some(key) = row_join_key(left_row, &spec.keys.left) {
             build.entry(key).or_default().push(index);
@@ -502,7 +557,7 @@ fn load_collection_rows(
     env: &SourceExecutionEnv<'_>,
     collection: &str,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let batches = scan::scan_limit(env.cassie, env.session, collection, None)?;
+    let batches = scan::scan_limit(env.cassie, env.session, collection, None, env.controls)?;
     Ok(batch::flatten_batches(batches)
         .into_iter()
         .map(|row| qualify_row(row, collection))
@@ -560,7 +615,7 @@ struct StreamingJoinProgress {
 fn stream_left_rows_against_right(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
-    build: &std::collections::HashMap<String, Vec<usize>>,
+    build: &std::collections::HashMap<SemanticKey, Vec<usize>>,
     right_rows: &[BatchRow],
     batch_size: usize,
 ) -> Result<StreamingJoinProgress, QueryError> {
@@ -621,7 +676,7 @@ fn stream_left_rows_against_right(
 fn stream_right_rows_against_left(
     env: &SourceExecutionEnv<'_>,
     spec: &StreamingJoinSpec<'_>,
-    build: &std::collections::HashMap<String, Vec<usize>>,
+    build: &std::collections::HashMap<SemanticKey, Vec<usize>>,
     left_rows: &[BatchRow],
     batch_size: usize,
 ) -> Result<StreamingJoinProgress, QueryError> {
@@ -777,15 +832,17 @@ fn scan_indexed_join_rows(
     let hits = env
         .cassie
         .midge
-        .scan_scalar_index(
+        .scan_scalar_index_controlled(
             index,
             &crate::midge::adapter::ScalarIndexScanRequest {
                 equality_prefix: vec![key_value],
                 limit: Some(limit),
                 ..Default::default()
             },
+            env.controls,
         )
-        .map_err(|error| QueryError::General(error.to_string()))?;
+        .map_err(QueryError::from)?;
+    let (hits, _hits_memory) = hits.into_parts();
     env.cassie
         .runtime
         .record_read_path_index_seek(collection, hits.len(), &index.name);
@@ -823,7 +880,7 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
 
 fn has_session_changes(env: &SourceExecutionEnv<'_>, collection: &str) -> bool {
     env.session
-        .is_some_and(|session| !session.collection_changes(collection).is_empty())
+        .is_some_and(|session| session.has_collection_changes(collection))
 }
 
 fn can_dense_stream(
@@ -882,6 +939,10 @@ fn is_temp_budget_error(error: &QueryError) -> bool {
     matches!(
         error,
         QueryError::General(message)
+            if message.starts_with("query memory budget exceeded:")
+    ) || matches!(
+        error,
+        QueryError::Cassie(crate::app::CassieError::ResourceLimit(message))
             if message.starts_with("query memory budget exceeded:")
     )
 }

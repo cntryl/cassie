@@ -1,7 +1,7 @@
 use super::{
-    batch, projected_read, scan, BatchRow, BinaryOp, Cassie, CassieSession, Expr, FunctionMeta,
-    HashMap, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls, QuerySource,
-    SelectItem, Value,
+    batch, check_timeout, projected_read, scan, BatchRow, BinaryOp, Cassie, CassieSession, Expr,
+    FunctionMeta, HashMap, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls,
+    QuerySource, SelectItem, Value,
 };
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
@@ -27,12 +27,14 @@ pub(super) fn execute_scalar_index_read(
 
     let hits = cassie
         .midge
-        .scan_scalar_index(&spec.index, &spec.request)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+        .scan_scalar_index_controlled(&spec.index, &spec.request, controls)
+        .map_err(QueryError::from)?;
+    let (hits, _hits_memory) = hits.into_parts();
     let schema = cassie.catalog.get_schema(&spec.collection);
     let mut rows = Vec::with_capacity(hits.len());
 
     for hit in hits {
+        check_timeout(controls)?;
         let document = if spec.covered {
             DocumentRef {
                 id: hit.id,

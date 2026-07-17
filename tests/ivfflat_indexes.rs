@@ -589,7 +589,7 @@ fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
     let before = cassie.metrics();
 
     // Act
-    let expected_reason = "empty-probed-lists";
+    let expected_reason = "stale-list-membership";
 
     // Assert
     assert_ivfflat_fallback_query(&cassie, collection, expected_reason, &before);

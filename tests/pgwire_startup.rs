@@ -2,6 +2,8 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 
+const TEST_PASSWORD: &str = "cassie-pgwire-startup-password";
+
 fn with_fallback() {
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
 }
@@ -14,6 +16,13 @@ fn data_dir(label: &str) -> String {
         uuid::Uuid::new_v4()
     ));
     path.to_string_lossy().to_string()
+}
+
+fn authenticated_config() -> cassie::config::CassieRuntimeConfig {
+    cassie::config::CassieRuntimeConfig {
+        password: TEST_PASSWORD.to_string(),
+        ..cassie::config::CassieRuntimeConfig::default()
+    }
 }
 
 fn startup_frame(user: &str, database: &str) -> Vec<u8> {
@@ -91,6 +100,30 @@ async fn read_wire_frame(
     (tag, len, payload)
 }
 
+async fn complete_password_authentication(
+    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
+    writer: &mut tokio::net::tcp::WriteHalf<'_>,
+) -> (i32, i32) {
+    let (challenge_tag, _, challenge_payload) = read_wire_frame(reader).await;
+    assert_eq!(challenge_tag, b'R', "password challenge should use R tag");
+    let challenge = i32::from_be_bytes(
+        challenge_payload[..4]
+            .try_into()
+            .expect("authentication challenge code"),
+    );
+    tokio::io::AsyncWriteExt::write_all(writer, &password_message(TEST_PASSWORD))
+        .await
+        .expect("write password");
+    let (authenticated_tag, _, authenticated_payload) = read_wire_frame(reader).await;
+    assert_eq!(authenticated_tag, b'R', "authentication should use R tag");
+    let authenticated = i32::from_be_bytes(
+        authenticated_payload[..4]
+            .try_into()
+            .expect("authentication completion code"),
+    );
+    (challenge, authenticated)
+}
+
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -129,7 +162,7 @@ fn parse_parameter_status(payload: &[u8]) -> (String, String) {
 }
 
 #[test]
-fn should_support_binary_startup_without_password() {
+fn should_support_binary_startup_with_password_authentication() {
     // Arrange
     with_fallback();
     let path = data_dir("auth_ok");
@@ -139,8 +172,7 @@ fn should_support_binary_startup_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = authenticated_config();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -167,10 +199,10 @@ fn should_support_binary_startup_without_password() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let (tag, _len, _payload) = read_wire_frame(&mut reader).await;
+        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
 
         // Assert
-        assert_eq!(tag, b'R', "authentication response should use R tag");
+        assert_eq!(authentication, (3, 0));
 
         drop(socket);
         server.abort();
@@ -180,7 +212,7 @@ fn should_support_binary_startup_without_password() {
 }
 
 #[test]
-fn should_emit_startup_parameter_statuses_without_password() {
+fn should_emit_startup_parameter_statuses_after_password_authentication() {
     // Arrange
     with_fallback();
     let path = data_dir("parameter_statuses");
@@ -190,8 +222,7 @@ fn should_emit_startup_parameter_statuses_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = authenticated_config();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -218,7 +249,7 @@ fn should_emit_startup_parameter_statuses_without_password() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let (auth_tag, _auth_len, _auth_payload) = read_wire_frame(&mut reader).await;
+        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
         let mut statuses = Vec::new();
         loop {
             let (tag, _len, payload) = read_wire_frame(&mut reader).await;
@@ -231,7 +262,7 @@ fn should_emit_startup_parameter_statuses_without_password() {
         }
 
         // Assert
-        assert_eq!(auth_tag, b'R', "startup should authenticate first");
+        assert_eq!(authentication, (3, 0));
         assert!(statuses.contains(&("server_version".to_string(), "16.0".to_string())));
         assert!(statuses.contains(&("server_encoding".to_string(), "UTF8".to_string())));
         assert!(statuses.contains(&("client_encoding".to_string(), "UTF8".to_string())));
@@ -258,8 +289,7 @@ fn should_emit_backend_key_data_after_authentication() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = authenticated_config();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -284,6 +314,7 @@ fn should_emit_backend_key_data_after_authentication() {
         )
         .await
         .expect("write startup");
+        complete_password_authentication(&mut reader, &mut write_half).await;
 
         // Act
         let mut backend_key = None;
@@ -311,7 +342,7 @@ fn should_emit_backend_key_data_after_authentication() {
 }
 
 #[test]
-fn should_accept_libpq_startup_hints_without_password() {
+fn should_accept_libpq_startup_hints_with_password_authentication() {
     // Arrange
     with_fallback();
     let path = data_dir("libpq_hints");
@@ -321,8 +352,7 @@ fn should_accept_libpq_startup_hints_without_password() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = authenticated_config();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -356,10 +386,10 @@ fn should_accept_libpq_startup_hints_without_password() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
-        let (tag, _len, _payload) = read_wire_frame(&mut reader).await;
+        let authentication = complete_password_authentication(&mut reader, &mut write_half).await;
 
         // Assert
-        assert_eq!(tag, b'R', "libpq hints should not fail startup");
+        assert_eq!(authentication, (3, 0));
 
         drop(socket);
         server.abort();
@@ -379,8 +409,7 @@ fn should_return_not_supported_for_ssl_request() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = authenticated_config();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -431,7 +460,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
+        let mut config = authenticated_config();
         config.password = "correct-password".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();

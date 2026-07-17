@@ -1,8 +1,9 @@
 use super::{
-    build_dml_result, execute_plan, filter, inserted_row_to_batch_row, integral_json_number,
-    json_to_value, update_assignment_to_json, value_to_json, BatchRow, Cassie, CassieSession,
-    CollectionSchema, CteContext, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap,
-    InsertSource, LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
+    build_dml_result, check_timeout, execute_plan, filter, inserted_row_to_batch_row,
+    integral_json_number, json_to_value, update_assignment_to_json, value_to_json, BatchRow,
+    Cassie, CassieSession, CollectionSchema, CteContext, DmlResultContext, Expr, FieldMeta,
+    FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError, QueryExecutionControls,
+    QueryResult, QuerySource, Value,
 };
 
 pub(in crate::executor::execution) fn execute_insert(
@@ -13,6 +14,7 @@ pub(in crate::executor::execution) fn execute_insert(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    check_timeout(controls)?;
     let schema = cassie.catalog.get_schema(&statement.table).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
@@ -35,6 +37,7 @@ pub(in crate::executor::execution) fn execute_insert(
         schema: &schema,
     };
     for source_row in source_rows {
+        check_timeout(controls)?;
         let Some(row_id) = execute_insert_source_row(&insert_context, &target_fields, &source_row)?
         else {
             continue;

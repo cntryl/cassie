@@ -5,15 +5,20 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
+use crate::executor::semantic::{compare_values, SemanticKey};
 use crate::planner::logical::LogicalPlan;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, FunctionCall, SelectItem};
 use crate::types::Value;
 
-use super::{aggregate_signature, check_timeout, group_expr_name, value_sort_key, QueryError};
+use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 
-#[path = "aggregate_exec/memory.rs"]
-mod memory;
+#[path = "aggregate_exec/group_memory.rs"]
+mod group_memory;
+#[path = "aggregate_exec/state.rs"]
+mod state;
+
+use state::{i64_to_f64, usize_to_f64, NumericSum, PartialAggregateGroup};
 
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
@@ -22,13 +27,6 @@ pub(super) struct AggregateExecutionContext<'a> {
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) session: Option<&'a CassieSession>,
     pub(super) controls: &'a QueryExecutionControls,
-}
-
-struct AggregateValueContext<'a> {
-    params: &'a [Value],
-    search_context: Option<&'a filter::SearchContext>,
-    user_functions: &'a HashMap<String, FunctionMeta>,
-    session: Option<&'a CassieSession>,
 }
 
 #[derive(Clone)]
@@ -76,8 +74,8 @@ fn aggregate_query_batches_serial(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut groups = BTreeMap::<String, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
-    let mut group_memory = memory::replace_serial(None, context.controls, &groups)?;
+    let mut groups = BTreeMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
+    let mut group_memory = group_memory::replace_serial(None, context.controls, &groups)?;
 
     for row in rows {
         check_timeout(context.controls)?;
@@ -88,11 +86,12 @@ fn aggregate_query_batches_serial(
             .or_insert_with(|| (group_values, Vec::new()))
             .1
             .push(row);
-        group_memory = memory::replace_serial(Some(group_memory), context.controls, &groups)?;
+        group_memory = group_memory::replace_serial(Some(group_memory), context.controls, &groups)?;
     }
 
     if groups.is_empty() && context.plan.group_by.is_empty() {
-        groups.insert(String::from("__all__"), (Vec::new(), Vec::new()));
+        groups.insert(SemanticKey::default(), (Vec::new(), Vec::new()));
+        group_memory = group_memory::replace_serial(Some(group_memory), context.controls, &groups)?;
     }
 
     let mut out = Vec::with_capacity(groups.len());
@@ -107,6 +106,7 @@ fn aggregate_query_batches_serial(
         }
         out.push(BatchRow::new(values));
     }
+    drop(group_memory);
 
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
 }
@@ -123,9 +123,9 @@ fn aggregate_query_batches_parallel(
         rows.chunks(chunk_size)
             .map(|chunk| {
                 scope.spawn(move || {
-                    let mut groups = BTreeMap::<String, PartialAggregateGroup>::new();
+                    let mut groups = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
                     let mut group_memory =
-                        memory::replace_partial(None, context.controls, &groups)?;
+                        group_memory::replace_partial(None, context.controls, &groups)?;
                     for row in chunk {
                         check_timeout(context.controls)?;
                         let group_values = aggregate_group_values(row, context)?;
@@ -134,8 +134,11 @@ fn aggregate_query_batches_parallel(
                             .entry(signature)
                             .or_insert_with(|| PartialAggregateGroup::new(group_values, specs));
                         group.update(row, specs, context)?;
-                        group_memory =
-                            memory::replace_partial(Some(group_memory), context.controls, &groups)?;
+                        group_memory = group_memory::replace_partial(
+                            Some(group_memory),
+                            context.controls,
+                            &groups,
+                        )?;
                     }
                     Ok::<_, QueryError>(groups)
                 })
@@ -152,8 +155,8 @@ fn aggregate_query_batches_parallel(
 
     let partitions = partials.len();
     let input_rows = rows.len();
-    let mut merged = BTreeMap::<String, PartialAggregateGroup>::new();
-    let mut merged_memory = memory::replace_partial(None, context.controls, &merged)?;
+    let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
+    let mut merged_memory = group_memory::replace_partial(None, context.controls, &merged)?;
     for partial in partials.drain(..) {
         for (signature, group) in partial {
             merged
@@ -161,15 +164,17 @@ fn aggregate_query_batches_parallel(
                 .and_modify(|existing| existing.merge(&group))
                 .or_insert(group);
             merged_memory =
-                memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
+                group_memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
         }
     }
 
     if merged.is_empty() && context.plan.group_by.is_empty() {
         merged.insert(
-            String::from("__all__"),
+            SemanticKey::default(),
             PartialAggregateGroup::new(Vec::new(), specs),
         );
+        merged_memory =
+            group_memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
     }
 
     let group_count = merged.len();
@@ -184,301 +189,12 @@ fn aggregate_query_batches_parallel(
         }
         out.push(BatchRow::new(values));
     }
+    drop(merged_memory);
 
     cassie
         .runtime
         .record_parallel_aggregation(workers, partitions, input_rows, group_count);
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
-}
-
-#[derive(Clone)]
-struct PartialAggregateGroup {
-    group_values: Vec<(String, Value)>,
-    accumulators: Vec<AggregateAccumulator>,
-}
-
-impl PartialAggregateGroup {
-    fn new(group_values: Vec<(String, Value)>, specs: &[AggregateSpec]) -> Self {
-        Self {
-            group_values,
-            accumulators: specs
-                .iter()
-                .map(|spec| AggregateAccumulator::new(&spec.function))
-                .collect(),
-        }
-    }
-
-    fn update(
-        &mut self,
-        row: &BatchRow,
-        specs: &[AggregateSpec],
-        context: &AggregateExecutionContext<'_>,
-    ) -> Result<(), QueryError> {
-        for (accumulator, spec) in self.accumulators.iter_mut().zip(specs) {
-            accumulator.update(
-                &spec.function,
-                row,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-            )?;
-        }
-        Ok(())
-    }
-
-    fn merge(&mut self, other: &Self) {
-        for (left, right) in self.accumulators.iter_mut().zip(&other.accumulators) {
-            left.merge(right);
-        }
-    }
-}
-
-#[derive(Clone)]
-enum AggregateAccumulator {
-    Count { count: i64 },
-    Sum { sum: NumericSum, seen: bool },
-    Avg { sum: f64, count: usize },
-    MinMax { selected: Option<Value>, max: bool },
-}
-
-impl AggregateAccumulator {
-    fn new(function: &FunctionCall) -> Self {
-        match function.name.to_ascii_lowercase().as_str() {
-            "count" => Self::Count { count: 0 },
-            "sum" => Self::Sum {
-                sum: NumericSum::Int(0),
-                seen: false,
-            },
-            "avg" => Self::Avg { sum: 0.0, count: 0 },
-            "max" => Self::MinMax {
-                selected: None,
-                max: true,
-            },
-            _ => Self::MinMax {
-                selected: None,
-                max: false,
-            },
-        }
-    }
-
-    fn update(
-        &mut self,
-        function: &FunctionCall,
-        row: &BatchRow,
-        params: &[Value],
-        search_context: Option<&filter::SearchContext>,
-        user_functions: &HashMap<String, FunctionMeta>,
-        session: Option<&CassieSession>,
-    ) -> Result<(), QueryError> {
-        let value_context = AggregateValueContext {
-            params,
-            search_context,
-            user_functions,
-            session,
-        };
-        match self {
-            Self::Count { count } => Self::update_count(function, row, &value_context, count)?,
-            Self::Sum { sum, seen } => {
-                Self::update_sum(function, row, &value_context, sum, seen)?;
-            }
-            Self::Avg { sum, count } => {
-                Self::update_avg(function, row, &value_context, sum, count)?;
-            }
-            Self::MinMax { selected, max } => {
-                Self::update_minmax(function, row, &value_context, selected, *max)?;
-            }
-        }
-        Ok(())
-    }
-
-    fn merge(&mut self, other: &Self) {
-        match (self, other) {
-            (Self::Count { count }, Self::Count { count: other }) => *count += other,
-            (
-                Self::Sum { sum, seen },
-                Self::Sum {
-                    sum: other_sum,
-                    seen: other_seen,
-                },
-            ) => {
-                sum.merge(other_sum)
-                    .expect("numeric aggregate state should merge");
-                *seen = *seen || *other_seen;
-            }
-            (
-                Self::Avg { sum, count },
-                Self::Avg {
-                    sum: other_sum,
-                    count: other_count,
-                },
-            ) => {
-                *sum += other_sum;
-                *count += other_count;
-            }
-            (
-                Self::MinMax { selected, max },
-                Self::MinMax {
-                    selected: Some(value),
-                    max: _,
-                },
-            ) => {
-                let replace = selected.as_ref().is_none_or(|current| {
-                    let current_key = value_sort_key(current);
-                    let value_key = value_sort_key(value);
-                    if *max {
-                        value_key > current_key
-                    } else {
-                        value_key < current_key
-                    }
-                });
-                if replace {
-                    *selected = Some(value.clone());
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn finish(self) -> Value {
-        match self {
-            Self::Count { count } => Value::Int64(count),
-            Self::Sum { sum, seen } => {
-                if seen {
-                    sum.finish_value()
-                } else {
-                    Value::Null
-                }
-            }
-            Self::Avg { sum, count } => {
-                if count == 0 {
-                    Value::Null
-                } else {
-                    let count = usize_to_f64(count).expect("aggregate count should fit in f64");
-                    Value::Float64(sum / count)
-                }
-            }
-            Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
-        }
-    }
-}
-
-impl AggregateAccumulator {
-    fn evaluate_input(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-    ) -> Result<Option<Value>, QueryError> {
-        let Some(expr) = function.args.first() else {
-            return Ok(None);
-        };
-        filter::evaluate_expr_value(
-            row,
-            expr,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )
-        .map(Some)
-    }
-
-    fn update_count(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        count: &mut i64,
-    ) -> Result<(), QueryError> {
-        if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
-            *count += 1;
-            return Ok(());
-        }
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        if !matches!(value, Value::Null) {
-            *count += 1;
-        }
-        Ok(())
-    }
-
-    fn update_sum(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        sum: &mut NumericSum,
-        seen: &mut bool,
-    ) -> Result<(), QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        match value {
-            Value::Int64(value) => {
-                sum.add_int(value)?;
-                *seen = true;
-            }
-            Value::Float64(value) => {
-                sum.add_float(value)?;
-                *seen = true;
-            }
-            Value::Null => {}
-            _ => sum.promote_to_float()?,
-        }
-        Ok(())
-    }
-
-    fn update_avg(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        sum: &mut f64,
-        count: &mut usize,
-    ) -> Result<(), QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        match value {
-            Value::Int64(value) => {
-                *sum += i64_to_f64(value)?;
-                *count += 1;
-            }
-            Value::Float64(value) => {
-                *sum += value;
-                *count += 1;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn update_minmax(
-        function: &FunctionCall,
-        row: &BatchRow,
-        context: &AggregateValueContext<'_>,
-        selected: &mut Option<Value>,
-        max: bool,
-    ) -> Result<(), QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
-        };
-        if matches!(value, Value::Null) {
-            return Ok(());
-        }
-        let replace = selected.as_ref().is_none_or(|current| {
-            let current_key = value_sort_key(current);
-            let value_key = value_sort_key(&value);
-            if max {
-                value_key > current_key
-            } else {
-                value_key < current_key
-            }
-        });
-        if replace {
-            *selected = Some(value);
-        }
-        Ok(())
-    }
 }
 
 fn aggregate_group_values(
@@ -505,16 +221,8 @@ fn aggregate_group_values(
         .collect::<Result<Vec<_>, QueryError>>()
 }
 
-fn aggregate_group_signature(group_values: &[(String, Value)]) -> String {
-    if group_values.is_empty() {
-        "__all__".to_string()
-    } else {
-        group_values
-            .iter()
-            .map(|(_, value)| value_sort_key(value))
-            .collect::<Vec<_>>()
-            .join("|")
-    }
+fn aggregate_group_signature(group_values: &[(String, Value)]) -> SemanticKey {
+    SemanticKey::from_values(group_values.iter().map(|(_, value)| value))
 }
 
 fn parallel_aggregation_eligibility(
@@ -840,12 +548,11 @@ fn minmax_aggregate(
             continue;
         }
         let replace = selected.as_ref().is_none_or(|current| {
-            let current_key = value_sort_key(current);
-            let value_key = value_sort_key(&value);
+            let ordering = compare_values(&value, current);
             if max {
-                value_key > current_key
+                ordering.is_gt()
             } else {
-                value_key < current_key
+                ordering.is_lt()
             }
         });
         if replace {
@@ -909,55 +616,6 @@ pub(super) fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
     }
 }
 
-#[derive(Clone)]
-enum NumericSum {
-    Int(i64),
-    Float(f64),
-}
-
-impl NumericSum {
-    fn add_int(&mut self, value: i64) -> Result<(), QueryError> {
-        match self {
-            Self::Int(sum) => {
-                *sum = sum.checked_add(value).ok_or_else(|| {
-                    QueryError::General(String::from("aggregate integer overflow"))
-                })?;
-            }
-            Self::Float(sum) => *sum += i64_to_f64(value)?,
-        }
-        Ok(())
-    }
-
-    fn add_float(&mut self, value: f64) -> Result<(), QueryError> {
-        self.promote_to_float()?;
-        if let Self::Float(sum) = self {
-            *sum += value;
-        }
-        Ok(())
-    }
-
-    fn promote_to_float(&mut self) -> Result<(), QueryError> {
-        if let Self::Int(sum) = self {
-            *self = Self::Float(i64_to_f64(*sum)?);
-        }
-        Ok(())
-    }
-
-    fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
-        match other {
-            Self::Int(value) => self.add_int(*value),
-            Self::Float(value) => self.add_float(*value),
-        }
-    }
-
-    fn finish_value(self) -> Value {
-        match self {
-            Self::Int(sum) => Value::Int64(sum),
-            Self::Float(sum) => Value::Float64(sum),
-        }
-    }
-}
-
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {
     cassie
         .runtime
@@ -969,18 +627,4 @@ fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {
 
 fn partition_count(row_count: usize, partition_size: usize) -> usize {
     row_count.div_ceil(partition_size).max(1)
-}
-
-fn i64_to_f64(value: i64) -> Result<f64, QueryError> {
-    value
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| QueryError::General(String::from("aggregate integer conversion failed")))
-}
-
-fn usize_to_f64(value: usize) -> Result<f64, QueryError> {
-    value
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| QueryError::General(String::from("aggregate count conversion failed")))
 }

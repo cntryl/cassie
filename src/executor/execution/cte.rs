@@ -3,6 +3,7 @@ use super::{
     row_signature, BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta,
     HashMap, HashSet, QueryError, QueryExecutionControls, Value,
 };
+use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
 
 pub(super) type CteRows = Vec<Vec<(String, Value)>>;
@@ -59,7 +60,7 @@ pub(super) fn execute_cte<'a>(
             .collect::<Vec<_>>();
             rows = rename_cte_rows(rows, &cte.aliases);
 
-            let mut seen: HashSet<String> = HashSet::new();
+            let mut seen: HashSet<SemanticKey> = HashSet::new();
             if matches!(operator, SetOperator::Union) {
                 rows.retain(|row| seen.insert(row_signature(row)));
             }

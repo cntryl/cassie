@@ -96,7 +96,7 @@ fn should_report_3d000_for_missing_startup_database() {
 
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

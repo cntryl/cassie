@@ -1,7 +1,6 @@
 use super::{
     append_scalar_value, data_scoped_key, data_scoped_prefix, encoded_u64_component, key, prefix,
-    CassieError, LexKey, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_TIME_SERIES_INDEX,
-    FAMILY_UNIQUE_RESERVATION,
+    CassieError, LexKey, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION,
 };
 
 pub(crate) fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {
@@ -11,15 +10,6 @@ pub(crate) fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {
 
 pub(crate) fn scalar_index_data_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
     numeric_index_prefix(FAMILY_SCALAR_INDEX, relation_id, index_id)
-}
-
-pub(crate) fn time_series_index_collection_prefix(relation_id: u64) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    prefix(FAMILY_TIME_SERIES_INDEX, &[relation.as_slice()])
-}
-
-pub(crate) fn time_series_index_data_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
-    numeric_index_prefix(FAMILY_TIME_SERIES_INDEX, relation_id, index_id)
 }
 
 pub(crate) fn unique_constraint_reservation_prefix(collection: &str) -> Vec<u8> {

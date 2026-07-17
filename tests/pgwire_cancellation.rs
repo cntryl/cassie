@@ -20,7 +20,7 @@ fn should_cancel_active_pgwire_query_with_matching_backend_key() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         config.limits.cte_recursion_depth = 1_000_000;
         config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
@@ -97,7 +97,7 @@ fn should_ignore_pgwire_cancel_request_while_backend_is_idle() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

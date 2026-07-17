@@ -35,8 +35,7 @@ impl Cassie {
             &controls,
         );
         let elapsed = query_started.elapsed();
-        self.runtime
-            .record_query_peak_memory(controls.peak_query_memory_bytes());
+        self.runtime.record_query_memory(&controls);
 
         match &result {
             Ok(result) => self

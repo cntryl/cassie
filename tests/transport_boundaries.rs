@@ -164,7 +164,7 @@ fn seed_transport_boundary_docs(cassie: &Cassie) {
 
 async fn spawn_pgwire_boundary_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    config.password = "postgres".to_string();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");

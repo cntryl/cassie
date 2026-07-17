@@ -893,7 +893,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let session = cassie.create_session("tester", None);

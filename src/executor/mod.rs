@@ -6,9 +6,19 @@ mod execution;
 pub mod filter;
 pub mod projection;
 pub mod scan;
+pub(crate) mod semantic;
 pub mod sort;
 
 pub use aggregate::columns_from_projection;
+
+#[doc(hidden)]
+pub fn set_vector_ann_rerank_barriers(
+    selected: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    let barriers = selected.zip(resume);
+    execution::install_ann_rerank_barriers(barriers);
+}
 pub(crate) use execution::rollup_rewrite_name_for_plan;
 pub(crate) use execution::{
     mark_source_projections_stale_external, refresh_rollups_for_source_external,

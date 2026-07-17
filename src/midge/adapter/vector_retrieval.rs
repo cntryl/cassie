@@ -158,42 +158,43 @@ impl Midge {
                 "ivfflat fallback:stale-source-fingerprint".to_string(),
             ));
         }
+        let membership_prefix = key_encoding::ivfflat_membership_prefix(relation_id, field_id);
         let mut ids = Vec::new();
+        let mut seen_ids = BTreeSet::new();
         for list in probed_lists {
             let prefix = key_encoding::ivfflat_membership_list_prefix(relation_id, field_id, *list);
             let entries = collect_scan(
                 tx.scan(&Query::new().prefix(prefix.into()))
                     .map_err(CassieError::from)?,
             )?;
-            for (key, _) in entries {
-                let Some((_, id)) = key_encoding::decode_ivfflat_membership_suffix(
-                    &key,
-                    &key_encoding::ivfflat_membership_prefix(relation_id, field_id),
-                ) else {
+            let expected_count = training.list_sizes.get(*list).ok_or_else(|| {
+                CassieError::Execution("ivfflat fallback:stale-list-membership".to_string())
+            })?;
+            if entries.len() != *expected_count {
+                return Err(CassieError::Execution(
+                    "ivfflat fallback:stale-list-membership".to_string(),
+                ));
+            }
+            for (key, value) in entries {
+                let Some((stored_list, id)) =
+                    key_encoding::decode_ivfflat_membership_suffix(&key, &membership_prefix)
+                else {
                     return Err(CassieError::Execution(
                         "ivfflat fallback:invalid-membership-key".to_string(),
                     ));
                 };
+                if !value.is_empty() || stored_list != *list {
+                    return Err(CassieError::Execution(
+                        "ivfflat fallback:invalid-membership-key".to_string(),
+                    ));
+                }
+                if !seen_ids.insert(id.clone()) {
+                    return Err(CassieError::Execution(
+                        "ivfflat fallback:stale-list-membership".to_string(),
+                    ));
+                }
                 ids.push(id);
             }
-        }
-        if ids.is_empty() && !training.assignments.is_empty() {
-            ids.extend(
-                training
-                    .assignments
-                    .iter()
-                    .filter(|(_, list)| probed_lists.contains(list))
-                    .map(|(id, _)| id.clone()),
-            );
-        }
-        let expected_count = probed_lists
-            .iter()
-            .filter_map(|list| training.list_sizes.get(*list))
-            .sum::<usize>();
-        if !training.assignments.is_empty() && ids.len() != expected_count {
-            return Err(CassieError::Execution(
-                "ivfflat fallback:stale-list-membership".to_string(),
-            ));
         }
         let mut records = Vec::with_capacity(ids.len());
         for id in ids {

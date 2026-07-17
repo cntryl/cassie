@@ -1,13 +1,12 @@
 use crate::executor::batch::RowAccess;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::Batch;
+use crate::executor::semantic::compare_numeric_values;
 use crate::executor::QueryError;
 use crate::search::analyzer::AnalyzerConfig;
 use crate::sql::ast::FunctionCall;
@@ -27,12 +26,6 @@ pub(crate) use search::{
     prepare_query_terms_with_analyzer, PersistedFieldStatistics, SearchContext, SearchTermStats,
 };
 
-thread_local! {
-    static FUNCTION_CACHE: RefCell<FunctionCache> = RefCell::new(FunctionCache::new());
-}
-
-const FUNCTION_CACHE_SIZE: usize = 256;
-
 #[derive(Clone, Copy)]
 pub(super) struct EvalContext<'a> {
     params: &'a [Value],
@@ -40,105 +33,6 @@ pub(super) struct EvalContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     local_args: Option<&'a HashMap<String, Value>>,
     session: Option<&'a CassieSession>,
-}
-
-struct FunctionCache {
-    keys: Vec<u64>,
-    values: Vec<Value>,
-}
-
-impl FunctionCache {
-    fn new() -> Self {
-        Self {
-            keys: Vec::with_capacity(FUNCTION_CACHE_SIZE),
-            values: Vec::with_capacity(FUNCTION_CACHE_SIZE),
-        }
-    }
-
-    fn lookup(&self, key: u64) -> Option<&Value> {
-        self.keys
-            .iter()
-            .position(|k| *k == key)
-            .and_then(|i| self.values.get(i))
-    }
-
-    fn store(&mut self, key: u64, value: Value) {
-        if let Some(pos) = self.keys.iter().position(|k| *k == key) {
-            self.values[pos] = value;
-            return;
-        }
-        if self.keys.len() >= FUNCTION_CACHE_SIZE {
-            self.keys.remove(0);
-            self.values.remove(0);
-        }
-        self.keys.push(key);
-        self.values.push(value);
-    }
-}
-
-fn function_cache_key(name: &str, args: &[Value]) -> u64 {
-    use std::hash::Hasher;
-    fn hash_value(hasher: &mut std::hash::DefaultHasher, value: &Value) {
-        match value {
-            Value::Null => 0u8.hash(hasher),
-            Value::Bool(v) => {
-                1u8.hash(hasher);
-                v.hash(hasher);
-            }
-            Value::Int64(v) => {
-                2u8.hash(hasher);
-                v.hash(hasher);
-            }
-            Value::Float64(v) => {
-                3u8.hash(hasher);
-                v.to_bits().hash(hasher);
-            }
-            Value::String(v) => {
-                4u8.hash(hasher);
-                v.hash(hasher);
-            }
-            Value::Vector(v) => {
-                5u8.hash(hasher);
-                v.values.len().hash(hasher);
-            }
-            Value::Json(v) => {
-                6u8.hash(hasher);
-                v.to_string().hash(hasher);
-            }
-        }
-    }
-    let mut hasher = std::hash::DefaultHasher::new();
-    name.hash(&mut hasher);
-    for arg in args {
-        hash_value(&mut hasher, arg);
-    }
-    hasher.finish()
-}
-
-fn has_only_constant_args(exprs: &[Expr]) -> bool {
-    exprs.iter().all(is_constant_expr)
-}
-
-fn is_constant_expr(expr: &Expr) -> bool {
-    match expr {
-        Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::StringLiteral(_)
-        | Expr::Param(_) => true,
-        Expr::Function(f) => f.args.iter().all(is_constant_expr),
-        Expr::Binary { left, right, .. } => is_constant_expr(left) && is_constant_expr(right),
-        Expr::Cast { expr, .. } | Expr::Not { expr } | Expr::IsNull { expr, .. } => {
-            is_constant_expr(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            is_constant_expr(expr) && values.iter().all(is_constant_expr)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => is_constant_expr(expr) && is_constant_expr(low) && is_constant_expr(high),
-        _ => false,
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -681,6 +575,9 @@ fn ordered_cmp(
     right: &ScalarValue,
     cmp: impl Fn(std::cmp::Ordering) -> bool,
 ) -> Option<bool> {
+    if let Some(ordering) = compare_numeric_values(&left.to_value(), &right.to_value()) {
+        return Some(cmp(ordering));
+    }
     match (left.to_f64(), right.to_f64()) {
         (Some(left), Some(right)) => left.partial_cmp(&right).map(cmp),
         _ => left
@@ -728,15 +625,12 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
 
     match (left, right) {
         (ScalarValue::Bool(left), ScalarValue::Bool(right)) => Some(left == right),
-        (ScalarValue::Int(left), ScalarValue::Int(right)) => Some(left == right),
-        (ScalarValue::Float(left), ScalarValue::Float(right)) => Some(left == right),
+        (
+            ScalarValue::Int(_) | ScalarValue::Float(_),
+            ScalarValue::Int(_) | ScalarValue::Float(_),
+        ) => compare_numeric_values(&left.to_value(), &right.to_value())
+            .map(std::cmp::Ordering::is_eq),
         (ScalarValue::Str(left), ScalarValue::Str(right)) => Some(left == right),
-        (ScalarValue::Int(left), ScalarValue::Float(right)) => {
-            parse_i64_to_f64(*left).map(|left| left == *right)
-        }
-        (ScalarValue::Float(left), ScalarValue::Int(right)) => {
-            parse_i64_to_f64(*right).map(|right| *left == right)
-        }
         (ScalarValue::Bool(left), ScalarValue::Int(right)) => {
             Some((*left && *right != 0) || (!*left && *right == 0))
         }

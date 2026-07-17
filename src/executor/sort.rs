@@ -6,8 +6,8 @@ use crate::catalog::FunctionMeta;
 use crate::executor::batch::RowAccess;
 use crate::executor::batch::{chunk_rows, flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE};
 use crate::executor::filter;
-use crate::executor::filter::ScalarValue;
 use crate::executor::filter::SearchContext;
+use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
@@ -36,7 +36,7 @@ where
     let mut key_memory = Vec::with_capacity(rows.len());
     for row in rows {
         check_query_controls(controls)?;
-        let key = eval.row_key(&row);
+        let key = eval.row_key(&row)?;
         key_memory.push(controls.reserve_query_memory(row_key_bytes(&key))?);
         runs.push(VecDeque::from([(key, row)]));
     }
@@ -109,7 +109,7 @@ pub(crate) fn top_k_batches_with_controls(
     for row in flatten_batches(batches) {
         check_query_controls(controls)?;
         let candidate = TopCandidate {
-            key: eval.row_key(&row),
+            key: eval.row_key(&row)?,
             row,
         };
         push_top_candidate(&mut top, top_needed, candidate);
@@ -133,21 +133,21 @@ pub(crate) fn maintain_top_k_kernel(
     rows: Vec<crate::executor::batch::BatchRow>,
     eval: &EvalInput<'_>,
     top_needed: usize,
-) -> Vec<crate::executor::batch::BatchRow> {
+) -> Result<Vec<crate::executor::batch::BatchRow>, crate::executor::QueryError> {
     if eval.order.is_empty() || top_needed == 0 {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
     for row in rows {
         let candidate = TopCandidate {
-            key: eval.row_key(&row),
+            key: eval.row_key(&row)?,
             row,
         };
         push_top_candidate(&mut top, top_needed, candidate);
     }
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_top_candidates);
-    ranked.into_iter().map(|candidate| candidate.row).collect()
+    Ok(ranked.into_iter().map(|candidate| candidate.row).collect())
 }
 
 fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
@@ -176,35 +176,30 @@ fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
     }
 }
 
-fn compare_scalar(left: &ScalarValue, right: &ScalarValue) -> Ordering {
-    if let (Some(left), Some(right)) = (left.to_f64(), right.to_f64()) {
-        return left.partial_cmp(&right).unwrap_or(Ordering::Equal);
-    }
-
-    if let (Some(left), Some(right)) = (left.as_str(), right.as_str()) {
-        return left.cmp(right);
-    }
-
-    Ordering::Equal
+fn compare_scalar(left: &SemanticValue, right: &SemanticValue) -> Ordering {
+    left.cmp(right)
 }
 
 fn compare_nulls(
-    left: &ScalarValue,
-    right: &ScalarValue,
+    left: &SemanticValue,
+    right: &SemanticValue,
+    direction: &SortDirection,
     nulls: Option<NullsOrder>,
 ) -> Option<Ordering> {
-    if let Some(nulls) = nulls {
-        let left_null = matches!(left, ScalarValue::Null);
-        let right_null = matches!(right, ScalarValue::Null);
-        if left_null != right_null {
-            return Some(match (left_null, nulls) {
-                (true, NullsOrder::First) | (false, NullsOrder::Last) => Ordering::Less,
-                (true, NullsOrder::Last) | (false, NullsOrder::First) => Ordering::Greater,
-            });
-        }
+    let left_null = left.is_null();
+    let right_null = right.is_null();
+    if left_null == right_null {
+        return None;
     }
 
-    None
+    let nulls = nulls.unwrap_or(match direction {
+        SortDirection::Asc => NullsOrder::Last,
+        SortDirection::Desc => NullsOrder::First,
+    });
+    Some(match (left_null, nulls) {
+        (true, NullsOrder::First) | (false, NullsOrder::Last) => Ordering::Less,
+        (true, NullsOrder::Last) | (false, NullsOrder::First) => Ordering::Greater,
+    })
 }
 
 pub(crate) struct EvalInput<'a> {
@@ -217,54 +212,59 @@ pub(crate) struct EvalInput<'a> {
 }
 
 impl EvalInput<'_> {
-    fn row_key<R: RowAccess>(&self, row: &R) -> RowKey {
+    fn row_key<R: RowAccess>(&self, row: &R) -> Result<RowKey, crate::executor::QueryError> {
         let parts = self
             .order
             .iter()
-            .map(|order| KeyPart {
-                value: self.value(row, &order.expr),
-                direction: order.direction.clone(),
-                nulls: order.nulls,
+            .map(|order| {
+                self.value(row, &order.expr).map(|value| KeyPart {
+                    value: SemanticValue::from_value(&value),
+                    direction: order.direction.clone(),
+                    nulls: order.nulls,
+                })
             })
-            .collect();
-        RowKey {
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(RowKey {
             parts,
             tie_key: row_tie_key(row),
-        }
+        })
     }
 
-    fn value<R: RowAccess>(&self, row: &R, expr: &Expr) -> ScalarValue {
-        let base = filter::eval_scalar(
+    fn value<R: RowAccess>(
+        &self,
+        row: &R,
+        expr: &Expr,
+    ) -> Result<Value, crate::executor::QueryError> {
+        let base = filter::evaluate_expr_value(
             row,
             expr,
             self.params,
             self.search_context,
             self.user_functions,
-            None,
             self.session,
-        )
-        .unwrap_or(ScalarValue::Null);
-        if !matches!(base, ScalarValue::Null) {
-            return base;
+            None,
+        )?;
+        if !matches!(base, Value::Null) {
+            return Ok(base);
         }
 
-        alias_expr(expr, self.projection).map_or(base, |alias_expr| {
-            filter::eval_scalar(
-                row,
-                &alias_expr,
-                self.params,
-                self.search_context,
-                self.user_functions,
-                None,
-                self.session,
-            )
-            .unwrap_or(ScalarValue::Null)
-        })
+        let Some(alias_expr) = alias_expr(expr, self.projection) else {
+            return Ok(base);
+        };
+        filter::evaluate_expr_value(
+            row,
+            &alias_expr,
+            self.params,
+            self.search_context,
+            self.user_functions,
+            self.session,
+            None,
+        )
     }
 }
 
 struct KeyPart {
-    value: ScalarValue,
+    value: SemanticValue,
     direction: SortDirection,
     nulls: Option<NullsOrder>,
 }
@@ -339,24 +339,18 @@ fn row_key_bytes(key: &RowKey) -> usize {
         .saturating_add(
             key.parts
                 .iter()
-                .map(|part| match &part.value {
-                    ScalarValue::Str(value) => value.len(),
-                    ScalarValue::Null
-                    | ScalarValue::Bool(_)
-                    | ScalarValue::Int(_)
-                    | ScalarValue::Float(_) => 0,
-                })
+                .map(|part| part.value.estimated_bytes())
                 .sum(),
         )
 }
 
 fn compare_ordered_values(
-    left: &ScalarValue,
-    right: &ScalarValue,
+    left: &SemanticValue,
+    right: &SemanticValue,
     direction: &SortDirection,
     nulls: Option<NullsOrder>,
 ) -> Ordering {
-    if let Some(cmp) = compare_nulls(left, right, nulls) {
+    if let Some(cmp) = compare_nulls(left, right, direction, nulls) {
         return cmp;
     }
 

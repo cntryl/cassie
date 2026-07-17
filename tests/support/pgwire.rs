@@ -42,8 +42,7 @@ pub fn data_dir(label: &str) -> String {
 }
 
 pub async fn spawn_server(cassie: Cassie) -> PgwireServer {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    let config = CassieRuntimeConfig::from_env().expect("runtime config");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -224,9 +223,25 @@ pub async fn complete_startup(
     let _ = complete_startup_with_backend_key(reader, writer).await;
 }
 
+pub async fn complete_startup_with_password(
+    reader: &mut (impl AsyncRead + Unpin),
+    writer: &mut (impl AsyncWrite + Unpin),
+    password: &str,
+) {
+    let _ = complete_startup_with_password_and_backend_key(reader, writer, password).await;
+}
+
 pub async fn complete_startup_with_backend_key(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),
+) -> (i32, i32) {
+    complete_startup_with_password_and_backend_key(reader, writer, "postgres").await
+}
+
+async fn complete_startup_with_password_and_backend_key(
+    reader: &mut (impl AsyncRead + Unpin),
+    writer: &mut (impl AsyncWrite + Unpin),
+    password: &str,
 ) -> (i32, i32) {
     writer
         .write_all(&startup_frame("postgres", "postgres"))
@@ -236,7 +251,7 @@ pub async fn complete_startup_with_backend_key(
     assert_eq!(auth.0, b'R', "startup should return an auth response");
     if auth_request_code(&auth.1) == Some(3) {
         writer
-            .write_all(&password_message("postgres"))
+            .write_all(&password_message(password))
             .await
             .expect("write password");
         writer.flush().await.expect("flush password");

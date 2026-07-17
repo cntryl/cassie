@@ -24,17 +24,24 @@ pub async fn run_with_shutdown(
     config: CassieRuntimeConfig,
     shutdown: Arc<Notify>,
 ) -> Result<(), crate::app::CassieError> {
+    if let Ok(requested_address) = addr.parse::<std::net::SocketAddr>() {
+        cassie.validate_network_listener(requested_address)?;
+        crate::config::validate_pgwire_listener_transport(&config, requested_address)?;
+    }
     let tls_config = crate::pgwire::tls::load_server_config(
         config.pgwire_tls_cert_file.as_deref(),
         config.pgwire_tls_key_file.as_deref(),
     )?;
-    let require_tls = !config.allow_insecure_non_loopback_listen
-        && addr
-            .parse::<std::net::SocketAddr>()
-            .is_ok_and(|address| !address.ip().is_loopback());
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
+    let listen_address = listener
+        .local_addr()
+        .map_err(|error| crate::app::CassieError::Execution(error.to_string()))?;
+    cassie.validate_network_listener(listen_address)?;
+    crate::config::validate_pgwire_listener_transport(&config, listen_address)?;
+    let require_tls =
+        !config.allow_insecure_non_loopback_listen && !listen_address.ip().is_loopback();
     tracing::info!(target: "pgwire", address = %addr, "listening");
     let admission = Arc::new(Semaphore::new(config.limits.pgwire_max_connections.max(1)));
 

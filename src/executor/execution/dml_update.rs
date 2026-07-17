@@ -12,6 +12,16 @@ struct PreparedUpdateRow {
     payload: serde_json::Value,
 }
 
+struct PrepareUpdateContext<'a> {
+    cassie: &'a Cassie,
+    session: Option<&'a CassieSession>,
+    statement: &'a crate::sql::ast::UpdateStatement,
+    params: &'a [Value],
+    user_functions: &'a HashMap<String, FunctionMeta>,
+    schema: &'a CollectionSchema,
+    controls: &'a QueryExecutionControls,
+}
+
 pub(in crate::executor::execution) fn execute_update(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -33,18 +43,21 @@ pub(in crate::executor::execution) fn execute_update(
         user_functions,
         controls,
     )?;
-    let prepared_rows = prepare_update_rows(
+    let mut returning_rows = Vec::new();
+    let prepare_context = PrepareUpdateContext {
         cassie,
         session,
         statement,
         params,
         user_functions,
-        &schema,
-        &matched_rows,
-    )?;
-    if let Some(session) = session.filter(|session| session.is_transaction_active()) {
-        let mut collections = BTreeSet::from([statement.table.clone()]);
-        for prepared in &prepared_rows {
+        schema: &schema,
+        controls,
+    };
+    for row in &matched_rows {
+        check_timeout(controls)?;
+        let prepared = prepare_update_row(&prepare_context, row)?;
+        if let Some(session) = session.filter(|session| session.is_transaction_active()) {
+            let mut collections = BTreeSet::from([statement.table.clone()]);
             dml_referential_actions::preflight_update_actions(
                 cassie,
                 session,
@@ -52,22 +65,23 @@ pub(in crate::executor::execution) fn execute_update(
                 &prepared.before_payload,
                 &prepared.payload,
                 &mut collections,
+                controls,
             )?;
+            let collections = collections.into_iter().collect::<Vec<_>>();
+            session
+                .preflight_transaction_collections(&collections)
+                .map_err(QueryError::from)?;
         }
-        let collections = collections.into_iter().collect::<Vec<_>>();
-        session
-            .preflight_transaction_collections(&collections)
-            .map_err(QueryError::from)?;
+        apply_update_row(
+            cassie,
+            session,
+            statement,
+            &schema,
+            prepared,
+            &mut returning_rows,
+            controls,
+        )?;
     }
-    let mut returning_rows = Vec::new();
-    apply_update_rows(
-        cassie,
-        session,
-        statement,
-        &schema,
-        prepared_rows,
-        &mut returning_rows,
-    )?;
     let updated_count = if statement.returning.is_empty() {
         matched_rows.len()
     } else {
@@ -97,7 +111,7 @@ fn matched_dml_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let batches = scan::scan(cassie, session, table)?;
+    let batches = scan::scan(cassie, session, table, controls)?;
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     if let Some(filter_expr) = filter_expr {
@@ -107,67 +121,48 @@ fn matched_dml_rows(
     }
 }
 
-fn prepare_update_rows(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    statement: &crate::sql::ast::UpdateStatement,
-    params: &[Value],
-    user_functions: &HashMap<String, FunctionMeta>,
-    schema: &CollectionSchema,
-    matched_rows: &[BatchRow],
-) -> Result<Vec<PreparedUpdateRow>, QueryError> {
-    let mut prepared_rows = Vec::with_capacity(matched_rows.len());
-    for row in matched_rows {
-        prepared_rows.push(prepare_update_row(
-            cassie,
-            session,
-            statement,
-            params,
-            user_functions,
-            schema,
-            row,
-        )?);
-    }
-    Ok(prepared_rows)
-}
-
 fn prepare_update_row(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    statement: &crate::sql::ast::UpdateStatement,
-    params: &[Value],
-    user_functions: &HashMap<String, FunctionMeta>,
-    schema: &CollectionSchema,
+    context: &PrepareUpdateContext<'_>,
     row: &BatchRow,
 ) -> Result<PreparedUpdateRow, QueryError> {
+    check_timeout(context.controls)?;
     let row_id = row_id_from_batch_row(row)?;
-    let current = cassie
-        .get_document_for_session(session, &statement.table, &row_id)
+    let current = context
+        .cassie
+        .get_document_for_session(context.session, &context.statement.table, &row_id)
         .map_err(QueryError::from)?
         .ok_or_else(|| {
             QueryError::General(format!(
                 "row '{row_id}' was not found in '{}'",
-                statement.table
+                context.statement.table
             ))
         })?;
     let payload = updated_payload_from_row(
         row,
-        &statement.assignments,
-        params,
-        user_functions,
-        session,
-        schema,
+        &context.statement.assignments,
+        context.params,
+        context.user_functions,
+        context.session,
+        context.schema,
         &current.payload,
     )?;
-    let payload = cassie
-        .prepare_document_write_for_session(session, &statement.table, payload, true, Some(&row_id))
+    let payload = context
+        .cassie
+        .prepare_document_write_for_session(
+            context.session,
+            &context.statement.table,
+            payload,
+            true,
+            Some(&row_id),
+        )
         .map_err(QueryError::from)?;
     dml_referential_actions::assert_referenced_values_can_change(
-        cassie,
-        session,
-        &statement.table,
+        context.cassie,
+        context.session,
+        &context.statement.table,
         &current.payload,
         &payload,
+        context.controls,
     )?;
     Ok(PreparedUpdateRow {
         row_id,
@@ -200,32 +195,33 @@ fn updated_payload_from_row(
     Ok(serde_json::Value::Object(payload))
 }
 
-fn apply_update_rows(
+fn apply_update_row(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::UpdateStatement,
     schema: &CollectionSchema,
-    prepared_rows: Vec<PreparedUpdateRow>,
+    prepared: PreparedUpdateRow,
     returning_rows: &mut Vec<BatchRow>,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    for prepared in prepared_rows {
-        let before_payload = prepared.before_payload.clone();
-        let row_id = prepared.row_id.clone();
-        let document = write_updated_row(cassie, session, &statement.table, prepared)?;
-        dml_referential_actions::apply_referenced_update_actions(
-            cassie,
-            session,
-            &statement.table,
-            &before_payload,
+    check_timeout(controls)?;
+    let before_payload = prepared.before_payload.clone();
+    let row_id = prepared.row_id.clone();
+    let document = write_updated_row(cassie, session, &statement.table, prepared)?;
+    dml_referential_actions::apply_referenced_update_actions(
+        cassie,
+        session,
+        &statement.table,
+        &before_payload,
+        &document.payload,
+        controls,
+    )?;
+    if !statement.returning.is_empty() {
+        returning_rows.push(inserted_row_to_batch_row(
+            &row_id,
+            schema,
             &document.payload,
-        )?;
-        if !statement.returning.is_empty() {
-            returning_rows.push(inserted_row_to_batch_row(
-                &row_id,
-                schema,
-                &document.payload,
-            ));
-        }
+        ));
     }
     Ok(())
 }

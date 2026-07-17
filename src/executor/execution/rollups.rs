@@ -174,7 +174,7 @@ pub(super) fn try_execute_rollup_query(
         return Ok(None);
     }
 
-    let mut batches = scan::scan(cassie, None, &rollup.output_collection)?;
+    let mut batches = scan::scan(cassie, None, &rollup.output_collection, controls)?;
     if !plan.order.is_empty() {
         let eval = sort::EvalInput {
             order: &plan.order,

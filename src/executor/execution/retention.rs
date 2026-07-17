@@ -143,7 +143,7 @@ fn enforce(
     let enforce_at = parse_timestamp(at)?;
     let duration = parse_duration(&metadata.retention_duration)?;
     let cutoff = enforce_at - duration;
-    let rows = batch::flatten_batches(scan::scan(cassie, None, &metadata.collection)?);
+    let rows = batch::flatten_batches(scan::scan(cassie, None, &metadata.collection, controls)?);
     let mut deleted = 0u64;
     let mut skipped = 0u64;
 

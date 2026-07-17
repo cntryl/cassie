@@ -222,18 +222,58 @@ pub(super) fn encode_manifest(manifest: &FulltextManifest) -> Vec<u8> {
     ] {
         write_varint(value, &mut out);
     }
+    write_varint(
+        u64::try_from(manifest.terms.len()).unwrap_or(u64::MAX),
+        &mut out,
+    );
+    for (term, integrity) in &manifest.terms {
+        write_bytes(term.as_bytes(), &mut out);
+        write_varint(
+            u64::try_from(integrity.block_count).unwrap_or(u64::MAX),
+            &mut out,
+        );
+        write_varint(
+            u64::try_from(integrity.posting_count).unwrap_or(u64::MAX),
+            &mut out,
+        );
+    }
     out
 }
 
 pub(super) fn decode_manifest(bytes: &[u8]) -> Result<FulltextManifest, CassieError> {
     let mut cursor = Cursor::new(bytes);
     cursor.expect(MANIFEST_MAGIC)?;
+    let version = cursor.read_u32()?;
+    if version != super::STATE_VERSION {
+        return Err(CassieError::Parse(format!(
+            "unsupported fulltext manifest version {version}"
+        )));
+    }
+    let built_generation = cursor.read_varint()?;
+    let total_documents = cursor.read_usize()?;
+    let posting_terms = cursor.read_usize()?;
+    let document_count = cursor.read_usize()?;
+    let term_count = cursor.read_usize()?;
+    let mut terms = BTreeMap::new();
+    for _ in 0..term_count {
+        let term = cursor.read_string()?;
+        let integrity = super::FulltextTermIntegrity {
+            block_count: cursor.read_usize()?,
+            posting_count: cursor.read_usize()?,
+        };
+        if terms.insert(term, integrity).is_some() {
+            return Err(CassieError::Parse(
+                "duplicate fulltext manifest term".to_string(),
+            ));
+        }
+    }
     let manifest = FulltextManifest {
-        version: cursor.read_u32()?,
-        built_generation: cursor.read_varint()?,
-        total_documents: cursor.read_usize()?,
-        posting_terms: cursor.read_usize()?,
-        document_count: cursor.read_usize()?,
+        version,
+        built_generation,
+        total_documents,
+        posting_terms,
+        document_count,
+        terms,
     };
     cursor.finish()?;
     Ok(manifest)

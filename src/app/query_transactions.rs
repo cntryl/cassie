@@ -1,9 +1,5 @@
-use crate::midge::adapter::DocumentWriteOp;
-use std::collections::BTreeMap;
-
 use super::{
-    Cassie, CassieError, CassieSession, QueryResult, TransactionAction, TransactionRowChange,
-    TransactionStatement,
+    Cassie, CassieError, CassieSession, QueryResult, TransactionAction, TransactionStatement,
 };
 
 impl Cassie {
@@ -57,91 +53,12 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
-        let mut writes = transaction_write_batches(session);
-        let mut changed_collections = Vec::new();
-        if !writes.is_empty() {
-            let collection = writes.keys().next().expect("non-empty writes");
-            let mut options = self.document_write_options(collection);
-            options.refresh_after_commit = false;
-            let reports = match self
-                .midge
-                .apply_document_write_batches_with_options(&writes, &options)
-            {
-                Ok(reports) => reports,
-                Err(CassieError::UniqueViolation { .. })
-                    if !session.transaction_conflict_intents().is_empty() =>
-                {
-                    crate::executor::resolve_transaction_conflict_intents(self, session)
-                        .inspect_err(|_| session.mark_transaction_failed())?;
-                    writes = transaction_write_batches(session);
-                    if writes.is_empty() {
-                        BTreeMap::new()
-                    } else {
-                        let retry_collection = writes.keys().next().expect("non-empty writes");
-                        let mut retry_options = self.document_write_options(retry_collection);
-                        retry_options.refresh_after_commit = false;
-                        self.midge
-                            .apply_document_write_batches_with_options(&writes, &retry_options)
-                            .inspect_err(|_| session.mark_transaction_failed())?
-                    }
-                }
-                Err(error) => {
-                    session.mark_transaction_failed();
-                    return Err(error);
-                }
-            };
-            let mut latest_epoch = None;
-            for (collection, report) in reports {
-                self.runtime
-                    .record_projection_write_batch(collection.clone(), &report.stats);
-                if report.stats.row_puts > 0
-                    || report.stats.row_deletes > 0
-                    || report.stats.index_puts > 0
-                    || report.stats.index_deletes > 0
-                    || report.stats.metadata_puts > 0
-                    || report.stats.metadata_deletes > 0
-                    || report.stats.batch_flushes > 0
-                {
-                    changed_collections.push((collection, report.row_delta));
-                }
-                latest_epoch = latest_epoch.or(report.data_epoch);
-            }
-            if let Some(epoch) = latest_epoch {
-                self.runtime.set_data_epoch(epoch);
-            }
-        }
+        let committed = self
+            .apply_staged_write_batches(session, None)
+            .inspect_err(|_| session.mark_transaction_failed())?;
 
         session.commit_transaction();
-
-        changed_collections.sort_by(|left, right| left.0.cmp(&right.0));
-        changed_collections.dedup_by(|left, right| left.0 == right.0);
-        let controls = self.runtime.query_controls(std::time::Instant::now());
-        for (collection, row_delta) in changed_collections {
-            let _ = self
-                .midge
-                .refresh_document_maintenance_after_commit(&collection, row_delta);
-            let _ =
-                crate::executor::refresh_rollups_for_source_external(self, &collection, &controls);
-            let _ = crate::executor::mark_source_projections_stale_external(self, &collection);
-            let _ = crate::executor::sync_derived_maintenance_debt_external(self, &collection);
-        }
+        self.finish_staged_write_batches(committed, None);
         Ok(())
     }
-}
-
-fn transaction_write_batches(session: &CassieSession) -> BTreeMap<String, Vec<DocumentWriteOp>> {
-    session
-        .transaction_writes()
-        .into_iter()
-        .filter_map(|(collection, collection_writes)| {
-            let write_ops = collection_writes
-                .into_iter()
-                .map(|(id, change)| match change {
-                    TransactionRowChange::Upsert(payload) => DocumentWriteOp::Put { id, payload },
-                    TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
-                })
-                .collect::<Vec<_>>();
-            (!write_ops.is_empty()).then_some((collection, write_ops))
-        })
-        .collect()
 }

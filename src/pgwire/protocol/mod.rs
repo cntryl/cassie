@@ -104,7 +104,7 @@ pub struct PreparedStatement {
     pub described: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Portal {
     pub name: String,
     pub statement_name: String,
@@ -115,15 +115,16 @@ pub struct Portal {
     pub suspended: Option<PortalSuspended>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PortalSuspended {
     pub columns: Vec<crate::executor::ColumnMeta>,
     pub rows: Vec<Vec<crate::types::Value>>,
     pub command: String,
-    pub next_row: usize,
     pub row_description_sent: bool,
-    pub query_offset: Option<usize>,
+    pub streaming: bool,
+    pub rows_emitted: usize,
     pub cancellation: Option<crate::runtime::QueryCancellationHandle>,
+    pub portal_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
 impl ServerMessage {

@@ -310,7 +310,7 @@ fn decode_sortable_weight(value: &str) -> Result<f64, CassieError> {
     Ok(f64::from_bits(bits))
 }
 
-fn graph_edge_record_from_payload(
+pub(crate) fn graph_edge_record_from_payload(
     graph: &crate::catalog::GraphMeta,
     row_id: &str,
     payload: &serde_json::Value,

@@ -59,17 +59,8 @@ pub struct ExecutionResultCacheKey {
     pub mode: ExecutionMode,
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct HybridRetrievalDiagnostics {
-    pub(crate) posting_reads: usize,
-    pub(crate) ann_reads: usize,
-    pub(crate) candidate_row_fetches: usize,
-    pub(crate) generation_rejections: usize,
-    pub(crate) exact_reranks: usize,
-    pub(crate) truncations: usize,
-    pub(crate) budget_rejections: usize,
-}
-
+#[path = "runtime/accounted.rs"]
+pub(crate) mod accounted;
 #[path = "runtime/adaptive_metrics.rs"]
 mod adaptive_metrics;
 #[path = "runtime/admission.rs"]
@@ -86,6 +77,8 @@ mod feedback;
 mod fulltext;
 #[path = "runtime/helpers.rs"]
 mod helpers;
+#[path = "runtime/hybrid_metrics.rs"]
+mod hybrid_metrics;
 #[path = "runtime/join_metrics.rs"]
 mod join_metrics;
 #[path = "runtime/operator_feedback_state.rs"]
@@ -130,6 +123,7 @@ use helpers::{
     prune_feedback_by_age, status_class, touch, touch_feedback,
 };
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
+pub(crate) use hybrid_metrics::HybridRetrievalDiagnostics;
 pub(crate) use join_metrics::VectorizedJoinInputRows;
 pub(crate) use pgwire_state::PgwireBackendRegistration;
 pub use pgwire_state::PgwireSessionGuard;
@@ -617,24 +611,6 @@ impl RuntimeState {
                 .entry(reason.to_string())
                 .or_insert(0) += 1;
         }
-    }
-
-    /// # Panics
-    ///
-    /// Panics if an internal invariant required by this operation is violated.
-    pub(crate) fn record_hybrid_retrieval_diagnostics(
-        &self,
-        diagnostics: &HybridRetrievalDiagnostics,
-    ) {
-        let mut metrics = self.metrics.lock().expect("runtime metrics");
-        metrics.hybrid.retrieval_stage_queries_total += 1;
-        metrics.hybrid.posting_reads_total += diagnostics.posting_reads as u64;
-        metrics.hybrid.ann_reads_total += diagnostics.ann_reads as u64;
-        metrics.hybrid.candidate_row_fetches_total += diagnostics.candidate_row_fetches as u64;
-        metrics.hybrid.generation_rejections_total += diagnostics.generation_rejections as u64;
-        metrics.hybrid.exact_reranks_total += diagnostics.exact_reranks as u64;
-        metrics.hybrid.truncation_count_total += diagnostics.truncations as u64;
-        metrics.hybrid.candidate_budget_rejections_total += diagnostics.budget_rejections as u64;
     }
 
     /// # Panics

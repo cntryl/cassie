@@ -40,6 +40,7 @@ impl Cassie {
             password: auth_password,
             rest_tls_cert_file,
             rest_tls_key_file,
+            allow_insecure_non_loopback_listen,
             limits,
             ..
         } = runtime_config;
@@ -57,6 +58,7 @@ impl Cassie {
             default_database,
             rest_tls_cert_file,
             rest_tls_key_file,
+            allow_insecure_non_loopback_listen,
             started: Arc::new(AtomicBool::new(false)),
         })
     }
@@ -101,6 +103,15 @@ impl Cassie {
         self.midge
             .retry_maintenance_debt()
             .map_err(|error| CassieError::Storage(format!("maintenance recovery: {error}")))?;
+        self.midge
+            .reconcile_fulltext_indexes()
+            .map_err(|error| CassieError::Storage(format!("full-text recovery: {error}")))?;
+        self.midge
+            .reconcile_time_series_indexes()
+            .map_err(|error| CassieError::Storage(format!("time-series recovery: {error}")))?;
+        self.midge
+            .reconcile_ivfflat_indexes()
+            .map_err(|error| CassieError::Storage(format!("IVFFlat recovery: {error}")))?;
 
         self.hydrate_catalog()
             .map_err(|error| CassieError::Storage(format!("catalog hydration: {error}")))?;

@@ -28,6 +28,9 @@ pub fn hash_params(params: &[Value]) -> u64 {
             Value::Vector(v) => {
                 5u8.hash(hasher);
                 v.values.len().hash(hasher);
+                for value in &v.values {
+                    value.to_bits().hash(hasher);
+                }
             }
             Value::Json(v) => {
                 6u8.hash(hasher);

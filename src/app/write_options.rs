@@ -18,6 +18,17 @@ impl Cassie {
         options
     }
 
+    pub(crate) fn document_write_options_for_collections(
+        &self,
+        collections: &[String],
+    ) -> DocumentWriteBatchOptions {
+        let mut options = DocumentWriteBatchOptions::sync();
+        for collection in collections {
+            self.add_derived_maintenance_debt_options(collection, &mut options);
+        }
+        options
+    }
+
     fn add_derived_maintenance_debt_options(
         &self,
         collection: &str,

@@ -23,6 +23,7 @@ pub struct QuerySnapshot {
     pub rows_returned_total: u64,
     pub errors_total: u64,
     pub errors_by_class: BTreeMap<String, u64>,
+    pub current_accounted_memory_bytes: u64,
     pub peak_accounted_memory_bytes: u64,
 }
 
@@ -373,6 +374,7 @@ pub struct GraphSnapshot {
     pub last_graph: String,
     pub last_strategy: String,
     pub last_stop_reason: String,
+    pub last_fallback_reason: String,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

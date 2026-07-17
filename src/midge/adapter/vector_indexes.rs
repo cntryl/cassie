@@ -5,6 +5,8 @@ use super::{
 };
 #[path = "vector_indexes/codec.rs"]
 pub(super) mod codec;
+#[path = "vector_indexes/ivfflat.rs"]
+mod ivfflat;
 #[path = "vector_indexes/math.rs"]
 mod math;
 #[path = "vector_retrieval.rs"]
@@ -15,7 +17,6 @@ use self::codec::{
     encode_normalized_vector, encode_vector_index_state, PersistedHnswManifest,
     PersistedIvfManifest, PersistedVectorIndexState,
 };
-use self::math::{ivfflat_training_order, nearest_ivfflat_centroid};
 
 fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, CassieError> {
     row_schema
@@ -58,6 +59,19 @@ impl Midge {
     ) -> Result<Vec<u8>, CassieError> {
         let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
         Ok(Self::vector_index_state_key(relation_id, field_id))
+    }
+
+    #[doc(hidden)]
+    pub fn ivfflat_membership_prefix_for_diagnostics(
+        &self,
+        collection: &str,
+        field: &str,
+    ) -> Result<Vec<u8>, CassieError> {
+        let (relation_id, field_id) = self.vector_storage_ids(collection, field)?;
+        Ok(super::key_encoding::ivfflat_membership_prefix(
+            relation_id,
+            field_id,
+        ))
     }
 
     pub(super) fn vector_storage_ids(
@@ -147,9 +161,9 @@ impl Midge {
         let state = VectorIndexState {
             built_generation: persisted.built_generation,
             hnsw_graph,
-            ivfflat_training: persisted
-                .ivfflat_training
-                .map(|manifest| load_ivfflat_manifest(&tx, relation_id, field_id, manifest)),
+            ivfflat_training: persisted.ivfflat_training.map(|manifest| {
+                ivfflat::load_ivfflat_manifest(&tx, relation_id, field_id, manifest)
+            }),
         };
         if state.built_generation != self.collection_generation(&collection)? {
             return Ok(None);
@@ -456,6 +470,16 @@ impl Midge {
     pub(crate) fn list_vector_indexes_canonical(
         &self,
     ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
+        let mut out = self.list_vector_index_definitions_canonical()?;
+        for record in &mut out {
+            self.hydrate_vector_index_state(record)?;
+        }
+        Ok(out)
+    }
+
+    pub(super) fn list_vector_index_definitions_canonical(
+        &self,
+    ) -> Result<Vec<crate::embeddings::VectorIndexRecord>, CassieError> {
         let entries = self.raw_scan_prefix(StorageFamily::Schema, &Self::vector_index_prefix())?;
         let mut out = Vec::with_capacity(entries.len());
 
@@ -463,8 +487,6 @@ impl Midge {
             let Ok(record) = serde_json::from_slice(&raw_value) else {
                 continue;
             };
-            let mut record = record;
-            self.hydrate_vector_index_state(&mut record)?;
             out.push(record);
         }
 
@@ -674,86 +696,6 @@ impl Midge {
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
-    pub fn rebuild_ivfflat_training(
-        &self,
-        index: &VectorIndexRecord,
-    ) -> Result<crate::embeddings::IvfFlatTrainingState, CassieError> {
-        let records = self.list_normalized_vectors(&index.collection, &index.field)?;
-        Ok(Self::build_ivfflat_training_from_records(index, &records))
-    }
-
-    fn build_ivfflat_training_from_records(
-        index: &VectorIndexRecord,
-        records: &[NormalizedVectorRecord],
-    ) -> crate::embeddings::IvfFlatTrainingState {
-        let options = index.metadata.ivfflat.clone().unwrap_or_default();
-        let row_count = records.len();
-        let lists = options.lists.max(1).min(row_count.max(1));
-        let probes = options.probes.max(1).min(lists);
-        let source_fingerprint = crate::vector::normalized_vector_source_fingerprint(records);
-
-        if records.is_empty() {
-            return crate::embeddings::IvfFlatTrainingState {
-                version: 1,
-                source_fingerprint,
-                trained: false,
-                row_count,
-                lists,
-                probes,
-                training_seed: options.training_seed,
-                centroid_ids: Vec::new(),
-                centroids: Vec::new(),
-                assignments: std::collections::BTreeMap::default(),
-                list_sizes: vec![0; lists],
-            };
-        }
-
-        let mut sample = records.to_vec();
-        sample.sort_by_key(|record| ivfflat_training_order(options.training_seed, &record.id));
-        sample.truncate(options.training_sample_size.min(sample.len()).max(lists));
-
-        let mut centroids = sample
-            .iter()
-            .take(lists)
-            .map(|record| record.values.clone())
-            .collect::<Vec<_>>();
-        while centroids.len() < lists {
-            centroids.push(records[centroids.len() % records.len()].values.clone());
-        }
-        let centroid_ids = sample
-            .iter()
-            .take(lists)
-            .map(|record| record.id.clone())
-            .collect::<Vec<_>>();
-
-        let mut assignments = std::collections::BTreeMap::new();
-        let mut list_sizes = vec![0usize; lists];
-        for record in records {
-            let list = nearest_ivfflat_centroid(&record.values, &centroids);
-            assignments.insert(record.id.clone(), list);
-            if let Some(size) = list_sizes.get_mut(list) {
-                *size += 1;
-            }
-        }
-
-        crate::embeddings::IvfFlatTrainingState {
-            version: 1,
-            source_fingerprint,
-            trained: true,
-            row_count,
-            lists,
-            probes,
-            training_seed: options.training_seed,
-            centroid_ids,
-            centroids,
-            assignments,
-            list_sizes,
-        }
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
     pub fn rebuild_hnsw_graph(
         &self,
         index: &VectorIndexRecord,
@@ -793,31 +735,6 @@ impl Midge {
                 built_generation: 0,
                 hnsw_graph: Some(self.rebuild_hnsw_graph(&index)?),
                 ivfflat_training: None,
-            };
-            self.write_vector_index_state(&index.collection, &index.field, state)?;
-            refreshed += 1;
-        }
-        Ok(refreshed)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn refresh_ivfflat_indexes_for_collection(
-        &self,
-        collection: &str,
-    ) -> Result<usize, CassieError> {
-        let mut refreshed = 0usize;
-        for index in self.list_vector_indexes_canonical()? {
-            if index.collection != collection
-                || index.metadata.index_type != crate::embeddings::VectorIndexType::IvfFlat
-            {
-                continue;
-            }
-            let state = VectorIndexState {
-                built_generation: 0,
-                hnsw_graph: None,
-                ivfflat_training: Some(self.rebuild_ivfflat_training(&index)?),
             };
             self.write_vector_index_state(&index.collection, &index.field, state)?;
             refreshed += 1;
@@ -925,38 +842,4 @@ fn load_hnsw_manifest(
         max_layer: manifest.max_layer,
         nodes,
     })
-}
-
-fn load_ivfflat_manifest(
-    tx: &cntryl_midge::Transaction,
-    relation_id: u64,
-    field_id: u32,
-    manifest: PersistedIvfManifest,
-) -> crate::embeddings::IvfFlatTrainingState {
-    let prefix = super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
-    let mut assignments = std::collections::BTreeMap::new();
-    if let Ok(scan) = tx.scan(&Query::new().prefix(prefix.clone().into())) {
-        if let Ok(entries) = collect_scan(scan) {
-            for (key, _) in entries {
-                if let Some((list, id)) =
-                    super::key_encoding::decode_ivfflat_membership_suffix(&key, &prefix)
-                {
-                    assignments.insert(id, list);
-                }
-            }
-        }
-    }
-    crate::embeddings::IvfFlatTrainingState {
-        version: manifest.version,
-        source_fingerprint: manifest.source_fingerprint,
-        trained: manifest.trained,
-        row_count: manifest.row_count,
-        lists: manifest.lists,
-        probes: manifest.probes,
-        training_seed: manifest.training_seed,
-        centroid_ids: manifest.centroid_ids,
-        centroids: manifest.centroids,
-        assignments,
-        list_sizes: manifest.list_sizes,
-    }
 }

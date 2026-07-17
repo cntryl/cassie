@@ -284,7 +284,7 @@ async fn spawn_pgwire_server_with_config(
     cassie: &Cassie,
     mut config: CassieRuntimeConfig,
 ) -> (SocketAddr, PgwireServer) {
-    config.password.clear();
+    config.password = "postgres".to_string();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -467,7 +467,7 @@ fn should_copy_csv_from_stdin_rows() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_copy_collection(&cassie);
@@ -513,7 +513,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_simple_query_collection(&cassie);
@@ -556,7 +556,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
 
@@ -645,7 +645,7 @@ fn should_recover_ready_after_simple_query_error() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -733,7 +733,7 @@ fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         let (addr, server) = spawn_pgwire_server(&cassie).await;

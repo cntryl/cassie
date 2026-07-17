@@ -5,9 +5,14 @@ use crate::embeddings::openai::OpenAiConfig;
 #[path = "config/limits.rs"]
 mod limits;
 use limits::limits_from_env;
+#[path = "config/password.rs"]
+mod password;
+pub(crate) use password::validate_listener_password;
+use password::{password_from_env, validate_bootstrap_password};
 #[path = "config/tls.rs"]
 mod tls;
-use tls::{validate_bootstrap_password, validate_transport_tls_policy};
+use tls::validate_transport_tls_policy;
+pub(crate) use tls::{validate_pgwire_listener_transport, validate_rest_listener_transport};
 #[path = "config/switches.rs"]
 mod switches;
 pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
@@ -24,11 +29,20 @@ pub enum CassieRuntimeConfigError {
     #[error("{key} is set but '{path}' is empty after trimming whitespace")]
     PasswordFileEmpty { key: &'static str, path: String },
 
+    #[error("{key} is set but is empty after trimming whitespace")]
+    PasswordEnvironmentEmpty { key: &'static str },
+
     #[error("CASSIE_EMBEDDINGS_PROVIDER='{provider}' is not available; use disabled, fallback, openai, openai_compatible, tei, ollama, voyage, cohere, or local")]
     UnsupportedEmbeddingProvider { provider: String },
 
     #[error("default bootstrap password is unsafe for non-loopback listener '{listener}'")]
     UnsafeDefaultPassword { listener: String },
+
+    #[error("bootstrap password is empty for network listener '{listener}'")]
+    EmptyBootstrapPassword { listener: String },
+
+    #[error("bootstrap role '{role}' has no password for network listener '{listener}'")]
+    PasswordlessBootstrapRole { role: String, listener: String },
 
     #[error("REST TLS certificate and key must be configured together")]
     RestTlsPair,
@@ -271,11 +285,7 @@ impl CassieRuntimeConfig {
             config.database = v;
         }
 
-        if let Some(v) = read_password_from_file_from(&env_reader)? {
-            config.password = v;
-        } else if let Some(v) = env_reader("CASSIE_ADMIN_PASSWORD") {
-            config.password = v;
-        }
+        config.password = password_from_env(&env_reader, &config.password)?;
 
         let provider =
             env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
@@ -296,29 +306,6 @@ impl CassieRuntimeConfig {
 
         Ok(config)
     }
-}
-
-fn read_password_from_file_from(
-    env_reader: &impl Fn(&str) -> Option<String>,
-) -> Result<Option<String>, CassieRuntimeConfigError> {
-    let Some(path) = env_reader("CASSIE_ADMIN_PASSWORD_FILE") else {
-        return Ok(None);
-    };
-    let value = std::fs::read_to_string(&path).map_err(|source| {
-        CassieRuntimeConfigError::PasswordFileRead {
-            key: "CASSIE_ADMIN_PASSWORD_FILE",
-            path: path.clone(),
-            source,
-        }
-    })?;
-    let value = value.trim().to_string();
-    if value.is_empty() {
-        return Err(CassieRuntimeConfigError::PasswordFileEmpty {
-            key: "CASSIE_ADMIN_PASSWORD_FILE",
-            path,
-        });
-    }
-    Ok(Some(value))
 }
 
 fn parse_provider_config_from(
@@ -471,7 +458,6 @@ fn parse_operator_switching_enabled_from(
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use uuid::Uuid;
 
     fn env_reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(std::string::ToString::to_string)
@@ -479,78 +465,6 @@ mod tests {
 
     fn env_reader_owned(values: HashMap<&'static str, String>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).cloned()
-    }
-
-    fn temp_file(label: &str) -> std::path::PathBuf {
-        let mut path = std::env::temp_dir();
-        path.push(format!("cassie-config-{label}-{}", Uuid::new_v4()));
-        path
-    }
-
-    #[test]
-    fn should_use_admin_password_file_before_admin_password_env() {
-        // Arrange
-        let path = temp_file("password-file-precedence");
-        std::fs::write(&path, " file-secret \n").expect("write password file");
-        let values = HashMap::from([
-            (
-                "CASSIE_ADMIN_PASSWORD_FILE",
-                path.to_string_lossy().to_string(),
-            ),
-            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
-        ]);
-
-        // Act
-        let config =
-            CassieRuntimeConfig::from_env_reader(env_reader_owned(values)).expect("runtime config");
-
-        // Assert
-        assert_eq!(config.password, "file-secret");
-        let _ = std::fs::remove_file(path);
-    }
-
-    #[test]
-    fn should_reject_missing_admin_password_file_without_fallback() {
-        // Arrange
-        let path = temp_file("missing-password-file");
-        let values = HashMap::from([
-            (
-                "CASSIE_ADMIN_PASSWORD_FILE",
-                path.to_string_lossy().to_string(),
-            ),
-            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
-        ]);
-
-        // Act
-        let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
-            .expect_err("missing password file should fail");
-
-        // Assert
-        assert!(error.to_string().contains("CASSIE_ADMIN_PASSWORD_FILE"));
-        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
-    }
-
-    #[test]
-    fn should_reject_empty_admin_password_file_without_fallback() {
-        // Arrange
-        let path = temp_file("empty-password-file");
-        std::fs::write(&path, " \n\t").expect("write password file");
-        let values = HashMap::from([
-            (
-                "CASSIE_ADMIN_PASSWORD_FILE",
-                path.to_string_lossy().to_string(),
-            ),
-            ("CASSIE_ADMIN_PASSWORD", "env-secret".to_string()),
-        ]);
-
-        // Act
-        let error = CassieRuntimeConfig::from_env_reader(env_reader_owned(values))
-            .expect_err("empty password file should fail");
-
-        // Assert
-        assert!(error.to_string().contains("empty"));
-        assert!(error.to_string().contains(path.to_string_lossy().as_ref()));
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]

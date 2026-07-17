@@ -61,6 +61,7 @@ pub(crate) use entrypoints::{
     sync_derived_maintenance_debt_external,
 };
 pub use entrypoints::{run, run_with_controls, run_with_execution_breakdown};
+pub(crate) use scored::install_ann_rerank_barriers;
 
 use cte::{execute_cte, CteContext};
 use dispatch::{
@@ -93,7 +94,7 @@ mod session_command;
 mod vector_index_command;
 
 mod source;
-pub(crate) use source::{aggregate_signature, expr_key, group_expr_name, value_sort_key};
+pub(crate) use source::{aggregate_signature, expr_key, group_expr_name};
 mod scored;
 pub(crate) use scored::{vector_prefilter_fallback_reason, vector_prefilter_supported};
 

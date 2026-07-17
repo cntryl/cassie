@@ -1,7 +1,5 @@
 use std::convert::Infallible;
 use std::error::Error;
-use std::future::Future;
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -11,20 +9,23 @@ use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
 use hyper::{
     body::{Body, Incoming},
     header::{HeaderMap, HeaderValue, ALLOW, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, SET_COOKIE},
-    server::conn::http1,
-    service::service_fn,
     Method, Request, Response, StatusCode,
 };
-use hyper_util::rt::{TokioIo, TokioTimer};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::{Notify, Semaphore};
-use tokio::task;
-use tokio_rustls::TlsAcceptor;
+use tokio::sync::Notify;
 
 use crate::app::Cassie;
 use crate::app::CassieSession;
 use crate::catalog::RoleMeta;
 use crate::rest::static_files::AdminUiStaticFiles;
+
+mod collection_routes;
+mod request_execution;
+
+use collection_routes::dispatch_collection_routes;
+use request_execution::{
+    run_rest_blocking_route, run_rest_blocking_route_controlled, RestBlockingError,
+    RestRequestExecution,
+};
 
 const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
 const MAX_REST_HEADER_BYTES: usize = 32 * 1024;
@@ -59,137 +60,7 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
     shutdown: Arc<Notify>,
     admin_ui_dir: PathBuf,
 ) -> Result<(), crate::app::CassieError> {
-    let listen: SocketAddr = addr.parse().map_err(|e| {
-        crate::app::CassieError::Execution(format!("invalid rest address '{addr}': {e}"))
-    })?;
-    let cassie = Arc::new(cassie);
-    let admin_ui = Arc::new(AdminUiStaticFiles::new(admin_ui_dir));
-    let tls_config = crate::rest::tls::load_server_config(
-        cassie.rest_tls_cert_file.as_deref(),
-        cassie.rest_tls_key_file.as_deref(),
-    )?;
-    let admission = Arc::new(Semaphore::new(
-        cassie.runtime.limits().rest_max_connections.max(1),
-    ));
-    let listener = tokio::net::TcpListener::bind(&listen)
-        .await
-        .map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
-
-    loop {
-        tokio::select! {
-            biased;
-            () = shutdown.notified() => {
-                tracing::info!(target: "rest", address = %listen, "shutdown requested");
-                break;
-            }
-            accept = listener.accept() => {
-                let (stream, _) = accept.map_err(|e| crate::app::CassieError::Execution(e.to_string()))?;
-                let Ok(permit) = admission.clone().try_acquire_owned() else {
-                    let tls_config = tls_config.clone();
-                    tokio::spawn(async move {
-                        if let Some(config) = tls_config {
-                            match TlsAcceptor::from(config).accept(stream).await {
-                                Ok(stream) => serve_rejection(stream).await,
-                                Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
-                            }
-                        } else {
-                            serve_rejection(stream).await;
-                        }
-                    });
-                    continue;
-                };
-                let cassie = cassie.clone();
-                let admin_ui = admin_ui.clone();
-                let tls_config = tls_config.clone();
-                tokio::spawn(async move {
-                    let _permit = permit;
-                    if let Some(config) = tls_config {
-                        match TlsAcceptor::from(config).accept(stream).await {
-                            Ok(stream) => serve_application(stream, cassie, admin_ui, true).await,
-                            Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
-                        }
-                    } else {
-                        serve_application(stream, cassie, admin_ui, false).await;
-                    }
-                });
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn serve_rejection<S>(stream: S)
-where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    let service = service_fn(|_request: Request<hyper::body::Incoming>| async {
-        Ok::<_, Infallible>(too_many_connections_response())
-    });
-    let io = TokioIo::new(stream);
-    let connection = http1::Builder::new()
-        .timer(TokioTimer::new())
-        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
-        .max_buf_size(MAX_REST_HEADER_BYTES)
-        .serve_connection(io, service)
-        .await;
-    if let Err(error) = connection {
-        tracing::warn!(%error, "rest admission rejection connection error");
-    }
-}
-
-async fn serve_application<S>(
-    stream: S,
-    cassie: Arc<Cassie>,
-    admin_ui: Arc<AdminUiStaticFiles>,
-    secure_transport: bool,
-) where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    let service = service_fn(move |request: Request<hyper::body::Incoming>| {
-        let cassie = cassie.clone();
-        let admin_ui = admin_ui.clone();
-        async move { route_with_timeout(request, cassie, admin_ui, secure_transport).await }
-    });
-    let io = TokioIo::new(stream);
-    let connection = http1::Builder::new()
-        .timer(TokioTimer::new())
-        .header_read_timeout(REST_HEADER_READ_TIMEOUT)
-        .max_buf_size(MAX_REST_HEADER_BYTES)
-        .serve_connection(io, service)
-        .await;
-    if let Err(error) = connection {
-        tracing::warn!(%error, "rest connection error");
-    }
-}
-
-async fn route_with_timeout(
-    request: Request<hyper::body::Incoming>,
-    cassie: Arc<Cassie>,
-    admin_ui: Arc<AdminUiStaticFiles>,
-    secure_transport: bool,
-) -> Result<Response<RestBody>, Infallible> {
-    apply_request_timeout(
-        route(request, cassie, admin_ui, secure_transport),
-        REST_REQUEST_TIMEOUT,
-    )
-    .await
-}
-
-async fn apply_request_timeout<F>(
-    future: F,
-    timeout: Duration,
-) -> Result<Response<RestBody>, Infallible>
-where
-    F: Future<Output = Result<Response<RestBody>, Infallible>>,
-{
-    match tokio::time::timeout(timeout, future).await {
-        Ok(response) => response,
-        Err(_) => Ok(json_response(
-            StatusCode::REQUEST_TIMEOUT,
-            &serde_json::json!({ "error": "REST request timed out" }),
-        )),
-    }
+    request_execution::run_server(addr, cassie, shutdown, admin_ui_dir).await
 }
 
 type RestBody = Full<Bytes>;
@@ -726,137 +597,6 @@ fn dispatch_health_routes(
     }
 }
 
-async fn dispatch_collection_routes(
-    method: &Method,
-    segments: &[&str],
-    cassie: Arc<Cassie>,
-    request_context: &RestRequestContext,
-    body: &RestBytes,
-    path: &str,
-    started_at: Instant,
-) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
-    match (method.as_str(), segments) {
-        ("GET", ["api", "v1", "collections"]) => {
-            dispatch_collection_list(cassie, method, path, started_at, request_context).await
-        }
-        ("POST", ["api", "v1", "collections"]) => {
-            let body = body.clone();
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_route",
-                move |cassie| crate::rest::collections::create(&cassie, body.as_ref()),
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        ("POST", ["api", "v1", "collections", collection, "documents"]) => {
-            let body = body.clone();
-            let collection = scoped_collection(&cassie, request_context, collection)?;
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_route",
-                move |cassie| crate::rest::documents::create(&cassie, &collection, body.as_ref()),
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        ("POST", ["api", "v1", "collections", collection, "indexes"]) => {
-            let body = body.clone();
-            let collection = scoped_collection(&cassie, request_context, collection)?;
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_route",
-                move |cassie| crate::rest::indexes::create(&cassie, &collection, body.as_ref()),
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        ("POST", ["api", "v1", "collections", collection, "search"]) => {
-            let body = body.clone();
-            let collection = scoped_collection(&cassie, request_context, collection)?;
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_embedding_search",
-                move |cassie| {
-                    crate::rest::search::vector_search(&cassie, &collection, body.as_ref())
-                },
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        ("GET", ["api", "v1", "collections", collection, "documents", id]) => {
-            let collection = scoped_collection(&cassie, request_context, collection)?;
-            let id = (*id).to_string();
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_route",
-                move |cassie| crate::rest::documents::get(&cassie, &collection, &id),
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        ("DELETE", ["api", "v1", "collections", collection, "documents", id]) => {
-            let collection = scoped_collection(&cassie, request_context, collection)?;
-            let id = (*id).to_string();
-            run_rest_blocking_route(
-                cassie,
-                method,
-                path,
-                started_at,
-                "rest_route",
-                move |cassie| crate::rest::documents::delete(&cassie, &collection, &id),
-            )
-            .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
-        }
-        _ => Ok(None),
-    }
-}
-
-async fn dispatch_collection_list(
-    cassie: Arc<Cassie>,
-    method: &Method,
-    path: &str,
-    started_at: Instant,
-    request_context: &RestRequestContext,
-) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
-    let session = request_context.session.clone();
-    run_rest_blocking_route(
-        cassie,
-        method,
-        path,
-        started_at,
-        "rest_route",
-        move |cassie| Ok(crate::rest::scope::list_collections(&cassie, &session)),
-    )
-    .await
-    .map(|value| Some(json_response(StatusCode::OK, &value)))
-}
-
-fn scoped_collection(
-    cassie: &Cassie,
-    request_context: &RestRequestContext,
-    requested: &str,
-) -> Result<String, (StatusCode, String)> {
-    crate::rest::scope::resolve_collection(cassie, &request_context.session, requested)
-        .map_err(|error| map_error(&error))
-}
-
 async fn dispatch_admin_routes(
     context: RouteDispatchContext<'_>,
     cassie: Arc<Cassie>,
@@ -946,14 +686,19 @@ async fn dispatch_admin_query_routes(
         ) => {
             let body = body.clone();
             let session = context.request_context.session.clone();
-            run_rest_blocking_route(
+            run_rest_blocking_route_controlled(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_admin_query_execute",
-                move |cassie| {
-                    crate::rest::query::execute_with_session(&cassie, &session, body.as_ref())
+                move |cassie, cancellation| {
+                    crate::rest::query::execute_with_session_and_cancellation(
+                        &cassie,
+                        &session,
+                        body.as_ref(),
+                        cancellation,
+                    )
                 },
             )
             .await
@@ -1058,56 +803,6 @@ fn unsupported_route(
     ))
 }
 
-async fn run_rest_blocking_route<T>(
-    cassie: Arc<Cassie>,
-    method: &Method,
-    path: &str,
-    started_at: Instant,
-    operation_name: &'static str,
-    operation: impl FnOnce(Arc<Cassie>) -> Result<T, crate::app::CassieError> + Send + 'static,
-) -> Result<T, (StatusCode, String)>
-where
-    T: Send + 'static,
-{
-    run_rest_blocking(cassie.clone(), operation_name, operation)
-        .await
-        .map_err(|error| record_rest_error(&cassie, method.as_str(), path, started_at, &error))
-}
-
-async fn run_rest_blocking<T>(
-    cassie: Arc<Cassie>,
-    operation_name: &'static str,
-    operation: impl FnOnce(Arc<Cassie>) -> Result<T, crate::app::CassieError> + Send + 'static,
-) -> Result<T, crate::app::CassieError>
-where
-    T: Send + 'static,
-{
-    let runtime = cassie.runtime.clone();
-    let started_at = Instant::now();
-    runtime.record_rest_boundary_started(operation_name);
-
-    let result = task::spawn_blocking(move || operation(cassie)).await;
-
-    match result {
-        Ok(result) => match result {
-            Ok(value) => {
-                runtime.record_rest_boundary_completed(operation_name, started_at.elapsed());
-                Ok(value)
-            }
-            Err(error) => {
-                runtime.record_rest_boundary_error(operation_name, started_at.elapsed());
-                Err(error)
-            }
-        },
-        Err(error) => {
-            runtime.record_rest_boundary_join_failed(operation_name, started_at.elapsed());
-            Err(crate::app::CassieError::StorageRetryable(format!(
-                "rest blocking boundary '{operation_name}' failed: {error}"
-            )))
-        }
-    }
-}
-
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
     *method == Method::GET && segments.first() != Some(&"api")
 }
@@ -1131,19 +826,24 @@ async fn authenticate_rest_request(
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
     };
 
-    run_rest_blocking(cassie, "rest_auth", move |cassie| {
-        crate::rest::sessions::authenticate(&cassie, &token)
-    })
-    .await
-    .map_err(|error| match error {
-        crate::app::CassieError::Unauthorized => {
-            (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
-        }
-        other => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            format!("authentication unavailable: {other}"),
-        ),
-    })
+    RestRequestExecution::new(REST_REQUEST_TIMEOUT)
+        .run_blocking(cassie, "rest_auth", move |cassie, _cancellation| {
+            crate::rest::sessions::authenticate(&cassie, &token)
+        })
+        .await
+        .map_err(|error| match error {
+            RestBlockingError::Engine(crate::app::CassieError::Unauthorized) => {
+                (StatusCode::UNAUTHORIZED, "unauthorized".to_string())
+            }
+            RestBlockingError::TimedOut => (
+                StatusCode::REQUEST_TIMEOUT,
+                "REST request timed out".to_string(),
+            ),
+            RestBlockingError::Engine(other) => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                format!("authentication unavailable: {other}"),
+            ),
+        })
 }
 
 fn cookie_token(headers: &HeaderMap) -> Option<String> {
@@ -1156,149 +856,4 @@ fn cookie_token(headers: &HeaderMap) -> Option<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use uuid::Uuid;
-
-    fn data_dir(label: &str) -> String {
-        format!("/tmp/cassie-rest-router-{label}-{}", Uuid::new_v4())
-    }
-
-    #[test]
-    fn should_map_retryable_rest_boundary_failures_to_service_unavailable() {
-        // Arrange
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            let cassie =
-                Arc::new(Cassie::new_with_data_dir(data_dir("retryable")).expect("cassie"));
-
-            // Act
-            let error = run_rest_blocking(
-                cassie,
-                "rest_retryable",
-                |_| -> Result<(), crate::app::CassieError> {
-                    panic!("synthetic rest join failure");
-                },
-            )
-            .await
-            .expect_err("panic should map to retryable storage");
-            let mapped = map_error(&error);
-
-            // Assert
-            assert!(matches!(
-                error,
-                crate::app::CassieError::StorageRetryable(_)
-            ));
-            assert_eq!(mapped.0, StatusCode::SERVICE_UNAVAILABLE);
-            assert!(mapped
-                .1
-                .contains("rest blocking boundary 'rest_retryable' failed"));
-        });
-    }
-
-    #[test]
-    fn should_map_expired_rest_request_deadline_to_request_timeout() {
-        // Arrange
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            // Act
-            let response = apply_request_timeout(
-                async {
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                    Ok(json_response(StatusCode::OK, &serde_json::json!({})))
-                },
-                Duration::from_millis(1),
-            )
-            .await
-            .expect("timeout response");
-
-            // Assert
-            assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
-        });
-    }
-
-    #[test]
-    fn should_collect_rest_body_with_an_idle_deadline() {
-        // Arrange
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            let body = Full::from(Bytes::from_static(b"{}"));
-
-            // Act
-            let result = collect_request_body(body, Duration::from_secs(1)).await;
-
-            // Assert
-            assert_eq!(result.expect("body collection"), Bytes::from_static(b"{}"));
-        });
-    }
-
-    #[test]
-    fn should_reject_a_rest_body_that_stalls_between_frames() {
-        // Arrange
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            // Act
-            let result = collect_request_body(PendingBody, Duration::from_millis(1)).await;
-
-            // Assert
-            assert!(matches!(result, Err(RestBodyReadError::TimedOut)));
-        });
-    }
-
-    struct PendingBody;
-
-    impl Body for PendingBody {
-        type Data = Bytes;
-        type Error = Infallible;
-
-        fn poll_frame(
-            self: std::pin::Pin<&mut Self>,
-            _context: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
-            std::task::Poll::Pending
-        }
-
-        fn is_end_stream(&self) -> bool {
-            false
-        }
-
-        fn size_hint(&self) -> hyper::body::SizeHint {
-            hyper::body::SizeHint::default()
-        }
-    }
-
-    #[test]
-    fn should_add_hsts_only_for_secure_rest_responses() {
-        // Arrange
-        let response = json_response(StatusCode::OK, &serde_json::json!({}));
-        let secure_response = with_security_headers(response, false, true);
-        let response = json_response(StatusCode::OK, &serde_json::json!({}));
-
-        // Act
-        let plain_response = with_security_headers(response, false, false);
-
-        // Assert
-        assert!(secure_response
-            .headers()
-            .contains_key("strict-transport-security"));
-        assert!(!plain_response
-            .headers()
-            .contains_key("strict-transport-security"));
-    }
-}
+mod tests;

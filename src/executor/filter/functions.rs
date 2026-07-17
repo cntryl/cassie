@@ -1,8 +1,8 @@
 use super::search::{simple_search_score, SearchContext};
 use super::{
-    cast_scalar, eval_scalar, evaluate_expr_value, function_cache_key, has_only_constant_args,
-    scalar_from_value, AnalyzerConfig, CassieSession, DataType, EvalContext, Expr, FunctionCall,
-    FunctionMeta, HashMap, QueryError, Value, FUNCTION_CACHE,
+    cast_scalar, eval_scalar, evaluate_expr_value, scalar_from_value, AnalyzerConfig,
+    CassieSession, DataType, EvalContext, Expr, FunctionCall, FunctionMeta, HashMap, QueryError,
+    Value,
 };
 use crate::catalog::{name_matches, DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
@@ -43,23 +43,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let cacheable = function_result_is_cacheable(&name, context.user_functions)
-        && has_only_constant_args(&function.args);
-    let cache_key = if cacheable {
-        Some(function_cache_key(&name, &args))
-    } else {
-        None
-    };
-
-    if cacheable {
-        if let Some(cached) =
-            FUNCTION_CACHE.with_borrow(|fc| fc.lookup(cache_key.unwrap()).cloned())
-        {
-            return Ok(cached);
-        }
-    }
-
-    let result = evaluate_builtin_function(
+    evaluate_builtin_function(
         &name,
         function,
         row,
@@ -67,36 +51,7 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         context.search_context,
         context.session,
     )
-    .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args));
-
-    if let Some(key) = cache_key {
-        if let Ok(ref value) = result {
-            FUNCTION_CACHE.with_borrow_mut(|fc| fc.store(key, value.clone()));
-        }
-    }
-
-    result
-}
-
-fn function_result_is_cacheable(
-    name: &str,
-    user_functions: &HashMap<String, FunctionMeta>,
-) -> bool {
-    if matches!(
-        name,
-        "coalesce"
-            | "current_user"
-            | "session_user"
-            | "current_role"
-            | "current_database"
-            | "current_schema"
-    ) {
-        return false;
-    }
-    user_functions
-        .values()
-        .find(|metadata| name_matches(&metadata.name, name))
-        .is_none_or(|metadata| metadata.volatility == crate::catalog::Volatility::Immutable)
+    .unwrap_or_else(|| evaluate_user_defined_function(&name, row, context, args))
 }
 
 fn evaluate_builtin_function<R: RowAccess + ?Sized>(

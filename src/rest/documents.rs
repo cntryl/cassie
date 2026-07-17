@@ -1,4 +1,5 @@
 use crate::app::{Cassie, CassieError};
+use crate::runtime::QueryCancellationHandle;
 use serde_json::Value;
 
 fn resolve_collection(cassie: &Cassie, collection: &str) -> Result<String, CassieError> {
@@ -13,11 +14,21 @@ fn resolve_collection(cassie: &Cassie, collection: &str) -> Result<String, Cassi
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, CassieError> {
+    create_with_cancellation(cassie, collection, body, &QueryCancellationHandle::new())
+}
+
+#[doc(hidden)]
+pub fn create_with_cancellation(
+    cassie: &Cassie,
+    collection: &str,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+) -> Result<Value, CassieError> {
     let document: Value =
         serde_json::from_slice(body).map_err(|e| CassieError::Parse(e.to_string()))?;
     let collection = resolve_collection(cassie, collection)?;
 
-    let id = cassie.ingest_document(&collection, document)?;
+    let id = cassie.ingest_document_with_cancellation(&collection, document, cancellation)?;
 
     Ok(serde_json::json!({ "id": id }))
 }
@@ -41,8 +52,18 @@ pub fn get(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieE
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn delete(cassie: &Cassie, collection: &str, id: &str) -> Result<Value, CassieError> {
+    delete_with_cancellation(cassie, collection, id, &QueryCancellationHandle::new())
+}
+
+#[doc(hidden)]
+pub fn delete_with_cancellation(
+    cassie: &Cassie,
+    collection: &str,
+    id: &str,
+    cancellation: &QueryCancellationHandle,
+) -> Result<Value, CassieError> {
     let collection = resolve_collection(cassie, collection)?;
-    let removed = cassie.delete_document_for_session(None, &collection, id)?;
+    let removed = cassie.delete_document_with_cancellation(&collection, id, cancellation)?;
 
     Ok(serde_json::json!({"deleted": removed}))
 }

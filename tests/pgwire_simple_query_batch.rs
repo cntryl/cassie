@@ -26,7 +26,7 @@ fn data_dir(label: &str) -> String {
 
 fn new_cassie(path: &str) -> Cassie {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    config.password = "postgres".to_string();
     Cassie::new_with_data_dir_and_config(path, config).expect("cassie")
 }
 
@@ -61,7 +61,7 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
 
 async fn spawn_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    config.password = "postgres".to_string();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");

@@ -40,11 +40,15 @@ fn graph_neighbors(
     let direction = direction_arg(args, 3)?;
     let edge_types = edge_type_arg(args, 4)?;
     let limit = usize_arg(args, 5, "limit")?;
-    let edges = env
-        .cassie
-        .midge
-        .scan_graph_edges(&graph, &node_type, &node_id, &direction, &edge_types)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let edges = graph_edges(
+        env,
+        &graph,
+        &node_type,
+        &node_id,
+        &direction,
+        &edge_types,
+        Some(limit),
+    )?;
     let _edge_memory = reserve_graph_bytes(env, edges.iter().map(graph_edge_bytes).sum::<usize>())?;
     let rows: Vec<BatchRow> = edges
         .into_iter()
@@ -103,17 +107,15 @@ fn graph_expand(
         if usize::try_from(path.depth).unwrap_or(usize::MAX) >= max_depth {
             continue;
         }
-        let edges = env
-            .cassie
-            .midge
-            .scan_graph_edges(
-                &graph,
-                &path.node_type,
-                &path.node_id,
-                &direction,
-                &edge_types,
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?;
+        let edges = graph_edges(
+            env,
+            &graph,
+            &path.node_type,
+            &path.node_id,
+            &direction,
+            &edge_types,
+            None,
+        )?;
         expanded_edges = expanded_edges.saturating_add(edges.len());
         for edge in edges {
             check_timeout(env.controls)?;
@@ -214,17 +216,15 @@ fn graph_shortest_path(
         if usize::try_from(path.depth).unwrap_or(usize::MAX) >= max_depth {
             continue;
         }
-        let edges = env
-            .cassie
-            .midge
-            .scan_graph_edges(
-                &graph,
-                &path.node_type,
-                &path.node_id,
-                &direction,
-                &edge_types,
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?;
+        let edges = graph_edges(
+            env,
+            &graph,
+            &path.node_type,
+            &path.node_id,
+            &direction,
+            &edge_types,
+            None,
+        )?;
         for edge in edges {
             check_timeout(env.controls)?;
             let (next_type, next_id) = adjacent_node(&edge, &path.node_type, &path.node_id);
@@ -251,6 +251,79 @@ fn graph_shortest_path(
     }
 
     Ok(finish_shortest_path(env, &graph, max_depth, found))
+}
+
+fn graph_edges(
+    env: &source::SourceExecutionEnv<'_>,
+    graph: &crate::catalog::GraphMeta,
+    node_type: &str,
+    node_id: &str,
+    direction: &str,
+    edge_types: &[String],
+    limit: Option<usize>,
+) -> Result<Vec<crate::midge::adapter::GraphEdgeRecord>, QueryError> {
+    let edge_collection = crate::catalog::local_name(&graph.edge_collection);
+    let has_overlay = env.session.is_some_and(|session| {
+        !session
+            .collection_changes_matching(&edge_collection)
+            .is_empty()
+    });
+    if !has_overlay {
+        let mut edges = env
+            .cassie
+            .midge
+            .scan_graph_edges(graph, node_type, node_id, direction, edge_types)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        if let Some(limit) = limit {
+            edges.truncate(limit);
+        }
+        return Ok(edges);
+    }
+
+    env.cassie
+        .runtime
+        .record_graph_fallback("transaction-overlay");
+    let batches = env
+        .cassie
+        .scan_documents_batched_for_session(env.session, &edge_collection, 256)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    let mut edges = Vec::new();
+    for document in batches.into_iter().flatten() {
+        check_timeout(env.controls)?;
+        let Some(edge) = crate::midge::adapter::graph_edge_record_from_payload(
+            graph,
+            &document.id,
+            &document.payload,
+            true,
+        )
+        .map_err(|error| QueryError::General(error.to_string()))?
+        else {
+            continue;
+        };
+        let direction_matches = (direction.eq_ignore_ascii_case("out")
+            || direction.eq_ignore_ascii_case("both"))
+            && edge.source_type.eq_ignore_ascii_case(node_type)
+            && edge.source_id == node_id
+            || (direction.eq_ignore_ascii_case("in") || direction.eq_ignore_ascii_case("both"))
+                && edge.target_type.eq_ignore_ascii_case(node_type)
+                && edge.target_id == node_id;
+        let type_matches = edge_types.is_empty()
+            || edge_types
+                .iter()
+                .any(|edge_type| edge_type.eq_ignore_ascii_case(&edge.edge_type));
+        if direction_matches && type_matches {
+            edges.push(edge);
+        }
+    }
+    edges.sort_by(|left, right| {
+        left.weight
+            .total_cmp(&right.weight)
+            .then_with(|| left.edge_id.cmp(&right.edge_id))
+    });
+    if let Some(limit) = limit {
+        edges.truncate(limit);
+    }
+    Ok(edges)
 }
 
 fn finish_shortest_path(

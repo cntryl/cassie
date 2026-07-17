@@ -343,7 +343,7 @@ async fn spawn_pgwire_server(
     tokio::task::JoinHandle<Result<(), cassie::CassieError>>,
 ) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    config.password = "postgres".to_string();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -466,7 +466,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_numbers");
@@ -508,7 +508,7 @@ fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_score_collection(&cassie, "extended_query_parse_once");

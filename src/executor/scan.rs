@@ -1,11 +1,11 @@
-use crate::app::{Cassie, CassieSession};
+use crate::app::{Cassie, CassieSession, SessionRowCursor};
 use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, BatchStream, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::RowFilter;
 use crate::midge::adapter::{
-    ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef, MidgeRowCursor, RowDecode,
+    ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef, RowDecode,
 };
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -24,25 +24,33 @@ pub(crate) struct ProjectedDocumentFilter {
 
 pub(crate) struct ProjectedScanStream<'a> {
     cassie: &'a Cassie,
-    cursor: MidgeRowCursor,
+    cursor: SessionRowCursor,
     fields: Vec<String>,
     schema: Option<CollectionSchema>,
     controls: &'a QueryExecutionControls,
     remaining: usize,
+    previous_page_memory: Vec<QueryMemoryReservation>,
 }
 
 impl BatchStream for ProjectedScanStream<'_> {
     fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
+        self.previous_page_memory.clear();
         if self.remaining == 0 {
             return Ok(None);
         }
         let batch_size = self.remaining.min(DEFAULT_BATCH_SIZE);
-        let documents = self
+        let accounted_documents = self
             .cursor
-            .next_documents(&self.cassie.midge, batch_size, self.controls)
+            .next_accounted_documents(&self.cassie.midge, batch_size, self.controls)
             .map_err(crate::executor::QueryError::from)?;
-        if documents.is_empty() {
+        if accounted_documents.is_empty() {
             return Ok(None);
+        }
+        let mut documents = Vec::with_capacity(accounted_documents.len());
+        for document in accounted_documents {
+            let (document, reservation) = document.into_parts();
+            documents.push(document);
+            self.previous_page_memory.push(reservation);
         }
         self.remaining = self.remaining.saturating_sub(documents.len());
         Ok(Some(projected_document_batch_to_rows(
@@ -62,15 +70,16 @@ pub(crate) fn projected_scan_stream<'a>(
     limit: Option<usize>,
     controls: &'a QueryExecutionControls,
 ) -> Result<Option<ProjectedScanStream<'a>>, crate::executor::QueryError> {
-    if session.is_some_and(|session| !session.collection_changes(collection).is_empty()) {
-        return Ok(None);
-    }
     if cassie.runtime.limits().parallel_scan_workers.max(1) > 1 {
         return Ok(None);
     }
     let Some(cursor) = cassie
-        .midge
-        .open_row_cursor(collection, RowDecode::ProjectedHistorical(fields.to_vec()))
+        .open_session_row_cursor(
+            session,
+            collection,
+            RowDecode::ProjectedHistorical(fields.to_vec()),
+            controls,
+        )
         .map_err(crate::executor::QueryError::from)?
     else {
         return Ok(None);
@@ -83,6 +92,7 @@ pub(crate) fn projected_scan_stream<'a>(
         schema: cassie.catalog.get_schema(collection),
         controls,
         remaining: limit.unwrap_or(usize::MAX),
+        previous_page_memory: Vec::new(),
     }))
 }
 
@@ -90,8 +100,9 @@ pub(crate) fn scan(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     collection: &str,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    scan_limit(cassie, session, collection, None)
+    scan_limit(cassie, session, collection, None, controls)
 }
 
 pub(crate) fn scan_limit(
@@ -99,7 +110,53 @@ pub(crate) fn scan_limit(
     session: Option<&CassieSession>,
     collection: &str,
     limit: Option<usize>,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    if cassie.runtime.limits().parallel_scan_workers.max(1) == 1 {
+        if let Some(mut cursor) = cassie
+            .open_session_row_cursor(session, collection, RowDecode::Full, controls)
+            .map_err(crate::executor::QueryError::from)?
+        {
+            let schema = cassie.catalog.get_schema(collection);
+            let mut remaining = limit.unwrap_or(usize::MAX);
+            let mut batches = Vec::new();
+            let mut row_memory = Vec::new();
+            while remaining > 0 {
+                let accounted = cursor
+                    .next_accounted_documents(
+                        &cassie.midge,
+                        remaining.min(DEFAULT_BATCH_SIZE),
+                        controls,
+                    )
+                    .map_err(crate::executor::QueryError::from)?;
+                if accounted.is_empty() {
+                    break;
+                }
+                let retained_bytes = accounted
+                    .iter()
+                    .map(crate::midge::adapter::AccountedDocument::accounted_bytes)
+                    .sum();
+                let reservation = controls.reserve_query_memory(retained_bytes)?;
+                let documents = accounted
+                    .into_iter()
+                    .map(|document| document.into_parts().0)
+                    .collect();
+                let batch = document_batch_to_rows(documents, schema.as_ref());
+                remaining = remaining.saturating_sub(batch.len());
+                batches.push(batch);
+                row_memory.push(reservation);
+            }
+            cassie.runtime.record_parallel_scan_fallback();
+            cassie.runtime.record_storage_access("data", false, true);
+            let rows = batches.iter().map(Vec::len).sum::<usize>();
+            let fields = schema.as_ref().map_or(0, |schema| schema.fields.len());
+            cassie
+                .runtime
+                .record_read_path_collection_scan(collection, fields, rows);
+            drop(row_memory);
+            return Ok(batches);
+        }
+    }
     let document_batches = cassie
         .scan_documents_batched_for_session_limit(session, collection, DEFAULT_BATCH_SIZE, limit)
         .map_err(|error| {
@@ -110,6 +167,13 @@ pub(crate) fn scan_limit(
     let schema = cassie.catalog.get_schema(collection);
 
     let batches = document_batches_to_rows(cassie, document_batches, schema.as_ref());
+    let _memory = controls.reserve_query_memory(
+        batches
+            .iter()
+            .flatten()
+            .map(|row| serde_json::to_vec(row.entries()).map_or(0, |bytes| bytes.len()))
+            .sum(),
+    )?;
     let rows = batches.iter().map(Vec::len).sum::<usize>();
     let fields = schema
         .as_ref()
@@ -153,7 +217,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
     let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
     let has_session_changes =
-        session.is_some_and(|session| !session.collection_changes(collection).is_empty());
+        session.is_some_and(|session| session.has_collection_changes(collection));
     if !has_session_changes {
         match cassie.midge.scan_column_batch_projected_rows(
             collection,

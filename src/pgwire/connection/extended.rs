@@ -10,7 +10,6 @@ use super::errors::{PgWireError, PgWireSeverity};
 use super::readers::read_frontend_message;
 use super::state::{DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState};
 use super::writers::{
-    append_command_complete_frame, append_data_row_frame, append_portal_suspended_frame,
     append_row_description_frame, write_bind_complete, write_close_complete, write_error_response,
     write_no_data, write_parameter_description, write_parse_complete, write_ready_for_query,
 };
@@ -21,8 +20,14 @@ use crate::pgwire::protocol::{Portal, PortalSuspended, PreparedStatement};
 use crate::runtime::{ExecutionMode, RuntimeState};
 use crate::types::Value;
 
+#[path = "extended/portal_state.rs"]
+mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
+use portal_state::{
+    take_portal_execution, write_fresh_result, FreshPortalWriteRequest, PortalExecution,
+    PortalFetchWindow,
+};
 use portal_streaming::{
     execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
     StreamingPortalPageRequest, SuspendedPortalRequest,
@@ -123,11 +128,11 @@ async fn dispatch_message(
                 parameters,
                 result_formats,
             };
-            handle_bind(cassie, runtime, write_half, state, bind).await?;
+            handle_bind(cassie, runtime, write_half, state, session, bind).await?;
         }
         FrontendMessage::Describe { target, name } => {
             runtime.record_pgwire_message("describe");
-            handle_describe(cassie, write_half, state, target, name).await?;
+            handle_describe(cassie, write_half, state, session, target, name).await?;
         }
         FrontendMessage::Execute { portal, max_rows } => {
             runtime.record_pgwire_message("execute");
@@ -262,6 +267,7 @@ async fn handle_bind(
     runtime: &RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
+    session: &CassieSession,
     bind: BindRequest,
 ) -> Result<(), ExtendedQueryError> {
     let BindRequest {
@@ -279,7 +285,7 @@ async fn handle_bind(
         .cloned()
         .ok_or_else(|| missing_statement_error(&statement))?;
     if !result_formats.is_empty() {
-        let columns = describe_prepared(cassie, prepared.clone()).await?;
+        let columns = describe_prepared(cassie, session.clone(), prepared.clone()).await?;
         validate_result_formats(&columns, &result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     }
@@ -305,8 +311,7 @@ async fn handle_bind(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let replaced_portal = state.portals.contains_key(&portal);
-    state.portal_cursors.remove(&portal);
+    let replaced_portal = state.remove_portal(&portal).is_some();
     state.portals.insert(
         portal.clone(),
         Portal {
@@ -331,6 +336,7 @@ async fn handle_describe(
     cassie: Arc<Cassie>,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
+    session: &CassieSession,
     target: DescribeTarget,
     name: String,
 ) -> Result<(), ExtendedQueryError> {
@@ -341,7 +347,7 @@ async fn handle_describe(
                 .get(&name)
                 .cloned()
                 .ok_or_else(|| missing_statement_error(&name))?;
-            let columns = describe_prepared(cassie, prepared.clone()).await?;
+            let columns = describe_prepared(cassie, session.clone(), prepared.clone()).await?;
             let row_frame = row_description_or_no_data_frame(&columns, &[])?;
             write_parameter_description(write_half, &prepared.parameter_types)
                 .await
@@ -355,10 +361,10 @@ async fn handle_describe(
             let portal = state
                 .portals
                 .get(&name)
-                .cloned()
+                .map(PortalExecution::from)
                 .ok_or_else(|| missing_portal_error(&name))?;
             let prepared = prepared_for_portal(state, &portal)?;
-            let columns = describe_prepared(cassie, prepared).await?;
+            let columns = describe_prepared(cassie, session.clone(), prepared).await?;
             let row_frame = row_description_or_no_data_frame(&columns, &portal.result_formats)?;
             write_frame(write_half, &row_frame).await?;
             if let Some(portal) = state.portals.get_mut(&name) {
@@ -382,13 +388,10 @@ async fn handle_execute(
     runtime.record_pgwire_extended_query();
     let max_rows = usize::try_from(max_rows)
         .map_err(|_| ExtendedQueryError::protocol("invalid execute row limit"))?;
-    let portal = state
-        .portals
-        .get(&portal_name)
-        .cloned()
+    let (portal, suspended) = take_portal_execution(state, &portal_name)
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
-    if let Some(suspended) = portal.suspended.clone() {
+    if let Some(suspended) = suspended {
         return resume_suspended_portal(
             cassie,
             write_half,
@@ -416,7 +419,8 @@ async fn handle_execute(
                 portal: &portal,
                 prepared: &prepared,
                 max_rows,
-                query_offset: 0,
+                rows_emitted: 0,
+                cancellation: None,
             },
         )
         .await;
@@ -431,6 +435,7 @@ async fn handle_execute(
         .ok_or_else(|| ExtendedQueryError::protocol("backend is not registered"))?;
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
+    let result_cap = cassie.runtime.limits().max_result_rows;
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &session,
@@ -443,25 +448,26 @@ async fn handle_execute(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    let suspended_cancellation =
-        if execution_end_row(0, result.rows.len(), max_rows) < result.rows.len() {
-            Some(cancellation.suspend())
-        } else {
-            drop(cancellation);
-            None
-        };
+    let window = PortalFetchWindow::new(result_cap, 0, max_rows);
+    let suspended_cancellation = if window.page_rows() < result.rows.len() {
+        Some(cancellation.suspend())
+    } else {
+        drop(cancellation);
+        None
+    };
 
     write_fresh_result(
         write_half,
-        state,
-        &portal_name,
-        &portal,
-        &prepared,
-        FreshPortalResult {
+        FreshPortalWriteRequest {
+            state,
+            portal_name: &portal_name,
+            portal: &portal,
+            prepared: &prepared,
             result,
             cancellation: suspended_cancellation,
+            max_rows,
+            result_cap,
         },
-        max_rows,
     )
     .await
 }
@@ -483,12 +489,9 @@ async fn handle_close(
             remove_portals_for_prepared_id(state, runtime, prepared.id);
         }
         DescribeTarget::Portal => {
-            let portal = state
-                .portals
-                .remove(&name)
+            state
+                .remove_portal(&name)
                 .ok_or_else(|| missing_portal_error(&name))?;
-            clear_portal_cancellation(state, &portal);
-            state.portal_cursors.remove(&name);
             runtime.record_pgwire_portal_delta(-1);
         }
     }
@@ -498,10 +501,12 @@ async fn handle_close(
 
 async fn describe_prepared(
     cassie: Arc<Cassie>,
+    session: CassieSession,
     prepared: PreparedStatement,
 ) -> Result<Vec<ColumnMeta>, ExtendedQueryError> {
     run_pgwire_blocking(cassie, "pgwire_describe", move |cassie| {
-        cassie.describe_parsed_statement_with_parameter_oids(
+        cassie.describe_parsed_statement_for_session(
+            &session,
             prepared.parsed,
             prepared.sql_fingerprint,
             &prepared.parameter_types,
@@ -513,7 +518,7 @@ async fn describe_prepared(
 
 fn prepared_for_portal(
     state: &SessionState,
-    portal: &Portal,
+    portal: &PortalExecution,
 ) -> Result<PreparedStatement, ExtendedQueryError> {
     let prepared = state
         .prepared_statements
@@ -524,187 +529,6 @@ fn prepared_for_portal(
         return Err(missing_portal_error(&portal.name));
     }
     Ok(prepared)
-}
-
-async fn write_fresh_result(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    portal_name: &str,
-    portal: &Portal,
-    prepared: &PreparedStatement,
-    fresh: FreshPortalResult,
-    max_rows: usize,
-) -> Result<(), ExtendedQueryError> {
-    let FreshPortalResult {
-        result,
-        cancellation,
-    } = fresh;
-    let QueryResult {
-        columns,
-        rows,
-        command,
-    } = result;
-    let row_description_already_sent = portal.described || prepared.described;
-    let row_description_sent = write_result_frames(
-        write_half,
-        &columns,
-        &rows,
-        &command,
-        &portal.result_formats,
-        row_description_already_sent,
-        max_rows,
-    )
-    .await?;
-    update_portal_after_execute(
-        state,
-        portal_name,
-        FreshPortalState {
-            columns,
-            rows,
-            command,
-            cancellation,
-        },
-        row_description_sent,
-        max_rows,
-    );
-    Ok(())
-}
-
-struct FreshPortalResult {
-    result: QueryResult,
-    cancellation: Option<crate::runtime::QueryCancellationHandle>,
-}
-
-struct FreshPortalState {
-    columns: Vec<ColumnMeta>,
-    rows: Vec<Vec<Value>>,
-    command: String,
-    cancellation: Option<crate::runtime::QueryCancellationHandle>,
-}
-
-pub(super) async fn write_suspended_result(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    state: &mut SessionState,
-    portal_name: &str,
-    suspended: PortalSuspended,
-    result_formats: &[i16],
-    max_rows: usize,
-) -> Result<(), ExtendedQueryError> {
-    let PortalSuspended {
-        columns,
-        rows,
-        command,
-        next_row,
-        row_description_sent,
-        query_offset: _,
-        cancellation,
-    } = suspended;
-    let end_row = execution_end_row(next_row, rows.len(), max_rows);
-    let remains_suspended = end_row < rows.len();
-    let mut frames = Vec::new();
-    let mut row_description_sent = row_description_sent;
-
-    if !row_description_sent && !columns.is_empty() {
-        append_row_description_frame(&mut frames, &columns, result_formats)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-        row_description_sent = true;
-    }
-    for row in rows[next_row..end_row].iter().cloned() {
-        append_data_row_frame(&mut frames, row, &columns, result_formats)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    if remains_suspended {
-        append_portal_suspended_frame(&mut frames)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    } else {
-        append_command_complete_frame(&mut frames, &command)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    write_frame(write_half, &frames).await?;
-
-    if let Some(portal) = state.portals.get_mut(portal_name) {
-        portal.described |= row_description_sent;
-        portal.suspended = remains_suspended.then_some(PortalSuspended {
-            columns,
-            rows,
-            command,
-            next_row: end_row,
-            row_description_sent,
-            query_offset: None,
-            cancellation,
-        });
-    }
-    Ok(())
-}
-
-async fn write_result_frames(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    columns: &[ColumnMeta],
-    rows: &[Vec<Value>],
-    command: &str,
-    result_formats: &[i16],
-    row_description_already_sent: bool,
-    max_rows: usize,
-) -> Result<bool, ExtendedQueryError> {
-    let end_row = execution_end_row(0, rows.len(), max_rows);
-    let remains_suspended = end_row < rows.len();
-    let mut frames = Vec::new();
-    let mut row_description_sent = row_description_already_sent;
-
-    if !row_description_sent && !columns.is_empty() {
-        append_row_description_frame(&mut frames, columns, result_formats)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-        row_description_sent = true;
-    }
-    for row in rows[..end_row].iter().cloned() {
-        append_data_row_frame(&mut frames, row, columns, result_formats)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    if remains_suspended {
-        append_portal_suspended_frame(&mut frames)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    } else {
-        append_command_complete_frame(&mut frames, command)
-            .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
-    }
-    write_frame(write_half, &frames).await?;
-    Ok(row_description_sent)
-}
-
-fn update_portal_after_execute(
-    state: &mut SessionState,
-    portal_name: &str,
-    fresh: FreshPortalState,
-    row_description_sent: bool,
-    max_rows: usize,
-) {
-    let FreshPortalState {
-        columns,
-        rows,
-        command,
-        cancellation,
-    } = fresh;
-    let end_row = execution_end_row(0, rows.len(), max_rows);
-    let remains_suspended = end_row < rows.len();
-    if let Some(portal) = state.portals.get_mut(portal_name) {
-        portal.described |= row_description_sent;
-        portal.suspended = remains_suspended.then_some(PortalSuspended {
-            columns,
-            rows,
-            command,
-            next_row: end_row,
-            row_description_sent,
-            query_offset: None,
-            cancellation,
-        });
-    }
-}
-
-fn execution_end_row(start_row: usize, row_count: usize, max_rows: usize) -> usize {
-    if max_rows == 0 {
-        return row_count;
-    }
-    start_row.saturating_add(max_rows).min(row_count)
 }
 
 fn row_description_or_no_data_frame(
@@ -745,44 +569,10 @@ fn remove_portals_for_prepared_id(
     runtime: &RuntimeState,
     prepared_id: u64,
 ) {
-    let cancellations = state
-        .portals
-        .values()
-        .filter(|portal| portal.prepared_id == prepared_id)
-        .filter_map(|portal| portal.suspended.as_ref()?.cancellation.clone())
-        .collect::<Vec<_>>();
-    let before = state.portals.len();
-    state
-        .portals
-        .retain(|_, portal| portal.prepared_id != prepared_id);
-    state.portal_cursors.retain(|portal_name, _| {
-        state
-            .portals
-            .get(portal_name)
-            .is_some_and(|portal| portal.prepared_id != prepared_id)
-    });
-    let removed = before.saturating_sub(state.portals.len());
+    let removed = state.remove_portals_for_prepared_id(prepared_id);
     if removed > 0 {
         let delta = isize::try_from(removed).unwrap_or(isize::MAX);
         runtime.record_pgwire_portal_delta(-delta);
-    }
-    if let Some(registration) = state.backend_registration.as_ref() {
-        for cancellation in cancellations {
-            registration.clear_query(&cancellation);
-        }
-    }
-}
-
-fn clear_portal_cancellation(state: &SessionState, portal: &Portal) {
-    let Some(cancellation) = portal
-        .suspended
-        .as_ref()
-        .and_then(|suspended| suspended.cancellation.as_ref())
-    else {
-        return;
-    };
-    if let Some(registration) = state.backend_registration.as_ref() {
-        registration.clear_query(cancellation);
     }
 }
 

@@ -2,12 +2,17 @@ use std::collections::BTreeSet;
 
 use crate::embeddings::{IvfFlatTrainingState, NormalizedVectorRecord};
 
+pub(crate) const TRAINING_VERSION: u32 = 1;
+
 #[must_use]
 pub fn training_fallback_reason(
     training: &IvfFlatTrainingState,
     dimensions: usize,
     records: &[NormalizedVectorRecord],
 ) -> Option<&'static str> {
+    if training.version != TRAINING_VERSION {
+        return Some("unsupported-training-version");
+    }
     if training.source_fingerprint == 0 {
         return Some("missing-source-fingerprint");
     }
@@ -84,6 +89,9 @@ pub fn training_manifest_fallback_reason(
     training: &IvfFlatTrainingState,
     dimensions: usize,
 ) -> Option<&'static str> {
+    if training.version != TRAINING_VERSION {
+        return Some("unsupported-training-version");
+    }
     if training.source_fingerprint == 0 {
         return Some("missing-source-fingerprint");
     }
@@ -128,6 +136,9 @@ pub fn compact_manifest_fallback_reason(
     dimensions: usize,
     membership_count: usize,
 ) -> Option<&'static str> {
+    if training.version != TRAINING_VERSION {
+        return Some("unsupported-training-version");
+    }
     if training.source_fingerprint == 0 {
         return Some("missing-source-fingerprint");
     }
@@ -140,6 +151,19 @@ pub fn compact_manifest_fallback_reason(
     if training.list_sizes.len() != training.lists {
         return Some("invalid-list-sizes");
     }
+    if membership_count != training.row_count {
+        return Some("incomplete-assignments");
+    }
+    let Some(list_membership_count) = training
+        .list_sizes
+        .iter()
+        .try_fold(0usize, |total, size| total.checked_add(*size))
+    else {
+        return Some("stale-list-sizes");
+    };
+    if list_membership_count != membership_count {
+        return Some("stale-list-sizes");
+    }
     if training.probes == 0 || training.probes > training.lists {
         return Some("invalid-probes");
     }
@@ -149,9 +173,6 @@ pub fn compact_manifest_fallback_reason(
         .any(|centroid| centroid.len() != dimensions)
     {
         return Some("incompatible-centroid-dimensions");
-    }
-    if membership_count != training.row_count {
-        return Some("incomplete-assignments");
     }
     None
 }
@@ -203,7 +224,10 @@ fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{denormalized_vector, probe_lists, training_fallback_reason};
+    use super::{
+        compact_manifest_fallback_reason, denormalized_vector, probe_lists,
+        training_fallback_reason,
+    };
     use crate::embeddings::{DistanceMetric, IvfFlatTrainingState, NormalizedVectorRecord};
     use std::collections::BTreeMap;
 
@@ -327,5 +351,77 @@ mod tests {
 
         // Assert
         assert_eq!(reason, Some("incomplete-assignments"));
+    }
+
+    #[test]
+    fn should_reject_compact_manifest_with_stale_list_sizes() {
+        // Arrange
+        let training = IvfFlatTrainingState {
+            version: 1,
+            source_fingerprint: 1,
+            trained: true,
+            row_count: 2,
+            lists: 2,
+            probes: 1,
+            training_seed: 1,
+            centroid_ids: vec!["a".to_string(), "b".to_string()],
+            centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
+            assignments: BTreeMap::new(),
+            list_sizes: vec![2, 1],
+        };
+
+        // Act
+        let reason = compact_manifest_fallback_reason(&training, 2, 2);
+
+        // Assert
+        assert_eq!(reason, Some("stale-list-sizes"));
+    }
+
+    #[test]
+    fn should_reject_compact_manifest_with_incomplete_total_membership() {
+        // Arrange
+        let training = IvfFlatTrainingState {
+            version: 1,
+            source_fingerprint: 1,
+            trained: true,
+            row_count: 2,
+            lists: 2,
+            probes: 1,
+            training_seed: 1,
+            centroid_ids: vec!["a".to_string(), "b".to_string()],
+            centroids: vec![vec![1.0, 0.0], vec![0.0, 1.0]],
+            assignments: BTreeMap::new(),
+            list_sizes: vec![1, 0],
+        };
+
+        // Act
+        let reason = compact_manifest_fallback_reason(&training, 2, 1);
+
+        // Assert
+        assert_eq!(reason, Some("incomplete-assignments"));
+    }
+
+    #[test]
+    fn should_reject_compact_manifest_with_unsupported_training_version() {
+        // Arrange
+        let training = IvfFlatTrainingState {
+            version: 0,
+            source_fingerprint: 1,
+            trained: true,
+            row_count: 1,
+            lists: 1,
+            probes: 1,
+            training_seed: 1,
+            centroid_ids: vec!["a".to_string()],
+            centroids: vec![vec![1.0, 0.0]],
+            assignments: BTreeMap::new(),
+            list_sizes: vec![1],
+        };
+
+        // Act
+        let reason = compact_manifest_fallback_reason(&training, 2, 1);
+
+        // Assert
+        assert_eq!(reason, Some("unsupported-training-version"));
     }
 }

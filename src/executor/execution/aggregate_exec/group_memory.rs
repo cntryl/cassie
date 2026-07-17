@@ -1,10 +1,15 @@
-use super::{
-    AggregateAccumulator, BTreeMap, BatchRow, PartialAggregateGroup, QueryError,
-    QueryExecutionControls, Value,
-};
+use std::collections::BTreeMap;
+
+use crate::executor::batch::BatchRow;
+use crate::executor::semantic::SemanticKey;
+use crate::runtime::QueryExecutionControls;
+use crate::types::Value;
+
+use super::state::{AggregateAccumulator, PartialAggregateGroup};
+use super::QueryError;
 
 type Reservation = crate::runtime::QueryMemoryReservation;
-type SerialGroups = BTreeMap<String, (Vec<(String, Value)>, Vec<BatchRow>)>;
+type SerialGroups = BTreeMap<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>;
 
 pub(super) fn replace_serial(
     previous: Option<Reservation>,
@@ -16,7 +21,7 @@ pub(super) fn replace_serial(
         .iter()
         .map(|(signature, (values, rows))| {
             signature
-                .len()
+                .estimated_bytes()
                 .saturating_add(json_bytes(values))
                 .saturating_add(
                     rows.iter()
@@ -33,14 +38,14 @@ pub(super) fn replace_serial(
 pub(super) fn replace_partial(
     previous: Option<Reservation>,
     controls: &QueryExecutionControls,
-    groups: &BTreeMap<String, PartialAggregateGroup>,
+    groups: &BTreeMap<SemanticKey, PartialAggregateGroup>,
 ) -> Result<Reservation, QueryError> {
     drop(previous);
     let bytes = groups
         .iter()
         .map(|(signature, group)| {
             signature
-                .len()
+                .estimated_bytes()
                 .saturating_add(json_bytes(&group.group_values))
                 .saturating_add(
                     group

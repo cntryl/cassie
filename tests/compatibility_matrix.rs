@@ -41,7 +41,7 @@ impl CompatibilityServer {
         with_fallback();
         let data_dir = data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config.clone()).unwrap();
         cassie.startup().unwrap();
 

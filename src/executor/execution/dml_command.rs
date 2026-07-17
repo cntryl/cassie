@@ -533,14 +533,16 @@ fn execute_insert_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = super::dml::execute_insert(
-            cassie,
-            session,
-            statement,
-            params,
-            user_functions,
-            controls,
-        )?;
+        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
+            super::dml::execute_insert(
+                cassie,
+                Some(working),
+                statement,
+                params,
+                user_functions,
+                controls,
+            )
+        })?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -556,14 +558,16 @@ fn execute_update_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = super::dml::execute_update(
-            cassie,
-            session,
-            statement,
-            params,
-            user_functions,
-            controls,
-        )?;
+        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
+            super::dml::execute_update(
+                cassie,
+                Some(working),
+                statement,
+                params,
+                user_functions,
+                controls,
+            )
+        })?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
@@ -579,29 +583,50 @@ fn execute_delete_command(
 ) -> CommandExecution {
     CommandExecution::new((|| {
         super::materialized_projection::reject_write(cassie, &statement.table)?;
-        let result = super::dml::execute_delete(
-            cassie,
-            session,
-            statement,
-            params,
-            user_functions,
-            controls,
-        )?;
+        let result = execute_atomic_dml(cassie, session, &statement.table, controls, |working| {
+            super::dml::execute_delete(
+                cassie,
+                Some(working),
+                statement,
+                params,
+                user_functions,
+                controls,
+            )
+        })?;
         apply_write_side_effects(cassie, session, &statement.table, user_functions, controls)?;
         Ok(result)
     })())
+}
+
+fn execute_atomic_dml(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    controls: &QueryExecutionControls,
+    execute: impl FnOnce(&CassieSession) -> Result<QueryResult, QueryError>,
+) -> Result<QueryResult, QueryError> {
+    let collections = cassie.referential_write_collections(table);
+    cassie.midge.with_collection_write_gates(&collections, || {
+        let batch = cassie
+            .new_statement_batch(session)
+            .map_err(QueryError::from)?;
+        let result = execute(batch.session())?;
+        check_timeout(controls)?;
+        cassie
+            .publish_statement_batch(session, batch, controls)
+            .map_err(QueryError::from)?;
+        Ok(result)
+    })
 }
 
 fn apply_write_side_effects(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
-    user_functions: &HashMap<String, FunctionMeta>,
-    controls: &QueryExecutionControls,
+    _user_functions: &HashMap<String, FunctionMeta>,
+    _controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    if session.is_none_or(|session| !session.is_transaction_active()) {
-        super::rollups::refresh_rollups_for_source(cassie, table, user_functions, controls)?;
-    } else {
+    if session.is_some_and(CassieSession::is_transaction_active) {
         super::rollups::mark_source_rollups_stale(cassie, table)?;
     }
     Ok(())

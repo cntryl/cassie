@@ -27,6 +27,7 @@ pub struct Cassie {
     pub(crate) default_database: String,
     pub(crate) rest_tls_cert_file: Option<String>,
     pub(crate) rest_tls_key_file: Option<String>,
+    pub(crate) allow_insecure_non_loopback_listen: bool,
     pub started: Arc<AtomicBool>,
 }
 

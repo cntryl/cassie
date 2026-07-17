@@ -9,6 +9,8 @@ mod fulltext;
 mod graph;
 #[path = "key_encoding/hot_indexes.rs"]
 mod hot_indexes;
+#[path = "key_encoding/time_series.rs"]
+mod time_series;
 #[path = "key_encoding/vector.rs"]
 mod vector;
 
@@ -24,10 +26,17 @@ pub(super) use graph::{
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_index_prefix, column_batch_metadata_key,
     column_batch_segment_key, scalar_index_collection_prefix, scalar_index_data_prefix,
-    time_series_index_collection_prefix, time_series_index_data_prefix,
     unique_constraint_reservation_field_prefix, unique_constraint_reservation_key,
     unique_constraint_reservation_prefix, unique_index_reservation_prefix,
     unique_scalar_index_reservation_key, unique_scalar_index_reservation_prefix,
+};
+pub(super) use time_series::{
+    decode_time_series_bucket_count_key, decode_time_series_entry_key,
+    time_series_index_artifact_prefix, time_series_index_bucket_bound_key,
+    time_series_index_bucket_count_key, time_series_index_bucket_count_prefix,
+    time_series_index_collection_prefix, time_series_index_data_prefix,
+    time_series_index_entry_key, time_series_index_manifest_key,
+    time_series_index_partition_prefix,
 };
 pub(super) use vector::{
     decode_ivfflat_membership_suffix, ivfflat_membership_key, ivfflat_membership_list_prefix,
@@ -672,85 +681,6 @@ pub(super) fn scalar_index_entry_key(
     key.push(LexKey::SEPARATOR);
     append_terminated_component(&mut key, id.as_bytes());
     Ok(key)
-}
-
-pub(super) fn time_series_index_entry_key(
-    relation_id: u64,
-    index_id: u64,
-    partition_key: &str,
-    bucket_start_seconds: i64,
-    timestamp_seconds: i64,
-    timestamp_nanoseconds: u32,
-    id: &str,
-) -> Vec<u8> {
-    let mut key = time_series_index_partition_prefix(relation_id, index_id, partition_key);
-    key.extend_from_slice(sortable_i64_hex(bucket_start_seconds).as_bytes());
-    key.push(LexKey::SEPARATOR);
-    key.extend_from_slice(sortable_i64_hex(timestamp_seconds).as_bytes());
-    key.push(LexKey::SEPARATOR);
-    key.extend_from_slice(format!("{timestamp_nanoseconds:08x}").as_bytes());
-    key.push(LexKey::SEPARATOR);
-    append_terminated_component(&mut key, id.as_bytes());
-    key
-}
-
-pub(super) fn time_series_index_partition_prefix(
-    relation_id: u64,
-    index_id: u64,
-    partition_key: &str,
-) -> Vec<u8> {
-    let relation = encoded_u64_component(relation_id);
-    let index = encoded_u64_component(index_id);
-    prefix(
-        FAMILY_TIME_SERIES_INDEX,
-        &[
-            relation.as_slice(),
-            index.as_slice(),
-            partition_key.as_bytes(),
-        ],
-    )
-}
-
-pub(super) fn time_series_index_bucket_bound_key(
-    relation_id: u64,
-    index_id: u64,
-    partition_key: &str,
-    bucket_start_seconds: i64,
-) -> Vec<u8> {
-    let mut key = time_series_index_partition_prefix(relation_id, index_id, partition_key);
-    key.extend_from_slice(sortable_i64_hex(bucket_start_seconds).as_bytes());
-    key
-}
-
-pub(super) fn decode_time_series_entry_key(
-    key: &[u8],
-    data_prefix: &[u8],
-) -> Option<(String, i64, i64, u32, String)> {
-    let suffix = key.strip_prefix(data_prefix)?;
-    let components = suffix
-        .split(|byte| *byte == LexKey::SEPARATOR)
-        .filter(|component| !component.is_empty())
-        .map(std::str::from_utf8)
-        .collect::<Result<Vec<_>, _>>()
-        .ok()?;
-    let [partition, bucket, timestamp, nanos, id] = components.as_slice() else {
-        return None;
-    };
-    Some((
-        (*partition).to_string(),
-        decode_sortable_i64_hex(bucket)?,
-        decode_sortable_i64_hex(timestamp)?,
-        u32::from_str_radix(nanos, 16).ok()?,
-        (*id).to_string(),
-    ))
-}
-
-fn sortable_i64_hex(value: i64) -> String {
-    format!("{:016x}", value.cast_unsigned() ^ (1_u64 << 63))
-}
-
-fn decode_sortable_i64_hex(value: &str) -> Option<i64> {
-    Some((u64::from_str_radix(value, 16).ok()? ^ (1_u64 << 63)).cast_signed())
 }
 
 pub(super) fn scalar_index_seek_prefix(

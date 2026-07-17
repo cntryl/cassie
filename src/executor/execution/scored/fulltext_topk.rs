@@ -136,16 +136,17 @@ fn try_execute_persisted_fulltext_top_k(
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let Ok(candidates) =
-        cassie
+    let candidates =
+        match cassie
             .midge
             .fulltext_candidate_set(&spec.collection, &index.name, &query_terms)
-    else {
-        cassie
-            .runtime
-            .record_fulltext_row_scan_fallback("invalid_persisted_artifact");
-        return Ok(None);
-    };
+        {
+            Ok(candidates) => candidates,
+            Err(error) => {
+                record_persisted_fallback(cassie, &error);
+                return Ok(None);
+            }
+        };
     let candidate_bytes = serde_json::to_vec(&candidates)
         .map(|bytes| bytes.len())
         .unwrap_or_default();
@@ -198,4 +199,13 @@ fn try_execute_persisted_fulltext_top_k(
         .record_search_execution(started_at.elapsed(), candidate_count, rows.len());
     record_adaptive_candidate_decision(cassie, adaptive, candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+fn record_persisted_fallback(cassie: &Cassie, error: &crate::app::CassieError) {
+    let reason = if error.to_string().contains("missing_candidate_row") {
+        "missing_candidate_row"
+    } else {
+        "invalid_persisted_artifact"
+    };
+    cassie.runtime.record_fulltext_row_scan_fallback(reason);
 }

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::mem::size_of;
 
 use crate::app::CassieError;
 
@@ -27,6 +28,20 @@ pub(super) fn decode_covering_fields(
     }
     cursor.finish()?;
     Ok(fields)
+}
+
+pub(super) fn covering_fields_retained_bytes(bytes: &[u8]) -> Result<usize, CassieError> {
+    let mut cursor = Cursor::new(bytes);
+    cursor.expect(MAGIC)?;
+    let count = cursor.usize()?;
+    let retained = (0..count).try_fold(0usize, |retained, _| {
+        checked_retained_add(
+            checked_retained_add(retained, cursor.retained_string_bytes()?)?,
+            cursor.retained_value_bytes()?,
+        )
+    })?;
+    cursor.finish()?;
+    Ok(retained)
 }
 
 fn encode_value(value: &serde_json::Value, out: &mut Vec<u8>) {
@@ -167,6 +182,44 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    fn retained_string_bytes(&mut self) -> Result<usize, CassieError> {
+        let len = self.usize()?;
+        self.take(len)?;
+        checked_retained_add(size_of::<String>(), len)
+    }
+
+    fn retained_value_bytes(&mut self) -> Result<usize, CassieError> {
+        let inline = size_of::<serde_json::Value>();
+        match self.byte()? {
+            0..=2 => Ok(inline),
+            3..=5 => {
+                self.take(size_of::<u64>())?;
+                Ok(inline)
+            }
+            6 => {
+                let len = self.usize()?;
+                self.take(len)?;
+                checked_retained_add(inline, len)
+            }
+            7 => {
+                let count = self.usize()?;
+                (0..count).try_fold(inline, |retained, _| {
+                    checked_retained_add(retained, self.retained_value_bytes()?)
+                })
+            }
+            8 => {
+                let count = self.usize()?;
+                (0..count).try_fold(inline, |retained, _| {
+                    let retained = checked_retained_add(retained, self.retained_string_bytes()?)?;
+                    checked_retained_add(retained, self.retained_value_bytes()?)
+                })
+            }
+            _ => Err(CassieError::Parse(
+                "invalid scalar covering value tag".to_string(),
+            )),
+        }
+    }
+
     fn array<const N: usize>(&mut self) -> Result<[u8; N], CassieError> {
         self.take(N)?
             .try_into()
@@ -197,6 +250,12 @@ impl<'a> Cursor<'a> {
     }
 }
 
+fn checked_retained_add(left: usize, right: usize) -> Result<usize, CassieError> {
+    left.checked_add(right).ok_or_else(|| {
+        CassieError::ResourceLimit("scalar index retained-size accounting overflow".to_owned())
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +276,28 @@ mod tests {
         // Assert
         assert_eq!(&encoded[..4], b"SIC1");
         assert_eq!(decoded, fields);
+    }
+
+    #[test]
+    fn should_measure_nested_covering_values_without_decoding_them_first() {
+        // Arrange
+        let fields = BTreeMap::from([
+            ("label".to_string(), serde_json::json!("alpha")),
+            (
+                "metadata".to_string(),
+                serde_json::json!({"flags": [true, false], "rank": 7}),
+            ),
+        ]);
+        let encoded = encode_covering_fields(&fields);
+
+        // Act
+        let retained = covering_fields_retained_bytes(&encoded).expect("retained bytes");
+
+        // Assert
+        assert!(retained > encoded.len());
+        assert_eq!(
+            decode_covering_fields(&encoded).expect("decode fields"),
+            fields
+        );
     }
 }

@@ -20,7 +20,6 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
@@ -106,7 +105,6 @@ fn should_cancel_suspended_portal_before_resume() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
@@ -211,7 +209,6 @@ fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();

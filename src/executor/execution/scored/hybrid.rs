@@ -270,8 +270,9 @@ pub(super) fn prefilter_hybrid_rows(
     params: &[Value],
     spec: &HybridTopKSpec,
     schema: &CollectionSchema,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
+    let mut rows = batch::flatten_batches(scan::scan(cassie, session, &spec.collection, controls)?);
     if let Some(filter_expr) = &spec.filter {
         if !vector_prefilter_supported(filter_expr, schema) {
             return Ok(None);

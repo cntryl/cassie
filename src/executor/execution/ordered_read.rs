@@ -435,6 +435,15 @@ fn compare_ordered_column_candidates(
     left: &OrderedColumnCandidate,
     right: &OrderedColumnCandidate,
 ) -> CmpOrdering {
+    let left_null = matches!(&left.order_value, Value::Null);
+    let right_null = matches!(&right.order_value, Value::Null);
+    if left_null != right_null {
+        return match (&left.direction, left_null) {
+            (SortDirection::Asc, true) | (SortDirection::Desc, false) => CmpOrdering::Greater,
+            (SortDirection::Asc, false) | (SortDirection::Desc, true) => CmpOrdering::Less,
+        };
+    }
+
     let value_order = compare_query_values(&left.order_value, &right.order_value);
     let value_order = match &left.direction {
         SortDirection::Asc => value_order,

@@ -1,6 +1,7 @@
 use crate::app::{Cassie, CassieError, CassieSession, QueryExplainOutput, QueryExplainPlan};
 use crate::catalog::IndexKind;
 use crate::executor::{ColumnMeta, QueryResult};
+use crate::runtime::QueryCancellationHandle;
 use crate::sql::ast::{QueryStatement, TransactionAction};
 use crate::types::Value;
 
@@ -97,10 +98,20 @@ pub(crate) fn execute_with_session(
     session: &CassieSession,
     body: &[u8],
 ) -> Result<RestQueryResult, CassieError> {
+    execute_with_session_and_cancellation(cassie, session, body, &QueryCancellationHandle::new())
+}
+
+#[doc(hidden)]
+pub fn execute_with_session_and_cancellation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+) -> Result<RestQueryResult, CassieError> {
     let request: QueryExecuteRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie
-        .execute_sql(session, request.sql.as_str(), Vec::new())
+        .execute_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
         .map(RestQueryResult::from)
 }
 

@@ -107,7 +107,7 @@ pub async fn run_connection(
     }
     let (read_half, mut write_half) = tokio::io::split(transport);
     let mut reader = BufReader::new(read_half);
-    let mut state = SessionState::new();
+    let mut state = SessionState::new(&runtime.limits());
     let mut handshake_state = HandshakeState::AwaitStartup;
     let mut awaiting_sync = false;
 

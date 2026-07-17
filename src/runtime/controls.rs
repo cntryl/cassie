@@ -34,6 +34,15 @@ impl RuntimeState {
             .peak_accounted_memory_bytes
             .max(peak_bytes as u64);
     }
+
+    pub(crate) fn record_query_memory(&self, controls: &QueryExecutionControls) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.query.current_accounted_memory_bytes = controls.current_query_memory_bytes() as u64;
+        metrics.query.peak_accounted_memory_bytes = metrics
+            .query
+            .peak_accounted_memory_bytes
+            .max(controls.peak_query_memory_bytes() as u64);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +66,43 @@ struct QueryMemoryTracker {
 pub struct QueryMemoryReservation {
     tracker: Arc<QueryMemoryTracker>,
     bytes: usize,
+}
+
+impl QueryMemoryReservation {
+    #[must_use]
+    pub(crate) const fn bytes(&self) -> usize {
+        self.bytes
+    }
+
+    /// # Errors
+    ///
+    /// Returns a resource-limit error when the shared query budget cannot satisfy the growth.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shared tracker accepts growth that overflows this reservation. This indicates
+    /// an internal accounting invariant violation.
+    pub(crate) fn try_grow(&mut self, additional_bytes: usize) -> Result<(), CassieError> {
+        reserve_tracker_memory(&self.tracker, additional_bytes)?;
+        self.bytes = self
+            .bytes
+            .checked_add(additional_bytes)
+            .expect("reservation growth is bounded by the shared tracker");
+        Ok(())
+    }
+
+    /// # Panics
+    ///
+    /// Panics when `retained_bytes` exceeds the current reservation.
+    pub(crate) fn shrink_to(&mut self, retained_bytes: usize) {
+        assert!(
+            retained_bytes <= self.bytes,
+            "cannot grow a query memory reservation by shrinking it"
+        );
+        let released = self.bytes - retained_bytes;
+        self.bytes = retained_bytes;
+        self.tracker.used.fetch_sub(released, Ordering::AcqRel);
+    }
 }
 
 impl Drop for QueryMemoryReservation {
@@ -117,30 +163,11 @@ impl QueryExecutionControls {
         &self,
         bytes: usize,
     ) -> Result<QueryMemoryReservation, CassieError> {
-        let mut used = self.memory.used.load(Ordering::Acquire);
-        loop {
-            let Some(next) = used.checked_add(bytes) else {
-                return Err(self.memory_limit_error(usize::MAX));
-            };
-            if next > self.memory.budget {
-                return Err(self.memory_limit_error(next));
-            }
-            match self.memory.used.compare_exchange_weak(
-                used,
-                next,
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => {
-                    self.memory.peak.fetch_max(next, Ordering::AcqRel);
-                    return Ok(QueryMemoryReservation {
-                        tracker: Arc::clone(&self.memory),
-                        bytes,
-                    });
-                }
-                Err(actual) => used = actual,
-            }
-        }
+        reserve_tracker_memory(&self.memory, bytes)?;
+        Ok(QueryMemoryReservation {
+            tracker: Arc::clone(&self.memory),
+            bytes,
+        })
     }
 
     #[must_use]
@@ -148,10 +175,36 @@ impl QueryExecutionControls {
         self.memory.peak.load(Ordering::Acquire)
     }
 
-    fn memory_limit_error(&self, requested: usize) -> CassieError {
-        CassieError::ResourceLimit(format!(
-            "query memory budget exceeded: {requested} > {}",
-            self.memory.budget
-        ))
+    #[must_use]
+    pub fn current_query_memory_bytes(&self) -> usize {
+        self.memory.used.load(Ordering::Acquire)
     }
+}
+
+fn reserve_tracker_memory(tracker: &QueryMemoryTracker, bytes: usize) -> Result<(), CassieError> {
+    let mut used = tracker.used.load(Ordering::Acquire);
+    loop {
+        let Some(next) = used.checked_add(bytes) else {
+            return Err(memory_limit_error(tracker.budget, usize::MAX));
+        };
+        if next > tracker.budget {
+            return Err(memory_limit_error(tracker.budget, next));
+        }
+        match tracker
+            .used
+            .compare_exchange_weak(used, next, Ordering::AcqRel, Ordering::Acquire)
+        {
+            Ok(_) => {
+                tracker.peak.fetch_max(next, Ordering::AcqRel);
+                return Ok(());
+            }
+            Err(actual) => used = actual,
+        }
+    }
+}
+
+fn memory_limit_error(budget: usize, requested: usize) -> CassieError {
+    CassieError::ResourceLimit(format!(
+        "query memory budget exceeded: {requested} > {budget}"
+    ))
 }

@@ -338,7 +338,7 @@ fn seed_recovery_collection(cassie: &Cassie) {
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    config.password = "postgres".to_string();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -551,7 +551,7 @@ fn should_reject_copy_data_message_with_unsupported_error() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -637,7 +637,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_recovery_collection(&cassie);
@@ -680,7 +680,7 @@ fn should_return_unsupported_error_for_copy_statement() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")

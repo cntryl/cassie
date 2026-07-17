@@ -337,8 +337,7 @@ fn seed_close_cascade_collection(cassie: &Cassie) {
 }
 
 async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
-    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-    config.password.clear();
+    let config = CassieRuntimeConfig::from_env().expect("runtime config");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind listener");
@@ -360,6 +359,16 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
+    if auth.1 == 3_i32.to_be_bytes() {
+        tokio::io::AsyncWriteExt::write_all(writer, &frontend_frame(b'p', b"postgres\0"))
+            .await
+            .expect("write password");
+        tokio::io::AsyncWriteExt::flush(writer)
+            .await
+            .expect("flush password");
+        let auth_ok = read_wire_frame(reader).await;
+        assert_eq!(auth_ok, (b'R', 0_i32.to_be_bytes().to_vec()));
+    }
     let startup_ready = read_until_ready(reader).await;
     assert_eq!(startup_ready, vec![b'I']);
 }
@@ -448,8 +457,7 @@ fn should_close_statement_cascade_referenced_portals_before_reuse() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        let config = CassieRuntimeConfig::from_env().expect("runtime config");
         let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
         cassie.startup().unwrap();
         seed_close_cascade_collection(&cassie);

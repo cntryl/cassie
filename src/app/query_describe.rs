@@ -17,6 +17,36 @@ impl Cassie {
         sql_fingerprint: u64,
         parameter_type_oids: &[i32],
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.describe_parsed_statement_in_session(
+            None,
+            parsed,
+            sql_fingerprint,
+            parameter_type_oids,
+        )
+    }
+
+    pub(crate) fn describe_parsed_statement_for_session(
+        &self,
+        session: &super::CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameter_type_oids: &[i32],
+    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.describe_parsed_statement_in_session(
+            Some(session),
+            parsed,
+            sql_fingerprint,
+            parameter_type_oids,
+        )
+    }
+
+    fn describe_parsed_statement_in_session(
+        &self,
+        session: Option<&super::CassieSession>,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameter_type_oids: &[i32],
+    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
         if matches!(
             parsed.statement,
             crate::sql::ast::QueryStatement::Explain(_)
@@ -35,21 +65,28 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
 
+        let search_path = session.map_or_else(
+            || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
+            super::CassieSession::search_path,
+        );
+        let database = session
+            .and_then(super::CassieSession::current_database)
+            .map(str::to_string);
         let cache_key = matches!(parsed.statement, crate::sql::ast::QueryStatement::Select(_))
             .then(|| {
                 self.plan_cache_key_from_fingerprint(
                     sql_fingerprint,
                     Vec::new(),
                     crate::runtime::ExecutionMode::DescribeQuery,
-                    None,
-                    &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+                    database,
+                    &search_path,
                 )
             });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, None, Some(&controls))?
+            self.resolve_physical_plan(parsed, key, session, Some(&controls))?
         } else {
             (
-                self.compile_physical_plan(parsed, None, Some(&controls))?,
+                self.compile_physical_plan(parsed, session, Some(&controls))?,
                 PlanCacheProvenance::Compiled,
             )
         };

@@ -66,7 +66,9 @@ use cache::{
 pub(crate) use error::unsupported_sql_error;
 pub use error::{CassieError, CatalogObjectKind};
 pub use session::CassieSession;
-pub(crate) use session::{TransactionConflictIntent, TransactionRowChange};
+pub(crate) use session::{
+    StagedWriteSnapshot, StatementMutationBatch, TransactionConflictIntent, TransactionRowChange,
+};
 pub use state::{Cassie, CassieRuntimeConfigState};
 
 mod auth;
@@ -77,11 +79,14 @@ mod database_images;
 mod defaults;
 mod diagnostics;
 mod document_scans;
+pub(crate) use document_scans::SessionRowCursor;
 mod documents;
 mod embeddings;
 mod hydration;
 mod lifecycle;
 mod operational;
+mod portal_reads;
+pub(crate) use portal_reads::PortalReadSpec;
 mod query;
 mod query_describe;
 mod query_explain;
@@ -95,6 +100,7 @@ mod replay;
 mod roles;
 mod schema_cleanup;
 mod snapshots;
+mod statement_mutation;
 mod transaction_semantics;
 mod vector_helpers;
 mod vector_search;

@@ -575,7 +575,7 @@ fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
         assert_eq!(metrics["time_series"]["fallback_scans"].as_u64(), Some(1));
         assert_eq!(
             metrics["time_series"]["last_fallback_reason"].as_str(),
-            Some("missing-bucket-metadata")
+            Some("incomplete-bucket-membership")
         );
 
         let _ = std::fs::remove_dir_all(path);

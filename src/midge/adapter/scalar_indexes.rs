@@ -1,17 +1,18 @@
 use super::{
-    check_document_write_failure_point, collect_scan, key_encoding, CassieError,
-    DocumentWriteFailurePoint, Midge, RowDecode,
+    check_document_write_failure_point, key_encoding, CassieError, DocumentWriteFailurePoint,
+    Midge, RowDecode,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
 use crate::types::Value;
-use cntryl_midge::{Query, WriteOptions};
+use cntryl_midge::WriteOptions;
 use std::collections::{BTreeMap, HashMap};
 
 mod codec;
+mod scan;
 
-use self::codec::{decode_covering_fields, encode_covering_fields};
+use self::codec::encode_covering_fields;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ScalarIndexBound {
@@ -32,12 +33,6 @@ pub(crate) struct ScalarIndexScanRequest {
 pub(crate) struct ScalarIndexScanHit {
     pub id: String,
     pub fields: serde_json::Map<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct ScalarIndexStoredRow {
-    id: String,
-    fields: BTreeMap<String, serde_json::Value>,
 }
 
 type ScalarIndexEntry = (Vec<u8>, Vec<u8>);
@@ -145,89 +140,6 @@ impl Midge {
         )?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
         Ok(())
-    }
-
-    pub(crate) fn scan_scalar_index(
-        &self,
-        index: &IndexMeta,
-        request: &ScalarIndexScanRequest,
-    ) -> Result<Vec<ScalarIndexScanHit>, CassieError> {
-        let mut index = index.clone();
-        index.collection = self.canonical_collection_name(&index.collection);
-        if index.storage_id().is_none() || index.relation_id().is_none() {
-            let stored = self
-                .get_index(&index.collection, &index.name)?
-                .ok_or_else(|| CassieError::Parse(format!("index '{}' not found", index.name)))?;
-            index.set_storage_ids(
-                stored.relation_id().ok_or_else(|| {
-                    CassieError::Parse(format!("index '{}' is missing its relation id", index.name))
-                })?,
-                stored.storage_id().ok_or_else(|| {
-                    CassieError::Parse(format!("index '{}' is missing its storage id", index.name))
-                })?,
-            );
-        }
-        if !Self::scalar_index_supports_storage(&index) {
-            return Err(CassieError::Unsupported(format!(
-                "scalar index '{}' is not storage-backed",
-                index.name
-            )));
-        }
-
-        let (relation_id, index_id) = Self::scalar_index_storage_ids(&index)?;
-        let tx = self.begin_data_readonly_tx_for(&index.collection)?;
-        let data_prefix = Self::scalar_index_data_prefix(relation_id, index_id);
-        let seek_prefix = key_encoding::scalar_index_seek_prefix(
-            relation_id,
-            index_id,
-            &request.equality_prefix,
-        )?;
-        let (start_key, end_key) = key_encoding::scalar_index_query_bounds(
-            &seek_prefix,
-            request.lower_bound.as_ref(),
-            request.upper_bound.as_ref(),
-        )?;
-        let mut query = Query::new().prefix(data_prefix.into());
-        if let Some(start_key) = start_key {
-            query = query.start_key(start_key.into());
-        }
-        if let Some(end_key) = end_key {
-            query = query.end_key(end_key.into());
-        }
-        if request.reverse {
-            query = query.reverse();
-        }
-
-        let scan = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
-        let mut hits = Vec::new();
-        let limit = request.limit.unwrap_or(usize::MAX);
-
-        for (key, raw_value) in scan {
-            let stored = if raw_value.is_empty() {
-                ScalarIndexStoredRow {
-                    id: key_encoding::utf8_last_component(&key).ok_or_else(|| {
-                        CassieError::Parse(format!("invalid scalar index key for '{}'", index.name))
-                    })?,
-                    fields: BTreeMap::new(),
-                }
-            } else {
-                ScalarIndexStoredRow {
-                    id: key_encoding::utf8_last_component(&key).ok_or_else(|| {
-                        CassieError::Parse(format!("invalid scalar index key for '{}'", index.name))
-                    })?,
-                    fields: decode_covering_fields(&raw_value)?,
-                }
-            };
-            hits.push(ScalarIndexScanHit {
-                id: stored.id,
-                fields: stored.fields.into_iter().collect(),
-            });
-            if hits.len() >= limit {
-                break;
-            }
-        }
-
-        Ok(hits)
     }
 
     fn scalar_index_supports_storage(index: &IndexMeta) -> bool {

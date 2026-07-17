@@ -5,6 +5,34 @@ use super::{
 };
 use crate::runtime::QueryExecutionControls;
 
+type AnnRerankBarriers = (
+    std::sync::Arc<std::sync::Barrier>,
+    std::sync::Arc<std::sync::Barrier>,
+);
+
+static ANN_RERANK_BARRIERS: std::sync::OnceLock<std::sync::Mutex<Option<AnnRerankBarriers>>> =
+    std::sync::OnceLock::new();
+
+pub(crate) fn install_ann_rerank_barriers(barriers: Option<AnnRerankBarriers>) {
+    *ANN_RERANK_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("ANN rerank barrier lock") = barriers;
+}
+
+fn wait_at_ann_rerank_boundary() {
+    let barriers = ANN_RERANK_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("ANN rerank barrier lock")
+        .clone();
+    if let Some((selected, resume)) = barriers {
+        selected.wait();
+        resume.wait();
+        install_ann_rerank_barriers(None);
+    }
+}
+
 pub(crate) fn execute_vector_distance_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -57,7 +85,8 @@ pub(crate) fn execute_vector_distance_top_k(
         record_adaptive_candidate_decision(cassie, &adaptive, final_candidate_count, rows.len());
         return Ok(Some(rows));
     }
-    let mut candidates = batch::flatten_batches(scan::scan(cassie, session, &spec.collection)?);
+    let mut candidates =
+        batch::flatten_batches(scan::scan(cassie, session, &spec.collection, controls)?);
     if let Some(filter_expr) = &plan.filter {
         if vector_prefilter_supported(filter_expr, &schema) {
             let before = candidates.len();
@@ -324,6 +353,7 @@ fn execute_hnsw_vector_top_k(
         )
     };
     let started_at = std::time::Instant::now();
+    let source_generation = vector_source_generation(cassie, spec)?;
     let search = match cassie.midge.search_hnsw_graph_point_read(
         &spec.collection,
         &spec.vector_field,
@@ -348,21 +378,29 @@ fn execute_hnsw_vector_top_k(
             return Err(QueryError::General(message));
         }
     };
-    let mut reranked = Vec::with_capacity(search.candidates.len());
-    for candidate in search.candidates {
-        super::super::check_timeout(controls)?;
-        let document = cassie
-            .get_document_for_session(session, &spec.collection, &candidate.id)
-            .map_err(|error| QueryError::General(error.to_string()))?
-            .ok_or_else(|| QueryError::General("HNSW candidate row is missing".to_string()))?;
-        let vector = vector_from_json(&document.payload[&spec.vector_field])
-            .ok_or_else(|| QueryError::General("HNSW candidate vector is invalid".to_string()))?;
-        let score = crate::vector::l2_distance(&vector, &spec.query);
-        reranked.push(SqlVectorCandidate {
-            sort_value: score,
-            score,
-            id: candidate.id,
-        });
+    wait_at_ann_rerank_boundary();
+    if vector_source_changed(cassie, spec, source_generation)? {
+        cassie
+            .runtime
+            .record_hnsw_fallback("concurrent-source-change");
+        return Ok(None);
+    }
+    let Some(mut reranked) = rerank_hnsw_candidates(
+        cassie,
+        session,
+        spec,
+        controls,
+        source_generation,
+        search.candidates,
+    )?
+    else {
+        return Ok(None);
+    };
+    if vector_source_changed(cassie, spec, source_generation)? {
+        cassie
+            .runtime
+            .record_hnsw_fallback("concurrent-source-change");
+        return Ok(None);
     }
     reranked.sort_by(compare_sql_vector_candidates);
     let rows = reranked
@@ -426,6 +464,7 @@ fn execute_ivfflat_vector_top_k(
         return Ok(None);
     }
     let probed_lists = crate::vector::ivfflat::probe_lists(&normalized_query, &training);
+    let source_generation = vector_source_generation(cassie, spec)?;
     let normalized_vectors = match cassie.midge.ivfflat_candidate_vectors(
         &spec.collection,
         &spec.vector_field,
@@ -445,34 +484,36 @@ fn execute_ivfflat_vector_top_k(
             return Err(QueryError::General(message));
         }
     };
+    wait_at_ann_rerank_boundary();
+    if vector_source_changed(cassie, spec, source_generation)? {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("concurrent-source-change");
+        return Ok(None);
+    }
     let top_needed = spec.limit.saturating_add(spec.offset).max(1);
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
-    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
-    let mut candidate_count = 0usize;
-    for record in normalized_vectors {
-        super::super::check_timeout(controls)?;
-        let document = cassie
-            .get_document_for_session(session, &spec.collection, &record.id)
-            .map_err(|error| QueryError::General(error.to_string()))?
-            .ok_or_else(|| QueryError::General("IVFFlat candidate row is missing".to_string()))?;
-        let vector = vector_from_json(&document.payload[&spec.vector_field]).ok_or_else(|| {
-            QueryError::General("IVFFlat candidate vector is invalid".to_string())
-        })?;
-        let score = crate::vector::l2_distance(&vector, &spec.query);
-        candidate_count += 1;
-        push_top_candidate(
-            &mut top,
-            SqlVectorCandidate {
-                sort_value: candidate_sort_value(&spec.direction, score),
-                score,
-                id: record.id,
-            },
-            top_needed,
-        );
-    }
+    let Some((top, candidate_count)) = rerank_ivfflat_candidates(
+        cassie,
+        session,
+        spec,
+        controls,
+        source_generation,
+        normalized_vectors,
+        top_needed,
+    )?
+    else {
+        return Ok(None);
+    };
 
     if candidate_count == 0 {
         cassie.runtime.record_ivfflat_fallback("empty-probed-lists");
+        return Ok(None);
+    }
+    if vector_source_changed(cassie, spec, source_generation)? {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("concurrent-source-change");
         return Ok(None);
     }
 
@@ -497,6 +538,107 @@ fn execute_ivfflat_vector_top_k(
         .record_ivfflat_execution(training.lists, probed_lists.len(), candidate_count);
     record_adaptive_candidate_decision(cassie, &adaptive, candidate_count, rows.len());
     Ok(Some(rows))
+}
+
+fn vector_source_generation(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+) -> Result<u64, QueryError> {
+    cassie
+        .midge
+        .collection_generation(&spec.collection)
+        .map_err(|error| QueryError::General(error.to_string()))
+}
+
+fn rerank_hnsw_candidates(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &VectorDistanceTopKSpec,
+    controls: &QueryExecutionControls,
+    generation: u64,
+    candidates: Vec<crate::vector::hnsw::HnswCandidate>,
+) -> Result<Option<Vec<SqlVectorCandidate>>, QueryError> {
+    let mut reranked = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        super::super::check_timeout(controls)?;
+        if vector_source_changed(cassie, spec, generation)? {
+            cassie
+                .runtime
+                .record_hnsw_fallback("concurrent-source-change");
+            return Ok(None);
+        }
+        let document = cassie
+            .get_document_for_session(session, &spec.collection, &candidate.id)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        let Some(vector) =
+            document.and_then(|document| vector_from_json(&document.payload[&spec.vector_field]))
+        else {
+            cassie
+                .runtime
+                .record_hnsw_fallback("concurrent-source-change");
+            return Ok(None);
+        };
+        let score = crate::vector::l2_distance(&vector, &spec.query);
+        reranked.push(SqlVectorCandidate {
+            sort_value: score,
+            score,
+            id: candidate.id,
+        });
+    }
+    Ok(Some(reranked))
+}
+
+fn rerank_ivfflat_candidates(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    spec: &VectorDistanceTopKSpec,
+    controls: &QueryExecutionControls,
+    generation: u64,
+    records: Vec<crate::embeddings::NormalizedVectorRecord>,
+    top_needed: usize,
+) -> Result<Option<(BinaryHeap<SqlVectorCandidate>, usize)>, QueryError> {
+    let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
+    let mut candidate_count = 0usize;
+    for record in records {
+        super::super::check_timeout(controls)?;
+        if vector_source_changed(cassie, spec, generation)? {
+            cassie
+                .runtime
+                .record_ivfflat_fallback("concurrent-source-change");
+            return Ok(None);
+        }
+        let document = cassie
+            .get_document_for_session(session, &spec.collection, &record.id)
+            .map_err(|error| QueryError::General(error.to_string()))?;
+        let Some(vector) =
+            document.and_then(|document| vector_from_json(&document.payload[&spec.vector_field]))
+        else {
+            cassie
+                .runtime
+                .record_ivfflat_fallback("concurrent-source-change");
+            return Ok(None);
+        };
+        let score = crate::vector::l2_distance(&vector, &spec.query);
+        candidate_count = candidate_count.saturating_add(1);
+        push_top_candidate(
+            &mut top,
+            SqlVectorCandidate {
+                sort_value: candidate_sort_value(&spec.direction, score),
+                score,
+                id: record.id,
+            },
+            top_needed,
+        );
+    }
+    Ok(Some((top, candidate_count)))
+}
+
+fn vector_source_changed(
+    cassie: &Cassie,
+    spec: &VectorDistanceTopKSpec,
+    expected: u64,
+) -> Result<bool, QueryError> {
+    vector_source_generation(cassie, spec).map(|current| current != expected)
 }
 
 fn ivfflat_training(

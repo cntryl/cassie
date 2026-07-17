@@ -3,6 +3,9 @@ use super::{
     BinaryOp, Cassie, CassieSession, CollectionSchema, DataType, Expr, FunctionMeta, HashMap,
     LogicalPlan, QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
 };
+use crate::midge::adapter::time_series_indexes::{
+    TimeSeriesDocumentScanOutcome, TimeSeriesIndexScanOutcome,
+};
 use crate::midge::adapter::DocumentRef;
 use time::{Duration as TimeDuration, OffsetDateTime};
 
@@ -227,14 +230,7 @@ fn time_series_documents(
         request.lower_bucket_seconds,
         request.upper_bucket_seconds,
     ) {
-        Ok(report) if report.hits.is_empty() => {
-            cassie
-                .runtime
-                .record_time_series_fallback("missing-bucket-metadata");
-            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                .map(|documents| (documents, report.entries_scanned, 0, None))
-        }
-        Ok(report) => {
+        Ok(TimeSeriesIndexScanOutcome::Native(report)) => {
             let indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
             let hits = prune_hits_for_range(report.hits, request.range);
             if hits.is_empty() {
@@ -243,23 +239,42 @@ fn time_series_documents(
             }
             let documents = cassie
                 .midge
-                .scan_time_series_hit_documents(request.collection, &hits, request.scan_fields)
+                .scan_time_series_hit_documents(request.index, &hits, request.scan_fields)
                 .map_err(|error| QueryError::General(error.to_string()))?;
-            if documents.is_empty() {
-                cassie
-                    .runtime
-                    .record_time_series_fallback("stale-bucket-metadata");
-                scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                    .map(|documents| (documents, report.entries_scanned, 0, None))
-            } else {
-                cassie.runtime.record_time_series_bucket_native_hit();
-                Ok((
-                    documents,
-                    report.entries_scanned,
-                    hits.len(),
-                    indexed_total_buckets,
-                ))
+            match documents {
+                TimeSeriesDocumentScanOutcome::Native(documents)
+                    if cassie
+                        .midge
+                        .collection_generation(request.collection)
+                        .map_err(|error| QueryError::General(error.to_string()))?
+                        == report.generation =>
+                {
+                    cassie.runtime.record_time_series_bucket_native_hit();
+                    Ok((
+                        documents,
+                        report.entries_scanned,
+                        hits.len(),
+                        indexed_total_buckets,
+                    ))
+                }
+                TimeSeriesDocumentScanOutcome::Native(_) => {
+                    cassie
+                        .runtime
+                        .record_time_series_fallback("stale-bucket-metadata");
+                    scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                        .map(|documents| (documents, report.entries_scanned, 0, None))
+                }
+                TimeSeriesDocumentScanOutcome::Fallback(reason) => {
+                    cassie.runtime.record_time_series_fallback(reason);
+                    scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                        .map(|documents| (documents, report.entries_scanned, 0, None))
+                }
             }
+        }
+        Ok(TimeSeriesIndexScanOutcome::Fallback(reason)) => {
+            cassie.runtime.record_time_series_fallback(reason);
+            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
+                .map(|documents| (documents, 0, 0, None))
         }
         Err(error) => {
             let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {

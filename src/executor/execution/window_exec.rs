@@ -5,14 +5,15 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
+use crate::executor::semantic::{SemanticKey, SemanticValue};
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{
-    SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
+    NullsOrder, SelectItem, SortDirection, WindowFrame, WindowFrameBound, WindowFrameExclusion,
     WindowFrameUnit, WindowFunctionCall,
 };
 use crate::types::Value;
 
-use super::{check_timeout, compare_query_values, value_sort_key, QueryError};
+use super::{check_timeout, QueryError};
 
 pub(super) fn apply_window_functions(
     batches: Vec<Batch>,
@@ -96,11 +97,11 @@ fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
         .sum()
 }
 
-fn window_partition_bytes(partitions: &BTreeMap<String, Vec<usize>>) -> usize {
+fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usize {
     partitions
         .iter()
         .map(|(key, indices)| {
-            key.len()
+            key.estimated_bytes()
                 .saturating_add(indices.len().saturating_mul(std::mem::size_of::<usize>()))
         })
         .sum()
@@ -124,8 +125,8 @@ fn partition_window_rows(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<BTreeMap<String, Vec<usize>>, QueryError> {
-    let mut partitions = BTreeMap::<String, Vec<usize>>::new();
+) -> Result<BTreeMap<SemanticKey, Vec<usize>>, QueryError> {
+    let mut partitions = BTreeMap::<SemanticKey, Vec<usize>>::new();
     for (index, row) in rows.iter().enumerate() {
         check_timeout(context.controls)?;
         let key = partition_key(row, function, context)?;
@@ -138,11 +139,11 @@ fn partition_key(
     row: &BatchRow,
     function: &WindowFunctionCall,
     context: &WindowExecutionContext<'_>,
-) -> Result<String, QueryError> {
+) -> Result<SemanticKey, QueryError> {
     if function.partition_by.is_empty() {
-        return Ok("__all__".to_string());
+        return Ok(SemanticKey::default());
     }
-    function
+    let values = function
         .partition_by
         .iter()
         .map(|expr| {
@@ -155,17 +156,16 @@ fn partition_key(
                 context.session,
                 None,
             )
-            .map(|value| value_sort_key(&value))
         })
-        .collect::<Result<Vec<_>, _>>()
-        .map(|parts| parts.join("|"))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_values(values.iter()))
 }
 
 fn evaluate_window_values(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     function_name: &str,
-    partitions: &mut BTreeMap<String, Vec<usize>>,
+    partitions: &mut BTreeMap<SemanticKey, Vec<usize>>,
     context: &WindowExecutionContext<'_>,
 ) -> Result<Vec<Value>, QueryError> {
     let mut values = vec![Value::Null; rows.len()];
@@ -184,10 +184,10 @@ fn evaluate_window_partition(
     values: &mut [Value],
     context: &WindowExecutionContext<'_>,
 ) -> Result<(), QueryError> {
-    sort_partition(rows, function, indices, context);
+    sort_partition(rows, function, indices, context)?;
     let frame = effective_window_frame(function);
     let mut dense_rank = 1i64;
-    let mut previous_peer_key: Option<String> = None;
+    let mut previous_peer_key: Option<SemanticKey> = None;
     for (position, index) in indices.iter().enumerate() {
         check_timeout(context.controls)?;
         let peer_key = window_peer_key(&rows[*index], &function.order_by, context)?;
@@ -216,10 +216,18 @@ fn sort_partition(
     function: &WindowFunctionCall,
     indices: &mut [usize],
     context: &WindowExecutionContext<'_>,
-) {
-    indices.sort_by(|left, right| {
-        compare_window_rows(&rows[*left], &rows[*right], &function.order_by, context)
-    });
+) -> Result<(), QueryError> {
+    let mut keyed = indices
+        .iter()
+        .map(|index| {
+            window_sort_key(&rows[*index], &function.order_by, context).map(|key| (key, *index))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    keyed.sort_by(|(left, _), (right, _)| compare_window_sort_keys(left, right));
+    for (target, (_, index)) in indices.iter_mut().zip(keyed) {
+        *target = index;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
@@ -241,13 +249,7 @@ fn window_value_at(
         "row_number" => Ok(Value::Int64(
             i64::try_from(value_position.position + 1).unwrap_or(i64::MAX),
         )),
-        "rank" => Ok(rank_value(
-            value_position.position,
-            rows,
-            function,
-            indices,
-            context,
-        )),
+        "rank" => rank_value(value_position.position, rows, function, indices, context),
         "dense_rank" => Ok(Value::Int64(value_position.dense_rank)),
         "lag" => window_arg_value(
             indices
@@ -339,19 +341,21 @@ fn frame_positions(
         return Ok(Vec::new());
     };
     let current_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
-    Ok((start..=end)
-        .filter(|candidate| {
-            let is_current = *candidate == position;
-            let is_peer = window_peer_key(&rows[indices[*candidate]], &function.order_by, context)
-                .is_ok_and(|key| key == current_key);
-            match frame.exclusion {
-                WindowFrameExclusion::NoOthers => true,
-                WindowFrameExclusion::CurrentRow => !is_current,
-                WindowFrameExclusion::Group => !is_peer,
-                WindowFrameExclusion::Ties => !is_peer || is_current,
-            }
-        })
-        .collect())
+    let mut positions = Vec::new();
+    for candidate in start..=end {
+        let is_current = candidate == position;
+        let is_peer =
+            window_peer_key(&rows[indices[candidate]], &function.order_by, context)? == current_key;
+        if match frame.exclusion {
+            WindowFrameExclusion::NoOthers => true,
+            WindowFrameExclusion::CurrentRow => !is_current,
+            WindowFrameExclusion::Group => !is_peer,
+            WindowFrameExclusion::Ties => !is_peer || is_current,
+        } {
+            positions.push(candidate);
+        }
+    }
+    Ok(positions)
 }
 
 fn peer_groups(
@@ -647,16 +651,18 @@ fn rank_value(
     function: &WindowFunctionCall,
     indices: &[usize],
     context: &WindowExecutionContext<'_>,
-) -> Value {
-    let current_peer_key =
-        window_peer_key(&rows[indices[position]], &function.order_by, context).ok();
-    let peer_position = indices[..=position]
-        .iter()
-        .position(|candidate| {
-            window_peer_key(&rows[*candidate], &function.order_by, context).ok() == current_peer_key
-        })
-        .unwrap_or(position);
-    Value::Int64(i64::try_from(peer_position + 1).unwrap_or(i64::MAX))
+) -> Result<Value, QueryError> {
+    let current_peer_key = window_peer_key(&rows[indices[position]], &function.order_by, context)?;
+    for (peer_position, candidate) in indices[..=position].iter().enumerate() {
+        if window_peer_key(&rows[*candidate], &function.order_by, context)? == current_peer_key {
+            return Ok(Value::Int64(
+                i64::try_from(peer_position + 1).unwrap_or(i64::MAX),
+            ));
+        }
+    }
+    Ok(Value::Int64(
+        i64::try_from(position + 1).unwrap_or(i64::MAX),
+    ))
 }
 
 fn append_window_values(rows: &mut [BatchRow], output_name: &str, values: Vec<Value>) {
@@ -694,11 +700,11 @@ fn window_peer_key(
     row: &BatchRow,
     order_by: &[crate::sql::ast::OrderExpr],
     context: &WindowExecutionContext<'_>,
-) -> Result<String, QueryError> {
+) -> Result<SemanticKey, QueryError> {
     if order_by.is_empty() {
-        return Ok("__all__".to_string());
+        return Ok(SemanticKey::default());
     }
-    order_by
+    let values = order_by
         .iter()
         .map(|order| {
             filter::evaluate_expr_value(
@@ -710,46 +716,79 @@ fn window_peer_key(
                 context.session,
                 None,
             )
-            .map(|value| value_sort_key(&value))
         })
-        .collect::<Result<Vec<_>, _>>()
-        .map(|parts| parts.join("|"))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SemanticKey::from_values(values.iter()))
 }
 
-fn compare_window_rows(
-    left: &BatchRow,
-    right: &BatchRow,
+struct WindowSortPart {
+    value: SemanticValue,
+    direction: SortDirection,
+    nulls: Option<NullsOrder>,
+}
+
+struct WindowSortKey {
+    parts: Vec<WindowSortPart>,
+    tie_key: String,
+}
+
+fn window_sort_key(
+    row: &BatchRow,
     order_by: &[crate::sql::ast::OrderExpr],
     context: &WindowExecutionContext<'_>,
-) -> CmpOrdering {
-    for order in order_by {
-        let left_value = filter::evaluate_expr_value(
-            left,
-            &order.expr,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )
-        .unwrap_or(Value::Null);
-        let right_value = filter::evaluate_expr_value(
-            right,
-            &order.expr,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )
-        .unwrap_or(Value::Null);
-        let cmp = compare_query_values(&left_value, &right_value);
+) -> Result<WindowSortKey, QueryError> {
+    let parts = order_by
+        .iter()
+        .map(|order| {
+            filter::evaluate_expr_value(
+                row,
+                &order.expr,
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+                None,
+            )
+            .map(|value| WindowSortPart {
+                value: SemanticValue::from_value(&value),
+                direction: order.direction.clone(),
+                nulls: order.nulls,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(WindowSortKey {
+        parts,
+        tie_key: batch::row_tie_key(row),
+    })
+}
+
+fn compare_window_sort_keys(left: &WindowSortKey, right: &WindowSortKey) -> CmpOrdering {
+    for (left, right) in left.parts.iter().zip(&right.parts) {
+        let cmp = compare_window_sort_parts(left, right);
         if cmp != CmpOrdering::Equal {
-            return match order.direction {
-                SortDirection::Asc => cmp,
-                SortDirection::Desc => cmp.reverse(),
-            };
+            return cmp;
         }
     }
-    batch::row_tie_key(left).cmp(&batch::row_tie_key(right))
+    left.tie_key.cmp(&right.tie_key)
+}
+
+fn compare_window_sort_parts(left: &WindowSortPart, right: &WindowSortPart) -> CmpOrdering {
+    let left_null = left.value.is_null();
+    let right_null = right.value.is_null();
+    if left_null != right_null {
+        let nulls = left.nulls.unwrap_or(match &left.direction {
+            SortDirection::Asc => NullsOrder::Last,
+            SortDirection::Desc => NullsOrder::First,
+        });
+        return match (left_null, nulls) {
+            (true, NullsOrder::First) | (false, NullsOrder::Last) => CmpOrdering::Less,
+            (true, NullsOrder::Last) | (false, NullsOrder::First) => CmpOrdering::Greater,
+        };
+    }
+
+    let cmp = left.value.cmp(&right.value);
+    match &left.direction {
+        SortDirection::Asc => cmp,
+        SortDirection::Desc => cmp.reverse(),
+    }
 }

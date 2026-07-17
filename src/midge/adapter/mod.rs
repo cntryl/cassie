@@ -298,6 +298,7 @@ pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
 mod fresh_documents;
 mod graphs;
+pub(crate) use graphs::graph_edge_record_from_payload;
 mod key_encoding;
 mod layout;
 use layout::{
@@ -312,6 +313,12 @@ mod metadata;
 mod operational;
 mod operator_feedback;
 mod projections;
+mod query_scan_control;
+#[doc(hidden)]
+pub use query_scan_control::{
+    query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
+    QueryScanControlTestGuard,
+};
 mod repair;
 mod scalar_indexes;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
@@ -323,7 +330,7 @@ mod schema_ops;
 mod schema_ops_tests;
 mod sequences;
 mod streaming_scans;
-pub(crate) use streaming_scans::MidgeRowCursor;
+pub(crate) use streaming_scans::{AccountedDocument, MidgeRowCursor};
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
 mod verification;

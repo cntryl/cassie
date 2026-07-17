@@ -1,13 +1,15 @@
 use std::collections::BTreeSet;
 
-use super::{Cassie, CassieSession, QueryError};
+use super::{check_timeout, Cassie, CassieSession, QueryError, QueryExecutionControls};
 
 pub(super) fn preflight_delete_actions(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
     payload: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_timeout(controls)?;
     let Some(session) = session.filter(|session| session.is_transaction_active()) else {
         return Ok(());
     };
@@ -21,6 +23,7 @@ pub(super) fn preflight_delete_actions(
         payload,
         &mut collections,
         &mut visited,
+        controls,
     )?;
     let collections = collections.into_iter().collect::<Vec<_>>();
     session
@@ -35,12 +38,15 @@ pub(super) fn preflight_update_actions(
     before: &serde_json::Value,
     after: &serde_json::Value,
     collections: &mut BTreeSet<String>,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_timeout(controls)?;
     let (Some(before), Some(after)) = (before.as_object(), after.as_object()) else {
         return Ok(());
     };
 
     for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
         let Some(reference_field) = constraint.references_field.as_deref() else {
             continue;
         };
@@ -61,6 +67,7 @@ pub(super) fn preflight_update_actions(
             &child_table,
             &constraint.field,
             old_value,
+            controls,
         )?;
         if child_rows.is_empty() {
             continue;
@@ -84,7 +91,9 @@ fn collect_delete_action_collections(
     payload: &serde_json::Value,
     collections: &mut BTreeSet<String>,
     visited: &mut BTreeSet<(String, String)>,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_timeout(controls)?;
     let key = (table.to_string(), payload.to_string());
     if !visited.insert(key) {
         return Ok(());
@@ -94,6 +103,7 @@ fn collect_delete_action_collections(
     };
 
     for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
         let Some(reference_field) = constraint.references_field.as_deref() else {
             continue;
         };
@@ -109,6 +119,7 @@ fn collect_delete_action_collections(
             &child_table,
             &constraint.field,
             parent_value,
+            controls,
         )?;
         if child_rows.is_empty() {
             continue;
@@ -125,6 +136,7 @@ fn collect_delete_action_collections(
                         &child.payload,
                         collections,
                         visited,
+                        controls,
                     )?;
                 }
             }
@@ -142,13 +154,42 @@ pub(super) fn assert_no_referencing_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
+    row_id: &str,
     payload: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    let mut visited = BTreeSet::new();
+    apply_delete_actions(
+        cassie,
+        session,
+        table,
+        row_id,
+        payload,
+        &mut visited,
+        controls,
+    )
+}
+
+fn apply_delete_actions(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    visited: &mut BTreeSet<(String, String)>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    check_timeout(controls)?;
+    let key = (table.to_string(), row_id.to_string());
+    if !visited.insert(key) {
+        return Ok(());
+    }
     let Some(object) = payload.as_object() else {
         return Ok(());
     };
 
     for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
         let Some(reference_field) = constraint.references_field.as_deref() else {
             continue;
         };
@@ -165,6 +206,7 @@ pub(super) fn assert_no_referencing_rows(
             &child_table,
             &constraint.field,
             parent_value,
+            controls,
         )?;
         if child_rows.is_empty() {
             continue;
@@ -173,7 +215,17 @@ pub(super) fn assert_no_referencing_rows(
         match foreign_key_action(constraint.foreign_key_on_delete.as_deref()) {
             ForeignKeyAction::Cascade => {
                 for child in child_rows {
-                    assert_no_referencing_rows(cassie, session, &child_table, &child.payload)?;
+                    check_timeout(controls)?;
+                    apply_delete_actions(
+                        cassie,
+                        session,
+                        &child_table,
+                        &child.id,
+                        &child.payload,
+                        visited,
+                        controls,
+                    )?;
+                    check_timeout(controls)?;
                     cassie
                         .delete_document_for_session(session, &child_table, &child.id)
                         .map_err(QueryError::from)?;
@@ -191,6 +243,7 @@ pub(super) fn assert_no_referencing_rows(
                     &constraint.field,
                     child_rows,
                     &value,
+                    controls,
                 )?;
             }
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
@@ -213,12 +266,15 @@ pub(super) fn assert_referenced_values_can_change(
     table: &str,
     before: &serde_json::Value,
     after: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_timeout(controls)?;
     let (Some(before), Some(after)) = (before.as_object(), after.as_object()) else {
         return Ok(());
     };
 
     for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
         let Some(reference_field) = constraint.references_field.as_deref() else {
             continue;
         };
@@ -233,8 +289,14 @@ pub(super) fn assert_referenced_values_can_change(
         if old_value.is_null() {
             continue;
         }
-        let child_rows =
-            referencing_child_rows(cassie, session, &child_table, &constraint.field, old_value)?;
+        let child_rows = referencing_child_rows(
+            cassie,
+            session,
+            &child_table,
+            &constraint.field,
+            old_value,
+            controls,
+        )?;
         if child_rows.is_empty() {
             continue;
         }
@@ -263,12 +325,15 @@ pub(super) fn apply_referenced_update_actions(
     table: &str,
     before: &serde_json::Value,
     after: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    check_timeout(controls)?;
     let (Some(before), Some(after)) = (before.as_object(), after.as_object()) else {
         return Ok(());
     };
 
     for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
         let Some(reference_field) = constraint.references_field.as_deref() else {
             continue;
         };
@@ -283,8 +348,14 @@ pub(super) fn apply_referenced_update_actions(
         if old_value.is_null() {
             continue;
         }
-        let child_rows =
-            referencing_child_rows(cassie, session, &child_table, &constraint.field, old_value)?;
+        let child_rows = referencing_child_rows(
+            cassie,
+            session,
+            &child_table,
+            &constraint.field,
+            old_value,
+            controls,
+        )?;
         if child_rows.is_empty() {
             continue;
         }
@@ -301,6 +372,7 @@ pub(super) fn apply_referenced_update_actions(
                     &constraint.field,
                     child_rows,
                     new_value,
+                    controls,
                 )?;
             }
             ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {
@@ -315,6 +387,7 @@ pub(super) fn apply_referenced_update_actions(
                     &constraint.field,
                     child_rows,
                     &value,
+                    controls,
                 )?;
             }
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {}
@@ -382,14 +455,22 @@ fn referencing_child_rows(
     child_table: &str,
     child_field: &str,
     parent_value: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<Vec<crate::midge::adapter::DocumentRef>, QueryError> {
-    let rows = cassie
+    check_timeout(controls)?;
+    let batches = cassie
         .scan_documents_batched_for_session(session, child_table, 1024)
-        .map_err(QueryError::from)?
-        .into_iter()
-        .flatten()
-        .filter(|document| document.payload.get(child_field) == Some(parent_value))
-        .collect::<Vec<_>>();
+        .map_err(QueryError::from)?;
+    let mut rows = Vec::new();
+    for batch in batches {
+        check_timeout(controls)?;
+        for document in batch {
+            check_timeout(controls)?;
+            if document.payload.get(child_field) == Some(parent_value) {
+                rows.push(document);
+            }
+        }
+    }
     Ok(rows)
 }
 
@@ -400,8 +481,10 @@ fn set_child_reference_values(
     child_field: &str,
     child_rows: Vec<crate::midge::adapter::DocumentRef>,
     value: &serde_json::Value,
+    controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     for child in child_rows {
+        check_timeout(controls)?;
         let mut payload =
             child.payload.as_object().cloned().ok_or_else(|| {
                 QueryError::General("stored row payload must be object".to_string())

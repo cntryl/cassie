@@ -3,6 +3,7 @@ use super::{
     join_field_for_collection, qualify_row, row_join_key, scan, QueryError, SourceExecutionEnv,
     StreamingJoinSpec, ROW_COUNT_BUILD_SIDE_RATIO,
 };
+use crate::executor::semantic::SemanticKey;
 
 const FANOUT_BUILD_SIDE_COST_RATIO: u64 = 2;
 const ROW_COUNT_SAMPLE_BUILD_SIDE_RATIO: u64 = 2;
@@ -307,7 +308,7 @@ fn sample_join_keys(
     key: &str,
     scan_fields: &[String],
     limit: usize,
-) -> Result<Vec<String>, QueryError> {
+) -> Result<Vec<SemanticKey>, QueryError> {
     let schema = env.cassie.catalog.get_schema(collection);
     let mut keys = Vec::with_capacity(limit);
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
@@ -331,18 +332,15 @@ fn sample_join_keys(
     Ok(keys)
 }
 
-fn samples_support_left_build(left_keys: &[String], right_keys: &[String]) -> bool {
+fn samples_support_left_build(left_keys: &[SemanticKey], right_keys: &[SemanticKey]) -> bool {
     if left_keys.is_empty() || right_keys.is_empty() {
         return false;
     }
 
-    let left_distinct = left_keys
-        .iter()
-        .map(String::as_str)
-        .collect::<std::collections::HashSet<_>>();
+    let left_distinct = left_keys.iter().collect::<std::collections::HashSet<_>>();
     let matching_right_keys = right_keys
         .iter()
-        .filter(|key| left_distinct.contains(key.as_str()))
+        .filter(|key| left_distinct.contains(key))
         .count();
     matching_right_keys.saturating_mul(SAMPLE_MATCH_RATIO) >= right_keys.len()
 }

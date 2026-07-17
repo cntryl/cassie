@@ -247,7 +247,7 @@ fn should_record_pgwire_connection_metrics() {
 
     runtime.block_on(async {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         seed_pgwire_metrics_collection(&cassie);

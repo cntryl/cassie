@@ -274,7 +274,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
 
     runtime.block_on(async {
         let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-        config.password.clear();
+        config.password = "postgres".to_string();
         let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
         cassie.startup().unwrap();
         let before_protocol_errors = cassie.metrics()["pgwire"]["protocol_errors_total"]

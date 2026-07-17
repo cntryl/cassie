@@ -2,7 +2,14 @@ use super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
     DocumentRef, HashSet, Midge, Query, RowDecode,
 };
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+
+mod accounted_page;
+
+use accounted_page::provisional_document_bytes;
+pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
+
+const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
 
 pub(crate) struct MidgeRowCursor {
     tx: cntryl_midge::Transaction,
@@ -12,7 +19,8 @@ pub(crate) struct MidgeRowCursor {
     projection: Option<HashSet<String>>,
     include_historical_aliases: bool,
     exhausted: bool,
-    pending: Option<DocumentRef>,
+    pending: Option<AccountedDocument>,
+    last_key_memory: Option<QueryMemoryReservation>,
 }
 
 impl std::fmt::Debug for MidgeRowCursor {
@@ -28,59 +36,26 @@ impl std::fmt::Debug for MidgeRowCursor {
 }
 
 impl MidgeRowCursor {
+    pub(crate) fn next_accounted_document(
+        &mut self,
+        midge: &Midge,
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<AccountedDocument>, CassieError> {
+        let mut documents = self.next_accounted_documents(midge, 1, controls)?;
+        Ok(documents.pop())
+    }
+
     pub(crate) fn next_documents(
         &mut self,
         midge: &Midge,
         limit: usize,
         controls: &QueryExecutionControls,
     ) -> Result<Vec<DocumentRef>, CassieError> {
-        if self.exhausted || limit == 0 {
-            return Ok(self.pending.take().into_iter().take(limit).collect());
-        }
-        let mut documents = Vec::with_capacity(limit);
-        if let Some(pending) = self.pending.take() {
-            documents.push(pending);
-            if documents.len() == limit {
-                return Ok(documents);
-            }
-        }
-        let mut query = Query::new().prefix(self.prefix.clone().into());
-        if let Some(last_key) = self.last_key.as_ref() {
-            let mut next_key = last_key.clone();
-            next_key.push(0);
-            query = query.start_key(next_key.into());
-        }
-        let mut scan = self.tx.scan(&query).map_err(CassieError::from)?;
-        while documents.len() < limit {
-            if controls.is_cancelled() {
-                return Err(CassieError::QueryCancelled);
-            }
-            if controls.is_timed_out() {
-                return Err(CassieError::DeadlineExceeded);
-            }
-            let Some(entry) = scan.next() else {
-                self.exhausted = true;
-                break;
-            };
-            let (raw_key, raw_value) = entry.map_err(CassieError::from)?;
-            midge.record_query_scan_entry();
-            self.last_key = Some(raw_key.to_vec());
-            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &self.prefix) else {
-                continue;
-            };
-            if id.is_empty() {
-                continue;
-            }
-            let payload = match self.projection.as_ref() {
-                Some(projection) if self.include_historical_aliases => {
-                    decode_projected_row_with_aliases(&self.row_schema, &raw_value, projection)?
-                }
-                Some(projection) => decode_projected_row(&self.row_schema, &raw_value, projection)?,
-                None => decode_row(&self.row_schema, &raw_value)?,
-            };
-            documents.push(DocumentRef { id, payload });
-        }
-        Ok(documents)
+        let page = self.next_accounted_documents(midge, limit, controls)?;
+        Ok(page
+            .into_iter()
+            .map(AccountedDocument::into_unaccounted_document)
+            .collect())
     }
 
     pub(crate) fn next_page(
@@ -89,13 +64,160 @@ impl MidgeRowCursor {
         max_rows: usize,
         controls: &QueryExecutionControls,
     ) -> Result<(Vec<DocumentRef>, bool), CassieError> {
-        let mut documents = self.next_documents(midge, max_rows.saturating_add(1), controls)?;
+        let mut page = self.next_accounted_page(midge, max_rows, controls)?;
+        let has_more = page.has_more();
+        let mut documents = Vec::with_capacity(page.len().min(STORAGE_SCAN_PAGE_ENTRIES));
+        while let Some(document) = page.pop_document() {
+            documents.push(document.into_unaccounted_document());
+        }
+        debug_assert!(page.is_empty());
+        Ok((documents, has_more))
+    }
+
+    pub(crate) fn next_accounted_page(
+        &mut self,
+        midge: &Midge,
+        max_rows: usize,
+        controls: &QueryExecutionControls,
+    ) -> Result<AccountedDocumentPage, CassieError> {
+        check_controls(controls)?;
+        let fetch_rows = max_rows.saturating_add(1);
+        let mut documents = self.next_accounted_documents(midge, fetch_rows, controls)?;
         let has_more = documents.len() > max_rows;
         if has_more {
             self.pending = documents.pop();
         }
-        Ok((documents, has_more))
+        Ok(AccountedDocumentPage::from_documents(documents, has_more))
     }
+
+    fn next_accounted_documents(
+        &mut self,
+        midge: &Midge,
+        limit: usize,
+        controls: &QueryExecutionControls,
+    ) -> Result<Vec<AccountedDocument>, CassieError> {
+        check_controls(controls)?;
+        if limit == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut documents = Vec::new();
+        if let Some(pending) = self.pending.take() {
+            push_accounted_document(&mut documents, pending)?;
+        }
+        while !self.exhausted && documents.len() < limit {
+            self.read_storage_page(midge, limit, controls, &mut documents)?;
+        }
+        Ok(documents)
+    }
+
+    fn read_storage_page(
+        &mut self,
+        midge: &Midge,
+        result_limit: usize,
+        controls: &QueryExecutionControls,
+        documents: &mut Vec<AccountedDocument>,
+    ) -> Result<(), CassieError> {
+        check_controls(controls)?;
+        let remaining = result_limit.saturating_sub(documents.len());
+        let storage_limit = remaining.clamp(1, STORAGE_SCAN_PAGE_ENTRIES);
+        let query_key_bytes = self.prefix.len().saturating_add(
+            self.last_key
+                .as_ref()
+                .map_or(0, |key| key.len().saturating_add(1)),
+        );
+        let _query_key_memory = controls.reserve_query_memory(query_key_bytes)?;
+        let mut query = Query::new()
+            .prefix(self.prefix.clone().into())
+            .limit(storage_limit);
+        if let Some(last_key) = self.last_key.as_ref() {
+            let mut next_key = last_key.clone();
+            next_key.push(0);
+            query = query.start_key(next_key.into());
+        }
+        let mut scan = self.tx.scan(&query).map_err(CassieError::from)?;
+        let mut scanned_entries = 0usize;
+
+        while documents.len() < result_limit {
+            check_controls(controls)?;
+            let Some(entry) = scan.next() else {
+                if scanned_entries < storage_limit {
+                    self.exhausted = true;
+                }
+                break;
+            };
+            check_controls(controls)?;
+            let (raw_key, raw_value) = entry.map_err(CassieError::from)?;
+            scanned_entries = scanned_entries.saturating_add(1);
+            midge.record_query_scan_entry();
+            if super::query_scan_control::should_cancel_controlled_query_scan() {
+                return Err(CassieError::QueryCancelled);
+            }
+
+            let next_key_memory = controls.reserve_query_memory(raw_key.len())?;
+            let next_key = raw_key.to_vec();
+            self.last_key = Some(next_key);
+            self.last_key_memory = Some(next_key_memory);
+
+            let retained_bytes = provisional_document_bytes(
+                &self.row_schema,
+                self.projection.as_ref(),
+                self.include_historical_aliases,
+                raw_key.len(),
+                raw_value.len(),
+            )?;
+            let Some(document) =
+                AccountedDocument::try_build_optional(controls, retained_bytes, || {
+                    let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &self.prefix)
+                    else {
+                        return Ok(None);
+                    };
+                    if id.is_empty() {
+                        return Ok(None);
+                    }
+                    let payload = match self.projection.as_ref() {
+                        Some(projection) if self.include_historical_aliases => {
+                            decode_projected_row_with_aliases(
+                                &self.row_schema,
+                                &raw_value,
+                                projection,
+                            )?
+                        }
+                        Some(projection) => {
+                            decode_projected_row(&self.row_schema, &raw_value, projection)?
+                        }
+                        None => decode_row(&self.row_schema, &raw_value)?,
+                    };
+                    Ok(Some(DocumentRef { id, payload }))
+                })?
+            else {
+                continue;
+            };
+            push_accounted_document(documents, document)?;
+        }
+        Ok(())
+    }
+}
+
+fn push_accounted_document(
+    documents: &mut Vec<AccountedDocument>,
+    document: AccountedDocument,
+) -> Result<(), CassieError> {
+    documents.try_reserve_exact(1).map_err(|error| {
+        CassieError::ResourceLimit(format!("unable to retain controlled storage page: {error}"))
+    })?;
+    documents.push(document);
+    Ok(())
+}
+
+fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {
+    if controls.is_cancelled() {
+        return Err(CassieError::QueryCancelled);
+    }
+    if controls.is_timed_out() {
+        return Err(CassieError::DeadlineExceeded);
+    }
+    Ok(())
 }
 
 impl Midge {
@@ -120,6 +242,7 @@ impl Midge {
             include_historical_aliases,
             exhausted: false,
             pending: None,
+            last_key_memory: None,
         }))
     }
 

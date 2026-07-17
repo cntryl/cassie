@@ -33,6 +33,7 @@ impl Cassie {
         statement: &CopyStatement,
         payload: &[u8],
     ) -> Result<usize, CassieError> {
+        let transactional = session.is_transaction_active();
         let database = session.current_database().unwrap_or(&self.default_database);
         let context = crate::sql::binder::BindingContext::scoped(database, session.search_path());
         let mut statement = statement.clone();
@@ -58,14 +59,8 @@ impl Cassie {
             rows.remove(0);
         }
 
-        let staging = (!session.is_transaction_active()).then(|| {
-            let staging = CassieSession::new(session.user.clone(), session.database.clone());
-            staging
-                .begin_transaction(None)
-                .expect("new COPY staging session begins a transaction");
-            staging
-        });
-        let staging = staging.as_ref().unwrap_or(session);
+        let batch = session.fork_statement_batch()?;
+        let staging = batch.session();
         let mut seen_ids = BTreeSet::new();
         let mut affected = 0usize;
 
@@ -118,7 +113,8 @@ impl Cassie {
             affected = affected.saturating_add(1);
         }
 
-        if std::ptr::eq(staging, session) {
+        if transactional {
+            session.publish_statement_batch(&batch)?;
             return Ok(affected);
         }
 

@@ -530,7 +530,8 @@ impl ExecutorKernel {
                 session: None,
             },
             3,
-        );
+        )
+        .expect("benchmark top-k kernel should evaluate");
         rows.iter()
             .filter_map(|row| row.get("score").and_then(Value::as_i64))
             .collect()

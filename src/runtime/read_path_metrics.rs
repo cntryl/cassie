@@ -133,4 +133,10 @@ impl RuntimeState {
         metrics.graph.last_strategy = strategy.to_string();
         metrics.graph.last_stop_reason = stop_reason.to_string();
     }
+
+    /// Record why graph traversal used the row-backed correctness path.
+    pub(crate) fn record_graph_fallback(&self, reason: &str) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.graph.last_fallback_reason = reason.to_string();
+    }
 }

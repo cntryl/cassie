@@ -19,8 +19,11 @@ info:
     to 10 seconds, and body collection/route execution to 30 seconds. State-changing `/api/`
     requests with bodies require `application/json`; explicit cross-origin browser requests are
     rejected and no permissive CORS policy is advertised; same-origin browser state changes are
-    allowed. TLS is required for non-loopback REST
-    listeners, and TLS responses emit HSTS. Authenticated/API responses are not cacheable.
+    allowed. Non-loopback REST listeners use Cassie-managed TLS by default. Deployments may set
+    `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` only for a trusted private hop behind a
+    TLS-terminating reverse proxy or load balancer; that plaintext hop must not be exposed to an
+    untrusted network. Cassie-managed TLS responses emit HSTS. Authenticated/API responses are not
+    cacheable.
 servers:
   - url: /
     description: Same-origin admin API server

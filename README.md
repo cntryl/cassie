@@ -41,7 +41,9 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 ## Container
 
-Non-loopback REST listeners require TLS. Before using `compose.yml`, set a non-default `CASSIE_ADMIN_PASSWORD`, `CASSIE_REST_TLS_CERT_HOST_FILE` to a host PEM certificate-chain path, and `CASSIE_REST_TLS_KEY_HOST_FILE` to its host PEM private-key path. The compose definition mounts those files read-only; Cassie fails closed when either is absent.
+`compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ADMIN_PASSWORD`. Do not publish that plaintext hop directly to an untrusted network.
+
+For Cassie to terminate REST TLS itself, remove the insecure-listener override, configure `CASSIE_REST_TLS_CERT_FILE` and `CASSIE_REST_TLS_KEY_FILE` inside the container, and mount the PEM certificate chain and private key read-only. Cassie fails closed when direct non-loopback TLS is selected but either file is absent.
 
 ## Product Boundaries
 

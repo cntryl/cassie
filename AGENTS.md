@@ -76,8 +76,9 @@ All config via `CASSIE_*` env vars (see `src/config.rs`):
 |----------|---------|-------|
 | `CASSIE_PGWIRE_LISTEN` | `127.0.0.1:5432` | |
 | `CASSIE_REST_LISTEN` | `127.0.0.1:8080` | |
-| `CASSIE_REST_TLS_CERT_FILE` | — | PEM certificate chain; required with the key for non-loopback REST listeners |
-| `CASSIE_REST_TLS_KEY_FILE` | — | PEM private key; required with the certificate for non-loopback REST listeners |
+| `CASSIE_REST_TLS_CERT_FILE` | — | PEM certificate chain; pair with the key when Cassie terminates REST TLS |
+| `CASSIE_REST_TLS_KEY_FILE` | — | PEM private key; pair with the certificate when Cassie terminates REST TLS |
+| `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN` | `0` | Set `1` only for a trusted private hop behind a TLS-terminating reverse proxy or load balancer |
 | `CASSIE_MIDGE_DATA_DIR` | `./.cassie/midge` | |
 | `CASSIE_MIDGE_ALLOW_FALLBACK` | — | Set `1` for tests (in-memory) |
 | `CASSIE_ADMIN_PASSWORD_FILE` | — | Path to read password from (takes precedence over `CASSIE_ADMIN_PASSWORD`) |

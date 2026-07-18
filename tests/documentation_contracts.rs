@@ -108,6 +108,33 @@ fn should_assign_canonical_document_owners() {
 }
 
 #[test]
+fn should_document_trusted_upstream_rest_tls_termination() {
+    // Arrange
+    let root = repo_root();
+    let deployment_contracts = [
+        read(root.join("README.md")),
+        read(root.join("docs/postgres-compatibility.md")),
+        read(root.join("public/openapi.yml")),
+    ];
+    let compose = read(root.join("compose.yml"));
+
+    // Act
+    let compose_enables_upstream_termination =
+        compose.contains("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN: \"1\"");
+    let contracts_document_upstream_termination = deployment_contracts.iter().all(|contents| {
+        contents.contains("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN")
+            && contents.contains("load balancer")
+    });
+
+    // Assert
+    assert!(compose_enables_upstream_termination);
+    assert!(
+        contracts_document_upstream_termination,
+        "REST transport docs must distinguish direct TLS from trusted load-balancer termination"
+    );
+}
+
+#[test]
 fn should_define_storage_ownership_boundary() {
     // Arrange
     let feature_support = read(repo_root().join("docs/feature-support.md"));

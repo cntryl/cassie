@@ -13,7 +13,7 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 - Password authentication uses Cassie roles and stored password hashes.
 - Each authenticated connection is bound to one existing database.
 - Passwordless bootstrap is limited to embedded use without a network listener. Pgwire and REST listener startup reject an empty bootstrap password or a persisted passwordless bootstrap role.
-- The default bootstrap password is loopback-only. A non-loopback pgwire listener requires a non-default credential and TLS; non-loopback REST requires its configured certificate and key.
+- The default bootstrap password is loopback-only. Non-loopback pgwire and REST listeners require a non-default credential plus Cassie-managed TLS unless `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` explicitly permits a trusted private hop behind a TLS-terminating reverse proxy or load balancer. Plaintext listener traffic must not be exposed directly to an untrusted network.
 - Connection admission is bounded and failures are reported using PostgreSQL-style error responses.
 
 ## Session Model

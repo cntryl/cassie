@@ -1,12 +1,12 @@
 use super::{
-    allow_memory_fallback, env, key_encoding, CassieError, ColumnFamilyHandle, Engine, OnceLock,
-    Path, Query, StorageFamily, StorageLayout, TransactionMode, WriteOptions,
+    allow_memory_fallback, env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, Query,
+    StorageFamily, StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 pub struct Midge {

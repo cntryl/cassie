@@ -1,9 +1,7 @@
-use std::cell::Cell;
 use std::collections::HashSet;
 use std::env;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicU8};
-use std::sync::OnceLock;
+use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOptions};
@@ -34,8 +32,6 @@ mod transactions;
 
 pub use core::Midge;
 
-static DOCUMENT_WRITE_FAILPOINT: AtomicU8 = AtomicU8::new(0);
-static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
 static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static ROLLUP_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
@@ -46,60 +42,6 @@ static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_ADD_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
-
-thread_local! {
-    static DOCUMENT_WRITE_CONFLICTS_REMAINING: Cell<u8> = const { Cell::new(0) };
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[doc(hidden)]
-pub enum DocumentWriteFailurePoint {
-    Row,
-    ScalarIndex,
-    TimeSeriesIndex,
-    GraphAdjacency,
-    NormalizedVector,
-    VectorState,
-}
-
-impl DocumentWriteFailurePoint {
-    const fn code(self) -> u8 {
-        match self {
-            Self::Row => 1,
-            Self::ScalarIndex => 2,
-            Self::TimeSeriesIndex => 3,
-            Self::GraphAdjacency => 4,
-            Self::NormalizedVector => 5,
-            Self::VectorState => 6,
-        }
-    }
-
-    const fn label(self) -> &'static str {
-        match self {
-            Self::Row => "row",
-            Self::ScalarIndex => "scalar-index",
-            Self::TimeSeriesIndex => "time-series-index",
-            Self::GraphAdjacency => "graph-adjacency",
-            Self::NormalizedVector => "normalized-vector",
-            Self::VectorState => "vector-state",
-        }
-    }
-}
-
-#[doc(hidden)]
-pub fn set_document_write_failure_point(point: Option<DocumentWriteFailurePoint>) {
-    DOCUMENT_WRITE_FAILPOINT.store(
-        point.map_or(0, DocumentWriteFailurePoint::code),
-        std::sync::atomic::Ordering::SeqCst,
-    );
-}
-
-#[doc(hidden)]
-pub fn document_write_failure_point_test_guard() -> parking_lot::MutexGuard<'static, ()> {
-    DOCUMENT_WRITE_FAILPOINT_TEST_GUARD
-        .get_or_init(|| parking_lot::Mutex::new(()))
-        .lock()
-}
 
 #[doc(hidden)]
 pub fn set_column_batch_maintenance_failure_point(enabled: bool) {
@@ -241,52 +183,6 @@ pub(crate) fn check_field_drop_failure_point() -> Result<(), CassieError> {
     Ok(())
 }
 
-#[doc(hidden)]
-pub(crate) fn check_document_write_failure_point(
-    point: DocumentWriteFailurePoint,
-) -> Result<(), CassieError> {
-    let requested = DOCUMENT_WRITE_FAILPOINT
-        .compare_exchange(
-            point.code(),
-            0,
-            std::sync::atomic::Ordering::SeqCst,
-            std::sync::atomic::Ordering::SeqCst,
-        )
-        .ok();
-    if requested.is_none() {
-        return Ok(());
-    }
-
-    Err(CassieError::Execution(format!(
-        "injected test failure after {} mutation",
-        point.label()
-    )))
-}
-
-#[doc(hidden)]
-pub fn set_document_write_conflicts_remaining(remaining: u8) {
-    DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| counter.set(remaining));
-}
-
-#[doc(hidden)]
-pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieError> {
-    let injected = DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| {
-        let remaining = counter.get();
-        if remaining == 0 {
-            return false;
-        }
-        counter.set(remaining.saturating_sub(1));
-        true
-    });
-    if injected {
-        return Err(CassieError::StorageRetryable(
-            "midge write conflict: injected test conflict".to_string(),
-        ));
-    }
-
-    Ok(())
-}
-
 mod capacity;
 mod cardinality_stats;
 mod column_batches;
@@ -296,6 +192,15 @@ pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequ
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
+mod failure_points;
+pub(crate) use failure_points::{
+    check_document_write_conflict_injection, check_document_write_failure_point,
+};
+#[doc(hidden)]
+pub use failure_points::{
+    document_write_failure_point_test_guard, set_document_write_conflicts_remaining,
+    set_document_write_failure_point, DocumentWriteFailurePoint,
+};
 mod fresh_documents;
 mod graphs;
 pub(crate) use graphs::graph_edge_record_from_payload;

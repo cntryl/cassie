@@ -1,0 +1,58 @@
+name: CI Frontend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/ci-frontend.yml
+      - public/openapi.yml
+      - ui/**
+  pull_request:
+    paths:
+      - .github/workflows/ci-frontend.yml
+      - public/openapi.yml
+      - ui/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm ci
+
+      - name: Check generated adapters
+        run: |
+          npm run gen:adapters
+          git diff --exit-code
+
+      - name: UI tests
+        run: npm run test -- --run
+
+      - name: UI lint
+        run: npm run lint
+
+      - name: UI type check
+        run: npm run type-check
+
+      - name: UI build
+        run: npm run build

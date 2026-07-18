@@ -1,0 +1,41 @@
+name: CI Backend
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci"
+
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy
+
+      - name: Cargo fmt check
+        run: cargo fmt --all -- --check
+
+      - name: Cargo clippy pedantic
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
+
+      - name: Cargo build
+        run: cargo build --locked
+
+      - name: Cargo test
+        run: cargo test --locked

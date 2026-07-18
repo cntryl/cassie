@@ -1,4 +1,6 @@
-use super::*;
+#[path = "support/graph.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_restore_a_graph_edge_after_savepoint_rollback() {

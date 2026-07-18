@@ -1,6 +1,9 @@
-use super::{data_dir, with_fallback};
 use cassie::app::{Cassie, ProjectionReplayBatch, ProjectionReplayEvent};
 use cassie::catalog::ProjectionVerificationState;
+
+#[path = "support/metrics.rs"]
+mod support;
+use support::{data_dir, with_fallback};
 
 fn canonical_projection(cassie: &Cassie, projection: &str) -> String {
     cassie

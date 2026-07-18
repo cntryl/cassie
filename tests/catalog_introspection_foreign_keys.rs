@@ -1,6 +1,9 @@
-use super::{data_dir, execute_statement, query_rows, with_fallback};
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
+
+#[path = "support/catalog.rs"]
+mod support;
+use support::{data_dir, execute_statement, query_rows, with_fallback};
 
 struct NamedForeignKeyRows {
     table_constraints: Vec<Vec<Value>>,

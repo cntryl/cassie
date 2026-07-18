@@ -1,55 +1,36 @@
-use cassie::app::{Cassie, CassieSession};
-use cassie::types::Value;
-
-#[path = "support/sql.rs"]
+#[path = "support/graph.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::*;
+#[path = "support/graph_neighbors.rs"]
+mod graph_neighbors;
+use graph_neighbors::neighbor_rows;
 
-#[path = "graph_transaction_semantics/delete.rs"]
-mod delete;
-#[path = "graph_transaction_semantics/expansion.rs"]
-mod expansion;
-#[path = "graph_transaction_semantics/insert.rs"]
-mod insert;
-#[path = "graph_transaction_semantics/neighbors.rs"]
-mod neighbors;
-#[path = "graph_transaction_semantics/savepoint.rs"]
-mod savepoint;
-#[path = "graph_transaction_semantics/shortest_path.rs"]
-mod shortest_path;
-#[path = "graph_transaction_semantics/update.rs"]
-mod update;
-#[path = "graph_transaction_semantics/visibility.rs"]
-mod visibility;
+#[test]
+fn should_read_an_inserted_edge_inside_its_transaction() {
+    // Arrange
+    with_fallback();
+    let path = data_dir("graph_transaction_insert");
+    let runtime = current_thread_runtime();
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let writer = cassie.create_session("writer", None);
+        create_graph(&cassie, &writer);
+        execute(&cassie, &writer, "BEGIN");
 
-fn current_thread_runtime() -> tokio::runtime::Runtime {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime")
-}
+        // Act
+        execute(
+            &cassie,
+            &writer,
+            "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 2)",
+        );
+        let rows = neighbor_rows(&cassie, &writer, "out");
 
-fn create_graph(cassie: &Cassie, session: &CassieSession) {
-    cassie
-        .execute_sql(session, "CREATE GRAPH social", vec![])
-        .expect("create graph");
-}
-
-fn execute(cassie: &Cassie, session: &CassieSession, sql: &str) {
-    cassie
-        .execute_sql(session, sql, vec![])
-        .expect("execute graph statement");
-}
-
-fn neighbor_rows(cassie: &Cassie, session: &CassieSession, direction: &str) -> Vec<Vec<Value>> {
-    cassie
-        .execute_sql(
-            session,
-            &format!(
-                "SELECT node_id, cost FROM graph_neighbors('social', 'person', 'alice', '{direction}', 'knows', 10)"
-            ),
-            vec![],
-        )
-        .expect("read graph neighbors")
-        .rows
+        // Assert
+        assert_eq!(
+            rows,
+            vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
+        );
+        execute(&cassie, &writer, "ROLLBACK");
+        let _ = std::fs::remove_dir_all(path);
+    });
 }

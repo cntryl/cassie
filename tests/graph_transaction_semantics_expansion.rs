@@ -1,4 +1,6 @@
-use super::*;
+#[path = "support/graph.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_expand_across_edges_staged_in_one_transaction() {

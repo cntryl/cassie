@@ -1,4 +1,9 @@
-use super::*;
+#[path = "support/graph.rs"]
+mod support;
+use support::*;
+#[path = "support/graph_neighbors.rs"]
+mod graph_neighbors;
+use graph_neighbors::neighbor_rows;
 
 #[test]
 fn should_merge_both_directions_for_transactional_neighbors() {

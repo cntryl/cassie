@@ -1,13 +1,8 @@
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
-
-#[path = "catalog_introspection/foreign_keys.rs"]
-mod foreign_keys;
-#[path = "catalog_introspection/pgadmin.rs"]
-mod pgadmin;
 
 fn with_fallback() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
@@ -17,14 +12,6 @@ fn with_fallback() {
 
 fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-catalog-{name}-{}", Uuid::new_v4()))
-}
-
-fn execute_statement(cassie: &Cassie, session: &CassieSession, sql: &str) {
-    cassie.execute_sql(session, sql, vec![]).unwrap();
-}
-
-fn query_rows(cassie: &Cassie, session: &CassieSession, sql: &str) -> Vec<Vec<Value>> {
-    cassie.execute_sql(session, sql, vec![]).unwrap().rows
 }
 
 #[test]

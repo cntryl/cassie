@@ -1,23 +1,13 @@
 use cassie::app::Cassie;
 use cassie::catalog::{canonical_relation_name, IndexKind, IndexMeta};
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
 
-#[path = "metrics_runtime/projections.rs"]
-mod projections;
-
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-}
+#[path = "support/metrics.rs"]
+mod support;
+use support::{data_dir, with_fallback};
 
 fn canonical_public_relation(name: &str) -> String {
     canonical_relation_name("postgres", "public", name)
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-metrics-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
 }
 
 struct ReadPathBaseline {

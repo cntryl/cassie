@@ -1,4 +1,6 @@
-use super::*;
+#[path = "support/graph.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_choose_the_lowest_cost_path_from_transactional_edges() {

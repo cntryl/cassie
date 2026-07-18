@@ -4,7 +4,7 @@ use cassie::config::{
 };
 use cassie::types::Value;
 
-#[path = "../support/sql.rs"]
+#[path = "support/sql.rs"]
 mod support;
 
 const COLLECTION: &str = "specialized_retrieval_controls";

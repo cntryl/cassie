@@ -63,9 +63,8 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
         body,
         &QueryCancellationHandle::new(),
     );
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("controlled read must acknowledge cancellation"),
+    let Err(error) = result else {
+        panic!("controlled read must acknowledge cancellation");
     };
     let metrics = cassie.metrics();
 
@@ -83,6 +82,7 @@ fn should_propagate_acknowledged_rest_read_cancellation_without_leaking_resource
 #[test]
 fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
     // Arrange
+    let _guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("mutation");
     let session = cassie.create_session("tester", None);
     cassie
@@ -103,9 +103,8 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
         body,
         &cancellation,
     );
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("cancelled mutation must not publish"),
+    let Err(error) = result else {
+        panic!("cancelled mutation must not publish");
     };
     let result = cassie
         .execute_sql(
@@ -129,6 +128,7 @@ fn should_leave_zero_writes_when_rest_mutation_is_cancelled_before_commit() {
 #[test]
 fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publication() {
     // Arrange
+    let _guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("document-mutation");
     let session = cassie.create_session("tester", None);
     cassie
@@ -148,9 +148,8 @@ fn should_leave_zero_documents_when_rest_document_write_is_cancelled_before_publ
         br#"{"payload":"must-not-commit"}"#,
         &cancellation,
     );
-    let error = match result {
-        Err(error) => error,
-        Ok(_) => panic!("cancelled REST document write must not publish"),
+    let Err(error) = result else {
+        panic!("cancelled REST document write must not publish");
     };
     let rows = cassie
         .execute_sql(

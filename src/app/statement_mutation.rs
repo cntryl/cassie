@@ -134,9 +134,12 @@ impl Cassie {
             .or(fallback_controls.as_ref())
             .expect("provided or fallback query controls");
         for (collection, row_delta) in committed.changed_collections {
-            let _ = self
+            let maintenance = self
                 .midge
                 .refresh_document_maintenance_after_commit(&collection, row_delta);
+            if maintenance.is_ok() {
+                let _ = self.refresh_projection_metadata(&collection);
+            }
             let _ =
                 crate::executor::refresh_rollups_for_source_external(self, &collection, controls);
             let _ = crate::executor::mark_source_projections_stale_external(self, &collection);

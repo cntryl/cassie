@@ -1,8 +1,4 @@
-#![allow(unused_imports, dead_code)]
 use cassie::app::Cassie;
-use cassie::catalog::{IndexKind, IndexMeta};
-use cassie::runtime::RuntimeFeedbackKey;
-use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
@@ -37,83 +33,19 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
-fn feedback_key(sql: &str, collection: &str, schema_epoch: u64) -> RuntimeFeedbackKey {
-    let _ = (sql, collection, schema_epoch);
-    panic!("feedback_key helper is unused in metrics_plan_pgwire");
-}
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(password.len().saturating_add(1));
+    payload.extend_from_slice(password.as_bytes());
+    payload.push(0);
 
-fn register_feedback_collection(cassie: &Cassie, collection: &str) {
-    let schema = Schema {
-        fields: vec![
-            FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
-            FieldSchema {
-                name: "body".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            },
-        ],
-    };
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(collection, schema);
-    cassie
-        .midge
-        .put_document(
-            collection,
-            Some("doc-1".to_string()),
-            serde_json::json!({"title": "alpha", "body": "one"}),
-        )
-        .unwrap();
-    cassie
-        .midge
-        .put_document(
-            collection,
-            Some("doc-2".to_string()),
-            serde_json::json!({"title": "beta", "body": "two"}),
-        )
-        .unwrap();
-}
-
-fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
-    let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
-    config.limits.adaptive_candidate_min = min;
-    config.limits.adaptive_candidate_max = max;
-    config
-}
-
-fn register_adaptive_candidate_collection(cassie: &Cassie, collection: &str) {
-    let schema = Schema {
-        fields: vec![FieldSchema {
-            name: "body".to_string(),
-            data_type: DataType::Text,
-            nullable: true,
-        }],
-    };
-    cassie
-        .midge
-        .create_collection(collection, schema.clone())
-        .unwrap();
-    cassie.register_collection(collection, schema);
-    for (id, body) in [
-        ("doc-1", "alpha shared"),
-        ("doc-2", "alpha shared"),
-        ("doc-3", "alpha shared"),
-    ] {
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some(id.to_string()),
-                serde_json::json!({"body": body}),
-            )
-            .unwrap();
-    }
+    let mut frame = vec![b'p'];
+    frame.extend_from_slice(
+        &i32::try_from(payload.len().saturating_add(4))
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
 }
 
 fn describe_statement_frame(statement_name: &str) -> Vec<u8> {
@@ -309,6 +241,28 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
         assert_eq!(
             auth_frame.0, b'R',
             "startup should return an authentication response"
+        );
+        let auth_code = i32::from_be_bytes(
+            auth_frame.2[..4]
+                .try_into()
+                .expect("authentication request code"),
+        );
+        assert_eq!(
+            auth_code, 3,
+            "configured listener should request a password"
+        );
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
+            .await
+            .expect("password write");
+        tokio::io::AsyncWriteExt::flush(&mut write_half)
+            .await
+            .expect("password flush");
+        let auth_ok = read_auth_frame(&mut reader).await;
+        assert_eq!(auth_ok.0, b'R', "password should return auth response");
+        assert_eq!(
+            i32::from_be_bytes(auth_ok.2[..4].try_into().expect("authentication ok code"),),
+            0,
+            "password authentication should complete"
         );
         let startup_ready = read_until_ready(&mut reader).await;
         assert_eq!(startup_ready, vec![b'I']);

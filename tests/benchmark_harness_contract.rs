@@ -457,7 +457,8 @@ fn should_use_access_family_candidate_metrics_before_result_rows() {
         "query": { "rows_returned_total": 999 },
         "joins": { "left_input_rows_total": 30, "right_input_rows_total": 40 },
         "parallel_aggregation": { "rows": 80 },
-        "graph": { "rows": 90 },
+        "graph": { "rows": 90, "candidates": 95 },
+        "aggregate_acceleration": { "accelerated_segments": 97 },
         "time_series": { "index_entries_scanned": 100, "rows": 50 },
         "read_paths": { "collection_scan_rows": 110, "ordered_rows": 120 },
         "search": { "candidate_count_total": 10 },
@@ -470,13 +471,14 @@ fn should_use_access_family_candidate_metrics_before_result_rows() {
         stress::scoped_candidate_count(&delta, "join"),
         stress::scoped_candidate_count(&delta, "worker_saturation"),
         stress::scoped_candidate_count(&delta, "graph"),
+        stress::scoped_candidate_count(&delta, "column_analytics"),
         stress::scoped_candidate_count(&delta, "time_series"),
         stress::scoped_candidate_count(&delta, "relational_index"),
         stress::scoped_candidate_count(&delta, "mixed_load"),
     ];
 
     // Assert
-    assert_eq!(observed, [70, 80, 90, 100, 230, 290]);
+    assert_eq!(observed, [70, 80, 95, 97, 100, 230, 290]);
 }
 
 #[test]
@@ -560,6 +562,58 @@ fn should_clean_up_shared_tier3_query_fixture() {
     assert!(removes_marker_file);
     assert!(verifies_cleanup);
     assert!(finish_position < cleanup_position);
+}
+
+#[test]
+fn should_require_bounded_result_evidence_from_tier3_specialized_queries() {
+    // Arrange
+    let source = include_str!("../benches/tier3_system_query.rs");
+
+    // Act
+    let evidence_helpers = [
+        "execute_column_evidence",
+        "execute_vector_evidence",
+        "execute_graph_evidence",
+        "assert_query_cleanup",
+        "assert_metric_delta_bounded",
+    ];
+    let missing = evidence_helpers
+        .into_iter()
+        .filter(|helper| !source.contains(helper))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(missing.is_empty(), "missing Tier 3 evidence: {missing:?}");
+    assert!(source.contains("EXPECTED_COLUMN_ROW"));
+    assert!(source.contains("EXPECTED_GRAPH_NODES"));
+    assert!(source.contains("ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES"));
+}
+
+#[test]
+fn should_require_ordered_bounded_cleanup_evidence_from_tier4_portals() {
+    // Arrange
+    let source = include_str!("../benches/support/workloads/pgwire.rs");
+    let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+
+    // Act
+    let evidence_helpers = [
+        "assert_ordered_disjoint_portal_pages",
+        "assert_pgwire_read_bound",
+        "assert_pgwire_query_cleanup",
+    ];
+    let missing = evidence_helpers
+        .into_iter()
+        .filter(|helper| !source.contains(helper))
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert!(missing.is_empty(), "missing Tier 4 evidence: {missing:?}");
+    assert!(source.contains("Some(\"57014\")"));
+    assert!(source.contains("cancelled portal returned no row page"));
+    assert!(source.contains("let per_operation_candidate_bound"));
+    assert!(source.contains("per_operation_candidate_bound.saturating_mul(query_operations)"));
+    assert!(owner.contains("assert_eq!(fetches, 2"));
+    assert!(owner.contains("assert_eq!(cancellations, 1"));
 }
 
 #[test]

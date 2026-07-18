@@ -10,9 +10,12 @@ use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
 use uuid::Uuid;
 
+const ADMIN_PASSWORD: &str = "postgres";
+
 struct JsonHttpResponse {
     status: u16,
     body: serde_json::Value,
+    session_cookie: Option<String>,
 }
 
 impl JsonHttpResponse {
@@ -49,7 +52,7 @@ fn spawn_cassie(data_dir: &Path, rest_port: u16, pgwire_port: u16) -> Child {
         .env("CASSIE_PGWIRE_LISTEN", format!("127.0.0.1:{pgwire_port}"))
         .env("CASSIE_ADMIN_USER", "postgres")
         .env("CASSIE_DEFAULT_DATABASE", "postgres")
-        .env("CASSIE_ADMIN_PASSWORD", "")
+        .env("CASSIE_ADMIN_PASSWORD", ADMIN_PASSWORD)
         .env_remove("CASSIE_ADMIN_PASSWORD_FILE")
         .env("CASSIE_EMBEDDINGS_PROVIDER", "disabled")
         .stdin(Stdio::null())
@@ -66,7 +69,7 @@ async fn wait_for_ready(child: &mut Child, base_url: &str) {
                 panic!("cassie exited before becoming ready: {status}");
             }
 
-            if let Ok(response) = request_json("GET", base_url, "/health", None).await {
+            if let Ok(response) = request_json("GET", base_url, "/health", None, None).await {
                 if response.is_success() && response.body["ready"].as_bool() == Some(true) {
                     assert_eq!(response.body["status"], "ok");
                     break;
@@ -85,6 +88,7 @@ async fn request_json(
     base_url: &str,
     path: &str,
     body: Option<serde_json::Value>,
+    session_cookie: Option<&str>,
 ) -> Result<JsonHttpResponse, String> {
     let (host, port) = parse_localhost_url(base_url)?;
     let mut stream = TcpStream::connect((host.as_str(), port))
@@ -99,8 +103,11 @@ async fn request_json(
     } else {
         "Content-Type: application/json\r\n"
     };
+    let cookie = session_cookie
+        .map(|value| format!("Cookie: {value}\r\n"))
+        .unwrap_or_default();
     let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n{content_type}Content-Length: {}\r\n\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n{cookie}{content_type}Content-Length: {}\r\n\r\n",
         body.len()
     );
 
@@ -147,8 +154,40 @@ fn parse_json_response(raw_response: &[u8]) -> Result<JsonHttpResponse, String> 
         .ok_or_else(|| "response missing status".to_string())?
         .parse::<u16>()
         .map_err(|error| format!("invalid status: {error}"))?;
+    let session_cookie = head.lines().skip(1).find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.eq_ignore_ascii_case("set-cookie").then(|| {
+            value
+                .trim()
+                .split(';')
+                .next()
+                .unwrap_or_default()
+                .to_string()
+        })
+    });
     let body = serde_json::from_str(body).map_err(|error| format!("response json: {error}"))?;
-    Ok(JsonHttpResponse { status, body })
+    Ok(JsonHttpResponse {
+        status,
+        body,
+        session_cookie,
+    })
+}
+
+async fn rest_login(base_url: &str) -> String {
+    let response = request_json(
+        "POST",
+        base_url,
+        "/api/v1/auth/login",
+        Some(json!({
+            "username": "postgres",
+            "password": ADMIN_PASSWORD,
+        })),
+        None,
+    )
+    .await
+    .expect("REST login request");
+    assert!(response.is_success(), "REST login should succeed");
+    response.session_cookie.expect("REST session cookie")
 }
 
 async fn terminate_cleanly(child: &mut Child) {
@@ -195,6 +234,12 @@ async fn write_pg_query(stream: &mut TcpStream, sql: &str) {
     write_pg_tagged(stream, b'Q', &payload).await;
 }
 
+async fn write_pg_password(stream: &mut TcpStream) {
+    let mut payload = Vec::from(ADMIN_PASSWORD.as_bytes());
+    payload.push(0);
+    write_pg_tagged(stream, b'p', &payload).await;
+}
+
 async fn write_pg_terminate(stream: &mut TcpStream) {
     write_pg_tagged(stream, b'X', &[]).await;
 }
@@ -220,7 +265,11 @@ async fn wait_for_pg_ready(stream: &mut TcpStream) {
     loop {
         let (tag, payload) = read_pg_message(stream).await;
         match tag {
-            b'R' => assert_eq!(read_i32(&payload, 0), 0, "pgwire auth should be ok"),
+            b'R' => match read_i32(&payload, 0) {
+                0 => {}
+                3 => write_pg_password(stream).await,
+                code => panic!("unsupported pgwire authentication code: {code}"),
+            },
             b'E' => panic!("pgwire startup error: {}", pg_error_message(&payload)),
             b'Z' => break,
             _ => {}
@@ -323,7 +372,7 @@ fn should_expose_health_liveness_through_the_binary() {
 
         // Act
         wait_for_ready(&mut child, &base_url).await;
-        let liveness = request_json("GET", &base_url, "/liveness", None)
+        let liveness = request_json("GET", &base_url, "/liveness", None, None)
             .await
             .expect("liveness request");
         assert!(liveness.is_success());
@@ -353,6 +402,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
 
         let mut child = spawn_cassie(&path, rest_port, pgwire_port);
         wait_for_ready(&mut child, &base_url).await;
+        let session_cookie = rest_login(&base_url).await;
 
         // Act
         let create = request_json(
@@ -365,6 +415,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
                     {"name": "title", "type": "text"}
                 ]
             })),
+            Some(&session_cookie),
         )
         .await
         .expect("create collection request");
@@ -376,6 +427,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
             &base_url,
             &format!("/api/v1/collections/{collection}/documents"),
             Some(json!({"title": "alpha"})),
+            Some(&session_cookie),
         )
         .await
         .expect("create document request");
@@ -405,6 +457,7 @@ fn should_restart_with_hydrated_catalog_through_the_binary() {
             &base_url,
             &format!("/api/v1/collections/{collection}/documents/{document_id}"),
             None,
+            Some(&session_cookie),
         )
         .await
         .expect("get document request");

@@ -1,12 +1,9 @@
-use std::cell::Cell;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::OnceLock;
 
 static TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
-
-thread_local! {
-    static CANCELLATION_AFTER_ENTRIES: Cell<usize> = const { Cell::new(0) };
-    static CONTROLLED_ENTRIES: Cell<usize> = const { Cell::new(0) };
-}
+static CANCELLATION_AFTER_ENTRIES: AtomicUsize = AtomicUsize::new(0);
+static CONTROLLED_ENTRIES: AtomicUsize = AtomicUsize::new(0);
 
 #[doc(hidden)]
 #[must_use]
@@ -31,20 +28,21 @@ pub fn query_scan_control_test_guard() -> QueryScanControlTestGuard {
 
 #[doc(hidden)]
 pub fn set_query_scan_cancellation_after_entries(entries: Option<usize>) {
-    CONTROLLED_ENTRIES.set(0);
-    CANCELLATION_AFTER_ENTRIES.set(entries.unwrap_or_default());
+    CONTROLLED_ENTRIES.store(0, Ordering::SeqCst);
+    CANCELLATION_AFTER_ENTRIES.store(entries.unwrap_or_default(), Ordering::SeqCst);
 }
 
 pub(super) fn should_cancel_controlled_query_scan() -> bool {
-    let threshold = CANCELLATION_AFTER_ENTRIES.get();
+    let threshold = CANCELLATION_AFTER_ENTRIES.load(Ordering::SeqCst);
     if threshold == 0 {
         return false;
     }
-    let entry = CONTROLLED_ENTRIES.get().saturating_add(1);
-    CONTROLLED_ENTRIES.set(entry);
+    let entry = CONTROLLED_ENTRIES
+        .fetch_add(1, Ordering::SeqCst)
+        .saturating_add(1);
     if entry < threshold {
         return false;
     }
-    CANCELLATION_AFTER_ENTRIES.set(0);
+    CANCELLATION_AFTER_ENTRIES.store(0, Ordering::SeqCst);
     true
 }

@@ -69,6 +69,7 @@ impl CompatibilityServer {
         config.host("127.0.0.1");
         config.port(self.addr.port());
         config.user("postgres");
+        config.password("postgres");
         config.dbname("postgres");
 
         let (client, connection) = config.connect(NoTls).await.expect("connect tokio-postgres");
@@ -179,7 +180,10 @@ fn should_validate_psql_read_model_probe_when_enabled() {
 
     runtime.block_on(async {
         let server = CompatibilityServer::start("psql_probe").await;
-        let connection = format!("postgresql://postgres@127.0.0.1:{}/postgres", server.addr.port());
+        let connection = format!(
+            "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+            server.addr.port()
+        );
 
         // Act
         let output = tokio::task::spawn_blocking(move || {
@@ -272,7 +276,10 @@ datasource db {
         connection_task.abort();
         let _ = connection_task.await;
 
-        let connection = format!("postgresql://postgres@127.0.0.1:{}/postgres", server.addr.port());
+        let connection = format!(
+            "postgresql://postgres:postgres@127.0.0.1:{}/postgres",
+            server.addr.port()
+        );
         let schema_arg = schema_path
             .to_str()
             .expect("Prisma schema path should be UTF-8")

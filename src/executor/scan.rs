@@ -1,9 +1,10 @@
-use crate::app::{Cassie, CassieSession, SessionRowCursor};
+use crate::app::{Cassie, CassieError, CassieSession, SessionRowCursor};
 use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, BatchStream, DEFAULT_BATCH_SIZE};
 use crate::midge::adapter::RowFilter;
 use crate::midge::adapter::{
-    ColumnBatchScanDecision, ColumnBatchScanFilter, DocumentRef, RowDecode,
+    ColumnBatchScanDecision, ColumnBatchScanFilter, ControlledColumnBatchScanRequest, DocumentRef,
+    RowDecode,
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::{DataType, Value, Vector};
@@ -42,7 +43,7 @@ impl BatchStream for ProjectedScanStream<'_> {
         let accounted_documents = self
             .cursor
             .next_accounted_documents(&self.cassie.midge, batch_size, self.controls)
-            .map_err(crate::executor::QueryError::from)?;
+            .map_err(|error| controlled_storage_error(self.cassie, error))?;
         if accounted_documents.is_empty() {
             return Ok(None);
         }
@@ -80,7 +81,7 @@ pub(crate) fn projected_scan_stream<'a>(
             RowDecode::ProjectedHistorical(fields.to_vec()),
             controls,
         )
-        .map_err(crate::executor::QueryError::from)?
+        .map_err(|error| controlled_storage_error(cassie, error))?
     else {
         return Ok(None);
     };
@@ -94,6 +95,19 @@ pub(crate) fn projected_scan_stream<'a>(
         remaining: limit.unwrap_or(usize::MAX),
         previous_page_memory: Vec::new(),
     }))
+}
+
+pub(crate) fn collect_projected_stream_rows(
+    stream: &mut ProjectedScanStream<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, crate::executor::QueryError> {
+    let (rows, memory) = crate::executor::batch::collect_batch_stream_accounted(stream, controls)?;
+    stream
+        .cassie
+        .runtime
+        .record_storage_access("data", false, true);
+    drop(memory);
+    Ok(rows)
 }
 
 pub(crate) fn scan(
@@ -115,7 +129,7 @@ pub(crate) fn scan_limit(
     if cassie.runtime.limits().parallel_scan_workers.max(1) == 1 {
         if let Some(mut cursor) = cassie
             .open_session_row_cursor(session, collection, RowDecode::Full, controls)
-            .map_err(crate::executor::QueryError::from)?
+            .map_err(|error| controlled_storage_error(cassie, error))?
         {
             let schema = cassie.catalog.get_schema(collection);
             let mut remaining = limit.unwrap_or(usize::MAX);
@@ -128,7 +142,7 @@ pub(crate) fn scan_limit(
                         remaining.min(DEFAULT_BATCH_SIZE),
                         controls,
                     )
-                    .map_err(crate::executor::QueryError::from)?;
+                    .map_err(|error| controlled_storage_error(cassie, error))?;
                 if accounted.is_empty() {
                     break;
                 }
@@ -185,100 +199,74 @@ pub(crate) fn scan_limit(
     Ok(batches)
 }
 
+pub(crate) struct ProjectedFilteredScanRequest<'a> {
+    pub(crate) collection: &'a str,
+    pub(crate) fields: &'a [String],
+    pub(crate) limit: Option<usize>,
+    pub(crate) document_filter: Option<&'a ProjectedDocumentFilter>,
+    pub(crate) column_filter: Option<&'a ColumnBatchScanFilter>,
+    pub(crate) controls: &'a QueryExecutionControls,
+}
+
+struct ControlledProjectedFallback {
+    batches: Vec<Vec<DocumentRef>>,
+    memory: Vec<QueryMemoryReservation>,
+}
+
 pub(crate) fn scan_projected_filtered(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    collection: &str,
-    fields: &[String],
-    limit: Option<usize>,
-    document_filter: Option<&ProjectedDocumentFilter>,
-    column_filter: Option<&ColumnBatchScanFilter>,
+    request: &ProjectedFilteredScanRequest<'_>,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    scan_projected_filtered_with_timings(
-        cassie,
-        session,
-        collection,
-        fields,
-        limit,
-        document_filter,
-        column_filter,
-    )
-    .map(|(batches, _)| batches)
+    scan_projected_filtered_with_timings(cassie, session, request).map(|(batches, _)| batches)
 }
 
 pub(crate) fn scan_projected_filtered_with_timings(
     cassie: &Cassie,
     session: Option<&CassieSession>,
-    collection: &str,
-    fields: &[String],
-    limit: Option<usize>,
-    document_filter: Option<&ProjectedDocumentFilter>,
-    column_filter: Option<&ColumnBatchScanFilter>,
+    request: &ProjectedFilteredScanRequest<'_>,
 ) -> Result<(Vec<Batch>, ScanTimings), crate::executor::QueryError> {
-    let storage_filter = document_filter.and_then(row_filter_from_projected_filter);
+    let storage_filter = request
+        .document_filter
+        .and_then(row_filter_from_projected_filter);
     let has_session_changes =
-        session.is_some_and(|session| session.has_collection_changes(collection));
+        session.is_some_and(|session| session.has_collection_changes(request.collection));
     if !has_session_changes {
-        match cassie.midge.scan_column_batch_projected_rows(
-            collection,
-            DEFAULT_BATCH_SIZE,
-            fields,
-            storage_filter.as_ref(),
-            column_filter,
-            limit,
-        ) {
-            Ok(ColumnBatchScanDecision::Hit(outcome)) => {
-                cassie.runtime.record_storage_access("data", false, true);
-                let schema = cassie.catalog.get_schema(collection);
-                let mut timings = ScanTimings {
-                    scan: outcome.timings.scan,
-                    row_decode: outcome.timings.row_decode,
-                };
-                let materialize_started = std::time::Instant::now();
-                let batches = projected_document_batches_to_rows(
-                    cassie,
-                    outcome.batches,
-                    fields,
-                    document_filter,
-                    schema.as_ref(),
-                );
-                timings.scan += materialize_started.elapsed();
-                let rows = batches.iter().map(Vec::len).sum::<usize>();
-                cassie.runtime.record_column_batch_scan(
-                    rows,
-                    outcome.compressed_bytes,
-                    outcome.uncompressed_bytes,
-                    outcome.skipped_segments,
-                    outcome.decoded_columns,
-                );
-                return Ok((batches, timings));
-            }
-            Ok(ColumnBatchScanDecision::Fallback(reason)) => {
-                if has_covering_column_index(cassie, collection, fields) {
-                    if reason.is_decode_fallback() {
-                        cassie
-                            .runtime
-                            .record_column_batch_decode_fallback_with_reason(reason.as_str());
-                    } else {
-                        cassie.runtime.record_column_batch_fallback(reason.as_str());
-                    }
-                }
-            }
-            Err(error) => {
-                cassie.runtime.record_column_batch_fallback("error");
-                cassie.runtime.record_storage_access("data", false, false);
-                return Err(crate::executor::QueryError::General(error.to_string()));
-            }
+        if let Some(result) =
+            try_controlled_column_batch_scan(cassie, request, storage_filter.as_ref())?
+        {
+            return Ok(result);
         }
+    }
+    if let Some(fallback) = controlled_projected_row_fallback(cassie, session, request)? {
+        let schema = cassie.catalog.get_schema(request.collection);
+        let batches = projected_document_batches_to_rows(
+            cassie,
+            fallback.batches,
+            request.fields,
+            request.document_filter,
+            schema.as_ref(),
+        );
+        if has_session_changes
+            && has_covering_column_index(cassie, request.collection, request.fields)
+        {
+            let rows = batches.iter().map(Vec::len).sum::<usize>();
+            cassie
+                .runtime
+                .record_column_batch_row_blob_fallback(rows, "session-changes");
+        }
+        cassie.runtime.record_storage_access("data", false, true);
+        drop(fallback.memory);
+        return Ok((batches, ScanTimings::default()));
     }
     let (document_batches, raw_timings) = cassie
         .scan_projected_documents_batched_for_session_with_filter_and_timings(
             session,
-            collection,
+            request.collection,
             DEFAULT_BATCH_SIZE,
-            fields,
+            request.fields,
             storage_filter.as_ref(),
-            limit,
+            request.limit,
         )
         .map_err(|error| {
             cassie.runtime.record_storage_access("data", false, false);
@@ -291,15 +279,16 @@ pub(crate) fn scan_projected_filtered_with_timings(
         row_decode: raw_timings.row_decode,
     };
     let materialize_started = std::time::Instant::now();
-    let schema = cassie.catalog.get_schema(collection);
+    let schema = cassie.catalog.get_schema(request.collection);
     let batches = projected_document_batches_to_rows(
         cassie,
         document_batches,
-        fields,
-        document_filter,
+        request.fields,
+        request.document_filter,
         schema.as_ref(),
     );
-    if has_session_changes && has_covering_column_index(cassie, collection, fields) {
+    if has_session_changes && has_covering_column_index(cassie, request.collection, request.fields)
+    {
         let rows = batches.iter().map(Vec::len).sum::<usize>();
         cassie
             .runtime
@@ -308,6 +297,153 @@ pub(crate) fn scan_projected_filtered_with_timings(
     timings.scan += materialize_started.elapsed();
 
     Ok((batches, timings))
+}
+
+fn try_controlled_column_batch_scan(
+    cassie: &Cassie,
+    request: &ProjectedFilteredScanRequest<'_>,
+    storage_filter: Option<&RowFilter>,
+) -> Result<Option<(Vec<Batch>, ScanTimings)>, crate::executor::QueryError> {
+    let outcome = cassie.midge.scan_column_batch_projected_rows_controlled(
+        &ControlledColumnBatchScanRequest {
+            collection: request.collection,
+            batch_size: DEFAULT_BATCH_SIZE,
+            fields: request.fields,
+            filter: storage_filter,
+            segment_filter: request.column_filter,
+            limit: request.limit,
+            controls: request.controls,
+        },
+    );
+    match outcome {
+        Ok(ColumnBatchScanDecision::Hit(outcome)) => {
+            let query_memory = outcome.query_memory;
+            cassie.runtime.record_storage_access("data", false, true);
+            let schema = cassie.catalog.get_schema(request.collection);
+            let mut timings = ScanTimings {
+                scan: outcome.timings.scan,
+                row_decode: outcome.timings.row_decode,
+            };
+            let materialize_started = std::time::Instant::now();
+            let batches = projected_document_batches_to_rows(
+                cassie,
+                outcome.batches,
+                request.fields,
+                request.document_filter,
+                schema.as_ref(),
+            );
+            timings.scan += materialize_started.elapsed();
+            let rows = batches.iter().map(Vec::len).sum::<usize>();
+            cassie.runtime.record_column_batch_scan(
+                rows,
+                outcome.compressed_bytes,
+                outcome.uncompressed_bytes,
+                outcome.skipped_segments,
+                outcome.decoded_columns,
+            );
+            drop(query_memory);
+            Ok(Some((batches, timings)))
+        }
+        Ok(ColumnBatchScanDecision::Fallback(reason)) => {
+            record_column_batch_fallback(cassie, request, reason);
+            Ok(None)
+        }
+        Err(
+            error @ (CassieError::QueryCancelled
+            | CassieError::DeadlineExceeded
+            | CassieError::ResourceLimit(_)),
+        ) => Err(crate::executor::QueryError::from(error)),
+        Err(error) => {
+            cassie.runtime.record_column_batch_fallback("error");
+            cassie.runtime.record_storage_access("data", false, false);
+            Err(crate::executor::QueryError::General(error.to_string()))
+        }
+    }
+}
+
+fn record_column_batch_fallback(
+    cassie: &Cassie,
+    request: &ProjectedFilteredScanRequest<'_>,
+    reason: crate::midge::adapter::ColumnBatchScanFallbackReason,
+) {
+    if !has_covering_column_index(cassie, request.collection, request.fields) {
+        return;
+    }
+    if reason.is_decode_fallback() {
+        cassie
+            .runtime
+            .record_column_batch_decode_fallback_with_reason(reason.as_str());
+    } else {
+        cassie.runtime.record_column_batch_fallback(reason.as_str());
+    }
+}
+
+fn controlled_projected_row_fallback(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    request: &ProjectedFilteredScanRequest<'_>,
+) -> Result<Option<ControlledProjectedFallback>, crate::executor::QueryError> {
+    let Some(mut cursor) = cassie
+        .open_session_row_cursor(
+            session,
+            request.collection,
+            RowDecode::ProjectedHistorical(request.fields.to_vec()),
+            request.controls,
+        )
+        .map_err(|error| controlled_storage_error(cassie, error))?
+    else {
+        return Ok(None);
+    };
+    let mut batches = Vec::new();
+    let mut memory = Vec::new();
+    let mut remaining = request.limit.unwrap_or(usize::MAX);
+    while remaining > 0 {
+        let accounted = cursor
+            .next_accounted_documents(
+                &cassie.midge,
+                remaining.min(DEFAULT_BATCH_SIZE),
+                request.controls,
+            )
+            .map_err(|error| controlled_storage_error(cassie, error))?;
+        if accounted.is_empty() {
+            break;
+        }
+        let mut batch = Vec::new();
+        for document in accounted {
+            let (document, reservation) = document.into_parts();
+            batch.push(document);
+            memory.push(reservation);
+        }
+        remaining = remaining.saturating_sub(batch.len());
+        batches.push(batch);
+    }
+    Ok(Some(ControlledProjectedFallback { batches, memory }))
+}
+
+fn controlled_storage_error(cassie: &Cassie, error: CassieError) -> crate::executor::QueryError {
+    if !matches!(
+        error,
+        CassieError::QueryCancelled | CassieError::DeadlineExceeded | CassieError::ResourceLimit(_)
+    ) {
+        cassie.runtime.record_storage_access("data", false, false);
+    }
+    crate::executor::QueryError::from(error)
+}
+
+pub(crate) fn record_streamed_column_batch_fallback(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    projection: (&str, &[String]),
+    rows: usize,
+) {
+    let (collection, fields) = projection;
+    if session.is_some_and(|session| session.has_collection_changes(collection))
+        && has_covering_column_index(cassie, collection, fields)
+    {
+        cassie
+            .runtime
+            .record_column_batch_row_blob_fallback(rows, "session-changes");
+    }
 }
 
 fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String]) -> bool {
@@ -665,14 +801,22 @@ mod tests {
             .expect("put document");
 
         // Act
+        let controls = QueryExecutionControls::from_limits(
+            &cassie.runtime.limits(),
+            std::time::Instant::now(),
+        );
+        let fields = ["title".to_string()];
         let batches = scan_projected_filtered(
             &cassie,
             None,
-            collection,
-            &["title".to_string()],
-            None,
-            None,
-            None,
+            &ProjectedFilteredScanRequest {
+                collection,
+                fields: &fields,
+                limit: None,
+                document_filter: None,
+                column_filter: None,
+                controls: &controls,
+            },
         )
         .expect("scan projected");
 

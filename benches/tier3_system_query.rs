@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 
 use cassie::types::{Value, Vector};
@@ -5,6 +7,7 @@ use cassie::types::{Value, Vector};
 const BENCHMARK: &str = "tier3_system_query";
 const FIXTURE_SCALE: &str = "100k";
 const FIXTURE_ROWS: usize = 100_000;
+const FIXTURE_ROWS_U64: u64 = 100_000;
 const RELATIONAL_SQL: &str = "SELECT id FROM bench_documents WHERE status = $1 AND score >= $2 ORDER BY status DESC, score ASC LIMIT 50";
 const COLUMN_SQL: &str = "SELECT COUNT(*) AS rows, SUM(score) AS score_sum, AVG(score) AS score_avg FROM bench_documents";
 const FULLTEXT_SQL: &str = "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
@@ -13,6 +16,14 @@ const HYBRID_SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
 const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
+const EXPECTED_COLUMN_ROW: [Value; 3] = [
+    Value::Int64(100_000),
+    Value::Int64(4_950_000),
+    Value::Float64(49.5),
+];
+const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
+const COLUMN_SEGMENTS: u64 = 391;
+const GRAPH_READ_BOUND: u64 = 8;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
@@ -146,27 +157,7 @@ fn bench_core_representatives(
         });
     }
 
-    if let Some(case) = cases.column {
-        let case_setup = Instant::now();
-        let preflight = workloads::assert_explain_contains(
-            context,
-            COLUMN_SQL,
-            vec![],
-            "aggregate_acceleration=true",
-        );
-        let case = evidenced(
-            case,
-            context,
-            fixture_setup + case_setup.elapsed(),
-            preflight,
-        );
-        let before = context.cassie.metrics();
-        runner.measure_batch(case, 1, || {
-            workloads::execute_expected_query(context, COLUMN_SQL, vec![], 1)
-        });
-        let after = context.cassie.metrics();
-        assert_metric_increased(&before, &after, "aggregate_acceleration", "scans");
-    }
+    bench_column_representative(runner, context, fixture_setup, cases.column);
 
     if let Some(case) = cases.fulltext {
         let case_setup = Instant::now();
@@ -203,6 +194,53 @@ fn bench_core_representatives(
     );
 }
 
+fn bench_column_representative(
+    runner: &mut stress::CassieStressRunner,
+    context: &workloads::BenchContext,
+    fixture_setup: Duration,
+    case: Option<stress::StressCase>,
+) {
+    let Some(case) = case else {
+        return;
+    };
+    let case_setup = Instant::now();
+    let preflight = workloads::assert_explain_contains(
+        context,
+        COLUMN_SQL,
+        vec![],
+        "aggregate_acceleration=true",
+    );
+    let case = evidenced(
+        case,
+        context,
+        fixture_setup + case_setup.elapsed(),
+        preflight,
+    );
+    let before = context.cassie.metrics();
+    runner.measure_batch(case, 1, || execute_column_evidence(context));
+    let after = context.cassie.metrics();
+    assert_metric_increased(&before, &after, "aggregate_acceleration", "scans");
+    let operations = metric_delta(&before, &after, "aggregate_acceleration", "scans");
+    let segment_bound = operations.saturating_mul(COLUMN_SEGMENTS);
+    assert_metric_delta_bounded(
+        &before,
+        &after,
+        "aggregate_acceleration",
+        "accelerated_segments",
+        segment_bound,
+    );
+    assert_metric_unchanged(
+        &before,
+        &after,
+        "aggregate_acceleration",
+        "row_blob_fallbacks",
+    );
+    assert_metric_unchanged(&before, &after, "column_batches", "fallback_scans");
+    assert_metric_unchanged(&before, &after, "column_batches", "row_blob_fetches");
+    assert_storage_read_bound(&before, &after, segment_bound.saturating_mul(4));
+    assert_query_cleanup(context);
+}
+
 fn bench_vector_exact_representative(
     runner: &mut stress::CassieStressRunner,
     context: &workloads::BenchContext,
@@ -228,13 +266,24 @@ fn bench_vector_exact_representative(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
-        workloads::execute_expected_query(context, VECTOR_SQL, vector_params(), 20)
-    });
+    let expected_rows = RefCell::new(None);
+    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", "count");
     assert_metric_unchanged(&before, &after, "vector", "hnsw_executions");
     assert_metric_unchanged(&before, &after, "vector", "ivfflat_executions");
+    assert_metric_unchanged(&before, &after, "vector", "ann_reads_total");
+    let operations = metric_delta(&before, &after, "vector", "count");
+    let candidate_bound = operations.saturating_mul(FIXTURE_ROWS_U64);
+    assert_metric_delta_bounded(
+        &before,
+        &after,
+        "vector",
+        "candidate_count_total",
+        candidate_bound,
+    );
+    assert_storage_read_bound(&before, &after, candidate_bound.saturating_add(operations));
+    assert_query_cleanup(context);
 }
 
 fn bench_indexed_vector_representatives(
@@ -327,12 +376,36 @@ fn bench_ann_case(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
-        workloads::execute_expected_query(context, VECTOR_SQL, vector_params(), 20)
-    });
+    let expected_rows = RefCell::new(None);
+    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", execution_metric);
     assert_metric_unchanged(&before, &after, "vector", fallback_metric);
+    let operations = metric_delta(&before, &after, "vector", execution_metric);
+    let candidate_bound = operations.saturating_mul(FIXTURE_ROWS_U64);
+    assert_metric_delta_bounded(
+        &before,
+        &after,
+        "vector",
+        "candidate_count_total",
+        candidate_bound,
+    );
+    assert_metric_delta_bounded(
+        &before,
+        &after,
+        "vector",
+        "ann_reads_total",
+        candidate_bound.saturating_mul(2),
+    );
+    assert_metric_delta_bounded(
+        &before,
+        &after,
+        "vector",
+        "candidate_row_fetches_total",
+        candidate_bound,
+    );
+    assert_storage_read_bound(&before, &after, candidate_bound.saturating_mul(2));
+    assert_query_cleanup(context);
 }
 
 fn bench_join_representative(
@@ -388,11 +461,30 @@ fn bench_graph_representative(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
-        workloads::execute_expected_query(context, GRAPH_SQL, graph_params(), 4)
-    });
+    runner.measure_batch(case, 1, || execute_graph_evidence(context));
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "graph", "traversals");
+    let operations = metric_delta(&before, &after, "graph", "traversals");
+    assert_eq!(
+        metric_delta(&before, &after, "graph", "rows"),
+        operations.saturating_mul(
+            u64::try_from(EXPECTED_GRAPH_NODES.len()).expect("graph result count should fit u64"),
+        ),
+        "Tier 3 graph result metrics"
+    );
+    let read_bound = operations.saturating_mul(GRAPH_READ_BOUND);
+    assert_metric_delta_bounded(&before, &after, "graph", "reads", read_bound);
+    assert_metric_delta_bounded(&before, &after, "graph", "candidates", read_bound);
+    assert!(
+        metric(&after, "graph", "last_reads") <= GRAPH_READ_BOUND,
+        "Tier 3 graph final-path read bound"
+    );
+    assert!(
+        metric(&after, "graph", "last_candidates") <= GRAPH_READ_BOUND,
+        "Tier 3 graph final-path candidate bound"
+    );
+    assert_storage_read_bound(&before, &after, read_bound.saturating_mul(2));
+    assert_query_cleanup(context);
 }
 
 fn bench_time_series_representative(
@@ -468,6 +560,88 @@ fn execute_ddl(context: &workloads::BenchContext, sql: &str) {
         .cassie
         .execute_sql(&context.session, sql, vec![])
         .expect("Tier 3 fixture DDL");
+}
+
+fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
+    let result = context
+        .cassie
+        .execute_sql(&context.session, COLUMN_SQL, vec![])
+        .expect("Tier 3 column representative query");
+    assert_eq!(
+        result.rows,
+        vec![EXPECTED_COLUMN_ROW.to_vec()],
+        "Tier 3 column aggregate result"
+    );
+    std::hint::black_box(result.rows.len())
+}
+
+fn execute_vector_evidence(
+    context: &workloads::BenchContext,
+    expected_rows: &RefCell<Option<Vec<Vec<Value>>>>,
+) -> usize {
+    let result = context
+        .cassie
+        .execute_sql(&context.session, VECTOR_SQL, vector_params())
+        .expect("Tier 3 vector representative query");
+    assert_eq!(result.rows.len(), 20, "Tier 3 vector result cardinality");
+    assert_vector_ordering(&result.rows);
+    let mut expected = expected_rows.borrow_mut();
+    if let Some(expected) = expected.as_ref() {
+        assert_eq!(
+            result.rows, *expected,
+            "Tier 3 vector result must remain deterministic"
+        );
+    } else {
+        *expected = Some(result.rows.clone());
+    }
+    std::hint::black_box(result.rows.len())
+}
+
+fn assert_vector_ordering(rows: &[Vec<Value>]) {
+    let ids = rows
+        .iter()
+        .map(|row| {
+            row.first()
+                .and_then(Value::as_str)
+                .expect("Tier 3 vector id")
+        })
+        .collect::<Vec<_>>();
+    let mut unique_ids = ids.clone();
+    unique_ids.sort_unstable();
+    unique_ids.dedup();
+    assert_eq!(unique_ids.len(), ids.len(), "Tier 3 vector ids are unique");
+
+    for pair in rows.windows(2) {
+        let left_id = pair[0][0].as_str().expect("left Tier 3 vector id");
+        let right_id = pair[1][0].as_str().expect("right Tier 3 vector id");
+        let left_distance = pair[0][1].as_f64().expect("left Tier 3 vector distance");
+        let right_distance = pair[1][1].as_f64().expect("right Tier 3 vector distance");
+        assert!(
+            left_distance.is_finite() && left_distance >= 0.0,
+            "left Tier 3 vector distance"
+        );
+        assert!(
+            right_distance.is_finite() && right_distance >= 0.0,
+            "right Tier 3 vector distance"
+        );
+        let ordering = left_distance
+            .total_cmp(&right_distance)
+            .then_with(|| left_id.cmp(right_id));
+        assert_ne!(ordering, Ordering::Greater, "Tier 3 vector ordering");
+    }
+}
+
+fn execute_graph_evidence(context: &workloads::BenchContext) -> usize {
+    let result = context
+        .cassie
+        .execute_sql(&context.session, GRAPH_SQL, graph_params())
+        .expect("Tier 3 graph representative query");
+    let expected = EXPECTED_GRAPH_NODES
+        .into_iter()
+        .map(|node| vec![Value::String(node.to_string())])
+        .collect::<Vec<_>>();
+    assert_eq!(result.rows, expected, "Tier 3 graph expansion result");
+    std::hint::black_box(result.rows.len())
 }
 
 #[derive(Clone, Copy)]
@@ -562,6 +736,15 @@ fn metric(snapshot: &serde_json::Value, section: &str, key: &str) -> u64 {
     snapshot[section][key].as_u64().unwrap_or_default()
 }
 
+fn metric_delta(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    section: &str,
+    key: &str,
+) -> u64 {
+    metric(after, section, key).saturating_sub(metric(before, section, key))
+}
+
 fn assert_metric_increased(
     before: &serde_json::Value,
     after: &serde_json::Value,
@@ -584,5 +767,67 @@ fn assert_metric_unchanged(
         metric(after, section, key),
         metric(before, section, key),
         "Tier 3 metric {section}.{key} reported a fallback"
+    );
+}
+
+fn assert_metric_delta_bounded(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    section: &str,
+    key: &str,
+    maximum: u64,
+) {
+    let observed = metric_delta(before, after, section, key);
+    assert!(
+        observed > 0,
+        "Tier 3 metric {section}.{key} did not publish final-path evidence"
+    );
+    assert!(
+        observed <= maximum,
+        "Tier 3 metric {section}.{key} exceeded its bound: {observed} > {maximum}"
+    );
+}
+
+fn assert_storage_read_bound(before: &serde_json::Value, after: &serde_json::Value, maximum: u64) {
+    let reads = storage_reads(after).saturating_sub(storage_reads(before));
+    assert!(
+        reads <= maximum,
+        "Tier 3 storage reads exceeded their bound: {reads} > {maximum}"
+    );
+}
+
+fn storage_reads(snapshot: &serde_json::Value) -> u64 {
+    ["schema", "data", "temp", "default"]
+        .into_iter()
+        .map(|family| {
+            snapshot["storage"][family]["reads"]
+                .as_u64()
+                .unwrap_or_default()
+        })
+        .sum()
+}
+
+fn assert_query_cleanup(context: &workloads::BenchContext) {
+    let metrics = context.cassie.metrics();
+    assert_eq!(
+        metric(&metrics, "runtime", "running_queries"),
+        0,
+        "Tier 3 query cleanup"
+    );
+    assert_eq!(
+        metric(&metrics, "runtime", "active_operator_workers"),
+        0,
+        "Tier 3 worker cleanup"
+    );
+    assert_eq!(
+        metric(&metrics, "query", "current_accounted_memory_bytes"),
+        0,
+        "Tier 3 memory cleanup"
+    );
+    assert!(
+        metric(&metrics, "query", "peak_accounted_memory_bytes")
+            <= u64::try_from(workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES)
+                .expect("Tier 3 memory budget should fit u64"),
+        "Tier 3 peak query memory bound"
     );
 }

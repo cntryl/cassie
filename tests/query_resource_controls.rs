@@ -55,6 +55,7 @@ fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
 #[test]
 fn should_reject_unbounded_scan_without_partial_rows_given_low_memory_budget() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("low-scan-budget", 512);
     let session = cassie.create_session("tester", None);
     cassie
@@ -95,6 +96,7 @@ fn should_reject_unbounded_scan_without_partial_rows_given_low_memory_budget() {
 #[test]
 fn should_stop_limit_scan_before_low_memory_budget_is_exhausted() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("limit-early-stop", 512);
     let session = cassie.create_session("tester", None);
     cassie
@@ -134,6 +136,7 @@ fn should_stop_limit_scan_before_low_memory_budget_is_exhausted() {
 #[test]
 fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("exists-early-stop", 768);
     let session = cassie.create_session("tester", None);
     cassie
@@ -180,6 +183,7 @@ fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
 #[test]
 fn should_preserve_transaction_overlay_visibility_under_query_controls() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("transaction-overlay", 8 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
@@ -225,6 +229,7 @@ fn should_preserve_transaction_overlay_visibility_under_query_controls() {
 #[test]
 fn should_bound_native_reads_for_limit_with_transaction_overlay() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("overlay-limit", 16 * 1_024 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie
@@ -276,6 +281,7 @@ fn should_bound_native_reads_for_limit_with_transaction_overlay() {
 #[test]
 fn should_report_join_budget_failure_with_program_limit_sqlstate() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let path = data_dir("join-sqlstate");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
@@ -343,6 +349,7 @@ fn should_report_join_budget_failure_with_program_limit_sqlstate() {
 #[test]
 fn should_stop_cross_join_after_limit_without_materializing_both_inputs() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("cross-join-limit", 8 * 1_024);
     let session = cassie.create_session("tester", None);
     cassie

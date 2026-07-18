@@ -12,7 +12,8 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 - Startup negotiates protocol version, user, database, and supported parameters.
 - Password authentication uses Cassie roles and stored password hashes.
 - Each authenticated connection is bound to one existing database.
-- TLS behavior is controlled by Cassie listener configuration.
+- Passwordless bootstrap is limited to embedded use without a network listener. Pgwire and REST listener startup reject an empty bootstrap password or a persisted passwordless bootstrap role.
+- The default bootstrap password is loopback-only. A non-loopback pgwire listener requires a non-default credential and TLS; non-loopback REST requires its configured certificate and key.
 - Connection admission is bounded and failures are reported using PostgreSQL-style error responses.
 
 ## Session Model
@@ -31,7 +32,7 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 | Extended query | Parse, bind, describe, execute, close, flush, and sync |
 | Parameters | Text and supported binary encodings with deterministic type validation |
 | Prepared statements | Named and unnamed statements scoped to the connection |
-| Portals | Named and unnamed portals with `max_rows`, suspension, resume, and cleanup |
+| Portals | Named and unnamed portals with per-execute `max_rows`, suspension, resume, cumulative result and retained-memory limits, and cleanup |
 | Cancellation | Backend key data plus PostgreSQL cancel requests using process ID and secret |
 | Copy ingestion | Supported CSV `COPY FROM STDIN` workflow |
 
@@ -46,7 +47,9 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 
 Cassie emits PostgreSQL error responses with SQLSTATE codes where a stable mapping exists. Syntax errors use `42601`, unsupported features use `0A000`, undefined objects use their PostgreSQL-family codes, query cancellation and deadlines use `57014`, resource-limit failures use `54000`, and connection admission uses `53300`.
 
-A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources.
+A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A cancelled resume returns `57014` and no partial row page.
+
+Portal `max_rows` controls one execute response; it does not reset Cassie's query limits. Result rows are counted cumulatively across resumes, and retained memory is shared across all live portals on the connection. An execute or bind that would exceed a cumulative limit returns `54000` atomically. Closing a portal or statement, rolling back, or disconnecting releases its state.
 
 ## Catalog Contract
 

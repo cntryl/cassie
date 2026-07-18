@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 const BENCHMARK: &str = "tier4_integration_pgwire";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
@@ -161,32 +163,66 @@ impl PgwireBenchmark<'_> {
     }
 
     fn portal(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
+        let before = self.fixture.cassie.metrics();
+        let completed_fetches = Cell::new(0_u64);
         runner.record_external(
             evidenced(case, self.setup_time_ns, 20, self.fixture),
             |sample_duration| {
                 transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
-                        self.runtime
-                            .block_on(workloads::pgwire_transport_portal_fetch(self.transport)),
-                    )
-                    .expect("portal fetch count should fit u64")
+                    let fetches = self
+                        .runtime
+                        .block_on(workloads::pgwire_transport_portal_fetch(self.transport));
+                    assert_eq!(fetches, 2, "portal operation count");
+                    let fetches =
+                        u64::try_from(fetches).expect("portal fetch count should fit u64");
+                    completed_fetches.set(
+                        completed_fetches
+                            .get()
+                            .checked_add(fetches)
+                            .expect("portal fetch count should not overflow"),
+                    );
+                    fetches
                 })
             },
         );
+        let completed_fetches = completed_fetches.get();
+        assert!(completed_fetches > 0, "portal evidence operation count");
+        assert_eq!(completed_fetches % 2, 0, "portal fetch pairs");
+        workloads::assert_pgwire_transport_evidence(self.transport, &before, completed_fetches / 2);
     }
 
     fn cancellation(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
+        let before = self.fixture.cassie.metrics();
+        let completed_cancellations = Cell::new(0_u64);
         runner.record_external(
             evidenced(case, self.setup_time_ns, 1, self.fixture),
             |sample_duration| {
                 transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
-                        self.runtime
-                            .block_on(workloads::pgwire_transport_cancellation(self.transport)),
-                    )
-                    .expect("cancellation count should fit u64")
+                    let cancellations = self
+                        .runtime
+                        .block_on(workloads::pgwire_transport_cancellation(self.transport));
+                    assert_eq!(cancellations, 1, "cancellation operation count");
+                    let cancellations =
+                        u64::try_from(cancellations).expect("cancellation count should fit u64");
+                    completed_cancellations.set(
+                        completed_cancellations
+                            .get()
+                            .checked_add(cancellations)
+                            .expect("cancellation count should not overflow"),
+                    );
+                    cancellations
                 })
             },
+        );
+        let completed_cancellations = completed_cancellations.get();
+        assert!(
+            completed_cancellations > 0,
+            "cancellation evidence operation count"
+        );
+        workloads::assert_pgwire_transport_evidence(
+            self.transport,
+            &before,
+            completed_cancellations,
         );
     }
 

@@ -370,6 +370,10 @@ pub struct ReadPathSnapshot {
 pub struct GraphSnapshot {
     pub traversals: u64,
     pub rows: u64,
+    pub reads: u64,
+    pub candidates: u64,
+    pub last_reads: u64,
+    pub last_candidates: u64,
     pub max_depth: u64,
     pub last_graph: String,
     pub last_strategy: String,

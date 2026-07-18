@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::types::Value;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum IndexKind {
@@ -31,12 +33,14 @@ pub struct IndexMeta {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchMetadata {
+    pub metadata_format_version: u32,
+    pub summary_format_version: u32,
     pub collection: String,
     pub index_name: String,
-    pub schema_epoch: u64,
+    pub schema_version: u32,
     /// Durable collection generation represented by the batch payloads.
-    #[serde(default)]
     pub built_generation: u64,
+    pub source_row_count: usize,
     pub fields: Vec<String>,
     pub segment_size: usize,
     pub segments: Vec<ColumnBatchSegmentMeta>,
@@ -51,18 +55,32 @@ pub struct ColumnBatchSegmentMeta {
     pub null_bitmap_available: bool,
     pub encoding_version: u32,
     pub codec: ColumnBatchCodecMeta,
-    #[serde(default)]
+    pub summary_checksum: String,
     pub summaries: std::collections::BTreeMap<String, ColumnBatchFieldSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchFieldSummary {
     pub non_null_count: usize,
-    pub min: Option<serde_json::Value>,
-    pub max: Option<serde_json::Value>,
-    pub sum: Option<f64>,
-    pub all_int: bool,
+    pub numeric_count: usize,
+    pub min: Option<Value>,
+    pub max: Option<Value>,
+    pub sum: ColumnBatchNumericSum,
+    pub integer_total: Option<i128>,
+    pub integer_prefix_min: Option<i128>,
+    pub integer_prefix_max: Option<i128>,
+    pub avg_sum: Option<f64>,
     pub distinct_hint: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", content = "value", rename_all = "snake_case")]
+pub enum ColumnBatchNumericSum {
+    Empty,
+    FloatEmpty,
+    Integer(i64),
+    Float(f64),
+    IntegerOverflow,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

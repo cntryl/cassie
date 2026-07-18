@@ -4,12 +4,16 @@ use super::{
     LogicalPlan, QueryError, QueryExecutionControls, QuerySource, RowDecode, Value,
 };
 use crate::midge::adapter::time_series_indexes::{
-    TimeSeriesDocumentScanOutcome, TimeSeriesIndexScanOutcome,
+    ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesIndexScanOutcome,
 };
 use crate::midge::adapter::DocumentRef;
+use crate::runtime::QueryMemoryReservation;
 use time::{Duration as TimeDuration, OffsetDateTime};
 
 use super::projected_read::json_to_query_value;
+
+#[path = "time_series_read/memory.rs"]
+mod memory;
 
 pub(super) fn try_execute_time_series_read(
     cassie: &Cassie,
@@ -55,6 +59,7 @@ pub(super) fn try_execute_time_series_read(
     );
     let (lower_bucket_seconds, upper_bucket_seconds) = time_series_bucket_bounds(&index, &range);
     let scan_request = TimeSeriesScanRequest {
+        session,
         collection: &spec.collection,
         scan_fields: &scan_fields,
         index: &index,
@@ -63,10 +68,7 @@ pub(super) fn try_execute_time_series_read(
         lower_bucket_seconds,
         upper_bucket_seconds,
     };
-    let (documents, index_entries_scanned, row_point_fetches, indexed_total_buckets) =
-        time_series_documents(cassie, &scan_request)?;
-    let total_buckets = indexed_total_buckets
-        .unwrap_or_else(|| bucket_keys(documents.as_slice(), &timestamp_field, &index).len());
+    let selected = time_series_documents(cassie, &scan_request, controls)?;
     let context = TimeSeriesExecutionContext {
         cassie,
         session,
@@ -79,13 +81,7 @@ pub(super) fn try_execute_time_series_read(
         index: &index,
         schema: schema.as_ref(),
     };
-    execute_time_series_rows(
-        documents,
-        total_buckets,
-        index_entries_scanned,
-        row_point_fetches,
-        &context,
-    )
+    execute_time_series_rows(selected, &context)
 }
 
 struct TimeSeriesExecutionContext<'a> {
@@ -102,53 +98,42 @@ struct TimeSeriesExecutionContext<'a> {
 }
 
 fn execute_time_series_rows(
-    mut documents: Vec<DocumentRef>,
-    total_buckets: usize,
-    index_entries_scanned: usize,
-    row_point_fetches: usize,
+    selected: TimeSeriesDocuments,
     context: &TimeSeriesExecutionContext<'_>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let TimeSeriesDocuments {
+        mut documents,
+        index_entries_scanned,
+        row_point_fetches,
+        indexed_total_buckets,
+        bucket_native,
+        fallback_reason,
+        memory: _source_memory,
+    } = selected;
     check_timeout(context.controls)?;
-    documents.sort_by(|left, right| {
-        timestamp_sort_key(&left.payload, context.timestamp_field)
-            .cmp(&timestamp_sort_key(&right.payload, context.timestamp_field))
-            .then_with(|| left.id.cmp(&right.id))
+    sort_time_series_documents(&mut documents, context.timestamp_field);
+    let total_buckets = indexed_total_buckets.unwrap_or_else(|| {
+        count_document_buckets(&documents, context.timestamp_field, context.index)
     });
-    let mut rows = Vec::with_capacity(documents.len());
-    for document in documents {
-        check_timeout(context.controls)?;
-        rows.push(document_to_row(
-            document,
-            context.scan_fields,
-            context.schema,
-        ));
-    }
+    let accounted = memory::document_batches(
+        documents,
+        context.scan_fields,
+        context.schema,
+        context.controls,
+    )?;
+    let batches = accounted.batches;
+    let batch_memory = accounted.memory;
     let before_filter_buckets =
-        row_bucket_keys(rows.as_slice(), context.timestamp_field, context.index).len();
-    let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-    ensure_query_memory_budget(context.controls, &batches)?;
-
-    if let Some(filter_expr) = &context.plan.filter {
-        batches = filter::filter_batches(
-            batches,
-            filter_expr,
-            context.params,
-            None,
-            context.user_functions,
-            context.session,
-        )?;
-        ensure_query_memory_budget(context.controls, &batches)?;
-    }
-
-    rows = batch::flatten_batches(batches);
+        count_batch_row_buckets(&batches, context.timestamp_field, context.index);
+    let (mut batches, mut batch_memory) =
+        filter_time_series_batches(batches, batch_memory, context)?;
     let (scanned_buckets, skipped_buckets) = time_series_bucket_metrics(
-        rows.as_slice(),
+        &batches,
         context.timestamp_field,
         context.index,
         total_buckets,
         before_filter_buckets,
     );
-    let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
     if !context.plan.order.is_empty() {
         let eval = sort::EvalInput {
             order: &context.plan.order,
@@ -158,31 +143,119 @@ fn execute_time_series_rows(
             user_functions: context.user_functions,
             session: context.session,
         };
-        batches = sort::sort_batches_with_controls(batches, &eval, context.controls)?;
-        ensure_query_memory_budget(context.controls, &batches)?;
+        let cloned_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
+        let sorted_batches =
+            sort::sort_batches_with_controls(batches.clone(), &eval, context.controls)?;
+        let replacement_memory = ensure_query_memory_budget(context.controls, &sorted_batches)?;
+        drop(cloned_input_memory);
+        drop(batch_memory);
+        batches = sorted_batches;
+        batch_memory = replacement_memory;
     }
-    batches = projection::project_batches(
-        batches,
+    let cloned_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
+    let projected_batches = projection::project_batches(
+        batches.clone(),
         &context.plan.projection,
         context.params,
         None,
         context.user_functions,
         context.session,
     )?;
-    ensure_query_memory_budget(context.controls, &batches)?;
+    let replacement_memory = ensure_query_memory_budget(context.controls, &projected_batches)?;
+    drop(cloned_input_memory);
+    drop(batch_memory);
+    batches = projected_batches;
+    batch_memory = replacement_memory;
     if let Some((offset, limit)) = batch_window(context.plan) {
-        batches = batch::slice_batches(batches, offset, limit);
+        let moved_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
+        let sliced_batches = batch::slice_batches(batches, offset, limit);
+        let replacement_memory = ensure_query_memory_budget(context.controls, &sliced_batches)?;
+        drop(moved_input_memory);
+        drop(batch_memory);
+        batches = sliced_batches;
+        batch_memory = replacement_memory;
     }
-    let rows = batch::flatten_batches(batches);
+    finish_time_series_rows(
+        batches,
+        batch_memory,
+        context,
+        &TimeSeriesReadMetrics {
+            scanned_buckets,
+            skipped_buckets,
+            index_entries_scanned,
+            row_point_fetches,
+            bucket_native,
+            fallback_reason,
+        },
+    )
+}
+
+struct TimeSeriesReadMetrics {
+    scanned_buckets: usize,
+    skipped_buckets: usize,
+    index_entries_scanned: usize,
+    row_point_fetches: usize,
+    bucket_native: bool,
+    fallback_reason: Option<&'static str>,
+}
+
+fn finish_time_series_rows(
+    batches: Vec<batch::Batch>,
+    batch_memory: QueryMemoryReservation,
+    context: &TimeSeriesExecutionContext<'_>,
+    metrics: &TimeSeriesReadMetrics,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let (rows, _flatten_memory) = memory::finalize_batches(batches, context.controls)?;
+    drop(batch_memory);
+    if metrics.bucket_native {
+        context
+            .cassie
+            .runtime
+            .record_time_series_bucket_native_hit();
+    }
+    if let Some(reason) = metrics.fallback_reason {
+        context.cassie.runtime.record_time_series_fallback(reason);
+    }
     context.cassie.runtime.record_time_series_scan(
         &context.index.name,
         rows.len(),
-        scanned_buckets,
-        skipped_buckets,
-        index_entries_scanned,
-        row_point_fetches,
+        metrics.scanned_buckets,
+        metrics.skipped_buckets,
+        metrics.index_entries_scanned,
+        metrics.row_point_fetches,
     );
     Ok(Some(rows))
+}
+
+fn sort_time_series_documents(documents: &mut [DocumentRef], timestamp_field: &str) {
+    documents.sort_unstable_by(|left, right| {
+        timestamp_sort_key(&left.payload, timestamp_field)
+            .cmp(timestamp_sort_key(&right.payload, timestamp_field))
+            .then_with(|| left.id.cmp(&right.id))
+    });
+}
+
+fn filter_time_series_batches(
+    batches: Vec<batch::Batch>,
+    batch_memory: QueryMemoryReservation,
+    context: &TimeSeriesExecutionContext<'_>,
+) -> Result<(Vec<batch::Batch>, QueryMemoryReservation), QueryError> {
+    let Some(filter_expr) = &context.plan.filter else {
+        return Ok((batches, batch_memory));
+    };
+    let cloned_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
+    let filtered_batches = filter::filter_batches(
+        batches.clone(),
+        filter_expr,
+        context.params,
+        None,
+        context.user_functions,
+        context.session,
+    )?;
+    let replacement_memory = ensure_query_memory_budget(context.controls, &filtered_batches)?;
+    drop(cloned_input_memory);
+    drop(batch_memory);
+    Ok((filtered_batches, replacement_memory))
 }
 
 fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> Vec<String> {
@@ -197,13 +270,13 @@ fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> 
 }
 
 fn time_series_bucket_metrics(
-    rows: &[BatchRow],
+    batches: &[batch::Batch],
     timestamp_field: &str,
     index: &catalog::IndexMeta,
     total_buckets: usize,
     before_filter_buckets: usize,
 ) -> (usize, usize) {
-    let scanned_buckets = row_bucket_keys(rows, timestamp_field, index).len();
+    let scanned_buckets = count_batch_row_buckets(batches, timestamp_field, index);
     let skipped_buckets = total_buckets
         .max(before_filter_buckets)
         .saturating_sub(scanned_buckets);
@@ -211,6 +284,7 @@ fn time_series_bucket_metrics(
 }
 
 struct TimeSeriesScanRequest<'a> {
+    session: Option<&'a CassieSession>,
     collection: &'a str,
     scan_fields: &'a [String],
     index: &'a catalog::IndexMeta,
@@ -220,73 +294,134 @@ struct TimeSeriesScanRequest<'a> {
     upper_bucket_seconds: Option<i64>,
 }
 
+struct TimeSeriesDocuments {
+    documents: Vec<DocumentRef>,
+    index_entries_scanned: usize,
+    row_point_fetches: usize,
+    indexed_total_buckets: Option<usize>,
+    bucket_native: bool,
+    fallback_reason: Option<&'static str>,
+    memory: Vec<QueryMemoryReservation>,
+}
+
 fn time_series_documents(
     cassie: &Cassie,
     request: &TimeSeriesScanRequest<'_>,
-) -> Result<(Vec<DocumentRef>, usize, usize, Option<usize>), QueryError> {
-    match cassie.midge.scan_time_series_index(
+    controls: &QueryExecutionControls,
+) -> Result<TimeSeriesDocuments, QueryError> {
+    match cassie.midge.scan_time_series_index_controlled(
         request.index,
         request.partition_key,
         request.lower_bucket_seconds,
         request.upper_bucket_seconds,
+        controls,
     ) {
-        Ok(TimeSeriesIndexScanOutcome::Native(report)) => {
-            let indexed_total_buckets = Some(hit_bucket_keys(report.hits.as_slice()).len());
+        Ok(ControlledTimeSeriesIndexScanOutcome::Native(report)) => {
+            let indexed_total_buckets = Some(hit_bucket_count(report.hits.as_slice()));
             let hits = prune_hits_for_range(report.hits, request.range);
             if hits.is_empty() {
-                cassie.runtime.record_time_series_bucket_native_hit();
-                return Ok((Vec::new(), report.entries_scanned, 0, indexed_total_buckets));
+                return Ok(TimeSeriesDocuments {
+                    documents: Vec::new(),
+                    index_entries_scanned: report.entries_scanned,
+                    row_point_fetches: 0,
+                    indexed_total_buckets,
+                    bucket_native: true,
+                    fallback_reason: None,
+                    memory: report.memory,
+                });
             }
             let documents = cassie
                 .midge
-                .scan_time_series_hit_documents(request.index, &hits, request.scan_fields)
-                .map_err(|error| QueryError::General(error.to_string()))?;
+                .scan_time_series_hit_documents_controlled(
+                    request.index,
+                    &hits,
+                    request.scan_fields,
+                    controls,
+                )
+                .map_err(QueryError::from)?;
             match documents {
-                TimeSeriesDocumentScanOutcome::Native(documents)
+                ControlledTimeSeriesDocumentScanOutcome::Native(documents)
                     if cassie
                         .midge
                         .collection_generation(request.collection)
-                        .map_err(|error| QueryError::General(error.to_string()))?
+                        .map_err(QueryError::from)?
                         == report.generation =>
                 {
-                    cassie.runtime.record_time_series_bucket_native_hit();
-                    Ok((
-                        documents,
-                        report.entries_scanned,
-                        hits.len(),
+                    let mut memory = report.memory;
+                    memory.push(documents.memory);
+                    Ok(TimeSeriesDocuments {
+                        documents: documents.documents,
+                        index_entries_scanned: report.entries_scanned,
+                        row_point_fetches: hits.len(),
                         indexed_total_buckets,
-                    ))
+                        bucket_native: true,
+                        fallback_reason: None,
+                        memory,
+                    })
                 }
-                TimeSeriesDocumentScanOutcome::Native(_) => {
-                    cassie
-                        .runtime
-                        .record_time_series_fallback("stale-bucket-metadata");
-                    scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                        .map(|documents| (documents, report.entries_scanned, 0, None))
-                }
-                TimeSeriesDocumentScanOutcome::Fallback(reason) => {
-                    cassie.runtime.record_time_series_fallback(reason);
-                    scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                        .map(|documents| (documents, report.entries_scanned, 0, None))
+                ControlledTimeSeriesDocumentScanOutcome::Native(_) => scan_row_backed_documents(
+                    cassie,
+                    request.collection,
+                    request.scan_fields,
+                    request.session,
+                    controls,
+                    report.entries_scanned,
+                    "stale-bucket-metadata",
+                ),
+                ControlledTimeSeriesDocumentScanOutcome::Fallback(reason) => {
+                    scan_row_backed_documents(
+                        cassie,
+                        request.collection,
+                        request.scan_fields,
+                        request.session,
+                        controls,
+                        report.entries_scanned,
+                        reason,
+                    )
                 }
             }
         }
-        Ok(TimeSeriesIndexScanOutcome::Fallback(reason)) => {
-            cassie.runtime.record_time_series_fallback(reason);
-            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                .map(|documents| (documents, 0, 0, None))
-        }
-        Err(error) => {
-            let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {
-                "unsupported-bucket-width"
-            } else {
-                "corrupt-bucket-metadata"
-            };
-            cassie.runtime.record_time_series_fallback(reason);
-            scan_row_backed_documents(cassie, request.collection, request.scan_fields)
-                .map(|documents| (documents, 0, 0, None))
-        }
+        Ok(ControlledTimeSeriesIndexScanOutcome::Fallback(reason)) => scan_row_backed_documents(
+            cassie,
+            request.collection,
+            request.scan_fields,
+            request.session,
+            controls,
+            0,
+            reason,
+        ),
+        Err(error) => time_series_error_fallback(cassie, request, controls, error),
     }
+}
+
+fn time_series_error_fallback(
+    cassie: &Cassie,
+    request: &TimeSeriesScanRequest<'_>,
+    controls: &QueryExecutionControls,
+    error: crate::app::CassieError,
+) -> Result<TimeSeriesDocuments, QueryError> {
+    if matches!(
+        error,
+        crate::app::CassieError::QueryCancelled
+            | crate::app::CassieError::DeadlineExceeded
+            | crate::app::CassieError::ResourceLimit(_)
+    ) {
+        return Err(QueryError::from(error));
+    }
+    let reason = if matches!(error, crate::app::CassieError::Unsupported(_)) {
+        "unsupported-bucket-width"
+    } else {
+        "corrupt-bucket-metadata"
+    };
+    scan_row_backed_documents(
+        cassie,
+        request.collection,
+        request.scan_fields,
+        request.session,
+        controls,
+        0,
+        reason,
+    )
 }
 
 fn batch_window(plan: &LogicalPlan) -> Option<(usize, Option<usize>)> {
@@ -597,24 +732,67 @@ fn min_bound_exclusive(
     }
 }
 
-fn hit_bucket_keys(
+fn hit_bucket_count(
     hits: &[crate::midge::adapter::time_series_indexes::TimeSeriesIndexScanHit],
-) -> std::collections::BTreeSet<String> {
-    hits.iter().map(|hit| hit.bucket_key.clone()).collect()
+) -> usize {
+    hits.iter()
+        .map(|hit| hit.bucket_key.as_str())
+        .fold((None, 0usize), |(previous, count), bucket| {
+            if previous == Some(bucket) {
+                (previous, count)
+            } else {
+                (Some(bucket), count.saturating_add(1))
+            }
+        })
+        .1
 }
 
 fn scan_row_backed_documents(
     cassie: &Cassie,
     collection: &str,
     scan_fields: &[String],
-) -> Result<Vec<DocumentRef>, QueryError> {
-    cassie
-        .midge
-        .scan_rows_for_rebuild(
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+    index_entries_scanned: usize,
+    fallback_reason: &'static str,
+) -> Result<TimeSeriesDocuments, QueryError> {
+    let Some(mut cursor) = cassie
+        .open_session_row_cursor(
+            session,
             collection,
             RowDecode::ProjectedHistorical(scan_fields.to_vec()),
+            controls,
         )
-        .map_err(|error| QueryError::General(error.to_string()))
+        .map_err(QueryError::from)?
+    else {
+        return Err(QueryError::General(
+            "time-series row fallback requires row storage".to_string(),
+        ));
+    };
+    let mut documents = Vec::new();
+    let mut memory = Vec::new();
+    loop {
+        let accounted = cursor
+            .next_accounted_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, controls)
+            .map_err(QueryError::from)?;
+        if accounted.is_empty() {
+            break;
+        }
+        for document in accounted {
+            let (document, reservation) = document.into_parts();
+            documents.push(document);
+            memory.push(reservation);
+        }
+    }
+    Ok(TimeSeriesDocuments {
+        documents,
+        index_entries_scanned,
+        row_point_fetches: 0,
+        indexed_total_buckets: None,
+        bucket_native: false,
+        fallback_reason: Some(fallback_reason),
+        memory,
+    })
 }
 
 fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {
@@ -684,59 +862,83 @@ fn payload_field<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a 
     })
 }
 
-fn timestamp_sort_key(payload: &serde_json::Value, field: &str) -> String {
+fn timestamp_sort_key<'a>(payload: &'a serde_json::Value, field: &str) -> &'a str {
     payload_field(payload, field)
-        .and_then(|value| value.as_str().map(ToString::to_string))
+        .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
 }
 
-fn bucket_keys(
+fn count_document_buckets(
     documents: &[DocumentRef],
     timestamp_field: &str,
     index: &catalog::IndexMeta,
-) -> std::collections::BTreeSet<String> {
-    documents
-        .iter()
-        .filter_map(|document| {
-            payload_field(&document.payload, timestamp_field)
-                .and_then(|value| value.as_str())
-                .map(|value| bucket_key(value, index))
-        })
-        .collect()
+) -> usize {
+    count_ordered_buckets(
+        documents.iter().filter_map(|document| {
+            payload_field(&document.payload, timestamp_field).and_then(serde_json::Value::as_str)
+        }),
+        bucket_precision(index),
+    )
 }
 
-fn row_bucket_keys(
-    rows: &[BatchRow],
+fn count_batch_row_buckets(
+    batches: &[batch::Batch],
     timestamp_field: &str,
     index: &catalog::IndexMeta,
-) -> std::collections::BTreeSet<String> {
-    rows.iter()
-        .filter_map(|row| {
+) -> usize {
+    count_ordered_buckets(
+        batches.iter().flatten().filter_map(|row| {
             row.get(timestamp_field).and_then(|value| match value {
-                Value::String(value) => Some(bucket_key(value, index)),
+                Value::String(value) => Some(value.as_str()),
                 _ => None,
             })
-        })
-        .collect()
+        }),
+        bucket_precision(index),
+    )
 }
 
-fn bucket_key(timestamp: &str, index: &catalog::IndexMeta) -> String {
-    let partition = index
-        .options
-        .get("partition_by")
-        .cloned()
-        .unwrap_or_else(|| "none".to_string());
-    let width = index
-        .options
-        .get("bucket_width")
-        .map(|value| value.to_ascii_lowercase())
-        .unwrap_or_default();
-    let time_part = if width.contains("hour") {
-        timestamp.get(..13).unwrap_or(timestamp)
-    } else if width.contains("day") {
-        timestamp.get(..10).unwrap_or(timestamp)
-    } else {
-        timestamp
+#[derive(Clone, Copy)]
+enum BucketPrecision {
+    Hour,
+    Day,
+    Exact,
+}
+
+fn bucket_precision(index: &catalog::IndexMeta) -> BucketPrecision {
+    let Some(width) = index.options.get("bucket_width") else {
+        return BucketPrecision::Exact;
     };
-    format!("{partition}:{time_part}")
+    if width
+        .split_whitespace()
+        .any(|part| part.eq_ignore_ascii_case("hour") || part.eq_ignore_ascii_case("hours"))
+    {
+        BucketPrecision::Hour
+    } else if width
+        .split_whitespace()
+        .any(|part| part.eq_ignore_ascii_case("day") || part.eq_ignore_ascii_case("days"))
+    {
+        BucketPrecision::Day
+    } else {
+        BucketPrecision::Exact
+    }
+}
+
+fn count_ordered_buckets<'a>(
+    timestamps: impl Iterator<Item = &'a str>,
+    precision: BucketPrecision,
+) -> usize {
+    timestamps
+        .map(|timestamp| match precision {
+            BucketPrecision::Hour => timestamp.get(..13).unwrap_or(timestamp),
+            BucketPrecision::Day => timestamp.get(..10).unwrap_or(timestamp),
+            BucketPrecision::Exact => timestamp,
+        })
+        .fold((None, 0usize), |(previous, count), bucket| {
+            if previous == Some(bucket) {
+                (previous, count)
+            } else {
+                (Some(bucket), count.saturating_add(1))
+            }
+        })
+        .1
 }

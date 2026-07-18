@@ -10,11 +10,22 @@ use super::{
 };
 
 mod codec;
+mod output;
+mod summary;
+mod validation;
 
 use self::codec::{decode_column_batch, encode_column_batch};
+use self::output::project_column_batch_document;
+use self::summary::{
+    column_batch_summaries, column_values, compare_summary_to_json, summary_checksum,
+};
+pub(crate) use self::validation::ControlledColumnBatchSummaryDecision;
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 const COLUMN_BATCH_ENCODING_VERSION: u32 = 1;
 const COLUMN_BATCH_CODEC_VERSION: u32 = 1;
+pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = 1;
+pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = 1;
 
 struct EncodedColumnBatch {
     codec_name: String,
@@ -31,6 +42,27 @@ struct ColumnBatchScanPlan {
     wanted: BTreeSet<String>,
     batch_size: usize,
     limit: usize,
+    query_memory: Option<QueryMemoryReservation>,
+}
+
+pub(crate) struct ControlledColumnBatchScanRequest<'a> {
+    pub collection: &'a str,
+    pub batch_size: usize,
+    pub fields: &'a [String],
+    pub filter: Option<&'a RowFilter>,
+    pub segment_filter: Option<&'a ColumnBatchScanFilter>,
+    pub limit: Option<usize>,
+    pub controls: &'a QueryExecutionControls,
+}
+
+struct ColumnBatchScanRequest<'a> {
+    collection: &'a str,
+    batch_size: usize,
+    fields: &'a [String],
+    filter: Option<&'a RowFilter>,
+    segment_filter: Option<&'a ColumnBatchScanFilter>,
+    limit: Option<usize>,
+    controls: Option<&'a QueryExecutionControls>,
 }
 
 enum PreparedColumnBatchScan {
@@ -52,19 +84,29 @@ struct ColumnBatchScanState {
     uncompressed_bytes: usize,
     skipped_segments: usize,
     decoded_columns: usize,
+    query_memory: Option<QueryMemoryReservation>,
 }
 
 impl ColumnBatchScanState {
-    fn new(batch_size: usize) -> Self {
-        Self {
+    fn new(
+        controls: Option<&QueryExecutionControls>,
+        query_memory: Option<QueryMemoryReservation>,
+    ) -> Result<Self, CassieError> {
+        let query_memory = match (controls, query_memory) {
+            (Some(_), Some(memory)) => Some(memory),
+            (Some(controls), None) => Some(controls.reserve_query_memory(0)?),
+            (None, _) => None,
+        };
+        Ok(Self {
             batches: Vec::new(),
-            current: Vec::with_capacity(batch_size),
+            current: Vec::new(),
             emitted: 0,
             compressed_bytes: 0,
             uncompressed_bytes: 0,
             skipped_segments: 0,
             decoded_columns: 0,
-        }
+            query_memory,
+        })
     }
 
     fn record_segment(&mut self, segment: &LoadedColumnBatchSegment, decoded_columns: usize) {
@@ -75,13 +117,20 @@ impl ColumnBatchScanState {
         self.decoded_columns = self.decoded_columns.saturating_add(decoded_columns);
     }
 
-    fn push_row(&mut self, row: DocumentRef, batch_size: usize) {
-        self.current.push(row);
+    fn push_projected_row(
+        &mut self,
+        row: ColumnBatchRow,
+        fields: &[String],
+        batch_size: usize,
+    ) -> Result<(), CassieError> {
+        let document = project_column_batch_document(self.query_memory.as_mut(), row, fields)?;
+        self.current.push(document);
         self.emitted += 1;
         if self.current.len() >= batch_size {
             self.batches.push(std::mem::take(&mut self.current));
-            self.current = Vec::with_capacity(batch_size);
+            self.current = Vec::new();
         }
+        Ok(())
     }
 
     fn finish(mut self, started: Instant, index_name: String) -> ColumnBatchScanDecision {
@@ -99,6 +148,7 @@ impl ColumnBatchScanState {
             uncompressed_bytes: self.uncompressed_bytes,
             skipped_segments: self.skipped_segments,
             decoded_columns: self.decoded_columns,
+            query_memory: self.query_memory,
         })
     }
 }
@@ -142,8 +192,10 @@ impl Midge {
         let mut documents = self.scan_documents(&index.collection)?;
         documents.sort_by(|left, right| left.id.cmp(&right.id));
 
-        let schema_epoch = self.schema_epoch()?;
+        let row_schema = self.row_schema(&index.collection)?;
+        let schema_version = row_schema.schema_version;
         let built_generation = self.collection_generation(&index.collection)?;
+        let source_row_count = documents.len();
         let mut segments = Vec::new();
         let mut payloads = Vec::new();
         for (segment_id, chunk) in documents.chunks(segment_size).enumerate() {
@@ -155,7 +207,8 @@ impl Midge {
                     values: column_values(&document.payload, fields.as_slice()),
                 })
                 .collect::<Vec<_>>();
-            let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice());
+            let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice(), &row_schema);
+            let summary_checksum = summary_checksum(chunk.len(), &summaries)?;
             let value_count = rows.len().saturating_mul(fields.len());
             let (_, codec) = encode_column_batch_payload(rows.as_slice(), fields.as_slice())?;
             let payload = codec.bytes.clone();
@@ -175,16 +228,20 @@ impl Midge {
                     null_bitmap_encoding: "validity-bitmap".to_string(),
                     checksum: Some(codec.checksum),
                 },
+                summary_checksum,
                 summaries,
             });
             payloads.push((segment_id, payload));
         }
 
         let metadata = ColumnBatchMetadata {
+            metadata_format_version: CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION,
+            summary_format_version: CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
             collection: index.collection.clone(),
             index_name: index.name.clone(),
-            schema_epoch,
+            schema_version,
             built_generation,
+            source_row_count,
             fields,
             segment_size,
             segments,
@@ -281,15 +338,51 @@ impl Midge {
         segment_filter: Option<&ColumnBatchScanFilter>,
         limit: Option<usize>,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
-        let collection = self.canonical_collection_name(collection);
+        self.scan_column_batch_projected_rows_internal(&ColumnBatchScanRequest {
+            collection,
+            batch_size,
+            fields,
+            filter,
+            segment_filter,
+            limit,
+            controls: None,
+        })
+    }
+
+    pub(crate) fn scan_column_batch_projected_rows_controlled(
+        &self,
+        request: &ControlledColumnBatchScanRequest<'_>,
+    ) -> Result<ColumnBatchScanDecision, CassieError> {
+        self.scan_column_batch_projected_rows_internal(&ColumnBatchScanRequest {
+            collection: request.collection,
+            batch_size: request.batch_size,
+            fields: request.fields,
+            filter: request.filter,
+            segment_filter: request.segment_filter,
+            limit: request.limit,
+            controls: Some(request.controls),
+        })
+    }
+
+    fn scan_column_batch_projected_rows_internal(
+        &self,
+        request: &ColumnBatchScanRequest<'_>,
+    ) -> Result<ColumnBatchScanDecision, CassieError> {
+        let collection = self.canonical_collection_name(request.collection);
         let started = Instant::now();
-        let plan = match self.prepare_column_batch_scan(&collection, batch_size, fields, limit)? {
+        let plan = match self.prepare_column_batch_scan(
+            &collection,
+            request.batch_size,
+            request.fields,
+            request.limit,
+            request.controls,
+        )? {
             PreparedColumnBatchScan::Ready(plan) => *plan,
             PreparedColumnBatchScan::Fallback(reason) => {
                 return Ok(ColumnBatchScanDecision::Fallback(reason));
             }
         };
-        self.execute_column_batch_scan(&collection, fields, filter, segment_filter, started, plan)
+        self.execute_column_batch_scan(&collection, started, plan, request)
     }
 
     fn prepare_column_batch_scan(
@@ -298,40 +391,41 @@ impl Midge {
         batch_size: usize,
         fields: &[String],
         limit: Option<usize>,
+        controls: Option<&QueryExecutionControls>,
     ) -> Result<PreparedColumnBatchScan, CassieError> {
         let Some(index) = self.covering_column_index(collection, fields)? else {
             return Ok(PreparedColumnBatchScan::Fallback(
                 ColumnBatchScanFallbackReason::NoCoveringIndex,
             ));
         };
-        if self.has_column_batch_maintenance_debt(collection)? {
-            return Ok(PreparedColumnBatchScan::Fallback(
-                ColumnBatchScanFallbackReason::MaintenancePending,
-            ));
-        }
-        let Some(metadata) = self.get_column_batch_metadata(collection, &index.name)? else {
-            return Ok(PreparedColumnBatchScan::Fallback(
-                ColumnBatchScanFallbackReason::MissingMetadata,
-            ));
-        };
-        if metadata.fields.len() != index.normalized_fields().len()
-            || metadata.segment_size != column_index_segment_size(&index)?
-        {
-            return Ok(PreparedColumnBatchScan::Fallback(
-                ColumnBatchScanFallbackReason::SegmentSizeMismatch,
-            ));
-        }
-        if metadata.built_generation != self.collection_generation(collection)? {
-            return Ok(PreparedColumnBatchScan::Fallback(
-                ColumnBatchScanFallbackReason::GenerationMismatch,
-            ));
-        }
         let wanted = wanted_column_batch_fields(fields);
-        if !wanted.is_subset(&available_column_batch_fields(&metadata)) {
-            return Ok(PreparedColumnBatchScan::Fallback(
-                ColumnBatchScanFallbackReason::FieldCoverageMismatch,
-            ));
-        }
+        let requested = wanted.iter().cloned().collect::<Vec<_>>();
+        let (metadata, query_memory) = if let Some(controls) = controls {
+            match self.prepare_column_batch_scan_metadata_controlled(
+                collection,
+                &index,
+                requested.as_slice(),
+                controls,
+            )? {
+                ControlledColumnBatchSummaryDecision::Ready(controlled) => {
+                    (*controlled.metadata, Some(controlled.memory))
+                }
+                ControlledColumnBatchSummaryDecision::Fallback(reason) => {
+                    return Ok(PreparedColumnBatchScan::Fallback(reason));
+                }
+            }
+        } else {
+            match self.prepare_column_batch_scan_metadata(
+                collection,
+                &index,
+                requested.as_slice(),
+            )? {
+                super::ColumnBatchSummaryDecision::Ready(metadata) => (*metadata, None),
+                super::ColumnBatchSummaryDecision::Fallback(reason) => {
+                    return Ok(PreparedColumnBatchScan::Fallback(reason));
+                }
+            }
+        };
         Ok(PreparedColumnBatchScan::Ready(Box::new(
             ColumnBatchScanPlan {
                 index,
@@ -339,6 +433,7 @@ impl Midge {
                 wanted,
                 batch_size: batch_size.max(1),
                 limit: limit.unwrap_or(usize::MAX),
+                query_memory,
             },
         )))
     }
@@ -346,19 +441,31 @@ impl Midge {
     fn execute_column_batch_scan(
         &self,
         collection: &str,
-        fields: &[String],
-        filter: Option<&RowFilter>,
-        segment_filter: Option<&ColumnBatchScanFilter>,
         started: Instant,
         plan: ColumnBatchScanPlan,
+        request: &ColumnBatchScanRequest<'_>,
     ) -> Result<ColumnBatchScanDecision, CassieError> {
-        let mut state = ColumnBatchScanState::new(plan.batch_size);
+        let mut state = ColumnBatchScanState::new(request.controls, plan.query_memory)?;
         let data_tx = self.begin_data_readonly_tx_for(collection)?;
         for segment in &plan.metadata.segments {
-            if !column_batch_segment_may_match(segment, segment_filter) {
+            if let Some(controls) = request.controls {
+                check_column_batch_controls(self, controls)?;
+            }
+            if !column_batch_segment_may_match(segment, request.segment_filter) {
                 state.skipped_segments += 1;
                 continue;
             }
+            let _segment_memory = request
+                .controls
+                .map(|controls| {
+                    controls.reserve_query_memory(
+                        segment
+                            .codec
+                            .uncompressed_len
+                            .max(segment.codec.compressed_len),
+                    )
+                })
+                .transpose()?;
             let loaded = match load_column_batch_segment(&data_tx, &plan.index, segment)? {
                 Ok(loaded) => loaded,
                 Err(reason) => return Ok(ColumnBatchScanDecision::Fallback(reason)),
@@ -368,17 +475,10 @@ impl Midge {
                 if state.emitted >= plan.limit {
                     break;
                 }
-                if !column_batch_row_matches(&row, filter) {
+                if !column_batch_row_matches(&row, request.filter) {
                     continue;
                 }
-                let payload = project_column_batch_row(&row, fields);
-                state.push_row(
-                    DocumentRef {
-                        id: row.row_id,
-                        payload,
-                    },
-                    plan.batch_size,
-                );
+                state.push_projected_row(row, request.fields, plan.batch_size)?;
             }
             if state.emitted >= plan.limit {
                 break;
@@ -448,14 +548,6 @@ fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
         .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
-        .map(|field| field.to_ascii_lowercase())
-        .collect()
-}
-
-fn available_column_batch_fields(metadata: &ColumnBatchMetadata) -> BTreeSet<String> {
-    metadata
-        .fields
-        .iter()
         .map(|field| field.to_ascii_lowercase())
         .collect()
 }
@@ -597,7 +689,9 @@ fn decode_column_batch_payload(
     row_count: usize,
 ) -> Option<Vec<ColumnBatchRow>> {
     match (payload.codec_name.as_str(), payload.codec_version) {
-        ("uncompressed", COLUMN_BATCH_CODEC_VERSION) => Some(payload.rows.clone()),
+        ("uncompressed", COLUMN_BATCH_CODEC_VERSION) => {
+            (payload.rows.len() == row_count).then(|| payload.rows.clone())
+        }
         ("dictionary_rle", COLUMN_BATCH_CODEC_VERSION) => {
             decode_dictionary_rle_payload(payload, row_count)
         }
@@ -649,110 +743,6 @@ fn checksum_hex(bytes: &[u8]) -> String {
     format!("{hash:016x}")
 }
 
-fn column_values(
-    payload: &serde_json::Value,
-    fields: &[String],
-) -> BTreeMap<String, serde_json::Value> {
-    let object = payload.as_object();
-    fields
-        .iter()
-        .map(|field| {
-            let value = object
-                .and_then(|object| {
-                    object.get(field).or_else(|| {
-                        object
-                            .iter()
-                            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-                            .map(|(_, value)| value)
-                    })
-                })
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
-            (field.clone(), value)
-        })
-        .collect()
-}
-
-fn column_batch_summaries(
-    rows: &[ColumnBatchRow],
-    fields: &[String],
-) -> BTreeMap<String, ColumnBatchFieldSummary> {
-    fields
-        .iter()
-        .map(|field| (field.clone(), column_batch_field_summary(rows, field)))
-        .collect()
-}
-
-fn column_batch_field_summary(rows: &[ColumnBatchRow], field: &str) -> ColumnBatchFieldSummary {
-    let mut non_null_count = 0usize;
-    let mut min: Option<serde_json::Value> = None;
-    let mut max: Option<serde_json::Value> = None;
-    let mut sum = 0.0f64;
-    let mut has_sum = false;
-    let mut all_int = true;
-    let mut distinct = BTreeSet::new();
-
-    for row in rows {
-        let value = row
-            .values
-            .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map_or(&serde_json::Value::Null, |(_, value)| value);
-        if value.is_null() {
-            continue;
-        }
-        non_null_count += 1;
-        distinct.insert(value.to_string());
-        if min
-            .as_ref()
-            .is_none_or(|current| compare_json_values(value, current).is_lt())
-        {
-            min = Some(value.clone());
-        }
-        if max
-            .as_ref()
-            .is_none_or(|current| compare_json_values(value, current).is_gt())
-        {
-            max = Some(value.clone());
-        }
-        if let Some(number) = value.as_i64() {
-            if let Ok(parsed) = number.to_string().parse::<f64>() {
-                sum += parsed;
-                has_sum = true;
-            } else {
-                all_int = false;
-            }
-        } else if let Some(number) = value.as_f64() {
-            sum += number;
-            has_sum = true;
-            all_int = false;
-        } else {
-            all_int = false;
-        }
-    }
-
-    ColumnBatchFieldSummary {
-        non_null_count,
-        min,
-        max,
-        sum: has_sum.then_some(sum),
-        all_int,
-        distinct_hint: Some(distinct.len()),
-    }
-}
-
-fn compare_json_values(left: &serde_json::Value, right: &serde_json::Value) -> std::cmp::Ordering {
-    match (left, right) {
-        (serde_json::Value::Number(left), serde_json::Value::Number(right)) => left
-            .as_f64()
-            .partial_cmp(&right.as_f64())
-            .unwrap_or(std::cmp::Ordering::Equal),
-        (serde_json::Value::String(left), serde_json::Value::String(right)) => left.cmp(right),
-        (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => left.cmp(right),
-        _ => left.to_string().cmp(&right.to_string()),
-    }
-}
-
 fn column_batch_segment_may_match(
     segment: &ColumnBatchSegmentMeta,
     filter: Option<&ColumnBatchScanFilter>,
@@ -778,6 +768,13 @@ fn segment_may_match_predicate(
     else {
         return true;
     };
+    if !matches!(
+        predicate.op,
+        ColumnBatchScanOp::IsNull | ColumnBatchScanOp::IsNotNull
+    ) && !column_batch_summary_supports_ordering(summary)
+    {
+        return true;
+    }
 
     match predicate.op {
         ColumnBatchScanOp::IsNull => summary.non_null_count < segment.row_count,
@@ -795,7 +792,7 @@ fn segment_may_match_predicate(
                 summary
                     .min
                     .as_ref()
-                    .map(|min| compare_json_values(min, value).is_lt())
+                    .map(|min| compare_summary_to_json(min, value).is_lt())
             })
             .unwrap_or(true),
         ColumnBatchScanOp::Lte => predicate
@@ -805,7 +802,7 @@ fn segment_may_match_predicate(
                 summary
                     .min
                     .as_ref()
-                    .map(|min| !compare_json_values(min, value).is_gt())
+                    .map(|min| !compare_summary_to_json(min, value).is_gt())
             })
             .unwrap_or(true),
         ColumnBatchScanOp::Gt => predicate
@@ -815,7 +812,7 @@ fn segment_may_match_predicate(
                 summary
                     .max
                     .as_ref()
-                    .map(|max| compare_json_values(max, value).is_gt())
+                    .map(|max| compare_summary_to_json(max, value).is_gt())
             })
             .unwrap_or(true),
         ColumnBatchScanOp::Gte => predicate
@@ -825,10 +822,19 @@ fn segment_may_match_predicate(
                 summary
                     .max
                     .as_ref()
-                    .map(|max| !compare_json_values(max, value).is_lt())
+                    .map(|max| !compare_summary_to_json(max, value).is_lt())
             })
             .unwrap_or(true),
     }
+}
+
+fn column_batch_summary_supports_ordering(summary: &ColumnBatchFieldSummary) -> bool {
+    summary.min.iter().chain(summary.max.iter()).all(|value| {
+        !matches!(
+            value,
+            crate::types::Value::Vector(_) | crate::types::Value::Json(_)
+        )
+    })
 }
 
 fn segment_range_may_contain(
@@ -842,14 +848,14 @@ fn segment_range_may_contain(
     if summary
         .max
         .as_ref()
-        .is_some_and(|max| compare_json_values(max, low).is_lt())
+        .is_some_and(|max| compare_summary_to_json(max, low).is_lt())
     {
         return false;
     }
     if summary
         .min
         .as_ref()
-        .is_some_and(|min| compare_json_values(min, high).is_gt())
+        .is_some_and(|min| compare_summary_to_json(min, high).is_gt())
     {
         return false;
     }
@@ -866,18 +872,19 @@ fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&RowFilter>) ->
         .is_some_and(|(_, value)| value == &filter.value)
 }
 
-fn project_column_batch_row(row: &ColumnBatchRow, fields: &[String]) -> serde_json::Value {
-    let mut object = serde_json::Map::new();
-    for field in fields {
-        if field.eq_ignore_ascii_case("id") || field.eq_ignore_ascii_case("_id") {
-            continue;
-        }
-        let value = row
-            .values
-            .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map_or(serde_json::Value::Null, |(_, value)| value.clone());
-        object.insert(field.clone(), value);
+fn check_column_batch_controls(
+    midge: &Midge,
+    controls: &QueryExecutionControls,
+) -> Result<(), CassieError> {
+    if controls.is_cancelled() {
+        return Err(CassieError::QueryCancelled);
     }
-    serde_json::Value::Object(object)
+    if controls.is_timed_out() {
+        return Err(CassieError::DeadlineExceeded);
+    }
+    midge.record_query_scan_entry();
+    if super::query_scan_control::should_cancel_controlled_query_scan() {
+        return Err(CassieError::QueryCancelled);
+    }
+    Ok(())
 }

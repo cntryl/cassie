@@ -63,6 +63,12 @@ fn frontend_frame(tag: u8, payload: &[u8]) -> Vec<u8> {
     frame
 }
 
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = password.as_bytes().to_vec();
+    payload.push(0);
+    frontend_frame(b'p', &payload)
+}
+
 fn parse_frame(statement_name: &str, sql: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(statement_name.as_bytes());
@@ -375,6 +381,24 @@ async fn connect_authenticated_pgwire(
         .expect("write startup");
     let auth = read_wire_frame(&mut reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
+    assert_eq!(
+        i32::from_be_bytes(auth.1[0..4].try_into().expect("auth payload")),
+        3,
+        "startup should request a cleartext password"
+    );
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
+        .await
+        .expect("write password");
+    tokio::io::AsyncWriteExt::flush(&mut write_half)
+        .await
+        .expect("flush password");
+    let auth_ok = read_wire_frame(&mut reader).await;
+    assert_eq!(auth_ok.0, b'R', "password should return an auth response");
+    assert_eq!(
+        i32::from_be_bytes(auth_ok.1[0..4].try_into().expect("auth payload")),
+        0,
+        "password auth should succeed"
+    );
     let startup_ready = read_until_ready(&mut reader).await;
     assert_eq!(startup_ready, vec![b'I']);
     (reader, write_half)

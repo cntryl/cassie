@@ -219,33 +219,6 @@ impl Cassie {
         self.midge.get_document(collection, id)
     }
 
-    pub(crate) fn scan_projected_documents_batched_for_session(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        batch_size: usize,
-        fields: &[String],
-        limit: Option<usize>,
-    ) -> Result<Vec<Vec<DocumentRef>>, CassieError> {
-        self.scan_projected_documents_batched_for_session_with_timings(
-            session, collection, batch_size, fields, limit,
-        )
-        .map(|(batches, _)| batches)
-    }
-
-    pub(crate) fn scan_projected_documents_batched_for_session_with_timings(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        batch_size: usize,
-        fields: &[String],
-        limit: Option<usize>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        self.scan_projected_documents_batched_for_session_with_filter_and_timings(
-            session, collection, batch_size, fields, None, limit,
-        )
-    }
-
     pub(crate) fn scan_projected_documents_batched_for_session_with_filter_and_timings(
         &self,
         session: Option<&CassieSession>,

@@ -176,8 +176,9 @@ fn execute_table_function_source(
     outer_row: Option<&BatchRow>,
     qualify: bool,
 ) -> SourceExecution {
-    let rows =
+    let graph_rows =
         graph::execute_table_function(env, function, if lateral { outer_row } else { None })?;
+    let (rows, _graph_memory) = graph_rows.into_parts();
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
@@ -299,9 +300,12 @@ pub(super) fn execute_source_query_with_outer_row(
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(env.controls)?;
     let started_at = Instant::now();
-    if let Some(rows) =
-        aggregate_accel::try_execute_column_batch_aggregate(env.cassie, env.session, plan)?
-    {
+    if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(
+        env.cassie,
+        env.session,
+        plan,
+        env.controls,
+    )? {
         return Ok(rows);
     }
     let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;

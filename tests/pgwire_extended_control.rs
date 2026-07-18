@@ -48,6 +48,12 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = Vec::from(password.as_bytes());
+    payload.push(0);
+    frontend_frame(b'p', &payload)
+}
+
 fn cancel_request_frame(process_id: i32, secret_key: i32) -> Vec<u8> {
     let mut frame = Vec::new();
     frame.extend_from_slice(&16_i32.to_be_bytes());
@@ -360,6 +366,18 @@ async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut Pgwire
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
     assert_eq!(auth.0, b'R', "startup should return an auth response");
+    let mut cursor = 0;
+    assert_eq!(read_i32(&auth.1, &mut cursor), 3);
+    tokio::io::AsyncWriteExt::write_all(writer, &password_frame("postgres"))
+        .await
+        .expect("write password");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush password");
+    let auth_ok = read_wire_frame(reader).await;
+    assert_eq!(auth_ok.0, b'R', "password should return an auth response");
+    let mut cursor = 0;
+    assert_eq!(read_i32(&auth_ok.1, &mut cursor), 0);
     let startup_ready = read_until_ready(reader).await;
     assert_eq!(startup_ready, vec![b'I']);
 }
@@ -574,16 +592,7 @@ fn should_reject_copy_data_message_with_unsupported_error() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &startup_frame("postgres", "postgres"),
-        )
-        .await
-        .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
+        start_pgwire_session(&mut reader, &mut write_half).await;
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,
@@ -703,16 +712,7 @@ fn should_return_unsupported_error_for_copy_statement() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &startup_frame("postgres", "postgres"),
-        )
-        .await
-        .expect("write startup");
-        let auth = read_wire_frame(&mut reader).await;
-        assert_eq!(auth.0, b'R', "startup should return an auth response");
-        let startup_ready = read_until_ready(&mut reader).await;
-        assert_eq!(startup_ready, vec![b'I']);
+        start_pgwire_session(&mut reader, &mut write_half).await;
 
         tokio::io::AsyncWriteExt::write_all(
             &mut write_half,

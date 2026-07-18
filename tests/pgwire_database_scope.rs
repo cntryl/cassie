@@ -38,6 +38,20 @@ fn startup_frame(user: &str, database: &str) -> Vec<u8> {
     frame
 }
 
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = Vec::from(password.as_bytes());
+    payload.push(0);
+
+    let mut frame = vec![b'p'];
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn read_wire_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, Vec<u8>) {
@@ -123,6 +137,19 @@ fn should_report_3d000_for_missing_startup_database() {
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
+        let (auth_tag, auth_payload) = read_wire_frame(&mut reader).await;
+        assert_eq!(auth_tag, b'R');
+        assert_eq!(
+            i32::from_be_bytes(
+                auth_payload[..4]
+                    .try_into()
+                    .expect("authentication request code")
+            ),
+            3
+        );
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
+            .await
+            .expect("write password");
         let (tag, payload) = read_wire_frame(&mut reader).await;
         let fields = parse_error_fields(&payload);
 

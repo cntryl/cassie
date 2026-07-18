@@ -55,7 +55,7 @@ impl Catalog {
 
     #[must_use]
     pub fn graph_exists(&self, name: &str) -> bool {
-        self.graphs.read().contains_key(&name.to_ascii_lowercase())
+        self.get_graph(name).is_some()
     }
 
     #[must_use]

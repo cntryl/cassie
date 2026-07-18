@@ -5,6 +5,9 @@ use super::{
     Value,
 };
 
+#[path = "projected_read/specialized.rs"]
+mod specialized;
+
 pub(super) fn is_row_id_column(column: &str) -> bool {
     column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
 }
@@ -47,14 +50,9 @@ pub(super) fn execute_projected_filtered_read(
     {
         return Ok(None);
     }
-    if let Some(rows) = super::time_series_read::try_execute_time_series_read(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
-    )? {
+    if let Some(rows) =
+        specialized::try_execute(cassie, session, plan, user_functions, params, controls)?
+    {
         return Ok(Some(rows));
     }
 
@@ -85,14 +83,19 @@ pub(super) fn execute_projected_filtered_read(
             scan_limit,
             controls,
         )? {
-            let (rows, scan_memory) = batch::collect_batch_stream_accounted(&mut stream, controls)?;
+            let rows = scan::collect_projected_stream_rows(&mut stream, controls)?;
+            scan::record_streamed_column_batch_fallback(
+                cassie,
+                session,
+                (&spec.collection, &spec.scan_fields),
+                rows.len(),
+            );
             cassie.runtime.record_read_path_collection_scan(
                 &spec.collection,
                 spec.scan_fields.len(),
                 rows.len(),
             );
             let mut batches = batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE);
-            drop(scan_memory);
             return Ok(Some(finalize_projected_filtered_read(
                 ProjectedReadFinalization {
                     cassie,
@@ -109,15 +112,15 @@ pub(super) fn execute_projected_filtered_read(
             )?));
         }
     }
-    let mut batches = scan::scan_projected_filtered(
-        cassie,
-        session,
-        &spec.collection,
-        &spec.scan_fields,
-        scan_limit,
-        pushdown_filter.as_ref(),
-        column_filter.as_ref(),
-    )?;
+    let request = scan::ProjectedFilteredScanRequest {
+        collection: &spec.collection,
+        fields: &spec.scan_fields,
+        limit: scan_limit,
+        document_filter: pushdown_filter.as_ref(),
+        column_filter: column_filter.as_ref(),
+        controls,
+    };
+    let mut batches = scan::scan_projected_filtered(cassie, session, &request)?;
 
     let rows = batches.iter().map(Vec::len).sum::<usize>();
     cassie
@@ -925,15 +928,16 @@ fn scan_projected_read_batches(
         .and_then(projected_scan_pushdown_filter);
     let column_filter = plan.filter.as_ref().and_then(column_batch_scan_filter);
     let scan_limit = projected_result_scan_limit(plan, controls, spec.scan_limit);
-    let (batches, scan_timings) = scan::scan_projected_filtered_with_timings(
-        cassie,
-        session,
-        &spec.collection,
-        &spec.scan_fields,
-        scan_limit,
-        pushdown_filter.as_ref(),
-        column_filter.as_ref(),
-    )?;
+    let request = scan::ProjectedFilteredScanRequest {
+        collection: &spec.collection,
+        fields: &spec.scan_fields,
+        limit: scan_limit,
+        document_filter: pushdown_filter.as_ref(),
+        column_filter: column_filter.as_ref(),
+        controls,
+    };
+    let (batches, scan_timings) =
+        scan::scan_projected_filtered_with_timings(cassie, session, &request)?;
     let rows = batches.iter().map(Vec::len).sum::<usize>();
     cassie
         .runtime

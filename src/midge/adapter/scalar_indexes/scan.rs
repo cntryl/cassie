@@ -9,26 +9,6 @@ use super::{CassieError, Midge, ScalarIndexScanHit, ScalarIndexScanRequest};
 use crate::midge::adapter::key_encoding;
 
 impl Midge {
-    pub(crate) fn scan_scalar_index(
-        &self,
-        index: &IndexMeta,
-        request: &ScalarIndexScanRequest,
-    ) -> Result<Vec<ScalarIndexScanHit>, CassieError> {
-        let index = self.resolve_scalar_scan_index(index)?;
-        if request.limit == Some(0) {
-            return Ok(Vec::new());
-        }
-        let query = Self::scalar_index_query(&index, request)?;
-        let tx = self.begin_data_readonly_tx_for(&index.collection)?;
-        let scan = tx.scan(&query).map_err(CassieError::from)?;
-        let mut hits = Vec::new();
-        for entry in scan {
-            let (key, raw_value) = entry.map_err(CassieError::from)?;
-            hits.push(decode_scalar_index_hit(&index, &key, &raw_value)?);
-        }
-        Ok(hits)
-    }
-
     pub(crate) fn scan_scalar_index_controlled(
         &self,
         index: &IndexMeta,

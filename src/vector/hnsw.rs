@@ -4,6 +4,14 @@ use crate::embeddings::{
     DistanceMetric, HnswGraphNode, HnswGraphState, HnswIndexOptions, NormalizedVectorRecord,
 };
 
+#[path = "hnsw/controlled.rs"]
+mod controlled;
+
+pub use controlled::search_graph_with_node_loader;
+pub(crate) use controlled::{
+    search_graph_with_controlled_node_loader, ControlledHnswSearchRequest,
+};
+
 const HNSW_GRAPH_VERSION: u32 = 1;
 const MAX_DETERMINISTIC_LAYER: usize = 16;
 
@@ -253,51 +261,6 @@ pub fn search_graph(
             Some(HnswCandidate {
                 id: candidate.id,
                 distance: exact_distance(graph.metric, query, &normalized_query.values, node),
-            })
-        })
-        .collect::<Vec<_>>();
-    exact.sort_by(compare_hnsw_candidates);
-    exact.truncate(limit.max(1));
-    Some(HnswSearchResult {
-        candidates: exact,
-        candidate_count,
-    })
-}
-
-/// Searches a persisted graph through a point-read node loader.
-pub fn search_graph_with_node_loader(
-    metric: DistanceMetric,
-    entry_point: &str,
-    max_layer: usize,
-    query: &[f32],
-    options: &HnswIndexOptions,
-    limit: usize,
-    mut load_node: impl FnMut(&str) -> Option<HnswGraphNode>,
-) -> Option<HnswSearchResult> {
-    let distance_query = GraphDistanceQuery::from_query(query)?;
-    let normalized_query = crate::vector::normalize(query)?;
-    let mut cache = BTreeMap::<String, Option<HnswGraphNode>>::new();
-    let mut load = |id: &str| {
-        cache
-            .entry(id.to_string())
-            .or_insert_with(|| load_node(id))
-            .clone()
-    };
-    let mut current = entry_point.to_string();
-    for layer in (1..=max_layer).rev() {
-        current = greedy_layer_search_loaded(metric, &distance_query, &current, layer, &mut load);
-    }
-    let ef_search = options.ef_search.max(limit).max(1);
-    let candidates =
-        search_graph_layer_loaded(metric, &distance_query, &current, 0, ef_search, &mut load);
-    let candidate_count = candidates.len();
-    let mut exact = candidates
-        .into_iter()
-        .filter_map(|candidate| {
-            let node = load(&candidate.id)?;
-            Some(HnswCandidate {
-                id: candidate.id,
-                distance: exact_distance(metric, query, &normalized_query.values, &node),
             })
         })
         .collect::<Vec<_>>();
@@ -670,93 +633,6 @@ fn search_graph_layer(
     nearest.into_vec()
 }
 
-fn greedy_layer_search_loaded(
-    metric: DistanceMetric,
-    query: &GraphDistanceQuery,
-    entry_point: &str,
-    layer: usize,
-    load: &mut impl FnMut(&str) -> Option<HnswGraphNode>,
-) -> String {
-    let mut current = entry_point.to_string();
-    loop {
-        let Some(current_node) = load(&current) else {
-            return current;
-        };
-        let current_distance = graph_distance(metric, query, &current_node);
-        let Some(neighbors) = current_node.layers.get(layer) else {
-            return current;
-        };
-        let best = neighbors
-            .iter()
-            .filter_map(|neighbor| {
-                let node = load(neighbor)?;
-                Some((neighbor, graph_distance(metric, query, &node)))
-            })
-            .min_by(|left, right| left.1.total_cmp(&right.1).then_with(|| left.0.cmp(right.0)));
-        let Some((best_id, best_distance)) = best else {
-            return current;
-        };
-        if best_distance >= current_distance {
-            return current;
-        }
-        current.clone_from(best_id);
-    }
-}
-
-fn search_graph_layer_loaded(
-    metric: DistanceMetric,
-    query: &GraphDistanceQuery,
-    entry_point: &str,
-    layer: usize,
-    ef: usize,
-    load: &mut impl FnMut(&str) -> Option<HnswGraphNode>,
-) -> Vec<SearchCandidate> {
-    let Some(entry) = load(entry_point) else {
-        return Vec::new();
-    };
-    let mut visited = BTreeSet::new();
-    let entry_candidate = SearchCandidate {
-        id: entry.id.clone(),
-        distance: graph_distance(metric, query, &entry),
-    };
-    visited.insert(entry.id);
-    let mut candidates = OrderedCandidateSet::unbounded();
-    candidates.insert(entry_candidate.clone());
-    let mut nearest = OrderedCandidateSet::bounded(ef);
-    nearest.insert(entry_candidate);
-
-    while let Some(candidate) = pop_nearest(&mut candidates) {
-        let worst_distance = nearest.worst_distance();
-        if nearest.len() >= ef && candidate.distance > worst_distance {
-            break;
-        }
-        let Some(node) = load(&candidate.id) else {
-            continue;
-        };
-        let Some(neighbors) = node.layers.get(layer) else {
-            continue;
-        };
-        for neighbor_id in neighbors {
-            if !visited.insert(neighbor_id.clone()) {
-                continue;
-            }
-            let Some(neighbor) = load(neighbor_id) else {
-                continue;
-            };
-            let distance = graph_distance(metric, query, &neighbor);
-            if nearest.len() < ef || distance < worst_distance {
-                let next = SearchCandidate {
-                    id: neighbor.id,
-                    distance,
-                };
-                candidates.insert(next.clone());
-                nearest.insert(next);
-            }
-        }
-    }
-    nearest.into_vec()
-}
-
 fn graph_distance(metric: DistanceMetric, query: &GraphDistanceQuery, node: &HnswGraphNode) -> f64 {
     match metric {
         DistanceMetric::Cosine => {
@@ -905,7 +781,7 @@ mod tests {
     }
 
     #[test]
-    fn should_build_and_search_deterministic_graph() {
+    fn should_search_deterministic_graph_after_build() {
         // Arrange
         let records = ["near", "middle", "far"]
             .into_iter()

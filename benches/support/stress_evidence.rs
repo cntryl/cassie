@@ -269,6 +269,7 @@ fn storage_reads(delta: &serde_json::Value) -> u64 {
         "/hybrid/posting_reads_total",
         "/hybrid/candidate_row_fetches_total",
         "/hybrid/ann_reads_total",
+        "/graph/reads",
     ]
     .into_iter()
     .map(|pointer| pointer_u64(delta, pointer))
@@ -305,7 +306,14 @@ pub fn scoped_candidate_count(delta: &serde_json::Value, access_family: &str) ->
     } else if access_family.contains("worker") {
         pointer_u64(delta, "/parallel_aggregation/rows")
     } else if access_family.contains("graph") {
-        pointer_u64(delta, "/graph/rows")
+        let candidates = pointer_u64(delta, "/graph/candidates");
+        if candidates > 0 {
+            candidates
+        } else {
+            pointer_u64(delta, "/graph/rows")
+        }
+    } else if access_family.contains("column") {
+        pointer_u64(delta, "/aggregate_acceleration/accelerated_segments")
     } else if access_family.contains("time_series") {
         let index_entries = pointer_u64(delta, "/time_series/index_entries_scanned");
         if index_entries > 0 {

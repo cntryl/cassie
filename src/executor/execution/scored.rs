@@ -16,15 +16,16 @@ mod fulltext_topk;
 mod hybrid;
 #[path = "scored/memory.rs"]
 mod memory;
+#[path = "scored/posting_candidates.rs"]
+mod posting_candidates;
 #[path = "scored/vector_topk.rs"]
 mod vector_topk;
 
-use candidate::{push_top_k, scored_candidates_to_rows, ScoredSearchCandidate};
+use candidate::scored_candidates_to_rows;
 use fulltext_read::execute_fulltext_filtered_read;
 use fulltext_topk::execute_fulltext_top_k;
-use hybrid::{
-    bounded_hybrid_rows, hybrid_search_documents, prefilter_hybrid_rows, BoundedHybridContext,
-};
+use hybrid::{hybrid_search_documents, select_hybrid_candidate_rows, BoundedHybridContext};
+use posting_candidates::{posting_list_candidate_ids_controlled, PostingListDocument};
 pub(crate) use vector_topk::install_ann_rerank_barriers;
 use vector_topk::{
     adaptive_candidate_decision, record_adaptive_candidate_decision, vector_from_json,
@@ -74,55 +75,6 @@ struct TokenizedHybridDocument {
     id: String,
     text_stats: filter::SearchTermStats,
     vector: Option<Vec<f32>>,
-}
-
-trait PostingListDocument {
-    fn doc_id(&self) -> &str;
-    fn term_stats(&self) -> &filter::SearchTermStats;
-    fn term_counts(&self) -> &HashMap<String, usize>;
-}
-
-impl PostingListDocument for TokenizedFulltextDocument {
-    fn doc_id(&self) -> &str {
-        &self.id
-    }
-
-    fn term_stats(&self) -> &filter::SearchTermStats {
-        &self.text_stats
-    }
-
-    fn term_counts(&self) -> &HashMap<String, usize> {
-        self.text_stats.term_counts()
-    }
-}
-
-impl PostingListDocument for TokenizedHybridDocument {
-    fn doc_id(&self) -> &str {
-        &self.id
-    }
-
-    fn term_stats(&self) -> &filter::SearchTermStats {
-        &self.text_stats
-    }
-
-    fn term_counts(&self) -> &HashMap<String, usize> {
-        self.text_stats.term_counts()
-    }
-}
-
-fn posting_list_candidate_ids<D>(documents: &[D], query_terms: &[String]) -> HashSet<String>
-where
-    D: PostingListDocument,
-{
-    if query_terms.is_empty() {
-        return HashSet::new();
-    }
-
-    let mut index = crate::search::inverted_index::InvertedIndex::default();
-    for document in documents {
-        index.index_term_counts(document.doc_id(), document.term_counts());
-    }
-    index.candidate_documents(query_terms)
 }
 
 #[derive(Clone, Copy)]
@@ -215,7 +167,7 @@ struct FulltextPartitionScoringRequest<'a> {
 fn score_fulltext_top_k_candidates(
     cassie: &Cassie,
     request: FulltextCandidateScoringRequest<'_>,
-) -> Result<BinaryHeap<ScoredSearchCandidate>, QueryError> {
+) -> Result<memory::AccountedScoredCandidates, QueryError> {
     let partition_request = FulltextPartitionScoringRequest {
         candidate_ids: request.candidate_ids,
         search_context: request.search_context,
@@ -259,13 +211,16 @@ fn score_fulltext_top_k_candidates(
     })?;
 
     let partitions = partials.len();
-    let mut merged = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
+    let mut merged =
+        memory::AccountedScoredCandidates::try_new(request.controls, request.top_needed)?;
     let mut rows = 0usize;
     for partial in partials {
+        let (partial, partial_memory) = partial.into_parts();
         for candidate in partial.into_vec() {
             rows += 1;
-            push_top_k(&mut merged, request.top_needed, candidate);
+            merged.try_push_existing(request.top_needed, candidate)?;
         }
+        drop(partial_memory);
     }
     cassie
         .runtime
@@ -276,9 +231,8 @@ fn score_fulltext_top_k_candidates(
 fn score_fulltext_partition(
     documents: &[TokenizedFulltextDocument],
     request: &FulltextPartitionScoringRequest<'_>,
-) -> Result<BinaryHeap<ScoredSearchCandidate>, QueryError> {
-    let mut top = BinaryHeap::with_capacity(request.top_needed.saturating_add(1));
-    let mut top_memory = memory::replace_scored_candidates(None, request.controls, &top)?;
+) -> Result<memory::AccountedScoredCandidates, QueryError> {
+    let mut top = memory::AccountedScoredCandidates::try_new(request.controls, request.top_needed)?;
     for document in documents {
         super::check_timeout(request.controls)?;
         if let Some(candidate_ids) = request.candidate_ids {
@@ -294,16 +248,7 @@ fn score_fulltext_partition(
         if request.require_match && score == 0.0 {
             continue;
         }
-        push_top_k(
-            &mut top,
-            request.top_needed,
-            ScoredSearchCandidate {
-                sort_value: -score,
-                score,
-                id: document.id.clone(),
-            },
-        );
-        top_memory = memory::replace_scored_candidates(Some(top_memory), request.controls, &top)?;
+        top.try_push(request.top_needed, -score, score, &document.id)?;
     }
     Ok(top)
 }
@@ -316,7 +261,6 @@ fn execute_hybrid_top_k(
     spec: &HybridTopKSpec,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    super::check_timeout(controls)?;
     let started_at = Instant::now();
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, spec.top_needed())?;
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
@@ -328,9 +272,7 @@ fn execute_hybrid_top_k(
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let candidate_limit =
-        adaptive.ann_candidate_budget(cassie.runtime.limits().adaptive_candidate_max);
-    let bounded_rows = bounded_hybrid_rows(
+    let Some(selected) = select_hybrid_candidate_rows(
         cassie,
         session,
         spec,
@@ -339,36 +281,33 @@ fn execute_hybrid_top_k(
             params,
             schema: &schema,
             analyzer: &analyzer,
-            candidate_limit,
+            candidate_limit: adaptive
+                .ann_candidate_budget(cassie.runtime.limits().adaptive_candidate_max),
         },
-    )?;
-    let (rows, ann_reads, candidate_row_fetches) = match bounded_rows {
-        Some(bounded) => (
-            bounded.rows,
-            bounded.ann_reads,
-            bounded.candidate_row_fetches,
-        ),
-        None => {
-            match prefilter_hybrid_rows(
-                cassie,
-                session,
-                user_functions,
-                params,
-                spec,
-                &schema,
-                controls,
-            )? {
-                Some(rows) => (rows, 0, 0),
-                None => return Ok(None),
-            }
-        }
+        controls,
+    )?
+    else {
+        return Ok(None);
     };
+    let rows = selected.rows;
+    let posting_reads = selected.posting_reads;
+    let ann_reads = selected.ann_reads;
+    let ann_candidates = selected.ann_candidates;
+    let candidate_row_fetches = selected.candidate_row_fetches;
+    let retrieval_memory = selected.retrieval_memory;
+    let selection_diagnostics = selected.diagnostics;
     if rows.is_empty() {
         return Ok(None);
     }
-    let _candidate_memory =
-        controls.reserve_query_memory(rows.iter().map(memory::batch_row_bytes).sum::<usize>())?;
+    let _candidate_memory = if retrieval_memory.is_empty() {
+        vec![controls
+            .reserve_query_memory(rows.iter().map(memory::batch_row_bytes).sum::<usize>())?]
+    } else {
+        retrieval_memory
+    };
     super::check_timeout(controls)?;
+    let _search_document_memory =
+        memory::reserve_hybrid_documents(controls, &rows, spec, &analyzer)?;
     let search_documents = hybrid_search_documents(rows, spec, &analyzer);
     let search_context = cached_search_context(
         cassie,
@@ -383,7 +322,8 @@ fn execute_hybrid_top_k(
         },
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
+    let (candidate_ids, _candidate_memory) =
+        posting_list_candidate_ids_controlled(&search_documents, &query_terms, controls)?;
     let (top, text_candidate_count) = hybrid::score_hybrid_documents(
         &search_documents,
         &candidate_ids,
@@ -392,49 +332,56 @@ fn execute_hybrid_top_k(
         &query_terms,
         controls,
     )?;
+    let (top, _top_memory) = top.into_parts();
 
-    let rows = scored_candidates_to_rows(
+    let output = scored_candidates_to_rows(
         top,
         spec.offset,
         spec.limit,
         &spec.id_column,
         &spec.score_column,
-    );
-    let candidate_count = candidate_ids.len();
+        controls,
+    )?;
+    let (rows, _output_memory) = output.into_parts();
+    super::check_timeout(controls)?;
     record_hybrid_metrics(
         cassie,
         started_at,
         HybridMetricCounts {
-            query_terms: query_terms.len(),
+            posting_reads,
             ann_reads,
             candidate_row_fetches,
             text_candidates: text_candidate_count,
-            candidates: candidate_count,
+            candidates: candidate_ids.len(),
             results: rows.len(),
+            generation_rejections: selection_diagnostics.generation_rejections(),
         },
     );
-    let adaptive_candidates = ann_reads.max(text_candidate_count);
+    selection_diagnostics.publish_path_decisions(cassie);
+    let adaptive_candidates = ann_candidates.max(text_candidate_count);
     record_adaptive_candidate_decision(cassie, &adaptive, adaptive_candidates, rows.len());
     Ok(Some(rows))
 }
 
 #[derive(Clone, Copy)]
 struct HybridMetricCounts {
-    query_terms: usize,
+    posting_reads: usize,
     ann_reads: usize,
     candidate_row_fetches: usize,
     text_candidates: usize,
     candidates: usize,
     results: usize,
+    generation_rejections: usize,
 }
 
 fn record_hybrid_metrics(cassie: &Cassie, started_at: Instant, counts: HybridMetricCounts) {
     hybrid::record_hybrid_diagnostics(
         cassie,
-        counts.query_terms,
+        counts.posting_reads,
         counts.ann_reads,
         counts.candidate_row_fetches,
         counts.text_candidates,
+        counts.generation_rejections,
     );
     let elapsed = started_at.elapsed();
     cassie

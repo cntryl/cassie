@@ -51,6 +51,7 @@ fn seed_indexed_rows(cassie: &Cassie, session: &cassie::app::CassieSession, tabl
 #[test]
 fn should_apply_limit_while_iterating_scalar_index_entries() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("bounded", 64 * 1_024);
     let session = cassie.create_session("tester", None);
     seed_indexed_rows(&cassie, &session, "controlled_scalar_limit");
@@ -86,6 +87,7 @@ fn should_apply_limit_while_iterating_scalar_index_entries() {
 #[test]
 fn should_reject_scalar_index_hit_before_retaining_it_given_low_memory() {
     // Arrange
+    let _hook_guard = query_scan_control_test_guard();
     let (cassie, path) = configured_cassie("low-memory", 64);
     let session = cassie.create_session("tester", None);
     seed_indexed_rows(&cassie, &session, "controlled_scalar_memory");

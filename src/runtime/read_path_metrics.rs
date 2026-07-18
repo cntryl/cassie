@@ -139,4 +139,12 @@ impl RuntimeState {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.graph.last_fallback_reason = reason.to_string();
     }
+
+    pub(crate) fn record_graph_read_evidence(&self, reads: usize, candidates: usize) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.graph.reads = metrics.graph.reads.saturating_add(reads as u64);
+        metrics.graph.candidates = metrics.graph.candidates.saturating_add(candidates as u64);
+        metrics.graph.last_reads = reads as u64;
+        metrics.graph.last_candidates = candidates as u64;
+    }
 }

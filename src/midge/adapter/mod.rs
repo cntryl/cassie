@@ -333,6 +333,7 @@ mod streaming_scans;
 pub(crate) use streaming_scans::{AccountedDocument, MidgeRowCursor};
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
+pub(crate) use vector_indexes::PersistedIvfFlatTrainingSnapshot;
 mod verification;
 #[cfg(test)]
 #[path = "verification_tests.rs"]
@@ -348,13 +349,16 @@ pub(crate) fn benchmark_row_key_round_trip(
     Some((key, decoded))
 }
 
+pub(crate) use column_batches::{
+    ControlledColumnBatchScanRequest, ControlledColumnBatchSummaryDecision,
+};
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
-pub(crate) use graphs::GraphEdgeRecord;
+pub(crate) use graphs::{GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest};
 pub(crate) use scan_types::OrderedRowBound;
 pub use scan_types::{
     ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
-    ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate, DocumentRef,
-    MidgeScanTimings, RowDecode, RowFilter,
+    ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate,
+    ColumnBatchSummaryDecision, DocumentRef, MidgeScanTimings, RowDecode, RowFilter,
 };
 pub use verification::{
     IntegrityCheckReport, RangeHashRecord, RootHashRecord, RowHashRecord, StoredHashState,
@@ -536,14 +540,6 @@ impl Midge {
 
     fn graph_adjacency_prefix(graph_id: u64) -> Vec<u8> {
         key_encoding::graph_adjacency_prefix(graph_id)
-    }
-
-    fn graph_outbound_prefix(graph_id: u64, source_type: &str, source_id: &str) -> Vec<u8> {
-        key_encoding::graph_outbound_prefix(graph_id, source_type, source_id)
-    }
-
-    fn graph_inbound_prefix(graph_id: u64, target_type: &str, target_id: &str) -> Vec<u8> {
-        key_encoding::graph_inbound_prefix(graph_id, target_type, target_id)
     }
 
     fn graph_outbound_edge_key(record: &graphs::GraphEdgeRecord) -> Vec<u8> {

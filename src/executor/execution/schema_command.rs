@@ -7,6 +7,9 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "schema_graph_rename.rs"]
+mod schema_graph_rename;
+
 pub(super) fn create_graph(
     cassie: &Cassie,
     statement: &CreateGraphStatement,
@@ -619,7 +622,12 @@ fn rename_schema_descendants(
     rename_schema_collections(cassie, &collection_renames)?;
     rename_schema_views(cassie, current_schema, next_schema)?;
     rename_schema_sequences(cassie, current_schema, next_schema)?;
-    rename_schema_graphs(cassie, current_schema, next_schema, &relation_renames)?;
+    schema_graph_rename::rename_schema_graphs(
+        cassie,
+        current_schema,
+        next_schema,
+        &relation_renames,
+    )?;
     rename_schema_rollups(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_retention_policies(cassie, current_schema, next_schema, &relation_renames)?;
     rename_schema_materialized_projections(cassie, current_schema, next_schema, &relation_renames)?;
@@ -679,47 +687,6 @@ fn rename_schema_sequences(
             rewrite_relation_name_for_schema(&sequence.name, current_schema, next_schema);
         cassie.midge.delete_sequence(&current_name)?;
         cassie.midge.put_sequence(&sequence)?;
-    }
-    Ok(())
-}
-
-fn rename_schema_graphs(
-    cassie: &Cassie,
-    current_schema: &str,
-    next_schema: &str,
-    relation_renames: &RelationRenames,
-) -> Result<(), QueryError> {
-    for mut graph in cassie.catalog.list_graphs() {
-        let current_name = graph.name.clone();
-        let next_name = rewrite_relation_name_from_map(
-            &graph.name,
-            relation_renames,
-            current_schema,
-            next_schema,
-        );
-        let next_node_collection = rewrite_relation_name_from_map(
-            &graph.node_collection,
-            relation_renames,
-            current_schema,
-            next_schema,
-        );
-        let next_edge_collection = rewrite_relation_name_from_map(
-            &graph.edge_collection,
-            relation_renames,
-            current_schema,
-            next_schema,
-        );
-        if current_name == next_name
-            && graph.node_collection == next_node_collection
-            && graph.edge_collection == next_edge_collection
-        {
-            continue;
-        }
-        graph.name = next_name;
-        graph.node_collection = next_node_collection;
-        graph.edge_collection = next_edge_collection;
-        cassie.midge.delete_graph(&current_name)?;
-        cassie.midge.put_graph(&graph)?;
     }
     Ok(())
 }

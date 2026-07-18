@@ -1,5 +1,6 @@
 pub mod row;
 pub mod schema;
+pub(crate) mod semantic;
 pub mod value;
 pub mod vector;
 

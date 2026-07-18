@@ -258,6 +258,8 @@ impl Midge {
             .find(|graph| name_matches(&graph.name, &metadata.name))
         {
             existing.storage_id
+        } else if metadata.storage_id != 0 {
+            metadata.storage_id
         } else {
             let mut counter_tx = self.begin_schema_rw_tx()?;
             let id = Self::allocate_object_id_to_tx(&mut counter_tx)?;
@@ -273,7 +275,7 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.commit(cntryl_midge::WriteOptions::sync())
             .map_err(CassieError::from)?;
-        Ok(())
+        self.reconcile_graph_adjacency_for(&metadata)
     }
 
     /// # Errors

@@ -10,6 +10,8 @@ use crate::search::analyzer::AnalyzerConfig;
 
 #[path = "fulltext_retrieval/codec.rs"]
 mod codec;
+#[path = "fulltext_retrieval/controlled.rs"]
+mod controlled;
 
 const STATE_VERSION: u32 = 2;
 

@@ -617,6 +617,7 @@ fn should_fallback_when_hybrid_vector_artifact_is_corrupt() {
 #[test]
 fn should_bound_hybrid_candidates_before_fulltext_stat_fetch() {
     // Arrange
+    const PHYSICAL_ANN_READ_BOUND: u64 = 2 * 64 + 2;
     let (cassie, path, collection) = bounded_hybrid_fixture_with_max(1);
     let before = cassie.metrics();
     let session = cassie.create_session("tester", None);
@@ -651,14 +652,22 @@ fn should_bound_hybrid_candidates_before_fulltext_stat_fetch() {
                 .unwrap_or_default(),
         0
     );
-    assert!(
-        after["hybrid"]["ann_reads_total"]
+    let ann_reads = after["hybrid"]["ann_reads_total"]
+        .as_u64()
+        .unwrap_or_default()
+        - before["hybrid"]["ann_reads_total"]
             .as_u64()
-            .unwrap_or_default()
-            - before["hybrid"]["ann_reads_total"]
-                .as_u64()
-                .unwrap_or_default()
-            <= 1
+            .unwrap_or_default();
+    let candidates = after["hybrid"]["candidate_count_total"]
+        .as_u64()
+        .unwrap_or_default()
+        - before["hybrid"]["candidate_count_total"]
+            .as_u64()
+            .unwrap_or_default();
+    assert!(candidates <= 1, "observed {candidates} hybrid candidates");
+    assert!(
+        ann_reads <= PHYSICAL_ANN_READ_BOUND,
+        "observed {ann_reads} controlled ANN reads"
     );
     let _ = std::fs::remove_dir_all(path);
 }

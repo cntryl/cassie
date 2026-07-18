@@ -417,6 +417,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     if message.eq_ignore_ascii_case("division by zero") {
         return bad_request_descriptor("22012", message.to_string());
     }
+    if message.eq_ignore_ascii_case("aggregate integer overflow") {
+        return bad_request_descriptor("22003", message.to_string());
+    }
     if message.eq_ignore_ascii_case("query admission exhausted") {
         return service_unavailable_descriptor("53300", message.to_string());
     }
@@ -571,5 +574,22 @@ impl From<cntryl_midge::MidgeError> for CassieError {
             }
             _ => CassieError::Storage(message),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_map_aggregate_integer_overflow_to_numeric_value_out_of_range() {
+        // Arrange
+        let error = CassieError::Execution("aggregate integer overflow".to_string());
+
+        // Act
+        let descriptor = error.descriptor();
+
+        // Assert
+        assert_eq!(descriptor.sql_state, "22003");
     }
 }

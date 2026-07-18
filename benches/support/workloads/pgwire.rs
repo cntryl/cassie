@@ -28,7 +28,7 @@ use tokio::sync::{Mutex, Notify};
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-use super::context::{BenchContext, QueryBreakdownMicros};
+use super::context::{BenchContext, QueryBreakdownMicros, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES};
 
 pub const PGWIRE_SIMPLE_QUERY: &str =
     "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 20";
@@ -39,6 +39,8 @@ pub const PGWIRE_MULTI_STATEMENT_COMPONENT_QUERY: &str =
 const PGWIRE_MULTI_STATEMENT_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10; SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10";
 pub const PGWIRE_BINARY_QUERY: &str =
     "SELECT score, title FROM bench_documents WHERE score = $1 ORDER BY score ASC LIMIT 20";
+const PGWIRE_FIXTURE_ROWS: u64 = 10_000;
+const PGWIRE_RESULT_ROWS: u64 = 20;
 
 pub struct PgwireTransportBenchContext {
     cassie: Arc<Cassie>,
@@ -291,6 +293,8 @@ pub async fn pgwire_transport_portal_fetch(ctx: &PgwireTransportBenchContext) ->
         .expect("fetch second portal page");
     assert_eq!(first.len(), 10, "first portal result cardinality");
     assert_eq!(second.len(), 10, "second portal result cardinality");
+    assert_ordered_disjoint_portal_pages(&first, &second);
+    drop(portal);
     transaction
         .rollback()
         .await
@@ -323,17 +327,121 @@ pub async fn pgwire_transport_cancellation(ctx: &PgwireTransportBenchContext) ->
     let error = transaction
         .query_portal(&portal, 1)
         .await
-        .expect_err("cancelled portal should fail when resumed");
+        .expect_err("cancelled portal returned no row page");
     assert_eq!(
         error.code().map(tokio_postgres::error::SqlState::code),
         Some("57014"),
         "pgwire cancellation SQLSTATE"
     );
+    drop(portal);
     transaction
         .rollback()
         .await
         .expect("rollback cancellation benchmark transaction");
     std::hint::black_box(1)
+}
+
+pub fn assert_pgwire_transport_evidence(
+    ctx: &PgwireTransportBenchContext,
+    before: &serde_json::Value,
+    query_operations: u64,
+) {
+    assert!(query_operations > 0, "pgwire evidence requires operations");
+    let after = ctx.cassie.metrics();
+    assert_pgwire_read_bound(before, &after, query_operations);
+    assert_pgwire_query_cleanup(&after);
+}
+
+fn assert_ordered_disjoint_portal_pages(
+    first: &[tokio_postgres::Row],
+    second: &[tokio_postgres::Row],
+) {
+    let ids = first
+        .iter()
+        .chain(second)
+        .map(|row| row.get::<_, String>(0))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids.len(),
+        usize::try_from(PGWIRE_RESULT_ROWS).expect("portal result count should fit usize"),
+        "portal row total"
+    );
+    assert!(
+        ids.windows(2).all(|pair| pair[0] < pair[1]),
+        "portal pages must be ordered and disjoint"
+    );
+}
+
+fn assert_pgwire_read_bound(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    query_operations: u64,
+) {
+    let collection_rows = metric_delta_at(before, after, "/read_paths/collection_scan_rows");
+    let ordered_rows = metric_delta_at(before, after, "/read_paths/ordered_rows");
+    let candidate_rows = collection_rows.saturating_add(ordered_rows);
+    let per_operation_candidate_bound = PGWIRE_FIXTURE_ROWS
+        .saturating_mul(2)
+        .saturating_add(PGWIRE_RESULT_ROWS);
+    let candidate_bound = per_operation_candidate_bound.saturating_mul(query_operations);
+    assert!(
+        candidate_rows <= candidate_bound,
+        "pgwire portal candidate reads exceeded their bound: {candidate_rows} > {candidate_bound}"
+    );
+
+    let storage_reads = storage_reads(after).saturating_sub(storage_reads(before));
+    let storage_bound = candidate_bound.saturating_mul(2);
+    assert!(
+        storage_reads <= storage_bound,
+        "pgwire portal storage reads exceeded their bound: {storage_reads} > {storage_bound}"
+    );
+}
+
+fn assert_pgwire_query_cleanup(metrics: &serde_json::Value) {
+    assert_eq!(
+        metric_at(metrics, "/runtime/running_queries"),
+        0,
+        "pgwire query cleanup"
+    );
+    assert_eq!(
+        metric_at(metrics, "/runtime/active_operator_workers"),
+        0,
+        "pgwire worker cleanup"
+    );
+    assert_eq!(
+        metric_at(metrics, "/query/current_accounted_memory_bytes"),
+        0,
+        "pgwire memory cleanup"
+    );
+    assert_eq!(
+        metric_at(metrics, "/pgwire/portals"),
+        0,
+        "pgwire portal cleanup"
+    );
+    assert!(
+        metric_at(metrics, "/query/peak_accounted_memory_bytes")
+            <= u64::try_from(ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES)
+                .expect("pgwire memory budget should fit u64"),
+        "pgwire peak query memory bound"
+    );
+}
+
+fn metric_delta_at(before: &serde_json::Value, after: &serde_json::Value, pointer: &str) -> u64 {
+    metric_at(after, pointer).saturating_sub(metric_at(before, pointer))
+}
+
+fn metric_at(metrics: &serde_json::Value, pointer: &str) -> u64 {
+    metrics
+        .pointer(pointer)
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_default()
+}
+
+fn storage_reads(metrics: &serde_json::Value) -> u64 {
+    ["schema", "data", "temp", "default"]
+        .into_iter()
+        .map(|family| metric_at(metrics, &format!("/storage/{family}/reads")))
+        .sum()
 }
 
 pub async fn pgwire_transport_multi_statement(ctx: &PgwireTransportBenchContext) -> usize {
@@ -486,9 +594,8 @@ async fn spawn_pgwire_server(ctx: &BenchContext) -> Result<PgwireServerContext, 
         .rsplit_once(':')
         .and_then(|(_, port)| port.parse::<u16>().ok())
         .ok_or_else(|| CassieError::Execution(format!("invalid benchmark address '{addr}'")))?;
-    let mut config = CassieRuntimeConfig::from_env()
+    let config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
-    config.password.clear();
     let shutdown = Arc::new(Notify::new());
     let server = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
         addr,

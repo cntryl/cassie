@@ -29,7 +29,7 @@ fn seed_index(path: &str, documents: impl IntoIterator<Item = (String, String)>)
     cassie
 }
 
-fn artifacts_with_magic(cassie: &Cassie, magic: &[u8; 4]) -> Vec<(Vec<u8>, Vec<u8>)> {
+fn artifacts_with_magic(cassie: &Cassie, magic: [u8; 4]) -> Vec<(Vec<u8>, Vec<u8>)> {
     let prefix = cassie
         .midge
         .fulltext_artifact_prefix_for_diagnostics(COLLECTION, INDEX)
@@ -39,7 +39,7 @@ fn artifacts_with_magic(cassie: &Cassie, magic: &[u8; 4]) -> Vec<(Vec<u8>, Vec<u
         .raw_scan_prefix(StorageFamily::Data, &prefix)
         .expect("fulltext artifacts")
         .into_iter()
-        .filter(|(_, value)| value.starts_with(magic))
+        .filter(|(_, value)| value.starts_with(&magic))
         .collect()
 }
 
@@ -52,7 +52,7 @@ fn delete_data_key(cassie: &Cassie, key: Vec<u8>) {
     tx.commit(WriteOptions::sync()).expect("commit deletion");
 }
 
-fn replace_artifact(cassie: &Cassie, magic: &[u8; 4], replacement: Vec<u8>) {
+fn replace_artifact(cassie: &Cassie, magic: [u8; 4], replacement: Vec<u8>) {
     let (key, _) = artifacts_with_magic(cassie, magic)
         .into_iter()
         .next()
@@ -89,7 +89,7 @@ fn should_fallback_when_one_posting_block_is_missing_among_valid_blocks() {
     let path = data_dir("fulltext_missing_posting_block");
     let documents = (0..96).map(|index| (long_document_id(index), "alpha".to_string()));
     let cassie = seed_index(&path, documents);
-    let blocks = artifacts_with_magic(&cassie, b"FTB1");
+    let blocks = artifacts_with_magic(&cassie, *b"FTB1");
     assert!(blocks.len() > 1, "fixture must span posting blocks");
     delete_data_key(&cassie, blocks[1].0.clone());
     let before = fallback_count(&cassie, "invalid_persisted_artifact");
@@ -118,7 +118,7 @@ fn should_fallback_when_a_candidate_is_missing_document_statistics() {
             ("d2".to_string(), "alpha".to_string()),
         ],
     );
-    let stats = artifacts_with_magic(&cassie, b"FTD1");
+    let stats = artifacts_with_magic(&cassie, *b"FTD1");
     delete_data_key(&cassie, stats[0].0.clone());
     let before = fallback_count(&cassie, "invalid_persisted_artifact");
 
@@ -176,7 +176,7 @@ fn should_rebuild_a_malformed_manifest_during_startup() {
     with_fallback();
     let path = data_dir("fulltext_malformed_manifest_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
-    replace_artifact(&cassie, b"FTG1", b"malformed-manifest".to_vec());
+    replace_artifact(&cassie, *b"FTG1", b"malformed-manifest".to_vec());
     drop(cassie);
 
     // Act
@@ -200,18 +200,18 @@ fn should_rebuild_old_fulltext_metadata_during_startup() {
     with_fallback();
     let path = data_dir("fulltext_old_metadata_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
-    let (_, mut metadata) = artifacts_with_magic(&cassie, b"FTM1")
+    let (_, mut metadata) = artifacts_with_magic(&cassie, *b"FTM1")
         .into_iter()
         .next()
         .expect("fulltext metadata");
     metadata[4] = 1;
-    replace_artifact(&cassie, b"FTM1", metadata);
+    replace_artifact(&cassie, *b"FTM1", metadata);
     drop(cassie);
 
     // Act
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("upgrade fulltext sidecar");
-    let metadata = artifacts_with_magic(&restarted, b"FTM1")
+    let metadata = artifacts_with_magic(&restarted, *b"FTM1")
         .into_iter()
         .next()
         .map(|(_, value)| value)

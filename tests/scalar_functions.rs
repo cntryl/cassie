@@ -64,6 +64,7 @@ impl CompatibilityServer {
         config.host("127.0.0.1");
         config.port(self.addr.port());
         config.user("postgres");
+        config.password("postgres");
         config.dbname("postgres");
 
         let (client, connection) = config.connect(NoTls).await.expect("connect tokio-postgres");

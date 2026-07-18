@@ -60,6 +60,20 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
     frame
 }
 
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = password.as_bytes().to_vec();
+    payload.push(0);
+
+    let mut frame = vec![b'p'];
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, i32, Vec<u8>) {
@@ -180,6 +194,24 @@ async fn run_pgwire_metrics_query(addr: SocketAddr) -> Vec<WireFrame> {
     assert_eq!(
         auth.0, b'R',
         "startup should return an authentication frame"
+    );
+    assert_eq!(
+        i32::from_be_bytes(auth.2[0..4].try_into().expect("auth payload")),
+        3,
+        "startup should request a cleartext password"
+    );
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &password_frame("postgres"))
+        .await
+        .expect("password write");
+    tokio::io::AsyncWriteExt::flush(&mut write_half)
+        .await
+        .expect("flush password");
+    let auth_ok = read_auth_frame(&mut reader).await;
+    assert_eq!(auth_ok.0, b'R', "password should return an auth response");
+    assert_eq!(
+        i32::from_be_bytes(auth_ok.2[0..4].try_into().expect("auth payload")),
+        0,
+        "password auth should succeed"
     );
     let startup_ready = read_until_ready(&mut reader).await;
     assert_eq!(startup_ready, vec![b'I']);

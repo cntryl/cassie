@@ -258,13 +258,20 @@ impl Midge {
         if writes.is_empty() {
             return Ok(BTreeMap::new());
         }
+        let mut canonical_writes = BTreeMap::<String, Vec<DocumentWriteOp>>::new();
+        for (collection, operations) in writes {
+            canonical_writes
+                .entry(self.canonical_collection_name(collection))
+                .or_default()
+                .extend(operations.iter().cloned());
+        }
 
         let mut attempts = 0u8;
         loop {
             attempts = attempts.saturating_add(1);
 
             let mut prepared_writes = Vec::new();
-            let mut collections = writes
+            let mut collections = canonical_writes
                 .iter()
                 .filter(|(_, operations)| !operations.is_empty())
                 .map(|(collection, operations)| (collection.clone(), operations.clone()))
@@ -936,6 +943,7 @@ impl Midge {
             id,
             previous,
             next,
+            context.target_generation,
         )?;
         Ok((
             scalar_deleted

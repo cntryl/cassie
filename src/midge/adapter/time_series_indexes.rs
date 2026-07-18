@@ -10,6 +10,11 @@ use crate::catalog::{IndexKind, IndexMeta};
 #[path = "time_series_indexes/metadata.rs"]
 mod metadata;
 use metadata::{BucketIdentity, TimeSeriesManifest};
+#[path = "time_series_indexes/controlled.rs"]
+mod controlled;
+pub(crate) use controlled::{
+    ControlledTimeSeriesDocumentScanOutcome, ControlledTimeSeriesIndexScanOutcome,
+};
 
 pub(crate) const INCOMPLETE_BUCKET_MEMBERSHIP: &str = "incomplete-bucket-membership";
 pub(crate) const DANGLING_BUCKET_MEMBERSHIP: &str = "dangling-bucket-membership";
@@ -166,11 +171,17 @@ impl Midge {
             .collect::<Vec<_>>();
         for index in indexes {
             let valid = match self.scan_time_series_index(&index, None, None, None)? {
-                TimeSeriesIndexScanOutcome::Native(report) => matches!(
-                    self.scan_time_series_hit_documents(&index, &report.hits, &[])?,
-                    TimeSeriesDocumentScanOutcome::Native(_)
-                ),
-                TimeSeriesIndexScanOutcome::Fallback(_) => false,
+                TimeSeriesIndexScanOutcome::Native(report) => {
+                    let current_generation = self.collection_generation(&index.collection)?;
+                    match self.scan_time_series_hit_documents(&index, &report.hits, &[])? {
+                        TimeSeriesDocumentScanOutcome::Native(documents) => {
+                            documents.len() == report.entries_scanned
+                                && report.generation == current_generation
+                        }
+                        TimeSeriesDocumentScanOutcome::Fallback(_reason) => false,
+                    }
+                }
+                TimeSeriesIndexScanOutcome::Fallback(_reason) => false,
             };
             if !valid {
                 self.rebuild_time_series_index_for_index(&index)?;

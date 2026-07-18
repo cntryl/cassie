@@ -205,7 +205,7 @@ fn should_validate_sqlalchemy_read_model_probe_when_enabled() {
     runtime.block_on(async {
         let server = CompatibilityServer::start("sqlalchemy_probe").await;
         let connection = format!(
-            "postgresql+psycopg://postgres@127.0.0.1:{}/postgres",
+            "postgresql+psycopg://postgres:postgres@127.0.0.1:{}/postgres",
             server.addr.port()
         );
 

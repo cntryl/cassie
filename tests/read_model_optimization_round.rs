@@ -938,6 +938,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
         client_config.host("127.0.0.1");
         client_config.port(addr.port());
         client_config.user("postgres");
+        client_config.password("postgres");
         client_config.dbname("postgres");
         let (client, connection) = client_config
             .connect(NoTls)

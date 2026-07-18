@@ -23,7 +23,7 @@ One shared tracker accounts query-owned materialization: sorts, distinct sets, h
 
 Execution-result caching is configured by `CASSIE_EXECUTION_RESULT_CACHE_ENABLED` (default `true`), `CASSIE_EXECUTION_RESULT_CACHE_MAX_ENTRIES` (default `64`), and `CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES` (default `67108864`). Eligibility is decided from the resolved physical plan. Active transactions, virtual catalogs, provider-backed work, and non-immutable user functions bypass the cache. Safe keys include normalized user, database, search path, parameters, execution mode, schema epoch, and data epoch.
 
-Streaming scan, filter, projection, limit, scoring, and eligible aggregation paths must keep memory proportional to batch size or the requested result window. Blocking operators may materialize only accounted state. Result-row limits are enforced while producing rows. Embedded APIs may materialize the final bounded result; pgwire portals retain resumable execution state.
+Streaming scan, filter, projection, limit, scoring, and eligible aggregation paths must keep memory proportional to batch size or the requested result window. Blocking operators may materialize only accounted state. Result-row limits are enforced while producing rows. Embedded APIs may materialize the final bounded result; pgwire portals retain resumable execution state. A portal's result-row limit is cumulative across resumes, and retained portal memory is charged cumulatively across all live portals on the connection. A resume or bind that would exceed either limit fails with `54000` without publishing a partial page; close, rollback, and disconnect release the retained state.
 
 ## Relational Access Paths
 
@@ -46,7 +46,7 @@ Inner-join planning exhaustively enumerates deterministic relation orders throug
 
 Full-text indexed execution reads persisted posting blocks and document statistics, computes exact BM25 scores, maintains a bounded result window, renders snippets from fetched candidates, and fetches only candidate rows. Eligible scalar equality indexes are intersected before row fetch. Transaction overlays and missing, stale, corrupt, or incomplete artifacts use an explicitly labelled row fallback under the same cancellation and memory controls.
 
-Exact vector search reads lazy Midge cursor batches and retains only a memory-accounted top-k heap. HNSW reads persisted node records; IVFFlat reads persisted membership prefixes. Approximate paths expand candidates deterministically within the configured cap and exact-rerank selected source rows. Structured filters and transaction overlays use an explicitly diagnosed exact fallback; candidate exhaustion produces an exact fallback or resource error rather than silent truncation.
+Exact vector search reads lazy Midge cursor batches and retains only a memory-accounted top-k heap. HNSW reads persisted node records; IVFFlat reads persisted membership prefixes. Approximate paths expand candidates deterministically within the configured cap and exact-rerank selected source rows. Each ANN candidate batch carries its persisted source generation, which is fenced before, during, and after reranking. A missing row, malformed or dimension-invalid vector, or generation change labels the attempt `concurrent-source-change`, discards all attempted-path rows and metrics, and executes the exact controlled path once. Structured filters and transaction overlays use an explicitly diagnosed exact fallback; candidate exhaustion produces an exact fallback or resource error rather than silent truncation.
 
 Hybrid retrieval combines persisted text, vector, and structured candidates before exact final scoring under the shared query memory and cancellation controls. It reports component candidate counts, final row fetches, and fallback reasons.
 
@@ -55,9 +55,11 @@ Remote embedding providers expose controlled document and query methods. Each re
 ## Time-Series, Graph, and Column Batches
 
 - Time-series queries use ordered partition/timestamp bounds and point-fetch candidate rows. Unsupported shapes use a labelled row fallback.
-- Graph traversal reads direction and edge-type adjacency prefixes directly. Visited and frontier state is memory-accounted.
-- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Corruption or unsupported shapes use a labelled row fallback.
+- Graph traversal reads controlled pages from edge-type-first prefixes when filtered and weight-first node prefixes when unfiltered. Both-direction scans merge by weight and edge ID. Frontier, visited, path, edge, and output state are accounted before retention; `54000` returns no partial traversal. Transaction overlays, `missing-sidecar-manifest`, `sidecar-format-mismatch`, `malformed-sidecar`, and `concurrent-source-change` use the exact session-aware row path.
+- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Accelerated aggregates validate maintenance state, source generation, metadata and summary versions, field coverage, source counts, and every segment before publishing accelerated metrics. Reasons including `maintenance_pending`, `generation_mismatch`, `metadata_format_mismatch`, `summary_format_mismatch`, `summary_missing`, `summary_checksum_mismatch`, `numeric_summary_requires_rows`, and `typed_summary_requires_rows` select the exact row aggregate.
 - Rollup or time-bucket substitution requires a planner proof of equivalence.
+
+Time-series index records, graph adjacency records, and column metadata and summaries are latest-only derived sidecars. Startup audits their version, generation, counts, checksums, and source membership as applicable and rebuilds the complete sidecar when state is missing, malformed, old, or inconsistent. Cassie does not read incompatible derived formats through a compatibility branch; authoritative Midge row records remain the recovery source.
 
 ## Storage Layout and Amplification
 
@@ -69,7 +71,7 @@ Mutation benchmarks report logical mutations, Midge writes, bytes, index mainten
 
 ## Cancellation and Parallel Work
 
-Deadline and cancellation checks occur at batch boundaries and within scoring, joins, aggregation, sorting, graph traversal, provider retries, and operator switching. Internal parallel work acquires permits from one shared per-engine bound so concurrent queries cannot multiply configured worker counts. Ordered merges are deterministic and must not duplicate or omit rows.
+Deadline and cancellation checks occur at batch boundaries and within scoring, joins, aggregation, sorting, graph traversal, provider retries, and operator switching. Internal parallel work acquires permits from one shared per-engine bound so concurrent queries cannot multiply configured worker counts. Ordered merges are deterministic and must not duplicate or omit rows. REST cancellation is acknowledged only after the controlled worker observes cancellation and finishes cleanup; dropping a request alone is not evidence that query work stopped.
 
 ## Benchmark Tier Contract
 
@@ -80,7 +82,7 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 | 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row and layout codecs, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
 | 2 - Subsystem | One subsystem operation | Parser, binder, planner, caches, physical operators, posting merge, ANN candidate or probe selection, hybrid fusion, protocol codecs, and one projection write or replay batch over at most 2,048 rows. Full SQL execution, listeners, concurrency, and scale loops are excluded. |
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
-| 4 - Integration | A real external boundary | Loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
+| 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
 | 5 - Scaling/saturation | Curves and limits | Query, retrieval, lifecycle, and transport owners over 10k, 100k, and 250k fixture classes, clients at 1/2/4/8/16, and workers at 1/2/4. Large SQL, join, search, vector, hybrid, replay, rebuild, and concurrency cases belong here. |
 | 6 - Soak/endurance | Long-lived stability | Exactly two default scenarios: mixed query/ingest/retrieval over 100k rows, and pgwire/HTTP lifecycle over 10k rows. Each scenario runs for one hour by default and proves correctness, resource bounds, permit accounting, cleanup, and zero failed operations. |
 
@@ -111,6 +113,8 @@ Filtering happens before setup. Fixture construction is lazy, one fixture is reu
 
 Fixture classes are part of scenario ownership: Tier 2 is capped at 2,048 rows; Tier 3 uses one representative 100k case per access-path family; Tier 4 normally reuses 10k rows; Tier 5 owns the 10k/100k/250k curves; and Tier 6 uses the two declared 100k and 10k fixtures. A join fixture must be visible to the actual integration harness before its timed query is eligible to run.
 
+Every network benchmark listener uses a non-empty credential backed by a Cassie role. Passwordless bootstrap is embedded-only and cannot be used to make a listener benchmark pass.
+
 Execution-result caching is disabled for every benchmark owner except the dedicated Tier 2 result-cache benchmark. Every result records the observed cache-hit count so cache isolation is evidence, not a scenario label.
 
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
@@ -131,6 +135,8 @@ Each result records, from observed execution rather than expectation alone:
 - setup time and measurement time.
 
 Candidate and fallback metrics are scoped to the scenario's access family. A fallback in an unrelated search, vector, join, analytical, or lifecycle subsystem cannot contaminate another scenario's evidence row. SQL query, system, scaling, and mixed-load gate rows must attach untimed plan preflight evidence before measurement.
+
+Tier 3 column, vector, and graph representatives additionally assert exact fixture results, deterministic ordering, final-path read and candidate bounds, peak accounted memory, and zero live reservations or workers after measurement. Tier 4 portal evidence asserts two ordered, disjoint pages under cumulative limits; cancellation evidence requires `57014`, no cancelled page, bounded reads, and portal/query cleanup. These are correctness gates and do not create latency claims for smoke runs.
 
 ## Tier 5 Scale and Saturation
 

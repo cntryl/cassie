@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::time::Duration;
 
+use crate::catalog::ColumnBatchMetadata;
+
 #[derive(Debug, Clone)]
 pub struct DocumentRef {
     pub id: String,
@@ -64,10 +66,20 @@ pub enum ColumnBatchScanOp {
 pub enum ColumnBatchScanFallbackReason {
     NoCoveringIndex,
     MissingMetadata,
+    InvalidMetadata,
+    MetadataFormatMismatch,
+    SummaryFormatMismatch,
+    SchemaVersionMismatch,
     SegmentSizeMismatch,
     FieldCoverageMismatch,
     GenerationMismatch,
     MaintenancePending,
+    SourceRowCountMismatch,
+    SegmentManifestMismatch,
+    SummaryMissing,
+    SummaryChecksumMismatch,
+    NumericSummaryRequiresRows,
+    TypedSummaryRequiresRows,
     SegmentMissing,
     SegmentChecksumMismatch,
     InvalidPayload,
@@ -83,10 +95,20 @@ impl ColumnBatchScanFallbackReason {
         match self {
             Self::NoCoveringIndex => "no_covering_column_index",
             Self::MissingMetadata => "missing_metadata",
+            Self::InvalidMetadata => "invalid_metadata",
+            Self::MetadataFormatMismatch => "metadata_format_mismatch",
+            Self::SummaryFormatMismatch => "summary_format_mismatch",
+            Self::SchemaVersionMismatch => "schema_version_mismatch",
             Self::SegmentSizeMismatch => "segment_size_mismatch",
             Self::FieldCoverageMismatch => "field_coverage_mismatch",
             Self::GenerationMismatch => "generation_mismatch",
             Self::MaintenancePending => "maintenance_pending",
+            Self::SourceRowCountMismatch => "source_row_count_mismatch",
+            Self::SegmentManifestMismatch => "segment_manifest_mismatch",
+            Self::SummaryMissing => "summary_missing",
+            Self::SummaryChecksumMismatch => "summary_checksum_mismatch",
+            Self::NumericSummaryRequiresRows => "numeric_summary_requires_rows",
+            Self::TypedSummaryRequiresRows => "typed_summary_requires_rows",
             Self::SegmentMissing => "segment_missing",
             Self::SegmentChecksumMismatch => "segment_checksum_mismatch",
             Self::InvalidPayload => "invalid_payload",
@@ -112,6 +134,12 @@ impl ColumnBatchScanFallbackReason {
 }
 
 #[derive(Debug, Clone)]
+pub enum ColumnBatchSummaryDecision {
+    Ready(Box<ColumnBatchMetadata>),
+    Fallback(ColumnBatchScanFallbackReason),
+}
+
+#[derive(Debug)]
 pub enum ColumnBatchScanDecision {
     Hit(ColumnBatchScanOutcome),
     Fallback(ColumnBatchScanFallbackReason),
@@ -129,7 +157,7 @@ pub(crate) struct OrderedRowBound {
     pub inclusive: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ColumnBatchScanOutcome {
     pub batches: Vec<Vec<DocumentRef>>,
     pub timings: MidgeScanTimings,
@@ -138,4 +166,5 @@ pub struct ColumnBatchScanOutcome {
     pub uncompressed_bytes: usize,
     pub skipped_segments: usize,
     pub decoded_columns: usize,
+    pub(crate) query_memory: Option<crate::runtime::QueryMemoryReservation>,
 }

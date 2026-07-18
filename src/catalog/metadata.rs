@@ -822,9 +822,9 @@ impl Catalog {
         mut stats: CollectionCardinalityStats,
     ) {
         stats.hydrated = true;
-        self.cardinality
-            .write()
-            .insert(collection.to_string(), stats);
+        let mut cardinality = self.cardinality.write();
+        cardinality.retain(|stored, _| !name_matches(collection, stored));
+        cardinality.insert(collection.to_string(), stats);
         self.bump_version();
     }
 

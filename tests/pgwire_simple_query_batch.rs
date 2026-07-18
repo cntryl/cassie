@@ -59,6 +59,20 @@ fn simple_query_frame(sql: &str) -> Vec<u8> {
     frame
 }
 
+fn password_frame(password: &str) -> Vec<u8> {
+    let mut payload = password.as_bytes().to_vec();
+    payload.push(0);
+
+    let mut frame = vec![b'p'];
+    frame.extend_from_slice(
+        &i32::try_from(payload.len() + 4)
+            .expect("password payload size must fit into i32")
+            .to_be_bytes(),
+    );
+    frame.extend_from_slice(&payload);
+    frame
+}
+
 async fn spawn_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.password = "postgres".to_string();
@@ -113,6 +127,22 @@ async fn start_session(
     assert_eq!(
         i32::from_be_bytes(
             authentication.1[0..4]
+                .try_into()
+                .expect("authentication status"),
+        ),
+        3
+    );
+    tokio::io::AsyncWriteExt::write_all(writer, &password_frame("postgres"))
+        .await
+        .expect("write password");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush password");
+    let authentication_ok = read_wire_frame(reader).await;
+    assert_eq!(authentication_ok.0, b'R');
+    assert_eq!(
+        i32::from_be_bytes(
+            authentication_ok.1[0..4]
                 .try_into()
                 .expect("authentication status"),
         ),

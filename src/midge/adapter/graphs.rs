@@ -5,6 +5,38 @@ use super::{check_document_write_failure_point, DocumentWriteFailurePoint};
 use super::{encode_row, CassieError, Midge, Uuid, WriteOptions};
 use crate::catalog::name_matches;
 
+#[path = "graphs/reconcile.rs"]
+mod reconcile;
+#[path = "graphs/scan.rs"]
+mod scan;
+
+pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 1;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct GraphAdjacencyManifest {
+    pub(crate) format_version: u32,
+    pub(crate) source_generation: u64,
+    pub(crate) edge_count: u64,
+}
+
+pub(crate) enum GraphEdgeScanOutcome {
+    Native {
+        edges: Vec<GraphEdgeRecord>,
+        memory: crate::runtime::QueryMemoryReservation,
+        reads: usize,
+    },
+    Fallback(&'static str),
+}
+
+pub(crate) struct GraphEdgeScanRequest<'a> {
+    pub(crate) graph: &'a crate::catalog::GraphMeta,
+    pub(crate) node_type: &'a str,
+    pub(crate) node_id: &'a str,
+    pub(crate) direction: &'a str,
+    pub(crate) edge_types: &'a [String],
+    pub(crate) limit: Option<usize>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GraphEdgeRecord {
     pub graph: String,
@@ -16,16 +48,6 @@ pub(crate) struct GraphEdgeRecord {
     pub target_id: String,
     pub edge_type: String,
     pub weight: f64,
-}
-
-struct GraphEdgeScan<'a> {
-    graph: &'a crate::catalog::GraphMeta,
-    database: &'a str,
-    prefix: &'a [u8],
-    direction: &'a str,
-    node_type: &'a str,
-    node_id: &'a str,
-    edge_types: &'a [String],
 }
 
 impl Midge {
@@ -42,6 +64,8 @@ impl Midge {
         collection: &str,
         documents: Vec<(Option<String>, serde_json::Value)>,
     ) -> Result<Vec<String>, CassieError> {
+        let canonical_collection = self.canonical_collection_name(collection);
+        let collection = canonical_collection.as_str();
         if documents.is_empty() {
             return Ok(Vec::new());
         }
@@ -94,6 +118,14 @@ impl Midge {
 
         let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
         let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
+        if let Some(graph) = graph.as_ref() {
+            Self::write_graph_manifest_in_tx(
+                &mut tx,
+                graph.storage_id,
+                generation,
+                u64::try_from(ids.len()).unwrap_or(u64::MAX),
+            )?;
+        }
         Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
         Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
@@ -119,120 +151,49 @@ impl Midge {
         row_id: &str,
         previous: Option<&serde_json::Value>,
         next: Option<&serde_json::Value>,
+        target_generation: u64,
     ) -> Result<(usize, usize), CassieError> {
         let Some(graph) = graph else {
             return Ok((0, 0));
         };
 
+        let previous_record = previous
+            .map(|payload| graph_edge_record_from_payload(graph, row_id, payload, false))
+            .transpose()?
+            .flatten();
+        let next_record = next
+            .map(|payload| graph_edge_record_from_payload(graph, row_id, payload, true))
+            .transpose()?
+            .flatten();
+
         let mut deletes = 0usize;
-        if let Some(previous) = previous {
-            if let Some(record) = graph_edge_record_from_payload(graph, row_id, previous, false)? {
-                Self::delete_graph_edge_record(tx, &record)?;
-                deletes = deletes.saturating_add(2);
-            }
+        if let Some(record) = previous_record.as_ref() {
+            Self::delete_graph_edge_record(tx, record)?;
+            deletes = deletes.saturating_add(4);
         }
 
         let mut puts = 0usize;
-        if let Some(next) = next {
-            let record =
-                graph_edge_record_from_payload(graph, row_id, next, true)?.ok_or_else(|| {
-                    CassieError::Unsupported("graph edge payload is incomplete".into())
-                })?;
-            Self::put_graph_edge_record(tx, &record)?;
-            puts = puts.saturating_add(2);
+        if next.is_some() && next_record.is_none() {
+            return Err(CassieError::Unsupported(
+                "graph edge payload is incomplete".into(),
+            ));
         }
+        if let Some(record) = next_record.as_ref() {
+            Self::put_graph_edge_record(tx, record)?;
+            puts = puts.saturating_add(4);
+        }
+
+        Self::advance_graph_manifest_in_tx(
+            tx,
+            graph.storage_id,
+            target_generation,
+            previous_record.is_some(),
+            next_record.is_some(),
+        )?;
 
         check_document_write_failure_point(DocumentWriteFailurePoint::GraphAdjacency)?;
 
         Ok((deletes, puts))
-    }
-
-    pub(crate) fn scan_graph_edges(
-        &self,
-        graph: &crate::catalog::GraphMeta,
-        node_type: &str,
-        node_id: &str,
-        direction: &str,
-        edge_types: &[String],
-    ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
-        let mut graph = graph.clone();
-        if graph.storage_id == 0 {
-            graph.storage_id = self
-                .list_graphs()?
-                .into_iter()
-                .find(|stored| crate::catalog::name_matches(&stored.name, &graph.name))
-                .ok_or_else(|| CassieError::Parse(format!("graph '{}' not found", graph.name)))?
-                .storage_id;
-        }
-        let mut out = Vec::new();
-        if direction.eq_ignore_ascii_case("out") || direction.eq_ignore_ascii_case("both") {
-            out.extend(
-                self.scan_graph_edges_by_prefix(&GraphEdgeScan {
-                    graph: &graph,
-                    database: crate::catalog::relation_database_name(&graph.name)
-                        .as_deref()
-                        .unwrap_or(self.default_database.as_str()),
-                    prefix: &Self::graph_outbound_prefix(graph.storage_id, node_type, node_id),
-                    direction: "out",
-                    node_type,
-                    node_id,
-                    edge_types,
-                })?,
-            );
-        }
-        if direction.eq_ignore_ascii_case("in") || direction.eq_ignore_ascii_case("both") {
-            out.extend(
-                self.scan_graph_edges_by_prefix(&GraphEdgeScan {
-                    graph: &graph,
-                    database: crate::catalog::relation_database_name(&graph.name)
-                        .as_deref()
-                        .unwrap_or(self.default_database.as_str()),
-                    prefix: &Self::graph_inbound_prefix(graph.storage_id, node_type, node_id),
-                    direction: "in",
-                    node_type,
-                    node_id,
-                    edge_types,
-                })?,
-            );
-        }
-        out.sort_by(|left, right| {
-            left.weight
-                .total_cmp(&right.weight)
-                .then_with(|| left.edge_id.cmp(&right.edge_id))
-        });
-        Ok(out)
-    }
-
-    fn scan_graph_edges_by_prefix(
-        &self,
-        request: &GraphEdgeScan<'_>,
-    ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
-        let entries = self.raw_scan_prefix_database(request.database, request.prefix)?;
-        let mut out = Vec::with_capacity(entries.len());
-        for (key, raw_value) in entries {
-            if !raw_value.is_empty() {
-                return Err(CassieError::Parse(
-                    "graph adjacency values must be empty".to_string(),
-                ));
-            }
-            let record = decode_graph_edge_key(
-                request.graph,
-                request.prefix,
-                &key,
-                request.direction,
-                request.node_type,
-                request.node_id,
-            )?;
-            if request.edge_types.is_empty()
-                || request
-                    .edge_types
-                    .iter()
-                    .any(|edge_type| edge_type.eq_ignore_ascii_case(&record.edge_type))
-            {
-                out.push(record);
-            }
-        }
-        Ok(out)
     }
 
     fn put_graph_edge_record(
@@ -243,6 +204,18 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.put(Self::graph_inbound_edge_key(record), Vec::new(), None)
             .map_err(CassieError::from)?;
+        tx.put(
+            super::key_encoding::graph_outbound_edge_type_key(record),
+            Vec::new(),
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.put(
+            super::key_encoding::graph_inbound_edge_type_key(record),
+            Vec::new(),
+            None,
+        )
+        .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -254,60 +227,63 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.delete(Self::graph_inbound_edge_key(record))
             .map_err(CassieError::from)?;
+        tx.delete(super::key_encoding::graph_outbound_edge_type_key(record))
+            .map_err(CassieError::from)?;
+        tx.delete(super::key_encoding::graph_inbound_edge_type_key(record))
+            .map_err(CassieError::from)?;
         Ok(())
     }
-}
 
-fn decode_graph_edge_key(
-    graph: &crate::catalog::GraphMeta,
-    prefix: &[u8],
-    key: &[u8],
-    direction: &str,
-    node_type: &str,
-    node_id: &str,
-) -> Result<GraphEdgeRecord, CassieError> {
-    let suffix = key
-        .strip_prefix(prefix)
-        .ok_or_else(|| CassieError::Parse("invalid graph adjacency prefix".to_string()))?;
-    let components = suffix
-        .split(|byte| *byte == 0)
-        .filter(|component| !component.is_empty())
-        .map(std::str::from_utf8)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| CassieError::Parse(format!("invalid graph adjacency key: {error}")))?;
-    let [edge_type, weight, other_type, other_id, edge_id] = components.as_slice() else {
-        return Err(CassieError::Parse(
-            "invalid graph adjacency component count".to_string(),
-        ));
-    };
-    let weight = decode_sortable_weight(weight)?;
-    let (source_type, source_id, target_type, target_id) = if direction == "out" {
-        (node_type, node_id, *other_type, *other_id)
-    } else {
-        (*other_type, *other_id, node_type, node_id)
-    };
-    Ok(GraphEdgeRecord {
-        graph: graph.name.clone(),
-        graph_id: graph.storage_id,
-        edge_id: (*edge_id).to_string(),
-        source_type: source_type.to_string(),
-        source_id: source_id.to_string(),
-        target_type: target_type.to_string(),
-        target_id: target_id.to_string(),
-        edge_type: (*edge_type).to_string(),
-        weight,
-    })
-}
+    fn write_graph_manifest_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        graph_id: u64,
+        source_generation: u64,
+        edge_count: u64,
+    ) -> Result<(), CassieError> {
+        let manifest = GraphAdjacencyManifest {
+            format_version: GRAPH_ADJACENCY_FORMAT_VERSION,
+            source_generation,
+            edge_count,
+        };
+        let raw =
+            serde_json::to_vec(&manifest).map_err(|error| CassieError::Parse(error.to_string()))?;
+        tx.put(super::key_encoding::graph_manifest_key(graph_id), raw, None)
+            .map_err(CassieError::from)
+    }
 
-fn decode_sortable_weight(value: &str) -> Result<f64, CassieError> {
-    let ordered = u64::from_str_radix(value, 16)
-        .map_err(|error| CassieError::Parse(format!("invalid graph weight: {error}")))?;
-    let bits = if ordered & (1_u64 << 63) == 0 {
-        !ordered
-    } else {
-        ordered ^ (1_u64 << 63)
-    };
-    Ok(f64::from_bits(bits))
+    fn advance_graph_manifest_in_tx(
+        tx: &mut cntryl_midge::Transaction,
+        graph_id: u64,
+        target_generation: u64,
+        had_previous: bool,
+        has_next: bool,
+    ) -> Result<(), CassieError> {
+        let key = super::key_encoding::graph_manifest_key(graph_id);
+        let Some(raw) = tx.get(&key).map_err(CassieError::from)? else {
+            return Ok(());
+        };
+        let Ok(mut manifest) = serde_json::from_slice::<GraphAdjacencyManifest>(&raw) else {
+            tx.delete(key).map_err(CassieError::from)?;
+            return Ok(());
+        };
+        if manifest.format_version != GRAPH_ADJACENCY_FORMAT_VERSION
+            || manifest.source_generation != target_generation
+                && manifest.source_generation.wrapping_add(1) != target_generation
+        {
+            tx.delete(key).map_err(CassieError::from)?;
+            return Ok(());
+        }
+        manifest.edge_count = match (had_previous, has_next) {
+            (false, true) => manifest.edge_count.saturating_add(1),
+            (true, false) if manifest.edge_count > 0 => manifest.edge_count - 1,
+            (true, false) => {
+                tx.delete(key).map_err(CassieError::from)?;
+                return Ok(());
+            }
+            _ => manifest.edge_count,
+        };
+        Self::write_graph_manifest_in_tx(tx, graph_id, target_generation, manifest.edge_count)
+    }
 }
 
 pub(crate) fn graph_edge_record_from_payload(

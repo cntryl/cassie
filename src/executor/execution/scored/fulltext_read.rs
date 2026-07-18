@@ -1,13 +1,21 @@
 use super::super::projected_read::{is_row_id_column, json_to_query_value};
 use super::{
     analyzer_for_search_field, batch, cached_search_context, filter, json_search_term_stats,
-    posting_list_candidate_ids, BatchRow, BinaryOp, Cassie, CassieSession, Expr,
+    posting_list_candidate_ids_controlled, BatchRow, BinaryOp, Cassie, CassieSession, Expr,
     FulltextFilteredReadSpec, FunctionMeta, HashMap, HashSet, Instant, PostingListDocument,
     QueryError, Value,
 };
-use crate::runtime::FulltextIndexOptions;
-use crate::runtime::QueryExecutionControls;
+use crate::runtime::accounted::AccountedVec;
+use crate::runtime::{FulltextIndexOptions, QueryExecutionControls, QueryMemoryReservation};
 use crate::search::analyzer::AnalyzerConfig;
+
+#[path = "fulltext_read/accounting.rs"]
+mod accounting;
+
+use accounting::{
+    document_filter_row_bytes, fulltext_result_row_variable_bytes, persisted_search_context_bytes,
+    reserve_analyzed_text, reserve_search_context,
+};
 
 pub(in crate::executor::execution) struct SearchProjectionColumn {
     pub(in crate::executor::execution) name: String,
@@ -24,6 +32,25 @@ struct TokenizedFulltextReadDocument {
     id: String,
     payload: serde_json::Value,
     text_stats: filter::SearchTermStats,
+}
+
+struct FulltextFilteredExecution {
+    rows: Vec<BatchRow>,
+    candidate_count: usize,
+    retrieval: Option<FulltextRetrievalMetrics>,
+    fallback_reason: Option<&'static str>,
+    _memory: Vec<QueryMemoryReservation>,
+}
+
+#[derive(Clone, Copy)]
+struct FulltextRetrievalMetrics {
+    posting_reads: usize,
+    row_fetches: usize,
+}
+
+enum FilteredFulltextSelection {
+    Selected(FulltextFilteredExecution),
+    Exact(&'static str),
 }
 
 pub(super) enum FulltextFilterMatch {
@@ -93,26 +120,27 @@ pub(super) fn execute_fulltext_filtered_read(
 ) -> Result<Vec<BatchRow>, QueryError> {
     super::super::check_timeout(controls)?;
     let started_at = Instant::now();
-    if let Some(rows) = try_execute_persisted_fulltext_filtered_read(
+    let execution = match try_execute_persisted_fulltext_filtered_read(
         cassie,
         session,
         user_functions,
         params,
         spec,
         controls,
-        started_at,
     )? {
-        return Ok(rows);
-    }
-    execute_row_fulltext_filtered_read(
-        cassie,
-        session,
-        user_functions,
-        params,
-        spec,
-        controls,
-        started_at,
-    )
+        FilteredFulltextSelection::Selected(execution) => execution,
+        FilteredFulltextSelection::Exact(reason) => execute_row_fulltext_filtered_read(
+            cassie,
+            session,
+            user_functions,
+            params,
+            spec,
+            controls,
+            reason,
+        )?,
+    };
+    publish_filtered_fulltext_metrics(cassie, started_at, &execution);
+    Ok(execution.rows)
 }
 
 fn execute_row_fulltext_filtered_read(
@@ -122,12 +150,22 @@ fn execute_row_fulltext_filtered_read(
     params: &[Value],
     spec: &FulltextFilteredReadSpec,
     controls: &QueryExecutionControls,
-    started_at: Instant,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let (search_documents, search_index_options, analyzer) =
-        load_tokenized_read_documents(cassie, session, spec)?;
-    let search_document_bytes = tokenized_read_bytes(&search_documents);
-    let _document_memory = controls.reserve_query_memory(search_document_bytes)?;
+    fallback_reason: &'static str,
+) -> Result<FulltextFilteredExecution, QueryError> {
+    let search_index_options = super::hybrid::search_context_for_fields(
+        cassie,
+        &spec.collection,
+        std::slice::from_ref(&spec.text_field),
+    )?;
+    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let (search_documents, mut memory) =
+        load_tokenized_read_documents(cassie, session, spec, &analyzer, controls)?;
+    let context_memory = reserve_search_context(
+        controls,
+        &search_documents,
+        &search_index_options,
+        &spec.text_field,
+    )?;
     let search_context = cached_search_context(
         cassie,
         &spec.collection,
@@ -140,11 +178,15 @@ fn execute_row_fulltext_filtered_read(
             analyzer: &search_index_options.field_analyzer,
         },
     )?;
+    memory.push(context_memory);
+    let query_memory = reserve_analyzed_text(controls, &spec.query, &analyzer)?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidate_ids = posting_list_candidate_ids(&search_documents, &query_terms);
-    let _candidate_memory =
-        controls.reserve_query_memory(candidate_ids.iter().map(String::len).sum())?;
-    let rows = score_row_fulltext_documents(&RowFulltextScoreRequest {
+    memory.push(query_memory);
+    let (candidate_ids, candidate_memory) =
+        posting_list_candidate_ids_controlled(&search_documents, &query_terms, controls)?;
+    let candidate_count = candidate_ids.len();
+    memory.push(candidate_memory);
+    let (rows, output_memory) = score_row_fulltext_documents(&RowFulltextScoreRequest {
         search_documents: &search_documents,
         candidate_ids: &candidate_ids,
         search_context: &search_context,
@@ -155,21 +197,26 @@ fn execute_row_fulltext_filtered_read(
         spec,
         controls,
     })?;
-    cassie
-        .runtime
-        .record_search_execution(started_at.elapsed(), candidate_ids.len(), rows.len());
-    Ok(rows)
+    memory.push(output_memory);
+    Ok(FulltextFilteredExecution {
+        rows,
+        candidate_count,
+        retrieval: None,
+        fallback_reason: Some(fallback_reason),
+        _memory: memory,
+    })
 }
 
 fn load_tokenized_read_documents(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
+    analyzer: &AnalyzerConfig,
+    controls: &QueryExecutionControls,
 ) -> Result<
     (
         Vec<TokenizedFulltextReadDocument>,
-        FulltextIndexOptions,
-        AnalyzerConfig,
+        Vec<QueryMemoryReservation>,
     ),
     QueryError,
 > {
@@ -186,34 +233,55 @@ fn load_tokenized_read_documents(
             }
         }
     }
-    let document_batches = cassie
-        .scan_projected_documents_batched_for_session(
+    let Some(mut cursor) = cassie
+        .open_session_row_cursor(
             session,
             &spec.collection,
-            batch::DEFAULT_BATCH_SIZE,
-            &scan_fields,
-            None,
+            crate::midge::adapter::RowDecode::ProjectedHistorical(scan_fields),
+            controls,
         )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    let search_index_options = super::hybrid::search_context_for_fields(
-        cassie,
-        &spec.collection,
-        std::slice::from_ref(&spec.text_field),
-    )?;
-    let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
-    let search_documents = document_batches
-        .into_iter()
-        .flat_map(std::iter::IntoIterator::into_iter)
-        .map(|document| TokenizedFulltextReadDocument {
-            id: document.id,
-            text_stats: json_search_term_stats(
-                json_projected_value(&document.payload, &spec.text_field),
-                &analyzer,
-            ),
-            payload: document.payload,
-        })
-        .collect::<Vec<_>>();
-    Ok((search_documents, search_index_options, analyzer))
+        .map_err(QueryError::from)?
+    else {
+        return Err(QueryError::General(
+            "filtered fulltext exact fallback requires row storage".to_string(),
+        ));
+    };
+    let mut search_documents = Vec::new();
+    let mut memory = Vec::new();
+    loop {
+        let documents = cursor
+            .next_accounted_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, controls)
+            .map_err(QueryError::from)?;
+        if documents.is_empty() {
+            break;
+        }
+        for document in documents {
+            let text = json_projected_value(&document.document().payload, &spec.text_field)
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            let token_memory = controls.reserve_query_memory(
+                std::mem::size_of::<TokenizedFulltextReadDocument>()
+                    .saturating_add(super::memory::tokenized_text_upper_bound(text, analyzer)),
+            )?;
+            search_documents.try_reserve_exact(1).map_err(|error| {
+                QueryError::from(crate::app::CassieError::ResourceLimit(format!(
+                    "unable to retain filtered fulltext source: {error}"
+                )))
+            })?;
+            let (document, source_memory) = document.into_parts();
+            search_documents.push(TokenizedFulltextReadDocument {
+                id: document.id,
+                text_stats: json_search_term_stats(
+                    json_projected_value(&document.payload, &spec.text_field),
+                    analyzer,
+                ),
+                payload: document.payload,
+            });
+            memory.push(source_memory);
+            memory.push(token_memory);
+        }
+    }
+    Ok((search_documents, memory))
 }
 
 struct RowFulltextScoreRequest<'a> {
@@ -230,9 +298,9 @@ struct RowFulltextScoreRequest<'a> {
 
 fn score_row_fulltext_documents(
     request: &RowFulltextScoreRequest<'_>,
-) -> Result<Vec<BatchRow>, QueryError> {
+) -> Result<(Vec<BatchRow>, QueryMemoryReservation), QueryError> {
     let mut skipped = 0usize;
-    let mut rows = Vec::new();
+    let mut rows = AccountedVec::try_new(request.controls)?;
     for document in request.search_documents {
         super::super::check_timeout(request.controls)?;
         if !request.candidate_ids.contains(document.id.as_str()) {
@@ -247,6 +315,9 @@ fn score_row_fulltext_documents(
             continue;
         }
         if let Some(residual_filter) = &request.spec.residual_filter {
+            let _residual_memory = request
+                .controls
+                .reserve_query_memory(document_filter_row_bytes(&document.id, &document.payload))?;
             let candidate_row = document_filter_row(&document.id, &document.payload);
             if filter::filter_rows(
                 vec![candidate_row],
@@ -271,16 +342,21 @@ fn score_row_fulltext_documents(
             }
         }
 
-        rows.push(fulltext_result_row(
-            &document.id,
-            &document.payload,
-            score,
-            request.spec,
-            request.query_terms,
-        ));
+        rows.try_push_with(
+            fulltext_result_row_variable_bytes(&document.id, &document.payload, request.spec),
+            || {
+                fulltext_result_row(
+                    &document.id,
+                    &document.payload,
+                    score,
+                    request.spec,
+                    request.query_terms,
+                )
+            },
+        )?;
     }
 
-    Ok(rows)
+    Ok(rows.into_parts())
 }
 
 fn try_execute_persisted_fulltext_filtered_read(
@@ -290,19 +366,22 @@ fn try_execute_persisted_fulltext_filtered_read(
     params: &[Value],
     spec: &FulltextFilteredReadSpec,
     controls: &QueryExecutionControls,
-    started_at: Instant,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(persisted) = load_persisted_fulltext_read(cassie, session, spec, controls)? else {
-        return Ok(None);
+) -> Result<FilteredFulltextSelection, QueryError> {
+    let persisted = match load_persisted_fulltext_read(cassie, session, spec, controls)? {
+        PersistedFulltextReadSelection::Ready(persisted) => *persisted,
+        PersistedFulltextReadSelection::Exact(reason) => {
+            return Ok(FilteredFulltextSelection::Exact(reason));
+        }
     };
-    let scalar_candidates = scalar_prefilter_ids(cassie, spec, params)?;
+    let scalar_candidates = scalar_prefilter_ids(cassie, spec, params, controls)?;
     let matched = score_persisted_candidates(
         &persisted,
-        scalar_candidates.as_ref(),
+        scalar_candidates.as_ref().map(|candidates| &candidates.ids),
         &spec.text_field,
         controls,
     )?;
-    let Some((rows, row_fetches)) = materialize_persisted_candidates(
+    let (matched, matched_memory) = matched.into_parts();
+    let materialized = materialize_persisted_candidates(
         &PersistedMaterializeRequest {
             cassie,
             session,
@@ -313,26 +392,49 @@ fn try_execute_persisted_fulltext_filtered_read(
             query_terms: &persisted.query_terms,
         },
         matched,
-    )?
-    else {
-        return Ok(None);
+    )?;
+    let (rows, row_fetches, output_memory) = match materialized {
+        PersistedMaterialization::Selected {
+            rows,
+            row_fetches,
+            output_memory,
+        } => (rows, row_fetches, output_memory),
+        PersistedMaterialization::Exact(reason) => {
+            return Ok(FilteredFulltextSelection::Exact(reason));
+        }
     };
-    cassie.runtime.record_fulltext_retrieval_diagnostics(
-        persisted.candidates.posting_block_reads,
-        row_fetches,
-    );
-    cassie.runtime.record_search_execution(
-        started_at.elapsed(),
-        persisted.candidates.document_stats.len(),
-        rows.len(),
-    );
-    Ok(Some(rows))
+    let candidate_count = persisted.candidates.document_stats.len();
+    let posting_reads = persisted.candidates.posting_block_reads;
+    let mut memory = persisted.memory;
+    memory.push(matched_memory);
+    memory.push(output_memory);
+    if let Some(scalar_candidates) = scalar_candidates {
+        memory.extend(scalar_candidates.memory);
+    }
+    Ok(FilteredFulltextSelection::Selected(
+        FulltextFilteredExecution {
+            rows,
+            candidate_count,
+            retrieval: Some(FulltextRetrievalMetrics {
+                posting_reads,
+                row_fetches,
+            }),
+            fallback_reason: None,
+            _memory: memory,
+        },
+    ))
 }
 
 struct PersistedFulltextRead {
     candidates: crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
     query_terms: Vec<String>,
     search_context: filter::SearchContext,
+    memory: Vec<QueryMemoryReservation>,
+}
+
+enum PersistedFulltextReadSelection {
+    Ready(Box<PersistedFulltextRead>),
+    Exact(&'static str),
 }
 
 fn load_persisted_fulltext_read(
@@ -340,12 +442,9 @@ fn load_persisted_fulltext_read(
     session: Option<&CassieSession>,
     spec: &FulltextFilteredReadSpec,
     controls: &QueryExecutionControls,
-) -> Result<Option<PersistedFulltextRead>, QueryError> {
+) -> Result<PersistedFulltextReadSelection, QueryError> {
     if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
-        cassie
-            .runtime
-            .record_fulltext_row_scan_fallback("transaction_overlay");
-        return Ok(None);
+        return Ok(PersistedFulltextReadSelection::Exact("transaction_overlay"));
     }
     let Some(index) = cassie
         .catalog
@@ -356,10 +455,7 @@ fn load_persisted_fulltext_read(
                 && index.field.eq_ignore_ascii_case(&spec.text_field)
         })
     else {
-        cassie
-            .runtime
-            .record_fulltext_row_scan_fallback("missing_index");
-        return Ok(None);
+        return Ok(PersistedFulltextReadSelection::Exact("missing_index"));
     };
     let search_index_options = super::hybrid::search_context_for_fields(
         cassie,
@@ -367,27 +463,40 @@ fn load_persisted_fulltext_read(
         std::slice::from_ref(&spec.text_field),
     )?;
     let analyzer = analyzer_for_search_field(&search_index_options, &spec.text_field);
+    let query_memory = reserve_analyzed_text(controls, &spec.query, &analyzer)?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
-    let candidates =
-        match cassie
-            .midge
-            .fulltext_candidate_set(&spec.collection, &index.name, &query_terms)
+    let candidates = match cassie.midge.fulltext_candidate_set_controlled(
+        &spec.collection,
+        &index.name,
+        &query_terms,
+        controls,
+    ) {
+        Ok(candidates) => candidates,
+        Err(error)
+            if matches!(
+                error,
+                crate::app::CassieError::QueryCancelled
+                    | crate::app::CassieError::DeadlineExceeded
+                    | crate::app::CassieError::ResourceLimit(_)
+            ) =>
         {
-            Ok(candidates) => candidates,
-            Err(error) => {
-                let reason = if error.to_string().contains("missing_candidate_row") {
-                    "missing_candidate_row"
-                } else {
-                    "invalid_persisted_artifact"
-                };
-                cassie.runtime.record_fulltext_row_scan_fallback(reason);
-                return Ok(None);
-            }
-        };
-    let candidate_bytes = serde_json::to_vec(&candidates)
-        .map(|bytes| bytes.len())
-        .unwrap_or_default();
-    let _candidate_memory = controls.reserve_query_memory(candidate_bytes)?;
+            return Err(QueryError::from(error));
+        }
+        Err(error) => {
+            let reason = if error.to_string().contains("missing_candidate_row") {
+                "missing_candidate_row"
+            } else {
+                "invalid_persisted_artifact"
+            };
+            return Ok(PersistedFulltextReadSelection::Exact(reason));
+        }
+    };
+    let (candidates, candidate_memory) = candidates.into_parts();
+    let context_memory = controls.reserve_query_memory(persisted_search_context_bytes(
+        &candidates,
+        &search_index_options,
+        &spec.text_field,
+    ))?;
     let search_context = filter::SearchContext::from_persisted_field_statistics(
         &spec.text_field,
         &filter::PersistedFieldStatistics {
@@ -400,11 +509,14 @@ fn load_persisted_fulltext_read(
             field_analyzer: &search_index_options.field_analyzer,
         },
     );
-    Ok(Some(PersistedFulltextRead {
-        candidates,
-        query_terms,
-        search_context,
-    }))
+    Ok(PersistedFulltextReadSelection::Ready(Box::new(
+        PersistedFulltextRead {
+            candidates,
+            query_terms,
+            search_context,
+            memory: vec![query_memory, candidate_memory, context_memory],
+        },
+    )))
 }
 
 fn score_persisted_candidates<'a>(
@@ -412,8 +524,8 @@ fn score_persisted_candidates<'a>(
     scalar_candidates: Option<&HashSet<String>>,
     text_field: &str,
     controls: &QueryExecutionControls,
-) -> Result<Vec<(&'a String, f64)>, QueryError> {
-    let mut matched = Vec::new();
+) -> Result<AccountedVec<(&'a String, f64)>, QueryError> {
+    let mut matched = AccountedVec::try_new(controls)?;
     for (id, stats) in &persisted.candidates.document_stats {
         super::super::check_timeout(controls)?;
         if scalar_candidates
@@ -430,7 +542,7 @@ fn score_persisted_candidates<'a>(
             &persisted.query_terms,
         );
         if score > 0.0 {
-            matched.push((id, score));
+            matched.try_push_with(0, || (id, score))?;
         }
     }
     Ok(matched)
@@ -446,13 +558,22 @@ struct PersistedMaterializeRequest<'a> {
     query_terms: &'a [String],
 }
 
+enum PersistedMaterialization {
+    Selected {
+        rows: Vec<BatchRow>,
+        row_fetches: usize,
+        output_memory: QueryMemoryReservation,
+    },
+    Exact(&'static str),
+}
+
 fn materialize_persisted_candidates(
     request: &PersistedMaterializeRequest<'_>,
     matched: Vec<(&String, f64)>,
-) -> Result<Option<(Vec<BatchRow>, usize)>, QueryError> {
+) -> Result<PersistedMaterialization, QueryError> {
     let mut skipped = 0usize;
     let mut row_fetches = 0usize;
-    let mut rows = Vec::new();
+    let mut rows = AccountedVec::try_new(request.controls)?;
     for (id, score) in matched {
         super::super::check_timeout(request.controls)?;
         if request.spec.limit.is_some_and(|limit| rows.len() >= limit) {
@@ -460,17 +581,18 @@ fn materialize_persisted_candidates(
         }
         let Some(document) = request
             .cassie
-            .get_document_for_session(request.session, &request.spec.collection, id)
-            .map_err(|error| QueryError::General(error.to_string()))?
+            .midge
+            .get_retrieval_document_controlled(&request.spec.collection, id, request.controls)
+            .map_err(QueryError::from)?
         else {
-            request
-                .cassie
-                .runtime
-                .record_fulltext_row_scan_fallback("missing_candidate_row");
-            return Ok(None);
+            return Ok(PersistedMaterialization::Exact("missing_candidate_row"));
         };
+        let (document, _document_memory) = document.into_parts();
         row_fetches = row_fetches.saturating_add(1);
         if let Some(residual_filter) = &request.spec.residual_filter {
+            let _residual_memory = request
+                .controls
+                .reserve_query_memory(document_filter_row_bytes(id, &document.payload))?;
             let candidate_row = document_filter_row(id, &document.payload);
             if filter::filter_rows(
                 vec![candidate_row],
@@ -489,22 +611,38 @@ fn materialize_persisted_candidates(
             skipped += 1;
             continue;
         }
-        rows.push(fulltext_result_row(
-            id,
-            &document.payload,
-            score,
-            request.spec,
-            request.query_terms,
-        ));
+        rows.try_push_with(
+            fulltext_result_row_variable_bytes(id, &document.payload, request.spec),
+            || {
+                fulltext_result_row(
+                    id,
+                    &document.payload,
+                    score,
+                    request.spec,
+                    request.query_terms,
+                )
+            },
+        )?;
     }
-    Ok(Some((rows, row_fetches)))
+    let (rows, output_memory) = rows.into_parts();
+    Ok(PersistedMaterialization::Selected {
+        rows,
+        row_fetches,
+        output_memory,
+    })
+}
+
+struct ControlledScalarCandidates {
+    ids: HashSet<String>,
+    memory: Vec<QueryMemoryReservation>,
 }
 
 fn scalar_prefilter_ids(
     cassie: &Cassie,
     spec: &FulltextFilteredReadSpec,
     params: &[Value],
-) -> Result<Option<HashSet<String>>, QueryError> {
+    controls: &QueryExecutionControls,
+) -> Result<Option<ControlledScalarCandidates>, QueryError> {
     let Some(residual) = spec.residual_filter.as_ref() else {
         return Ok(None);
     };
@@ -527,15 +665,29 @@ fn scalar_prefilter_ids(
     };
     let hits = cassie
         .midge
-        .scan_scalar_index(
+        .scan_scalar_index_controlled(
             &index,
             &crate::midge::adapter::ScalarIndexScanRequest {
                 equality_prefix: vec![value],
                 ..crate::midge::adapter::ScalarIndexScanRequest::default()
             },
+            controls,
         )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    Ok(Some(hits.into_iter().map(|hit| hit.id).collect()))
+        .map_err(QueryError::from)?;
+    let (hits, hit_memory) = hits.into_parts();
+    let retained_bytes = hits.iter().fold(0usize, |bytes, hit| {
+        bytes
+            .saturating_add(std::mem::size_of::<String>())
+            .saturating_add(3 * std::mem::size_of::<usize>())
+            .saturating_add(hit.id.len())
+    });
+    let id_memory = controls.reserve_query_memory(retained_bytes)?;
+    let mut ids = HashSet::with_capacity(hits.len());
+    ids.extend(hits.into_iter().map(|hit| hit.id));
+    Ok(Some(ControlledScalarCandidates {
+        ids,
+        memory: vec![hit_memory, id_memory],
+    }))
 }
 
 fn equality_literal(expr: &Expr, params: &[Value]) -> Option<(String, serde_json::Value)> {
@@ -577,6 +729,26 @@ fn value_literal(value: &Value) -> Option<serde_json::Value> {
         Value::Json(value) => Some(value.clone()),
         Value::Vector(_) => None,
     }
+}
+
+fn publish_filtered_fulltext_metrics(
+    cassie: &Cassie,
+    started_at: Instant,
+    execution: &FulltextFilteredExecution,
+) {
+    if let Some(retrieval) = execution.retrieval {
+        cassie
+            .runtime
+            .record_fulltext_retrieval_diagnostics(retrieval.posting_reads, retrieval.row_fetches);
+    }
+    if let Some(reason) = execution.fallback_reason {
+        cassie.runtime.record_fulltext_row_scan_fallback(reason);
+    }
+    cassie.runtime.record_search_execution(
+        started_at.elapsed(),
+        execution.candidate_count,
+        execution.rows.len(),
+    );
 }
 
 fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
@@ -624,26 +796,6 @@ fn fulltext_result_row(
     BatchRow::new(entries)
 }
 
-fn tokenized_read_bytes(documents: &[TokenizedFulltextReadDocument]) -> usize {
-    documents
-        .iter()
-        .map(|document| {
-            document
-                .id
-                .len()
-                .saturating_add(
-                    serde_json::to_vec(&document.payload)
-                        .map(|bytes| bytes.len())
-                        .unwrap_or_default(),
-                )
-                .saturating_add(
-                    serde_json::to_vec(&document.text_stats)
-                        .map(|bytes| bytes.len())
-                        .unwrap_or_default(),
-                )
-        })
-        .sum()
-}
 fn fulltext_filtered_scan_fields(spec: &FulltextFilteredReadSpec) -> Vec<String> {
     let mut fields = vec![spec.text_field.clone()];
     for column in &spec.columns {

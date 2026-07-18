@@ -20,8 +20,10 @@ pub(crate) use fulltext::{
     fulltext_postings_prefix, fulltext_term_postings_block_key, fulltext_term_postings_prefix,
 };
 pub(super) use graph::{
-    graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_prefix, graph_key,
-    graph_outbound_edge_key, graph_outbound_prefix, graph_prefix,
+    graph_adjacency_prefix, graph_inbound_edge_key, graph_inbound_edge_type_key,
+    graph_inbound_edge_type_prefix, graph_inbound_prefix, graph_key, graph_manifest_key,
+    graph_outbound_edge_key, graph_outbound_edge_type_key, graph_outbound_edge_type_prefix,
+    graph_outbound_prefix, graph_prefix,
 };
 pub(super) use hot_indexes::{
     column_batch_collection_prefix, column_batch_index_prefix, column_batch_metadata_key,

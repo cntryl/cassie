@@ -79,7 +79,7 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
         let address = listener.local_addr().expect("listener address");
         drop(listener);
         let config = CassieRuntimeConfig {
-            password: String::new(),
+            password: "postgres".to_string(),
             pgwire_tls_cert_file: Some(certificate_path.to_string_lossy().to_string()),
             pgwire_tls_key_file: Some(key_path.to_string_lossy().to_string()),
             ..CassieRuntimeConfig::default()
@@ -142,7 +142,7 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
         let address = listener.local_addr().expect("listener address");
         drop(listener);
         let config = CassieRuntimeConfig {
-            password: String::new(),
+            password: "postgres".to_string(),
             pgwire_tls_cert_file: Some(certificate_path.to_string_lossy().to_string()),
             pgwire_tls_key_file: Some(key_path.to_string_lossy().to_string()),
             ..CassieRuntimeConfig::default()

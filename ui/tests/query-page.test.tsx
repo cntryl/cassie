@@ -1,18 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
-import type { FetchResponse } from "@fgrzl/fetch";
 
 import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
 import QueryPage from "@/pages/app/query";
-import {
-  apiv1,
-  type ColumnMeta,
-  type QueryExplainResponse,
-  type QueryResult,
-  type QuerySchemaResponse,
-  type QueryValidateResponse,
-} from "@/adapters";
+import { type ColumnMeta, type QueryExplainResponse, type QuerySchemaResponse } from "@/adapters";
+import { mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 
 const schemaResponse: QuerySchemaResponse = {
   sections: [
@@ -58,17 +51,7 @@ const schemaResponse: QuerySchemaResponse = {
 };
 
 function mockQuerySchemaSuccess() {
-  const response: FetchResponse<QuerySchemaResponse> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/catalog",
-    data: schemaResponse,
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
+  mockJsonResponse("/api/v1/admin/catalog", schemaResponse);
 }
 
 function mockQuerySchemaWithColumnsSuccess() {
@@ -104,17 +87,7 @@ function mockQuerySchemaWithColumnsSuccess() {
     ],
   } as unknown as QuerySchemaResponse;
 
-  const response: FetchResponse<QuerySchemaResponse> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/catalog",
-    data,
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
+  mockJsonResponse("/api/v1/admin/catalog", data);
 }
 
 function column(name: string): ColumnMeta {
@@ -228,68 +201,41 @@ const explainPlan = {
 } satisfies QueryExplainResponse["plan"];
 
 function mockValidateSuccess() {
-  const response: FetchResponse<QueryValidateResponse> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/query-validations",
-    data: {
+  mockJsonResponse(
+    "/api/v1/admin/query-validations",
+    {
       columns: [column("id"), column("name")],
       command: "SELECT",
       valid: true,
     },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "createAdminQueryValidation").mockResolvedValue(response);
+    { method: "POST" },
+  );
 }
 
 function mockValidateError() {
-  const response: FetchResponse<QueryValidateResponse> = {
-    ok: false,
-    status: 400,
-    statusText: "Bad Request",
-    headers: new Headers(),
-    url: "/api/v1/admin/query-validations",
-    data: null,
-    error: {
-      message: 'syntax error at or near "SELET"',
-      status: 400,
-      statusText: "Bad Request",
-      url: "/api/v1/admin/query-validations",
-    },
-  };
-
-  vi.spyOn(apiv1, "createAdminQueryValidation").mockResolvedValue(response);
+  mockJsonResponse(
+    "/api/v1/admin/query-validations",
+    { error: 'syntax error at or near "SELET"' },
+    { method: "POST", status: 400 },
+  );
 }
 
 function mockExecuteSuccess() {
-  const response: FetchResponse<QueryResult> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/query-executions",
-    data: {
+  mockJsonResponse(
+    "/api/v1/admin/query-executions",
+    {
       columns: [column("id"), column("name")],
       command: "SELECT",
       rows: [["doc-1", "Document 1"]],
     },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "createAdminQueryExecution").mockResolvedValue(response);
+    { method: "POST" },
+  );
 }
 
 function mockExecuteWithNullSuccess() {
-  const response: FetchResponse<QueryResult> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/query-executions",
-    data: {
+  mockJsonResponse(
+    "/api/v1/admin/query-executions",
+    {
       columns: [column("id"), column("name")],
       command: "SELECT",
       rows: [
@@ -297,29 +243,21 @@ function mockExecuteWithNullSuccess() {
         ["doc-2", "NULL"],
       ],
     },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "createAdminQueryExecution").mockResolvedValue(response);
+    { method: "POST" },
+  );
 }
 
 function mockExplainSuccess() {
-  const response: FetchResponse<QueryExplainResponse> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/query-explanations",
-    data: {
+  mockJsonResponse(
+    "/api/v1/admin/query-explanations",
+    {
       columns: [column("QUERY PLAN")],
       command: "EXPLAIN",
       rows: [["Index Scan using idx_documents_title on documents\n  Index Cond: (title = 'one')"]],
       plan: explainPlan,
     },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "createAdminQueryExplanation").mockResolvedValue(response);
+    { method: "POST" },
+  );
 }
 
 async function flushUi() {
@@ -401,6 +339,7 @@ afterEach(() => {
   vi.clearAllMocks();
   cleanupApp("app");
   document.body.innerHTML = "";
+  resetFetchMock();
 });
 
 beforeEach(() => {
@@ -410,6 +349,22 @@ beforeEach(() => {
 });
 
 describe("admin query page composition", () => {
+  it("should_explain_the_workspace_and_run_shortcut_given_the_query_page", async () => {
+    // Arrange
+    const root = await mountQueryRoute();
+
+    // Act
+    const heading = root.querySelector("#query-workspace-title");
+    const shortcut = root.querySelector('[data-testid="query-run-shortcut"]');
+
+    // Assert
+    expect(heading?.textContent).toBe("Query workspace");
+    expect(shortcut?.textContent).toContain("Enter");
+    expect(root.querySelector("[data-query-page]")?.getAttribute("aria-labelledby")).toBe(
+      "query-workspace-title",
+    );
+  });
+
   it("renders shell structure and query page containers", async () => {
     const root = await mountQueryRoute();
 
@@ -418,7 +373,7 @@ describe("admin query page composition", () => {
     expect(queryPage).toBeTruthy();
     expect(queryPage?.id).toBe("main-content");
     expect(queryPage?.getAttribute("tabindex")).toBe("-1");
-    expect(queryPage?.getAttribute("aria-label")).toBe("Query");
+    expect(queryPage?.getAttribute("aria-labelledby")).toBe("query-workspace-title");
     const schemaBrowser = root.querySelector('[aria-label="Schema browser"]');
     const schemaTree = root.querySelector('[data-testid="query-schema-tree"]');
     expect(schemaTree).toBeTruthy();

@@ -1,4 +1,4 @@
-import type { RouteAuthState } from "@askrjs/askr/router";
+import type { AuthContext } from "@askrjs/askr/router";
 
 import { apiv1 } from "@/adapters";
 import { unwrapResponse } from "@/shared/errors/api";
@@ -37,17 +37,42 @@ export function signOut(): void {
   memorySession = null;
 }
 
-export async function resolveRouteAuth(): Promise<RouteAuthState<AuthSession, AuthSession>> {
+function routeAuthContext(session: AuthSession | null): AuthContext {
+  if (session === null) {
+    return {
+      authenticated: false,
+      principal: null,
+      session: null,
+      tenant: null,
+    };
+  }
+
+  return {
+    authenticated: true,
+    principal: {
+      id: session.user,
+      subject: session.user,
+      roles: session.role ? [session.role] : [],
+    },
+    session: {
+      id: `cassie:${session.user}`,
+      subject: session.user,
+    },
+    tenant: session.database,
+  };
+}
+
+export async function resolveRouteAuth(): Promise<AuthContext> {
   if (memorySession !== null) {
-    return { session: memorySession, user: memorySession };
+    return routeAuthContext(memorySession);
   }
 
   try {
     const session = unwrapResponse(await apiv1.getRestSession(), "Unable to restore session");
     memorySession = session;
-    return { session, user: session };
+    return routeAuthContext(session);
   } catch {
     memorySession = null;
-    return { session: null, user: null };
+    return routeAuthContext(null);
   }
 }

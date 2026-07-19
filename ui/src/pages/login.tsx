@@ -44,8 +44,10 @@ export default function LoginPage() {
     try {
       const session = unwrapResponse(
         await apiv1.loginRestSession({
-          username: username().trim(),
-          password: password(),
+          body: {
+            username: username().trim(),
+            password: password(),
+          },
         }),
         "Unable to sign in",
       );

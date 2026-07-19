@@ -18,7 +18,7 @@ async function validate(
   sql: string,
   options: ServiceRequestOptions = {},
 ): Promise<QueryValidationResult> {
-  const response = await apiv1.createAdminQueryValidation({ sql }, options);
+  const response = await apiv1.createAdminQueryValidation({ body: { sql }, ...options });
 
   return mapQueryValidation(unwrapResponse(response, "Unable to validate SQL"));
 }
@@ -27,7 +27,7 @@ async function execute(
   sql: string,
   options: ServiceRequestOptions = {},
 ): Promise<QueryExecutionResult> {
-  const response = await apiv1.createAdminQueryExecution({ sql }, options);
+  const response = await apiv1.createAdminQueryExecution({ body: { sql }, ...options });
 
   return mapQueryResult(unwrapResponse(response, "Unable to execute SQL"));
 }
@@ -36,7 +36,7 @@ async function explain(
   sql: string,
   options: ServiceRequestOptions = {},
 ): Promise<QueryExecutionResult> {
-  const response = await apiv1.createAdminQueryExplanation({ sql }, options);
+  const response = await apiv1.createAdminQueryExplanation({ body: { sql }, ...options });
 
   return mapQueryExplain(unwrapResponse(response, "Unable to explain SQL"));
 }

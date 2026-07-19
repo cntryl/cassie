@@ -1,7 +1,18 @@
 import { state } from "@askrjs/askr";
 import { Link } from "@askrjs/askr/router";
-import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
-import { Block, Brand, BrandLabel, Button, Container, Grid } from "@askrjs/themes/components";
+import { DatabaseIcon, LogOutIcon, MenuIcon, MoonIcon, ServerIcon, SunIcon } from "@askrjs/lucide";
+import {
+  Badge,
+  Block,
+  Brand,
+  BrandLabel,
+  BrandMark,
+  Button,
+  Container,
+  Grid,
+  Inline,
+  Text,
+} from "@askrjs/themes/components";
 import { Header, NavBrand, NavGroup, Navbar, Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
@@ -12,6 +23,7 @@ import {
   SidebarResizeHandle,
 } from "@/components/shell/sidebar-resize-handle";
 import { SidebarPortalHost } from "@/components/shell/sidebar-portal-host";
+import { getSession } from "@/shared/auth";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
 const SIDEBAR_WIDTH_DEFAULT_PX = 320;
@@ -47,6 +59,7 @@ function persistSidebarWidth(px: number) {
 }
 
 export default function Layout({ children }: { children?: unknown }) {
+  const session = getSession();
   const [mobileNavOpen, setMobileNavOpen] = state(false);
   const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
   const isMobileNavOpen = mobileNavOpen();
@@ -118,12 +131,27 @@ export default function Layout({ children }: { children?: unknown }) {
             <NavBrand>
               <Brand asChild>
                 <Link href="/" aria-label="Cassie admin home">
+                  <BrandMark aria-hidden="true">
+                    <DatabaseIcon size={16} />
+                  </BrandMark>
                   <BrandLabel>Cassie Admin</BrandLabel>
                 </Link>
               </Brand>
             </NavBrand>
 
             <NavGroup align="end" aria-label="View controls" role="group">
+              <Inline gap="sm" align="center" data-testid="admin-session-context">
+                <Badge variant="success">Connected</Badge>
+                <Badge variant="outline">
+                  <ServerIcon size={14} aria-hidden="true" />
+                  {session?.database ?? "Cassie server"}
+                </Badge>
+                {session?.user ? (
+                  <Text as="span" size="sm" tone="muted">
+                    {session.user}
+                  </Text>
+                ) : null}
+              </Inline>
               <ThemeToggle
                 aria-label="Toggle color theme"
                 variant="ghost"

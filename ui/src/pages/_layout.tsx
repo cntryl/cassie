@@ -1,10 +1,10 @@
 import "../styles/index.css";
-import { ThemeProvider } from "@askrjs/themes/theme";
+import { ThemeScope } from "@askrjs/themes/theme";
 
 export default function RootLayout({ children }: { children?: unknown }) {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="cassie-admin-theme">
+    <ThemeScope defaultTheme="system" storageKey="cassie-admin-theme">
       {children}
-    </ThemeProvider>
+    </ThemeScope>
   );
 }

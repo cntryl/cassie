@@ -1,4 +1,4 @@
-import type { FetchResponse } from "@fgrzl/fetch";
+import type { FailureResult, HttpResult, SuccessResult } from "@askrjs/fetch";
 
 export type AppApiErrorCode =
   | "badRequest"
@@ -37,13 +37,33 @@ function errorCodeForStatus(status: number): AppApiErrorCode {
   return "unknown";
 }
 
-function errorMessage<T>(response: FetchResponse<T>, fallbackMessage: string) {
-  return (response.error?.message as string | undefined) || response.statusText || fallbackMessage;
+type ApiResult<T> = SuccessResult<T> | HttpResult<unknown> | FailureResult;
+
+function errorMessage(error: unknown, fallbackMessage: string) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error !== null && typeof error === "object") {
+    const payload = error as Record<string, unknown>;
+    if (typeof payload.message === "string") {
+      return payload.message;
+    }
+    if (typeof payload.error === "string") {
+      return payload.error;
+    }
+  }
+
+  return fallbackMessage;
 }
 
-// Service boundary helper: unwrap FetchResponse<T> before data leaves services.
-export function unwrapResponse<T>(response: FetchResponse<T>, fallbackMessage: string): T {
-  if (response.ok && response.data !== null) {
+// Service boundary helper: unwrap Askr fetch results before data leaves services.
+export function unwrapResponse<T>(response: ApiResult<T>, fallbackMessage: string): T {
+  if (response.ok && response.data !== null && response.data !== undefined) {
     return response.data;
   }
 
@@ -52,19 +72,19 @@ export function unwrapResponse<T>(response: FetchResponse<T>, fallbackMessage: s
   }
 
   throw new AppApiError(
-    errorMessage(response, fallbackMessage),
+    errorMessage(response.error, fallbackMessage),
     response.status,
     errorCodeForStatus(response.status),
   );
 }
 
-export function ensureResponseOk<T>(response: FetchResponse<T>, fallbackMessage: string) {
+export function ensureResponseOk<T>(response: ApiResult<T>, fallbackMessage: string) {
   if (response.ok) {
     return;
   }
 
   throw new AppApiError(
-    errorMessage(response, fallbackMessage),
+    errorMessage(response.error, fallbackMessage),
     response.status,
     errorCodeForStatus(response.status),
   );

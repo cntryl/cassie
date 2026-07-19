@@ -1,24 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { clearRoutes, getManifest } from "@askrjs/askr/router";
-import type { FetchResponse } from "@fgrzl/fetch";
 
 import { registerRootRoutes } from "@/pages/_routes";
-import { apiv1, type QuerySchemaResponse } from "@/adapters";
 import { signIn, signOut } from "@/shared/auth";
+import { mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 
 function mockCatalogSuccess() {
-  const response: FetchResponse<QuerySchemaResponse> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/admin/catalog",
-    data: { sections: [] },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "listAdminCatalog").mockResolvedValue(response);
+  mockJsonResponse("/api/v1/admin/catalog", { sections: [] });
 }
 
 async function flushUi() {
@@ -59,6 +48,7 @@ afterEach(() => {
   cleanupApp("app");
   document.body.innerHTML = "";
   signOut();
+  resetFetchMock();
 });
 
 beforeEach(() => {

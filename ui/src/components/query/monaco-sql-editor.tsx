@@ -1,6 +1,6 @@
 import { state } from "@askrjs/askr";
 
-import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@/vendor/askr-monaco";
+import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@askrjs/monaco";
 
 export interface MonacoCompletionItem {
   label: string;
@@ -28,6 +28,7 @@ export function MonacoSqlEditor({
   const isTestMode = import.meta.env.MODE === "test";
   const [editorUnavailable, setEditorUnavailable] = state(false);
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
+  const isEditorUnavailable = editorUnavailable();
 
   function handleFallbackKeyDown(event: KeyboardEvent) {
     if (event.key !== "Tab" || event.shiftKey) {
@@ -65,7 +66,7 @@ export function MonacoSqlEditor({
   // jsdom can't run Monaco (no real Worker/Canvas/ResizeObserver support), so
   // tests always exercise this same plain-textarea contract instead — real
   // browsers only fall back here if Monaco itself fails to load (onError).
-  if (isTestMode || typeof window === "undefined" || editorUnavailable()) {
+  if (isTestMode || typeof window === "undefined" || isEditorUnavailable) {
     return (
       <div
         class="cassie-query-editor-host"
@@ -93,7 +94,6 @@ export function MonacoSqlEditor({
           onKeyDown={handleFallbackKeyDown}
           disabled={disabled}
           rows={10}
-          spellcheck={false}
         />
       </div>
     );

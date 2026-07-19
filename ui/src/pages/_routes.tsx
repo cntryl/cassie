@@ -1,4 +1,5 @@
 import { group, route, registerRoutes } from "@askrjs/askr/router";
+import { requireAnonymous, requireUser } from "@askrjs/auth";
 
 import RootLayout from "./_layout";
 import { registerAppRoutes } from "./app/_routes";
@@ -10,8 +11,8 @@ export function registerRootRoutes() {
   registerRoutes(
     () => {
       group({ layout: RootLayout }, () => {
-        route("/login", LoginPage, { auth: "guest" });
-        route("/logout", LogoutPage, { auth: true });
+        route("/login", LoginPage, { auth: requireAnonymous() });
+        route("/logout", LogoutPage, { auth: requireUser() });
         registerAppRoutes();
       });
     },
@@ -19,7 +20,7 @@ export function registerRootRoutes() {
       auth: {
         resolve: resolveRouteAuth,
         loginPath: "/login",
-        guestRedirectTo: "/",
+        authenticatedRedirectTo: "/",
       },
     },
   );

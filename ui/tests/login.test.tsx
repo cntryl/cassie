@@ -1,42 +1,24 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
-import type { FetchResponse } from "@fgrzl/fetch";
 
 import LoginPage from "@/pages/login";
-import { apiv1, type Session } from "@/adapters";
 import { isSignedIn, signOut } from "@/shared/auth";
+import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 
 function mockLoginSuccess() {
-  const response: FetchResponse<Session> = {
-    ok: true,
-    status: 200,
-    statusText: "OK",
-    headers: new Headers(),
-    url: "/api/v1/auth/login",
-    data: { user: "admin", database: "postgres", role: "admin" },
-    error: null,
-  };
-
-  vi.spyOn(apiv1, "loginRestSession").mockResolvedValue(response);
+  mockJsonResponse(
+    "/api/v1/auth/login",
+    { user: "admin", database: "postgres", role: "admin" },
+    { method: "POST" },
+  );
 }
 
 function mockLoginUnauthorized() {
-  const response: FetchResponse<Session> = {
-    ok: false,
-    status: 401,
-    statusText: "Unauthorized",
-    headers: new Headers(),
-    url: "/api/v1/auth/login",
-    data: null,
-    error: {
-      message: "Invalid username or password.",
-      status: 401,
-      statusText: "Unauthorized",
-      url: "",
-    },
-  };
-
-  vi.spyOn(apiv1, "loginRestSession").mockResolvedValue(response);
+  mockJsonResponse(
+    "/api/v1/auth/login",
+    { error: "Invalid username or password." },
+    { method: "POST", status: 401 },
+  );
 }
 
 async function flushUi() {
@@ -86,6 +68,7 @@ afterEach(() => {
   cleanupApp("app");
   document.body.innerHTML = "";
   signOut();
+  resetFetchMock();
 });
 
 describe("login page", () => {
@@ -117,7 +100,9 @@ describe("login page", () => {
     await flushUi();
     await flushUi();
 
-    expect(apiv1.loginRestSession).toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const request = fetchMock.mock.calls[0]?.[0];
+    expect(await request?.json()).toEqual({ username: "admin", password: "pwd123" });
     expect(window.location.pathname).toBe("/");
     expect(isSignedIn()).toBe(true);
   });

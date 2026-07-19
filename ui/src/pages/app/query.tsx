@@ -1,7 +1,7 @@
 import { state } from "@askrjs/askr";
 import { Portal } from "@askrjs/askr/foundations";
-import { TriangleAlertIcon } from "@askrjs/lucide";
-import { Alert, Button } from "@askrjs/themes/components";
+import { CommandIcon, TriangleAlertIcon } from "@askrjs/lucide";
+import { Alert, Badge, Button, Kbd, PageHeader, Text } from "@askrjs/themes/components";
 
 import { QueryEditorPanel } from "@/components/query/query-editor-panel";
 import { QueryExecutionBanner } from "@/components/query/query-execution-banner";
@@ -269,9 +269,25 @@ export default function QueryPage() {
         data-query-page="true"
         id="main-content"
         tabindex={-1}
-        aria-label="Query"
+        aria-labelledby="query-workspace-title"
         ref={handleMainRef}
       >
+        <PageHeader
+          title={<span id="query-workspace-title">Query workspace</span>}
+          description="Explore the catalog, shape a query, then inspect rows and execution plans."
+          actions={
+            <Badge variant="outline" data-testid="query-run-shortcut" title="Run query">
+              <CommandIcon size={14} aria-hidden="true" />
+              <Text as="span" size="sm" tone="muted">
+                Run
+              </Text>
+              <Kbd>⌘ / Ctrl</Kbd>
+              <span>+</span>
+              <Kbd>Enter</Kbd>
+            </Badge>
+          }
+        />
+
         {schemaQuery.loading && !schemaQuery.data ? (
           <p class="cassie-query-loading">Loading query schema…</p>
         ) : null}

@@ -1,7 +1,13 @@
-import { FetchClient } from "@fgrzl/fetch";
+import type { Middleware } from "@askrjs/fetch";
 
-const API_BASE_URL =
+import { createApiClient } from "./generated";
+
+const configuredBaseUrl =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_CASSIE_API_BASE_URL) || "/";
+const API_BASE_URL =
+  typeof window === "undefined"
+    ? configuredBaseUrl
+    : new URL(configuredBaseUrl, window.location.origin).toString();
 
 function createRequestId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -11,14 +17,8 @@ function createRequestId() {
   return `cassie-ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export const client = new FetchClient({
-  baseUrl: API_BASE_URL,
-  credentials: "same-origin",
-  timeout: 30_000,
-});
-
-client.use((request, next) => {
-  const headers = new Headers(request.headers);
+const cassieMiddleware: Middleware = async (context, next) => {
+  const headers = new Headers(context.request.headers);
 
   if (!headers.has("Accept")) {
     headers.set("Accept", "application/json");
@@ -28,14 +28,22 @@ client.use((request, next) => {
     headers.set("x-request-id", createRequestId());
   }
 
-  return next({
-    ...request,
-    headers,
-  }).then((response) => {
-    const path = new URL(request.url ?? API_BASE_URL, window.location.origin).pathname;
-    if (response.status === 401 && path !== "/api/v1/auth/login") {
-      window.location.assign("/login");
-    }
-    return response;
+  const result = await next({
+    ...context,
+    request: new Request(context.request, { headers }),
   });
+
+  const path = new URL(context.request.url).pathname;
+  if (!result.ok && result.status === 401 && path !== "/api/v1/auth/login") {
+    window.location.assign("/login");
+  }
+
+  return result;
+};
+
+export const client = createApiClient({
+  baseUrl: API_BASE_URL,
+  credentials: "same-origin",
+  timeout: 30_000,
+  middleware: [cassieMiddleware],
 });

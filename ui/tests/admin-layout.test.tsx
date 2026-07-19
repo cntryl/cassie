@@ -3,6 +3,7 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 
 import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
+import { signIn, signOut } from "@/shared/auth";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
 
@@ -81,11 +82,13 @@ async function mountAdminShell() {
 }
 
 afterEach(() => {
+  signOut();
   cleanupApp("app");
   document.body.innerHTML = "";
 });
 
 beforeEach(() => {
+  signIn("admin", "password");
   testLocalStorage().removeItem(SIDEBAR_WIDTH_STORAGE_KEY);
 });
 
@@ -98,6 +101,18 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 describe("admin shell sidebar resize", () => {
+  it("should_surface_active_session_context_given_an_authenticated_admin", async () => {
+    // Arrange
+    const root = await mountAdminShell();
+
+    // Act
+    const sessionContext = root.querySelector('[data-testid="admin-session-context"]');
+
+    // Assert
+    expect(sessionContext?.textContent).toContain("postgres");
+    expect(sessionContext?.textContent).toContain("admin");
+  });
+
   it("exposes a keyboard-resizable sidebar handle", async () => {
     const root = await mountAdminShell();
 

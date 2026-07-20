@@ -41,6 +41,14 @@
   min-inline-size: 0;
 }
 
+.cassie-query-starters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ak-space-1, 0.25rem);
+  min-inline-size: 0;
+}
+
 .cassie-query-editor-wrapper {
   min-block-size: 0;
   min-inline-size: 0;

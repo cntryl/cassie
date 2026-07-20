@@ -287,6 +287,60 @@ fn should_execute_admin_query_through_rest() {
 }
 
 #[test]
+fn should_complete_admin_query_workflow_given_one_authenticated_session() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("authenticated-workflow");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
+
+        // Act
+        let mut responses = Vec::new();
+        for sql in [
+            "CREATE TABLE ui_demo (demo_id INT PRIMARY KEY, name TEXT NOT NULL)",
+            "INSERT INTO ui_demo (demo_id, name) VALUES (1, 'Ada'), (2, 'Grace')",
+            "SELECT demo_id, name FROM ui_demo ORDER BY demo_id",
+        ] {
+            let response = client
+                .post(format!("{base_url}/api/v1/admin/query-executions"))
+                .header("cookie", &admin_cookie)
+                .json(&serde_json::json!({ "sql": sql }))
+                .send()
+                .await
+                .expect("query execution");
+            responses.push((
+                response.status(),
+                response.json::<serde_json::Value>().await.expect("json"),
+            ));
+        }
+
+        // Assert
+        assert_eq!(responses[0].0, StatusCode::OK);
+        assert_eq!(responses[0].1["command"], "CREATE TABLE");
+        assert_eq!(responses[1].0, StatusCode::OK);
+        assert_eq!(responses[1].1["command"], "INSERT 0 2");
+        assert_eq!(responses[2].0, StatusCode::OK);
+        assert_eq!(responses[2].1["command"], "SELECT");
+        assert_eq!(
+            responses[2].1["rows"],
+            serde_json::json!([[1, "Ada"], [2, "Grace"]])
+        );
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn should_validate_admin_query_through_rest() {
     // Arrange
     with_fallback();

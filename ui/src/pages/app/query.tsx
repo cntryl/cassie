@@ -25,7 +25,26 @@ import {
 } from "@/features/query/query-actions";
 import { apiErrorMessage } from "@/shared/errors/api";
 
-const defaultQuery = "SELECT id, name\nFROM documents\nLIMIT 10;";
+const defaultQuery = "SELECT 1 AS ready;";
+
+const schemaChangingCommands = new Set([
+  "ALTER SCHEMA",
+  "ALTER TABLE",
+  "CREATE DATABASE",
+  "CREATE FUNCTION",
+  "CREATE INDEX",
+  "CREATE PROCEDURE",
+  "CREATE SCHEMA",
+  "CREATE TABLE",
+  "CREATE VIEW",
+  "DROP DATABASE",
+  "DROP FUNCTION",
+  "DROP INDEX",
+  "DROP PROCEDURE",
+  "DROP SCHEMA",
+  "DROP TABLE",
+  "DROP VIEW",
+]);
 
 export default function QueryPage() {
   const schemaQuery = createAdminQuerySchemaQuery();
@@ -218,6 +237,12 @@ export default function QueryPage() {
     setActiveTab("results");
     try {
       await executeMutation.execute({ sql: query() });
+      if (
+        executeMutation.result !== null &&
+        schemaChangingCommands.has(executeMutation.result.command)
+      ) {
+        await schemaQuery.refresh();
+      }
     } finally {
       setStatus("idle");
     }

@@ -5,7 +5,7 @@ import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
 import QueryPage from "@/pages/app/query";
 import { type ColumnMeta, type QueryExplainResponse, type QuerySchemaResponse } from "@/adapters";
-import { mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
+import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 
 const schemaResponse: QuerySchemaResponse = {
   sections: [
@@ -232,6 +232,18 @@ function mockExecuteSuccess() {
   );
 }
 
+function mockCreateTableSuccess() {
+  mockJsonResponse(
+    "/api/v1/admin/query-executions",
+    {
+      columns: [],
+      command: "CREATE TABLE",
+      rows: [],
+    },
+    { method: "POST" },
+  );
+}
+
 function mockExecuteWithNullSuccess() {
   mockJsonResponse(
     "/api/v1/admin/query-executions",
@@ -349,6 +361,51 @@ beforeEach(() => {
 });
 
 describe("admin query page composition", () => {
+  it("should_offer_crud_starters_given_a_new_query_workflow", async () => {
+    // Arrange
+    const root = await mountQueryRoute();
+
+    // Act
+    buttonByText(root, "Create table").click();
+    await flushUi();
+
+    // Assert
+    expect(editorTextarea(root).value).toContain("CREATE TABLE ui_demo");
+
+    // Act
+    buttonByText(root, "Insert rows").click();
+    await flushUi();
+
+    // Assert
+    expect(editorTextarea(root).value).toContain("INSERT INTO ui_demo");
+
+    // Act
+    buttonByText(root, "Query rows").click();
+    await flushUi();
+
+    // Assert
+    expect(editorTextarea(root).value).toContain("SELECT demo_id, name");
+    expect(editorTextarea(root).value).toContain("FROM ui_demo");
+  });
+
+  it("should_refresh_the_schema_given_a_successful_create_table", async () => {
+    // Arrange
+    mockCreateTableSuccess();
+    const root = await mountQueryRoute();
+    buttonByText(root, "Create table").click();
+    await flushUi();
+
+    // Act
+    buttonByText(root, "Run").click();
+    await waitForText(root, "CREATE TABLE");
+
+    // Assert
+    const catalogRequests = fetchMock.mock.calls.filter(
+      ([request]) => new URL(request.url).pathname === "/api/v1/admin/catalog",
+    );
+    expect(catalogRequests).toHaveLength(2);
+  });
+
   it("should_explain_the_workspace_and_run_shortcut_given_the_query_page", async () => {
     // Arrange
     const root = await mountQueryRoute();
@@ -432,7 +489,7 @@ describe("admin query page composition", () => {
     const editor = editorTextarea(root);
 
     expect(schemaItem.getAttribute("data-item-kind")).toBe("table");
-    expect(editor.value).toContain("SELECT id, name");
+    expect(editor.value).toBe("SELECT 1 AS ready;");
   });
 
   it("should_clear_validation_and_result_feedback_when_sql_changes", async () => {

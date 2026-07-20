@@ -1,6 +1,7 @@
 import { Toolbar } from "@askrjs/themes/components";
 
 import { QueryEditorToolbar } from "./query-editor-toolbar";
+import { QueryStarters } from "./query-starters";
 import { MonacoCompletionItem, MonacoSqlEditor } from "./monaco-sql-editor";
 
 interface QueryEditorPanelProps {
@@ -67,6 +68,7 @@ export function QueryEditorPanel({
           />
         }
       />
+      <QueryStarters onSelect={onQueryChange} />
       <div class="cassie-query-editor-wrapper">
         <MonacoSqlEditor
           value={query}

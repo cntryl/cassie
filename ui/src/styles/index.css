@@ -1,5 +1,6 @@
 @import "@askrjs/themes/default";
 @import "./base.css";
+@import "./login.css";
 @import "./shell.css";
 @import "./query-schema.css";
 @import "./query.css";

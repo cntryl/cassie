@@ -1,6 +1,5 @@
 import { state } from "@askrjs/askr";
 import { navigate } from "@askrjs/askr/router";
-import { DatabaseIcon, LockIcon, UserIcon } from "@askrjs/lucide";
 import {
   Block,
   Brand,
@@ -15,13 +14,11 @@ import {
   Field,
   FieldError,
   Input,
-  InputGroup,
-  InputGroupText,
   Label,
-  Page,
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
+import cassieLogo from "@/assets/cassie-logo.png";
 import { setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
 
@@ -75,71 +72,59 @@ export default function LoginPage() {
   }
 
   return (
-    <Page background="muted" center>
-      <Block as="section" align="center" justify="center" grow>
-        <Block width="full" maxWidth="sm" gap="lg">
-          <Card variant="raised">
-            <CardHeader>
-              <Brand>
-                <BrandMark aria-hidden="true">
-                  <DatabaseIcon size={16} />
-                </BrandMark>
-                <BrandLabel>Cassie Admin</BrandLabel>
-              </Brand>
-              <CardTitle titleAs="h1">Sign in to Cassie Admin</CardTitle>
-              <CardDescription>Use your operator name and password.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Block as="form" direction="column" gap="md" onSubmit={handleSignIn}>
-                <Field>
-                  <Label for="login-username">Username</Label>
-                  <InputGroup>
-                    <InputGroupText>
-                      <UserIcon size={16} aria-hidden="true" />
-                    </InputGroupText>
-                    <Input
-                      id="login-username"
-                      name="username"
-                      autocomplete="username"
-                      placeholder="admin"
-                      required
-                      disabled={isVerifying()}
-                      value={username()}
-                      onInput={(event: Event) => {
-                        setUsername((event.target as HTMLInputElement).value);
-                      }}
-                    />
-                  </InputGroup>
-                </Field>
-                <Field>
-                  <Label for="login-password">Password</Label>
-                  <InputGroup>
-                    <InputGroupText>
-                      <LockIcon size={16} aria-hidden="true" />
-                    </InputGroupText>
-                    <Input
-                      id="login-password"
-                      name="password"
-                      type="password"
-                      autocomplete="current-password"
-                      required
-                      disabled={isVerifying()}
-                      value={password()}
-                      onInput={(event: Event) => {
-                        setPassword((event.target as HTMLInputElement).value);
-                      }}
-                    />
-                  </InputGroup>
-                </Field>
-                {error() ? <FieldError>{error()}</FieldError> : null}
-                <Button type="submit" variant="primary" width="full" disabled={isVerifying()}>
-                  {isVerifying() ? "Signing in…" : "Sign in"}
-                </Button>
-              </Block>
-            </CardContent>
-          </Card>
-        </Block>
+    <Block as="main" class="cassie-login-page" background="canvas">
+      <Block class="cassie-login-panel" width="full" gap="lg">
+        <Card class="cassie-login-card" variant="raised">
+          <CardHeader>
+            <Brand>
+              <BrandMark aria-hidden="true">
+                <img class="cassie-brand-logo" src={cassieLogo} alt="" />
+              </BrandMark>
+              <BrandLabel>Cassie Admin</BrandLabel>
+            </Brand>
+            <CardTitle titleAs="h1">Sign in to Cassie Admin</CardTitle>
+            <CardDescription>Use your operator name and password.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
+              <Field>
+                <Label for="login-username">Username</Label>
+                <Input
+                  id="login-username"
+                  name="username"
+                  autocomplete="username"
+                  placeholder="admin"
+                  required
+                  disabled={isVerifying()}
+                  value={username()}
+                  onInput={(event: Event) => {
+                    setUsername((event.target as HTMLInputElement).value);
+                  }}
+                />
+              </Field>
+              <Field>
+                <Label for="login-password">Password</Label>
+                <Input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                  disabled={isVerifying()}
+                  value={password()}
+                  onInput={(event: Event) => {
+                    setPassword((event.target as HTMLInputElement).value);
+                  }}
+                />
+              </Field>
+              {error() ? <FieldError>{error()}</FieldError> : null}
+              <Button type="submit" variant="primary" width="full" disabled={isVerifying()}>
+                {isVerifying() ? "Signing in…" : "Sign in"}
+              </Button>
+            </Block>
+          </CardContent>
+        </Card>
       </Block>
-    </Page>
+    </Block>
   );
 }

@@ -1,0 +1,33 @@
+.cassie-login-page {
+  box-sizing: border-box;
+  display: flex;
+  min-block-size: 100svh;
+  inline-size: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.cassie-login-panel {
+  inline-size: 100%;
+  max-inline-size: 24rem;
+}
+
+.cassie-login-card {
+  gap: var(--ak-space-xl, 1.5rem);
+  padding-block: var(--ak-space-xl, 1.5rem);
+}
+
+.cassie-login-card :where([data-slot="card-header"], [data-slot="card-content"]) {
+  padding-inline: var(--ak-space-xl, 1.5rem);
+}
+
+.cassie-login-card [data-slot="brand"] {
+  margin-block-end: var(--ak-space-sm, 0.5rem);
+}
+
+@media (min-width: 48rem) {
+  .cassie-login-page {
+    padding: 2.5rem;
+  }
+}

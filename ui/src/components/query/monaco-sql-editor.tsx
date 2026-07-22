@@ -10,17 +10,29 @@ export interface MonacoCompletionItem {
 }
 
 export interface MonacoSqlEditorProps {
+  tabId: string;
+  active: () => boolean;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   completionProvider?: () => MonacoCompletionItem[];
 }
 
+interface MonacoProviderRegistry {
+  owners: Map<string, () => MonacoCompletionItem[]>;
+  activeUri: string | null;
+  disposable: { dispose(): void };
+}
+
+const providerRegistries = new WeakMap<object, MonacoProviderRegistry>();
+
 function emptyCompletionItems(): MonacoCompletionItem[] {
   return [];
 }
 
 export function MonacoSqlEditor({
+  tabId,
+  active,
   value,
   onChange,
   disabled = false,
@@ -34,7 +46,9 @@ export function MonacoSqlEditor({
       : false,
   );
   const themeScope = theme();
-  let completionDisposable: { dispose(): void } | null = null;
+  const modelUri = `inmemory://cassie/query/${encodeURIComponent(tabId)}.sql`;
+  let providerRegistry: MonacoProviderRegistry | null = null;
+  let monacoKey: object | null = null;
   let changeDisposable: { dispose(): void } | null = null;
   let systemThemeQuery: MediaQueryList | null = null;
   let systemThemeListener: ((event: MediaQueryListEvent) => void) | null = null;
@@ -111,29 +125,44 @@ export function MonacoSqlEditor({
   }
 
   function handleBeforeMount(monaco: MonacoNamespace) {
-    completionDisposable?.dispose();
-    completionDisposable = monaco.languages.registerCompletionItemProvider("sql", {
-      provideCompletionItems: (model, position) => {
-        const word = model.getWordUntilPosition(position);
-        const range = {
-          startLineNumber: position.lineNumber,
-          endLineNumber: position.lineNumber,
-          startColumn: word.startColumn,
-          endColumn: word.endColumn,
-        };
+    monacoKey = monaco as object;
+    let registry = providerRegistries.get(monaco as object);
+    if (!registry) {
+      const owners = new Map<string, () => MonacoCompletionItem[]>();
+      registry = {
+        owners,
+        activeUri: null,
+        disposable: monaco.languages.registerCompletionItemProvider("sql", {
+          provideCompletionItems: (model, position) => {
+            const current = providerRegistries.get(monaco as object);
+            const uri = model.uri.toString();
+            if (!current || current.activeUri !== uri) return { suggestions: [] };
+            const word = model.getWordUntilPosition(position);
+            const range = {
+              startLineNumber: position.lineNumber,
+              endLineNumber: position.lineNumber,
+              startColumn: word.startColumn,
+              endColumn: word.endColumn,
+            };
 
-        return {
-          suggestions: latestCompletionProvider().map((item) => ({
-            label: item.label,
-            insertText: item.insertText,
-            detail: item.detail,
-            documentation: item.detail ?? "",
-            kind: monaco.languages.CompletionItemKind.Snippet,
-            range,
-          })),
-        };
-      },
-    });
+            return {
+              suggestions: (current.owners.get(uri)?.() ?? []).map((item) => ({
+                label: item.label,
+                insertText: item.insertText,
+                detail: item.detail,
+                documentation: item.detail ?? "",
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                range,
+              })),
+            };
+          },
+        }),
+      };
+      providerRegistries.set(monaco as object, registry);
+    }
+    registry.owners.set(modelUri, latestCompletionProvider);
+    if (active()) registry.activeUri = modelUri;
+    providerRegistry = registry;
   }
 
   function handleMount(editor: MonacoEditorInstance) {
@@ -141,6 +170,7 @@ export function MonacoSqlEditor({
     changeDisposable = editor.onDidChangeModelContent(() => {
       onChange(editor.getValue());
     });
+    if (active() && providerRegistry) providerRegistry.activeUri = modelUri;
     if (typeof window.matchMedia === "function") {
       systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
       systemThemeListener = (event) => setSystemDark(event.matches);
@@ -149,8 +179,14 @@ export function MonacoSqlEditor({
   }
 
   function handleUnmount() {
-    completionDisposable?.dispose();
-    completionDisposable = null;
+    providerRegistry?.owners.delete(modelUri);
+    if (providerRegistry?.activeUri === modelUri) providerRegistry.activeUri = null;
+    if (providerRegistry?.owners.size === 0) {
+      providerRegistry.disposable.dispose();
+      if (monacoKey) providerRegistries.delete(monacoKey);
+    }
+    providerRegistry = null;
+    monacoKey = null;
     changeDisposable?.dispose();
     changeDisposable = null;
     if (systemThemeQuery && systemThemeListener) {
@@ -172,6 +208,7 @@ export function MonacoSqlEditor({
       aria-label="SQL editor"
     >
       <MonacoEditor
+        path={modelUri}
         value={value}
         language="sql"
         theme={monacoTheme}

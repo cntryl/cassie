@@ -467,7 +467,7 @@ describe("admin query page composition", () => {
     const root = await mountQueryRoute();
 
     // Act
-    const heading = root.querySelector("#query-workspace-title");
+    const heading = root.querySelector("#query-workspace-title-query-1");
 
     // Assert
     expect(heading?.textContent).toBe("Query workspace");
@@ -475,7 +475,7 @@ describe("admin query page composition", () => {
     expect(root.querySelector('[data-slot="page-header"]')).toBe(null);
     expect(root.querySelector('[data-testid="query-starters"]')).toBe(null);
     expect(root.querySelector("[data-query-page]")?.getAttribute("aria-labelledby")).toBe(
-      "query-workspace-title",
+      "query-tab-query-1",
     );
   });
 
@@ -485,9 +485,10 @@ describe("admin query page composition", () => {
     expect(root.querySelector('[data-testid="cassie-admin-shell"]')).toBeTruthy();
     const queryPage = root.querySelector("[data-query-page]");
     expect(queryPage).toBeTruthy();
-    expect(queryPage?.id).toBe("main-content");
-    expect(queryPage?.getAttribute("tabindex")).toBe("-1");
-    expect(queryPage?.getAttribute("aria-labelledby")).toBe("query-workspace-title");
+    expect(root.querySelectorAll("#main-content")).toHaveLength(1);
+    expect(queryPage?.id).toBe("query-workspace-query-1");
+    expect(queryPage?.getAttribute("role")).toBe("tabpanel");
+    expect(queryPage?.getAttribute("aria-labelledby")).toBe("query-tab-query-1");
     const schemaBrowser = root.querySelector('[aria-label="Schema browser"]');
     const schemaTree = root.querySelector('[data-testid="query-schema-tree"]');
     expect(schemaTree).toBeTruthy();

@@ -9,6 +9,9 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:18080",
     trace: "retain-on-failure",
+    locale: "en-US",
+    timezoneId: "UTC",
+    reducedMotion: "reduce",
   },
   webServer: {
     command:
@@ -24,8 +27,8 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
     },
     {
-      name: "mobile-chromium",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 } },
+      name: "pixel-7",
+      use: { ...devices["Pixel 7"] },
     },
   ],
 });

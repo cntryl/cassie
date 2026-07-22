@@ -101,6 +101,21 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 describe("admin shell sidebar resize", () => {
+  it("should_render_the_cassie_brand_logo_in_the_top_header", async () => {
+    // Arrange
+    const root = await mountAdminShell();
+
+    // Act
+    const brandLink = root.querySelector('a[aria-label="Cassie admin home"]');
+    const brandLogo = brandLink?.querySelector('img[data-testid="cassie-brand-logo"]');
+
+    // Assert
+    expect(brandLink?.textContent).toContain("Cassie Admin");
+    expect(brandLogo).toBeInstanceOf(HTMLImageElement);
+    expect(brandLogo?.getAttribute("alt")).toBe("");
+    expect(brandLogo?.getAttribute("src")).toContain("cassie-logo.png");
+  });
+
   it("should_surface_active_session_context_given_an_authenticated_admin", async () => {
     // Arrange
     const root = await mountAdminShell();
@@ -109,7 +124,7 @@ describe("admin shell sidebar resize", () => {
     const sessionContext = root.querySelector('[data-testid="admin-session-context"]');
 
     // Assert
-    expect(sessionContext?.textContent).toContain("Cassie server");
+    expect(sessionContext?.textContent).not.toContain("Cassie server");
     expect(sessionContext?.textContent).toContain("admin");
   });
 

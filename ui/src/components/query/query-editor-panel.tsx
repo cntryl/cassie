@@ -4,9 +4,13 @@ import { QueryEditorToolbar } from "./query-editor-toolbar";
 import { MonacoCompletionItem, MonacoSqlEditor } from "./monaco-sql-editor";
 
 interface QueryEditorPanelProps {
+  tabId: string;
+  database: string;
+  active: () => boolean;
   query: string;
   onQueryChange: (query: string) => void;
   isRunning: boolean;
+  actionsEnabled: boolean;
   isStopping: boolean;
   onTrim: () => void;
   onValidate: () => void;
@@ -17,9 +21,13 @@ interface QueryEditorPanelProps {
 }
 
 export function QueryEditorPanel({
+  tabId,
+  database,
+  active,
   query,
   onQueryChange,
   isRunning,
+  actionsEnabled,
   isStopping,
   onTrim,
   onValidate,
@@ -56,7 +64,11 @@ export function QueryEditorPanel({
     >
       <Toolbar
         class="cassie-query-editor-panel-header"
-        title="SQL Editor"
+        title={
+          <span class="cassie-query-editor-title">
+            SQL Editor <span class="cassie-query-database-badge">{database}</span>
+          </span>
+        }
         paddingX="sm"
         paddingY="xs"
         gap="sm"
@@ -71,12 +83,14 @@ export function QueryEditorPanel({
             onStop={onStop}
             isBusy={isRunning}
             isStopping={isStopping}
-            hasQuery={query.trim().length > 0}
+            hasQuery={query.trim().length > 0 && actionsEnabled}
           />
         }
       />
       <div class="cassie-query-editor-wrapper">
         <MonacoSqlEditor
+          tabId={tabId}
+          active={active}
           value={query}
           onChange={onQueryChange}
           disabled={isRunning}

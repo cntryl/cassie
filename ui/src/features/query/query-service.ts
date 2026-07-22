@@ -7,31 +7,49 @@ import {
   mapSchemaResponse,
 } from "./query-mappers";
 import type { QueryExecutionResult, QuerySchema, QueryValidationResult } from "./query-models";
-const schemaRequests = new Map<string, Promise<QuerySchema>>();
-const schemaCache = new Map<string, QuerySchema>();
+interface SchemaCacheEntry {
+  generation: number;
+  data?: QuerySchema;
+  pending?: Promise<QuerySchema>;
+}
+
+const schemaCache = new Map<string, SchemaCacheEntry>();
+
+function waitForConsumer<T>(request: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return request;
+  if (signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException("Aborted", "AbortError"));
+    signal.addEventListener("abort", abort, { once: true });
+    void request.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
 
 async function getSchema(
   database: string,
   options: ServiceRequestOptions = {},
 ): Promise<QuerySchema> {
-  const cached = schemaCache.get(database);
-  if (cached) return cached;
-  const pending = schemaRequests.get(database);
-  if (pending) return pending;
+  const entry = schemaCache.get(database) ?? { generation: 0 };
+  schemaCache.set(database, entry);
+  if (entry.data) return entry.data;
+  if (entry.pending) return waitForConsumer(entry.pending, options.signal);
+  const requestGeneration = entry.generation;
   const request = (async () => {
-    const response = await apiv1.listAdminCatalog({ query: { database }, ...options });
+    const response = await apiv1.listAdminCatalog({ query: { database } });
     const schema = mapSchemaResponse(
       unwrapResponse(response, "Unable to load query schema"),
       database,
     );
-    schemaCache.set(database, schema);
+    const current = schemaCache.get(database);
+    if (current?.generation === requestGeneration) current.data = schema;
     return schema;
   })();
-  schemaRequests.set(database, request);
+  entry.pending = request;
   try {
-    return await request;
+    return await waitForConsumer(request, options.signal);
   } finally {
-    if (schemaRequests.get(database) === request) schemaRequests.delete(database);
+    const current = schemaCache.get(database);
+    if (current?.pending === request) current.pending = undefined;
   }
 }
 
@@ -86,7 +104,11 @@ async function cancel(operationId: string) {
 
 export const queryService = {
   invalidateSchema(database: string) {
-    schemaCache.delete(database);
+    const entry = schemaCache.get(database) ?? { generation: 0 };
+    entry.generation += 1;
+    entry.data = undefined;
+    entry.pending = undefined;
+    schemaCache.set(database, entry);
   },
   getSchema,
   validate,

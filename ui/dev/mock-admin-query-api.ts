@@ -156,7 +156,12 @@ function mockSchemaForDatabase(database: string): QuerySchemaResponse {
   return {
     sections: mockSchema.sections.map((section) => ({
       ...section,
-      items: section.items.map((item) => {
+      items: (database === "analytics"
+        ? section.id === "tables"
+          ? [schemaItem("table", "analytics.public.events", "8 columns")]
+          : []
+        : section.items
+      ).map((item) => {
         const label = item.label.replace(/^postgres\./, `${database}.`);
         return {
           ...item,
@@ -173,12 +178,17 @@ function mockSchemaForDatabase(database: string): QuerySchemaResponse {
   };
 }
 
-function mockExecuteResult(sql: string) {
+function mockExecuteResult(database: string, sql: string) {
   return {
     columns: [column("id"), column("name"), column("owner"), column("notes")],
     command: sql.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
     rows: [
-      ["doc-1", "Document One", "alice", null],
+      [
+        database === "analytics" ? "event-1" : "doc-1",
+        database === "analytics" ? "Analytics Event" : "Document One",
+        "alice",
+        null,
+      ],
       ["doc-2", "Document Two", null, "NULL"],
       ["doc-3", "Document Three", "carol", "reviewed"],
       ["doc-4", "Document Four", "dave", "pending"],
@@ -294,11 +304,17 @@ const mockExplainPlan = {
   },
 } satisfies QueryExplainResponse["plan"];
 
-function mockExplainResult(): QueryExplainResponse {
+function mockExplainResult(database: string): QueryExplainResponse {
   return {
     columns: [column("QUERY PLAN")],
     command: "EXPLAIN",
-    plan: mockExplainPlan,
+    plan: {
+      ...mockExplainPlan,
+      summary: {
+        ...mockExplainPlan.summary,
+        collection: `${database}.public.${database === "analytics" ? "events" : "documents"}`,
+      },
+    },
     rows: [
       [
         "Index Scan using idx_id on documents  (cost=0.00..4.00 rows=1 width=64)\n" +
@@ -325,6 +341,36 @@ interface MockDevServer {
 /** Cookie-authenticated mock of the same REST workflow used by the built UI. */
 export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
   let session: MockSession | null = null;
+  const operations = new Map<string, { completed: boolean; cancelled: boolean }>();
+
+  async function queryBody(req: IncomingMessage, res: ServerResponse) {
+    const body = JSON.parse((await readBody(req)) || "{}") as {
+      database?: string;
+      sql?: string;
+      operation_id?: string;
+    };
+    if (!body.database || !["analytics", "postgres"].includes(body.database)) {
+      sendJson(res, 400, { error: "a valid database is required" });
+      return null;
+    }
+    if (!body.operation_id) {
+      sendJson(res, 400, { error: "operation_id is required" });
+      return null;
+    }
+    return body;
+  }
+
+  async function completeOperation(operationId: string, res: ServerResponse, result: unknown) {
+    const operation = { completed: false, cancelled: false };
+    operations.set(operationId, operation);
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    if (operation.cancelled) {
+      if (!res.writableEnded) sendJson(res, 409, { error: "query operation cancelled" });
+      return;
+    }
+    operation.completed = true;
+    sendJson(res, 200, result);
+  }
 
   return async (req, res, next) => {
     const path = requestPath(req);
@@ -400,30 +446,45 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
     }
 
     if (req.method === "DELETE" && path.startsWith("/api/v1/admin/query-operations/")) {
-      sendJson(res, 409, { error: "query operation already completed" });
+      const parts = path.split("/");
+      const operationId = decodeURIComponent(parts[parts.length - 1] ?? "");
+      const operation = operations.get(operationId);
+      if (!operation) sendJson(res, 404, { error: "query operation not found" });
+      else if (operation.completed)
+        sendJson(res, 409, { error: "query operation already completed" });
+      else {
+        operation.cancelled = true;
+        sendJson(res, 200, { cancelled: true });
+      }
       return;
     }
 
     if (req.method === "POST" && path === "/api/v1/admin/query-executions") {
-      const body = await readBody(req);
-      const sql = (JSON.parse(body || "{}") as { sql?: string }).sql ?? "";
-      sendJson(res, 200, mockExecuteResult(sql));
+      const body = await queryBody(req, res);
+      if (body)
+        await completeOperation(
+          body.operation_id!,
+          res,
+          mockExecuteResult(body.database!, body.sql ?? ""),
+        );
       return;
     }
 
     if (req.method === "POST" && path === "/api/v1/admin/query-validations") {
-      const body = await readBody(req);
-      const sql = (JSON.parse(body || "{}") as { sql?: string }).sql ?? "";
-      sendJson(res, 200, {
-        valid: true,
-        command: sql.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
-        columns: [column("id"), column("name"), column("owner"), column("notes")],
-      });
+      const body = await queryBody(req, res);
+      if (body)
+        await completeOperation(body.operation_id!, res, {
+          valid: true,
+          command: body.sql?.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
+          columns:
+            body.database === "analytics" ? [column("event_id")] : [column("id"), column("name")],
+        });
       return;
     }
 
     if (req.method === "POST" && path === "/api/v1/admin/query-explanations") {
-      sendJson(res, 200, mockExplainResult());
+      const body = await queryBody(req, res);
+      if (body) await completeOperation(body.operation_id!, res, mockExplainResult(body.database!));
       return;
     }
 

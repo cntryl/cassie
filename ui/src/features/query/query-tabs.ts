@@ -56,7 +56,9 @@ export function saveQueryWorkspace(user: string, workspace: PersistedQueryWorksp
   memoryStorage.set(queryWorkspaceKey(user), value);
   try {
     globalThis.localStorage?.setItem(queryWorkspaceKey(user), value);
+    return true;
   } catch {
     // The in-memory mirror keeps non-browser tests functional.
+    return false;
   }
 }

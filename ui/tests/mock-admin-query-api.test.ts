@@ -59,7 +59,11 @@ describe("mock admin query API", () => {
     const execute = await fetch(`${baseUrl}/api/v1/admin/query-executions`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({ database: "analytics", sql: "SELECT 1 AS ready;" }),
+      body: JSON.stringify({
+        database: "analytics",
+        sql: "SELECT 1 AS ready;",
+        operation_id: "operation-1",
+      }),
     });
     const logout = await fetch(`${baseUrl}/api/v1/auth/logout`, {
       method: "POST",

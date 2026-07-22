@@ -58,3 +58,10 @@ export interface QueryValidationResult {
 }
 
 export type QueryStatus = "idle" | "running" | "explaining" | "validating" | "stopping";
+export interface QueryTabRuntimeState {
+  dirty: boolean;
+  phase: "idle" | "executing" | "validating" | "explaining" | "cancelling";
+  outcome: "none" | "succeeded" | "cancelled" | "failed";
+  unread: boolean;
+  message?: string;
+}

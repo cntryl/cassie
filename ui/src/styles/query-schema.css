@@ -363,3 +363,6 @@
   color: var(--cassie-text-muted);
   font-size: var(--ak-font-size-xs);
 }
+.cassie-query-schema-section-label {
+  color: CanvasText;
+}

@@ -23,6 +23,14 @@
   grid-column: 2;
 }
 
+.cassie-brand-logo {
+  display: block;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--ak-radius-sm, 0.375rem);
+  object-fit: cover;
+}
+
 .cassie-admin-workspace {
   inline-size: 100%;
   max-inline-size: none;
@@ -71,6 +79,24 @@
 .cassie-admin-sidebar-panel,
 .cassie-admin-route-surface {
   min-inline-size: 0;
+}
+
+.cassie-user-name {
+  display: inline-block;
+  max-inline-size: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cassie-admin-layout:has(.cassie-query-route[data-has-query-tabs="false"]) .cassie-admin-sidebar,
+.cassie-admin-layout:has(.cassie-query-route[data-has-query-tabs="false"])
+  .cassie-admin-sidebar-resize-handle {
+  display: none;
+}
+
+.cassie-admin-layout:has(.cassie-query-route[data-has-query-tabs="false"]) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .cassie-admin-sidebar-panel {

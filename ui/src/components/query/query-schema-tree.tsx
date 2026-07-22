@@ -98,6 +98,7 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
             class="cassie-query-schema-search-clear"
             aria-label="Clear filter"
             hidden={!isSearching()}
+            style={{ display: isSearching() ? undefined : "none" }}
             onClick={clearQuery}
           >
             <XIcon size={12} />
@@ -106,7 +107,7 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
       </header>
       <div
         class="cassie-query-schema-tree-body"
-        role="list"
+        role="region"
         aria-label="Schema sections"
         data-schema-mode={schemaMode()}
       >

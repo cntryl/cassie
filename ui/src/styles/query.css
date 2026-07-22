@@ -1,7 +1,15 @@
+.cassie-query-route {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  block-size: 100%;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
 .cassie-query-page {
   position: relative;
   display: flex;
-  block-size: 100%;
+  block-size: auto;
   min-block-size: 0;
   flex-direction: column;
   gap: 0;
@@ -81,6 +89,11 @@
   min-inline-size: 0;
   flex: 1 1 auto;
   overflow: hidden;
+}
+
+.cassie-query-tab-trigger,
+.cassie-query-results-placeholder [data-slot="empty-state-description"] {
+  color: var(--ak-color-text);
 }
 
 .cassie-query-execution-summary {
@@ -268,17 +281,22 @@
 }
 
 .cassie-query-result-table-wrap {
-  overflow: auto;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
 }
 
 .cassie-query-result-table {
+  block-size: 100%;
+  inline-size: 100%;
+  overflow: auto;
   font-family: var(--ak-font-family-mono);
   font-size: var(--ak-font-size-xs);
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.cassie-query-result-table [data-slot="table-header-cell"] {
+.cassie-query-result-table [data-slot="virtual-table-header-cell"] {
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
@@ -287,15 +305,36 @@
   white-space: nowrap;
 }
 
-.cassie-query-result-table [data-slot="table-cell"] {
+.cassie-query-result-table [data-slot="virtual-table-cell"] {
   border-inline-end: 1px solid var(--cassie-border-subtle);
   padding-block: 0.2rem;
   padding-inline: 0.5rem;
   white-space: nowrap;
 }
 
-.cassie-query-result-table [data-slot="table-row"]:nth-child(even) [data-slot="table-cell"] {
+.cassie-query-result-table
+  [data-slot="virtual-table-row"]:nth-child(even)
+  [data-slot="virtual-table-cell"] {
   background: color-mix(in srgb, var(--cassie-text, CanvasText) 3%, transparent);
+}
+
+.cassie-query-result-table [data-slot="virtual-table-header-cell"]:first-child,
+.cassie-query-result-table [data-slot="virtual-table-cell"]:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 2;
+  background: var(--cassie-surface-muted);
+}
+
+.cassie-query-database-badge {
+  display: inline-flex;
+  max-inline-size: 18rem;
+  margin-inline-start: var(--ak-space-2);
+  overflow: hidden;
+  color: var(--ak-color-text-muted);
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .cassie-query-row-number-cell {
@@ -661,29 +700,33 @@
 }
 
 .cassie-query-tab-item {
-  display: flex;
-  flex: 0 0 auto;
-  border: 1px solid var(--border);
-  border-radius: 0.375rem;
-  overflow: hidden;
-}
-
-.cassie-query-tab-item > button:first-child {
   display: grid;
-  gap: 0.1rem;
+  flex: 0 0 auto;
   min-width: 7rem;
   padding: 0.35rem 0.6rem;
+  border: 1px solid var(--ak-color-border);
+  border-radius: 0.375rem;
+  overflow: hidden;
+  gap: 0.1rem;
   text-align: left;
 }
 
-.cassie-query-tab-item > button[aria-selected="true"] {
-  background: var(--muted);
+.cassie-query-tab-item[aria-selected="true"] {
+  background: var(--ak-color-selected);
 }
 .cassie-query-tab-item small {
-  color: var(--muted-foreground);
+  color: var(--ak-color-text);
 }
-.cassie-query-tab-item > button:last-child {
-  padding: 0 0.5rem;
+
+.cassie-query-tab-close-list {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.cassie-query-tab-close-list button {
+  min-inline-size: 2rem;
+  min-block-size: 2rem;
 }
 
 .cassie-query-empty {
@@ -713,9 +756,10 @@
   max-height: min(38rem, calc(100vh - 2rem));
   padding: 1rem;
   overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--background);
+  border: 1px solid var(--ak-color-border);
+  border-radius: var(--ak-radius-md);
+  color: CanvasText;
+  background: Canvas;
   transform: translate(-50%, -50%);
 }
 
@@ -728,11 +772,37 @@
   gap: 0.15rem;
   padding: 0.75rem;
   text-align: left;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ak-color-border);
   border-radius: 0.375rem;
+  color: CanvasText;
+  background: Canvas;
+}
+
+.cassie-query-dialog input {
+  color: CanvasText;
+  background: Canvas;
+  border-color: var(--ak-color-border);
+}
+
+.cassie-query-dialog input::placeholder {
+  color: CanvasText;
+  opacity: 1;
+}
+
+.cassie-query-dialog [data-slot="dialog-title"],
+.cassie-query-dialog [data-slot="dialog-description"],
+.cassie-query-dialog [data-slot="dialog-close"] {
+  color: CanvasText;
 }
 
 @media (width <= 48rem) {
+  .cassie-query-editor-toolbar button,
+  .cassie-query-tab-close-list button,
+  .cassie-admin-sidebar-toggle,
+  .cassie-resizable-split-handle {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
   .cassie-query-dialog {
     top: 1rem;
     right: 1rem;

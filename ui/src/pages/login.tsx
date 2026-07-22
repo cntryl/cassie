@@ -86,7 +86,7 @@ export default function LoginPage() {
                 </BrandMark>
                 <BrandLabel>Cassie Admin</BrandLabel>
               </Brand>
-              <CardTitle>Sign in to Cassie Admin</CardTitle>
+              <CardTitle titleAs="h1">Sign in to Cassie Admin</CardTitle>
               <CardDescription>Use your operator name and password.</CardDescription>
             </CardHeader>
             <CardContent>

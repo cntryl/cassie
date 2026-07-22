@@ -1,8 +1,7 @@
 import { state } from "@askrjs/askr";
 import { Link } from "@askrjs/askr/router";
-import { DatabaseIcon, LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
+import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
 import {
-  Badge,
   Block,
   Brand,
   BrandLabel,
@@ -16,6 +15,7 @@ import {
 import { Header, NavBrand, NavGroup, Navbar, Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
+import cassieLogo from "@/assets/cassie-logo.png";
 import { clamp } from "@/shared/drag-resize";
 import {
   SIDEBAR_WIDTH_MAX_PX,
@@ -132,7 +132,12 @@ export default function Layout({ children }: { children?: unknown }) {
               <Brand asChild>
                 <Link href="/" aria-label="Cassie admin home">
                   <BrandMark aria-hidden="true">
-                    <DatabaseIcon size={16} />
+                    <img
+                      class="cassie-brand-logo"
+                      data-testid="cassie-brand-logo"
+                      src={cassieLogo}
+                      alt=""
+                    />
                   </BrandMark>
                   <BrandLabel>Cassie Admin</BrandLabel>
                 </Link>
@@ -141,12 +146,8 @@ export default function Layout({ children }: { children?: unknown }) {
 
             <NavGroup align="end" aria-label="View controls" role="group">
               <Inline gap="sm" align="center" data-testid="admin-session-context">
-                <Badge variant="success">
-                  <DatabaseIcon size={14} aria-hidden="true" />
-                  Cassie server
-                </Badge>
                 {session?.user ? (
-                  <Text as="span" size="sm" tone="muted">
+                  <Text as="span" size="sm" title={session.user} class="cassie-user-name">
                     {session.user}
                   </Text>
                 ) : null}
@@ -210,11 +211,13 @@ export default function Layout({ children }: { children?: unknown }) {
             </div>
           </Sidebar>
 
-          <SidebarResizeHandle
-            initialPx={sidebarWidth()}
-            onDragMove={handleSidebarDragMove}
-            onDragEnd={handleSidebarDragEnd}
-          />
+          <div role="navigation" aria-label="Sidebar resizing">
+            <SidebarResizeHandle
+              initialPx={sidebarWidth()}
+              onDragMove={handleSidebarDragMove}
+              onDragEnd={handleSidebarDragEnd}
+            />
+          </div>
 
           <div class="cassie-admin-route-surface">{children}</div>
         </Grid>

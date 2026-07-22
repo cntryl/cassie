@@ -48,7 +48,10 @@ export function QueryResultTable({ result }: QueryResultTableProps) {
       cellComponent: ({ row }: { row: ResultRow }) => {
         const value = row.values[columnIndex] ?? null;
         return (
-          <span class={value === null ? "cassie-query-cell-null" : undefined}>
+          <span
+            class={value === null ? "cassie-query-cell-null" : undefined}
+            title={displayQueryValue(value)}
+          >
             {displayQueryValue(value)}
           </span>
         );
@@ -67,8 +70,6 @@ export function QueryResultTable({ result }: QueryResultTableProps) {
         rowHeight={36}
         headerHeight={40}
         overscan={6}
-        viewport="lg"
-        tableWidth="compact"
       />
     </div>
   );

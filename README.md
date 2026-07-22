@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="ui/src/assets/cassie-logo.png" alt="Cassie logo" width="240">
+</p>
+
 # Cassie
 
 Cassie is a single-node query engine for read models in CQRS and event-sourced systems. The event stream is the source of truth; Cassie materializes and serves projection data through PostgreSQL wire protocol, with a secondary administrative REST API.

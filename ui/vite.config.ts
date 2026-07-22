@@ -84,6 +84,7 @@ const config = {
   },
   test: {
     environment: "jsdom",
+    setupFiles: ["./tests/support/test-environment.ts"],
     exclude: ["**/dist/**", "**/node_modules/**", "**/tests/e2e/**", "**/tests/e2e-mock/**"],
     globals: true,
     coverage: {

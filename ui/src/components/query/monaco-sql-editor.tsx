@@ -54,6 +54,7 @@ export function MonacoSqlEditor({
   let systemThemeListener: ((event: MediaQueryListEvent) => void) | null = null;
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
+  const followsSystemDark = systemDark();
 
   function handleFallbackKeyDown(event: KeyboardEvent) {
     if (event.key !== "Tab" || event.shiftKey) {
@@ -198,7 +199,9 @@ export function MonacoSqlEditor({
 
   const selectedTheme = themeScope.theme();
   const monacoTheme =
-    selectedTheme === "dark" || (selectedTheme === "system" && systemDark()) ? "vs-dark" : "vs";
+    selectedTheme === "dark" || (selectedTheme === "system" && followsSystemDark)
+      ? "vs-dark"
+      : "vs";
 
   return (
     <div

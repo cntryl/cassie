@@ -118,6 +118,7 @@ afterEach(() => {
 describe("admin UI workflow", () => {
   it("should_complete_login_query_and_logout_through_the_registered_routes", async () => {
     // Arrange
+    window.localStorage.clear();
     const requests = installWorkflowApi();
     const root = await mountWorkflow();
     const username = root.querySelector("#login-username") as HTMLInputElement;

@@ -14,10 +14,26 @@ export interface PersistedQueryWorkspace {
 
 const emptyWorkspace = (): PersistedQueryWorkspace => ({ version: 1, tabs: [], activeTabId: null });
 const memoryStorage = new Map<string, string>();
+const failedStorageKeys = new Set<string>();
+
+function browserStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 function readStoredValue(key: string) {
+  if (failedStorageKeys.has(key)) return memoryStorage.get(key) ?? null;
+
+  const storage = browserStorage();
+  if (storage === null) return memoryStorage.get(key) ?? null;
+
   try {
-    return globalThis.localStorage?.getItem(key) ?? memoryStorage.get(key) ?? null;
+    return storage.getItem(key);
   } catch {
     return memoryStorage.get(key) ?? null;
   }
@@ -52,13 +68,18 @@ export function loadQueryWorkspace(user: string): PersistedQueryWorkspace {
 }
 
 export function saveQueryWorkspace(user: string, workspace: PersistedQueryWorkspace) {
+  const key = queryWorkspaceKey(user);
   const value = JSON.stringify(workspace);
-  memoryStorage.set(queryWorkspaceKey(user), value);
+  memoryStorage.set(key, value);
+  const storage = browserStorage();
+  if (storage === null) return true;
+
   try {
-    globalThis.localStorage?.setItem(queryWorkspaceKey(user), value);
+    storage.setItem(key, value);
+    failedStorageKeys.delete(key);
     return true;
   } catch {
-    // The in-memory mirror keeps non-browser tests functional.
+    failedStorageKeys.add(key);
     return false;
   }
 }

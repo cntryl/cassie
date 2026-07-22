@@ -12,14 +12,14 @@ const workspace = (sql: string) => ({
 describe("query draft persistence", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    localStorage.clear();
+    window.localStorage.clear();
   });
 
   afterEach(() => vi.useRealTimers());
 
   it("should_coalesce_draft_writes_after_250_ms", () => {
     // Arrange
-    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const setItem = vi.spyOn(window.localStorage, "setItem");
     const coordinator = createQueryPersistenceCoordinator("alice", vi.fn());
 
     // Act
@@ -44,13 +44,13 @@ describe("query draft persistence", () => {
 
     // Assert
     expect(saved).toBe(true);
-    expect(localStorage.getItem(queryWorkspaceKey("alice"))).toContain("SELECT 'latest'");
+    expect(window.localStorage.getItem(queryWorkspaceKey("alice"))).toContain("SELECT 'latest'");
   });
 
   it("should_report_storage_rejection_without_losing_the_memory_draft", () => {
     // Arrange
     const onFailure = vi.fn();
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+    vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
       throw new DOMException("Quota exceeded", "QuotaExceededError");
     });
     const coordinator = createQueryPersistenceCoordinator("alice", onFailure);

@@ -270,6 +270,8 @@ export default function QueryPage() {
     (databaseQuery.data ?? []).filter((database) =>
       database.name.toLowerCase().includes(filter().trim().toLowerCase()),
     );
+  const currentFilter = filter();
+  const currentCloseError = closeError();
 
   return (
     <main
@@ -365,7 +367,7 @@ export default function QueryPage() {
               <input
                 aria-label="Filter databases"
                 placeholder="Filter databases"
-                value={filter()}
+                value={currentFilter}
                 onInput={(event: Event) => setFilter((event.target as HTMLInputElement).value)}
               />
               {databaseQuery.loading ? <p>Loading databases…</p> : null}
@@ -414,11 +416,11 @@ export default function QueryPage() {
                   ? " after the running operation is cancelled."
                   : "."}
               </AlertDialogDescription>
-              {closeError() ? (
+              {currentCloseError ? (
                 <Alert
                   title="Unable to close query"
                   variant="danger"
-                  description={closeError() ?? ""}
+                  description={currentCloseError}
                 />
               ) : null}
               <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -553,10 +555,15 @@ function QueryWorkspace({
   const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
   const activeExecution = activeTab() === "plan" ? explainMutation.result : executeMutation.result;
   const canRun = hasQuery && !isQueryBusy && availability() === "available";
+  selectedItemId();
+  validationToast();
+  const currentStopError = stopError();
 
   const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
   const actionErrorMessage =
-    status() === "stopping" || actionError === null ? stopError() : apiErrorMessage(actionError);
+    status() === "stopping" || actionError === null
+      ? currentStopError
+      : apiErrorMessage(actionError);
 
   function beginOperation(nextStatus: QueryStatus) {
     const operationId = crypto.randomUUID();

@@ -23,8 +23,8 @@ mod request_execution;
 
 use collection_routes::dispatch_collection_routes;
 use request_execution::{
-    run_rest_blocking_route, run_rest_blocking_route_controlled, RestBlockingError,
-    RestRequestExecution,
+    run_rest_blocking_route, run_rest_blocking_route_controlled,
+    run_rest_blocking_route_with_cancellation, RestBlockingError, RestRequestExecution,
 };
 
 const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
@@ -76,6 +76,7 @@ struct RouteDispatchContext<'a> {
     method: &'a Method,
     segments: &'a [&'a str],
     path: &'a str,
+    query: Option<&'a str>,
     started_at: Instant,
     request_context: &'a RestRequestContext,
     secure_transport: bool,
@@ -114,7 +115,9 @@ fn with_security_headers(
         .insert("referrer-policy", HeaderValue::from_static("no-referrer"));
     response.headers_mut().insert(
         "content-security-policy",
-        HeaderValue::from_static("default-src 'self'; object-src 'none'; frame-ancestors 'none'"),
+        HeaderValue::from_static(
+            "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+        ),
     );
     if is_api {
         response
@@ -288,6 +291,7 @@ async fn route_request_with_admin_ui(
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
     let method = request.method().clone();
     let path = normalized_request_path(request.uri().path());
+    let query = request.uri().query().map(str::to_string);
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
     validate_rest_origin(&method, &path, &request)?;
@@ -345,6 +349,7 @@ async fn route_request_with_admin_ui(
             method: &method,
             segments: segments.as_slice(),
             path: &path,
+            query: query.as_deref(),
             started_at,
             request_context: &request_context,
             secure_transport,
@@ -510,7 +515,6 @@ async fn dispatch_auth_routes(
                     StatusCode::OK,
                     &serde_json::json!({
                         "user": principal.role.name,
-                        "database": principal.session.current_database(),
                         "role": principal.role.name,
                     }),
                 );
@@ -526,7 +530,6 @@ async fn dispatch_auth_routes(
                 StatusCode::OK,
                 &serde_json::json!({
                     "user": context.request_context.session.user,
-                    "database": context.request_context.session.current_database(),
                     "role": context.request_context.role.as_ref().map(|role| role.name.clone()),
                 }),
             )))
@@ -611,6 +614,23 @@ async fn dispatch_admin_routes(
     }
 
     match (context.method.as_str(), context.segments) {
+        ("GET", ["api", "v1", "admin", "databases"]) => {
+            let mut database_metadata = cassie
+                .midge
+                .list_databases()
+                .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+            database_metadata.sort_by_key(|database| database.name.to_ascii_lowercase());
+            let databases = database_metadata
+                .into_iter()
+                .map(|database| {
+                    serde_json::json!({
+                        "name": database.name,
+                        "description": database.description,
+                    })
+                })
+                .collect::<Vec<_>>();
+            Ok(Some(json_response(StatusCode::OK, &databases)))
+        }
         (
             "POST",
             ["api", "v1", "admin", "projections", projection, "verification-manifest" | "verification-manifests"],
@@ -668,14 +688,19 @@ async fn dispatch_admin_query_routes(
     body: &RestBytes,
 ) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
     match (context.method.as_str(), context.segments) {
+        ("DELETE", ["api", "v1", "admin", "query-operations", operation_id]) => {
+            cancel_admin_query_operation(context, operation_id).await
+        }
         ("GET", ["api", "v1", "admin", "query", "schema"] | ["api", "v1", "admin", "catalog"]) => {
+            let database = query_database(context.query)?;
+            let session = database_scoped_session(&cassie, context.request_context, &database)?;
             run_rest_blocking_route(
                 cassie,
                 context.method,
                 context.path,
                 context.started_at,
                 "rest_admin_query_schema",
-                move |cassie| Ok(crate::rest::query::schema(&cassie)),
+                move |cassie| crate::rest::query::schema_with_session(&cassie, &session),
             )
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))
@@ -684,68 +709,225 @@ async fn dispatch_admin_query_routes(
             "POST",
             ["api", "v1", "admin", "query", "execute"] | ["api", "v1", "admin", "query-executions"],
         ) => {
-            let body = body.clone();
-            let session = context.request_context.session.clone();
-            run_rest_blocking_route_controlled(
+            run_admin_query_operation(
+                context,
                 cassie,
-                context.method,
-                context.path,
-                context.started_at,
+                body,
                 "rest_admin_query_execute",
-                move |cassie, cancellation| {
+                |cassie, session, body, cancellation| {
                     crate::rest::query::execute_with_session_and_cancellation(
-                        &cassie,
-                        &session,
-                        body.as_ref(),
+                        cassie,
+                        session,
+                        body,
                         cancellation,
                     )
                 },
             )
             .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
         (
             "POST",
             ["api", "v1", "admin", "query", "validate"]
             | ["api", "v1", "admin", "query-validations"],
         ) => {
-            let body = body.clone();
-            let session = context.request_context.session.clone();
-            run_rest_blocking_route(
+            run_admin_query_operation(
+                context,
                 cassie,
-                context.method,
-                context.path,
-                context.started_at,
+                body,
                 "rest_admin_query_validate",
-                move |cassie| {
-                    crate::rest::query::validate_with_session(&cassie, &session, body.as_ref())
+                |cassie, session, body, cancellation| {
+                    crate::rest::query::validate_with_session_and_cancellation(
+                        cassie,
+                        session,
+                        body,
+                        cancellation,
+                    )
                 },
             )
             .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
         (
             "POST",
             ["api", "v1", "admin", "query", "explain"]
             | ["api", "v1", "admin", "query-explanations"],
         ) => {
-            let body = body.clone();
-            let session = context.request_context.session.clone();
-            run_rest_blocking_route(
+            run_admin_query_operation(
+                context,
                 cassie,
-                context.method,
-                context.path,
-                context.started_at,
+                body,
                 "rest_admin_query_explain",
-                move |cassie| {
-                    crate::rest::query::explain_with_session(&cassie, &session, body.as_ref())
+                |cassie, session, body, cancellation| {
+                    crate::rest::query::explain_with_session_and_cancellation(
+                        cassie,
+                        session,
+                        body,
+                        cancellation,
+                    )
                 },
             )
             .await
-            .map(|value| Some(json_response(StatusCode::OK, &value)))
         }
         _ => Ok(None),
     }
+}
+
+async fn run_admin_query_operation<T>(
+    context: RouteDispatchContext<'_>,
+    cassie: Arc<Cassie>,
+    body: &RestBytes,
+    operation_name: &'static str,
+    operation: impl FnOnce(
+            &Cassie,
+            &CassieSession,
+            &[u8],
+            &crate::runtime::QueryCancellationHandle,
+        ) -> Result<T, crate::app::CassieError>
+        + Send
+        + 'static,
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)>
+where
+    T: serde::Serialize + Send + 'static,
+{
+    let body = body.clone();
+    let database = body_database(body.as_ref())?;
+    let session = database_scoped_session(&cassie, context.request_context, &database)?;
+    let cancellation = crate::runtime::QueryCancellationHandle::new();
+    let registration = admin_query_operation_id(body.as_ref())?
+        .map(|id| {
+            crate::rest::query_operations::register(
+                id,
+                crate::rest::query_operations::owner_fingerprint(
+                    context.request_context.token.as_deref(),
+                ),
+                cancellation.clone(),
+            )
+            .map_err(|_| {
+                (
+                    StatusCode::CONFLICT,
+                    "query operation ID is already active".to_string(),
+                )
+            })
+        })
+        .transpose()?;
+    let result = run_rest_blocking_route_with_cancellation(
+        cassie,
+        context.method,
+        context.path,
+        context.started_at,
+        operation_name,
+        cancellation,
+        move |cassie, cancellation| operation(&cassie, &session, body.as_ref(), cancellation),
+    )
+    .await;
+    if let Some(registration) = registration {
+        registration.finish();
+    }
+    result.map(|value| Some(json_response(StatusCode::OK, &value)))
+}
+
+fn query_database(query: Option<&str>) -> Result<String, (StatusCode, String)> {
+    let database = query
+        .unwrap_or_default()
+        .split('&')
+        .find_map(|pair| {
+            pair.split_once('=')
+                .filter(|(key, _)| *key == "database")
+                .map(|(_, value)| value)
+        })
+        .unwrap_or_default()
+        .trim();
+    required_database(database)
+}
+
+fn body_database(body: &[u8]) -> Result<String, (StatusCode, String)> {
+    let value: serde_json::Value = serde_json::from_slice(body)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?;
+    let database = value
+        .get("database")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    required_database(database)
+}
+
+fn required_database(database: &str) -> Result<String, (StatusCode, String)> {
+    let database = database.trim();
+    if database.is_empty() {
+        Err((StatusCode::BAD_REQUEST, "database is required".to_string()))
+    } else {
+        Ok(database.to_string())
+    }
+}
+
+fn database_scoped_session(
+    cassie: &Cassie,
+    context: &RestRequestContext,
+    database: &str,
+) -> Result<CassieSession, (StatusCode, String)> {
+    cassie.ensure_database_exists(database).map_err(|_| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("database '{database}' does not exist"),
+        )
+    })?;
+    Ok(CassieSession::authenticated(
+        context.session.user.clone(),
+        Some(database.to_string()),
+        context.role.as_ref().is_some_and(|role| role.is_admin),
+    ))
+}
+
+async fn cancel_admin_query_operation(
+    context: RouteDispatchContext<'_>,
+    operation_id: &str,
+) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
+    let operation_id = uuid::Uuid::parse_str(operation_id).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            "operation_id must be a valid UUID".to_string(),
+        )
+    })?;
+    let owner =
+        crate::rest::query_operations::owner_fingerprint(context.request_context.token.as_deref());
+    match crate::rest::query_operations::cancel(operation_id, &owner, REST_REQUEST_TIMEOUT).await {
+        Ok(()) => Ok(Some(json_response(
+            StatusCode::OK,
+            &serde_json::json!({"operation_id": operation_id, "cancelled": true}),
+        ))),
+        Err(crate::rest::query_operations::CancelError::NotFound) => Err((
+            StatusCode::NOT_FOUND,
+            "query operation was not found".to_string(),
+        )),
+        Err(crate::rest::query_operations::CancelError::AlreadyCompleted) => Err((
+            StatusCode::CONFLICT,
+            "query operation already completed".to_string(),
+        )),
+        Err(crate::rest::query_operations::CancelError::TimedOut) => Err((
+            StatusCode::REQUEST_TIMEOUT,
+            "query cancellation cleanup was not acknowledged".to_string(),
+        )),
+    }
+}
+
+fn admin_query_operation_id(body: &[u8]) -> Result<Option<uuid::Uuid>, (StatusCode, String)> {
+    let value: serde_json::Value = serde_json::from_slice(body)
+        .map_err(|error| (StatusCode::BAD_REQUEST, error.to_string()))?;
+    value
+        .get("operation_id")
+        .map(|value| {
+            let raw = value.as_str().ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "operation_id must be a UUID string".to_string(),
+                )
+            })?;
+            uuid::Uuid::parse_str(raw).map_err(|_| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "operation_id must be a valid UUID".to_string(),
+                )
+            })
+        })
+        .transpose()
 }
 
 fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
@@ -757,6 +939,7 @@ fn admin_query_route_allow(segments: &[&str]) -> Option<&'static str> {
         ["api", "v1", "admin", "query-executions" | "query-validations" | "query-explanations"] => {
             Some("POST")
         }
+        ["api", "v1", "admin", "query-operations", _] => Some("DELETE"),
         _ => None,
     }
 }
@@ -766,7 +949,8 @@ fn is_read_only_sql_route(method: &Method, segments: &[&str]) -> bool {
         (method.as_str(), segments),
         (
             "GET",
-            ["api", "v1", "admin", "query", "schema"] | ["api", "v1", "admin", "catalog"]
+            ["api", "v1", "admin", "query", "schema"]
+                | ["api", "v1", "admin", "catalog" | "databases"]
         ) | (
             "POST",
             [
@@ -781,7 +965,7 @@ fn is_read_only_sql_route(method: &Method, segments: &[&str]) -> bool {
                 "admin",
                 "query-executions" | "query-validations" | "query-explanations"
             ]
-        )
+        ) | ("DELETE", ["api", "v1", "admin", "query-operations", _])
     )
 }
 

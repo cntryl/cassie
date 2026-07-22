@@ -1,7 +1,18 @@
 import { state } from "@askrjs/askr";
+import { createQuery, queryScope } from "@askrjs/askr/data";
+import { For } from "@askrjs/askr/control";
 import { Portal } from "@askrjs/askr/foundations";
-import { CommandIcon, TriangleAlertIcon } from "@askrjs/lucide";
-import { Alert, Badge, Button, Kbd, PageHeader, Text } from "@askrjs/themes/components";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+} from "@askrjs/ui";
+import { TriangleAlertIcon } from "@askrjs/lucide";
+import { Alert, Button } from "@askrjs/themes/components";
 
 import { QueryEditorPanel } from "@/components/query/query-editor-panel";
 import { QueryExecutionBanner } from "@/components/query/query-execution-banner";
@@ -23,41 +34,252 @@ import {
   createExplainQueryMutation,
   createValidateQueryMutation,
 } from "@/features/query/query-actions";
-import { apiErrorMessage } from "@/shared/errors/api";
+import { queryService } from "@/features/query/query-service";
+import {
+  loadQueryWorkspace,
+  saveQueryWorkspace,
+  type PersistedQueryTab,
+} from "@/features/query/query-tabs";
+import { apiv1 } from "@/adapters";
+import { getSession } from "@/shared/auth";
+import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
 
 const defaultQuery = "SELECT 1 AS ready;";
 
-const schemaChangingCommands = new Set([
-  "ALTER SCHEMA",
-  "ALTER TABLE",
-  "CREATE DATABASE",
-  "CREATE FUNCTION",
-  "CREATE INDEX",
-  "CREATE PROCEDURE",
-  "CREATE SCHEMA",
-  "CREATE TABLE",
-  "CREATE VIEW",
-  "DROP DATABASE",
-  "DROP FUNCTION",
-  "DROP INDEX",
-  "DROP PROCEDURE",
-  "DROP SCHEMA",
-  "DROP TABLE",
-  "DROP VIEW",
-]);
+const schemaChangingCommandPrefixes = ["ALTER ", "CREATE ", "DROP "];
+
+function changesSchema(command: string) {
+  return schemaChangingCommandPrefixes.some((prefix) => command.startsWith(prefix));
+}
+
+const workspaceQueries = queryScope("query-workspace");
+const fetchDatabases = async ({ signal }: { signal?: AbortSignal }) =>
+  unwrapResponse(await apiv1.listAdminDatabases({ signal }), "Unable to load databases");
 
 export default function QueryPage() {
-  const schemaQuery = createAdminQuerySchemaQuery();
+  const user = getSession()?.user ?? "anonymous";
+  const restored = loadQueryWorkspace(user);
+  const [tabs, setTabs] = state<PersistedQueryTab[]>(restored.tabs);
+  const [activeTabId, setActiveTabId] = state<string | null>(restored.activeTabId);
+  const [dialogOpen, setDialogOpen] = state(false);
+  const [filter, setFilter] = state("");
+  const controllers = new Map<string, { isBusy: () => boolean; cancel: () => Promise<void> }>();
+  const databaseQuery = createQuery({
+    key: workspaceQueries.key("databases"),
+    fetch: fetchDatabases,
+  });
+
+  function persist(nextTabs: PersistedQueryTab[], nextActiveTabId: string | null) {
+    setTabs(nextTabs);
+    setActiveTabId(nextActiveTabId);
+    saveQueryWorkspace(user, { version: 1, tabs: nextTabs, activeTabId: nextActiveTabId });
+  }
+
+  function createTab(database: string) {
+    const ordinal = tabs().reduce((largest, tab) => Math.max(largest, tab.ordinal), 0) + 1;
+    const tab: PersistedQueryTab = {
+      id: crypto.randomUUID(),
+      ordinal,
+      title: `Query ${ordinal}`,
+      database,
+      sql: defaultQuery,
+    };
+    persist([...tabs(), tab], tab.id);
+    setDialogOpen(false);
+    setFilter("");
+  }
+
+  function updateSql(id: string, sql: string) {
+    const nextTabs = tabs().map((tab) => {
+      if (tab.id === id) tab.sql = sql;
+      return tab;
+    });
+    saveQueryWorkspace(user, { version: 1, tabs: nextTabs, activeTabId: activeTabId() });
+  }
+
+  function activateTab(id: string | null) {
+    setActiveTabId(id);
+    saveQueryWorkspace(user, { version: 1, tabs: tabs(), activeTabId: id });
+  }
+
+  async function closeTab(tab: PersistedQueryTab) {
+    const controller = controllers.get(tab.id);
+    const needsConfirmation = tab.sql !== defaultQuery || controller?.isBusy();
+    if (
+      needsConfirmation &&
+      !window.confirm(
+        `Close ${tab.title}? Its saved SQL draft will be removed${controller?.isBusy() ? " after the running operation is cancelled" : ""}.`,
+      )
+    ) {
+      return;
+    }
+    if (controller?.isBusy()) {
+      try {
+        await controller.cancel();
+      } catch (error) {
+        window.alert(`${apiErrorMessage(error)} The tab remains open.`);
+        return;
+      }
+    }
+    const nextTabs = tabs().filter((candidate) => candidate.id !== tab.id);
+    const nextActive =
+      activeTabId() === tab.id
+        ? (nextTabs[Math.max(0, tabs().findIndex((candidate) => candidate.id === tab.id) - 1)]
+            ?.id ?? null)
+        : activeTabId();
+    persist(nextTabs, nextActive);
+  }
+
+  function handleTabKeyDown(event: KeyboardEvent, index: number) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const availableTabs = tabs();
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? availableTabs.length - 1
+          : (index + (event.key === "ArrowRight" ? 1 : -1) + availableTabs.length) %
+            availableTabs.length;
+    activateTab(availableTabs[nextIndex]?.id ?? null);
+  }
+
+  const availableNames = () => new Set((databaseQuery.data ?? []).map((database) => database.name));
+  const filteredDatabases = () =>
+    (databaseQuery.data ?? []).filter((database) =>
+      database.name.toLowerCase().includes(filter().trim().toLowerCase()),
+    );
+
+  return (
+    <>
+      <nav class="cassie-query-tabs" aria-label="Query tabs">
+        <div class="cassie-query-tabs-scroll" role="tablist" aria-label="Open queries">
+          <For each={tabs()} by={(tab) => tab.id}>
+            {(tab, index) => (
+              <div class="cassie-query-tab-item">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTabId() === tab.id}
+                  tabIndex={activeTabId() === tab.id ? 0 : -1}
+                  onClick={() => activateTab(tab.id)}
+                  onKeyDown={(event: KeyboardEvent) => handleTabKeyDown(event, index())}
+                >
+                  <span>{tab.title}</span>
+                  <small>{tab.database}</small>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Close ${tab.title}`}
+                  onClick={() => void closeTab(tab)}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+        <Button type="button" size="sm" variant="ghost" onPress={() => setDialogOpen(true)}>
+          New Query
+        </Button>
+      </nav>
+
+      {tabs().length === 0 ? (
+        <main class="cassie-query-empty" id="main-content" tabindex={-1}>
+          <h1>New Query</h1>
+          <p>Choose a database to open a query workspace.</p>
+          <Button type="button" variant="primary" onPress={() => setDialogOpen(true)}>
+            New Query
+          </Button>
+        </main>
+      ) : null}
+
+      <For each={tabs()} by={(tab) => tab.id}>
+        {(tab) => (
+          <QueryWorkspace
+            tab={tab}
+            active={() => activeTabId() === tab.id}
+            available={() => availableNames().has(tab.database)}
+            onSqlChange={(sql) => updateSql(tab.id, sql)}
+            onRegister={(controller) => controllers.set(tab.id, controller)}
+          />
+        )}
+      </For>
+
+      {dialogOpen() ? (
+        <Dialog open onOpenChange={setDialogOpen}>
+          <DialogPortal>
+            <DialogOverlay class="cassie-query-dialog-overlay" />
+            <DialogContent class="cassie-query-dialog">
+              <DialogTitle>New Query</DialogTitle>
+              <DialogDescription>Select the database this tab will use.</DialogDescription>
+              <input
+                aria-label="Filter databases"
+                placeholder="Filter databases"
+                value={filter()}
+                onInput={(event: Event) => setFilter((event.target as HTMLInputElement).value)}
+              />
+              {databaseQuery.loading ? <p>Loading databases…</p> : null}
+              {databaseQuery.error ? (
+                <Alert
+                  title="Unable to load databases"
+                  variant="danger"
+                  description={apiErrorMessage(databaseQuery.error)}
+                  icon={<TriangleAlertIcon size={16} />}
+                />
+              ) : null}
+              <div class="cassie-query-database-list">
+                {filteredDatabases().map((database) => (
+                  <div key={database.name}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        createTab(database.name);
+                        setDialogOpen(false);
+                      }}
+                    >
+                      <strong>{database.name}</strong>
+                      {database.description ? <span>{database.description}</span> : null}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <DialogClose asChild>
+                <Button type="button" variant="ghost" onPress={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+              </DialogClose>
+            </DialogContent>
+          </DialogPortal>
+        </Dialog>
+      ) : null}
+    </>
+  );
+}
+
+interface QueryWorkspaceProps {
+  tab: PersistedQueryTab;
+  active: () => boolean;
+  available: () => boolean;
+  onSqlChange: (sql: string) => void;
+  onRegister: (controller: { isBusy: () => boolean; cancel: () => Promise<void> }) => void;
+}
+
+function QueryWorkspace({ tab, active, available, onSqlChange, onRegister }: QueryWorkspaceProps) {
+  const schemaQuery = createAdminQuerySchemaQuery(tab.database);
   const executeMutation = createExecuteQueryMutation();
   const validateMutation = createValidateQueryMutation();
   const explainMutation = createExplainQueryMutation();
 
-  const [query, setQuery] = state(defaultQuery);
+  const [query, setQuery] = state(tab.sql);
   const [activeTab, setActiveTab] = state<QueryResultTab>("results");
   const [selectedItemId, setSelectedItemId] = state<string | null>(null);
   const [status, setStatus] = state<QueryStatus>("idle");
-  const [editorHeight, setEditorHeight] = state(62);
+  const [editorHeight, setEditorHeight] = state(52);
   const [validationToast, setValidationToast] = state<QueryValidationToastData | null>(null);
+  const [activeOperationId, setActiveOperationId] = state<string | null>(null);
+  const [stopError, setStopError] = state<string | null>(null);
+  const [stopPending, setStopPending] = state(false);
 
   // Plain closure state, not state() — this timer id is never rendered, only
   // read inside the handlers below, so making it reactive would just force a
@@ -130,16 +352,25 @@ export default function QueryPage() {
   const activeExecution = activeTab() === "plan" ? explainMutation.result : executeMutation.result;
   const canRun = hasQuery && !isQueryBusy;
 
-  const actionErrorMessage = (() => {
-    if (executeMutation.error !== null) {
-      return apiErrorMessage(executeMutation.error);
-    }
-    if (explainMutation.error !== null) {
-      return apiErrorMessage(explainMutation.error);
-    }
+  const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
+  const actionErrorMessage =
+    status() === "stopping" || actionError === null ? stopError() : apiErrorMessage(actionError);
 
-    return null;
-  })();
+  function beginOperation(nextStatus: QueryStatus) {
+    const operationId = crypto.randomUUID();
+    setActiveOperationId(operationId);
+    setStopError(null);
+    setStatus(nextStatus);
+    return operationId;
+  }
+
+  function finishOperation(operationId: string) {
+    if (activeOperationId() !== operationId || stopError() !== null) {
+      return;
+    }
+    setActiveOperationId(null);
+    setStatus("idle");
+  }
 
   function resetQueryFeedback() {
     if (executeMutation.pending) {
@@ -166,6 +397,7 @@ export default function QueryPage() {
 
     resetQueryFeedback();
     setQuery(nextQuery);
+    onSqlChange(nextQuery);
   }
 
   function handleSchemaSelection(item: QuerySchemaItem) {
@@ -181,10 +413,10 @@ export default function QueryPage() {
       return;
     }
 
-    setStatus("validating");
+    const operationId = beginOperation("validating");
     validateMutation.reset();
     try {
-      await validateMutation.execute({ sql: query() });
+      await validateMutation.execute({ database: tab.database, sql: query(), operationId });
       if (validateMutation.result) {
         const result = validateMutation.result;
         showValidationToast({
@@ -200,7 +432,7 @@ export default function QueryPage() {
       // validateMutation.error is only non-null for a genuine failure (an
       // abort leaves it null), which is what distinguishes "show an error
       // toast" from "the user cancelled, stay silent" below.
-      if (validateMutation.error !== null) {
+      if (validateMutation.error !== null && status() !== "stopping") {
         showValidationToast({
           variant: "danger",
           title: "Validation failed",
@@ -208,7 +440,7 @@ export default function QueryPage() {
         });
       }
     } finally {
-      setStatus("idle");
+      finishOperation(operationId);
     }
   }
 
@@ -217,13 +449,17 @@ export default function QueryPage() {
       return;
     }
 
-    setStatus("explaining");
+    const operationId = beginOperation("explaining");
     explainMutation.reset();
     setActiveTab("plan");
     try {
-      await explainMutation.execute({ sql: query() });
+      await explainMutation.execute({ database: tab.database, sql: query(), operationId });
+    } catch {
+      // Mutation state owns the visible error. Swallow the rethrow so an
+      // expected HTTP failure or user abort does not become an unhandled
+      // promise rejection.
     } finally {
-      setStatus("idle");
+      finishOperation(operationId);
     }
   }
 
@@ -232,28 +468,66 @@ export default function QueryPage() {
       return;
     }
 
-    setStatus("running");
+    const operationId = beginOperation("running");
     executeMutation.reset();
     setActiveTab("results");
     try {
-      await executeMutation.execute({ sql: query() });
-      if (
-        executeMutation.result !== null &&
-        schemaChangingCommands.has(executeMutation.result.command)
-      ) {
+      await executeMutation.execute({ database: tab.database, sql: query(), operationId });
+      if (executeMutation.result !== null && changesSchema(executeMutation.result.command)) {
+        queryService.invalidateSchema(tab.database);
         await schemaQuery.refresh();
       }
+    } catch {
+      // Mutation state owns the visible error. Swallow the rethrow so an
+      // expected HTTP failure or user abort does not become an unhandled
+      // promise rejection.
     } finally {
-      setStatus("idle");
+      finishOperation(operationId);
     }
   }
 
-  function stopAction() {
+  async function stopAction() {
+    const operationId = activeOperationId();
+    if (!operationId || stopPending()) {
+      return;
+    }
+    setStatus("stopping");
+    setStopError(null);
+    setStopPending(true);
+    try {
+      await queryService.cancel(operationId);
+    } catch (error) {
+      if (error instanceof AppApiError && (error.status === 404 || error.status === 409)) {
+        return;
+      }
+      setStopError(`${apiErrorMessage(error)} Try stopping again.`);
+    } finally {
+      setStopPending(false);
+    }
+  }
+
+  async function cancelForClose() {
+    const operationId = activeOperationId();
+    if (!operationId) return;
+    try {
+      await queryService.cancel(operationId);
+    } catch (error) {
+      if (!(error instanceof AppApiError && (error.status === 404 || error.status === 409)))
+        throw error;
+    }
     executeMutation.abort();
     validateMutation.abort();
     explainMutation.abort();
-    setStatus("idle");
   }
+
+  onRegister({
+    isBusy: () =>
+      status() !== "idle" ||
+      executeMutation.pending ||
+      validateMutation.pending ||
+      explainMutation.pending,
+    cancel: cancelForClose,
+  });
 
   function handlePlay() {
     void runExecute();
@@ -273,13 +547,15 @@ export default function QueryPage() {
 
   return (
     <>
-      <Portal>
-        <QuerySchemaTree
-          schema={getSchemaDatabases}
-          selectedItemId={() => selectedItemId() ?? undefined}
-          onSelectItem={handleSchemaSelection}
-        />
-      </Portal>
+      {active() ? (
+        <Portal>
+          <QuerySchemaTree
+            schema={getSchemaDatabases}
+            selectedItemId={() => selectedItemId() ?? undefined}
+            onSelectItem={handleSchemaSelection}
+          />
+        </Portal>
+      ) : null}
 
       <QueryValidationToast
         toast={validationToast()}
@@ -296,22 +572,11 @@ export default function QueryPage() {
         tabindex={-1}
         aria-labelledby="query-workspace-title"
         ref={handleMainRef}
+        hidden={!active()}
       >
-        <PageHeader
-          title={<span id="query-workspace-title">Query workspace</span>}
-          description="Explore the catalog, shape a query, then inspect rows and execution plans."
-          actions={
-            <Badge variant="outline" data-testid="query-run-shortcut" title="Run query">
-              <CommandIcon size={14} aria-hidden="true" />
-              <Text as="span" size="sm" tone="muted">
-                Run
-              </Text>
-              <Kbd>⌘ / Ctrl</Kbd>
-              <span>+</span>
-              <Kbd>Enter</Kbd>
-            </Badge>
-          }
-        />
+        <h1 class="sr-only" id="query-workspace-title">
+          Query workspace
+        </h1>
 
         {schemaQuery.loading && !schemaQuery.data ? (
           <p class="cassie-query-loading">Loading query schema…</p>
@@ -327,6 +592,14 @@ export default function QueryPage() {
         ) : null}
 
         <section class="cassie-query-workspace" aria-label="Query workspace">
+          {!available() ? (
+            <Alert
+              title="Database unavailable"
+              variant="danger"
+              description={`${tab.database} is no longer available. Your SQL draft is preserved.`}
+              icon={<TriangleAlertIcon size={16} />}
+            />
+          ) : null}
           <ResizableSplit
             orientation="vertical"
             initialSize={editorHeight()}
@@ -337,12 +610,13 @@ export default function QueryPage() {
               <QueryEditorPanel
                 query={query()}
                 onQueryChange={handleQueryChange}
-                isRunning={isQueryBusy}
+                isRunning={isQueryBusy || !available()}
+                isStopping={stopPending()}
                 onTrim={handleTrimQuery}
                 onValidate={handleValidate}
                 onExplain={handleExplain}
                 onPlay={handlePlay}
-                onStop={stopAction}
+                onStop={() => void stopAction()}
                 completionItems={getCompletionItems}
               />
             }
@@ -393,6 +667,7 @@ export default function QueryPage() {
                     size="sm"
                     variant="ghost"
                     onPress={() => {
+                      queryService.invalidateSchema(tab.database);
                       void schemaQuery.refresh();
                     }}
                   >

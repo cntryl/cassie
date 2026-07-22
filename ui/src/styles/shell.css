@@ -4,7 +4,18 @@
   overflow: hidden;
 }
 
+.cassie-admin-header {
+  block-size: var(--ak-layout-navbar-height, 3rem);
+  min-block-size: var(--ak-layout-navbar-height, 3rem);
+}
+
+.cassie-admin-header > [data-slot="container"] {
+  block-size: 100%;
+  padding-block: 0;
+}
+
 .cassie-admin-navbar {
+  block-size: 100%;
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
@@ -20,16 +31,16 @@
 }
 
 .cassie-admin-layout {
-  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3rem));
   inline-size: 100%;
-  min-block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  min-block-size: calc(100dvh - var(--ak-layout-navbar-height, 3rem));
 }
 
 .cassie-admin-sidebar {
   position: sticky;
-  inset-block-start: calc(var(--ak-layout-navbar-height, 3.75rem) + 1px);
+  inset-block-start: 0;
   align-self: start;
-  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3rem));
   background: var(--cassie-page-background);
 }
 
@@ -39,9 +50,9 @@
 
 .cassie-admin-sidebar-resize-handle {
   position: sticky;
-  inset-block-start: calc(var(--ak-layout-navbar-height, 3.75rem) + 1px);
-  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3.75rem) - 1px);
-  inline-size: var(--ak-space-2, 0.5rem);
+  inset-block-start: 0;
+  block-size: calc(100dvh - var(--ak-layout-navbar-height, 3rem));
+  inline-size: 0.25rem;
   background: transparent;
   cursor: col-resize;
   touch-action: none;
@@ -67,15 +78,12 @@
   block-size: 100%;
   min-block-size: 0;
   flex-direction: column;
-  gap: var(--ak-space-4, 1rem);
 }
 
 .cassie-admin-sidebar-extra {
   flex: 1 1 auto;
   min-block-size: 0;
   overflow: hidden;
-  padding-block-start: var(--ak-space-4, 1rem);
-  border-block-start: 1px solid var(--cassie-border-subtle);
 }
 
 .cassie-admin-sidebar-extra:empty {

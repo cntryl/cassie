@@ -1,7 +1,6 @@
 import { askr } from "@askrjs/vite";
 import autoprefixer from "autoprefixer";
 import { defineConfig } from "vite-plus";
-import type { UserConfig } from "@voidzero-dev/vite-plus-core";
 
 import { mockAdminQueryApiPlugin } from "./dev/mock-admin-query-api";
 
@@ -34,7 +33,7 @@ const config = {
     ...(useMockApi ? [mockAdminQueryApiPlugin()] : []),
   ],
   css: {
-    transformer: "postcss",
+    transformer: "postcss" as const,
     postcss: {
       plugins: [autoprefixer()],
     },
@@ -49,7 +48,9 @@ const config = {
     proxy: {
       "/api": {
         target: cassieBackend,
-        changeOrigin: true,
+        // Preserve the browser-facing Host header so Cassie's same-origin
+        // state-change check sees the same authority in Host and Origin.
+        changeOrigin: false,
       },
       "/health": {
         target: cassieBackend,
@@ -83,12 +84,12 @@ const config = {
   },
   test: {
     environment: "jsdom",
-    exclude: ["**/dist/**", "**/node_modules/**"],
+    exclude: ["**/dist/**", "**/node_modules/**", "**/tests/e2e/**", "**/tests/e2e-mock/**"],
     globals: true,
     coverage: {
       reporter: ["text", "json", "html"],
     },
   },
-} as UserConfig;
+};
 
 export default defineConfig(config);

@@ -109,7 +109,7 @@ describe("admin shell sidebar resize", () => {
     const sessionContext = root.querySelector('[data-testid="admin-session-context"]');
 
     // Assert
-    expect(sessionContext?.textContent).toContain("postgres");
+    expect(sessionContext?.textContent).toContain("Cassie server");
     expect(sessionContext?.textContent).toContain("admin");
   });
 
@@ -122,7 +122,7 @@ describe("admin shell sidebar resize", () => {
     }
 
     expect(handle.getAttribute("role")).toBe("separator");
-    expect(handle.getAttribute("aria-orientation")).toBe("horizontal");
+    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
     expect(handle.getAttribute("aria-valuemin")).toBe("224");
     expect(handle.getAttribute("aria-valuemax")).toBe("512");
 

@@ -34,7 +34,7 @@ export function SidebarResizeHandle({
       data-testid="admin-sidebar-resize-handle"
       data-dragging={resize.dragging() ? "true" : undefined}
       role="separator"
-      aria-orientation="horizontal"
+      aria-orientation="vertical"
       aria-label="Resize navigation sidebar"
       aria-valuemin={SIDEBAR_WIDTH_MIN_PX}
       aria-valuemax={SIDEBAR_WIDTH_MAX_PX}
@@ -43,6 +43,8 @@ export function SidebarResizeHandle({
       onPointerDown={resize.onPointerDown}
       onPointerMove={resize.onPointerMove}
       onPointerUp={resize.onPointerUp}
+      onPointerCancel={resize.onPointerCancel}
+      onLostPointerCapture={resize.onLostPointerCapture}
       onKeyDown={resize.onKeyDown}
     />
   );

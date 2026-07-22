@@ -3,16 +3,23 @@ import type { QuerySchema } from "./query-models";
 import { queryService } from "./query-service";
 
 const queryQueries = queryScope("query");
+const schemaFetchers = new Map<
+  string,
+  ({ signal }: { signal?: AbortSignal }) => Promise<QuerySchema>
+>();
 
-export const QUERY_SCHEMA_KEY = queryQueries.key("schema");
-
-function fetchAdminQuerySchema({ signal }: { signal?: AbortSignal }) {
-  return queryService.getSchema({ signal });
+function schemaFetcher(database: string) {
+  let fetcher = schemaFetchers.get(database);
+  if (!fetcher) {
+    fetcher = ({ signal }) => queryService.getSchema(database, { signal });
+    schemaFetchers.set(database, fetcher);
+  }
+  return fetcher;
 }
 
-export function createAdminQuerySchemaQuery() {
+export function createAdminQuerySchemaQuery(database: string) {
   return createQuery<QuerySchema>({
-    key: QUERY_SCHEMA_KEY,
-    fetch: fetchAdminQuerySchema,
+    key: queryQueries.key(`schema:${database}`),
+    fetch: schemaFetcher(database),
   });
 }

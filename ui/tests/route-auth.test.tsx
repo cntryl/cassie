@@ -5,9 +5,24 @@ import { clearRoutes, getManifest } from "@askrjs/askr/router";
 import { registerRootRoutes } from "@/pages/_routes";
 import { signIn, signOut } from "@/shared/auth";
 import { mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
+import { saveQueryWorkspace } from "@/features/query/query-tabs";
 
 function mockCatalogSuccess() {
   mockJsonResponse("/api/v1/admin/catalog", { sections: [] });
+  mockJsonResponse("/api/v1/admin/databases", [{ name: "postgres" }]);
+  saveQueryWorkspace("admin", {
+    version: 1,
+    activeTabId: "query-1",
+    tabs: [
+      {
+        id: "query-1",
+        ordinal: 1,
+        title: "Query 1",
+        database: "postgres",
+        sql: "SELECT 1 AS ready;",
+      },
+    ],
+  });
 }
 
 async function flushUi() {
@@ -89,5 +104,15 @@ describe("route-level auth guard", () => {
 
     expect(window.location.pathname).toBe("/login");
     expect(root.querySelector("#login-username")).toBeTruthy();
+  });
+
+  it("should_render_a_recovery_page_given_an_unknown_route", async () => {
+    // Arrange / Act
+    const root = await mountAt("/missing-page");
+
+    // Assert
+    expect(window.location.pathname).toBe("/missing-page");
+    expect(root.textContent).toContain("Page not found");
+    expect(root.querySelector('a[href="/"]')).toBeTruthy();
   });
 });

@@ -1,4 +1,8 @@
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+
+export type ListAdminCatalogQuery = {
+  "database": string;
+};
 
 export type ListAdminCatalogResponse200 = QuerySchemaResponse;
 
@@ -8,7 +12,17 @@ export type ListAdminCatalogError_403 = Error;
 
 export type ListAdminCatalogError_405 = Error;
 
+export type ListAdminCatalogError_408 = Error;
+
 export type ListAdminCatalogError_500 = Error;
+
+export type ListAdminCatalogError_503 = Error;
+
+export type ListAdminDatabasesResponse200 = Array<DatabaseSummary>;
+
+export type ListAdminDatabasesError_401 = Error;
+
+export type ListAdminDatabasesError_503 = Error;
 
 export type CompareProjectionConsistencyBody = ConsistencyCheckRequest;
 
@@ -88,9 +102,27 @@ export type CreateAdminQueryExecutionError_401 = Error;
 
 export type CreateAdminQueryExecutionError_403 = Error;
 
+export type CreateAdminQueryExecutionError_404 = Error;
+
 export type CreateAdminQueryExecutionError_405 = Error;
 
+export type CreateAdminQueryExecutionError_408 = Error;
+
+export type CreateAdminQueryExecutionError_409 = Error;
+
+export type CreateAdminQueryExecutionError_413 = Error;
+
+export type CreateAdminQueryExecutionError_415 = Error;
+
+export type CreateAdminQueryExecutionError_499 = Error;
+
 export type CreateAdminQueryExecutionError_500 = Error;
+
+export type CreateAdminQueryExecutionError_501 = Error;
+
+export type CreateAdminQueryExecutionError_503 = Error;
+
+export type CreateAdminQueryExecutionError_504 = Error;
 
 export type CreateAdminQueryExplanationBody = QueryExplainRequest;
 
@@ -102,9 +134,45 @@ export type CreateAdminQueryExplanationError_401 = Error;
 
 export type CreateAdminQueryExplanationError_403 = Error;
 
+export type CreateAdminQueryExplanationError_404 = Error;
+
 export type CreateAdminQueryExplanationError_405 = Error;
 
+export type CreateAdminQueryExplanationError_408 = Error;
+
+export type CreateAdminQueryExplanationError_409 = Error;
+
+export type CreateAdminQueryExplanationError_413 = Error;
+
+export type CreateAdminQueryExplanationError_415 = Error;
+
+export type CreateAdminQueryExplanationError_499 = Error;
+
 export type CreateAdminQueryExplanationError_500 = Error;
+
+export type CreateAdminQueryExplanationError_501 = Error;
+
+export type CreateAdminQueryExplanationError_503 = Error;
+
+export type CreateAdminQueryExplanationError_504 = Error;
+
+export type CancelAdminQueryOperationPath = {
+  "operation_id": string;
+};
+
+export type CancelAdminQueryOperationResponse200 = QueryOperationCancellation;
+
+export type CancelAdminQueryOperationError_400 = Error;
+
+export type CancelAdminQueryOperationError_401 = Error;
+
+export type CancelAdminQueryOperationError_404 = Error;
+
+export type CancelAdminQueryOperationError_408 = Error;
+
+export type CancelAdminQueryOperationError_409 = Error;
+
+export type CancelAdminQueryOperationError_500 = Error;
 
 export type CreateAdminQueryValidationBody = QueryValidateRequest;
 
@@ -116,9 +184,27 @@ export type CreateAdminQueryValidationError_401 = Error;
 
 export type CreateAdminQueryValidationError_403 = Error;
 
+export type CreateAdminQueryValidationError_404 = Error;
+
 export type CreateAdminQueryValidationError_405 = Error;
 
+export type CreateAdminQueryValidationError_408 = Error;
+
+export type CreateAdminQueryValidationError_409 = Error;
+
+export type CreateAdminQueryValidationError_413 = Error;
+
+export type CreateAdminQueryValidationError_415 = Error;
+
+export type CreateAdminQueryValidationError_499 = Error;
+
 export type CreateAdminQueryValidationError_500 = Error;
+
+export type CreateAdminQueryValidationError_501 = Error;
+
+export type CreateAdminQueryValidationError_503 = Error;
+
+export type CreateAdminQueryValidationError_504 = Error;
 
 export type ExecuteAdminQueryBody = QueryExecuteRequest;
 
@@ -130,9 +216,27 @@ export type ExecuteAdminQueryError_401 = Error;
 
 export type ExecuteAdminQueryError_403 = Error;
 
+export type ExecuteAdminQueryError_404 = Error;
+
 export type ExecuteAdminQueryError_405 = Error;
 
+export type ExecuteAdminQueryError_408 = Error;
+
+export type ExecuteAdminQueryError_409 = Error;
+
+export type ExecuteAdminQueryError_413 = Error;
+
+export type ExecuteAdminQueryError_415 = Error;
+
+export type ExecuteAdminQueryError_499 = Error;
+
 export type ExecuteAdminQueryError_500 = Error;
+
+export type ExecuteAdminQueryError_501 = Error;
+
+export type ExecuteAdminQueryError_503 = Error;
+
+export type ExecuteAdminQueryError_504 = Error;
 
 export type ExplainAdminQueryBody = QueryExplainRequest;
 
@@ -144,9 +248,31 @@ export type ExplainAdminQueryError_401 = Error;
 
 export type ExplainAdminQueryError_403 = Error;
 
+export type ExplainAdminQueryError_404 = Error;
+
 export type ExplainAdminQueryError_405 = Error;
 
+export type ExplainAdminQueryError_408 = Error;
+
+export type ExplainAdminQueryError_409 = Error;
+
+export type ExplainAdminQueryError_413 = Error;
+
+export type ExplainAdminQueryError_415 = Error;
+
+export type ExplainAdminQueryError_499 = Error;
+
 export type ExplainAdminQueryError_500 = Error;
+
+export type ExplainAdminQueryError_501 = Error;
+
+export type ExplainAdminQueryError_503 = Error;
+
+export type ExplainAdminQueryError_504 = Error;
+
+export type GetAdminQuerySchemaQuery = {
+  "database": string;
+};
 
 export type GetAdminQuerySchemaResponse200 = QuerySchemaResponse;
 
@@ -156,7 +282,11 @@ export type GetAdminQuerySchemaError_403 = Error;
 
 export type GetAdminQuerySchemaError_405 = Error;
 
+export type GetAdminQuerySchemaError_408 = Error;
+
 export type GetAdminQuerySchemaError_500 = Error;
+
+export type GetAdminQuerySchemaError_503 = Error;
 
 export type ValidateAdminQueryBody = QueryValidateRequest;
 
@@ -168,19 +298,42 @@ export type ValidateAdminQueryError_401 = Error;
 
 export type ValidateAdminQueryError_403 = Error;
 
+export type ValidateAdminQueryError_404 = Error;
+
 export type ValidateAdminQueryError_405 = Error;
 
+export type ValidateAdminQueryError_408 = Error;
+
+export type ValidateAdminQueryError_409 = Error;
+
+export type ValidateAdminQueryError_413 = Error;
+
+export type ValidateAdminQueryError_415 = Error;
+
+export type ValidateAdminQueryError_499 = Error;
+
 export type ValidateAdminQueryError_500 = Error;
+
+export type ValidateAdminQueryError_501 = Error;
+
+export type ValidateAdminQueryError_503 = Error;
+
+export type ValidateAdminQueryError_504 = Error;
 
 export type LoginRestSessionBody = {
   "username": string;
   "password": string;
-  "database"?: string;
 };
 
 export type LoginRestSessionResponse200 = Session;
 
+export type LoginRestSessionError_400 = Error;
+
 export type LoginRestSessionError_401 = Error;
+
+export type LoginRestSessionError_403 = Error;
+
+export type LoginRestSessionError_404 = Error;
 
 export type LoginRestSessionError_408 = Error;
 
@@ -188,11 +341,25 @@ export type LoginRestSessionError_413 = Error;
 
 export type LoginRestSessionError_415 = Error;
 
-export type LogoutRestSessionResponse200 = undefined;
+export type LoginRestSessionError_501 = Error;
+
+export type LoginRestSessionError_503 = Error;
+
+export type LogoutRestSessionResponse200 = LogoutResponse;
+
+export type LogoutRestSessionError_401 = Error;
+
+export type LogoutRestSessionError_408 = Error;
+
+export type LogoutRestSessionError_503 = Error;
 
 export type GetRestSessionResponse200 = Session;
 
 export type GetRestSessionError_401 = Error;
+
+export type GetRestSessionError_408 = Error;
+
+export type GetRestSessionError_503 = Error;
 
 export type ListCollectionsResponse200 = Array<string>;
 

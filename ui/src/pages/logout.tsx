@@ -1,6 +1,8 @@
+import { state } from "@askrjs/askr";
 import { Link, navigate } from "@askrjs/askr/router";
-import { DatabaseIcon, LogOutIcon } from "@askrjs/lucide";
+import { DatabaseIcon, LogOutIcon, TriangleAlertIcon } from "@askrjs/lucide";
 import {
+  Alert,
   Block,
   Brand,
   BrandLabel,
@@ -19,14 +21,32 @@ import {
 
 import { apiv1 } from "@/adapters";
 import { getSession, signOut } from "@/shared/auth";
+import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
 
 export default function LogoutPage() {
   const session = getSession();
+  const [error, setError] = state<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = state(false);
 
   async function handleSignOut() {
-    await apiv1.logoutRestSession();
-    signOut();
-    navigate("/login");
+    if (isSigningOut()) {
+      return;
+    }
+
+    setError(null);
+    setIsSigningOut(true);
+    try {
+      const response = await apiv1.logoutRestSession();
+      if (!response.ok && response.status !== 401) {
+        ensureResponseOk(response, "Unable to sign out");
+      }
+      signOut();
+      navigate("/login");
+    } catch (caught) {
+      setError(apiErrorMessage(caught));
+    } finally {
+      setIsSigningOut(false);
+    }
   }
 
   return (
@@ -48,12 +68,26 @@ export default function LogoutPage() {
             </CardHeader>
             <CardContent>
               <Block direction="column" gap="md">
+                {error() ? (
+                  <Alert
+                    variant="danger"
+                    title="Sign out failed"
+                    description={error()}
+                    icon={<TriangleAlertIcon size={16} />}
+                  />
+                ) : null}
                 <Separator decorative />
-                <Button type="button" variant="destructive" width="full" onPress={handleSignOut}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  width="full"
+                  onPress={handleSignOut}
+                  disabled={isSigningOut()}
+                >
                   <LogOutIcon size={16} aria-hidden="true" />
-                  Sign out
+                  {isSigningOut() ? "Signing out…" : "Sign out"}
                 </Button>
-                <Button asChild variant="outline" width="full">
+                <Button asChild variant="outline" width="full" disabled={isSigningOut()}>
                   <Link href="/">Stay signed in</Link>
                 </Button>
               </Block>

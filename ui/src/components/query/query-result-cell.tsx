@@ -1,7 +1,19 @@
 import { TableCell } from "@askrjs/themes/components";
+import type { QueryResultValue } from "@/adapters";
 
 export interface QueryResultCellProps {
-  value: string | null;
+  value: QueryResultValue;
+}
+
+function displayQueryValue(value: Exclude<QueryResultValue, null>) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
 }
 
 export function QueryResultCell({ value }: QueryResultCellProps) {
@@ -13,5 +25,5 @@ export function QueryResultCell({ value }: QueryResultCellProps) {
     );
   }
 
-  return <TableCell>{value}</TableCell>;
+  return <TableCell>{displayQueryValue(value)}</TableCell>;
 }

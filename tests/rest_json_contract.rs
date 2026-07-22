@@ -123,6 +123,15 @@ fn yaml_key(line: &str) -> Option<&str> {
     Some(key.trim_matches('\'').trim_matches('"'))
 }
 
+fn openapi_operation<'a>(openapi: &'a str, path: &str) -> &'a str {
+    let start = openapi.find(path).expect("OpenAPI path");
+    let tail = &openapi[start..];
+    let end = tail[1..]
+        .find("\n  /")
+        .map_or(tail.len(), |offset| offset + 1);
+    &tail[..end]
+}
+
 #[test]
 fn should_serialize_admin_query_values_as_plain_json() {
     // Arrange
@@ -373,5 +382,87 @@ fn should_document_restful_catalog_contract_in_openapi() {
             openapi.contains(expected),
             "expected OpenAPI contract to contain: {expected}"
         );
+    }
+}
+
+#[test]
+fn should_document_admin_query_runtime_errors() {
+    // Arrange
+    let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi");
+    let query_paths = [
+        "/api/v1/admin/query-executions:",
+        "/api/v1/admin/query/execute:",
+        "/api/v1/admin/query-validations:",
+        "/api/v1/admin/query/validate:",
+        "/api/v1/admin/query-explanations:",
+        "/api/v1/admin/query/explain:",
+    ];
+    let runtime_statuses = [
+        "'404':", "'408':", "'409':", "'413':", "'415':", "'499':", "'501':", "'503':", "'504':",
+    ];
+
+    // Act
+    let operations = query_paths.map(|path| (path, openapi_operation(&openapi, path)));
+
+    // Assert
+    for (path, operation) in operations {
+        for status in runtime_statuses {
+            assert!(
+                operation.contains(status),
+                "{path} must document runtime status {status}"
+            );
+        }
+    }
+}
+
+#[test]
+fn should_document_logout_response_payload() {
+    // Arrange
+    let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi");
+
+    // Act
+    let logout = openapi_operation(&openapi, "/api/v1/auth/logout:");
+
+    // Assert
+    assert!(logout.contains("$ref: '#/components/schemas/LogoutResponse'"));
+    assert!(openapi.contains("LogoutResponse:"));
+    assert!(openapi.contains("logged_out:"));
+}
+
+#[test]
+fn should_document_admin_ui_authentication_boundary_errors() {
+    // Arrange
+    let openapi = std::fs::read_to_string("public/openapi.yml").expect("openapi");
+    let expected_statuses = [
+        (
+            "/api/v1/auth/login:",
+            &[
+                "'400':", "'401':", "'403':", "'404':", "'408':", "'413':", "'415':", "'501':",
+                "'503':",
+            ] as &[&str],
+        ),
+        ("/api/v1/auth/session:", &["'401':", "'408':", "'503':"]),
+        (
+            "/api/v1/admin/catalog:",
+            &["'401':", "'403':", "'405':", "'408':", "'500':", "'503':"],
+        ),
+        (
+            "/api/v1/admin/query/schema:",
+            &["'401':", "'403':", "'405':", "'408':", "'500':", "'503':"],
+        ),
+    ];
+
+    // Act
+    let operations = expected_statuses
+        .map(|(path, statuses)| (path, statuses, openapi_operation(&openapi, path)));
+
+    // Assert
+    for (path, statuses, operation) in operations {
+        for status in statuses {
+            assert!(
+                operation.contains(status),
+                "{path} must document runtime status {status}"
+            );
+        }
     }
 }

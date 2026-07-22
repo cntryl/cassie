@@ -1,6 +1,6 @@
 import { state } from "@askrjs/askr";
 import { Link } from "@askrjs/askr/router";
-import { DatabaseIcon, LogOutIcon, MenuIcon, MoonIcon, ServerIcon, SunIcon } from "@askrjs/lucide";
+import { DatabaseIcon, LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
 import {
   Badge,
   Block,
@@ -26,7 +26,7 @@ import { SidebarPortalHost } from "@/components/shell/sidebar-portal-host";
 import { getSession } from "@/shared/auth";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
-const SIDEBAR_WIDTH_DEFAULT_PX = 320;
+const SIDEBAR_WIDTH_DEFAULT_PX = 280;
 
 function readPersistedSidebarWidth(): number {
   if (typeof window === "undefined") {
@@ -125,8 +125,8 @@ export default function Layout({ children }: { children?: unknown }) {
         Skip to main content
       </a>
 
-      <Header sticky>
-        <Container size="full" paddingY="xs">
+      <Header class="cassie-admin-header" sticky>
+        <Container size="full" paddingY="0">
           <Navbar class="cassie-admin-navbar" aria-label="Cassie admin">
             <NavBrand>
               <Brand asChild>
@@ -141,10 +141,9 @@ export default function Layout({ children }: { children?: unknown }) {
 
             <NavGroup align="end" aria-label="View controls" role="group">
               <Inline gap="sm" align="center" data-testid="admin-session-context">
-                <Badge variant="success">Connected</Badge>
-                <Badge variant="outline">
-                  <ServerIcon size={14} aria-hidden="true" />
-                  {session?.database ?? "Cassie server"}
+                <Badge variant="success">
+                  <DatabaseIcon size={14} aria-hidden="true" />
+                  Cassie server
                 </Badge>
                 {session?.user ? (
                   <Text as="span" size="sm" tone="muted">
@@ -174,7 +173,7 @@ export default function Layout({ children }: { children?: unknown }) {
           class="cassie-admin-layout"
           columns={{
             base: 1,
-            md: "var(--cassie-sidebar-width, 18rem) var(--ak-space-2, 0.5rem) minmax(0, 1fr)",
+            md: "var(--cassie-sidebar-width, 18rem) 0.25rem minmax(0, 1fr)",
           }}
           gap="0"
           align="stretch"
@@ -183,7 +182,8 @@ export default function Layout({ children }: { children?: unknown }) {
             class="cassie-admin-sidebar"
             collapsible="none"
             minHeight="auto"
-            padding="md"
+            padding="sm"
+            gap="0"
             borderRight
             shrink={false}
             width="full"

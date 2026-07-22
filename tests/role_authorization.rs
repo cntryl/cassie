@@ -194,7 +194,7 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
         let select = client
             .post(format!("http://{addr}/api/v1/admin/query/execute"))
             .header("cookie", &reader_cookie)
-            .json(&serde_json::json!({"sql": "SELECT title FROM rest_role_docs"}))
+            .json(&serde_json::json!({"database": "postgres", "sql": "SELECT title FROM rest_role_docs"}))
             .send()
             .await
             .expect("reader select");
@@ -202,7 +202,7 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
             .post(format!("http://{addr}/api/v1/admin/query/execute"))
             .header("cookie", &reader_cookie)
             .json(&serde_json::json!({
-                "sql": "INSERT INTO rest_role_docs (title) VALUES ('blocked')"
+                "database": "postgres", "sql": "INSERT INTO rest_role_docs (title) VALUES ('blocked')"
             }))
             .send()
             .await

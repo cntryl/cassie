@@ -1,12 +1,17 @@
-import { defineApi, createClient, del, empty, get, json, post } from "@askrjs/fetch";
+import { defineApi, createClient, del, get, json, post } from "@askrjs/fetch";
 import type { ClientOptions } from "@askrjs/fetch";
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
-import type { CreateDocumentPath, CreateIndexPath, CreateProjectionVerificationManifestPath, DeleteDocumentPath, ExportProjectionManifestPath, GetDocumentPath, VectorSearchPath } from "./operations";
+import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { CancelAdminQueryOperationPath, CreateDocumentPath, CreateIndexPath, CreateProjectionVerificationManifestPath, DeleteDocumentPath, ExportProjectionManifestPath, GetAdminQuerySchemaQuery, GetDocumentPath, ListAdminCatalogQuery, VectorSearchPath } from "./operations";
 
 export const api = defineApi({
   listAdminCatalog: get("/api/v1/admin/catalog")
+    .query<ListAdminCatalogQuery>({ "database": { style: "form", explode: true } })
     .returns(json<QuerySchemaResponse>())
-    .errors({ "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "408": json<Error>(), "500": json<Error>(), "503": json<Error>() })
+    .security([{"cassieAuth":[]}]),
+  listAdminDatabases: get("/api/v1/admin/databases")
+    .returns(json<Array<DatabaseSummary>>())
+    .errors({ "401": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
   compareProjectionConsistency: post("/api/v1/admin/projection-consistency-checks")
     .body(json<ConsistencyCheckRequest>())
@@ -37,51 +42,56 @@ export const api = defineApi({
   createAdminQueryExecution: post("/api/v1/admin/query-executions")
     .body(json<QueryExecuteRequest>())
     .returns(json<QueryResult>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
   createAdminQueryExplanation: post("/api/v1/admin/query-explanations")
     .body(json<QueryExplainRequest>())
     .returns(json<QueryExplainResponse>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
+  cancelAdminQueryOperation: del("/api/v1/admin/query-operations/{operation_id}")
+    .params<CancelAdminQueryOperationPath>({ "operation_id": { style: "simple", explode: false } })
+    .returns(json<QueryOperationCancellation>())
+    .errors({ "400": json<Error>(), "401": json<Error>(), "404": json<Error>(), "408": json<Error>(), "409": json<Error>(), "500": json<Error>() }),
   createAdminQueryValidation: post("/api/v1/admin/query-validations")
     .body(json<QueryValidateRequest>())
     .returns(json<QueryValidateResponse>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
   executeAdminQuery: post("/api/v1/admin/query/execute")
     .body(json<QueryExecuteRequest>())
     .returns(json<QueryResult>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
   explainAdminQuery: post("/api/v1/admin/query/explain")
     .body(json<QueryExplainRequest>())
     .returns(json<QueryExplainResponse>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
   getAdminQuerySchema: get("/api/v1/admin/query/schema")
+    .query<GetAdminQuerySchemaQuery>({ "database": { style: "form", explode: true } })
     .returns(json<QuerySchemaResponse>())
-    .errors({ "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "408": json<Error>(), "500": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
   validateAdminQuery: post("/api/v1/admin/query/validate")
     .body(json<QueryValidateRequest>())
     .returns(json<QueryValidateResponse>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "405": json<Error>(), "500": json<Error>() })
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "405": json<Error>(), "408": json<Error>(), "409": json<Error>(), "413": json<Error>(), "415": json<Error>(), "499": json<Error>(), "500": json<Error>(), "501": json<Error>(), "503": json<Error>(), "504": json<Error>() })
     .security([{"cassieAuth":[]}]),
   loginRestSession: post("/api/v1/auth/login")
     .body(json<{
   "username": string;
   "password": string;
-  "database"?: string;
 }>())
     .returns(json<Session>())
-    .errors({ "401": json<Error>(), "408": json<Error>(), "413": json<Error>(), "415": json<Error>() }),
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "408": json<Error>(), "413": json<Error>(), "415": json<Error>(), "501": json<Error>(), "503": json<Error>() }),
   logoutRestSession: post("/api/v1/auth/logout")
-    .returns(empty())
+    .returns(json<LogoutResponse>())
+    .errors({ "401": json<Error>(), "408": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
   getRestSession: get("/api/v1/auth/session")
     .returns(json<Session>())
-    .errors({ "401": json<Error>() })
+    .errors({ "401": json<Error>(), "408": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
   listCollections: get("/api/v1/collections")
     .returns(json<Array<string>>())

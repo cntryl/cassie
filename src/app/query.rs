@@ -283,11 +283,12 @@ impl Cassie {
         self.execute_sql_core(session, sql, params, mode, controls)
     }
 
-    pub(crate) fn explain_sql(
+    pub(crate) fn explain_sql_with_cancellation(
         &self,
         session: &CassieSession,
         sql: &str,
         params: Vec<crate::types::Value>,
+        cancellation: &QueryCancellationHandle,
     ) -> Result<QueryExplainOutput, CassieError> {
         let query_started = Instant::now();
         let Some(running_guard) = self.runtime.try_begin_running_query() else {
@@ -295,7 +296,11 @@ impl Cassie {
                 "query admission exhausted".to_string(),
             ));
         };
-        let controls = self.runtime.query_controls(query_started);
+        let controls = QueryExecutionControls::with_cancellation(
+            &self.runtime.limits(),
+            query_started,
+            cancellation.clone(),
+        );
         let result = self.explain_sql_core(session, sql, params, &controls);
         let elapsed = query_started.elapsed();
         self.runtime.record_query_memory(&controls);

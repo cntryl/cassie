@@ -17,6 +17,14 @@ function createRequestId() {
   return `cassie-ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+export function shouldRedirectToLogin(
+  status: number,
+  requestPath: string,
+  currentPath: string,
+): boolean {
+  return status === 401 && !requestPath.startsWith("/api/v1/auth/") && currentPath !== "/login";
+}
+
 const cassieMiddleware: Middleware = async (context, next) => {
   const headers = new Headers(context.request.headers);
 
@@ -34,7 +42,7 @@ const cassieMiddleware: Middleware = async (context, next) => {
   });
 
   const path = new URL(context.request.url).pathname;
-  if (!result.ok && result.status === 401 && path !== "/api/v1/auth/login") {
+  if (!result.ok && shouldRedirectToLogin(result.status, path, window.location.pathname)) {
     window.location.assign("/login");
   }
 

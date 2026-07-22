@@ -1,5 +1,6 @@
 use crate::app::{Cassie, CassieError, CassieSession, QueryExplainOutput, QueryExplainPlan};
 use crate::catalog::IndexKind;
+use crate::catalog::RelationId;
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::runtime::QueryCancellationHandle;
 use crate::sql::ast::{QueryStatement, TransactionAction};
@@ -9,18 +10,21 @@ use crate::types::Value;
 #[serde(rename_all = "snake_case")]
 pub struct QueryExecuteRequest {
     pub sql: String,
+    pub operation_id: Option<uuid::Uuid>,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct QueryValidateRequest {
     pub sql: String,
+    pub operation_id: Option<uuid::Uuid>,
 }
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct QueryExplainRequest {
     pub sql: String,
+    pub operation_id: Option<uuid::Uuid>,
 }
 
 #[derive(serde::Serialize)]
@@ -81,8 +85,21 @@ pub struct QuerySchemaItem {
     pub id: String,
     pub kind: String,
     pub label: String,
+    pub database: String,
+    pub schema: String,
+    pub name: String,
+    pub columns: Vec<QuerySchemaColumn>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct QuerySchemaColumn {
+    pub id: String,
+    pub name: String,
+    pub data_type: String,
+    pub primary_key: bool,
 }
 
 /// # Errors
@@ -128,18 +145,33 @@ pub(crate) fn validate_with_session(
     session: &CassieSession,
     body: &[u8],
 ) -> Result<QueryValidateResponse, CassieError> {
+    validate_with_session_and_cancellation(cassie, session, body, &QueryCancellationHandle::new())
+}
+
+pub(crate) fn validate_with_session_and_cancellation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+) -> Result<QueryValidateResponse, CassieError> {
     let request: QueryValidateRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
+    if cancellation.is_cancelled() {
+        return Err(CassieError::QueryCancelled);
+    }
     let parsed = crate::sql::parse_statement(request.sql.as_str())?;
     session.authorize_statement(&parsed.statement)?;
     let command = command_name(&parsed.statement).to_string();
     let fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let columns = cassie
-        .describe_parsed_statement(parsed, fingerprint)?
+        .describe_parsed_statement_for_session(session, parsed, fingerprint, &[])?
         .into_iter()
         .map(RestColumnMeta::from)
         .collect();
 
+    if cancellation.is_cancelled() {
+        return Err(CassieError::QueryCancelled);
+    }
     Ok(QueryValidateResponse {
         valid: true,
         command,
@@ -164,24 +196,60 @@ pub(crate) fn explain_with_session(
     session: &CassieSession,
     body: &[u8],
 ) -> Result<RestQueryExplainResponse, CassieError> {
+    explain_with_session_and_cancellation(cassie, session, body, &QueryCancellationHandle::new())
+}
+
+pub(crate) fn explain_with_session_and_cancellation(
+    cassie: &Cassie,
+    session: &CassieSession,
+    body: &[u8],
+    cancellation: &QueryCancellationHandle,
+) -> Result<RestQueryExplainResponse, CassieError> {
     let request: QueryExplainRequest =
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie
-        .explain_sql(session, request.sql.as_str(), Vec::new())
+        .explain_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
         .map(RestQueryExplainResponse::from)
 }
 
 #[must_use]
+///
+/// # Panics
+///
+/// Panics when persisted catalog object names violate the canonical
+/// `database.schema.name` invariant.
 pub fn schema(cassie: &Cassie) -> QuerySchemaResponse {
-    QuerySchemaResponse {
+    schema_for_database(cassie, &cassie.default_database)
+        .expect("catalog metadata must use canonical relation names")
+}
+
+pub(crate) fn schema_with_session(
+    cassie: &Cassie,
+    session: &CassieSession,
+) -> Result<QuerySchemaResponse, CassieError> {
+    let database = session
+        .current_database()
+        .unwrap_or(&cassie.default_database);
+    schema_for_database(cassie, database)
+}
+
+fn schema_for_database(
+    cassie: &Cassie,
+    database: &str,
+) -> Result<QuerySchemaResponse, CassieError> {
+    Ok(QuerySchemaResponse {
         sections: vec![
-            section("tables", "Tables", table_items(cassie)),
-            section("views", "Views", view_items(cassie)),
-            section("indexes", "Indexes", index_items(cassie)),
-            section("udfs", "UDFs", function_items(cassie)),
-            section("procedures", "Procedures", procedure_items(cassie)),
+            section("tables", "Tables", table_items(cassie, database)?),
+            section("views", "Views", view_items(cassie, database)?),
+            section("indexes", "Indexes", index_items(cassie, database)?),
+            section("udfs", "UDFs", function_items(cassie, database)?),
+            section(
+                "procedures",
+                "Procedures",
+                procedure_items(cassie, database)?,
+            ),
         ],
-    }
+    })
 }
 
 fn section(id: &str, label: &str, items: Vec<QuerySchemaItem>) -> QuerySchemaSection {
@@ -192,50 +260,90 @@ fn section(id: &str, label: &str, items: Vec<QuerySchemaItem>) -> QuerySchemaSec
     }
 }
 
-fn table_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
+fn table_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_collections_canonical()
         .into_iter()
         .map(|collection| {
-            let column_count = cassie
-                .catalog
-                .get_schema(collection.name.as_str())
-                .map_or(0, |schema| schema.fields.len());
-            QuerySchemaItem {
+            let relation = canonical_relation(&collection.name)?;
+            let schema = cassie.catalog.get_schema(collection.name.as_str());
+            let constraints = cassie.catalog.get_constraints(collection.name.as_str());
+            let columns = schema.map_or_else(Vec::new, |schema| {
+                schema
+                    .fields
+                    .iter()
+                    .map(|field| QuerySchemaColumn {
+                        id: format!("column:{}:{}", collection.name, field.name),
+                        name: field.name.clone(),
+                        data_type: field.data_type.type_name().clone(),
+                        primary_key: constraints.iter().any(|constraint| {
+                            constraint.field.eq_ignore_ascii_case(&field.name)
+                                && constraint.primary_key
+                        }),
+                    })
+                    .collect()
+            });
+            Ok(QuerySchemaItem {
                 id: format!("table:{}", collection.name),
                 kind: "table".to_string(),
                 label: collection.name,
-                metadata: Some(column_count_label(column_count)),
-            }
+                database: relation.database,
+                schema: relation.schema,
+                name: relation.name,
+                metadata: Some(column_count_label(columns.len())),
+                columns,
+            })
         })
-        .collect();
+        .collect::<Result<_, CassieError>>()?;
+
+    items.retain(|item| item.database.eq_ignore_ascii_case(database));
 
     items.sort_by_key(|item| item.label.to_ascii_lowercase());
-    items
+    Ok(items)
 }
 
-fn view_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
+fn view_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_views()
         .into_iter()
-        .map(|view| QuerySchemaItem {
-            id: format!("view:{}", view.name),
-            kind: "view".to_string(),
-            label: view.name,
-            metadata: Some(column_count_label(view.schema.fields.len())),
+        .map(|view| {
+            let relation = canonical_relation(&view.name)?;
+            let columns = view
+                .schema
+                .fields
+                .iter()
+                .map(|field| QuerySchemaColumn {
+                    id: format!("column:{}:{}", view.name, field.name),
+                    name: field.name.clone(),
+                    data_type: field.data_type.type_name().clone(),
+                    primary_key: false,
+                })
+                .collect::<Vec<_>>();
+            Ok(QuerySchemaItem {
+                id: format!("view:{}", view.name),
+                kind: "view".to_string(),
+                label: view.name,
+                database: relation.database,
+                schema: relation.schema,
+                name: relation.name,
+                metadata: Some(column_count_label(columns.len())),
+                columns,
+            })
         })
-        .collect();
+        .collect::<Result<_, CassieError>>()?;
+    items.retain(|item| item.database.eq_ignore_ascii_case(database));
 
     items.sort_by_key(|item| item.label.to_ascii_lowercase());
-    items
+    Ok(items)
 }
 
-fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
+fn index_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items = Vec::new();
     for collection in cassie.catalog.list_collections_canonical() {
         for index in cassie.catalog.list_indexes(collection.name.as_str()) {
+            let relation = canonical_relation(&index.collection)?;
             let fields = if index.normalized_fields().is_empty() {
                 index.normalized_expressions().join(", ")
             } else {
@@ -244,7 +352,11 @@ fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
             items.push(QuerySchemaItem {
                 id: format!("index:{}:{}", index.collection, index.name),
                 kind: "index".to_string(),
-                label: index.name,
+                label: index.name.clone(),
+                database: relation.database,
+                schema: relation.schema,
+                name: index.name.clone(),
+                columns: Vec::new(),
                 metadata: Some(format!(
                     "{} on {}({})",
                     index_kind_label(&index.kind),
@@ -254,58 +366,77 @@ fn index_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
             });
         }
     }
+    items.retain(|item| item.database.eq_ignore_ascii_case(database));
     items.sort_by_key(|item| item.label.to_ascii_lowercase());
-    items
+    Ok(items)
 }
 
-fn function_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
+fn function_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_functions()
         .into_iter()
         .map(|function| {
+            let relation = canonical_relation(&function.name)?;
             let args = function
                 .args
                 .iter()
                 .map(|arg| format!("{} {}", arg.name, arg.data_type.type_name()))
                 .collect::<Vec<_>>()
                 .join(", ");
-            QuerySchemaItem {
+            Ok(QuerySchemaItem {
                 id: format!("udf:{}", function.name),
                 kind: "udf".to_string(),
                 label: function.name,
+                database: relation.database,
+                schema: relation.schema,
+                name: relation.name,
+                columns: Vec::new(),
                 metadata: Some(format!("({args}) -> {}", function.return_type.type_name())),
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, CassieError>>()?;
 
+    items.retain(|item| item.database.eq_ignore_ascii_case(database));
     items.sort_by_key(|item| item.label.to_ascii_lowercase());
-    items
+    Ok(items)
 }
 
-fn procedure_items(cassie: &Cassie) -> Vec<QuerySchemaItem> {
+fn procedure_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, CassieError> {
     let mut items: Vec<QuerySchemaItem> = cassie
         .catalog
         .list_procedures()
         .into_iter()
         .map(|procedure| {
+            let relation = canonical_relation(&procedure.name)?;
             let args = procedure
                 .args
                 .iter()
                 .map(|arg| format!("{} {}", arg.name, arg.data_type.type_name()))
                 .collect::<Vec<_>>()
                 .join(", ");
-            QuerySchemaItem {
+            Ok(QuerySchemaItem {
                 id: format!("procedure:{}", procedure.name),
                 kind: "procedure".to_string(),
                 label: procedure.name,
+                database: relation.database,
+                schema: relation.schema,
+                name: relation.name,
+                columns: Vec::new(),
                 metadata: Some(format!("({args})")),
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, CassieError>>()?;
 
+    items.retain(|item| item.database.eq_ignore_ascii_case(database));
     items.sort_by_key(|item| item.label.to_ascii_lowercase());
-    items
+    Ok(items)
+}
+
+fn canonical_relation(name: &str) -> Result<RelationId, CassieError> {
+    RelationId::parse_canonical(name).ok_or_else(|| {
+        CassieError::InvalidQuery(format!("catalog object name is not canonical: {name}"))
+    })
 }
 
 fn column_count_label(column_count: usize) -> String {

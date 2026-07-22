@@ -80,7 +80,7 @@ export function ResizableSplit({
   };
   const separatorAttributes = {
     "aria-label": `Resize ${orientation} split`,
-    "aria-orientation": orientation,
+    "aria-orientation": orientation === "vertical" ? "horizontal" : "vertical",
     "aria-valuemax": max,
     "aria-valuemin": min,
     "aria-valuenow": Math.round(split),
@@ -103,6 +103,8 @@ export function ResizableSplit({
         onPointerDown={resize.onPointerDown}
         onPointerMove={resize.onPointerMove}
         onPointerUp={resize.onPointerUp}
+        onPointerCancel={resize.onPointerCancel}
+        onLostPointerCapture={resize.onLostPointerCapture}
         onKeyDown={resize.onKeyDown}
         tabIndex={0}
         {...separatorAttributes}

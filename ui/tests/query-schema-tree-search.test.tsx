@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { state } from "@askrjs/askr";
 
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import type { QuerySchemaDatabase } from "@/features/query/query-models";
@@ -26,12 +27,20 @@ const schema: QuerySchemaDatabase[] = [
                 id: "table:postgres.public.documents",
                 kind: "table",
                 label: "postgres.public.documents",
+                database: "postgres",
+                schema: "public",
+                name: "documents",
+                columns: [],
                 metadata: "2 columns",
               },
               {
                 id: "table:postgres.public.accounts",
                 kind: "table",
                 label: "postgres.public.accounts",
+                database: "postgres",
+                schema: "public",
+                name: "accounts",
+                columns: [],
                 metadata: "6 columns",
               },
             ],
@@ -70,6 +79,30 @@ async function mountSchemaTree() {
   return root;
 }
 
+let updateDynamicSchema: ((next: QuerySchemaDatabase[]) => void) | null = null;
+
+function DynamicSchemaTree() {
+  const [currentSchema, setCurrentSchema] = state(schema);
+  updateDynamicSchema = setCurrentSchema;
+  return <QuerySchemaTree schema={currentSchema} onSelectItem={() => {}} />;
+}
+
+async function mountDynamicSchemaTree() {
+  cleanupApp("app");
+  document.body.innerHTML = '<div id="app"></div>';
+  const root = document.getElementById("app");
+  if (!root) {
+    throw new Error("Missing test app root");
+  }
+
+  await createSPA({
+    root,
+    routes: [{ path: "/", handler: DynamicSchemaTree }],
+  });
+  await flushUi();
+  return root;
+}
+
 function searchInputOf(root: Element) {
   const input = root.querySelector(
     '[aria-label="Filter schema objects"]',
@@ -88,6 +121,7 @@ function typeInto(input: HTMLInputElement, value: string) {
 afterEach(() => {
   cleanupApp("app");
   document.body.innerHTML = "";
+  updateDynamicSchema = null;
 });
 
 describe("schema tree search", () => {
@@ -141,5 +175,36 @@ describe("schema tree search", () => {
         .querySelector('[data-testid="query-schema-tree-normal"]')
         ?.querySelector('[data-item-id="table:postgres.public.accounts"]'),
     ).toBeTruthy();
+  });
+
+  it("should_refresh_active_search_results_given_new_schema_data", async () => {
+    // Arrange
+    const root = await mountDynamicSchemaTree();
+    typeInto(searchInputOf(root), "archive");
+    await flushUi();
+    expect(
+      root.querySelector('[aria-label="Schema sections"]')?.getAttribute("data-schema-mode"),
+    ).toBe("empty");
+
+    // Act
+    const nextSchema = structuredClone(schema);
+    nextSchema[0]?.namespaces[0]?.sections[0]?.items.push({
+      id: "table:postgres.public.archive",
+      kind: "table",
+      label: "postgres.public.archive",
+      database: "postgres",
+      schema: "public",
+      name: "archive",
+      columns: [],
+      metadata: "1 column",
+    });
+    updateDynamicSchema?.(nextSchema);
+    await flushUi();
+
+    // Assert
+    expect(
+      root.querySelector('[aria-label="Schema sections"]')?.getAttribute("data-schema-mode"),
+    ).toBe("results");
+    expect(root.querySelector('[data-item-id="table:postgres.public.archive"]')).toBeTruthy();
   });
 });

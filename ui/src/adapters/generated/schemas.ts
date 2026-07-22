@@ -34,6 +34,11 @@ export type CreateIndexRequest = {
   "options"?: StringMap;
 };
 
+export type DatabaseSummary = {
+  "name": string;
+  "description"?: string;
+};
+
 export type DeleteDocumentResponse = {
   "deleted": boolean;
 };
@@ -66,6 +71,10 @@ export type Health = {
 };
   "collections"?: number;
   "version"?: string;
+};
+
+export type LogoutResponse = {
+  "logged_out": boolean;
 };
 
 export type ProjectionCheckReport = {
@@ -148,7 +157,9 @@ export type ProjectionManifestRowHashSummary = {
 };
 
 export type QueryExecuteRequest = {
+  "database": string;
   "sql": string;
+  "operation_id"?: string;
 };
 
 export type QueryExplainPlan = {
@@ -163,7 +174,9 @@ export type QueryExplainPlan = {
 };
 
 export type QueryExplainRequest = {
+  "database": string;
   "sql": string;
+  "operation_id"?: string;
 };
 
 export type QueryExplainResponse = {
@@ -171,6 +184,11 @@ export type QueryExplainResponse = {
   "rows": Array<Array<QueryResultValue>>;
   "command": string;
   "plan": QueryExplainPlan;
+};
+
+export type QueryOperationCancellation = {
+  "operation_id": string;
+  "cancelled": boolean;
 };
 
 export type QueryPlanAnalyze = {
@@ -296,10 +314,21 @@ export type QueryResultValue = string | number | boolean | Array<QueryResultValu
 
 } | null;
 
+export type QuerySchemaColumn = {
+  "id": string;
+  "name": string;
+  "data_type": string;
+  "primary_key": boolean;
+};
+
 export type QuerySchemaItem = {
   "id": string;
   "kind": "table" | "view" | "index" | "udf" | "procedure";
   "label": string;
+  "database": string;
+  "schema": string;
+  "name": string;
+  "columns": Array<QuerySchemaColumn>;
   "metadata"?: string;
 };
 
@@ -314,7 +343,9 @@ export type QuerySchemaSection = {
 };
 
 export type QueryValidateRequest = {
+  "database": string;
   "sql": string;
+  "operation_id"?: string;
 };
 
 export type QueryValidateResponse = {
@@ -333,7 +364,6 @@ export type SearchRequest = {
 
 export type Session = {
   "user": string;
-  "database": string;
   "role"?: string;
 };
 

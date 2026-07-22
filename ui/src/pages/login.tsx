@@ -1,8 +1,7 @@
 import { state } from "@askrjs/askr";
 import { navigate } from "@askrjs/askr/router";
-import { DatabaseIcon, LockIcon, TriangleAlertIcon, UserIcon } from "@askrjs/lucide";
+import { DatabaseIcon, LockIcon, UserIcon } from "@askrjs/lucide";
 import {
-  Alert,
   Block,
   Brand,
   BrandLabel,
@@ -11,21 +10,34 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
   Field,
+  FieldError,
   Input,
   InputGroup,
   InputGroupText,
   Label,
   Page,
-  Text,
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
 import { setSession, signOut } from "@/shared/auth";
-import { apiErrorMessage, unwrapResponse } from "@/shared/errors/api";
+import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
+
+export function safeLoginContinuation(search: string) {
+  const next = new URLSearchParams(search).get("next");
+  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+}
+
+function loginErrorMessage(error: unknown) {
+  if (error instanceof AppApiError) {
+    if (error.status === 401 || error.status === 403)
+      return "The username or password is incorrect.";
+    if (error.status >= 500) return "Cassie is unavailable. Try again in a moment.";
+  }
+  return apiErrorMessage(error);
+}
 
 export default function LoginPage() {
   const [username, setUsername] = state("");
@@ -53,10 +65,10 @@ export default function LoginPage() {
       );
       setSession(session);
       setPassword("");
-      navigate("/");
+      navigate(safeLoginContinuation(window.location.search));
     } catch (caught) {
       signOut();
-      setError(apiErrorMessage(caught));
+      setError(loginErrorMessage(caught));
     } finally {
       setIsVerifying(false);
     }
@@ -74,19 +86,11 @@ export default function LoginPage() {
                 </BrandMark>
                 <BrandLabel>Cassie Admin</BrandLabel>
               </Brand>
-              <CardTitle>Sign in</CardTitle>
-              <CardDescription>Enter your admin credentials to continue.</CardDescription>
+              <CardTitle>Sign in to Cassie Admin</CardTitle>
+              <CardDescription>Use your operator name and password.</CardDescription>
             </CardHeader>
             <CardContent>
               <Block as="form" direction="column" gap="md" onSubmit={handleSignIn}>
-                {error() ? (
-                  <Alert
-                    variant="danger"
-                    title="Sign in failed"
-                    description={error()}
-                    icon={<TriangleAlertIcon size={16} />}
-                  />
-                ) : null}
                 <Field>
                   <Label for="login-username">Username</Label>
                   <InputGroup>
@@ -98,6 +102,8 @@ export default function LoginPage() {
                       name="username"
                       autocomplete="username"
                       placeholder="admin"
+                      required
+                      disabled={isVerifying()}
                       value={username()}
                       onInput={(event: Event) => {
                         setUsername((event.target as HTMLInputElement).value);
@@ -117,6 +123,7 @@ export default function LoginPage() {
                       type="password"
                       autocomplete="current-password"
                       required
+                      disabled={isVerifying()}
                       value={password()}
                       onInput={(event: Event) => {
                         setPassword((event.target as HTMLInputElement).value);
@@ -124,17 +131,12 @@ export default function LoginPage() {
                     />
                   </InputGroup>
                 </Field>
+                {error() ? <FieldError>{error()}</FieldError> : null}
                 <Button type="submit" variant="primary" width="full" disabled={isVerifying()}>
                   {isVerifying() ? "Signing in…" : "Sign in"}
                 </Button>
               </Block>
             </CardContent>
-            <CardFooter>
-              <Text tone="muted" size="sm">
-                The server issues an opaque HttpOnly session cookie; your password is not stored in
-                this browser.
-              </Text>
-            </CardFooter>
           </Card>
         </Block>
       </Block>

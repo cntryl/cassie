@@ -1,4 +1,4 @@
-import type { QueryExplainPlan } from "@/adapters";
+import type { QueryExplainPlan, QueryResultValue } from "@/adapters";
 
 export type QuerySchemaSectionId = "tables" | "views" | "indexes" | "udfs" | "procedures";
 
@@ -7,16 +7,19 @@ export type QuerySchemaItemKind = "table" | "view" | "index" | "udf" | "procedur
 export interface QuerySchemaColumn {
   id: string;
   name: string;
-  dataType?: string;
-  primaryKey?: boolean;
+  dataType: string;
+  primaryKey: boolean;
 }
 
 export interface QuerySchemaItem {
   id: string;
   kind: QuerySchemaItemKind;
   label: string;
+  database: string;
+  schema: string;
+  name: string;
   metadata?: string;
-  columns?: QuerySchemaColumn[];
+  columns: QuerySchemaColumn[];
 }
 
 export interface QuerySchemaSection {
@@ -44,7 +47,7 @@ export interface QuerySchema {
 export interface QueryExecutionResult {
   command: string;
   columns: string[];
-  rows: Array<Array<string | null>>;
+  rows: QueryResultValue[][];
   plan?: QueryExplainPlan;
 }
 
@@ -54,4 +57,4 @@ export interface QueryValidationResult {
   valid: boolean;
 }
 
-export type QueryStatus = "idle" | "running" | "explaining" | "validating";
+export type QueryStatus = "idle" | "running" | "explaining" | "validating" | "stopping";

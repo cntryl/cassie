@@ -1,6 +1,7 @@
 import { state } from "@askrjs/askr";
 
 import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@askrjs/monaco";
+import { theme } from "@askrjs/themes/theme";
 
 export interface MonacoCompletionItem {
   label: string;
@@ -27,6 +28,16 @@ export function MonacoSqlEditor({
 }: MonacoSqlEditorProps) {
   const isTestMode = import.meta.env.MODE === "test";
   const [editorUnavailable, setEditorUnavailable] = state(false);
+  const [systemDark, setSystemDark] = state(
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+      : false,
+  );
+  const themeScope = theme();
+  let completionDisposable: { dispose(): void } | null = null;
+  let changeDisposable: { dispose(): void } | null = null;
+  let systemThemeQuery: MediaQueryList | null = null;
+  let systemThemeListener: ((event: MediaQueryListEvent) => void) | null = null;
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
 
@@ -100,7 +111,8 @@ export function MonacoSqlEditor({
   }
 
   function handleBeforeMount(monaco: MonacoNamespace) {
-    monaco.languages.registerCompletionItemProvider("sql", {
+    completionDisposable?.dispose();
+    completionDisposable = monaco.languages.registerCompletionItemProvider("sql", {
       provideCompletionItems: (model, position) => {
         const word = model.getWordUntilPosition(position);
         const range = {
@@ -125,10 +137,32 @@ export function MonacoSqlEditor({
   }
 
   function handleMount(editor: MonacoEditorInstance) {
-    editor.onDidChangeModelContent(() => {
+    changeDisposable?.dispose();
+    changeDisposable = editor.onDidChangeModelContent(() => {
       onChange(editor.getValue());
     });
+    if (typeof window.matchMedia === "function") {
+      systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      systemThemeListener = (event) => setSystemDark(event.matches);
+      systemThemeQuery.addEventListener("change", systemThemeListener);
+    }
   }
+
+  function handleUnmount() {
+    completionDisposable?.dispose();
+    completionDisposable = null;
+    changeDisposable?.dispose();
+    changeDisposable = null;
+    if (systemThemeQuery && systemThemeListener) {
+      systemThemeQuery.removeEventListener("change", systemThemeListener);
+    }
+    systemThemeQuery = null;
+    systemThemeListener = null;
+  }
+
+  const selectedTheme = themeScope.theme();
+  const monacoTheme =
+    selectedTheme === "dark" || (selectedTheme === "system" && systemDark()) ? "vs-dark" : "vs";
 
   return (
     <div
@@ -140,7 +174,7 @@ export function MonacoSqlEditor({
       <MonacoEditor
         value={value}
         language="sql"
-        theme="vs-dark"
+        theme={monacoTheme}
         options={{
           readOnly: disabled,
           automaticLayout: true,
@@ -153,6 +187,7 @@ export function MonacoSqlEditor({
         }}
         beforeMount={handleBeforeMount}
         onMount={handleMount}
+        onUnmount={handleUnmount}
         onError={() => setEditorUnavailable(true)}
         aria-label="SQL editor"
       />

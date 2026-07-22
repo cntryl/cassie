@@ -17,7 +17,8 @@ const MAX_SESSIONS: usize = 1_024;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedSession {
     user: String,
-    database: String,
+    #[serde(default)]
+    database: Option<String>,
     expires_at: u64,
     credential_fingerprint: String,
 }
@@ -27,7 +28,6 @@ pub(crate) struct LoginRequest {
     pub username: Option<String>,
     pub user: Option<String>,
     pub password: Option<String>,
-    pub database: Option<String>,
 }
 
 pub(crate) fn login(
@@ -40,32 +40,21 @@ pub(crate) fn login(
         .username
         .or(request.user)
         .ok_or(CassieError::Unauthorized)?;
-    let principal =
-        cassie.authenticate_principal(&user, request.password.as_deref(), request.database)?;
-    let database = principal
-        .session
-        .current_database()
-        .unwrap_or(cassie.default_database.as_str());
-    let token = issue(cassie, &principal.role, database)?;
+    let principal = cassie.authenticate_principal(&user, request.password.as_deref(), None)?;
+    let token = issue(cassie, &principal.role)?;
     Ok((token, principal))
 }
 
-pub(crate) fn issue(
-    cassie: &Cassie,
-    role: &RoleMeta,
-    database: &str,
-) -> Result<String, CassieError> {
-    issue_with_limits(cassie, role, database, MAX_SESSIONS, SESSION_TTL_SECONDS)
+pub(crate) fn issue(cassie: &Cassie, role: &RoleMeta) -> Result<String, CassieError> {
+    issue_with_limits(cassie, role, MAX_SESSIONS, SESSION_TTL_SECONDS)
 }
 
 fn issue_with_limits(
     cassie: &Cassie,
     role: &RoleMeta,
-    database: &str,
     max_sessions: usize,
     ttl_seconds: u64,
 ) -> Result<String, CassieError> {
-    cassie.ensure_database_exists(database)?;
     let now = unix_seconds()?;
     let mut active = 0;
     for (key, value) in session_entries(cassie)? {
@@ -88,7 +77,7 @@ fn issue_with_limits(
     let token = random_token();
     let record = PersistedSession {
         user: role.name.clone(),
-        database: database.to_string(),
+        database: None,
         expires_at: now.saturating_add(ttl_seconds),
         credential_fingerprint: credential_fingerprint(cassie, role),
     };
@@ -113,7 +102,6 @@ pub(crate) fn authenticate(
         cassie.midge.raw_delete(StorageFamily::Schema, &key)?;
         return Err(CassieError::Unauthorized);
     }
-    cassie.ensure_database_exists(&record.database)?;
     let role = match current_role(cassie, &record) {
         Ok(role) => role,
         Err(CassieError::Unauthorized) => {
@@ -122,8 +110,7 @@ pub(crate) fn authenticate(
         }
         Err(error) => return Err(error),
     };
-    let session =
-        CassieSession::authenticated(role.name.clone(), Some(record.database), role.is_admin);
+    let session = CassieSession::authenticated(role.name.clone(), None, role.is_admin);
     Ok(AuthenticatedPrincipal { session, role })
 }
 
@@ -236,7 +223,7 @@ mod tests {
             .role;
 
         // Act
-        let token = issue(&cassie, &role, "cassie").expect("issue session");
+        let token = issue(&cassie, &role).expect("issue session");
         let entries = cassie
             .midge
             .raw_scan_prefix(crate::midge::StorageFamily::Schema, b"cassie.rest.session.")
@@ -257,7 +244,7 @@ mod tests {
             .authenticate_principal("postgres", Some("postgres"), None)
             .expect("bootstrap role")
             .role;
-        let token = issue(&cassie, &role, "cassie").expect("issue session");
+        let token = issue(&cassie, &role).expect("issue session");
 
         // Act
         let principal = authenticate(&cassie, &token).expect("authenticate session");
@@ -265,7 +252,7 @@ mod tests {
         let revoked = authenticate(&cassie, &token).expect_err("revoked session");
 
         // Assert
-        assert_eq!(principal.session.current_database(), Some("cassie"));
+        assert_eq!(principal.session.current_database(), None);
         assert!(matches!(revoked, CassieError::Unauthorized));
     }
 
@@ -280,7 +267,7 @@ mod tests {
             .authenticate_principal("reader", Some("old-password"), None)
             .expect("reader role")
             .role;
-        let token = issue(&cassie, &role, "cassie").expect("issue session");
+        let token = issue(&cassie, &role).expect("issue session");
         cassie
             .execute_sql(
                 &cassie.create_session("postgres", None),
@@ -307,7 +294,7 @@ mod tests {
             .authenticate_principal("deleted-reader", Some("password"), None)
             .expect("reader role")
             .role;
-        let token = issue(&cassie, &role, "cassie").expect("issue session");
+        let token = issue(&cassie, &role).expect("issue session");
         cassie
             .drop_role("deleted-reader", false)
             .expect("drop role");
@@ -332,8 +319,7 @@ mod tests {
             .authenticate_principal("postgres", Some("postgres"), None)
             .expect("bootstrap role")
             .role;
-        let token = super::issue_with_limits(&cassie, &role, "cassie", 1, 0)
-            .expect("issue expired session");
+        let token = super::issue_with_limits(&cassie, &role, 1, 0).expect("issue expired session");
 
         // Act
         let error = authenticate(&cassie, &token).expect_err("expired session");
@@ -355,10 +341,10 @@ mod tests {
             .authenticate_principal("postgres", Some("postgres"), None)
             .expect("bootstrap role")
             .role;
-        issue_with_limits(&cassie, &role, "cassie", 1, SESSION_TTL_SECONDS).expect("first session");
+        issue_with_limits(&cassie, &role, 1, SESSION_TTL_SECONDS).expect("first session");
 
         // Act
-        let result = issue_with_limits(&cassie, &role, "cassie", 1, SESSION_TTL_SECONDS);
+        let result = issue_with_limits(&cassie, &role, 1, SESSION_TTL_SECONDS);
 
         // Assert
         assert!(matches!(

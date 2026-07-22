@@ -21,6 +21,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Container and supply-chain workflows for supported targets.
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
+- Production-browser coverage runs the Experimental Admin UI from a real temporary Cassie process at desktop and mobile viewports. This evidence does not promote the Admin UI or broaden Cassie's readiness classification.
 
 ## Beta Support Envelope
 
@@ -31,6 +32,8 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Smoke results are regression diagnostics, not service-level objectives or capacity claims.
 
 ## Remaining Production Blockers
+
+- Track the upstream low-severity DOMPurify advisory inherited through Monaco (`GHSA-c2j3-45gr-mqc4`); no fixed dependency version is currently available. The frontend gate continues to fail on moderate-or-higher production advisories.
 
 - Retain complete same-commit benchmark artifacts from a named disk-backed deployment profile at representative fixture sizes and concurrency.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.

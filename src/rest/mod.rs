@@ -4,6 +4,7 @@ pub mod documents;
 pub mod health;
 pub mod indexes;
 pub mod query;
+pub(crate) mod query_operations;
 pub mod router;
 pub(crate) mod scope;
 pub mod search;

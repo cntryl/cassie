@@ -75,6 +75,17 @@ afterEach(() => {
 });
 
 describe("ResizableSplit pointer drag", () => {
+  it("should_describe_a_top_bottom_split_as_a_horizontal_separator", async () => {
+    // Arrange
+    const root = await mountVerticalSplit();
+
+    // Act
+    const handle = root.querySelector('[role="separator"]');
+
+    // Assert
+    expect(handle?.getAttribute("aria-orientation")).toBe("horizontal");
+  });
+
   it("resizes the primary pane live during drag and commits the final value on release", async () => {
     const root = await mountVerticalSplit();
 
@@ -138,5 +149,43 @@ describe("ResizableSplit pointer drag", () => {
     );
     await flushUi();
     expect(pane.style.blockSize).toBe("80%");
+  });
+
+  it("should_finish_the_drag_given_a_cancelled_pointer_gesture", async () => {
+    // Arrange
+    const root = await mountVerticalSplit();
+    const container = root.querySelector(
+      '[data-testid="query-resizable-split-vertical"]',
+    ) as HTMLElement;
+    const handle = container.querySelector('[role="separator"]') as HTMLElement;
+    const pane = container.querySelector(".cassie-resizable-split-pane") as HTMLElement;
+    stubRect(container, { top: 0, left: 0, width: 200, height: 400 });
+    stubPointerCapture(handle);
+
+    // Act
+    handle.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, clientY: 200, pointerId: 1 }),
+    );
+    handle.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, clientY: 300, pointerId: 1 }),
+    );
+    await flushUi();
+    handle.dispatchEvent(
+      new PointerEvent("pointercancel", { bubbles: true, clientY: 300, pointerId: 1 }),
+    );
+    await flushUi();
+
+    // Assert
+    expect(container.getAttribute("data-dragging")).toBe(null);
+    expect(pane.style.blockSize).toBe("75%");
+
+    // Act: a stray move after cancellation must not keep resizing.
+    handle.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, clientY: 100, pointerId: 1 }),
+    );
+    await flushUi();
+
+    // Assert
+    expect(pane.style.blockSize).toBe("75%");
   });
 });

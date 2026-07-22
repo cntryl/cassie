@@ -6,11 +6,7 @@ import { isSignedIn, signOut } from "@/shared/auth";
 import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 
 function mockLoginSuccess() {
-  mockJsonResponse(
-    "/api/v1/auth/login",
-    { user: "admin", database: "postgres", role: "admin" },
-    { method: "POST" },
-  );
+  mockJsonResponse("/api/v1/auth/login", { user: "admin", role: "admin" }, { method: "POST" });
 }
 
 function mockLoginUnauthorized() {
@@ -107,21 +103,47 @@ describe("login page", () => {
     expect(isSignedIn()).toBe(true);
   });
 
-  it("shows an inline error and stays on /login when the credential is rejected", async () => {
+  it("should_not_offer_a_database_control", async () => {
+    const root = await mountLogin();
+    expect(root.querySelector("#login-database")).toBeNull();
+    expect(root.textContent).not.toContain("Database (optional)");
+  });
+
+  it("should_show_the_destroyer_style_inline_error_given_rejected_credentials", async () => {
+    // Arrange
     mockLoginUnauthorized();
     const root = await mountLogin();
     const usernameInput = root.querySelector("#login-username") as HTMLInputElement;
     const passwordInput = root.querySelector("#login-password") as HTMLInputElement;
     const submitButton = root.querySelector('button[type="submit"]') as HTMLButtonElement;
 
+    // Act
     typeInto(usernameInput, "admin");
     typeInto(passwordInput, "wrong");
     await flushUi();
     submitButton.click();
 
-    await waitForText(root, "Sign in failed");
+    await waitForText(root, "The username or password is incorrect.");
 
+    // Assert
+    expect(root.querySelector('[data-slot="field-error"]')?.textContent).toBe(
+      "The username or password is incorrect.",
+    );
+    expect(root.querySelector('[data-slot="card-footer"]')).toBeNull();
     expect(window.location.pathname).toBe("/login");
     expect(isSignedIn()).toBe(false);
+  });
+
+  it("should_send_identity_credentials_only", async () => {
+    mockLoginSuccess();
+    const root = await mountLogin();
+    typeInto(root.querySelector("#login-username") as HTMLInputElement, "admin");
+    typeInto(root.querySelector("#login-password") as HTMLInputElement, "pwd123");
+    (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
+    await flushUi();
+    expect(await fetchMock.mock.calls[0]?.[0].json()).toEqual({
+      username: "admin",
+      password: "pwd123",
+    });
   });
 });

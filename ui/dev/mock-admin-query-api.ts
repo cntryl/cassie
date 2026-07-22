@@ -1,41 +1,48 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ViteDevServer } from "@voidzero-dev/vite-plus-core";
 import type { QueryExplainResponse, QuerySchemaResponse } from "@/adapters";
 
 const MOCK_USER = "admin";
 const MOCK_PASSWORD = "pwd123";
+const MOCK_SESSION_COOKIE = "cassie_session";
+const MOCK_SESSION_TOKEN = "mock-session";
 
-// Mirrors src/rest/router.rs's parse_rest_credentials/AUTH_TOKEN_PREFIX so the
-// mock server exercises the same login flow (and failure mode) as the real
-// backend: `Authorization: Bearer <user>:<password>`, or `Bearer <password>`
-// alone to use the default mock user.
-function isAuthorized(req: IncomingMessage): boolean {
-  const raw = req.headers.authorization;
-  if (!raw) {
-    return false;
-  }
-
-  const token = raw.startsWith("Bearer ") ? raw.slice("Bearer ".length).trim() : "";
-  if (!token) {
-    return false;
-  }
-
-  const separatorIndex = token.indexOf(":");
-  if (separatorIndex === -1) {
-    return token === MOCK_PASSWORD;
-  }
-
-  const user = token.slice(0, separatorIndex).trim();
-  const password = token.slice(separatorIndex + 1).trim();
-  return user === MOCK_USER && password === MOCK_PASSWORD;
+interface MockSession {
+  user: string;
+  role: string;
 }
 
 function sendUnauthorized(res: ServerResponse) {
   res.statusMessage = "Unauthorized";
-  sendJson(res, 401, {
-    message: "Invalid username or password.",
-    status: 401,
-  });
+  sendJson(res, 401, { error: "unauthorized" });
+}
+
+function requestCookie(req: IncomingMessage, name: string) {
+  const raw = req.headers.cookie;
+  if (!raw) {
+    return null;
+  }
+
+  for (const part of raw.split(";")) {
+    const [cookieName, ...valueParts] = part.trim().split("=");
+    if (cookieName === name) {
+      return valueParts.join("=");
+    }
+  }
+
+  return null;
+}
+
+function hasMockSession(req: IncomingMessage, session: MockSession | null) {
+  return session !== null && requestCookie(req, MOCK_SESSION_COOKIE) === MOCK_SESSION_TOKEN;
+}
+
+function setSessionCookie(res: ServerResponse, clear: boolean) {
+  res.setHeader(
+    "set-cookie",
+    clear
+      ? `${MOCK_SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`
+      : `${MOCK_SESSION_COOKIE}=${MOCK_SESSION_TOKEN}; Path=/; HttpOnly; SameSite=Strict`,
+  );
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -55,6 +62,10 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 
+function requestPath(req: IncomingMessage) {
+  return new URL(req.url ?? "/", "http://cassie.mock").pathname;
+}
+
 function column(name: string) {
   return {
     name,
@@ -67,100 +78,100 @@ function column(name: string) {
   };
 }
 
+function schemaItem(
+  kind: "table" | "view" | "index" | "udf" | "procedure",
+  canonicalName: string,
+  metadata: string,
+) {
+  const [database, schema, name] = canonicalName.split(".");
+  const columns =
+    kind === "table" || kind === "view"
+      ? ["id", "name"].map((columnName) => ({
+          id: `column:${canonicalName}:${columnName}`,
+          name: columnName,
+          data_type: columnName === "id" ? "uuid" : "text",
+          primary_key: kind === "table" && columnName === "id",
+        }))
+      : [];
+  return {
+    id: `${kind}:${canonicalName}`,
+    kind,
+    label: canonicalName,
+    database,
+    schema,
+    name,
+    columns,
+    metadata,
+  };
+}
+
 const mockSchema = {
   sections: [
     {
       id: "tables",
       label: "Tables",
       items: [
-        {
-          id: "table:postgres.public.documents",
-          kind: "table",
-          label: "postgres.public.documents",
-          metadata: "4 columns",
-        },
-        {
-          id: "table:postgres.public.accounts",
-          kind: "table",
-          label: "postgres.public.accounts",
-          metadata: "6 columns",
-        },
-        {
-          id: "table:postgres.reporting.monthly_totals",
-          kind: "table",
-          label: "postgres.reporting.monthly_totals",
-          metadata: "5 columns",
-        },
+        schemaItem("table", "postgres.public.documents", "4 columns"),
+        schemaItem("table", "postgres.public.accounts", "6 columns"),
+        schemaItem("table", "postgres.reporting.monthly_totals", "5 columns"),
       ],
     },
     {
       id: "views",
       label: "Views",
       items: [
-        {
-          id: "view:postgres.public.active_docs",
-          kind: "view",
-          label: "postgres.public.active_docs",
-          metadata: "3 columns",
-        },
-        {
-          id: "view:postgres.public.daily_active_users",
-          kind: "view",
-          label: "postgres.public.daily_active_users",
-          metadata: "2 columns",
-        },
+        schemaItem("view", "postgres.public.active_docs", "3 columns"),
+        schemaItem("view", "postgres.public.daily_active_users", "2 columns"),
       ],
     },
     {
       id: "indexes",
       label: "Indexes",
       items: [
-        {
-          id: "index:postgres.public.idx_id",
-          kind: "index",
-          label: "postgres.public.idx_id",
-          metadata: "scalar on postgres.public.documents(id)",
-        },
-        {
-          id: "index:postgres.public.idx_email",
-          kind: "index",
-          label: "postgres.public.idx_email",
-          metadata: "unique on postgres.public.accounts(email)",
-        },
+        schemaItem("index", "postgres.public.idx_id", "scalar on postgres.public.documents(id)"),
+        schemaItem(
+          "index",
+          "postgres.public.idx_email",
+          "unique on postgres.public.accounts(email)",
+        ),
       ],
     },
     {
       id: "udfs",
       label: "UDFs",
       items: [
-        {
-          id: "udf:postgres.public.calculate_total",
-          kind: "udf",
-          label: "postgres.public.calculate_total",
-          metadata: "(account_id uuid) -> numeric",
-        },
-        {
-          id: "udf:postgres.public.event_count",
-          kind: "udf",
-          label: "postgres.public.event_count",
-          metadata: "(since timestamptz) -> bigint",
-        },
+        schemaItem("udf", "postgres.public.calculate_total", "(account_id uuid) -> numeric"),
+        schemaItem("udf", "postgres.public.event_count", "(since timestamptz) -> bigint"),
       ],
     },
     {
       id: "procedures",
       label: "Procedures",
-      items: [
-        {
-          id: "procedure:postgres.public.archive_old_documents",
-          kind: "procedure",
-          label: "postgres.public.archive_old_documents",
-          metadata: "()",
-        },
-      ],
+      items: [schemaItem("procedure", "postgres.public.archive_old_documents", "()")],
     },
   ],
 } satisfies QuerySchemaResponse;
+
+function mockSchemaForDatabase(database: string): QuerySchemaResponse {
+  return {
+    sections: mockSchema.sections.map((section) => ({
+      ...section,
+      items: section.items.map((item) => {
+        const label = item.label.replace(/^postgres\./, `${database}.`);
+        return {
+          ...item,
+          id: item.id.replace(/:postgres\./, `:${database}.`),
+          label,
+          database,
+          columns: item.columns.map((column) => ({
+            ...column,
+            id: column.id.replace(/:postgres\./, `:${database}.`),
+          })),
+        };
+      }),
+    })),
+  };
+}
 
 function mockExecuteResult(sql: string) {
   return {
@@ -299,6 +310,127 @@ function mockExplainResult(): QueryExplainResponse {
   };
 }
 
+export type MockAdminQueryMiddleware = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  next: () => void,
+) => Promise<void>;
+
+interface MockDevServer {
+  middlewares: {
+    use(middleware: MockAdminQueryMiddleware): void;
+  };
+}
+
+/** Cookie-authenticated mock of the same REST workflow used by the built UI. */
+export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
+  let session: MockSession | null = null;
+
+  return async (req, res, next) => {
+    const path = requestPath(req);
+
+    if (req.method === "POST" && path === "/api/v1/auth/login") {
+      let credentials: Record<string, unknown>;
+      try {
+        credentials = JSON.parse((await readBody(req)) || "{}") as Record<string, unknown>;
+      } catch {
+        sendJson(res, 400, { error: "invalid login request" });
+        return;
+      }
+
+      if (credentials.username !== MOCK_USER || credentials.password !== MOCK_PASSWORD) {
+        sendUnauthorized(res);
+        return;
+      }
+
+      session = {
+        user: MOCK_USER,
+        role: "admin",
+      };
+      setSessionCookie(res, false);
+      sendJson(res, 200, session);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/v1/auth/session") {
+      if (!hasMockSession(req, session)) {
+        sendUnauthorized(res);
+        return;
+      }
+
+      sendJson(res, 200, session);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/v1/auth/logout") {
+      if (!hasMockSession(req, session)) {
+        sendUnauthorized(res);
+        return;
+      }
+
+      session = null;
+      setSessionCookie(res, true);
+      sendJson(res, 200, { logged_out: true });
+      return;
+    }
+
+    if (path.startsWith("/api/v1/admin/") && !hasMockSession(req, session)) {
+      sendUnauthorized(res);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/v1/admin/databases") {
+      sendJson(res, 200, [
+        { name: "analytics", description: "Analytics and reporting" },
+        { name: "postgres", description: "Primary application database" },
+      ]);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/v1/admin/catalog") {
+      const database = new URL(req.url ?? "/", "http://cassie.mock").searchParams.get("database");
+      if (!database) {
+        sendJson(res, 400, { error: "database is required" });
+      } else if (!["analytics", "postgres"].includes(database)) {
+        sendJson(res, 404, { error: `database '${database}' does not exist` });
+      } else {
+        sendJson(res, 200, mockSchemaForDatabase(database));
+      }
+      return;
+    }
+
+    if (req.method === "DELETE" && path.startsWith("/api/v1/admin/query-operations/")) {
+      sendJson(res, 409, { error: "query operation already completed" });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/v1/admin/query-executions") {
+      const body = await readBody(req);
+      const sql = (JSON.parse(body || "{}") as { sql?: string }).sql ?? "";
+      sendJson(res, 200, mockExecuteResult(sql));
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/v1/admin/query-validations") {
+      const body = await readBody(req);
+      const sql = (JSON.parse(body || "{}") as { sql?: string }).sql ?? "";
+      sendJson(res, 200, {
+        valid: true,
+        command: sql.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
+        columns: [column("id"), column("name"), column("owner"), column("notes")],
+      });
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/v1/admin/query-explanations") {
+      sendJson(res, 200, mockExplainResult());
+      return;
+    }
+
+    next();
+  };
+}
+
 /**
  * Serves canned responses for the admin Query page's REST endpoints so the UI
  * can be built and reviewed without a running Cassie backend. Enable with
@@ -307,45 +439,8 @@ function mockExplainResult(): QueryExplainResponse {
 export function mockAdminQueryApiPlugin() {
   return {
     name: "cassie:mock-admin-query-api",
-    configureServer(server: ViteDevServer) {
-      server.middlewares.use(async (req, res, next) => {
-        const url = req.url ?? "";
-
-        if (url.startsWith("/api/v1/admin/") && !isAuthorized(req)) {
-          sendUnauthorized(res);
-          return;
-        }
-
-        if (req.method === "GET" && url.startsWith("/api/v1/admin/catalog")) {
-          sendJson(res, 200, mockSchema);
-          return;
-        }
-
-        if (req.method === "POST" && url.startsWith("/api/v1/admin/query-executions")) {
-          const body = await readBody(req);
-          const sql = JSON.parse(body || "{}").sql ?? "";
-          sendJson(res, 200, mockExecuteResult(sql));
-          return;
-        }
-
-        if (req.method === "POST" && url.startsWith("/api/v1/admin/query-validations")) {
-          const body = await readBody(req);
-          const sql = JSON.parse(body || "{}").sql ?? "";
-          sendJson(res, 200, {
-            valid: true,
-            command: sql.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
-            columns: [column("id"), column("name"), column("owner"), column("notes")],
-          });
-          return;
-        }
-
-        if (req.method === "POST" && url.startsWith("/api/v1/admin/query-explanations")) {
-          sendJson(res, 200, mockExplainResult());
-          return;
-        }
-
-        next();
-      });
+    configureServer(server: MockDevServer) {
+      server.middlewares.use(createMockAdminQueryMiddleware());
     },
   };
 }

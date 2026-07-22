@@ -6,6 +6,8 @@ import AppLayout from "@/pages/app/_layout";
 import QueryPage from "@/pages/app/query";
 import { type ColumnMeta, type QueryExplainResponse, type QuerySchemaResponse } from "@/adapters";
 import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
+import { saveQueryWorkspace } from "@/features/query/query-tabs";
+import { queryService } from "@/features/query/query-service";
 
 const schemaResponse: QuerySchemaResponse = {
   sections: [
@@ -17,12 +19,20 @@ const schemaResponse: QuerySchemaResponse = {
           id: "table:postgres.public.documents",
           kind: "table",
           label: "postgres.public.documents",
+          database: "postgres",
+          schema: "public",
+          name: "documents",
+          columns: [],
           metadata: "2 columns",
         },
         {
           id: "table:postgres.public.accounts",
           kind: "table",
           label: "postgres.public.accounts",
+          database: "postgres",
+          schema: "public",
+          name: "accounts",
+          columns: [],
           metadata: "6 columns",
         },
       ],
@@ -55,9 +65,7 @@ function mockQuerySchemaSuccess() {
 }
 
 function mockQuerySchemaWithColumnsSuccess() {
-  // Columns aren't part of the generated QuerySchemaResponse type yet (see
-  // query-mappers.ts's forward-compat comment), so cast the raw fixture.
-  const data = {
+  const data: QuerySchemaResponse = {
     sections: [
       {
         id: "tables",
@@ -67,15 +75,23 @@ function mockQuerySchemaWithColumnsSuccess() {
             id: "table:postgres.public.documents",
             kind: "table",
             label: "postgres.public.documents",
+            database: "postgres",
+            schema: "public",
+            name: "documents",
             metadata: "2 columns",
             columns: [
               {
-                id: "postgres.public.documents:id",
+                id: "column:postgres.public.documents:id",
                 name: "id",
-                dataType: "uuid",
-                primaryKey: true,
+                data_type: "uuid",
+                primary_key: true,
               },
-              { id: "postgres.public.documents:title", name: "title", dataType: "text" },
+              {
+                id: "column:postgres.public.documents:title",
+                name: "title",
+                data_type: "text",
+                primary_key: false,
+              },
             ],
           },
         ],
@@ -85,7 +101,7 @@ function mockQuerySchemaWithColumnsSuccess() {
       { id: "udfs", label: "UDFs", items: [] },
       { id: "procedures", label: "Procedures", items: [] },
     ],
-  } as unknown as QuerySchemaResponse;
+  };
 
   mockJsonResponse("/api/v1/admin/catalog", data);
 }
@@ -232,12 +248,12 @@ function mockExecuteSuccess() {
   );
 }
 
-function mockCreateTableSuccess() {
+function mockSchemaChangingCommandSuccess(command = "CREATE TABLE") {
   mockJsonResponse(
     "/api/v1/admin/query-executions",
     {
       columns: [],
-      command: "CREATE TABLE",
+      command,
       rows: [],
     },
     { method: "POST" },
@@ -256,6 +272,40 @@ function mockExecuteWithNullSuccess() {
       ],
     },
     { method: "POST" },
+  );
+}
+
+function mockExecuteWithTypedValuesSuccess() {
+  mockJsonResponse(
+    "/api/v1/admin/query-executions",
+    {
+      columns: [
+        column("count"),
+        column("active"),
+        column("profile"),
+        column("tags"),
+        column("missing"),
+      ],
+      command: "SELECT",
+      rows: [[42, true, { name: "Ada" }, ["sql", 2], null]],
+    },
+    { method: "POST" },
+  );
+}
+
+function mockExecuteError() {
+  mockJsonResponse(
+    "/api/v1/admin/query-executions",
+    { error: "collection not found: missing_table" },
+    { method: "POST", status: 404 },
+  );
+}
+
+function mockExplainError() {
+  mockJsonResponse(
+    "/api/v1/admin/query-explanations",
+    { error: "query timeout exceeded" },
+    { method: "POST", status: 504 },
   );
 }
 
@@ -358,41 +408,29 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   mockQuerySchemaSuccess();
+  queryService.invalidateSchema("postgres");
+  mockJsonResponse("/api/v1/admin/databases", [{ name: "postgres" }]);
+  saveQueryWorkspace("anonymous", {
+    version: 1,
+    activeTabId: "query-1",
+    tabs: [
+      {
+        id: "query-1",
+        ordinal: 1,
+        title: "Query 1",
+        database: "postgres",
+        sql: "SELECT 1 AS ready;",
+      },
+    ],
+  });
 });
 
 describe("admin query page composition", () => {
-  it("should_offer_crud_starters_given_a_new_query_workflow", async () => {
-    // Arrange
-    const root = await mountQueryRoute();
-
-    // Act
-    buttonByText(root, "Create table").click();
-    await flushUi();
-
-    // Assert
-    expect(editorTextarea(root).value).toContain("CREATE TABLE ui_demo");
-
-    // Act
-    buttonByText(root, "Insert rows").click();
-    await flushUi();
-
-    // Assert
-    expect(editorTextarea(root).value).toContain("INSERT INTO ui_demo");
-
-    // Act
-    buttonByText(root, "Query rows").click();
-    await flushUi();
-
-    // Assert
-    expect(editorTextarea(root).value).toContain("SELECT demo_id, name");
-    expect(editorTextarea(root).value).toContain("FROM ui_demo");
-  });
-
   it("should_refresh_the_schema_given_a_successful_create_table", async () => {
     // Arrange
-    mockCreateTableSuccess();
+    mockSchemaChangingCommandSuccess();
     const root = await mountQueryRoute();
-    buttonByText(root, "Create table").click();
+    updateEditor(root, "CREATE TABLE ui_demo (demo_id INT PRIMARY KEY, name TEXT NOT NULL);");
     await flushUi();
 
     // Act
@@ -406,17 +444,36 @@ describe("admin query page composition", () => {
     expect(catalogRequests).toHaveLength(2);
   });
 
-  it("should_explain_the_workspace_and_run_shortcut_given_the_query_page", async () => {
+  it("should_refresh_the_schema_given_a_successful_graph_ddl_command", async () => {
+    // Arrange
+    mockSchemaChangingCommandSuccess("CREATE GRAPH");
+    const root = await mountQueryRoute();
+    updateEditor(root, "CREATE GRAPH ui_graph;");
+    await flushUi();
+
+    // Act
+    buttonByText(root, "Run").click();
+    await waitForText(root, "CREATE GRAPH");
+
+    // Assert
+    const catalogRequests = fetchMock.mock.calls.filter(
+      ([request]) => new URL(request.url).pathname === "/api/v1/admin/catalog",
+    );
+    expect(catalogRequests).toHaveLength(2);
+  });
+
+  it("should_keep_workspace_chrome_compact_given_the_query_page", async () => {
     // Arrange
     const root = await mountQueryRoute();
 
     // Act
     const heading = root.querySelector("#query-workspace-title");
-    const shortcut = root.querySelector('[data-testid="query-run-shortcut"]');
 
     // Assert
     expect(heading?.textContent).toBe("Query workspace");
-    expect(shortcut?.textContent).toContain("Enter");
+    expect(heading?.classList.contains("sr-only")).toBe(true);
+    expect(root.querySelector('[data-slot="page-header"]')).toBe(null);
+    expect(root.querySelector('[data-testid="query-starters"]')).toBe(null);
     expect(root.querySelector("[data-query-page]")?.getAttribute("aria-labelledby")).toBe(
       "query-workspace-title",
     );
@@ -564,15 +621,15 @@ describe("admin query page composition", () => {
       throw new Error("Missing vertical split handle");
     }
 
-    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
+    expect(handle.getAttribute("aria-orientation")).toBe("horizontal");
     expect(handle.getAttribute("aria-valuemin")).toBe("30");
     expect(handle.getAttribute("aria-valuemax")).toBe("80");
-    expect(handle.getAttribute("aria-valuenow")).toBe("62");
+    expect(handle.getAttribute("aria-valuenow")).toBe("52");
 
     handle.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }));
     await flushUi();
 
-    expect(handle.getAttribute("aria-valuenow")).toBe("64");
+    expect(handle.getAttribute("aria-valuenow")).toBe("54");
   });
 
   it("resizes the vertical split via pointer drag inside the full query page", async () => {
@@ -605,7 +662,7 @@ describe("admin query page composition", () => {
     handle.setPointerCapture = () => {};
     handle.releasePointerCapture = () => {};
 
-    expect(handle.getAttribute("aria-valuenow")).toBe("62");
+    expect(handle.getAttribute("aria-valuenow")).toBe("52");
 
     handle.dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, clientX: 100, clientY: 248, pointerId: 1 }),
@@ -837,5 +894,82 @@ describe("admin query page composition", () => {
     const nullCells = root.querySelectorAll(".cassie-query-cell-null");
     expect(nullCells.length).toBe(1);
     expect(root.textContent).toContain("NULL");
+  });
+
+  it("should_preserve_wire_types_in_the_json_results_view", async () => {
+    // Arrange
+    mockExecuteWithTypedValuesSuccess();
+    const root = await mountQueryRoute();
+
+    // Act
+    buttonByText(root, "Run").click();
+    await waitForText(root, "1 row");
+    buttonByText(root, "JSON").click();
+    await flushUi();
+
+    // Assert
+    const json = root.querySelector(".cassie-query-json code")?.textContent;
+    expect(json).toBeTruthy();
+    expect(JSON.parse(json ?? "{}").rows[0]).toEqual([42, true, { name: "Ada" }, ["sql", 2], null]);
+  });
+
+  it("should_render_execute_failures_without_an_unhandled_rejection", async () => {
+    // Arrange
+    mockExecuteError();
+    const root = await mountQueryRoute();
+
+    // Act
+    buttonByText(root, "Run").click();
+    await waitForText(root, "collection not found: missing_table");
+
+    // Assert
+    expect(root.textContent).toContain("Query action failed");
+    expect(buttonByText(root, "Run").disabled).toBe(false);
+  });
+
+  it("should_render_explain_failures_without_an_unhandled_rejection", async () => {
+    // Arrange
+    mockExplainError();
+    const root = await mountQueryRoute();
+
+    // Act
+    buttonByText(root, "Explain").click();
+    await waitForText(root, "query timeout exceeded");
+
+    // Assert
+    expect(root.textContent).toContain("Query action failed");
+    expect(buttonByText(root, "Explain").disabled).toBe(false);
+  });
+
+  it("should_hide_a_previous_execute_error_given_a_successful_explain", async () => {
+    // Arrange
+    mockExecuteError();
+    mockExplainSuccess();
+    const root = await mountQueryRoute();
+    buttonByText(root, "Run").click();
+    await waitForText(root, "collection not found: missing_table");
+
+    // Act
+    buttonByText(root, "Explain").click();
+    await waitForText(root, "Read with idx_documents_title");
+
+    // Assert
+    expect(root.textContent).not.toContain("collection not found: missing_table");
+  });
+
+  it("should_hide_a_previous_explain_error_given_a_successful_execute", async () => {
+    // Arrange
+    mockExplainError();
+    mockExecuteSuccess();
+    const root = await mountQueryRoute();
+    buttonByText(root, "Explain").click();
+    await waitForText(root, "query timeout exceeded");
+
+    // Act
+    buttonByText(root, "Run").click();
+    await waitForText(root, "1 row");
+
+    // Assert
+    expect(root.textContent).not.toContain("query timeout exceeded");
   });
 });

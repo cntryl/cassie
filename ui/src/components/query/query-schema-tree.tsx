@@ -55,22 +55,20 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
     typeof selectedItemId === "function" ? selectedItemId() : selectedItemId;
 
   const [query, setQuery] = state("");
-  const [matches, setMatches] = state<QuerySchemaSearchGroup[]>([]);
 
   function handleQueryInput(event: InputEvent) {
     const target = event.target;
     if (target instanceof HTMLInputElement) {
       const value = target.value;
       setQuery(value);
-      setMatches(filterDatabases(getSchema(), value));
     }
   }
 
   function clearQuery() {
     setQuery("");
-    setMatches([]);
   }
 
+  const matches = () => filterDatabases(getSchema(), query());
   const isSearching = () => query().trim().length > 0;
   const hasMatches = () => matches().length > 0;
   const schemaMode = () => (isSearching() ? (hasMatches() ? "results" : "empty") : "tree");

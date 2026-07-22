@@ -23,6 +23,7 @@ export interface QueryValidationToastProps {
 // upstream; swap back once fixed. <Alert> is a separate, unaffected
 // component that already renders variant-colored title/description/dismiss
 // markup, so it's reused here instead of hand-rolling the same thing again.
+// Upstream: https://github.com/askrjs/askr-themes/issues/13
 export function QueryValidationToast({
   toast,
   onDismiss,

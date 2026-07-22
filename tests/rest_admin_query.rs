@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use cassie::app::{Cassie, CassieError};
 use cassie::catalog::canonical_relation_name;
@@ -61,7 +62,7 @@ fn seed_query_catalog(cassie: &Cassie) {
     cassie
         .execute_sql(
             &session,
-            "CREATE TABLE rest_admin_query_docs (id INT, title TEXT)",
+            "CREATE TABLE rest_admin_query_docs (id INT PRIMARY KEY, title TEXT)",
             Vec::new(),
         )
         .expect("create table");
@@ -106,43 +107,43 @@ fn query_endpoint_cases(base_url: &str) -> Vec<QueryEndpointCase> {
     vec![
         (
             reqwest::Method::GET,
-            format!("{base_url}/api/v1/admin/query/schema"),
+            format!("{base_url}/api/v1/admin/query/schema?database=postgres"),
             None,
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query/execute"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query/validate"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query/explain"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::GET,
-            format!("{base_url}/api/v1/admin/catalog"),
+            format!("{base_url}/api/v1/admin/catalog?database=postgres"),
             None,
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query-executions"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query-validations"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
         (
             reqwest::Method::POST,
             format!("{base_url}/api/v1/admin/query-explanations"),
-            Some(serde_json::json!({"sql": "SELECT 1"})),
+            Some(serde_json::json!({"database": "postgres", "sql": "SELECT 1"})),
         ),
     ]
 }
@@ -201,10 +202,94 @@ async fn post_admin_query(
     client
         .post(format!("{base_url}{path}"))
         .header("cookie", session_cookie)
-        .json(&serde_json::json!({ "sql": sql }))
+        .json(&serde_json::json!({ "database": "postgres", "sql": sql }))
         .send()
         .await
         .expect("admin query request")
+}
+
+#[test]
+fn should_scope_each_admin_request_to_its_explicit_database() {
+    // Arrange
+    with_fallback();
+    let cassie = Cassie::new_with_data_dir(data_dir("explicit-database-scope")).expect("cassie");
+    let admin = cassie
+        .authenticate_role("postgres", Some("postgres"), None)
+        .expect("admin session");
+    cassie
+        .execute_sql(&admin, "CREATE DATABASE analytics", Vec::new())
+        .expect("create analytics database");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let cookie = login_cookie(&client, &base_url).await;
+
+        // Act
+        let databases = client
+            .get(format!("{base_url}/api/v1/admin/databases"))
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("database discovery");
+        let postgres = client
+            .post(format!("{base_url}/api/v1/admin/query-executions"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"database": "postgres", "sql": "SELECT current_database()"}))
+            .send()
+            .await
+            .expect("postgres query");
+        let analytics = client
+            .post(format!("{base_url}/api/v1/admin/query-executions"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"database": "analytics", "sql": "SELECT current_database()"}))
+            .send()
+            .await
+            .expect("analytics query");
+        let missing = client
+            .post(format!("{base_url}/api/v1/admin/query-validations"))
+            .header("cookie", &cookie)
+            .json(&serde_json::json!({"sql": "SELECT 1"}))
+            .send()
+            .await
+            .expect("missing database");
+        let unknown = client
+            .get(format!("{base_url}/api/v1/admin/catalog?database=missing"))
+            .header("cookie", &cookie)
+            .send()
+            .await
+            .expect("unknown database");
+
+        // Assert
+        assert_eq!(databases.status(), StatusCode::OK);
+        let discovered = databases
+            .json::<serde_json::Value>()
+            .await
+            .expect("database json");
+        assert_eq!(discovered[0]["name"], "analytics");
+        assert_eq!(discovered[1]["name"], "postgres");
+        assert_eq!(
+            postgres
+                .json::<serde_json::Value>()
+                .await
+                .expect("postgres json")["rows"][0][0],
+            "postgres"
+        );
+        assert_eq!(
+            analytics
+                .json::<serde_json::Value>()
+                .await
+                .expect("analytics json")["rows"][0][0],
+            "analytics"
+        );
+        assert_eq!(missing.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(unknown.status(), StatusCode::NOT_FOUND);
+        stop_rest_server(shutdown, server).await;
+    });
 }
 
 #[test]
@@ -267,7 +352,7 @@ fn should_execute_admin_query_through_rest() {
             .post(format!("{base_url}/api/v1/admin/query/execute"))
             .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
-                "sql": "SELECT title FROM rest_admin_query_docs ORDER BY title"
+                "database": "postgres", "sql": "SELECT title FROM rest_admin_query_docs ORDER BY title"
             }))
             .send()
             .await
@@ -313,7 +398,7 @@ fn should_complete_admin_query_workflow_given_one_authenticated_session() {
             let response = client
                 .post(format!("{base_url}/api/v1/admin/query-executions"))
                 .header("cookie", &admin_cookie)
-                .json(&serde_json::json!({ "sql": sql }))
+                .json(&serde_json::json!({ "database": "postgres", "sql": sql }))
                 .send()
                 .await
                 .expect("query execution");
@@ -363,7 +448,7 @@ fn should_validate_admin_query_through_rest() {
             .post(format!("{base_url}/api/v1/admin/query/validate"))
             .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
-                "sql": "SELECT title FROM rest_admin_query_docs"
+                "database": "postgres", "sql": "SELECT title FROM rest_admin_query_docs"
             }))
             .send()
             .await
@@ -373,7 +458,7 @@ fn should_validate_admin_query_through_rest() {
         let malformed = client
             .post(format!("{base_url}/api/v1/admin/query/validate"))
             .header("cookie", &admin_cookie)
-            .json(&serde_json::json!({"sql": "SELECT FROM"}))
+            .json(&serde_json::json!({"database": "postgres", "sql": "SELECT FROM"}))
             .send()
             .await
             .expect("malformed request");
@@ -544,6 +629,70 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
 }
 
 #[test]
+fn should_acknowledge_admin_query_cancellation_before_returning() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("operation-cancellation");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.cte_recursion_depth = 1_000_000;
+        config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;
+        let cassie = Cassie::new_with_data_dir_and_config(&data_dir, config).expect("cassie");
+        cassie.startup().expect("startup");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+        let client = Client::new();
+        let admin_cookie = login_cookie(&client, &base_url).await;
+        let operation_id = uuid::Uuid::new_v4();
+        let query_client = client.clone();
+        let query_url = format!("{base_url}/api/v1/admin/query-executions");
+        let query_cookie = admin_cookie.clone();
+
+        // Act
+        let query = tokio::spawn(async move {
+            query_client
+                .post(query_url)
+                .header("cookie", query_cookie)
+                .json(&serde_json::json!({
+                    "operation_id": operation_id,
+                    "database": "postgres", "sql": "WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 1000000) SELECT MAX(n) FROM seq"
+                }))
+                .send()
+                .await
+                .expect("query response")
+        });
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        let cancellation = client
+            .delete(format!(
+                "{base_url}/api/v1/admin/query-operations/{operation_id}"
+            ))
+            .header("cookie", &admin_cookie)
+            .send()
+            .await
+            .expect("cancellation response");
+        let cancellation_status = cancellation.status();
+        let cancellation_payload = cancellation
+            .json::<serde_json::Value>()
+            .await
+            .expect("cancellation payload");
+        let query_status = query.await.expect("query task").status();
+
+        // Assert
+        assert_eq!(cancellation_status, StatusCode::OK);
+        assert_eq!(cancellation_payload["operation_id"], operation_id.to_string());
+        assert_eq!(cancellation_payload["cancelled"], true);
+        assert_eq!(query_status.as_u16(), 499);
+
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+    });
+}
+
+#[test]
 fn should_explain_admin_query_through_rest() {
     // Arrange
     with_fallback();
@@ -566,7 +715,7 @@ fn should_explain_admin_query_through_rest() {
             .post(format!("{base_url}/api/v1/admin/query/explain"))
             .header("cookie", &admin_cookie)
             .json(&serde_json::json!({
-                "sql": "SELECT title FROM rest_admin_query_docs WHERE title = 'alpha'"
+                "database": "postgres", "sql": "SELECT title FROM rest_admin_query_docs WHERE title = 'alpha'"
             }))
             .send()
             .await
@@ -632,7 +781,9 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
 
         // Act
         let response = client
-            .get(format!("{base_url}/api/v1/admin/query/schema"))
+            .get(format!(
+                "{base_url}/api/v1/admin/query/schema?database=postgres"
+            ))
             .header("cookie", &admin_cookie)
             .send()
             .await
@@ -656,6 +807,21 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
             section_items(&payload, "tables"),
             &canonical_relation_name("postgres", "public", "rest_admin_query_docs")
         ));
+        let table = section_items(&payload, "tables")
+            .iter()
+            .find(|item| item["name"] == "rest_admin_query_docs")
+            .expect("table item");
+        assert_eq!(table["database"], "postgres");
+        assert_eq!(table["schema"], "public");
+        assert_eq!(table["label"], "postgres.public.rest_admin_query_docs");
+        assert_eq!(
+            table["columns"][0]["id"],
+            "column:postgres.public.rest_admin_query_docs:id"
+        );
+        assert_eq!(table["columns"][0]["data_type"], "int");
+        assert_eq!(table["columns"][0]["primary_key"], true);
+        assert_eq!(table["columns"][1]["name"], "title");
+        assert_eq!(table["columns"][1]["primary_key"], false);
         assert!(contains_item(
             section_items(&payload, "views"),
             &canonical_relation_name("postgres", "public", "rest_admin_query_ready")
@@ -698,7 +864,7 @@ fn should_serve_restful_admin_aliases() {
 
         // Act
         let catalog_response = client
-            .get(format!("{base_url}/api/v1/admin/catalog"))
+            .get(format!("{base_url}/api/v1/admin/catalog?database=postgres"))
             .header("cookie", &admin_cookie)
             .send()
             .await

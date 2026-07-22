@@ -100,8 +100,26 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    ClientClosedRequest:
+      description: Query execution was cancelled by the client.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotImplemented:
+      description: The requested SQL feature is not supported.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     ServiceUnavailable:
       description: Backend unavailable or dependency unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    GatewayTimeout:
+      description: Query execution exceeded its configured deadline.
       content:
         application/json:
           schema:
@@ -580,18 +598,30 @@ components:
       type: object
       description: SQL statement payload for authenticated execution over HTTP.
       required:
+        - database
         - sql
       properties:
+        database:
+          type: string
         sql:
           type: string
+        operation_id:
+          type: string
+          format: uuid
     QueryValidateRequest:
       type: object
       description: SQL statement payload for authenticated validation over HTTP.
       required:
+        - database
         - sql
       properties:
+        database:
+          type: string
         sql:
           type: string
+        operation_id:
+          type: string
+          format: uuid
     QueryValidateResponse:
       type: object
       required:
@@ -610,10 +640,16 @@ components:
       type: object
       description: SQL statement payload for authenticated plan explanation over HTTP.
       required:
+        - database
         - sql
       properties:
+        database:
+          type: string
         sql:
           type: string
+        operation_id:
+          type: string
+          format: uuid
     QuerySchemaResponse:
       type: object
       description: Catalog browser grouped by object kind for the SQL admin UI. Labels use canonical `database.schema.name` values when scope is available.
@@ -653,6 +689,10 @@ components:
         - id
         - kind
         - label
+        - database
+        - schema
+        - name
+        - columns
       properties:
         id:
           type: string
@@ -666,8 +706,45 @@ components:
             - procedure
         label:
           type: string
+        database:
+          type: string
+        schema:
+          type: string
+        name:
+          type: string
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuerySchemaColumn'
         metadata:
           type: string
+    QuerySchemaColumn:
+      type: object
+      required:
+        - id
+        - name
+        - data_type
+        - primary_key
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        data_type:
+          type: string
+        primary_key:
+          type: boolean
+    QueryOperationCancellation:
+      type: object
+      required:
+        - operation_id
+        - cancelled
+      properties:
+        operation_id:
+          type: string
+          format: uuid
+        cancelled:
+          type: boolean
     ColumnMeta:
       type: object
       required:
@@ -1105,16 +1182,59 @@ components:
       additionalProperties: true
     Session:
       type: object
-      required: [user, database]
+      required: [user]
       properties:
         user:
           type: string
-        database:
-          type: string
         role:
           type: string
+    DatabaseSummary:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+    LogoutResponse:
+      type: object
+      required: [logged_out]
+      properties:
+        logged_out:
+          type: boolean
 
 paths:
+  /api/v1/admin/query-operations/{operation_id}:
+    delete:
+      operationId: cancelAdminQueryOperation
+      summary: Cancel an active admin query operation and await cleanup
+      parameters:
+        - name: operation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cancellation was observed and operation cleanup completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryOperationCancellation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /health:
     get:
       tags: [Health]
@@ -1194,8 +1314,6 @@ paths:
                 password:
                   type: string
                   format: password
-                database:
-                  type: string
       responses:
         '200':
           description: Session established; response includes a Set-Cookie header.
@@ -1203,14 +1321,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '408':
           $ref: '#/components/responses/RequestTimeout'
         '413':
           $ref: '#/components/responses/RequestEntityTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/auth/session:
     get:
@@ -1228,6 +1356,10 @@ paths:
                 $ref: '#/components/schemas/Session'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/auth/logout:
     post:
@@ -1239,6 +1371,16 @@ paths:
       responses:
         '200':
           description: Session revoked and cookie cleared.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/collections:
     get:
@@ -1458,6 +1600,12 @@ paths:
       operationId: listAdminCatalog
       security:
         - cassieAuth: []
+      parameters:
+        - name: database
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Query schema tree grouped by section
@@ -1471,7 +1619,32 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
         '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /api/v1/admin/databases:
+    get:
+      tags: [Catalog]
+      summary: List databases available to the authenticated user
+      operationId: listAdminDatabases
+      security:
+        - cassieAuth: []
+      responses:
+        '200':
+          description: Sorted database list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DatabaseSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/admin/query/schema:
@@ -1483,6 +1656,12 @@ paths:
       operationId: getAdminQuerySchema
       security:
         - cassieAuth: []
+      parameters:
+        - name: database
+          in: query
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Query schema tree grouped by section
@@ -1496,7 +1675,11 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
         '500':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
   /api/v1/admin/query-executions:
@@ -1526,10 +1709,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/query/execute:
     post:
@@ -1559,10 +1760,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/query-validations:
     post:
@@ -1591,10 +1810,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/query/validate:
     post:
@@ -1624,10 +1861,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/query-explanations:
     post:
@@ -1656,10 +1911,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/query/explain:
     post:
@@ -1689,10 +1962,28 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '405':
           $ref: '#/components/responses/MethodNotAllowed'
+        '408':
+          $ref: '#/components/responses/RequestTimeout'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '499':
+          $ref: '#/components/responses/ClientClosedRequest'
         '500':
           $ref: '#/components/responses/ServiceUnavailable'
+        '501':
+          $ref: '#/components/responses/NotImplemented'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/GatewayTimeout'
 
   /api/v1/admin/projections/{projection}/verification-manifests:
     post:

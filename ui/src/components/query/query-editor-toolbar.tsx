@@ -8,6 +8,7 @@ interface QueryEditorToolbarProps {
   onPlay: () => void;
   onStop: () => void;
   isBusy: boolean;
+  isStopping: boolean;
   hasQuery: boolean;
 }
 
@@ -18,6 +19,7 @@ export function QueryEditorToolbar({
   onPlay,
   onStop,
   isBusy,
+  isStopping,
   hasQuery,
 }: QueryEditorToolbarProps) {
   const canRun = hasQuery && !isBusy;
@@ -77,9 +79,10 @@ export function QueryEditorToolbar({
           title="Stop running query operation"
           data-action="stop"
           onPress={onStop}
+          disabled={isStopping}
         >
           <SquareIcon size={14} />
-          <span>Stop</span>
+          <span>{isStopping ? "Stopping…" : "Stop"}</span>
         </Button>
       ) : null}
     </div>

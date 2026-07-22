@@ -5,7 +5,6 @@ import { unwrapResponse } from "@/shared/errors/api";
 
 export interface AuthSession {
   user: string;
-  database: string;
   role?: string;
 }
 
@@ -30,7 +29,7 @@ export function setSession(session: AuthSession): void {
 
 // Test/router compatibility helper. Production login uses the REST endpoint.
 export function signIn(username: string, _password: string): void {
-  setSession({ user: username, database: "postgres", role: "admin" });
+  setSession({ user: username, role: "admin" });
 }
 
 export function signOut(): void {
@@ -58,7 +57,7 @@ function routeAuthContext(session: AuthSession | null): AuthContext {
       id: `cassie:${session.user}`,
       subject: session.user,
     },
-    tenant: session.database,
+    tenant: null,
   };
 }
 

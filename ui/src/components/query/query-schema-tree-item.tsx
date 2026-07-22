@@ -78,7 +78,7 @@ export function QuerySchemaTreeItem({ item, selected, onSelectItem }: QuerySchem
           <span class="cassie-query-schema-item-icon" aria-hidden="true">
             <KindIcon size={13} />
           </span>
-          <span class="cassie-query-schema-item-name">{item.label}</span>
+          <span class="cassie-query-schema-item-name">{item.name}</span>
           {item.metadata ? (
             <span class="cassie-query-schema-item-meta">{item.metadata}</span>
           ) : null}

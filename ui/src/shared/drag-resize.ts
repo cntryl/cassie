@@ -44,6 +44,7 @@ export function createDragResize(options: DragResizeOptions) {
   const [dragging, setDragging] = state(false);
   let start: DragResizeStart = { clientX: 0, clientY: 0, value: 0 };
   let handleEl: HTMLElement | null = null;
+  let pendingValue = clamp(options.initialValue, options.min, options.max);
 
   function setHandleEl(node: HTMLElement | null) {
     handleEl = node;
@@ -51,6 +52,7 @@ export function createDragResize(options: DragResizeOptions) {
 
   function applyClamped(nextValue: number) {
     const clamped = clamp(nextValue, options.min, options.max);
+    pendingValue = clamped;
     options.applyValue(clamped);
     handleEl?.setAttribute("aria-valuenow", String(Math.round(clamped)));
     return clamped;
@@ -114,6 +116,33 @@ export function createDragResize(options: DragResizeOptions) {
     target.releasePointerCapture(event.pointerId);
   }
 
+  function onPointerCancel(event: PointerEvent) {
+    if (!dragging()) {
+      return;
+    }
+
+    commit(pendingValue);
+    setDragging(false);
+    const target = event.currentTarget;
+    if (target instanceof HTMLElement) {
+      try {
+        target.releasePointerCapture(event.pointerId);
+      } catch {
+        // The browser may already have released capture as part of cancelling
+        // the gesture. The committed size is still the correct final state.
+      }
+    }
+  }
+
+  function onLostPointerCapture() {
+    if (!dragging()) {
+      return;
+    }
+
+    commit(pendingValue);
+    setDragging(false);
+  }
+
   function onKeyDown(event: KeyboardEvent) {
     const step = event.shiftKey ? options.largeStep : options.smallStep;
     const current = value();
@@ -150,6 +179,8 @@ export function createDragResize(options: DragResizeOptions) {
     onPointerDown,
     onPointerMove,
     onPointerUp,
+    onPointerCancel,
+    onLostPointerCapture,
     onKeyDown,
   };
 }

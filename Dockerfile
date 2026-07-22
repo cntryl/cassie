@@ -35,6 +35,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 FROM node:24-bookworm-slim AS ui-builder
 
+RUN npm install --global npm@11.16.0
+
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*

@@ -8,36 +8,45 @@
     "build": "vp build",
     "preview": "vp preview",
     "test": "vp test",
+    "test:e2e": "playwright test",
+    "test:e2e:mock": "playwright test --config playwright.mock.config.ts",
     "gen": "npm run gen:adapters && npm run fmt",
     "gen:adapters": "askr generate ../public/openapi.yml --output ./src/adapters/generated",
     "gen:adapters:check": "askr generate ../public/openapi.yml --output ./src/adapters/generated --check",
     "type-check": "tsc --noEmit",
+    "fmt:check": "vp fmt . --check --ignore-path .oxfmtignore",
+    "audit:production": "npm audit --omit=dev --audit-level=moderate",
     "lint": "vp lint src tests dev vite.config.ts",
     "lint:fix": "vp lint src tests dev --fix",
     "fmt": "vp fmt . --ignore-path .oxfmtignore"
   },
   "dependencies": {
-    "@askrjs/askr": "0.0.58",
-    "@askrjs/auth": "0.0.3",
+    "@askrjs/askr": "0.0.59",
+    "@askrjs/auth": "0.0.5",
     "@askrjs/fetch": "0.0.1",
     "@askrjs/lucide": "0.0.4",
-    "@askrjs/monaco": "0.0.2",
+    "@askrjs/monaco": "0.0.3",
     "@askrjs/themes": "0.0.13",
     "@askrjs/ui": "0.0.13",
     "@askrjs/vite": "0.0.7",
-    "monaco-editor": "^0.55.1"
+    "monaco-editor": "0.56.0"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.0.5",
+    "@askrjs/cli": "0.0.7",
+    "@playwright/test": "1.61.1",
     "@types/node": "^26.1.1",
     "autoprefixer": "^10.5.2",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.16",
-    "typescript": "^6.0.3",
-    "vite-plus": "^0.2.4"
+    "typescript": "^7.0.2",
+    "vite-plus": "^0.2.5"
   },
   "overrides": {
     "dompurify": "3.4.11"
   },
-  "packageManager": "npm@12.0.0"
+  "engines": {
+    "node": "24.x",
+    "npm": "11.16.0"
+  },
+  "packageManager": "npm@11.16.0"
 }

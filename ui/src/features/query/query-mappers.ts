@@ -1,7 +1,6 @@
 import type {
   QueryExplainResponse,
   QueryResult,
-  QueryResultValue,
   QuerySchemaResponse,
   QueryValidateResponse,
 } from "@/adapters";
@@ -21,9 +20,6 @@ const QUERY_SCHEMA_SECTION_ORDER: QuerySchemaSection["id"][] = [
   "procedures",
 ];
 
-// The catalog endpoint returns flat sections. It scopes current objects through
-// canonical `database.schema.name` labels, so the UI derives tree grouping from
-// those labels while preserving the wire item payloads.
 const DEFAULT_DATABASE_ID = "postgres";
 const DEFAULT_NAMESPACE_ID = "public";
 
@@ -54,32 +50,28 @@ function sortItems(items: QuerySchemaSection["items"]) {
   );
 }
 
-function parseCanonicalScope(value: string): CatalogScope | null {
-  const parts = value.split(".");
-  if (parts.length !== 3 || parts.some((part) => part.trim().length === 0)) {
-    return null;
-  }
-
+function mapSchemaItem(item: QuerySchemaResponse["sections"][number]["items"][number]) {
   return {
-    database: parts[0],
-    namespace: parts[1],
+    id: item.id,
+    kind: item.kind,
+    label: item.label,
+    database: item.database,
+    schema: item.schema,
+    name: item.name,
+    metadata: item.metadata,
+    columns: item.columns.map((column) => ({
+      id: column.id,
+      name: column.name,
+      dataType: column.data_type,
+      primaryKey: column.primary_key,
+    })),
   };
-}
-
-function scopeForItem(item: QuerySchemaSection["items"][number]): CatalogScope {
-  return (
-    parseCanonicalScope(item.label) ??
-    parseCanonicalScope(item.id.split(":").slice(1).join(":")) ?? {
-      database: DEFAULT_DATABASE_ID,
-      namespace: DEFAULT_NAMESPACE_ID,
-    }
-  );
 }
 
 // Items pass through unchanged (sortItems only reorders), so extra fields on a
 // raw test fixture survive here even when the generated transport type does not
 // declare them.
-function normalizeSections(sections: QuerySchemaResponse["sections"]): QuerySchemaSection[] {
+function normalizeSections(sections: QuerySchemaSection[]): QuerySchemaSection[] {
   const sectionsById = new Map<string, QuerySchemaSection>(
     sections
       .map((section) => {
@@ -157,6 +149,7 @@ function getScopedBucket(
 
 function groupFlatSectionsByCatalogScope(
   sections: QuerySchemaResponse["sections"],
+  defaultDatabase: string,
 ): QuerySchemaDatabase[] {
   const scopedBuckets = new Map<string, ScopedSectionBucket>();
 
@@ -167,7 +160,10 @@ function groupFlatSectionsByCatalogScope(
     }
 
     for (const item of section.items) {
-      const bucket = getScopedBucket(scopedBuckets, sections, scopeForItem(item));
+      const bucket = getScopedBucket(scopedBuckets, sections, {
+        database: item.database,
+        namespace: item.schema,
+      });
       const scopedSection =
         bucket.sections.get(sectionId) ??
         ({
@@ -176,14 +172,14 @@ function groupFlatSectionsByCatalogScope(
           items: [],
         } satisfies QuerySchemaSection);
 
-      scopedSection.items.push(item);
+      scopedSection.items.push(mapSchemaItem(item));
       bucket.sections.set(sectionId, scopedSection);
     }
   }
 
   if (scopedBuckets.size === 0) {
     getScopedBucket(scopedBuckets, sections, {
-      database: DEFAULT_DATABASE_ID,
+      database: defaultDatabase,
       namespace: DEFAULT_NAMESPACE_ID,
     });
   }
@@ -219,25 +215,13 @@ function groupFlatSectionsByCatalogScope(
     );
 }
 
-function formatQueryValue(value: QueryResultValue): string | null {
-  if (value === null) {
-    return null;
-  }
-
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  return JSON.stringify(value);
-}
-
-export function mapSchemaResponse(dto: QuerySchemaResponse): QuerySchema {
+export function mapSchemaResponse(
+  dto: QuerySchemaResponse,
+  defaultDatabase = DEFAULT_DATABASE_ID,
+): QuerySchema {
+  const currentDatabase = defaultDatabase.trim() || DEFAULT_DATABASE_ID;
   return {
-    databases: groupFlatSectionsByCatalogScope(dto.sections),
+    databases: groupFlatSectionsByCatalogScope(dto.sections, currentDatabase),
   };
 }
 
@@ -245,7 +229,7 @@ export function mapQueryResult(dto: QueryResult): QueryExecutionResult {
   return {
     command: dto.command,
     columns: dto.columns.map((column) => column.name),
-    rows: dto.rows.map((row) => row.map((columnValue) => formatQueryValue(columnValue))),
+    rows: dto.rows,
   };
 }
 

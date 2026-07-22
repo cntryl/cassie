@@ -143,9 +143,17 @@ pub(super) struct RestRequestExecution {
 impl RestRequestExecution {
     #[must_use]
     pub(super) fn new(timeout: Duration) -> Self {
+        Self::with_cancellation(timeout, QueryCancellationHandle::new())
+    }
+
+    #[must_use]
+    pub(super) fn with_cancellation(
+        timeout: Duration,
+        cancellation: QueryCancellationHandle,
+    ) -> Self {
         let now = Instant::now();
         Self {
-            cancellation: QueryCancellationHandle::new(),
+            cancellation,
             deadline: now.checked_add(timeout).unwrap_or(now),
         }
     }
@@ -228,6 +236,42 @@ where
     T: Send + 'static,
 {
     RestRequestExecution::new(REST_REQUEST_TIMEOUT)
+        .run_blocking(Arc::clone(&cassie), operation_name, operation)
+        .await
+        .map_err(|error| match error {
+            RestBlockingError::Engine(error) => {
+                record_rest_error(&cassie, method.as_str(), path, started_at, &error)
+            }
+            RestBlockingError::TimedOut => {
+                cassie.runtime.record_rest_request(
+                    method.as_str(),
+                    path,
+                    StatusCode::REQUEST_TIMEOUT.as_u16(),
+                    started_at.elapsed(),
+                );
+                (
+                    StatusCode::REQUEST_TIMEOUT,
+                    "REST request timed out".to_string(),
+                )
+            }
+        })
+}
+
+pub(super) async fn run_rest_blocking_route_with_cancellation<T>(
+    cassie: Arc<Cassie>,
+    method: &Method,
+    path: &str,
+    started_at: Instant,
+    operation_name: &'static str,
+    cancellation: QueryCancellationHandle,
+    operation: impl FnOnce(Arc<Cassie>, &QueryCancellationHandle) -> Result<T, CassieError>
+        + Send
+        + 'static,
+) -> Result<T, (StatusCode, String)>
+where
+    T: Send + 'static,
+{
+    RestRequestExecution::with_cancellation(REST_REQUEST_TIMEOUT, cancellation)
         .run_blocking(Arc::clone(&cassie), operation_name, operation)
         .await
         .map_err(|error| match error {

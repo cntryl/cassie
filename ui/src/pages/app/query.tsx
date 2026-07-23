@@ -507,7 +507,8 @@ function QueryWorkspace({
         loaded.get(database) ?? { id: database, label: database, namespaces: [] },
     );
   };
-  const getCompletionItems = () => buildSqlCompletionItems(getSchemaDatabases());
+  const getCompletionItems = (context: Parameters<typeof buildSqlCompletionItems>[2]) =>
+    buildSqlCompletionItems(getSchemaDatabases(), tab.database, context);
   const currentQuery = () => queryDraft().value;
   const hasQuery = currentQuery().trim().length > 0;
 

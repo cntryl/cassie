@@ -1,7 +1,11 @@
 import { Toolbar } from "@askrjs/themes/components";
 
 import { QueryEditorToolbar } from "./query-editor-toolbar";
-import { MonacoCompletionItem, MonacoSqlEditor } from "./monaco-sql-editor";
+import {
+  MonacoCompletionContext,
+  MonacoCompletionItem,
+  MonacoSqlEditor,
+} from "./monaco-sql-editor";
 
 interface QueryEditorPanelProps {
   tabId: string;
@@ -17,7 +21,7 @@ interface QueryEditorPanelProps {
   onExplain: () => void;
   onPlay: () => void;
   onStop: () => void;
-  completionItems: () => MonacoCompletionItem[];
+  completionItems: (context: MonacoCompletionContext) => MonacoCompletionItem[];
 }
 
 export function QueryEditorPanel({

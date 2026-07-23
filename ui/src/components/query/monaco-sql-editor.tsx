@@ -7,6 +7,15 @@ export interface MonacoCompletionItem {
   label: string;
   detail?: string;
   insertText: string;
+  filterText?: string;
+  sortText?: string;
+  kind?: "keyword" | "class" | "field" | "function" | "method" | "reference";
+}
+
+export interface MonacoCompletionContext {
+  sql: string;
+  offset: number;
+  word: string;
 }
 
 export interface MonacoSqlEditorProps {
@@ -15,11 +24,11 @@ export interface MonacoSqlEditorProps {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
-  completionProvider?: () => MonacoCompletionItem[];
+  completionProvider?: (context: MonacoCompletionContext) => MonacoCompletionItem[];
 }
 
 interface MonacoProviderRegistry {
-  owners: Map<string, () => MonacoCompletionItem[]>;
+  owners: Map<string, (context: MonacoCompletionContext) => MonacoCompletionItem[]>;
   activeUri: string | null;
   disposable: { dispose(): void };
 }
@@ -131,7 +140,10 @@ export function MonacoSqlEditor({
     monacoKey = monaco as object;
     let registry = providerRegistries.get(monaco as object);
     if (!registry) {
-      const owners = new Map<string, () => MonacoCompletionItem[]>();
+      const owners = new Map<
+        string,
+        (context: MonacoCompletionContext) => MonacoCompletionItem[]
+      >();
       registry = {
         owners,
         activeUri: null,
@@ -148,13 +160,30 @@ export function MonacoSqlEditor({
               endColumn: word.endColumn,
             };
 
+            const offset = model.getOffsetAt(position);
             return {
-              suggestions: (current.owners.get(uri)?.() ?? []).map((item) => ({
+              suggestions: (
+                current.owners.get(uri)?.({ sql: model.getValue(), offset, word: word.word }) ?? []
+              ).map((item) => ({
                 label: item.label,
                 insertText: item.insertText,
+                filterText: item.filterText,
+                sortText: item.sortText,
                 detail: item.detail,
                 documentation: item.detail ?? "",
-                kind: monaco.languages.CompletionItemKind.Snippet,
+                kind: monaco.languages.CompletionItemKind[
+                  item.kind === "keyword"
+                    ? "Keyword"
+                    : item.kind === "field"
+                      ? "Field"
+                      : item.kind === "function"
+                        ? "Function"
+                        : item.kind === "method"
+                          ? "Method"
+                          : item.kind === "reference"
+                            ? "Reference"
+                            : "Class"
+                ],
                 range,
               })),
             };

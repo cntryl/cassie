@@ -126,9 +126,25 @@ test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   // Act / Assert: loaded schema completion.
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+A");
-  await page.keyboard.insertText("eve");
+  await page.keyboard.insertText("SELECT * FROM eve");
   await page.keyboard.press("Control+Space");
   await expect(suggestions).toBeVisible();
-  await expect(suggestions).toContainText("analytics.public.events");
+  await expect(suggestions).toContainText("events");
+  await expect(suggestions).toContainText("table · analytics.public");
+  await expect(suggestions).not.toContainText("archive_old_documents");
+  await page.keyboard.press("Enter");
+  await expect(editor).toContainText("SELECT * FROM public.events");
+
+  // Act / Assert: only columns from the referenced relation after an alias dot.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Meta+A");
+  await page.keyboard.insertText("SELECT * FROM public.events e WHERE e.");
+  await page.keyboard.press("Control+Space");
+  await expect(suggestions).toBeVisible();
+  await expect(suggestions).toContainText("id");
+  await expect(suggestions).toContainText("uuid · primary key · public.events");
+  await expect(suggestions).not.toContainText("accounts");
+  await page.keyboard.press("Enter");
+  await expect(editor).toContainText("WHERE e.id");
   await expectEditorFocused(editor);
 });

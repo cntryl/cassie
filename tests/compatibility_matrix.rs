@@ -354,7 +354,9 @@ fn should_read_catalog_metadata_after_connect() {
                 _ => None,
             })
             .expect("metadata query should return a row");
-        assert_eq!(row.get(0), Some(env!("CARGO_PKG_VERSION")));
+        assert!(row
+            .get(0)
+            .is_some_and(|version| version.starts_with("PostgreSQL 16.0 compatible Cassie ")));
         assert_eq!(row.get(1), Some("public"));
         assert_eq!(row.get(2), Some("postgres"));
 
@@ -438,6 +440,59 @@ fn should_preserve_session_search_path_with_tokio_postgres() {
 }
 
 #[test]
+fn should_accept_pgadmin_date_style_session_setup() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pgadmin_date_style").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        client
+            .batch_execute("SET DateStyle = 'ISO, MDY'")
+            .await
+            .expect("pgAdmin DateStyle setup should succeed");
+        let value = first_simple_value(
+            client
+                .simple_query("SHOW DateStyle")
+                .await
+                .expect("DateStyle should be readable"),
+        );
+
+        // Assert
+        assert_eq!(value, "ISO, MDY");
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
+fn should_accept_pgadmin_client_min_messages_session_setup() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let server = CompatibilityServer::start("pgadmin_client_min_messages").await;
+        let (client, connection) = server.connect().await;
+
+        // Act
+        let result = client
+            .batch_execute("SET client_min_messages = 'warning'")
+            .await;
+
+        // Assert
+        result.expect("pgAdmin client_min_messages setup should succeed");
+        server.shutdown(connection).await;
+    });
+}
+
+#[test]
 fn should_report_missing_search_path_schema_with_tokio_postgres() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -492,7 +547,7 @@ fn should_query_prepared_statement_with_tokio_postgres() {
 
         // Assert
         let version: String = row.try_get(0).expect("version column");
-        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+        assert!(version.starts_with("PostgreSQL 16.0 compatible Cassie "));
 
         drop(client);
         server.shutdown(connection).await;
@@ -930,7 +985,7 @@ fn should_recover_after_a_syntax_error_with_tokio_postgres() {
         let db_error = db_error(&first);
         assert_eq!(db_error.code().code(), "42601");
         let version: String = second.try_get(0).expect("version column");
-        assert_eq!(version, env!("CARGO_PKG_VERSION"));
+        assert!(version.starts_with("PostgreSQL 16.0 compatible Cassie "));
 
         drop(client);
         server.shutdown(connection).await;

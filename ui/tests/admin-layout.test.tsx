@@ -101,19 +101,26 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 describe("admin shell sidebar resize", () => {
-  it("should_render_the_cassie_brand_logo_in_the_top_header", async () => {
+  it("should_render_full_height_navigation_without_a_top_header", async () => {
     // Arrange
     const root = await mountAdminShell();
 
     // Act
     const brandLink = root.querySelector('a[aria-label="Cassie admin home"]');
     const brandLogo = brandLink?.querySelector('img[data-testid="cassie-brand-logo"]');
+    const sidebar = root.querySelector('[aria-label="Schema browser"]');
+    const footer = root.querySelector('[data-testid="admin-sidebar-footer"]');
 
     // Assert
     expect(brandLink?.textContent).toContain("Cassie Admin");
     expect(brandLogo).toBeInstanceOf(HTMLImageElement);
     expect(brandLogo?.getAttribute("alt")).toBe("");
     expect(brandLogo?.getAttribute("src")).toContain("cassie-logo.png");
+    expect(root.querySelector(".cassie-admin-header")).toBeNull();
+    expect(sidebar?.contains(brandLink ?? null)).toBe(true);
+    expect(sidebar?.contains(footer ?? null)).toBe(true);
+    expect(footer?.querySelector('[aria-label="Toggle color theme"]')).not.toBeNull();
+    expect(footer?.querySelector('a[aria-label="Sign out"]')).not.toBeNull();
   });
 
   it("should_surface_active_session_context_given_an_authenticated_admin", async () => {

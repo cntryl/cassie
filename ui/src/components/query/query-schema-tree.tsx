@@ -1,7 +1,7 @@
 import { For } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
-import { Text } from "@askrjs/themes/components";
-import { SearchIcon, XIcon } from "@askrjs/lucide";
+import { Button, Text } from "@askrjs/themes/components";
+import { PlusIcon, SearchIcon, XIcon } from "@askrjs/lucide";
 
 import type { QuerySchemaDatabase, QuerySchemaItem } from "@/features/query/query-models";
 import { QuerySchemaTreeDatabase } from "./query-schema-tree-database";
@@ -11,6 +11,7 @@ interface QuerySchemaTreeProps {
   schema: QuerySchemaDatabase[] | (() => QuerySchemaDatabase[]);
   selectedItemId?: string | (() => string | undefined);
   onSelectItem: (item: QuerySchemaItem) => void;
+  onCreateDatabase?: () => void;
 }
 
 interface QuerySchemaSearchGroup {
@@ -49,7 +50,12 @@ function filterDatabases(
   return groups;
 }
 
-export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QuerySchemaTreeProps) {
+export function QuerySchemaTree({
+  schema,
+  selectedItemId,
+  onSelectItem,
+  onCreateDatabase,
+}: QuerySchemaTreeProps) {
   const getSchema = () => (typeof schema === "function" ? schema() : schema);
   const getSelectedItemId = () =>
     typeof selectedItemId === "function" ? selectedItemId() : selectedItemId;
@@ -80,9 +86,23 @@ export function QuerySchemaTree({ schema, selectedItemId, onSelectItem }: QueryS
       aria-label="Schema objects"
     >
       <header class="cassie-query-schema-tree-header">
-        <Text size="sm" weight="semibold">
-          Schema browser
-        </Text>
+        <div class="cassie-query-schema-tree-title-row">
+          <Text size="sm" weight="semibold">
+            Databases
+          </Text>
+          {onCreateDatabase ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label="Create database"
+              title="Create database"
+              onPress={onCreateDatabase}
+            >
+              <PlusIcon size={14} aria-hidden="true" />
+            </Button>
+          ) : null}
+        </div>
         <div class="cassie-query-schema-search">
           <SearchIcon class="cassie-query-schema-search-icon" size={13} aria-hidden="true" />
           <input

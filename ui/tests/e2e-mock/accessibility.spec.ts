@@ -33,6 +33,6 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
     .getByRole("dialog")
     .getByRole("button", { name: /postgres/ })
     .click();
-  await expect(page.getByRole("tab", { name: /Query 1 postgres/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Query 1 postgres/ })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });

@@ -19,6 +19,9 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 ## Session Model
 
 - `current_user`, `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` reflect session state.
+- Startup parameters, `SET`, `SHOW`, `current_setting`, `set_config`, `pg_settings`, and `pg_show_all_settings()` share one validated settings contract.
+- Mutable settings are `search_path`, `application_name`, and `client_min_messages`. Cassie validates fixed PostgreSQL-facing values for server and client encoding, date style, time zone, standard strings, integer datetimes, bytea output, extra float digits, and the advertised server version.
+- Unsupported setting names and incompatible fixed values are errors; Cassie does not silently accept arbitrary PostgreSQL GUCs.
 - Unqualified relations resolve through `search_path` inside the current database.
 - Cross-database relation references are unsupported.
 - Prepared statements and portals belong to one connection and are removed when closed or disconnected.
@@ -57,7 +60,13 @@ Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported cli
 
 ## Client Evidence
 
-The repository keeps automated coverage for the native pgwire harness and `tokio-postgres`. Optional probes cover selected psql, SQLAlchemy Core, Prisma, and pgAdmin workflows when their external dependencies are available. A probe documents only the exercised workflow; it does not widen the compatibility contract.
+The versioned certification targets are pgAdmin 9.16 and DBeaver 26.1.3 using PostgreSQL JDBC 42.7.11. Compatibility covers password/TLS connection and reconnection; supported database, schema, table, view, column, index, constraint, role, function, and procedure navigation; supported object properties; and Query Tool SQL execution, results, transactions, cancellation, graphical plans, and safe primary-key-based grid edits.
+
+Certification requires normalized, secret-free traces and deterministic replay for startup, initialization, navigator expansion, properties, query actions, plans, and grid edits. Each trace records the client and driver version, upstream source revision, workflow step, SQL, protocol mode, expected columns, and expected row shape. A passing trace certifies only that recorded workflow.
+
+PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
+
+The repository also keeps automated coverage for the native pgwire harness and `tokio-postgres`. Per-PR external gates cover psycopg 3, PostgreSQL JDBC 42.7.11, and trace replay. Nightly and release gates use pgAdmin 9.16 and DBeaver 26.1.3. Client-version upgrades require refreshed traces and both live smoke suites before this documented support version changes.
 
 ## Intentional Differences
 

@@ -47,7 +47,7 @@ use errors::{cassie_pg_error, PgWireError, PgWireSeverity};
 use readers::{
     read_frontend_message, read_password_message, read_simple_query_message, read_startup_frame,
 };
-use startup_params::validate_startup_parameters;
+use startup_params::{apply_startup_parameters, validate_startup_parameters};
 use state::{
     DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState, StartupFrame,
 };
@@ -213,6 +213,7 @@ async fn handle_startup(
                 let _ = write_error_response(write_half, &PgWireError::fatal_protocol(error)).await;
                 return ConnectionStep::Break;
             }
+            state.startup_parameters = parameters;
             let startup_user = state
                 .startup_user
                 .clone()
@@ -226,6 +227,14 @@ async fn handle_startup(
                 })
             } else {
                 let session = cassie.create_session(&startup_user, startup_database.clone());
+                if let Err(error) = apply_startup_parameters(&session, &state.startup_parameters) {
+                    let _ = write_error_response(
+                        write_half,
+                        &PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error),
+                    )
+                    .await;
+                    return ConnectionStep::Break;
+                }
                 if let Err(error) = cassie.ensure_session_database_exists(&session) {
                     runtime.record_pgwire_protocol_error();
                     let pg_error = PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error);
@@ -237,8 +246,9 @@ async fn handle_startup(
                 state.ready = ReadyState::Idle;
                 runtime.record_pgwire_auth_ok();
                 let registration = cassie.runtime.register_pgwire_backend();
+                session.set_backend_pid(registration.process_id());
                 let _ = write_auth_ok(write_half).await;
-                let _ = write_parameter_statuses(write_half).await;
+                let _ = write_parameter_statuses(write_half, &session).await;
                 let _ = write_backend_key_data(
                     write_half,
                     registration.process_id(),
@@ -290,13 +300,22 @@ async fn handle_password(
             .await;
             match auth_result {
                 Ok(session) => {
+                    if let Err(error) =
+                        apply_startup_parameters(&session, &state.startup_parameters)
+                    {
+                        let pg_error =
+                            PgWireError::from_cassie_error(PgWireSeverity::Fatal, &error);
+                        let _ = write_error_response(write_half, &pg_error).await;
+                        return ConnectionStep::Break;
+                    }
                     state.authenticated = true;
                     state.session = Some(session.clone());
                     state.ready = ReadyState::Idle;
                     runtime.record_pgwire_auth_ok();
                     let registration = cassie.runtime.register_pgwire_backend();
+                    session.set_backend_pid(registration.process_id());
                     let _ = write_auth_ok(write_half).await;
-                    let _ = write_parameter_statuses(write_half).await;
+                    let _ = write_parameter_statuses(write_half, &session).await;
                     let _ = write_backend_key_data(
                         write_half,
                         registration.process_id(),

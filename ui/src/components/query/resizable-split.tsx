@@ -43,14 +43,14 @@ export function ResizableSplit({
   }
 
   function applyPercent(nextPercent: number) {
-    if (!primaryPane) {
+    if (!primaryPane || !container) {
       return;
     }
 
     if (orientation === "horizontal") {
       primaryPane.style.inlineSize = `${nextPercent}%`;
     } else {
-      primaryPane.style.blockSize = `${nextPercent}%`;
+      container.style.setProperty("--cassie-split-size", `${nextPercent}%`);
     }
   }
 
@@ -73,8 +73,10 @@ export function ResizableSplit({
     flex: "0 0 auto",
     ...(orientation === "horizontal"
       ? { inlineSize: `${split}%`, minInlineSize: `${min}%`, maxInlineSize: `${max}%` }
-      : { blockSize: `${split}%`, minBlockSize: `${min}%`, maxBlockSize: `${max}%` }),
+      : {}),
   };
+  const containerStyle =
+    orientation === "vertical" ? { "--cassie-split-size": `${split}%` } : undefined;
   const secondaryStyle = {
     flex: "1 1 auto",
   };
@@ -91,6 +93,7 @@ export function ResizableSplit({
     <div
       class={`cassie-resizable-split cassie-resizable-split-${orientation}`}
       ref={setContainer}
+      style={containerStyle}
       data-dragging={isDragging ? "true" : undefined}
       data-testid={`query-resizable-split-${orientation}`}
     >

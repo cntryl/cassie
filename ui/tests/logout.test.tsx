@@ -60,6 +60,25 @@ afterEach(() => {
 });
 
 describe("logout page", () => {
+  it("should_match_the_login_page_card_layout", async () => {
+    // Arrange
+    signIn("admin", "password");
+
+    // Act
+    const root = await mountLogout();
+
+    // Assert
+    expect(root.querySelector("main.cassie-login-page")).not.toBeNull();
+    expect(root.querySelector(".cassie-login-panel")).not.toBeNull();
+    expect(root.querySelector(".cassie-login-card")).not.toBeNull();
+    expect(root.querySelector(".cassie-brand-logo")).not.toBeNull();
+    expect(root.querySelector("h1")?.textContent).toBe("Sign out of Cassie Admin?");
+    expect(root.textContent).toContain("You’re signed in as admin.");
+    expect(root.textContent).not.toContain("server-backed session");
+    expect(root.textContent).not.toContain("clears its cookie");
+    expect(root.querySelector('[data-slot="card-footer"]')).toBeNull();
+  });
+
   it("should_revoke_the_session_before_returning_to_login", async () => {
     // Arrange
     signIn("admin", "password");

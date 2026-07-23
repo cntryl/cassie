@@ -7,12 +7,11 @@ import {
   BrandLabel,
   BrandMark,
   Button,
-  Container,
   Grid,
   Inline,
   Text,
 } from "@askrjs/themes/components";
-import { Header, NavBrand, NavGroup, Navbar, Sidebar } from "@askrjs/themes/components";
+import { Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
 import cassieLogo from "@/assets/cassie-logo.png";
@@ -60,7 +59,7 @@ function persistSidebarWidth(px: number) {
 
 export default function Layout({ children }: { children?: unknown }) {
   const session = getSession();
-  const [mobileNavOpen, setMobileNavOpen] = state(false);
+  const [mobileNavOpen, setMobileNavOpen] = state(true);
   const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
   const isMobileNavOpen = mobileNavOpen();
 
@@ -125,51 +124,7 @@ export default function Layout({ children }: { children?: unknown }) {
         Skip to main content
       </a>
 
-      <Header class="cassie-admin-header" sticky>
-        <Container size="full" paddingY="0">
-          <Navbar class="cassie-admin-navbar" aria-label="Cassie admin">
-            <NavBrand>
-              <Brand asChild>
-                <Link href="/" aria-label="Cassie admin home">
-                  <BrandMark aria-hidden="true">
-                    <img
-                      class="cassie-brand-logo"
-                      data-testid="cassie-brand-logo"
-                      src={cassieLogo}
-                      alt=""
-                    />
-                  </BrandMark>
-                  <BrandLabel>Cassie Admin</BrandLabel>
-                </Link>
-              </Brand>
-            </NavBrand>
-
-            <NavGroup align="end" aria-label="View controls" role="group">
-              <Inline gap="sm" align="center" data-testid="admin-session-context">
-                {session?.user ? (
-                  <Text as="span" size="sm" title={session.user} class="cassie-user-name">
-                    {session.user}
-                  </Text>
-                ) : null}
-              </Inline>
-              <ThemeToggle
-                aria-label="Toggle color theme"
-                variant="ghost"
-                size="icon"
-                lightIcon={<SunIcon size={16} />}
-                darkIcon={<MoonIcon size={16} />}
-              />
-              <Button asChild variant="ghost" size="icon">
-                <Link href="/logout" aria-label="Sign out">
-                  <LogOutIcon size={16} aria-hidden="true" />
-                </Link>
-              </Button>
-            </NavGroup>
-          </Navbar>
-        </Container>
-      </Header>
-
-      <Container class="cassie-admin-workspace" size="full" paddingX="0" paddingY="0" grow>
+      <div class="cassie-admin-workspace">
         <Grid
           class="cassie-admin-layout"
           columns={{
@@ -191,6 +146,22 @@ export default function Layout({ children }: { children?: unknown }) {
             data-mobile-open={isMobileNavOpen ? "true" : undefined}
             aria-label="Schema browser"
           >
+            <div class="cassie-admin-sidebar-brand">
+              <Brand asChild>
+                <Link href="/" aria-label="Cassie admin home">
+                  <BrandMark aria-hidden="true">
+                    <img
+                      class="cassie-brand-logo"
+                      data-testid="cassie-brand-logo"
+                      src={cassieLogo}
+                      alt=""
+                    />
+                  </BrandMark>
+                  <BrandLabel>Cassie Admin</BrandLabel>
+                </Link>
+              </Brand>
+            </div>
+
             <Button
               type="button"
               class="cassie-admin-sidebar-toggle"
@@ -209,6 +180,28 @@ export default function Layout({ children }: { children?: unknown }) {
                 <SidebarPortalHost />
               </div>
             </div>
+
+            <footer class="cassie-admin-sidebar-footer" data-testid="admin-sidebar-footer">
+              <Inline gap="sm" align="center" data-testid="admin-session-context">
+                {session?.user ? (
+                  <Text as="span" size="sm" title={session.user} class="cassie-user-name">
+                    {session.user}
+                  </Text>
+                ) : null}
+              </Inline>
+              <ThemeToggle
+                aria-label="Toggle color theme"
+                variant="ghost"
+                size="icon"
+                lightIcon={<SunIcon size={16} />}
+                darkIcon={<MoonIcon size={16} />}
+              />
+              <Button asChild variant="ghost" size="icon">
+                <Link href="/logout" aria-label="Sign out">
+                  <LogOutIcon size={16} aria-hidden="true" />
+                </Link>
+              </Button>
+            </footer>
           </Sidebar>
 
           <div role="navigation" aria-label="Sidebar resizing">
@@ -221,7 +214,7 @@ export default function Layout({ children }: { children?: unknown }) {
 
           <div class="cassie-admin-route-surface">{children}</div>
         </Grid>
-      </Container>
+      </div>
     </Block>
   );
 }

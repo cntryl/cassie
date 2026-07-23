@@ -28,16 +28,21 @@ pub(super) async fn write_auth_cleartext(
 
 pub(super) async fn write_parameter_statuses(
     write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
 ) -> io::Result<()> {
-    for (key, value) in [
-        ("server_version", "16.0"),
-        ("server_encoding", "UTF8"),
-        ("client_encoding", "UTF8"),
-        ("DateStyle", "ISO, MDY"),
-        ("integer_datetimes", "on"),
-        ("TimeZone", "UTC"),
-        ("standard_conforming_strings", "on"),
-    ] {
+    for spec in crate::app::all_session_settings() {
+        if matches!(
+            spec.name,
+            "search_path" | "client_min_messages" | "bytea_output" | "extra_float_digits"
+        ) {
+            continue;
+        }
+        let key = match spec.name {
+            "datestyle" => "DateStyle",
+            "timezone" => "TimeZone",
+            name => name,
+        };
+        let value = session.setting(spec.name).map_err(io::Error::other)?;
         let mut payload = Vec::new();
         payload.extend_from_slice(key.as_bytes());
         payload.push(0);

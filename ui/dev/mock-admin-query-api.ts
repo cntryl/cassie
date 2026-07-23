@@ -179,6 +179,9 @@ function mockSchemaForDatabase(database: string): QuerySchemaResponse {
 }
 
 function mockExecuteResult(database: string, sql: string) {
+  if (sql.trim().toUpperCase().startsWith("CREATE DATABASE ")) {
+    return { columns: [], command: "CREATE DATABASE", rows: [] };
+  }
   return {
     columns: [column("id"), column("name"), column("owner"), column("notes")],
     command: sql.trim().toUpperCase().startsWith("SELECT") ? "SELECT" : "SELECT",
@@ -341,6 +344,10 @@ interface MockDevServer {
 /** Cookie-authenticated mock of the same REST workflow used by the built UI. */
 export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
   let session: MockSession | null = null;
+  const databases = [
+    { name: "analytics", description: "Analytics and reporting" },
+    { name: "postgres", description: "Primary application database" },
+  ];
   const operations = new Map<string, { completed: boolean; cancelled: boolean }>();
 
   async function queryBody(req: IncomingMessage, res: ServerResponse) {
@@ -426,10 +433,7 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
     }
 
     if (req.method === "GET" && path === "/api/v1/admin/databases") {
-      sendJson(res, 200, [
-        { name: "analytics", description: "Analytics and reporting" },
-        { name: "postgres", description: "Primary application database" },
-      ]);
+      sendJson(res, 200, databases);
       return;
     }
 
@@ -437,7 +441,7 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
       const database = new URL(req.url ?? "/", "http://cassie.mock").searchParams.get("database");
       if (!database) {
         sendJson(res, 400, { error: "database is required" });
-      } else if (!["analytics", "postgres"].includes(database)) {
+      } else if (!databases.some((candidate) => candidate.name === database)) {
         sendJson(res, 404, { error: `database '${database}' does not exist` });
       } else {
         sendJson(res, 200, mockSchemaForDatabase(database));
@@ -461,12 +465,19 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
 
     if (req.method === "POST" && path === "/api/v1/admin/query-executions") {
       const body = await queryBody(req, res);
-      if (body)
+      if (body) {
+        const createdDatabase = /^CREATE\s+DATABASE\s+([A-Za-z_][A-Za-z0-9_]*)\s*;?$/i.exec(
+          body.sql ?? "",
+        )?.[1];
+        if (createdDatabase && !databases.some((database) => database.name === createdDatabase)) {
+          databases.push({ name: createdDatabase, description: "Created in this mock session" });
+        }
         await completeOperation(
           body.operation_id!,
           res,
           mockExecuteResult(body.database!, body.sql ?? ""),
         );
+      }
       return;
     }
 

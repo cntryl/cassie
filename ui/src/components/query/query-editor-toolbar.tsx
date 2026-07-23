@@ -59,21 +59,10 @@ export function QueryEditorToolbar({
         <ListTreeIcon size={14} />
         <span>Explain</span>
       </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="xs"
-        title="Execute SQL"
-        disabled={!canRun}
-        data-action="play"
-        onPress={onPlay}
-      >
-        <PlayIcon size={14} />
-        <span>Run</span>
-      </Button>
       {isBusy ? (
         <Button
           type="button"
+          class="cassie-query-primary-action"
           variant="outline"
           size="xs"
           title="Stop running query operation"
@@ -84,7 +73,21 @@ export function QueryEditorToolbar({
           <SquareIcon size={14} />
           <span>{isStopping ? "Stopping…" : "Stop"}</span>
         </Button>
-      ) : null}
+      ) : (
+        <Button
+          type="button"
+          class="cassie-query-primary-action"
+          variant="primary"
+          size="xs"
+          title="Execute SQL"
+          disabled={!canRun}
+          data-action="play"
+          onPress={onPlay}
+        >
+          <PlayIcon size={14} />
+          <span>Run</span>
+        </Button>
+      )}
     </div>
   );
 }

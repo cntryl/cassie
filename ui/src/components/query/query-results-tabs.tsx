@@ -2,7 +2,7 @@ import type { IconProps } from "@askrjs/askr/foundations/icon";
 import type { JSXElement } from "@askrjs/askr/jsx-runtime";
 import { For } from "@askrjs/askr/control";
 import { BracesIcon, LayoutGridIcon, ListTreeIcon } from "@askrjs/lucide";
-import { TabsContent, TabsList, TabsTrigger } from "@askrjs/themes/components";
+import { Button, TabsContent, TabsList, Toolbar } from "@askrjs/themes/components";
 
 export type QueryResultTab = "results" | "list" | "plan";
 
@@ -90,36 +90,49 @@ export function QueryResultsTabs({
       data-testid="query-results-tabs"
       aria-label="Query results"
     >
-      <TabsList
-        ref={setTabListEl}
-        class="cassie-query-tabs"
-        aria-label="Result tab group"
-        onKeyDown={handleTabListKeyDown}
-      >
-        <For each={tabItems} by={(tab) => tab.id}>
-          {(tab) => (
-            <TabsTrigger
-              type="button"
-              role="tab"
-              class="cassie-query-tab-trigger"
-              data-testid={`query-result-tab-${tab.id}`}
-              data-tab={tab.id}
-              data-active={activeTab() === tab.id ? "true" : undefined}
-              data-state={activeTab() === tab.id ? "active" : undefined}
-              id={`query-${workspaceId}-result-tab-${tab.id}`}
-              aria-controls={`query-${workspaceId}-result-panel-${tab.id}`}
-              aria-selected={activeTab() === tab.id}
-              tabIndex={activeTab() === tab.id ? 0 : -1}
-              onClick={() => {
-                onTabChange(tab.id);
-              }}
-            >
-              <tab.icon size={14} />
-              <span>{tab.label}</span>
-            </TabsTrigger>
-          )}
-        </For>
-      </TabsList>
+      <Toolbar
+        class="cassie-query-results-panel-header"
+        title={<span id={`query-results-title-${workspaceId}`}>Results</span>}
+        paddingX="sm"
+        paddingY="xs"
+        gap="sm"
+        borderBottom
+        background="surface"
+        actions={
+          <TabsList
+            ref={setTabListEl}
+            class="cassie-query-tabs"
+            aria-label="Result tab group"
+            onKeyDown={handleTabListKeyDown}
+          >
+            <For each={tabItems} by={(tab) => tab.id}>
+              {(tab) => (
+                <Button
+                  type="button"
+                  role="tab"
+                  size="xs"
+                  variant="secondary"
+                  class="cassie-query-tab-trigger"
+                  data-testid={`query-result-tab-${tab.id}`}
+                  data-tab={tab.id}
+                  data-active={activeTab() === tab.id ? "true" : undefined}
+                  data-state={activeTab() === tab.id ? "active" : undefined}
+                  id={`query-${workspaceId}-result-tab-${tab.id}`}
+                  aria-controls={`query-${workspaceId}-result-panel-${tab.id}`}
+                  aria-selected={activeTab() === tab.id}
+                  tabIndex={activeTab() === tab.id ? 0 : -1}
+                  onClick={() => {
+                    onTabChange(tab.id);
+                  }}
+                >
+                  <tab.icon size={14} />
+                  <span>{tab.label}</span>
+                </Button>
+              )}
+            </For>
+          </TabsList>
+        }
+      />
       <div class="cassie-query-tab-content" aria-live="polite" tabindex={0}>
         <TabsContent
           class="cassie-query-tab-panel"

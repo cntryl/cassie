@@ -126,6 +126,9 @@ pub enum CassieError {
     #[error("invalid embedding: {0}")]
     InvalidEmbedding(String),
 
+    #[error("invalid parameter value: {0}")]
+    InvalidParameterValue(String),
+
     #[error("embedding unavailable: {0}")]
     EmbeddingUnavailable(String),
 
@@ -182,6 +185,9 @@ impl CassieError {
             Self::Configuration(_) => service_unavailable_descriptor("58030", self.to_string()),
             Self::InvalidVector(_) | Self::InvalidEmbedding(_) => {
                 bad_request_descriptor("22000", self.to_string())
+            }
+            Self::InvalidParameterValue(message) => {
+                bad_request_descriptor("22023", message.clone())
             }
             Self::EmbeddingUnavailable(_)
             | Self::Storage(_)

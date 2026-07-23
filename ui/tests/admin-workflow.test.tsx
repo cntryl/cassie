@@ -139,7 +139,7 @@ describe("admin UI workflow", () => {
       () => root.textContent?.includes("analytics") === true,
       "database selector",
     );
-    buttonByText(root, "analytics").click();
+    buttonByText(root.querySelector('[role="dialog"]') ?? root, "analytics").click();
     await waitFor(root, () => root.querySelector("[data-query-page]") !== null, "query page");
 
     // Assert

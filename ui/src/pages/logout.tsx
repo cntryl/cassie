@@ -1,8 +1,6 @@
 import { state } from "@askrjs/askr";
 import { Link, navigate } from "@askrjs/askr/router";
-import { DatabaseIcon, LogOutIcon, TriangleAlertIcon } from "@askrjs/lucide";
 import {
-  Alert,
   Block,
   Brand,
   BrandLabel,
@@ -11,15 +9,13 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
-  Page,
-  Separator,
-  Text,
+  FieldError,
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
+import cassieLogo from "@/assets/cassie-logo.png";
 import { getSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
 
@@ -50,33 +46,25 @@ export default function LogoutPage() {
   }
 
   return (
-    <Page background="muted" center>
-      <Block as="section" align="center" justify="center" grow>
-        <Block width="full" maxWidth="sm" gap="lg">
-          <Card variant="raised">
-            <CardHeader>
-              <Brand>
-                <BrandMark aria-hidden="true">
-                  <DatabaseIcon size={16} />
-                </BrandMark>
-                <BrandLabel>Cassie Admin</BrandLabel>
-              </Brand>
-              <CardTitle>Sign out{session?.user ? ` of ${session.user}` : ""}?</CardTitle>
-              <CardDescription>
-                This revokes the server-backed session and clears its cookie.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+    <Block as="main" class="cassie-login-page" background="canvas">
+      <Block class="cassie-login-panel" width="full" gap="lg">
+        <Card class="cassie-login-card" variant="raised">
+          <CardHeader>
+            <Brand>
+              <BrandMark aria-hidden="true">
+                <img class="cassie-brand-logo" src={cassieLogo} alt="" />
+              </BrandMark>
+              <BrandLabel>Cassie Admin</BrandLabel>
+            </Brand>
+            <CardTitle titleAs="h1">Sign out of Cassie Admin?</CardTitle>
+            <CardDescription>
+              {session?.user ? `You’re signed in as ${session.user}.` : "End your current session?"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Block direction="column" gap="xl">
+              {error() ? <FieldError>Sign out failed. {error()}</FieldError> : null}
               <Block direction="column" gap="md">
-                {error() ? (
-                  <Alert
-                    variant="danger"
-                    title="Sign out failed"
-                    description={error()}
-                    icon={<TriangleAlertIcon size={16} />}
-                  />
-                ) : null}
-                <Separator decorative />
                 <Button
                   type="button"
                   variant="destructive"
@@ -84,22 +72,16 @@ export default function LogoutPage() {
                   onPress={handleSignOut}
                   disabled={isSigningOut()}
                 >
-                  <LogOutIcon size={16} aria-hidden="true" />
                   {isSigningOut() ? "Signing out…" : "Sign out"}
                 </Button>
                 <Button asChild variant="outline" width="full" disabled={isSigningOut()}>
                   <Link href="/">Stay signed in</Link>
                 </Button>
               </Block>
-            </CardContent>
-            <CardFooter>
-              <Text tone="muted" size="sm">
-                Signing out returns you to the login screen.
-              </Text>
-            </CardFooter>
-          </Card>
-        </Block>
+            </Block>
+          </CardContent>
+        </Card>
       </Block>
-    </Page>
+    </Block>
   );
 }

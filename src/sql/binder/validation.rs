@@ -458,7 +458,11 @@ pub(super) fn validate_function_calls(
     for function in functions {
         if matches!(
             function.name.to_ascii_lowercase().as_str(),
-            "graph_neighbors" | "graph_expand" | "graph_shortest_path"
+            "graph_neighbors"
+                | "graph_expand"
+                | "graph_shortest_path"
+                | "pg_show_all_settings"
+                | "pg_catalog.pg_show_all_settings"
         ) {
             continue;
         }

@@ -93,31 +93,30 @@ describe("ResizableSplit pointer drag", () => {
       '[data-testid="query-resizable-split-vertical"]',
     ) as HTMLElement;
     const handle = container.querySelector('[role="separator"]') as HTMLElement;
-    const pane = container.querySelector(".cassie-resizable-split-pane") as HTMLElement;
 
     stubRect(container, { top: 0, left: 0, width: 200, height: 400 });
     stubPointerCapture(handle);
 
-    expect(pane.style.blockSize).toBe("50%");
+    expect(getComputedStyle(container).getPropertyValue("--cassie-split-size")).toBe("50%");
 
     handle.dispatchEvent(
       new PointerEvent("pointerdown", { bubbles: true, clientX: 100, clientY: 200, pointerId: 1 }),
     );
     await flushUi();
-    expect(pane.style.blockSize).toBe("50%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("50%");
 
     handle.dispatchEvent(
       new PointerEvent("pointermove", { bubbles: true, clientX: 100, clientY: 300, pointerId: 1 }),
     );
     await flushUi();
-    expect(pane.style.blockSize).toBe("75%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("75%");
     expect(handle.getAttribute("aria-valuenow")).toBe("75");
 
     handle.dispatchEvent(
       new PointerEvent("pointerup", { bubbles: true, clientX: 100, clientY: 300, pointerId: 1 }),
     );
     await flushUi();
-    expect(pane.style.blockSize).toBe("75%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("75%");
     expect(handle.getAttribute("aria-valuenow")).toBe("75");
   });
 
@@ -128,7 +127,6 @@ describe("ResizableSplit pointer drag", () => {
       '[data-testid="query-resizable-split-vertical"]',
     ) as HTMLElement;
     const handle = container.querySelector('[role="separator"]') as HTMLElement;
-    const pane = container.querySelector(".cassie-resizable-split-pane") as HTMLElement;
 
     stubRect(container, { top: 0, left: 0, width: 200, height: 400 });
     stubPointerCapture(handle);
@@ -142,13 +140,13 @@ describe("ResizableSplit pointer drag", () => {
       new PointerEvent("pointermove", { bubbles: true, clientX: 100, clientY: 400, pointerId: 1 }),
     );
     await flushUi();
-    expect(pane.style.blockSize).toBe("80%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("80%");
 
     handle.dispatchEvent(
       new PointerEvent("pointerup", { bubbles: true, clientX: 100, clientY: 400, pointerId: 1 }),
     );
     await flushUi();
-    expect(pane.style.blockSize).toBe("80%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("80%");
   });
 
   it("should_finish_the_drag_given_a_cancelled_pointer_gesture", async () => {
@@ -158,7 +156,6 @@ describe("ResizableSplit pointer drag", () => {
       '[data-testid="query-resizable-split-vertical"]',
     ) as HTMLElement;
     const handle = container.querySelector('[role="separator"]') as HTMLElement;
-    const pane = container.querySelector(".cassie-resizable-split-pane") as HTMLElement;
     stubRect(container, { top: 0, left: 0, width: 200, height: 400 });
     stubPointerCapture(handle);
 
@@ -177,7 +174,7 @@ describe("ResizableSplit pointer drag", () => {
 
     // Assert
     expect(container.getAttribute("data-dragging")).toBe(null);
-    expect(pane.style.blockSize).toBe("75%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("75%");
 
     // Act: a stray move after cancellation must not keep resizing.
     handle.dispatchEvent(
@@ -186,6 +183,6 @@ describe("ResizableSplit pointer drag", () => {
     await flushUi();
 
     // Assert
-    expect(pane.style.blockSize).toBe("75%");
+    expect(container.style.getPropertyValue("--cassie-split-size")).toBe("75%");
   });
 });

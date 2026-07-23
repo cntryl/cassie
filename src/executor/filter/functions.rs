@@ -77,16 +77,33 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
     match name {
-        "version" => Some(
-            require_zero_args(name, args)
-                .map(|()| Value::String(env!("CARGO_PKG_VERSION").to_string())),
-        ),
-        "pg_catalog.version" => Some(require_zero_args(name, args).map(|()| {
+        "version" | "pg_catalog.version" => Some(require_zero_args(name, args).map(|()| {
             Value::String(format!(
                 "PostgreSQL 16.0 compatible Cassie {}",
                 env!("CARGO_PKG_VERSION")
             ))
         })),
+        "cassie_version" => Some(
+            require_zero_args(name, args)
+                .map(|()| Value::String(env!("CARGO_PKG_VERSION").to_string())),
+        ),
+        "current_setting" | "pg_catalog.current_setting" => {
+            Some(evaluate_current_setting(name, args, session))
+        }
+        "set_config" | "pg_catalog.set_config" => Some(evaluate_set_config(name, args, session)),
+        "pg_encoding_to_char" | "pg_catalog.pg_encoding_to_char" => Some(
+            require_arg_count(name, args, 1).map(|()| match args.first() {
+                Some(Value::Int64(6)) => Value::String("UTF8".to_string()),
+                _ => Value::String(String::new()),
+            }),
+        ),
+        "has_database_privilege" | "pg_catalog.has_database_privilege" => {
+            Some(require_arg_count_range(name, args, 2..=3).map(|()| Value::Bool(true)))
+        }
+        "pg_backend_pid" | "pg_catalog.pg_backend_pid" => Some(
+            require_zero_args(name, args)
+                .map(|()| Value::Int64(i64::from(session.map_or(0, CassieSession::backend_pid)))),
+        ),
         "current_schema" => Some(require_zero_args(name, args).map(|()| {
             Value::String(
                 session.map_or_else(|| "public".to_string(), CassieSession::current_schema),
@@ -131,6 +148,42 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         ),
         _ => None,
     }
+}
+
+fn evaluate_current_setting(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count_range(name, args, 1..=2)?;
+    let setting = to_text(&args[0]);
+    let missing_ok = matches!(args.get(1), Some(Value::Bool(true)));
+    let value = session.map_or_else(
+        || CassieSession::new("postgres".to_string(), None).setting(&setting),
+        |session| session.setting(&setting),
+    );
+    match value {
+        Ok(value) => Ok(Value::String(value)),
+        Err(_) if missing_ok => Ok(Value::Null),
+        Err(error) => Err(QueryError::Cassie(error)),
+    }
+}
+
+fn evaluate_set_config(
+    name: &str,
+    args: &[Value],
+    session: Option<&CassieSession>,
+) -> Result<Value, QueryError> {
+    require_arg_count(name, args, 3)?;
+    if matches!(args.get(2), Some(Value::Bool(true))) {
+        return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
+            "transaction-local settings are not supported".to_string(),
+        )));
+    }
+    let session =
+        session.ok_or_else(|| QueryError::General("set_config requires a session".to_string()))?;
+    let value = session.set_setting(&to_text(&args[0]), &to_text(&args[1]))?;
+    Ok(Value::String(value))
 }
 
 fn pg_table_is_visible<R: RowAccess + ?Sized>(

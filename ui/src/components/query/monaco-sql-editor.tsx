@@ -48,6 +48,7 @@ export function MonacoSqlEditor({
   const themeScope = theme();
   const modelUri = `inmemory://cassie/query/${encodeURIComponent(tabId)}.sql`;
   let providerRegistry: MonacoProviderRegistry | null = null;
+  let editorInstance: MonacoEditorInstance | null = null;
   let monacoKey: object | null = null;
   let changeDisposable: { dispose(): void } | null = null;
   let systemThemeQuery: MediaQueryList | null = null;
@@ -82,6 +83,7 @@ export function MonacoSqlEditor({
     const next = `${current.slice(0, selectionStart)}${indent}${current.slice(selectionEnd)}`;
     const cursor = selectionStart + indent.length;
 
+    input.value = next;
     onChange(next);
     requestAnimationFrame(() => {
       input.selectionStart = cursor;
@@ -167,6 +169,7 @@ export function MonacoSqlEditor({
   }
 
   function handleMount(editor: MonacoEditorInstance) {
+    editorInstance = editor;
     changeDisposable?.dispose();
     changeDisposable = editor.onDidChangeModelContent(() => {
       onChange(editor.getValue());
@@ -180,6 +183,7 @@ export function MonacoSqlEditor({
   }
 
   function handleUnmount() {
+    editorInstance = null;
     providerRegistry?.owners.delete(modelUri);
     if (providerRegistry?.activeUri === modelUri) providerRegistry.activeUri = null;
     if (providerRegistry?.owners.size === 0) {
@@ -203,12 +207,33 @@ export function MonacoSqlEditor({
       ? "vs-dark"
       : "vs";
 
+  function handleEditorKeyDown(event: KeyboardEvent) {
+    if (!event.metaKey && !event.ctrlKey) return;
+    const editor = editorInstance;
+    if (!editor) return;
+    const key = event.key.toLowerCase();
+    if (key === "a") {
+      const model = editor.getModel();
+      if (!model) return;
+      event.preventDefault();
+      editor.setSelection(model.getFullModelRange());
+      editor.focus();
+      return;
+    }
+    if (key === "z") {
+      event.preventDefault();
+      editor.trigger("cassie-keyboard", event.shiftKey ? "redo" : "undo", null);
+      editor.focus();
+    }
+  }
+
   return (
     <div
       class="cassie-query-editor-host"
       data-testid="query-editor"
       data-query-editor="monaco"
       aria-label="SQL editor"
+      onKeyDownCapture={handleEditorKeyDown}
     >
       <MonacoEditor
         path={modelUri}
@@ -217,7 +242,7 @@ export function MonacoSqlEditor({
         theme={monacoTheme}
         options={{
           readOnly: disabled,
-          automaticLayout: true,
+          automaticLayout: false,
           minimap: { enabled: false },
           fontSize: 13,
           lineNumbers: "on",

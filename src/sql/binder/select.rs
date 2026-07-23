@@ -461,7 +461,7 @@ pub(super) fn source_fields(
         QuerySource::SingleRow => Ok(HashSet::new()),
         QuerySource::TableFunction { name, .. } => Ok(qualified_fields(
             name,
-            graph_table_function_columns()
+            table_function_columns(name)
                 .into_iter()
                 .map(|(name, _)| name),
         )),
@@ -482,6 +482,7 @@ fn validate_graph_table_function(
     lateral_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
     let expected = match function.name.to_ascii_lowercase().as_str() {
+        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings" => 0,
         "graph_neighbors" => 6,
         "graph_expand" => 7,
         "graph_shortest_path" => 9,
@@ -526,4 +527,32 @@ pub(super) fn graph_table_function_columns() -> Vec<(String, DataType)> {
         ("path_nodes".to_string(), DataType::Json),
         ("path_edges".to_string(), DataType::Json),
     ]
+}
+
+pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
+    if matches!(
+        name.to_ascii_lowercase().as_str(),
+        "pg_show_all_settings" | "pg_catalog.pg_show_all_settings"
+    ) {
+        return vec![
+            ("name".to_string(), DataType::Text),
+            ("setting".to_string(), DataType::Text),
+            ("unit".to_string(), DataType::Text),
+            ("category".to_string(), DataType::Text),
+            ("short_desc".to_string(), DataType::Text),
+            ("extra_desc".to_string(), DataType::Text),
+            ("context".to_string(), DataType::Text),
+            ("vartype".to_string(), DataType::Text),
+            ("source".to_string(), DataType::Text),
+            ("min_val".to_string(), DataType::Text),
+            ("max_val".to_string(), DataType::Text),
+            ("enumvals".to_string(), DataType::Text),
+            ("boot_val".to_string(), DataType::Text),
+            ("reset_val".to_string(), DataType::Text),
+            ("sourcefile".to_string(), DataType::Text),
+            ("sourceline".to_string(), DataType::BigInt),
+            ("pending_restart".to_string(), DataType::Boolean),
+        ];
+    }
+    graph_table_function_columns()
 }

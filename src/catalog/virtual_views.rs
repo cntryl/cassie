@@ -33,6 +33,9 @@ pub fn rows(
     session: Option<&CassieSession>,
 ) -> Option<Vec<VirtualRow>> {
     let name = normalize_name(name);
+    if name == "pg_catalog.pg_settings" {
+        return Some(pg_settings_rows(session));
+    }
     let current_database = session.and_then(CassieSession::current_database);
     information_schema_rows_for(catalog, name.as_str(), current_database)
         .or_else(|| pg_catalog_rows_for(catalog, name.as_str(), current_database))
@@ -106,6 +109,25 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "pg_catalog.pg_table_storage" => Some(virtual_views_storage::schema()),
         "pg_catalog.pg_constraint" => Some(virtual_views_constraints::pg_constraint_schema()),
         "pg_catalog.pg_roles" => Some(vec![text("rolname"), bool("rolcanlogin"), bool("rolsuper")]),
+        "pg_catalog.pg_settings" => Some(vec![
+            text("name"),
+            text("setting"),
+            text("unit"),
+            text("category"),
+            text("short_desc"),
+            text("extra_desc"),
+            text("context"),
+            text("vartype"),
+            text("source"),
+            text("min_val"),
+            text("max_val"),
+            text("enumvals"),
+            text("boot_val"),
+            text("reset_val"),
+            text("sourcefile"),
+            int("sourceline"),
+            bool("pending_restart"),
+        ]),
         "pg_catalog.pg_rollups" => Some(vec![
             text("rollup_name"),
             text("source_collection"),
@@ -125,6 +147,48 @@ fn pg_catalog_core_schema(name: &str) -> Option<Vec<(String, DataType)>> {
         "pg_catalog.pg_type" => Some(virtual_views_pg::type_schema()),
         _ => None,
     }
+}
+
+fn pg_settings_rows(session: Option<&CassieSession>) -> Vec<VirtualRow> {
+    crate::app::all_session_settings()
+        .iter()
+        .map(|spec| {
+            let setting = session.map_or_else(
+                || spec.default.to_string(),
+                |session| {
+                    session
+                        .setting(spec.name)
+                        .unwrap_or_else(|_| spec.default.to_string())
+                },
+            );
+            vec![
+                string("name", spec.name),
+                string("setting", setting),
+                ("unit".to_string(), Value::Null),
+                string("category", "Client Connection Defaults"),
+                string("short_desc", "Cassie compatibility setting"),
+                ("extra_desc".to_string(), Value::Null),
+                string(
+                    "context",
+                    if spec.kind == crate::app::SettingKind::Mutable {
+                        "user"
+                    } else {
+                        "internal"
+                    },
+                ),
+                string("vartype", "string"),
+                string("source", "default"),
+                ("min_val".to_string(), Value::Null),
+                ("max_val".to_string(), Value::Null),
+                ("enumvals".to_string(), Value::Null),
+                string("boot_val", spec.default),
+                string("reset_val", spec.default),
+                ("sourcefile".to_string(), Value::Null),
+                ("sourceline".to_string(), Value::Null),
+                bool_value("pending_restart", false),
+            ]
+        })
+        .collect()
 }
 
 fn pg_catalog_projection_schema(name: &str) -> Option<Vec<(String, DataType)>> {

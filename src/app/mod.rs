@@ -55,6 +55,7 @@ mod access;
 mod cache;
 mod error;
 mod session;
+mod session_settings;
 mod state;
 mod vector_write;
 mod write_options;
@@ -69,6 +70,8 @@ pub use session::CassieSession;
 pub(crate) use session::{
     StagedWriteSnapshot, StatementMutationBatch, TransactionConflictIntent, TransactionRowChange,
 };
+pub(crate) use session_settings::all as all_session_settings;
+pub(crate) use session_settings::SettingKind;
 pub use state::{Cassie, CassieRuntimeConfigState};
 
 mod auth;

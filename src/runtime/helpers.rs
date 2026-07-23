@@ -72,6 +72,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::Configuration(_) => "configuration",
         CassieError::InvalidVector(_) => "invalid_vector",
         CassieError::InvalidEmbedding(_) => "invalid_embedding",
+        CassieError::InvalidParameterValue(_) => "invalid_parameter_value",
         CassieError::EmbeddingUnavailable(_) => "embedding_unavailable",
         CassieError::Unauthorized => "unauthorized",
         CassieError::InsufficientPrivilege => "insufficient_privilege",

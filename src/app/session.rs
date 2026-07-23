@@ -1,7 +1,9 @@
+use super::session_settings::SessionSettings;
 use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
 use crate::catalog::DEFAULT_SCHEMA;
+use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct CassieSession {
@@ -11,6 +13,10 @@ pub struct CassieSession {
     access: SessionAccess,
     #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
+    #[serde(skip)]
+    settings: Arc<Mutex<SessionSettings>>,
+    #[serde(skip)]
+    backend_pid: Arc<AtomicI32>,
     #[serde(skip)]
     transaction: Arc<Mutex<SessionTransactionState>>,
     #[serde(skip)]
@@ -177,6 +183,8 @@ impl CassieSession {
             database,
             access,
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
+            settings: Arc::new(Mutex::new(SessionSettings::default())),
+            backend_pid: Arc::new(AtomicI32::new(0)),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
                 isolation: None,
@@ -214,6 +222,8 @@ impl CassieSession {
             database: self.database.clone(),
             access: self.access,
             search_path: Arc::new(Mutex::new(self.search_path())),
+            settings: Arc::new(Mutex::new(self.settings.lock().clone())),
+            backend_pid: Arc::clone(&self.backend_pid),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::InTransaction,
                 isolation,
@@ -320,6 +330,38 @@ impl CassieSession {
             path
         };
         *self.search_path.lock() = normalized;
+    }
+
+    /// Returns the normalized value of a supported session setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-parameter error when `name` is not in Cassie's
+    /// `PostgreSQL` compatibility registry.
+    pub fn setting(&self, name: &str) -> Result<String, CassieError> {
+        if name.trim().eq_ignore_ascii_case("search_path") {
+            return Ok(self.search_path().join(", "));
+        }
+        self.settings.lock().get(name)
+    }
+
+    /// Validates and applies a supported session setting.
+    ///
+    /// # Errors
+    ///
+    /// Returns an invalid-parameter error for unknown settings or values that
+    /// are incompatible with Cassie's fixed `PostgreSQL` compatibility values.
+    pub fn set_setting(&self, name: &str, value: &str) -> Result<String, CassieError> {
+        self.settings.lock().set(name, value)
+    }
+
+    pub(crate) fn set_backend_pid(&self, process_id: i32) {
+        self.backend_pid.store(process_id, Ordering::Relaxed);
+    }
+
+    #[must_use]
+    pub fn backend_pid(&self) -> i32 {
+        self.backend_pid.load(Ordering::Relaxed)
     }
 
     pub(crate) fn begin_transaction(

@@ -485,7 +485,11 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         let lower_name = function.name.to_ascii_lowercase();
         if matches!(
             lower_name.as_str(),
-            "graph_neighbors" | "graph_expand" | "graph_shortest_path"
+            "graph_neighbors"
+                | "graph_expand"
+                | "graph_shortest_path"
+                | "pg_show_all_settings"
+                | "pg_catalog.pg_show_all_settings"
         ) {
             return Ok(QuerySource::TableFunction {
                 name: lower_name,

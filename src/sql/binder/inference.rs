@@ -113,7 +113,7 @@ pub(super) fn infer_source_schema(
         QuerySource::SingleRow => Schema { fields: Vec::new() },
         QuerySource::TableFunction { name, .. } => {
             let schema = Schema {
-                fields: super::select::graph_table_function_columns()
+                fields: super::select::table_function_columns(name)
                     .into_iter()
                     .map(|(name, data_type)| FieldSchema {
                         name,

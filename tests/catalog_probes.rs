@@ -35,10 +35,10 @@ fn should_return_version_function() {
         // Assert
         assert_eq!(result.columns[0].name, "version");
         assert_eq!(result.rows.len(), 1);
-        assert_eq!(
-            result.rows[0][0],
-            Value::String(env!("CARGO_PKG_VERSION").to_string())
-        );
+        assert!(matches!(
+            &result.rows[0][0],
+            Value::String(version) if version.starts_with("PostgreSQL 16.0 compatible Cassie ")
+        ));
 
         let _ = std::fs::remove_dir_all(path);
     });

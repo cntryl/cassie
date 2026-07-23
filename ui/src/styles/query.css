@@ -1,6 +1,6 @@
 .cassie-query-route {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   block-size: 100%;
   min-block-size: 0;
   overflow: hidden;
@@ -9,7 +9,9 @@
 .cassie-query-page {
   position: relative;
   display: flex;
-  block-size: auto;
+  flex: 0 0 100dvh;
+  block-size: 100dvh;
+  max-block-size: 100dvh;
   min-block-size: 0;
   flex-direction: column;
   gap: 0;
@@ -18,12 +20,35 @@
 }
 
 .cassie-query-workspace {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   flex: 1 1 auto;
   block-size: 100%;
   min-block-size: 0;
   border-radius: 0;
   background: var(--cassie-surface);
   overflow: hidden;
+}
+
+.cassie-query-availability-slot:empty {
+  display: none;
+}
+
+.cassie-query-availability-status {
+  display: flex;
+  min-block-size: 2.25rem;
+  align-items: center;
+  gap: var(--ak-space-2, 0.5rem);
+  padding: var(--ak-space-1, 0.25rem) var(--ak-space-3, 0.75rem);
+  border-bottom: 1px solid var(--cassie-border-subtle);
+  background: var(--ak-color-surface-muted);
+  color: var(--ak-color-text-muted);
+  font-size: var(--ak-font-size-xs, 0.75rem);
+}
+
+.cassie-query-availability-status > span {
+  min-inline-size: 0;
+  flex: 1 1 auto;
 }
 
 .cassie-query-editor-panel {
@@ -43,12 +68,20 @@
   font-size: var(--ak-font-size-sm, 0.875rem);
 }
 
+.cassie-query-results-panel-header [data-slot="toolbar-title"] {
+  font-size: var(--ak-font-size-sm, 0.875rem);
+}
+
 .cassie-query-editor-toolbar {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--ak-space-2, 0.5rem);
   min-inline-size: 0;
+}
+
+.cassie-query-primary-action {
+  min-inline-size: 5.5rem;
 }
 
 .cassie-query-editor-wrapper {
@@ -107,7 +140,7 @@
 }
 
 .cassie-query-execution-summary[data-empty="true"] {
-  visibility: hidden;
+  display: none;
 }
 
 .cassie-query-execution-summary p {
@@ -142,13 +175,20 @@
 
 .cassie-query-tabs {
   justify-self: start;
-  margin: 0 var(--ak-space-3, 0.75rem);
+  margin: 0;
+  padding: 0;
+  gap: var(--ak-space-2, 0.5rem);
+  background: transparent;
 }
 
 .cassie-query-tab-trigger {
   display: inline-flex;
   align-items: center;
   gap: var(--ak-space-xs, 0.25rem);
+}
+
+.cassie-query-tab-trigger[data-active="true"] {
+  background: var(--ak-color-active);
 }
 
 .cassie-query-tab-content {
@@ -184,7 +224,8 @@
 }
 
 .cassie-resizable-split-vertical {
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: var(--cassie-split-size, 52%) 0.35rem minmax(0, 1fr);
 }
 
 .cassie-resizable-split-pane {
@@ -261,6 +302,13 @@
 }
 
 @media (max-width: 60rem) {
+  .cassie-query-page {
+    flex: 0 0 auto;
+    block-size: min(55rem, 78vh);
+    min-block-size: min(55rem, 78vh);
+    max-block-size: min(55rem, 78vh);
+  }
+
   .cassie-query-workspace {
     block-size: min(55rem, 78vh);
   }
@@ -691,45 +739,8 @@
   background: var(--background);
 }
 
-.cassie-query-tabs-scroll {
-  display: flex;
-  flex: 1;
-  gap: 0.25rem;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.cassie-query-tab-item {
-  display: grid;
-  flex: 0 0 auto;
-  min-width: 7rem;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--ak-color-border);
-  border-radius: 0.375rem;
-  overflow: hidden;
-  gap: 0.1rem;
-  text-align: left;
-}
-
-.cassie-query-tab-item[aria-selected="true"] {
-  background: var(--ak-color-selected);
-}
-.cassie-query-tab-item small {
-  color: var(--ak-color-text);
-}
-
-.cassie-query-tab-close-list {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
-.cassie-query-tab-close-list button {
-  min-inline-size: 2rem;
-  min-block-size: 2rem;
-}
-
 .cassie-query-empty {
+  flex: 1 1 auto;
   display: grid;
   place-content: center;
   justify-items: center;
@@ -746,10 +757,7 @@
 }
 
 .cassie-query-dialog {
-  position: fixed;
   z-index: 51;
-  top: 50%;
-  left: 50%;
   display: grid;
   gap: 0.75rem;
   width: min(32rem, calc(100vw - 2rem));
@@ -760,7 +768,6 @@
   border-radius: var(--ak-radius-md);
   color: CanvasText;
   background: Canvas;
-  transform: translate(-50%, -50%);
 }
 
 .cassie-query-database-list {
@@ -795,20 +802,45 @@
   color: CanvasText;
 }
 
+.cassie-delete-query-dialog {
+  gap: 1rem;
+  width: min(28rem, calc(100vw - 2rem));
+}
+
+.cassie-delete-query-dialog-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.cassie-delete-query-dialog-header > div {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.cassie-delete-query-dialog-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  color: var(--ak-color-danger, #b42318);
+  background: color-mix(in srgb, var(--ak-color-danger, #b42318) 12%, transparent);
+}
+
+.cassie-delete-query-dialog-actions {
+  display: flex;
+  gap: 0.625rem;
+  justify-content: flex-end;
+}
+
 @media (width <= 48rem) {
   .cassie-query-editor-toolbar button,
-  .cassie-query-tab-close-list button,
   .cassie-admin-sidebar-toggle,
   .cassie-resizable-split-handle {
     min-inline-size: 44px;
     min-block-size: 44px;
-  }
-  .cassie-query-dialog {
-    top: 1rem;
-    right: 1rem;
-    left: 1rem;
-    width: auto;
-    max-height: calc(100dvh - 2rem);
-    transform: none;
   }
 }

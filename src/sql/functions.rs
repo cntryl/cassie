@@ -9,6 +9,12 @@ pub enum FunctionId {
     HybridScore,
     Snippet,
     Version,
+    CassieVersion,
+    CurrentSetting,
+    SetConfig,
+    PgEncodingToChar,
+    HasDatabasePrivilege,
+    PgBackendPid,
     CurrentSchema,
     CurrentDatabase,
     CurrentUser,
@@ -134,6 +140,61 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
     ScalarFunction {
         id: FunctionId::Version,
         name: "pg_catalog.version",
+        arity: FunctionArity::Exact(0),
+    },
+    ScalarFunction {
+        id: FunctionId::CassieVersion,
+        name: "cassie_version",
+        arity: FunctionArity::Exact(0),
+    },
+    ScalarFunction {
+        id: FunctionId::CurrentSetting,
+        name: "current_setting",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+    },
+    ScalarFunction {
+        id: FunctionId::CurrentSetting,
+        name: "pg_catalog.current_setting",
+        arity: FunctionArity::Range { min: 1, max: 2 },
+    },
+    ScalarFunction {
+        id: FunctionId::SetConfig,
+        name: "set_config",
+        arity: FunctionArity::Exact(3),
+    },
+    ScalarFunction {
+        id: FunctionId::SetConfig,
+        name: "pg_catalog.set_config",
+        arity: FunctionArity::Exact(3),
+    },
+    ScalarFunction {
+        id: FunctionId::PgEncodingToChar,
+        name: "pg_encoding_to_char",
+        arity: FunctionArity::Exact(1),
+    },
+    ScalarFunction {
+        id: FunctionId::PgEncodingToChar,
+        name: "pg_catalog.pg_encoding_to_char",
+        arity: FunctionArity::Exact(1),
+    },
+    ScalarFunction {
+        id: FunctionId::HasDatabasePrivilege,
+        name: "has_database_privilege",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+    },
+    ScalarFunction {
+        id: FunctionId::HasDatabasePrivilege,
+        name: "pg_catalog.has_database_privilege",
+        arity: FunctionArity::Range { min: 2, max: 3 },
+    },
+    ScalarFunction {
+        id: FunctionId::PgBackendPid,
+        name: "pg_backend_pid",
+        arity: FunctionArity::Exact(0),
+    },
+    ScalarFunction {
+        id: FunctionId::PgBackendPid,
+        name: "pg_catalog.pg_backend_pid",
         arity: FunctionArity::Exact(0),
     },
     ScalarFunction {

@@ -200,6 +200,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         (" != ", BinaryOp::NotEq),
         (" like ", BinaryOp::Like),
         (" = ", BinaryOp::Eq),
+        ("=", BinaryOp::Eq),
         (" < ", BinaryOp::Lt),
         (" > ", BinaryOp::Gt),
     ] {

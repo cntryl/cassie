@@ -256,6 +256,12 @@ fn execute_schema_object_group(
         LogicalCommand::DropRole(statement) => Some(CommandExecution::invalidating(
             super::role_command::drop_role(cassie, statement),
         )),
+        LogicalCommand::GrantDatabaseConnect(statement) => Some(CommandExecution::invalidating(
+            super::role_command::grant_database_connect(cassie, session, statement),
+        )),
+        LogicalCommand::RevokeDatabaseConnect(statement) => Some(CommandExecution::invalidating(
+            super::role_command::revoke_database_connect(cassie, session, statement),
+        )),
         LogicalCommand::CreateIndex(statement) => Some(CommandExecution::creation(
             super::schema_creation::create_index(cassie, statement),
         )),

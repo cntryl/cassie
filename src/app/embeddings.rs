@@ -44,22 +44,32 @@ impl EmbeddingProvider for DisabledProvider {
 pub(super) fn build_embedding_provider(
     config: &CassieRuntimeConfig,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
+    let max_response_bytes = config.embeddings_max_response_bytes;
     match &config.embeddings {
         EmbeddingsRuntimeConfig::Disabled => Ok(Arc::new(DisabledProvider)),
-        EmbeddingsRuntimeConfig::Voyage(runtime) => build_voyage_provider(runtime),
-        EmbeddingsRuntimeConfig::Cohere(runtime) => build_cohere_provider(runtime),
-        EmbeddingsRuntimeConfig::Local(runtime) => build_local_provider(runtime),
-        EmbeddingsRuntimeConfig::OpenAI(runtime) => build_openai_provider(runtime),
-        EmbeddingsRuntimeConfig::OpenAiCompatible(runtime) => {
-            build_openai_compatible_provider(runtime)
+        EmbeddingsRuntimeConfig::Voyage(runtime) => {
+            build_voyage_provider(runtime, max_response_bytes)
         }
-        EmbeddingsRuntimeConfig::Tei(runtime) => build_tei_provider(runtime),
-        EmbeddingsRuntimeConfig::Ollama(runtime) => build_ollama_provider(runtime),
+        EmbeddingsRuntimeConfig::Cohere(runtime) => {
+            build_cohere_provider(runtime, max_response_bytes)
+        }
+        EmbeddingsRuntimeConfig::Local(runtime) => build_local_provider(runtime),
+        EmbeddingsRuntimeConfig::OpenAI(runtime) => {
+            build_openai_provider(runtime, max_response_bytes)
+        }
+        EmbeddingsRuntimeConfig::OpenAiCompatible(runtime) => {
+            build_openai_compatible_provider(runtime, max_response_bytes)
+        }
+        EmbeddingsRuntimeConfig::Tei(runtime) => build_tei_provider(runtime, max_response_bytes),
+        EmbeddingsRuntimeConfig::Ollama(runtime) => {
+            build_ollama_provider(runtime, max_response_bytes)
+        }
     }
 }
 
 fn build_openai_provider(
     runtime: &OpenAiRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let config = OpenAiProviderConfig {
         api_key: runtime.config.api_key.clone(),
@@ -73,12 +83,13 @@ fn build_openai_provider(
             .unwrap_or_else(|| "https://api.openai.com".to_string()),
     };
 
-    let provider = OpenAiProvider::with_config(config)?;
+    let provider = OpenAiProvider::with_config(config)?.with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 
 fn build_voyage_provider(
     runtime: &super::VoyageRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let provider = VoyageProvider::with_config(super::VoyageProviderConfig {
         api_key: runtime.api_key.clone(),
@@ -88,12 +99,14 @@ fn build_voyage_provider(
         max_batch_size: runtime.max_batch_size,
         max_retries: runtime.max_retries,
         base_url: runtime.base_url.clone(),
-    })?;
+    })?
+    .with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 
 fn build_cohere_provider(
     runtime: &super::CohereRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let provider = CohereProvider::with_config(super::CohereProviderConfig {
         api_key: runtime.api_key.clone(),
@@ -103,7 +116,8 @@ fn build_cohere_provider(
         max_batch_size: runtime.max_batch_size,
         max_retries: runtime.max_retries,
         base_url: runtime.base_url.clone(),
-    })?;
+    })?
+    .with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 
@@ -119,6 +133,7 @@ fn build_local_provider(
 
 fn build_openai_compatible_provider(
     runtime: &OpenAiCompatibleRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
         api_key: runtime.api_key.clone(),
@@ -128,12 +143,14 @@ fn build_openai_compatible_provider(
         max_batch_size: runtime.max_batch_size,
         max_retries: runtime.max_retries,
         base_url: runtime.base_url.clone(),
-    })?;
+    })?
+    .with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 
 fn build_tei_provider(
     runtime: &SelfHostedEmbeddingRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url: runtime.base_url.clone(),
@@ -142,12 +159,14 @@ fn build_tei_provider(
         timeout: std::time::Duration::from_secs(runtime.timeout_seconds),
         max_batch_size: runtime.max_batch_size,
         max_retries: runtime.max_retries,
-    })?;
+    })?
+    .with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 
 fn build_ollama_provider(
     runtime: &SelfHostedEmbeddingRuntimeConfig,
+    max_response_bytes: usize,
 ) -> Result<Arc<dyn EmbeddingProvider>, CassieError> {
     let provider = OllamaProvider::with_config(OllamaProviderConfig {
         base_url: runtime.base_url.clone(),
@@ -156,7 +175,8 @@ fn build_ollama_provider(
         timeout: std::time::Duration::from_secs(runtime.timeout_seconds),
         max_batch_size: runtime.max_batch_size,
         max_retries: runtime.max_retries,
-    })?;
+    })?
+    .with_max_response_bytes(max_response_bytes);
     Ok(Arc::new(provider) as Arc<dyn EmbeddingProvider>)
 }
 

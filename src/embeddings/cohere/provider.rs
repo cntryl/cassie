@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
+use crate::embeddings::response::read_response;
 use crate::embeddings::EmbeddingProvider;
 use crate::embeddings::{Embedding, EmbeddingError};
 use crate::runtime::QueryExecutionControls;
@@ -31,6 +32,7 @@ pub struct CohereProvider {
     max_batch_size: usize,
     max_retries: usize,
     base_url: String,
+    max_response_bytes: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -96,7 +98,13 @@ impl CohereProvider {
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
             base_url: config.base_url,
+            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
         })
+    }
+
+    pub(crate) fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
+        self.max_response_bytes = max_response_bytes.max(1);
+        self
     }
 
     fn embed_batch(
@@ -127,6 +135,7 @@ impl CohereProvider {
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
+            let max_response_bytes = self.max_response_bytes;
 
             let response = run_controlled_request(self.provider_name(), controls, move || {
                 let response = client
@@ -135,9 +144,7 @@ impl CohereProvider {
                     .header("Authorization", format!("Bearer {api_key}"))
                     .json(&request_snapshot)
                     .send()?;
-                let status = response.status();
-                let body = response.text()?;
-                Ok::<_, reqwest::Error>((status, body))
+                read_response(response, max_response_bytes)
             })?;
 
             match response {
@@ -197,7 +204,7 @@ impl CohereProvider {
                     });
                 }
                 Err(error) => {
-                    return Err(EmbeddingError::RequestError(error.to_string()));
+                    return Err(error.into_embedding_error(self.provider_name()));
                 }
             }
         }

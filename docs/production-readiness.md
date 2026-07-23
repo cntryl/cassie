@@ -17,6 +17,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Persisted full-text SQL evidence covering posting reads, exact BM25 equivalence, snippets, structured prefilters, bounded candidate row fetches, transaction overlays, corruption fallback, cancellation, and memory limits.
 - Exact, HNSW, IVFFlat, and hybrid evidence covering bound parameters, persisted candidates, exact reranking, structured filters, deletion visibility, explicit fallback diagnostics, cancellation, hard memory limits, and at least 0.90 ANN recall on deterministic 10k and 100k disk-backed fixtures.
 - Deterministic local-server contracts for OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and local embeddings, including request shape, ordering, dimensions, retry deadlines, transport timeouts, and active cancellation.
+- Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Container and supply-chain workflows for supported targets.
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
@@ -33,6 +34,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 ## Remaining Production Blockers
 
+- Database-image checksums detect accidental or malicious content changes but do not authenticate who produced an image. Images crossing an untrusted channel require authenticated transport or external signing until a Cassie-owned signing format and key-management contract are specified.
 - Track the upstream low-severity DOMPurify advisory inherited through Monaco (`GHSA-c2j3-45gr-mqc4`); no fixed dependency version is currently available. The frontend gate continues to fail on moderate-or-higher production advisories.
 
 - Retain complete same-commit benchmark artifacts from a named disk-backed deployment profile at representative fixture sizes and concurrency.

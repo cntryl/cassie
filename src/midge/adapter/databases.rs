@@ -340,10 +340,30 @@ impl Midge {
         database: &str,
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
         let entries = self.raw_scan_prefix(super::StorageFamily::Schema, b"")?;
-        Ok(entries
-            .into_iter()
-            .filter(|(key, value)| catalog_entry_belongs_to_database(key, value, database))
-            .collect())
+        let mut scoped_entries = Vec::new();
+        for (key, value) in entries {
+            if !catalog_entry_belongs_to_database(&key, &value, database) {
+                continue;
+            }
+            if matches!(key_family(&key), Some("collections" | "namespaces")) {
+                let values: Vec<String> = serde_json::from_slice(&value).map_err(|error| {
+                    CassieError::Parse(format!("invalid database catalog list: {error}"))
+                })?;
+                let values = values
+                    .into_iter()
+                    .filter(|value| catalog_name_belongs_to_database(value, database))
+                    .collect::<Vec<_>>();
+                if values.is_empty() {
+                    continue;
+                }
+                let value = serde_json::to_vec(&values)
+                    .map_err(|error| CassieError::Parse(error.to_string()))?;
+                scoped_entries.push((key, value));
+            } else {
+                scoped_entries.push((key, value));
+            }
+        }
+        Ok(scoped_entries)
     }
 
     pub(crate) fn stage_database_family(
@@ -425,8 +445,11 @@ impl Midge {
         let mut collection_names = Vec::new();
         let mut namespace_names = Vec::new();
         for (key, value) in catalog_entries {
+            validate_database_catalog_entry(&key, &value, source_database)?;
             let Some(family) = key_family(&key) else {
-                continue;
+                return Err(CassieError::Parse(
+                    "database image contains an invalid catalog key".to_string(),
+                ));
             };
             match family {
                 "layout" | "database-lifecycle" | "schema-epoch" | "databases" | "database" => {
@@ -672,39 +695,86 @@ fn key_components(key: &[u8]) -> impl Iterator<Item = &[u8]> {
 
 fn key_family(key: &[u8]) -> Option<&str> {
     key_components(key)
-        .nth(3)
+        .nth(2)
         .and_then(|component| std::str::from_utf8(component).ok())
 }
 
 fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], database: &str) -> bool {
-    let excluded = [
-        "layout",
-        "function",
-        "procedure",
-        "role",
-        "schema-epoch",
-        "operator-feedback",
-        "projection-comparison-report",
-        "projection-consistency-report",
-        "projection-event",
-        "projection-repair-report",
-        "operational-assignment",
-        "schema-cleanup",
-        "index-publication",
-        "schema-operation",
-        "field-rename-operation",
-        "field-drop-operation",
-    ];
     let Some(family) = key_family(key) else {
         return false;
     };
-    if excluded.contains(&family) {
-        return false;
+    if matches!(family, "collections" | "namespaces") {
+        return serde_json::from_slice::<Vec<String>>(value).is_ok_and(|values| {
+            values
+                .iter()
+                .any(|value| catalog_name_belongs_to_database(value, database))
+        });
     }
-    if key_components(key).any(|component| component.eq_ignore_ascii_case(database.as_bytes())) {
-        return true;
+    is_database_scoped_catalog_family(family)
+        && key_components(key)
+            .nth(3)
+            .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
+}
+
+pub(crate) fn validate_database_catalog_entry(
+    key: &[u8],
+    value: &[u8],
+    database: &str,
+) -> Result<(), CassieError> {
+    let family = key_family(key).ok_or_else(|| {
+        CassieError::Parse("database image contains an invalid catalog key".to_string())
+    })?;
+    if matches!(family, "collections" | "namespaces") {
+        let values: Vec<String> = serde_json::from_slice(value).map_err(|error| {
+            CassieError::Parse(format!("invalid database catalog list: {error}"))
+        })?;
+        if values
+            .iter()
+            .all(|value| catalog_name_belongs_to_database(value, database))
+        {
+            return Ok(());
+        }
+    } else if is_database_scoped_catalog_family(family)
+        && key_components(key)
+            .nth(3)
+            .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
+    {
+        return Ok(());
     }
-    std::str::from_utf8(value).is_ok_and(|value| value.contains(database))
+    Err(CassieError::Unsupported(format!(
+        "database image catalog family '{family}' is not scoped to database '{database}'"
+    )))
+}
+
+fn is_database_scoped_catalog_family(family: &str) -> bool {
+    matches!(
+        family,
+        "schema"
+            | "row-schema"
+            | "projection"
+            | "vector-index"
+            | "index"
+            | "view"
+            | "sequence"
+            | "constraints"
+            | "namespace"
+            | "cardinality"
+            | "collection-meta"
+            | "rollup"
+            | "retention"
+            | "collection-generation"
+            | "maintenance-debt"
+            | "graph"
+    )
+}
+
+fn catalog_name_belongs_to_database(name: &str, database: &str) -> bool {
+    let name = name.trim();
+    name.eq_ignore_ascii_case(database)
+        || name
+            .get(..database.len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(database))
+            && name.as_bytes().get(database.len()) == Some(&b'.')
 }
 
 fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> Vec<u8> {
@@ -766,10 +836,23 @@ fn rewrite_json_strings(
 fn rewrite_string_list(raw: &[u8], source: &str, target: &str) -> Result<Vec<String>, CassieError> {
     let values: Vec<String> = serde_json::from_slice(raw)
         .map_err(|error| CassieError::Parse(format!("invalid database catalog list: {error}")))?;
-    Ok(values
+    values
         .into_iter()
-        .map(|value| value.replace(source, target))
-        .collect())
+        .map(|value| {
+            if !catalog_name_belongs_to_database(&value, source) {
+                return Err(CassieError::Unsupported(format!(
+                    "database image catalog name '{value}' is outside source database '{source}'"
+                )));
+            }
+            Ok(rewrite_catalog_name(&value, source, target))
+        })
+        .collect()
+}
+
+fn rewrite_catalog_name(value: &str, source: &str, target: &str) -> String {
+    value
+        .get(source.len()..)
+        .map_or_else(|| target.to_string(), |suffix| format!("{target}{suffix}"))
 }
 
 fn merge_string_list(
@@ -819,8 +902,36 @@ fn is_database_catalog_data_key(key: &[u8]) -> bool {
     match key_family(key) {
         Some("database" | "databases" | "collections" | "namespaces") | None => false,
         Some("namespace") => key_components(key)
-            .nth(5)
+            .nth(4)
             .is_none_or(|schema| !schema.eq_ignore_ascii_case(b"public")),
         Some(_) => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{catalog_entry_belongs_to_database, validate_database_catalog_entry};
+
+    #[test]
+    fn should_recognize_only_database_scoped_catalog_keys() {
+        // Arrange
+        let matching = super::super::key_encoding::collection_schema_key("analytics.public.docs");
+        let foreign = super::super::key_encoding::collection_schema_key("other.public.docs");
+        let role = super::super::key_encoding::role_key("injected_admin");
+
+        // Act
+        let matching_result = validate_database_catalog_entry(&matching, b"{}", "analytics");
+        let foreign_result = validate_database_catalog_entry(&foreign, b"{}", "analytics");
+        let role_result = validate_database_catalog_entry(&role, b"{}", "analytics");
+
+        // Assert
+        assert!(catalog_entry_belongs_to_database(
+            &matching,
+            b"{}",
+            "analytics"
+        ));
+        assert!(matching_result.is_ok());
+        assert!(foreign_result.is_err());
+        assert!(role_result.is_err());
     }
 }

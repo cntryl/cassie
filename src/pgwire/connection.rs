@@ -1,6 +1,8 @@
 use std::io;
+use std::net::IpAddr;
 use std::str;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
@@ -15,6 +17,8 @@ const CANCEL_REQUEST_CODE: i32 = 80_877_102;
 const MIN_STARTUP_MESSAGE_BYTES: usize = 8;
 const PASSWORD_MESSAGE_TAG: u8 = b'p';
 const MAX_FRONTEND_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
+const MAX_STARTUP_MESSAGE_BYTES: usize = 64 * 1024;
+const PGWIRE_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[path = "connection/blocking.rs"]
 mod blocking;
@@ -53,7 +57,8 @@ use state::{
 };
 use transport::PgwireTransport;
 
-type PgwireReader = BufReader<tokio::io::ReadHalf<PgwireTransport>>;
+type PgwireReader =
+    BufReader<tokio::io::ReadHalf<crate::transport::TimedWriteTransport<PgwireTransport>>>;
 use writers::{
     write_auth_cleartext, write_auth_ok, write_backend_key_data, write_copy_data, write_copy_done,
     write_copy_in_response, write_copy_out_response, write_error_response,
@@ -96,15 +101,25 @@ pub async fn run_connection(
     config: CassieRuntimeConfig,
     tls_config: Option<Arc<rustls::ServerConfig>>,
     require_tls: bool,
+    peer_ip: IpAddr,
 ) {
     let runtime = cassie.runtime.clone();
     let _session_guard = runtime.begin_pgwire_session();
-    let Ok(transport) = PgwireTransport::negotiate(socket, tls_config).await else {
+    let Ok(Ok(transport)) = tokio::time::timeout(
+        PGWIRE_HANDSHAKE_TIMEOUT,
+        PgwireTransport::negotiate(socket, tls_config),
+    )
+    .await
+    else {
         return;
     };
     if require_tls && !transport.is_tls() {
         return;
     }
+    let transport = crate::transport::TimedWriteTransport::new(
+        transport,
+        Duration::from_millis(config.limits.pgwire_write_timeout_ms),
+    );
     let (read_half, mut write_half) = tokio::io::split(transport);
     let mut reader = BufReader::new(read_half);
     let mut state = SessionState::new(&runtime.limits());
@@ -114,30 +129,47 @@ pub async fn run_connection(
     loop {
         let state_result = match handshake_state {
             HandshakeState::AwaitStartup => {
-                handle_startup(
-                    cassie.clone(),
-                    &config,
-                    &runtime,
-                    &mut reader,
-                    &mut write_half,
-                    &mut state,
+                match tokio::time::timeout(
+                    PGWIRE_HANDSHAKE_TIMEOUT,
+                    handle_startup(
+                        cassie.clone(),
+                        &config,
+                        &runtime,
+                        &mut reader,
+                        &mut write_half,
+                        &mut state,
+                    ),
                 )
                 .await
+                {
+                    Ok(step) => step,
+                    Err(_) => ConnectionStep::Break,
+                }
             }
             HandshakeState::AwaitPassword {
                 ref user,
                 ref database,
             } => {
-                handle_password(
-                    cassie.clone(),
-                    &runtime,
-                    &mut reader,
-                    &mut write_half,
-                    &mut state,
-                    user.clone(),
-                    database.clone(),
+                match tokio::time::timeout(
+                    PGWIRE_HANDSHAKE_TIMEOUT,
+                    handle_password(
+                        cassie.clone(),
+                        &runtime,
+                        &mut reader,
+                        &mut write_half,
+                        &mut state,
+                        PasswordAuthContext {
+                            user: user.clone(),
+                            database: database.clone(),
+                            peer_ip,
+                        },
+                    ),
                 )
                 .await
+                {
+                    Ok(step) => step,
+                    Err(_) => ConnectionStep::Break,
+                }
             }
             HandshakeState::Ready => {
                 handle_ready(
@@ -280,21 +312,31 @@ async fn handle_startup(
     }
 }
 
+struct PasswordAuthContext {
+    user: String,
+    database: Option<String>,
+    peer_ip: IpAddr,
+}
+
 async fn handle_password(
     cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
     state: &mut SessionState,
-    user: String,
-    database: Option<String>,
+    auth: PasswordAuthContext,
 ) -> ConnectionStep {
     match read_password_message(reader).await {
         Ok(password) => {
             runtime.record_pgwire_message("password");
             let auth_result = run_pgwire_blocking(cassie.clone(), "pgwire_auth", move |cassie| {
                 cassie
-                    .authenticate_principal(&user, Some(&password), database.clone())
+                    .authenticate_network_principal(
+                        &auth.user,
+                        Some(&password),
+                        auth.database.clone(),
+                        auth.peer_ip,
+                    )
                     .map(|principal| principal.session)
             })
             .await;
@@ -326,7 +368,7 @@ async fn handle_password(
                     let _ = write_ready_for_query(write_half, &session).await;
                     ConnectionStep::Continue(HandshakeState::Ready)
                 }
-                Err(CassieError::Unauthorized) => {
+                Err(CassieError::Unauthorized | CassieError::AuthenticationRateLimited) => {
                     runtime.record_pgwire_auth_failed();
                     runtime.record_pgwire_protocol_error();
                     let _ = write_error_response(
@@ -456,29 +498,23 @@ async fn handle_simple_query(
 
     let statements = match simple_query::split_simple_query(&sql) {
         Ok(statements) => statements,
-        Err(simple_query::SplitError::Syntax(message)) => {
-            runtime.record_pgwire_protocol_error();
-            session.mark_transaction_failed();
-            let error = PgWireError::new(PgWireSeverity::Error, "42601", message);
-            if write_error_response(write_half, &error).await.is_err()
-                || write_ready_for_query(write_half, session).await.is_err()
-            {
-                return ConnectionStep::Break;
-            }
-            return ConnectionStep::Continue(HandshakeState::Ready);
-        }
-        Err(simple_query::SplitError::Unsupported(message)) => {
-            runtime.record_pgwire_protocol_error();
-            session.mark_transaction_failed();
-            let error = PgWireError::new(PgWireSeverity::Error, "0A000", message);
-            if write_error_response(write_half, &error).await.is_err()
-                || write_ready_for_query(write_half, session).await.is_err()
-            {
-                return ConnectionStep::Break;
-            }
-            return ConnectionStep::Continue(HandshakeState::Ready);
+        Err(error) => {
+            return write_simple_query_split_error(runtime, write_half, session, error).await;
         }
     };
+
+    if statements.len() == 1
+        && simple_query::is_streaming_copy(&statements[0])
+        && cassie.ensure_session_database_access(session).is_err()
+    {
+        let error = cassie_pg_error(&CassieError::InsufficientPrivilege);
+        if write_error_response(write_half, &error).await.is_err()
+            || write_ready_for_query(write_half, session).await.is_err()
+        {
+            return ConnectionStep::Break;
+        }
+        return ConnectionStep::Continue(HandshakeState::Ready);
+    }
 
     if statements.len() == 1
         && matches!(
@@ -519,6 +555,31 @@ async fn handle_simple_query(
     ConnectionStep::Continue(HandshakeState::Ready)
 }
 
+async fn write_simple_query_split_error(
+    runtime: &crate::runtime::RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    error: simple_query::SplitError,
+) -> ConnectionStep {
+    let (sqlstate, message, protocol_error) = match error {
+        simple_query::SplitError::Syntax(message) => ("42601", message, true),
+        simple_query::SplitError::Unsupported(message) => ("0A000", message, true),
+        simple_query::SplitError::ResourceLimit(message) => ("54000", message, false),
+    };
+    if protocol_error {
+        runtime.record_pgwire_protocol_error();
+    }
+    session.mark_transaction_failed();
+    let error = PgWireError::new(PgWireSeverity::Error, sqlstate, message);
+    if write_error_response(write_half, &error).await.is_err()
+        || write_ready_for_query(write_half, session).await.is_err()
+    {
+        ConnectionStep::Break
+    } else {
+        ConnectionStep::Continue(HandshakeState::Ready)
+    }
+}
+
 async fn execute_simple_statement(
     cassie: Arc<Cassie>,
     runtime: &crate::runtime::RuntimeState,
@@ -538,10 +599,17 @@ async fn execute_simple_statement(
     drop(cancellation);
 
     match query_result {
-        Ok(result) => write_simple_query_result(write_half, result)
-            .await
-            .map(|()| true)
-            .map_err(|_| ()),
+        Ok(result) => match write_simple_query_result(write_half, result).await {
+            Ok(()) => Ok(true),
+            Err(error) if writers::is_backend_frame_too_large(&error) => {
+                let resource_limit = CassieError::ResourceLimit(error.to_string());
+                write_error_response(write_half, &cassie_pg_error(&resource_limit))
+                    .await
+                    .map(|()| false)
+                    .map_err(|_| ())
+            }
+            Err(_) => Err(()),
+        },
         Err(error) => {
             runtime.record_pgwire_protocol_error();
             let pg_error = cassie_pg_error(&error);

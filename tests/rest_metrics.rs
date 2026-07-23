@@ -11,6 +11,65 @@ fn data_dir(label: &str) -> String {
     path.to_string_lossy().to_string()
 }
 
+async fn login_cookie(client: &reqwest::Client, addr: std::net::SocketAddr) -> String {
+    client
+        .post(format!("http://{addr}/api/v1/auth/login"))
+        .json(&serde_json::json!({
+            "username": "postgres",
+            "password": "postgres"
+        }))
+        .send()
+        .await
+        .expect("login request")
+        .headers()
+        .get("set-cookie")
+        .expect("session cookie")
+        .to_str()
+        .expect("session cookie value")
+        .split(';')
+        .next()
+        .expect("session cookie pair")
+        .to_string()
+}
+
+fn assert_rest_metrics(metrics: &serde_json::Value) {
+    assert!(
+        metrics["rest"]["requests_total"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1
+    );
+    assert!(
+        metrics["rest"]["by_method"]["GET"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1
+    );
+    assert!(
+        metrics["rest"]["by_route"]["/health"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1
+    );
+    assert!(
+        metrics["rest"]["by_route"]["/liveness"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1
+    );
+    assert!(
+        metrics["rest"]["by_status_class"]["2xx"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1
+    );
+    let routes = metrics["rest"]["by_route"]
+        .as_object()
+        .expect("route metrics");
+    assert!(routes.len() <= 257);
+    assert!(routes["<other>"].as_u64().unwrap_or_default() > 0);
+}
+
 #[test]
 fn should_record_rest_request_metrics_for_http_routes() {
     // Arrange
@@ -51,52 +110,36 @@ fn should_record_rest_request_metrics_for_http_routes() {
             .await
             .expect("liveness request");
         assert!(liveness.status().is_success());
+        for index in 0..300 {
+            client
+                .get(format!("http://{addr}/unmatched-{index}"))
+                .send()
+                .await
+                .expect("unmatched request");
+        }
 
-        let metrics = client
+        let unauthenticated_metrics = client
             .get(format!("http://{addr}/metrics"))
             .send()
             .await
-            .expect("metrics request")
+            .expect("unauthenticated metrics request");
+        let cookie = login_cookie(&client, addr).await;
+        let metrics = client
+            .get(format!("http://{addr}/metrics"))
+            .header("cookie", cookie)
+            .send()
+            .await
+            .expect("authenticated metrics request")
             .json::<serde_json::Value>()
             .await
             .expect("metrics json");
 
         // Assert
-        assert!(
-            metrics["rest"]["requests_total"]
-                .as_u64()
-                .unwrap_or_default()
-                >= 1,
-            "rest request count should be recorded"
+        assert_eq!(
+            unauthenticated_metrics.status(),
+            reqwest::StatusCode::UNAUTHORIZED
         );
-        assert!(
-            metrics["rest"]["by_method"]["GET"]
-                .as_u64()
-                .unwrap_or_default()
-                >= 1,
-            "rest method counter should be recorded"
-        );
-        assert!(
-            metrics["rest"]["by_route"]["/health"]
-                .as_u64()
-                .unwrap_or_default()
-                >= 1,
-            "rest route counter should be recorded"
-        );
-        assert!(
-            metrics["rest"]["by_route"]["/liveness"]
-                .as_u64()
-                .unwrap_or_default()
-                >= 1,
-            "liveness route counter should be recorded"
-        );
-        assert!(
-            metrics["rest"]["by_status_class"]["2xx"]
-                .as_u64()
-                .unwrap_or_default()
-                >= 1,
-            "rest status-class counter should be recorded"
-        );
+        assert_rest_metrics(&metrics);
 
         server.abort();
         let _ = server.await;

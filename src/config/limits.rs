@@ -92,18 +92,6 @@ pub(super) fn limits_from_env(
             "CASSIE_VECTORIZED_JOIN_BATCH_SIZE",
             defaults.vectorized_join_batch_size,
         ),
-        pgwire_max_connections: parse_usize_min_from(
-            env_reader,
-            "CASSIE_PGWIRE_MAX_CONNECTIONS",
-            defaults.pgwire_max_connections,
-            1,
-        ),
-        rest_max_connections: parse_usize_min_from(
-            env_reader,
-            "CASSIE_REST_MAX_CONNECTIONS",
-            defaults.rest_max_connections,
-            1,
-        ),
         ..adaptive_limits_from_env(env_reader, defaults)
     }
 }
@@ -168,6 +156,45 @@ fn adaptive_limits_from_env(
             defaults.max_query_workers,
             1,
         ),
+        ..transport_limits_from_env(env_reader, defaults)
+    }
+}
+
+fn transport_limits_from_env(
+    env_reader: &impl Fn(&str) -> Option<String>,
+    defaults: &CassieRuntimeLimits,
+) -> CassieRuntimeLimits {
+    CassieRuntimeLimits {
+        pgwire_max_connections: parse_usize_min_from(
+            env_reader,
+            "CASSIE_PGWIRE_MAX_CONNECTIONS",
+            defaults.pgwire_max_connections,
+            1,
+        ),
+        rest_max_connections: parse_usize_min_from(
+            env_reader,
+            "CASSIE_REST_MAX_CONNECTIONS",
+            defaults.rest_max_connections,
+            1,
+        ),
+        rest_max_sessions_per_user: parse_usize_min_from(
+            env_reader,
+            "CASSIE_REST_MAX_SESSIONS_PER_USER",
+            defaults.rest_max_sessions_per_user,
+            1,
+        ),
+        rest_write_timeout_ms: parse_u64_from(
+            env_reader,
+            "CASSIE_REST_WRITE_TIMEOUT_MS",
+            defaults.rest_write_timeout_ms,
+        )
+        .max(1),
+        pgwire_write_timeout_ms: parse_u64_from(
+            env_reader,
+            "CASSIE_PGWIRE_WRITE_TIMEOUT_MS",
+            defaults.pgwire_write_timeout_ms,
+        )
+        .max(1),
         ..defaults.clone()
     }
 }

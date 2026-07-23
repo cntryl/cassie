@@ -5,9 +5,10 @@ use super::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     ConstraintCheck, ConstraintOperator, CreateDatabaseStatement, CreateGraphStatement,
     CreateIndexStatement, CreateRoleStatement, CreateSchemaStatement, CreateSequenceStatement,
-    CreateTableStatement, DataType, DropDatabaseStatement, DropIndexStatement, DropRoleStatement,
-    DropSchemaStatement, DropSequenceStatement, DropTableStatement, Expr, FieldConstraint,
-    FieldDefinition, HashSet, IndexKind, ParsedStatement, QueryStatement, SqlError, Value,
+    CreateTableStatement, DataType, DatabaseConnectPrivilegeStatement, DropDatabaseStatement,
+    DropIndexStatement, DropRoleStatement, DropSchemaStatement, DropSequenceStatement,
+    DropTableStatement, Expr, FieldConstraint, FieldDefinition, HashSet, IndexKind,
+    ParsedStatement, QueryStatement, SqlError, Value,
 };
 
 #[path = "schema_fields.rs"]
@@ -616,6 +617,46 @@ pub(super) fn parse_drop_role_statement(sql: &str) -> Result<ParsedStatement, Sq
             name: role.to_string(),
             if_exists,
         }),
+    })
+}
+
+pub(super) fn parse_database_connect_privilege_statement(
+    sql: &str,
+    grant: bool,
+) -> Result<ParsedStatement, SqlError> {
+    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let tokens = tokenize_schema_field(trimmed);
+    let connector = if grant { "to" } else { "from" };
+    let expected_verb = if grant { "grant" } else { "revoke" };
+    if tokens.len() != 7
+        || !tokens[0].eq_ignore_ascii_case(expected_verb)
+        || !tokens[1].eq_ignore_ascii_case("connect")
+        || !tokens[2].eq_ignore_ascii_case("on")
+        || !tokens[3].eq_ignore_ascii_case("database")
+        || !tokens[5].eq_ignore_ascii_case(connector)
+    {
+        return Err(SqlError::new(format!(
+            "{} CONNECT supports exactly one database and one role",
+            expected_verb.to_ascii_uppercase()
+        )));
+    }
+    let statement = DatabaseConnectPrivilegeStatement {
+        database: parse_identifier(&tokens[4])?,
+        role: parse_identifier(&tokens[6])?,
+    };
+    if statement.database.is_empty() || statement.role.is_empty() {
+        return Err(SqlError::new(format!(
+            "{} CONNECT requires one database and one role",
+            expected_verb.to_ascii_uppercase()
+        )));
+    }
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: if grant {
+            QueryStatement::GrantDatabaseConnect(statement)
+        } else {
+            QueryStatement::RevokeDatabaseConnect(statement)
+        },
     })
 }
 

@@ -311,25 +311,29 @@ async fn write_portal_page_frames(
         row_description_already_sent,
         remains_suspended,
     } = page;
-    let mut frames = Vec::new();
+    let mut frame = Vec::new();
     let mut row_description_sent = row_description_already_sent;
     if !row_description_sent && !columns.is_empty() {
-        append_row_description_frame(&mut frames, columns, result_formats)
+        append_row_description_frame(&mut frame, columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+        write_frame(write_half, &frame).await?;
         row_description_sent = true;
     }
     for row in rows {
-        append_data_row_frame(&mut frames, row, columns, result_formats)
+        frame.clear();
+        append_data_row_frame(&mut frame, row, columns, result_formats)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+        write_frame(write_half, &frame).await?;
     }
+    frame.clear();
     if remains_suspended {
-        append_portal_suspended_frame(&mut frames)
+        append_portal_suspended_frame(&mut frame)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     } else {
-        append_command_complete_frame(&mut frames, command)
+        append_command_complete_frame(&mut frame, command)
             .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     }
-    write_frame(write_half, &frames).await?;
+    write_frame(write_half, &frame).await?;
     Ok(row_description_sent)
 }
 

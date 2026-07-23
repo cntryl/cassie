@@ -2,6 +2,7 @@ use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use rustls::ServerConfig;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
@@ -9,7 +10,7 @@ use tokio::net::TcpStream;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
-use super::{MAX_FRONTEND_MESSAGE_BYTES, SSL_REQUEST_CODE};
+use super::{MAX_STARTUP_MESSAGE_BYTES, SSL_REQUEST_CODE};
 
 pub(super) enum PgwireTransport {
     Plain(TcpStream),
@@ -34,7 +35,7 @@ impl PgwireTransport {
                 let length = i32::from_be_bytes(prefix[..4].try_into().expect("startup length"));
                 if length < 8
                     || usize::try_from(length)
-                        .map_or(true, |length| length > MAX_FRONTEND_MESSAGE_BYTES)
+                        .map_or(true, |length| length > MAX_STARTUP_MESSAGE_BYTES)
                 {
                     return Ok(Self::Plain(socket));
                 }
@@ -42,7 +43,7 @@ impl PgwireTransport {
                     break;
                 }
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(1)).await;
         }
         if i32::from_be_bytes(prefix[..4].try_into().expect("startup length")) != 8
             || i32::from_be_bytes(prefix[4..].try_into().expect("startup code")) != SSL_REQUEST_CODE

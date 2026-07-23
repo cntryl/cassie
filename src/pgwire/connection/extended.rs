@@ -40,6 +40,8 @@ const OID_INT4: i32 = 23;
 const OID_JSON: i32 = 114;
 const OID_FLOAT8: i32 = 701;
 const OID_UNKNOWN: i32 = 705;
+const MAX_PREPARED_STATEMENTS_PER_CONNECTION: usize = 1_024;
+const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
 
 pub(super) async fn handle_frontend_message(
     cassie: Arc<Cassie>,
@@ -198,6 +200,13 @@ async fn handle_parse(
             "prepared statement '{name}' already exists"
         )));
     }
+    if !state.prepared_statements.contains_key(&name)
+        && state.prepared_statements.len() >= MAX_PREPARED_STATEMENTS_PER_CONNECTION
+    {
+        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
+            "prepared statement limit exceeded".to_string(),
+        )));
+    }
     if parameter_type_oids.iter().any(|oid| *oid < 0) {
         return Err(ExtendedQueryError::protocol(
             "parse parameter type OID cannot be negative",
@@ -312,6 +321,11 @@ async fn handle_bind(
         .collect::<Result<Vec<_>, _>>()?;
 
     let replaced_portal = state.remove_portal(&portal).is_some();
+    if !replaced_portal && state.portals.len() >= MAX_PORTALS_PER_CONNECTION {
+        return Err(ExtendedQueryError::cassie(&CassieError::ResourceLimit(
+            "portal limit exceeded".to_string(),
+        )));
+    }
     state.portals.insert(
         portal.clone(),
         Portal {
@@ -712,6 +726,9 @@ impl ExtendedQueryError {
     }
 
     fn protocol_from_io(error: &io::Error) -> Self {
+        if super::writers::is_backend_frame_too_large(error) {
+            return Self::cassie(&CassieError::ResourceLimit(error.to_string()));
+        }
         if error.kind() == io::ErrorKind::Unsupported {
             return Self::unsupported(error.to_string());
         }

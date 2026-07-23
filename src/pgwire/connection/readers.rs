@@ -1,7 +1,7 @@
 use super::{
     io, str, AsyncReadExt, DescribeTarget, FrontendMessage, HandshakeError, PgwireReader,
-    StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES, PASSWORD_MESSAGE_TAG,
-    PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
+    StartupFrame, MAX_FRONTEND_MESSAGE_BYTES, MAX_STARTUP_MESSAGE_BYTES, MIN_STARTUP_MESSAGE_BYTES,
+    PASSWORD_MESSAGE_TAG, PROTOCOL_VERSION_3, SSL_REQUEST_CODE,
 };
 use crate::pgwire::connection::CANCEL_REQUEST_CODE;
 use std::collections::HashMap;
@@ -175,6 +175,13 @@ fn decode_parse_message(
     let parameter_count = read_frontend_i16(payload, cursor)?;
     let parameter_count = usize::try_from(parameter_count)
         .map_err(|_| HandshakeError::Invalid("invalid parse parameter count".to_string()))?;
+    ensure_count_fits_remaining(
+        payload,
+        *cursor,
+        parameter_count,
+        std::mem::size_of::<i32>(),
+        "invalid parse parameter count",
+    )?;
     let mut parameter_type_oids = Vec::with_capacity(parameter_count);
     for _ in 0..parameter_count {
         parameter_type_oids.push(read_frontend_i32(payload, cursor)?);
@@ -212,6 +219,13 @@ fn read_bind_formats(
     let count = read_frontend_i16(payload, cursor)?;
     let count =
         usize::try_from(count).map_err(|_| HandshakeError::Invalid(count_error.to_string()))?;
+    ensure_count_fits_remaining(
+        payload,
+        *cursor,
+        count,
+        std::mem::size_of::<i16>(),
+        count_error,
+    )?;
     let mut formats = Vec::with_capacity(count);
     for _ in 0..count {
         formats.push(read_frontend_i16(payload, cursor)?);
@@ -226,6 +240,13 @@ fn read_bind_parameters(
     let parameter_count = read_frontend_i16(payload, cursor)?;
     let parameter_count = usize::try_from(parameter_count)
         .map_err(|_| HandshakeError::Invalid("invalid bind parameter count".to_string()))?;
+    ensure_count_fits_remaining(
+        payload,
+        *cursor,
+        parameter_count,
+        std::mem::size_of::<i32>(),
+        "invalid bind parameter count",
+    )?;
     let mut parameters = Vec::with_capacity(parameter_count);
     for _ in 0..parameter_count {
         let value_len = read_frontend_i32(payload, cursor)?;
@@ -245,6 +266,22 @@ fn read_bind_parameters(
         *cursor = end;
     }
     Ok(parameters)
+}
+
+fn ensure_count_fits_remaining(
+    payload: &[u8],
+    cursor: usize,
+    count: usize,
+    minimum_item_bytes: usize,
+    message: &str,
+) -> Result<(), HandshakeError> {
+    let minimum = count
+        .checked_mul(minimum_item_bytes)
+        .ok_or_else(|| HandshakeError::Invalid(message.to_string()))?;
+    if payload.len().saturating_sub(cursor) < minimum {
+        return Err(HandshakeError::Invalid(message.to_string()));
+    }
+    Ok(())
 }
 
 fn decode_describe_message(
@@ -367,7 +404,7 @@ pub(super) async fn read_startup_frame(
             "startup frame too small".to_string(),
         ));
     }
-    if size > MAX_FRONTEND_MESSAGE_BYTES {
+    if size > MAX_STARTUP_MESSAGE_BYTES {
         return Err(HandshakeError::Invalid(
             "startup frame exceeds supported bounds".to_string(),
         ));
@@ -510,4 +547,41 @@ pub(super) fn read_null_terminated(
 
     *cursor += end + 1;
     Ok(decoded.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_frontend_message;
+
+    #[test]
+    fn should_reject_count_fields_that_exceed_the_remaining_frontend_payload() {
+        // Arrange
+        let mut parse = b"statement\0SELECT $1\0".to_vec();
+        parse.extend_from_slice(&i16::MAX.to_be_bytes());
+        let mut bind_formats = b"portal\0statement\0".to_vec();
+        bind_formats.extend_from_slice(&i16::MAX.to_be_bytes());
+        let mut bind_parameters = b"portal\0statement\0".to_vec();
+        bind_parameters.extend_from_slice(&0_i16.to_be_bytes());
+        bind_parameters.extend_from_slice(&i16::MAX.to_be_bytes());
+
+        // Act
+        let parse_error = decode_frontend_message(b'P', parse).expect_err("parse count");
+        let format_error = decode_frontend_message(b'B', bind_formats).expect_err("format count");
+        let parameter_error =
+            decode_frontend_message(b'B', bind_parameters).expect_err("parameter count");
+
+        // Assert
+        assert!(matches!(
+            parse_error,
+            super::HandshakeError::Invalid(message) if message.contains("parameter count")
+        ));
+        assert!(matches!(
+            format_error,
+            super::HandshakeError::Invalid(message) if message.contains("format count")
+        ));
+        assert!(matches!(
+            parameter_error,
+            super::HandshakeError::Invalid(message) if message.contains("parameter count")
+        ));
+    }
 }

@@ -2,7 +2,14 @@ use super::{
     normalize_role_name, Argon2, Cassie, CassieError, CassieSession, OsRng, PasswordHash,
     PasswordHasher, PasswordVerifier, RoleMeta, SaltString,
 };
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
+
+#[cfg(test)]
+thread_local! {
+    static PASSWORD_VERIFICATION_COUNT: std::cell::Cell<usize> = const {
+        std::cell::Cell::new(0)
+    };
+}
 
 #[derive(Debug)]
 pub(crate) struct AuthenticatedPrincipal {
@@ -19,6 +26,8 @@ pub(super) fn hash_password(password: &str) -> Result<String, CassieError> {
 }
 
 pub(super) fn verify_password(hash: &str, password: &str) -> Result<bool, CassieError> {
+    #[cfg(test)]
+    PASSWORD_VERIFICATION_COUNT.with(|count| count.set(count.get().saturating_add(1)));
     let parsed = PasswordHash::new(hash)
         .map_err(|error| CassieError::Execution(format!("invalid password hash: {error}")))?;
     Ok(Argon2::default()
@@ -75,21 +84,50 @@ impl Cassie {
         password: Option<&str>,
         database: Option<String>,
     ) -> Result<AuthenticatedPrincipal, CassieError> {
+        self.authenticate_principal_inner(user, password, database, true)
+    }
+
+    fn authenticate_principal_inner(
+        &self,
+        user: &str,
+        password: Option<&str>,
+        database: Option<String>,
+        allow_passwordless: bool,
+    ) -> Result<AuthenticatedPrincipal, CassieError> {
         let normalized = normalize_role_name(user);
         if normalized.is_empty() {
+            let _ = verify_password(&self.dummy_password_hash, password.unwrap_or(""));
             return Err(CassieError::Unauthorized);
         }
 
         if let Some(role) = self.lookup_role(&normalized)? {
-            validate_role_credentials(&role, password)?;
+            self.validate_role_credentials(&role, password, allow_passwordless)?;
             let database = database.unwrap_or_else(|| self.default_database.clone());
             self.ensure_database_exists(&database)?;
+            if !role.can_access_database(&database) {
+                return Err(CassieError::InsufficientPrivilege);
+            }
             let session =
                 CassieSession::authenticated(role.name.clone(), Some(database), role.is_admin);
             return Ok(AuthenticatedPrincipal { session, role });
         }
 
-        self.authenticate_bootstrap_admin(&normalized, password, database)
+        self.authenticate_bootstrap_admin(&normalized, password, database, allow_passwordless)
+    }
+
+    pub(crate) fn authenticate_network_principal(
+        &self,
+        user: &str,
+        password: Option<&str>,
+        database: Option<String>,
+        peer_ip: IpAddr,
+    ) -> Result<AuthenticatedPrincipal, CassieError> {
+        let attempt = self.auth_rate_limiter.consume(user, peer_ip)?;
+        let result = self.authenticate_principal_inner(user, password, database, false);
+        if result.is_ok() {
+            self.auth_rate_limiter.refund(&attempt);
+        }
+        result
     }
 
     fn authenticate_bootstrap_admin(
@@ -97,17 +135,24 @@ impl Cassie {
         normalized_user: &str,
         password: Option<&str>,
         database: Option<String>,
+        allow_passwordless: bool,
     ) -> Result<AuthenticatedPrincipal, CassieError> {
         let bootstrap_user = normalize_role_name(&self.auth_user);
         if normalized_user != bootstrap_user {
+            let _ = verify_password(&self.dummy_password_hash, password.unwrap_or(""));
             return Err(CassieError::Unauthorized);
         }
 
         if self.auth_password.is_empty() {
-            if password.is_some_and(|value| !value.is_empty()) {
+            let _ = verify_password(&self.dummy_password_hash, password.unwrap_or(""));
+            if !allow_passwordless || password.is_some_and(|value| !value.is_empty()) {
                 return Err(CassieError::Unauthorized);
             }
-        } else if password != Some(self.auth_password.as_str()) {
+        } else if !self
+            .bootstrap_password_hash
+            .as_deref()
+            .is_some_and(|hash| verify_password(hash, password.unwrap_or("")).unwrap_or(false))
+        {
             return Err(CassieError::Unauthorized);
         }
 
@@ -117,25 +162,29 @@ impl Cassie {
         let session = CassieSession::authenticated(role.name.clone(), Some(database), true);
         Ok(AuthenticatedPrincipal { session, role })
     }
-}
 
-fn validate_role_credentials(role: &RoleMeta, password: Option<&str>) -> Result<(), CassieError> {
-    if !role.can_login {
-        return Err(CassieError::Unauthorized);
-    }
-
-    if let Some(hash) = role.password_hash.as_deref() {
-        let Some(password) = password else {
-            return Err(CassieError::Unauthorized);
-        };
-        if !verify_password(hash, password)? {
+    fn validate_role_credentials(
+        &self,
+        role: &RoleMeta,
+        password: Option<&str>,
+        allow_passwordless: bool,
+    ) -> Result<(), CassieError> {
+        let hash = role
+            .can_login
+            .then_some(role.password_hash.as_deref())
+            .flatten()
+            .unwrap_or(self.dummy_password_hash.as_str());
+        let verified = verify_password(hash, password.unwrap_or("")).unwrap_or(false);
+        let passwordless_allowed = allow_passwordless
+            && role.can_login
+            && role.password_hash.is_none()
+            && password.is_none_or(str::is_empty);
+        if !passwordless_allowed && (!role.can_login || role.password_hash.is_none() || !verified) {
             return Err(CassieError::Unauthorized);
         }
-    } else if password.is_some_and(|value| !value.is_empty()) {
-        return Err(CassieError::Unauthorized);
-    }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -217,6 +266,31 @@ mod tests {
 
         // Assert
         assert!(validation.is_ok());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_verify_one_password_hash_for_known_and_unknown_invalid_users() {
+        // Arrange
+        let (cassie, path) = cassie_with_config(
+            "constant-cost-auth",
+            crate::config::CassieRuntimeConfig::default(),
+        );
+        PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
+
+        // Act
+        let known = cassie.authenticate_principal("postgres", Some("wrong"), None);
+        let known_count = PASSWORD_VERIFICATION_COUNT.with(std::cell::Cell::get);
+        PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
+        let unknown = cassie.authenticate_principal("missing-user", Some("wrong"), None);
+        let unknown_count = PASSWORD_VERIFICATION_COUNT.with(std::cell::Cell::get);
+
+        // Assert
+        assert!(matches!(known, Err(CassieError::Unauthorized)));
+        assert!(matches!(unknown, Err(CassieError::Unauthorized)));
+        assert_eq!(known_count, 1);
+        assert_eq!(unknown_count, 1);
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }

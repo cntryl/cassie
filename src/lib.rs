@@ -13,6 +13,7 @@ pub mod rest;
 pub mod runtime;
 pub mod search;
 pub mod sql;
+pub(crate) mod transport;
 pub mod types;
 pub mod vector;
 

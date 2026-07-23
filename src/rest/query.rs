@@ -227,6 +227,7 @@ pub(crate) fn schema_with_session(
     cassie: &Cassie,
     session: &CassieSession,
 ) -> Result<QuerySchemaResponse, CassieError> {
+    cassie.ensure_session_database_access(session)?;
     let database = session
         .current_database()
         .unwrap_or(&cassie.default_database);
@@ -483,6 +484,8 @@ fn command_name(statement: &QueryStatement) -> &'static str {
         QueryStatement::CreateRole(_) => "CREATE ROLE",
         QueryStatement::AlterRole(_) => "ALTER ROLE",
         QueryStatement::DropRole(_) => "DROP ROLE",
+        QueryStatement::GrantDatabaseConnect(_) => "GRANT",
+        QueryStatement::RevokeDatabaseConnect(_) => "REVOKE",
         QueryStatement::CreateIndex(_) => "CREATE INDEX",
         QueryStatement::DropIndex(_) => "DROP INDEX",
         QueryStatement::CreateRollup(_) => "CREATE ROLLUP",

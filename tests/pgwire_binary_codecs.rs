@@ -402,6 +402,48 @@ fn should_decode_binary_vector_array_parameters() {
 }
 
 #[test]
+fn should_reject_binary_array_lengths_that_exceed_the_payload() {
+    // Arrange
+    support::with_fallback();
+    let path = support::data_dir("binary-array-length");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let array = [
+            1_i32.to_be_bytes().as_slice(),
+            0_i32.to_be_bytes().as_slice(),
+            23_i32.to_be_bytes().as_slice(),
+            i32::MAX.to_be_bytes().as_slice(),
+            1_i32.to_be_bytes().as_slice(),
+        ]
+        .concat();
+
+        // Act
+        let (frames, server) = start_extended_query(
+            cassie,
+            support::parse_frame_with_types("invalid_array_length_stmt", "SELECT $1", &[34_023]),
+            support::bind_frame_with_formats(
+                "invalid_array_length_portal",
+                "invalid_array_length_stmt",
+                &[1],
+                &[Some(&array)],
+                &[],
+            ),
+            support::execute_frame("invalid_array_length_portal"),
+        )
+        .await;
+
+        // Assert
+        assert!(frames.iter().any(|frame| frame.0 == b'E'));
+        assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+
+        server.stop().await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_apply_mixed_result_formats_with_null_values() {
     // Arrange
     support::with_fallback();

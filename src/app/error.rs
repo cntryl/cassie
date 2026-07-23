@@ -135,6 +135,9 @@ pub enum CassieError {
     #[error("unauthorized")]
     Unauthorized,
 
+    #[error("authentication rate limit exceeded")]
+    AuthenticationRateLimited,
+
     #[error("insufficient privilege")]
     InsufficientPrivilege,
 
@@ -196,6 +199,7 @@ impl CassieError {
                 service_unavailable_descriptor("58030", self.to_string())
             }
             Self::Unauthorized => unauthorized_descriptor(),
+            Self::AuthenticationRateLimited => authentication_rate_limited_descriptor(),
             Self::InsufficientPrivilege => insufficient_privilege_descriptor(),
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
@@ -370,6 +374,17 @@ fn unauthorized_descriptor() -> CassieErrorDescriptor {
     }
 }
 
+fn authentication_rate_limited_descriptor() -> CassieErrorDescriptor {
+    CassieErrorDescriptor {
+        http_status: 429,
+        sql_state: "53300",
+        message: CassieError::AuthenticationRateLimited.to_string(),
+        table: None,
+        column: None,
+        constraint: None,
+    }
+}
+
 fn insufficient_privilege_descriptor() -> CassieErrorDescriptor {
     CassieErrorDescriptor {
         http_status: 403,
@@ -534,6 +549,12 @@ impl From<EmbeddingError> for CassieError {
                 "{provider}: exhausted retry attempts ({attempts}) after: {message}"
             )),
             EmbeddingError::RequestError(message) => CassieError::EmbeddingUnavailable(message),
+            EmbeddingError::ResponseTooLarge {
+                provider,
+                limit_bytes,
+            } => CassieError::EmbeddingUnavailable(format!(
+                "{provider}: response exceeds {limit_bytes} bytes"
+            )),
         }
     }
 }
@@ -549,6 +570,9 @@ impl From<crate::sql::SqlError> for CassieError {
         match value.kind() {
             crate::sql::SqlErrorKind::Syntax => CassieError::InvalidQuery(value.to_string()),
             crate::sql::SqlErrorKind::Unsupported => CassieError::Unsupported(value.to_string()),
+            crate::sql::SqlErrorKind::ResourceLimit => {
+                CassieError::ResourceLimit(value.to_string())
+            }
         }
     }
 }

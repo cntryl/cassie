@@ -11,10 +11,12 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 - Pgwire is the primary query interface and defaults to `127.0.0.1:5432`.
 - Startup negotiates protocol version, user, database, and supported parameters.
 - Password authentication uses Cassie roles and stored password hashes.
+- Invalid known and unknown users follow the same password-verification path. Process-local normalized-user and peer-IP token buckets bound authentication attempts; pgwire intentionally returns the same generic authentication failure when a limit is exhausted.
 - Each authenticated connection is bound to one existing database.
 - Passwordless bootstrap is limited to embedded use without a network listener. Pgwire and REST listener startup reject an empty bootstrap password or a persisted passwordless bootstrap role.
 - The default bootstrap password is loopback-only. Non-loopback pgwire and REST listeners require a non-default credential plus Cassie-managed TLS unless `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` explicitly permits a trusted private hop behind a TLS-terminating reverse proxy or load balancer. Plaintext listener traffic must not be exposed directly to an untrusted network.
 - Connection admission is bounded and failures are reported using PostgreSQL-style error responses.
+- Database access can be managed by an administrator with `GRANT CONNECT ON DATABASE database TO role` and `REVOKE CONNECT ON DATABASE database FROM role`. Cassie supports one database and one role per statement; grant options, multiple grantees, ownership, and table privileges are outside this contract. Grants and revocations are idempotent, administrators retain implicit access, and active sessions revalidate access at each statement.
 
 ## Session Model
 
@@ -31,7 +33,7 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 
 | Protocol surface | Contract |
 | --- | --- |
-| Simple query | One or more supported SQL statements with row descriptions, data rows, command completion, and ready state |
+| Simple query | Up to 256 supported SQL statements with row descriptions, incrementally emitted data rows, command completion, and ready state |
 | Extended query | Parse, bind, describe, execute, close, flush, and sync |
 | Parameters | Text and supported binary encodings with deterministic type validation |
 | Prepared statements | Named and unnamed statements scoped to the connection |
@@ -49,6 +51,8 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 ## Errors and Cancellation
 
 Cassie emits PostgreSQL error responses with SQLSTATE codes where a stable mapping exists. Syntax errors use `42601`, unsupported features use `0A000`, undefined objects use their PostgreSQL-family codes, query cancellation and deadlines use `57014`, resource-limit failures use `54000`, and connection admission uses `53300`.
+
+SQL text is limited to 1 MiB, 100,000 lexical tokens, 128 levels of SQL nesting, and 128 nested block comments. The scanner is linear and ignores delimiters inside quoted strings, quoted identifiers, and comments. These SQL-text limits apply to direct and pgwire parsing; the generic 16 MiB frontend frame limit remains available to bind and COPY payloads. Pgwire backend frames are individually capped at 16 MiB, and a resource-limit error leaves a simple-query connection ready for its next query.
 
 A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A cancelled resume returns `57014` and no partial row page.
 

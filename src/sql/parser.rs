@@ -8,14 +8,15 @@ use crate::sql::ast::{
     CreateIndexStatement, CreateMaterializedProjectionStatement, CreateProcedureStatement,
     CreateRetentionPolicyStatement, CreateRoleStatement, CreateRollupStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateTableStatement, CreateViewStatement,
-    CteQuery, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
-    DropMaterializedProjectionStatement, DropProcedureStatement, DropRetentionPolicyStatement,
-    DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropSequenceStatement,
-    DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement, ExplainStatement, Expr,
-    FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind, NullsOrder, OrderExpr,
-    ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement, SelectItem, SetStatement,
-    ShowStatement, SortDirection, TransactionAction, TransactionIsolation, TransactionStatement,
-    VerifyProjectionStatement, Volatility, WindowFunctionCall,
+    CteQuery, DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
+    DropIndexStatement, DropMaterializedProjectionStatement, DropProcedureStatement,
+    DropRetentionPolicyStatement, DropRoleStatement, DropRollupStatement, DropSchemaStatement,
+    DropSequenceStatement, DropTableStatement, DropViewStatement, EnforceRetentionPolicyStatement,
+    ExplainStatement, Expr, FieldDefinition, FunctionArg, FunctionCall, InsertSource, JoinKind,
+    NullsOrder, OrderExpr, ParsedStatement, QuerySource, QueryStatement, RefreshRollupStatement,
+    SelectItem, SetStatement, ShowStatement, SortDirection, TransactionAction,
+    TransactionIsolation, TransactionStatement, VerifyProjectionStatement, Volatility,
+    WindowFunctionCall,
 };
 use crate::types::DataType;
 use serde_json::Value;
@@ -25,6 +26,7 @@ use std::collections::HashSet;
 pub enum SqlErrorKind {
     Syntax,
     Unsupported,
+    ResourceLimit,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +54,14 @@ impl SqlError {
     pub fn unsupported(message: String) -> Self {
         Self {
             kind: SqlErrorKind::Unsupported,
+            message,
+        }
+    }
+
+    #[must_use]
+    pub fn resource_limit(message: String) -> Self {
+        Self {
+            kind: SqlErrorKind::ResourceLimit,
             message,
         }
     }
@@ -94,6 +104,8 @@ mod dml;
 mod expr;
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
+#[path = "parser/preflight.rs"]
+mod preflight;
 #[path = "parser/query.rs"]
 mod query;
 #[path = "parser/retention.rs"]
@@ -119,6 +131,7 @@ use materialized_projection::{
     parse_refresh_materialized_projection_statement, parse_repair_projection_statement,
     parse_verify_projection_statement,
 };
+pub(crate) use preflight::preflight_sql;
 use query::{
     parse_enclosed_parenthesized, parse_projection_items, parse_select_statement,
     parse_with_statement,
@@ -134,9 +147,10 @@ use schema::{
     parse_alter_role_statement, parse_alter_schema_statement, parse_alter_table_statement,
     parse_create_database_statement, parse_create_graph_statement, parse_create_index_statement,
     parse_create_role_statement, parse_create_schema_statement, parse_create_sequence_statement,
-    parse_create_table_statement, parse_drop_database_statement, parse_drop_index_statement,
-    parse_drop_role_statement, parse_drop_schema_statement, parse_drop_sequence_statement,
-    parse_drop_table_statement, parse_index_options,
+    parse_create_table_statement, parse_database_connect_privilege_statement,
+    parse_drop_database_statement, parse_drop_index_statement, parse_drop_role_statement,
+    parse_drop_schema_statement, parse_drop_sequence_statement, parse_drop_table_statement,
+    parse_index_options,
 };
 use statements::{
     is_transaction_control_statement, is_unsupported_transaction_control_statement,
@@ -151,6 +165,7 @@ use statements::{
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
+    preflight_sql(sql)?;
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_lowercase();
 
@@ -218,6 +233,14 @@ fn parse_access_control_statement(
         Ok(Some(parse_alter_role_statement(trimmed, true)?))
     } else if starts_statement(lower, "drop role") || starts_statement(lower, "drop user") {
         Ok(Some(parse_drop_role_statement(trimmed)?))
+    } else if starts_statement(lower, "grant connect on database") {
+        Ok(Some(parse_database_connect_privilege_statement(
+            trimmed, true,
+        )?))
+    } else if starts_statement(lower, "revoke connect on database") {
+        Ok(Some(parse_database_connect_privilege_statement(
+            trimmed, false,
+        )?))
     } else if let Some(message) = unsupported_privilege_statement(lower) {
         Err(SqlError::unsupported(message.to_string()))
     } else {

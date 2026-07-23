@@ -80,7 +80,7 @@ const config = {
     ],
   },
   build: {
-    sourcemap: true,
+    sourcemap: false,
   },
   test: {
     environment: "jsdom",

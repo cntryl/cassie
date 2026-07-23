@@ -190,7 +190,7 @@ mod column_store;
 mod databases;
 pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequest};
 pub(super) use databases::DatabaseFamily;
-pub(crate) use databases::StagedDatabaseFamily;
+pub(crate) use databases::{validate_database_catalog_entry, StagedDatabaseFamily};
 pub(crate) mod documents;
 mod failure_points;
 pub(crate) use failure_points::{

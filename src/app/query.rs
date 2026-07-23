@@ -332,7 +332,7 @@ impl Cassie {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
-        self.ensure_session_database_exists(session)?;
+        self.ensure_session_database_access(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
             if session.is_authenticated_read_only() {
@@ -384,7 +384,7 @@ impl Cassie {
         if session.user.is_empty() {
             return Err(CassieError::Unauthorized);
         }
-        self.ensure_session_database_exists(session)?;
+        self.ensure_session_database_access(session)?;
 
         if let Some(error) = unsupported_sql_error(sql) {
             if session.is_authenticated_read_only() {
@@ -415,6 +415,7 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(

@@ -62,6 +62,8 @@ pub enum QueryStatement {
     CreateRole(CreateRoleStatement),
     AlterRole(AlterRoleStatement),
     DropRole(DropRoleStatement),
+    GrantDatabaseConnect(DatabaseConnectPrivilegeStatement),
+    RevokeDatabaseConnect(DatabaseConnectPrivilegeStatement),
     CreateIndex(CreateIndexStatement),
     DropIndex(DropIndexStatement),
     CreateRollup(CreateRollupStatement),
@@ -137,6 +139,8 @@ pub enum CatalogStatementRef<'a> {
     CreateRole(&'a CreateRoleStatement),
     AlterRole(&'a AlterRoleStatement),
     DropRole(&'a DropRoleStatement),
+    GrantDatabaseConnect(&'a DatabaseConnectPrivilegeStatement),
+    RevokeDatabaseConnect(&'a DatabaseConnectPrivilegeStatement),
     CreateFunction(&'a CreateFunctionStatement),
     DropFunction(&'a DropFunctionStatement),
     CreateProcedure(&'a CreateProcedureStatement),
@@ -207,6 +211,8 @@ pub enum CatalogStatement {
     CreateRole(CreateRoleStatement),
     AlterRole(AlterRoleStatement),
     DropRole(DropRoleStatement),
+    GrantDatabaseConnect(DatabaseConnectPrivilegeStatement),
+    RevokeDatabaseConnect(DatabaseConnectPrivilegeStatement),
     CreateFunction(CreateFunctionStatement),
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -268,6 +274,8 @@ impl QueryStatement {
             | Self::CreateRole(_)
             | Self::AlterRole(_)
             | Self::DropRole(_)
+            | Self::GrantDatabaseConnect(_)
+            | Self::RevokeDatabaseConnect(_)
             | Self::CreateFunction(_)
             | Self::DropFunction(_)
             | Self::CreateProcedure(_)
@@ -350,6 +358,12 @@ impl QueryStatement {
             Self::CreateRole(statement) => CatalogStatementRef::CreateRole(statement),
             Self::AlterRole(statement) => CatalogStatementRef::AlterRole(statement),
             Self::DropRole(statement) => CatalogStatementRef::DropRole(statement),
+            Self::GrantDatabaseConnect(statement) => {
+                CatalogStatementRef::GrantDatabaseConnect(statement)
+            }
+            Self::RevokeDatabaseConnect(statement) => {
+                CatalogStatementRef::RevokeDatabaseConnect(statement)
+            }
             Self::CreateFunction(statement) => CatalogStatementRef::CreateFunction(statement),
             Self::DropFunction(statement) => CatalogStatementRef::DropFunction(statement),
             Self::CreateProcedure(statement) => CatalogStatementRef::CreateProcedure(statement),
@@ -449,6 +463,12 @@ impl QueryStatement {
             Self::CreateRole(statement) => CatalogStatement::CreateRole(statement),
             Self::AlterRole(statement) => CatalogStatement::AlterRole(statement),
             Self::DropRole(statement) => CatalogStatement::DropRole(statement),
+            Self::GrantDatabaseConnect(statement) => {
+                CatalogStatement::GrantDatabaseConnect(statement)
+            }
+            Self::RevokeDatabaseConnect(statement) => {
+                CatalogStatement::RevokeDatabaseConnect(statement)
+            }
             Self::CreateFunction(statement) => CatalogStatement::CreateFunction(statement),
             Self::DropFunction(statement) => CatalogStatement::DropFunction(statement),
             Self::CreateProcedure(statement) => CatalogStatement::CreateProcedure(statement),
@@ -937,6 +957,12 @@ pub struct AlterRoleStatement {
 pub struct DropRoleStatement {
     pub name: String,
     pub if_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseConnectPrivilegeStatement {
+    pub database: String,
+    pub role: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

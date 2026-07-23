@@ -75,6 +75,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::InvalidParameterValue(_) => "invalid_parameter_value",
         CassieError::EmbeddingUnavailable(_) => "embedding_unavailable",
         CassieError::Unauthorized => "unauthorized",
+        CassieError::AuthenticationRateLimited => "authentication_rate_limited",
         CassieError::InsufficientPrivilege => "insufficient_privilege",
         CassieError::CatalogObjectNotFound { .. } => "catalog_object_not_found",
         CassieError::NotFound(_) => "not_found",

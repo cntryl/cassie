@@ -393,6 +393,12 @@ fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
     if read_i32(parameter, &mut cursor, "array")? != 1 {
         return Err(invalid_data("array"));
     }
+    let minimum_payload_bytes = length
+        .checked_mul(std::mem::size_of::<i32>())
+        .ok_or_else(|| invalid_data("array"))?;
+    if parameter.len().saturating_sub(cursor) < minimum_payload_bytes {
+        return Err(invalid_data("array"));
+    }
     let mut values = Vec::with_capacity(length);
     for _ in 0..length {
         let element_length = read_i32(parameter, &mut cursor, "array")?;

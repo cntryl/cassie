@@ -84,7 +84,7 @@ export const api = defineApi({
   "password": string;
 }>())
     .returns(json<Session>())
-    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "408": json<Error>(), "413": json<Error>(), "415": json<Error>(), "501": json<Error>(), "503": json<Error>() }),
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "404": json<Error>(), "408": json<Error>(), "413": json<Error>(), "415": json<Error>(), "429": json<Error>(), "501": json<Error>(), "503": json<Error>() }),
   logoutRestSession: post("/api/v1/auth/logout")
     .returns(json<LogoutResponse>())
     .errors({ "401": json<Error>(), "408": json<Error>(), "503": json<Error>() })

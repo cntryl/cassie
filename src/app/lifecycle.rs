@@ -34,12 +34,24 @@ impl Cassie {
             &runtime_config.database,
         )?);
         let embedding_provider = build_embedding_provider(&runtime_config)?;
+        let bootstrap_password_hash = if runtime_config.password.is_empty() {
+            None
+        } else {
+            Some(super::auth::hash_password(&runtime_config.password)?)
+        };
+        let dummy_password_hash = super::auth::hash_password(&uuid::Uuid::new_v4().to_string())?;
+        let auth_rate_limiter = Arc::new(super::auth_rate_limit::AuthRateLimiter::new(
+            runtime_config.auth_user_attempts_per_minute,
+            runtime_config.auth_ip_attempts_per_minute,
+            runtime_config.auth_rate_limit_max_entries,
+        ));
         let CassieRuntimeConfig {
             user: auth_user,
             database: default_database,
             password: auth_password,
             rest_tls_cert_file,
             rest_tls_key_file,
+            rest_external_https,
             allow_insecure_non_loopback_listen,
             limits,
             ..
@@ -55,9 +67,13 @@ impl Cassie {
             vector_search_result_cache: Arc::new(Mutex::new(BTreeMap::new())),
             auth_user,
             auth_password,
+            bootstrap_password_hash,
+            dummy_password_hash,
+            auth_rate_limiter,
             default_database,
             rest_tls_cert_file,
             rest_tls_key_file,
+            rest_external_https,
             allow_insecure_non_loopback_listen,
             started: Arc::new(AtomicBool::new(false)),
         })

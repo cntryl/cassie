@@ -97,9 +97,9 @@ impl Cassie {
                 data_dir.display()
             )));
         }
-        if snapshot_dir.starts_with(data_dir) {
+        if paths_overlap(data_dir, snapshot_dir)? {
             return Err(CassieError::Unsupported(
-                "snapshot directory must not be inside the source data directory".to_string(),
+                "snapshot source and destination directories must not overlap".to_string(),
             ));
         }
 
@@ -142,6 +142,11 @@ impl Cassie {
     ) -> Result<CassieSnapshotManifest, CassieError> {
         let snapshot_dir = snapshot_dir.as_ref();
         let target_data_dir = target_data_dir.as_ref();
+        if paths_overlap(snapshot_dir, target_data_dir)? {
+            return Err(CassieError::Unsupported(
+                "snapshot source and restore target directories must not overlap".to_string(),
+            ));
+        }
         let manifest = read_snapshot_manifest(snapshot_dir)?;
         validate_snapshot_manifest(&manifest)?;
         let snapshot_midge_dir = snapshot_dir.join(&manifest.midge_data_path);
@@ -163,6 +168,38 @@ impl Cassie {
         }
         result
     }
+}
+
+fn paths_overlap(left: &Path, right: &Path) -> Result<bool, CassieError> {
+    let left = canonical_path_candidate(left)?;
+    let right = canonical_path_candidate(right)?;
+    Ok(left.starts_with(&right) || right.starts_with(&left))
+}
+
+fn canonical_path_candidate(path: &Path) -> Result<std::path::PathBuf, CassieError> {
+    if path.exists() {
+        return fs::canonicalize(path).map_err(|error| {
+            CassieError::Storage(format!("canonicalize path '{}': {error}", path.display()))
+        });
+    }
+    let parent = path.parent().ok_or_else(|| {
+        CassieError::Parse(format!("path '{}' has no parent directory", path.display()))
+    })?;
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    let canonical_parent = fs::canonicalize(parent).map_err(|error| {
+        CassieError::Storage(format!(
+            "canonicalize parent directory '{}': {error}",
+            parent.display()
+        ))
+    })?;
+    let name = path.file_name().ok_or_else(|| {
+        CassieError::Parse(format!("path '{}' has no final component", path.display()))
+    })?;
+    Ok(canonical_parent.join(name))
 }
 
 fn build_snapshot_manifest(

@@ -344,6 +344,12 @@ impl DatabaseRestoreSession {
             ));
         }
         let (key, value) = decode_entry_frame(payload)?;
+        let source_database = &self
+            .header
+            .as_ref()
+            .ok_or_else(|| CassieError::Parse("database image header is missing".to_string()))?
+            .source_database;
+        crate::midge::adapter::validate_database_catalog_entry(&key, &value, source_database)?;
         self.hasher
             .update(frame_integrity_bytes(FRAME_CATALOG, &key, &value));
         self.catalog_count = self.catalog_count.saturating_add(1);

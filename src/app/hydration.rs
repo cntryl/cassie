@@ -1,4 +1,4 @@
-use super::auth::hash_password;
+use super::auth::{hash_password, verify_password};
 use super::{current_time_millis, normalize_role_name, Cassie, CassieError, Instant, RoleMeta};
 
 impl Cassie {
@@ -282,7 +282,9 @@ impl Cassie {
         self.runtime.record_storage_access("schema", false, true);
 
         let admin_name = normalize_role_name(&self.auth_user);
-        if !roles.iter().any(|role| role.name == admin_name) {
+        if let Some(role) = roles.iter_mut().find(|role| role.name == admin_name) {
+            self.reconcile_bootstrap_role_password(role)?;
+        } else {
             let password_hash = if self.auth_password.is_empty() {
                 None
             } else {
@@ -296,11 +298,51 @@ impl Cassie {
             self.runtime.record_storage_access("schema", false, true);
             roles.push(role);
         }
+        for role in roles.iter_mut().filter(|role| !role.is_admin) {
+            if role.database_grants.is_none() {
+                role.grant_database(&self.default_database);
+                self.persist_migrated_role(role)?;
+            }
+        }
 
         for role in roles {
             self.catalog.register_role(role);
         }
 
+        Ok(())
+    }
+
+    fn persist_migrated_role(&self, role: &RoleMeta) -> Result<(), CassieError> {
+        self.midge.put_role(role).map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("migrate role database grants: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
+        Ok(())
+    }
+
+    fn reconcile_bootstrap_role_password(&self, role: &mut RoleMeta) -> Result<(), CassieError> {
+        let password_matches = match role.password_hash.as_deref() {
+            Some(hash) if !self.auth_password.is_empty() => {
+                verify_password(hash, &self.auth_password).unwrap_or(false)
+            }
+            None => self.auth_password.is_empty(),
+            Some(_) => false,
+        };
+        if password_matches {
+            return Ok(());
+        }
+
+        role.password_hash = if self.auth_password.is_empty() {
+            None
+        } else {
+            Some(hash_password(&self.auth_password)?)
+        };
+        self.midge.put_role(role).map_err(|error| {
+            self.runtime.record_storage_access("schema", false, false);
+            CassieError::Storage(format!("rotate bootstrap role credentials: {error}"))
+        })?;
+        self.runtime.record_storage_access("schema", false, true);
         Ok(())
     }
 

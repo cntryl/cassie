@@ -108,14 +108,15 @@ pub(crate) fn controlled_backoff(
     check_controls(provider, controls)
 }
 
-pub(crate) fn run_controlled_request<T, F>(
+pub(crate) fn run_controlled_request<T, E, F>(
     provider: &str,
     controls: Option<&QueryExecutionControls>,
     request: F,
-) -> Result<reqwest::Result<T>, EmbeddingError>
+) -> Result<Result<T, E>, EmbeddingError>
 where
     T: Send + 'static,
-    F: FnOnce() -> reqwest::Result<T> + Send + 'static,
+    E: Send + 'static,
+    F: FnOnce() -> Result<T, E> + Send + 'static,
 {
     let Some(controls) = controls else {
         return Ok(request());

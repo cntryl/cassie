@@ -1,4 +1,5 @@
 use super::*;
+use http_body_util::Full;
 
 #[test]
 fn should_collect_rest_body_with_an_idle_deadline() {

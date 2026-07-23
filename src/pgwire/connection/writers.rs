@@ -4,6 +4,8 @@ use super::{AsyncWrite, AsyncWriteExt, CassieSession};
 use crate::types::Value;
 use std::{convert::TryFrom, io, str};
 
+pub(super) const MAX_BACKEND_FRAME_BYTES: usize = 16 * 1024 * 1024;
+
 pub(super) async fn write_auth_ok(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
     let mut frame = Vec::new();
     frame.push(b'R');
@@ -94,13 +96,8 @@ pub(super) async fn write_error_response(
     append_error_field(&mut payload, b'n', error.constraint.as_deref());
     payload.push(0);
 
-    let mut frame = vec![b'E'];
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "payload too large"))?
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
+    let mut frame = Vec::new();
+    append_backend_frame(&mut frame, b'E', &payload)?;
 
     write_half.write_all(&frame).await?;
     write_half.flush().await?;
@@ -127,13 +124,17 @@ pub(super) async fn write_simple_query_result(
     } = result;
 
     if !columns.is_empty() {
-        let mut frames = Vec::new();
-        append_row_description_frame(&mut frames, &columns, &[])?;
+        let mut frame = Vec::new();
+        append_row_description_frame(&mut frame, &columns, &[])?;
+        write_half.write_all(&frame).await?;
         for row in rows {
-            append_data_row_frame(&mut frames, row, &columns, &[])?;
+            frame.clear();
+            append_data_row_frame(&mut frame, row, &columns, &[])?;
+            write_half.write_all(&frame).await?;
         }
-        append_command_complete_frame(&mut frames, &command)?;
-        write_half.write_all(&frames).await?;
+        frame.clear();
+        append_command_complete_frame(&mut frame, &command)?;
+        write_half.write_all(&frame).await?;
         write_half.flush().await?;
         return Ok(());
     }
@@ -347,14 +348,32 @@ async fn write_backend_frame(
 }
 
 pub(super) fn append_backend_frame(frame: &mut Vec<u8>, tag: u8, payload: &[u8]) -> io::Result<()> {
+    let frame_length = payload
+        .len()
+        .checked_add(4)
+        .ok_or_else(backend_frame_too_large_error)?;
+    if frame_length > MAX_BACKEND_FRAME_BYTES {
+        return Err(backend_frame_too_large_error());
+    }
     frame.push(tag);
     frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "payload too large"))?
+        &i32::try_from(frame_length)
+            .map_err(|_| backend_frame_too_large_error())?
             .to_be_bytes(),
     );
     frame.extend_from_slice(payload);
     Ok(())
+}
+
+pub(super) fn is_backend_frame_too_large(error: &io::Error) -> bool {
+    error.to_string() == "pgwire backend frame exceeds 16777216 bytes"
+}
+
+fn backend_frame_too_large_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "pgwire backend frame exceeds 16777216 bytes",
+    )
 }
 
 fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
@@ -362,5 +381,25 @@ fn result_format_for_index(result_formats: &[i16], index: usize) -> i16 {
         0 => 0,
         1 => result_formats[0],
         _ => result_formats[index],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{append_backend_frame, is_backend_frame_too_large, MAX_BACKEND_FRAME_BYTES};
+
+    #[test]
+    fn should_reject_an_individual_backend_frame_over_sixteen_mebibytes() {
+        // Arrange
+        let payload = vec![0_u8; MAX_BACKEND_FRAME_BYTES - 3];
+        let mut frame = Vec::new();
+
+        // Act
+        let error =
+            append_backend_frame(&mut frame, b'D', &payload).expect_err("oversized backend frame");
+
+        // Assert
+        assert!(is_backend_frame_too_large(&error));
+        assert!(frame.is_empty());
     }
 }

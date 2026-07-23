@@ -25,6 +25,8 @@ Execution-result caching is configured by `CASSIE_EXECUTION_RESULT_CACHE_ENABLED
 
 Streaming scan, filter, projection, limit, scoring, and eligible aggregation paths must keep memory proportional to batch size or the requested result window. Blocking operators may materialize only accounted state. Result-row limits are enforced while producing rows. Embedded APIs may materialize the final bounded result; pgwire portals retain resumable execution state. A portal's result-row limit is cumulative across resumes, and retained portal memory is charged cumulatively across all live portals on the connection. A resume or bind that would exceed either limit fails with `54000` without publishing a partial page; close, rollback, and disconnect release the retained state.
 
+SQL parsing rejects text over 1 MiB, more than 100,000 lexical tokens, nesting deeper than 128, nested block comments deeper than 128, and pgwire simple-query batches over 256 statements. These failures are HTTP `400` or SQLSTATE `54000`. Pgwire emits row descriptions, rows, and command completion incrementally, caps each backend frame at 16 MiB, and retains the generic 16 MiB frontend-frame cap for non-SQL bind and COPY data. Admin UI files retain their 8 MiB cap and stream in chunks no larger than 64 KiB.
+
 ## Relational Access Paths
 
 | Query pattern | Required path evidence | Bound |
@@ -50,7 +52,7 @@ Exact vector search reads lazy Midge cursor batches and retains only a memory-ac
 
 Hybrid retrieval combines persisted text, vector, and structured candidates before exact final scoring under the shared query memory and cancellation controls. It reports component candidate counts, final row fetches, and fallback reasons.
 
-Remote embedding providers expose controlled document and query methods. Each request, retry, and backoff observes cancellation and clamps its transport timeout to the remaining query deadline. Stable describes Cassie's protocol behavior and deterministic local contract evidence, not the availability or latency of third-party services.
+Remote embedding providers expose controlled document and query methods. Each request, retry, and backoff observes cancellation and clamps its transport timeout to the remaining query deadline. Provider success and error bodies are bounded by `CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES` (default 8 MiB), declared oversized bodies are rejected before reading, chunked bodies stop at the limit plus one byte, and propagated provider-error excerpts are control-free and capped at 1 KiB. Stable describes Cassie's protocol behavior and deterministic local contract evidence, not the availability or latency of third-party services.
 
 ## Time-Series, Graph, and Column Batches
 
@@ -72,6 +74,8 @@ Mutation benchmarks report logical mutations, Midge writes, bytes, index mainten
 ## Cancellation and Parallel Work
 
 Deadline and cancellation checks occur at batch boundaries and within scoring, joins, aggregation, sorting, graph traversal, provider retries, and operator switching. Internal parallel work acquires permits from one shared per-engine bound so concurrent queries cannot multiply configured worker counts. Ordered merges are deterministic and must not duplicate or omit rows. REST cancellation is acknowledged only after the controlled worker observes cancellation and finishes cleanup; dropping a request alone is not evidence that query work stopped.
+
+REST and pgwire apply write-idle deadlines beneath their protocol implementations. `CASSIE_REST_WRITE_TIMEOUT_MS` and `CASSIE_PGWIRE_WRITE_TIMEOUT_MS` both default to 10,000 milliseconds; a peer that stops accepting output cannot retain a writer indefinitely.
 
 ## Benchmark Tier Contract
 

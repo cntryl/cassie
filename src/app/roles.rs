@@ -38,6 +38,28 @@ impl Cassie {
         self.ensure_database_exists(database)
     }
 
+    pub(crate) fn ensure_session_database_access(
+        &self,
+        session: &CassieSession,
+    ) -> Result<(), CassieError> {
+        self.ensure_session_database_exists(session)?;
+        if !session.is_network_authenticated() {
+            return Ok(());
+        }
+        let database = session
+            .current_database()
+            .unwrap_or(self.default_database.as_str());
+        let role = self.lookup_role(&session.user)?.or_else(|| {
+            (normalize_role_name(&session.user) == normalize_role_name(&self.auth_user))
+                .then(|| RoleMeta::bootstrap_admin(&self.auth_user, None))
+        });
+        if role.is_some_and(|role| role.can_access_database(database)) {
+            Ok(())
+        } else {
+            Err(CassieError::InsufficientPrivilege)
+        }
+    }
+
     pub(crate) fn lookup_role(&self, name: &str) -> Result<Option<RoleMeta>, CassieError> {
         let normalized = normalize_role_name(name);
         if normalized.is_empty() {
@@ -107,7 +129,8 @@ impl Cassie {
             (false, None) => None,
         };
 
-        let role = RoleMeta::new(normalized, login, false, password_hash);
+        let mut role = RoleMeta::new(normalized, login, false, password_hash);
+        role.grant_database(&self.default_database);
         self.midge
             .put_role(&role)
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;
@@ -161,6 +184,72 @@ impl Cassie {
         self.catalog.register_role(role);
         self.bump_schema_epoch_and_invalidate_query_cache()?;
         Ok(())
+    }
+
+    /// Grant a non-admin role read and connection access to one database.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the actor is not an administrator or persistence fails.
+    pub fn grant_role_database_access(
+        &self,
+        actor: &CassieSession,
+        role_name: &str,
+        database: &str,
+    ) -> Result<(), CassieError> {
+        self.update_role_database_access(actor, role_name, database, true)
+    }
+
+    /// Revoke a non-admin role's read and connection access to one database.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the actor is not an administrator or persistence fails.
+    pub fn revoke_role_database_access(
+        &self,
+        actor: &CassieSession,
+        role_name: &str,
+        database: &str,
+    ) -> Result<(), CassieError> {
+        self.update_role_database_access(actor, role_name, database, false)
+    }
+
+    fn update_role_database_access(
+        &self,
+        actor: &CassieSession,
+        role_name: &str,
+        database: &str,
+        grant: bool,
+    ) -> Result<(), CassieError> {
+        if !self
+            .lookup_role(&actor.user)?
+            .is_some_and(|role| role.is_admin)
+        {
+            return Err(CassieError::InsufficientPrivilege);
+        }
+        self.ensure_database_exists(database)?;
+        let normalized = normalize_role_name(role_name);
+        let Some(mut role) = self.lookup_role(&normalized)? else {
+            return Err(CassieError::CatalogObjectNotFound {
+                kind: CatalogObjectKind::Role,
+                name: normalized,
+            });
+        };
+        if role.is_admin {
+            return Err(CassieError::Unsupported(
+                "bootstrap administrators always have access to every database".to_string(),
+            ));
+        }
+        if grant {
+            role.grant_database(database);
+        } else {
+            role.revoke_database(database);
+        }
+        self.midge.put_role(&role).map_err(|error| {
+            CassieError::Storage(format!("persist role database access: {error}"))
+        })?;
+        self.catalog.register_role(role);
+        self.bump_schema_epoch_and_invalidate_query_cache()
     }
 
     /// # Errors

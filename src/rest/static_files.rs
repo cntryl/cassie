@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 
 use bytes::Bytes;
-use http_body_util::Full;
 use hyper::{
-    header::{HeaderValue, CACHE_CONTROL, CONTENT_TYPE},
+    header::{HeaderValue, CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE},
     Method, Response, StatusCode,
 };
+
+use crate::rest::body::{full_body, RestBody, StaticFileBody};
+
+const MAX_ADMIN_UI_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 pub(crate) struct AdminUiStaticFiles {
     root: PathBuf,
@@ -21,7 +24,7 @@ impl AdminUiStaticFiles {
         &self,
         method: &Method,
         segments: &[&str],
-    ) -> Option<Response<Full<Bytes>>> {
+    ) -> Option<Response<RestBody>> {
         if method != Method::GET {
             return None;
         }
@@ -34,11 +37,11 @@ impl AdminUiStaticFiles {
         }
     }
 
-    async fn serve_index(&self) -> Response<Full<Bytes>> {
+    async fn serve_index(&self) -> Response<RestBody> {
         self.serve_file(self.root.join("index.html")).await
     }
 
-    async fn serve_asset(&self, asset_segments: &[&str]) -> Response<Full<Bytes>> {
+    async fn serve_asset(&self, asset_segments: &[&str]) -> Response<RestBody> {
         if !asset_segments.iter().copied().all(is_safe_asset_segment) {
             return not_found_response();
         }
@@ -51,7 +54,7 @@ impl AdminUiStaticFiles {
         self.serve_file(path).await
     }
 
-    async fn serve_file(&self, path: PathBuf) -> Response<Full<Bytes>> {
+    async fn serve_file(&self, path: PathBuf) -> Response<RestBody> {
         let Ok(root) = tokio::fs::canonicalize(&self.root).await else {
             return not_found_response();
         };
@@ -69,12 +72,15 @@ impl AdminUiStaticFiles {
         if !metadata.is_file() {
             return not_found_response();
         }
+        if metadata.len() > MAX_ADMIN_UI_FILE_BYTES {
+            return payload_too_large_response();
+        }
 
-        let Ok(body) = tokio::fs::read(&file).await else {
+        let Ok(body) = tokio::fs::File::open(&file).await else {
             return not_found_response();
         };
 
-        file_response(&file, body)
+        file_response(&file, body, metadata.len())
     }
 }
 
@@ -89,12 +95,17 @@ fn is_safe_asset_segment(segment: &str) -> bool {
         && !lowered.contains("%5c")
 }
 
-fn file_response(path: &Path, body: Vec<u8>) -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::from(Bytes::from(body)));
+fn file_response(path: &Path, body: tokio::fs::File, length: u64) -> Response<RestBody> {
+    use http_body_util::BodyExt as _;
+
+    let mut response = Response::new(StaticFileBody::new(body, length).boxed_unsync());
     *response.status_mut() = StatusCode::OK;
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static(content_type(path)));
+    if let Ok(length) = HeaderValue::from_str(&length.to_string()) {
+        response.headers_mut().insert(CONTENT_LENGTH, length);
+    }
     if is_hashed_asset(path) {
         response.headers_mut().insert(
             CACHE_CONTROL,
@@ -118,9 +129,19 @@ fn is_hashed_asset(path: &Path) -> bool {
             })
 }
 
-fn not_found_response() -> Response<Full<Bytes>> {
-    let mut response = Response::new(Full::from(Bytes::from_static(b"not found")));
+fn not_found_response() -> Response<RestBody> {
+    let mut response = Response::new(full_body(Bytes::from_static(b"not found")));
     *response.status_mut() = StatusCode::NOT_FOUND;
+    response.headers_mut().insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("text/plain; charset=utf-8"),
+    );
+    response
+}
+
+fn payload_too_large_response() -> Response<RestBody> {
+    let mut response = Response::new(full_body(Bytes::from_static(b"asset too large")));
+    *response.status_mut() = StatusCode::PAYLOAD_TOO_LARGE;
     response.headers_mut().insert(
         CONTENT_TYPE,
         HeaderValue::from_static("text/plain; charset=utf-8"),

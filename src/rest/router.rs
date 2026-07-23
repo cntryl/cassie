@@ -1,14 +1,15 @@
 use std::convert::Infallible;
 use std::error::Error;
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use bytes::{Bytes, BytesMut};
-use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
+use http_body_util::{BodyExt, LengthLimitError, Limited};
 use hyper::{
     body::{Body, Incoming},
-    header::{HeaderMap, HeaderValue, ALLOW, CACHE_CONTROL, CONNECTION, CONTENT_TYPE, SET_COOKIE},
+    header::{HeaderMap, HeaderValue, ALLOW, CONNECTION, CONTENT_TYPE, RETRY_AFTER},
     Method, Request, Response, StatusCode,
 };
 use tokio::sync::Notify;
@@ -16,15 +17,23 @@ use tokio::sync::Notify;
 use crate::app::Cassie;
 use crate::app::CassieSession;
 use crate::catalog::RoleMeta;
+use crate::rest::body::{full_body, RestBody};
 use crate::rest::static_files::AdminUiStaticFiles;
 
+mod auth_routes;
 mod collection_routes;
 mod request_execution;
+mod security;
 
+use auth_routes::dispatch_auth_routes;
 use collection_routes::dispatch_collection_routes;
 use request_execution::{
     run_rest_blocking_route, run_rest_blocking_route_controlled,
     run_rest_blocking_route_with_cancellation, RestBlockingError, RestRequestExecution,
+};
+use security::{
+    canonical_request_path, is_api_path, validate_rest_content_type, validate_rest_origin,
+    with_security_headers,
 };
 
 const MAX_REST_BODY_BYTES: usize = 8 * 1024 * 1024;
@@ -63,7 +72,6 @@ pub async fn run_with_shutdown_and_admin_ui_dir(
     request_execution::run_server(addr, cassie, shutdown, admin_ui_dir).await
 }
 
-type RestBody = Full<Bytes>;
 #[derive(Clone)]
 struct RestRequestContext {
     session: CassieSession,
@@ -80,6 +88,7 @@ struct RouteDispatchContext<'a> {
     started_at: Instant,
     request_context: &'a RestRequestContext,
     secure_transport: bool,
+    peer_ip: IpAddr,
 }
 
 async fn route(
@@ -87,50 +96,26 @@ async fn route(
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
+    peer_ip: IpAddr,
 ) -> Result<Response<RestBody>, Infallible> {
-    let is_api = request.uri().path().starts_with("/api/");
-    let response = match route_request_with_admin_ui(request, cassie, admin_ui, secure_transport)
-        .await
-    {
-        Ok(response) => response,
-        Err((status, message)) => json_response(status, &serde_json::json!({ "error": message })),
-    };
+    let is_api = is_api_path(request.uri().path());
+    let secure_transport = cassie.rest_secure_transport(secure_transport);
+    let response =
+        match route_request_with_admin_ui(request, cassie, admin_ui, secure_transport, peer_ip)
+            .await
+        {
+            Ok(response) => response,
+            Err((status, message)) => {
+                let mut response = json_response(status, &serde_json::json!({ "error": message }));
+                if status == StatusCode::TOO_MANY_REQUESTS {
+                    response
+                        .headers_mut()
+                        .insert(RETRY_AFTER, HeaderValue::from_static("60"));
+                }
+                response
+            }
+        };
     Ok(with_security_headers(response, is_api, secure_transport))
-}
-
-fn with_security_headers(
-    mut response: Response<RestBody>,
-    is_api: bool,
-    secure_transport: bool,
-) -> Response<RestBody> {
-    response.headers_mut().insert(
-        "x-content-type-options",
-        HeaderValue::from_static("nosniff"),
-    );
-    response
-        .headers_mut()
-        .insert("x-frame-options", HeaderValue::from_static("DENY"));
-    response
-        .headers_mut()
-        .insert("referrer-policy", HeaderValue::from_static("no-referrer"));
-    response.headers_mut().insert(
-        "content-security-policy",
-        HeaderValue::from_static(
-            "default-src 'self'; script-src 'self'; connect-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data:; worker-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
-        ),
-    );
-    if is_api {
-        response
-            .headers_mut()
-            .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    }
-    if secure_transport {
-        response.headers_mut().insert(
-            "strict-transport-security",
-            HeaderValue::from_static("max-age=31536000"),
-        );
-    }
-    response
 }
 
 type RestBytes = Bytes;
@@ -161,7 +146,13 @@ async fn read_request_body(
         ));
     }
 
-    match collect_request_body(request.into_body(), REST_BODY_IDLE_TIMEOUT).await {
+    let body = tokio::time::timeout(
+        REST_REQUEST_TIMEOUT,
+        collect_request_body(request.into_body(), REST_BODY_IDLE_TIMEOUT),
+    )
+    .await
+    .unwrap_or(Err(RestBodyReadError::TimedOut));
+    match body {
         Ok(body) => Ok(body),
         Err(RestBodyReadError::TimedOut) => Err((
             StatusCode::REQUEST_TIMEOUT,
@@ -215,7 +206,7 @@ where
 
 fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response<RestBody> {
     let body = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
-    let mut response = Response::new(Full::from(body));
+    let mut response = Response::new(full_body(body));
     *response.status_mut() = status;
     response
         .headers_mut()
@@ -279,6 +270,7 @@ pub async fn route_request(
         cassie,
         Arc::new(AdminUiStaticFiles::new(default_admin_ui_dir())),
         false,
+        IpAddr::V4(Ipv4Addr::LOCALHOST),
     )
     .await
 }
@@ -288,9 +280,11 @@ async fn route_request_with_admin_ui(
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
+    peer_ip: IpAddr,
 ) -> Result<Response<RestBody>, (StatusCode, String)> {
+    let secure_transport = cassie.rest_secure_transport(secure_transport);
     let method = request.method().clone();
-    let path = normalized_request_path(request.uri().path());
+    let path = canonical_request_path(request.uri().path())?;
     let query = request.uri().query().map(str::to_string);
     let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     let started_at = Instant::now();
@@ -353,6 +347,7 @@ async fn route_request_with_admin_ui(
             started_at,
             request_context: &request_context,
             secure_transport,
+            peer_ip,
         },
         cassie.clone(),
         admin_ui,
@@ -368,90 +363,6 @@ async fn route_request_with_admin_ui(
     );
 
     Ok(response)
-}
-
-fn requires_json_content_type(method: &Method, path: &str) -> bool {
-    path.starts_with("/api/") && matches!(method, &Method::POST | &Method::PUT | &Method::PATCH)
-}
-
-fn validate_rest_origin(
-    method: &Method,
-    path: &str,
-    request: &Request<Incoming>,
-) -> Result<(), (StatusCode, String)> {
-    if !path.starts_with("/api/")
-        || !matches!(
-            method,
-            &Method::POST | &Method::PUT | &Method::PATCH | &Method::DELETE
-        )
-    {
-        return Ok(());
-    }
-    let Some(origin) = request.headers().get("origin") else {
-        return Ok(());
-    };
-    let Some(host) = request.headers().get("host") else {
-        return Err((
-            StatusCode::FORBIDDEN,
-            "REST state-changing requests require a Host header".to_string(),
-        ));
-    };
-    let origin = origin.to_str().ok();
-    let host = host.to_str().ok();
-    let same_origin = origin
-        .zip(host)
-        .and_then(|(origin, host)| origin.split_once("://").map(|(_, value)| (value, host)))
-        .is_some_and(|(origin_host, host)| origin_host.trim_end_matches('/') == host);
-    if same_origin {
-        Ok(())
-    } else {
-        Err((
-            StatusCode::FORBIDDEN,
-            "cross-origin REST state change rejected".to_string(),
-        ))
-    }
-}
-
-fn normalized_request_path(raw_path: &str) -> String {
-    let path = raw_path.trim_end_matches('/');
-    if path.is_empty() {
-        "/".to_string()
-    } else {
-        path.to_string()
-    }
-}
-
-fn validate_rest_content_type(
-    method: &Method,
-    path: &str,
-    request: &Request<Incoming>,
-) -> Result<(), (StatusCode, String)> {
-    if requires_json_content_type(method, path)
-        && request_has_body(request)
-        && !has_json_content_type(request.headers())
-    {
-        return Err((
-            StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "REST API request content type must be application/json".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn request_has_body(request: &Request<Incoming>) -> bool {
-    request
-        .body()
-        .size_hint()
-        .upper()
-        .is_none_or(|length| length > 0)
-}
-
-fn has_json_content_type(headers: &HeaderMap) -> bool {
-    headers
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(';').next())
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
 }
 
 async fn route_dispatch(
@@ -491,87 +402,6 @@ async fn route_dispatch(
     }
 
     unsupported_route(&cassie, context.method, context.path, context.started_at)
-}
-
-async fn dispatch_auth_routes(
-    context: RouteDispatchContext<'_>,
-    cassie: Arc<Cassie>,
-    body: &RestBytes,
-) -> Result<Option<Response<RestBody>>, (StatusCode, String)> {
-    match (context.method.as_str(), context.segments) {
-        ("POST", ["api", "v1", "auth", "login"]) => {
-            let body = body.clone();
-            run_rest_blocking_route(
-                cassie,
-                context.method,
-                context.path,
-                context.started_at,
-                "rest_auth_login",
-                move |cassie| crate::rest::sessions::login(&cassie, body.as_ref()),
-            )
-            .await
-            .map(|(token, principal)| {
-                let mut response = json_response(
-                    StatusCode::OK,
-                    &serde_json::json!({
-                        "user": principal.role.name,
-                        "role": principal.role.name,
-                    }),
-                );
-                set_session_cookie(&mut response, &token, false, context.secure_transport);
-                Some(response)
-            })
-        }
-        ("GET", ["api", "v1", "auth", "session"]) => {
-            if context.request_context.role.is_none() && cassie.authentication_enabled() {
-                return Err((StatusCode::UNAUTHORIZED, "unauthorized".to_string()));
-            }
-            Ok(Some(json_response(
-                StatusCode::OK,
-                &serde_json::json!({
-                    "user": context.request_context.session.user,
-                    "role": context.request_context.role.as_ref().map(|role| role.name.clone()),
-                }),
-            )))
-        }
-        ("POST", ["api", "v1", "auth", "logout"]) => {
-            if let Some(token) = context.request_context.token.as_deref() {
-                let token = token.to_string();
-                run_rest_blocking_route(
-                    cassie,
-                    context.method,
-                    context.path,
-                    context.started_at,
-                    "rest_auth_logout",
-                    move |cassie| crate::rest::sessions::revoke(&cassie, &token),
-                )
-                .await?;
-            }
-            let mut response =
-                json_response(StatusCode::OK, &serde_json::json!({"logged_out": true}));
-            set_session_cookie(&mut response, "", true, context.secure_transport);
-            Ok(Some(response))
-        }
-        _ => Ok(None),
-    }
-}
-
-fn set_session_cookie(response: &mut Response<RestBody>, token: &str, clear: bool, secure: bool) {
-    let secure_attribute = if secure { "; Secure" } else { "" };
-    let value = if clear {
-        format!(
-            "{}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict{secure_attribute}",
-            crate::rest::sessions::SESSION_COOKIE,
-        )
-    } else {
-        format!(
-            "{}={token}; Path=/; HttpOnly; SameSite=Strict{secure_attribute}",
-            crate::rest::sessions::SESSION_COOKIE,
-        )
-    };
-    if let Ok(header) = HeaderValue::from_str(&value) {
-        response.headers_mut().insert(SET_COOKIE, header);
-    }
 }
 
 fn dispatch_health_routes(
@@ -869,6 +699,13 @@ fn database_scoped_session(
             format!("database '{database}' does not exist"),
         )
     })?;
+    if context
+        .role
+        .as_ref()
+        .is_some_and(|role| !role.can_access_database(database))
+    {
+        return Err((StatusCode::FORBIDDEN, "forbidden".to_string()));
+    }
     Ok(CassieSession::authenticated(
         context.session.user.clone(),
         Some(database.to_string()),
@@ -988,7 +825,7 @@ fn unsupported_route(
 }
 
 fn is_route_public(method: &Method, segments: &[&str]) -> bool {
-    *method == Method::GET && segments.first() != Some(&"api")
+    *method == Method::GET && segments.first() != Some(&"api") && !matches!(segments, ["metrics"])
 }
 
 fn is_authentication_exempt(method: &Method, segments: &[&str]) -> bool {

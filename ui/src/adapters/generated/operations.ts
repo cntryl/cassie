@@ -341,6 +341,8 @@ export type LoginRestSessionError_413 = Error;
 
 export type LoginRestSessionError_415 = Error;
 
+export type LoginRestSessionError_429 = Error;
+
 export type LoginRestSessionError_501 = Error;
 
 export type LoginRestSessionError_503 = Error;

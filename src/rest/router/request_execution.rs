@@ -22,6 +22,8 @@ use super::{
     REST_HEADER_READ_TIMEOUT, REST_REQUEST_TIMEOUT,
 };
 
+const REST_TLS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
+
 pub(super) async fn run_server(
     addr: String,
     cassie: Cassie,
@@ -56,19 +58,16 @@ pub(super) async fn run_server(
                 break;
             }
             accept = listener.accept() => {
-                let (stream, _) = accept.map_err(|error| CassieError::Execution(error.to_string()))?;
+                let (stream, peer) = accept.map_err(|error| CassieError::Execution(error.to_string()))?;
                 let Ok(permit) = admission.clone().try_acquire_owned() else {
-                    let tls_config = tls_config.clone();
-                    tokio::spawn(async move {
-                        if let Some(config) = tls_config {
-                            match TlsAcceptor::from(config).accept(stream).await {
-                                Ok(stream) => serve_rejection(stream).await,
-                                Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
-                            }
-                        } else {
-                            serve_rejection(stream).await;
-                        }
-                    });
+                    if tls_config.is_none() {
+                        let write_timeout = Duration::from_millis(
+                            cassie.runtime.limits().rest_write_timeout_ms,
+                        );
+                        tokio::spawn(async move {
+                            serve_rejection(stream, write_timeout).await;
+                        });
+                    }
                     continue;
                 };
                 let cassie = Arc::clone(&cassie);
@@ -77,12 +76,24 @@ pub(super) async fn run_server(
                 tokio::spawn(async move {
                     let _permit = permit;
                     if let Some(config) = tls_config {
-                        match TlsAcceptor::from(config).accept(stream).await {
-                            Ok(stream) => serve_application(stream, cassie, admin_ui, true).await,
-                            Err(error) => tracing::warn!(%error, "rest TLS handshake rejected"),
+                        match tokio::time::timeout(
+                            REST_TLS_HANDSHAKE_TIMEOUT,
+                            TlsAcceptor::from(config).accept(stream),
+                        )
+                        .await
+                        {
+                            Ok(Ok(stream)) => {
+                                serve_application(stream, cassie, admin_ui, true, peer.ip()).await;
+                            }
+                            Ok(Err(error)) => {
+                                tracing::warn!(%error, "rest TLS handshake rejected");
+                            }
+                            Err(_) => {
+                                tracing::warn!("rest TLS handshake timed out");
+                            }
                         }
                     } else {
-                        serve_application(stream, cassie, admin_ui, false).await;
+                        serve_application(stream, cassie, admin_ui, false, peer.ip()).await;
                     }
                 });
             }
@@ -92,7 +103,7 @@ pub(super) async fn run_server(
     Ok(())
 }
 
-async fn serve_rejection<S>(stream: S)
+async fn serve_rejection<S>(stream: S, write_timeout: Duration)
 where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -103,7 +114,13 @@ where
         .timer(TokioTimer::new())
         .header_read_timeout(REST_HEADER_READ_TIMEOUT)
         .max_buf_size(MAX_REST_HEADER_BYTES)
-        .serve_connection(TokioIo::new(stream), service)
+        .serve_connection(
+            TokioIo::new(crate::transport::TimedWriteTransport::new(
+                stream,
+                write_timeout,
+            )),
+            service,
+        )
         .await;
     if let Err(error) = connection {
         tracing::warn!(%error, "rest admission rejection connection error");
@@ -115,19 +132,27 @@ async fn serve_application<S>(
     cassie: Arc<Cassie>,
     admin_ui: Arc<AdminUiStaticFiles>,
     secure_transport: bool,
+    peer_ip: std::net::IpAddr,
 ) where
     S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    let write_timeout = Duration::from_millis(cassie.runtime.limits().rest_write_timeout_ms);
     let service = service_fn(move |request: Request<hyper::body::Incoming>| {
         let cassie = Arc::clone(&cassie);
         let admin_ui = Arc::clone(&admin_ui);
-        async move { route(request, cassie, admin_ui, secure_transport).await }
+        async move { route(request, cassie, admin_ui, secure_transport, peer_ip).await }
     });
     let connection = http1::Builder::new()
         .timer(TokioTimer::new())
         .header_read_timeout(REST_HEADER_READ_TIMEOUT)
         .max_buf_size(MAX_REST_HEADER_BYTES)
-        .serve_connection(TokioIo::new(stream), service)
+        .serve_connection(
+            TokioIo::new(crate::transport::TimedWriteTransport::new(
+                stream,
+                write_timeout,
+            )),
+            service,
+        )
         .await;
     if let Err(error) = connection {
         tracing::warn!(%error, "rest connection error");

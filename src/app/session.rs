@@ -53,6 +53,8 @@ enum SessionTransactionStatus {
     Failed,
 }
 
+const MAX_SAVEPOINTS_PER_TRANSACTION: usize = 128;
+
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum TransactionRowChange {
     Upsert(serde_json::Value),
@@ -292,6 +294,10 @@ impl CassieSession {
         self.access == SessionAccess::AuthenticatedReadOnly
     }
 
+    pub(crate) fn is_network_authenticated(&self) -> bool {
+        self.access != SessionAccess::TrustedEmbedded
+    }
+
     #[must_use]
     pub fn transaction_status(&self) -> &'static str {
         match self.transaction.lock().status {
@@ -414,6 +420,11 @@ impl CassieSession {
         if transaction.status != SessionTransactionStatus::InTransaction {
             return Err(CassieError::Execution(
                 "SAVEPOINT requires an active transaction".to_string(),
+            ));
+        }
+        if transaction.savepoints.len() >= MAX_SAVEPOINTS_PER_TRANSACTION {
+            return Err(CassieError::ResourceLimit(
+                "savepoint limit exceeded".to_string(),
             ));
         }
 

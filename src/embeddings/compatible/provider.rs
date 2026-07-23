@@ -1,6 +1,7 @@
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
+use crate::embeddings::response::read_response;
 use crate::embeddings::EmbeddingProvider;
 use crate::runtime::QueryExecutionControls;
 use std::time::Duration;
@@ -31,6 +32,7 @@ pub struct OpenAiCompatibleProvider {
     request_timeout: Duration,
     max_batch_size: usize,
     max_retries: usize,
+    max_response_bytes: usize,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -89,7 +91,13 @@ impl OpenAiCompatibleProvider {
             request_timeout: config.timeout,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
+            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
         })
+    }
+
+    pub(crate) fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
+        self.max_response_bytes = max_response_bytes.max(1);
+        self
     }
 
     fn embed_documents_batch(
@@ -116,6 +124,7 @@ impl OpenAiCompatibleProvider {
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
+            let max_response_bytes = self.max_response_bytes;
             let response = run_controlled_request(self.provider_name(), controls, move || {
                 let builder = client
                     .post(endpoint)
@@ -123,9 +132,7 @@ impl OpenAiCompatibleProvider {
                     .json(&request_snapshot);
                 let builder = add_auth_header(builder, api_key.as_deref());
                 let response = builder.send()?;
-                let status = response.status();
-                let body = response.text()?;
-                Ok::<_, reqwest::Error>((status, body))
+                read_response(response, max_response_bytes)
             })?;
 
             match response {
@@ -175,7 +182,7 @@ impl OpenAiCompatibleProvider {
                     });
                 }
                 Err(error) => {
-                    return Err(EmbeddingError::RequestError(error.to_string()));
+                    return Err(error.into_embedding_error(self.provider_name()));
                 }
             }
         }

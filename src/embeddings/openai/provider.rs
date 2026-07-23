@@ -1,6 +1,7 @@
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
+use crate::embeddings::response::{read_response, ResponseReadError};
 use crate::embeddings::EmbeddingProvider;
 use crate::runtime::QueryExecutionControls;
 use std::time::{Duration, Instant};
@@ -64,6 +65,7 @@ pub struct OpenAiProvider {
     base_url: String,
     max_batch_size: usize,
     max_retries: usize,
+    max_response_bytes: usize,
 }
 
 impl OpenAiProvider {
@@ -116,7 +118,13 @@ impl OpenAiProvider {
             base_url: config.base_url,
             max_batch_size: config.max_batch_size.max(1),
             max_retries: config.max_retries.max(1),
+            max_response_bytes: crate::embeddings::DEFAULT_MAX_RESPONSE_BYTES,
         })
+    }
+
+    pub(crate) fn with_max_response_bytes(mut self, max_response_bytes: usize) -> Self {
+        self.max_response_bytes = max_response_bytes.max(1);
+        self
     }
 
     /// # Errors
@@ -145,12 +153,13 @@ impl OpenAiProvider {
         endpoint: &str,
         request: EmbeddingRequest,
         controls: Option<&QueryExecutionControls>,
-    ) -> Result<reqwest::Result<(reqwest::StatusCode, String)>, EmbeddingError> {
+    ) -> Result<Result<(reqwest::StatusCode, String), ResponseReadError>, EmbeddingError> {
         let timeout =
             controlled_request_timeout(self.provider_name(), self.request_timeout, controls)?;
         let endpoint = endpoint.to_string();
         let client = self.client.clone();
         let api_key = self.api_key.clone();
+        let max_response_bytes = self.max_response_bytes;
         run_controlled_request(self.provider_name(), controls, move || {
             let response = client
                 .post(&endpoint)
@@ -158,9 +167,7 @@ impl OpenAiProvider {
                 .header("Authorization", format!("Bearer {api_key}"))
                 .json(&request)
                 .send()?;
-            let status = response.status();
-            let body = response.text()?;
-            Ok((status, body))
+            read_response(response, max_response_bytes)
         })
     }
 
@@ -215,6 +222,9 @@ impl OpenAiProvider {
                     return Err(EmbeddingError::RequestError(format!(
                         "openai request failed with status: {status_message}"
                     )));
+                }
+                Err(error @ ResponseReadError::TooLarge { .. }) => {
+                    return Err(error.into_embedding_error(self.provider_name()));
                 }
                 Err(error) => {
                     let is_timeout = error.is_timeout();

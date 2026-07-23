@@ -43,7 +43,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | --- | --- | --- |
 | DML | `INSERT`, PostgreSQL-style `ON CONFLICT`, `UPDATE`, `DELETE`, `RETURNING`, CSV copy ingestion | Experimental |
 | Transactions | Begin, commit, rollback, savepoints, read-your-writes | Experimental |
-| Database and schema scope | Databases, schemas, persisted `search_path`, qualified names | Stable |
+| Database and schema scope | Databases, schemas, persisted `search_path`, qualified names, and administrator-managed `CONNECT` grants with live-session revalidation | Stable |
 | Tables and constraints | Table DDL, name-idempotent `CREATE TABLE IF NOT EXISTS`, defaults, unique, check, foreign key | Experimental |
 | Scalar indexes | Primary, secondary, composite, unique, covering, partial, expression, and name-idempotent `CREATE INDEX IF NOT EXISTS` | Experimental |
 | Virtual catalogs | PostgreSQL-like and Cassie runtime catalog views | Experimental |
@@ -59,7 +59,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | HNSW | Persisted graph point-read candidates, deterministic bounded expansion, and exact source-row reranking | Stable |
 | IVFFlat | Persisted centroid membership-prefix candidates, deterministic probes, and exact source-row reranking | Stable |
 | Hybrid retrieval | Persisted text, vector, and structured candidate intersection before exact final scoring | Stable |
-| Embedding providers | Controlled OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and deterministic local protocols; third-party availability is not guaranteed | Stable |
+| Embedding providers | Controlled and response-bounded OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and deterministic local protocols; third-party availability is not guaranteed | Stable |
 | Time-series access | Ordered partition/range lookup, bucketing, rollups, retention | Experimental |
 | Column-batch analytics | Typed batches, pruning, accelerated aggregates | Experimental |
 | Graph traversal | Neighbor expansion and shortest paths | Experimental |
@@ -73,7 +73,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Cost planning | Relational join enumeration, deterministic statistics fallbacks, physical properties, and access-path selection | Experimental |
 | Adaptive planning | Feedback-informed selection and checkpointed operator switching | Experimental |
 | Pull execution | Bounded batch streams and early termination | Experimental |
-| Query controls | Deadline, cancellation, result, candidate, worker, and memory bounds | Experimental |
+| Query controls | Deadline, cancellation, SQL complexity, transport write, result, candidate, worker, and memory bounds | Experimental |
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |
 | REST | Secondary administrative and resource API | Experimental |

@@ -295,6 +295,60 @@ fn should_rotate_login_role_password() {
 }
 
 #[test]
+fn should_require_an_explicit_database_grant_for_non_admin_roles() {
+    // Arrange
+    let path = data_dir("database_grants");
+    let config = CassieRuntimeConfig {
+        user: "sa".to_string(),
+        password: "sa-secret".to_string(),
+        ..CassieRuntimeConfig::default()
+    };
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    cassie.startup().unwrap();
+    let admin = cassie
+        .authenticate_role("sa", Some("sa-secret"), None)
+        .expect("admin login");
+    cassie
+        .execute_sql(
+            &admin,
+            "CREATE ROLE alice LOGIN PASSWORD 'alice-secret'",
+            vec![],
+        )
+        .expect("create role");
+    cassie
+        .midge
+        .create_database("analytics", None)
+        .expect("analytics database");
+
+    // Act
+    let before_grant =
+        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+    cassie
+        .grant_role_database_access(&admin, "alice", "analytics")
+        .expect("grant analytics");
+    let after_grant =
+        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+    cassie
+        .revoke_role_database_access(&admin, "alice", "analytics")
+        .expect("revoke analytics");
+    let after_revoke =
+        cassie.authenticate_role("alice", Some("alice-secret"), Some("analytics".to_string()));
+
+    // Assert
+    assert!(matches!(
+        before_grant,
+        Err(cassie::app::CassieError::InsufficientPrivilege)
+    ));
+    assert!(after_grant.is_ok());
+    assert!(matches!(
+        after_revoke,
+        Err(cassie::app::CassieError::InsufficientPrivilege)
+    ));
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_drop_login_role() {
     // Arrange
     let path = data_dir("drop_login_role");
@@ -486,7 +540,7 @@ fn should_require_opaque_rest_sessions() {
         assert!(authorized.status().is_success());
         assert_eq!(forbidden.status(), reqwest::StatusCode::FORBIDDEN);
         assert!(health.status().is_success());
-        assert!(metrics.status().is_success());
+        assert_eq!(metrics.status(), reqwest::StatusCode::UNAUTHORIZED);
 
         server.abort();
         let _ = server.await;

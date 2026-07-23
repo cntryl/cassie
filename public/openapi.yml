@@ -11,7 +11,7 @@ info:
       - /metrics
       - /targetz (ECS Fargate target group health check)
 
-    All versioned resource APIs live under /api/v1/*. Authenticated browser and REST clients use the server-owned opaque `cassie_session` cookie. Login issues an HttpOnly, SameSite=Strict cookie; password-bearing Authorization headers are not accepted.
+    All versioned resource APIs live under /api/v1/*. Authenticated browser and REST clients use the server-owned opaque `cassie_session` cookie. Login issues an HttpOnly, SameSite=Strict cookie; direct TLS or `CASSIE_REST_EXTERNAL_HTTPS=1` also marks login and logout cookies Secure and enables HSTS. Forwarded and X-Forwarded-Proto headers are ignored. Password-bearing Authorization headers are not accepted.
     The REST API does not expose first-class `/api/v1/databases` or `/api/v1/schemas` resources.
     Use the authenticated SQL administration endpoints for supported database, schema, table, view, function, and procedure statements.
 
@@ -22,8 +22,10 @@ info:
     allowed. Non-loopback REST listeners use Cassie-managed TLS by default. Deployments may set
     `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` only for a trusted private hop behind a
     TLS-terminating reverse proxy or load balancer; that plaintext hop must not be exposed to an
-    untrusted network. Cassie-managed TLS responses emit HSTS. Authenticated/API responses are not
-    cacheable.
+    untrusted network. `CASSIE_REST_EXTERNAL_HTTPS=1` does not relax that listener rule.
+    Authenticated/API responses are not cacheable. Login attempts use process-local normalized-user
+    and peer-IP limits; excess attempts return 429 with Retry-After. Opaque sessions are issued
+    atomically with a 16-per-user default quota and a 1,024 global cap.
 servers:
   - url: /
     description: Same-origin admin API server
@@ -53,7 +55,7 @@ components:
         the token value is never persisted in plaintext.
   responses:
     BadRequest:
-      description: Malformed request body or invalid parameters.
+      description: Malformed request body, invalid parameters, or SQL parser resource limit.
       content:
         application/json:
           schema:
@@ -78,6 +80,18 @@ components:
             $ref: '#/components/schemas/Error'
     Unauthorized:
       description: Missing or invalid credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: The process-local authentication attempt limit was exhausted.
+      headers:
+        Retry-After:
+          description: Seconds before a full token is available at the configured default refill rate.
+          schema:
+            type: integer
+            minimum: 1
       content:
         application/json:
           schema:
@@ -1335,6 +1349,8 @@ paths:
           $ref: '#/components/responses/RequestEntityTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '501':
           $ref: '#/components/responses/NotImplemented'
         '503':

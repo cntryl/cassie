@@ -38,6 +38,11 @@ reports are excluded. `Cassie::begin_database_restore` stages an opaque family
 and keeps it invisible until all frames, catalog rewrites, counts, and checksums
 commit. The target database must not already exist.
 
+The footer checksum proves image integrity, not provenance: it can detect that
+the bytes changed, but it cannot prove who created them. Cassie database images
+are not signed. Images that cross an untrusted channel require authenticated
+transport or an external signing and verification workflow.
+
 Pgwire exposes the same logical image stream through simple queries:
 
 ```sql

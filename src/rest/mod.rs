@@ -1,3 +1,4 @@
+pub(crate) mod body;
 pub mod collections;
 pub mod consistency;
 pub mod documents;

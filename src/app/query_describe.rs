@@ -47,6 +47,9 @@ impl Cassie {
         sql_fingerprint: u64,
         parameter_type_oids: &[i32],
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        if let Some(session) = session {
+            self.ensure_session_database_access(session)?;
+        }
         if matches!(
             parsed.statement,
             crate::sql::ast::QueryStatement::Explain(_)

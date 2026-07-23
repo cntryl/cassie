@@ -363,3 +363,49 @@ fn should_remove_partial_restore_after_copy_error() {
     let _ = std::fs::remove_dir_all(snapshot);
     let _ = std::fs::remove_dir_all(target);
 }
+
+#[cfg(unix)]
+#[test]
+fn should_reject_snapshot_destination_through_a_symlink_into_the_source() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("snapshot_symlink_source");
+    let alias = data_dir("snapshot_symlink_alias");
+    seed_replayed_projection(&source, "snapshot_symlink_docs");
+    std::os::unix::fs::symlink(&source, &alias).expect("source alias");
+
+    // Act
+    let error = Cassie::create_snapshot_from_data_dir(
+        &source,
+        std::path::Path::new(&alias).join("nested"),
+        CassieSnapshotOptions::default(),
+    )
+    .expect_err("overlapping destination");
+
+    // Assert
+    assert!(error.to_string().contains("must not overlap"));
+    let _ = std::fs::remove_file(alias);
+    let _ = std::fs::remove_dir_all(source);
+}
+
+#[test]
+fn should_reject_restore_target_that_contains_the_snapshot() {
+    // Arrange
+    with_fallback();
+    let source = data_dir("restore_overlap_source");
+    let target = data_dir("restore_overlap_target");
+    let snapshot = std::path::Path::new(&target).join("bundle");
+    std::fs::create_dir_all(&target).expect("target container");
+    seed_replayed_projection(&source, "restore_overlap_docs");
+    Cassie::create_snapshot_from_data_dir(&source, &snapshot, CassieSnapshotOptions::default())
+        .expect("snapshot");
+
+    // Act
+    let error = Cassie::restore_snapshot(&snapshot, &target).expect_err("overlapping target");
+
+    // Assert
+    assert!(error.to_string().contains("must not overlap"));
+    assert!(snapshot.exists(), "restore must not delete its own source");
+    let _ = std::fs::remove_dir_all(source);
+    let _ = std::fs::remove_dir_all(target);
+}

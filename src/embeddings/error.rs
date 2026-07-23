@@ -29,4 +29,10 @@ pub enum EmbeddingError {
 
     #[error("embedding request error: {0}")]
     RequestError(String),
+
+    #[error("embedding response from '{provider}' exceeds {limit_bytes} bytes")]
+    ResponseTooLarge {
+        provider: String,
+        limit_bytes: usize,
+    },
 }

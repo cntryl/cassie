@@ -16,6 +16,7 @@ import {
 
 import { apiv1 } from "@/adapters";
 import cassieLogo from "@/assets/cassie-logo.png";
+import { clearQueryWorkspace } from "@/features/query/query-tabs";
 import { getSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
 
@@ -35,6 +36,9 @@ export default function LogoutPage() {
       const response = await apiv1.logoutRestSession();
       if (!response.ok && response.status !== 401) {
         ensureResponseOk(response, "Unable to sign out");
+      }
+      if (session?.user) {
+        clearQueryWorkspace(session.user);
       }
       signOut();
       navigate("/login");

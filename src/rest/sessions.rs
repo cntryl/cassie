@@ -1,6 +1,8 @@
 use std::fmt::Write as _;
+use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use cntryl_midge::{ConflictPolicy, Query, TransactionMode, WriteOptions};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -11,8 +13,10 @@ use crate::midge::StorageFamily;
 
 pub(crate) const SESSION_COOKIE: &str = "cassie_session";
 const SESSION_KEY_PREFIX: &[u8] = b"cassie.rest.session.";
+const SESSION_QUOTA_REVISION_KEY: &[u8] = b"cassie.rest.sessions.quota-revision";
 const SESSION_TTL_SECONDS: u64 = 8 * 60 * 60;
 const MAX_SESSIONS: usize = 1_024;
+const SESSION_COMMIT_ATTEMPTS: usize = 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedSession {
@@ -33,6 +37,7 @@ pub(crate) struct LoginRequest {
 pub(crate) fn login(
     cassie: &Cassie,
     body: &[u8],
+    peer_ip: IpAddr,
 ) -> Result<(String, AuthenticatedPrincipal), CassieError> {
     let request: LoginRequest = serde_json::from_slice(body)
         .map_err(|error| CassieError::Parse(format!("invalid login request: {error}")))?;
@@ -40,7 +45,8 @@ pub(crate) fn login(
         .username
         .or(request.user)
         .ok_or(CassieError::Unauthorized)?;
-    let principal = cassie.authenticate_principal(&user, request.password.as_deref(), None)?;
+    let principal =
+        cassie.authenticate_network_principal(&user, request.password.as_deref(), None, peer_ip)?;
     let token = issue(cassie, &principal.role)?;
     Ok((token, principal))
 }
@@ -56,16 +62,65 @@ fn issue_with_limits(
     ttl_seconds: u64,
 ) -> Result<String, CassieError> {
     let now = unix_seconds()?;
-    let mut active = 0;
-    for (key, value) in session_entries(cassie)? {
+    let max_sessions_per_user = cassie
+        .runtime
+        .limits()
+        .rest_max_sessions_per_user
+        .min(max_sessions);
+    for attempt in 0..SESSION_COMMIT_ATTEMPTS {
+        match issue_transaction(
+            cassie,
+            role,
+            max_sessions,
+            max_sessions_per_user,
+            ttl_seconds,
+            now,
+        ) {
+            Err(CassieError::StorageRetryable(_)) if attempt + 1 < SESSION_COMMIT_ATTEMPTS => {}
+            result => return result,
+        }
+    }
+    unreachable!("REST session transaction retry loop always returns")
+}
+
+fn issue_transaction(
+    cassie: &Cassie,
+    role: &RoleMeta,
+    max_sessions: usize,
+    max_sessions_per_user: usize,
+    ttl_seconds: u64,
+    now: u64,
+) -> Result<String, CassieError> {
+    let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite)?;
+    tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
+    let revision = tx
+        .get(SESSION_QUOTA_REVISION_KEY)
+        .map_err(CassieError::from)?
+        .map_or(Ok(0_u64), |value| {
+            serde_json::from_slice(&value).map_err(|error| {
+                CassieError::Parse(format!("invalid REST quota revision: {error}"))
+            })
+        })?;
+    let entries = tx
+        .scan(&Query::new().prefix(SESSION_KEY_PREFIX.to_vec().into()))
+        .map_err(CassieError::from)?
+        .try_collect()
+        .map_err(CassieError::from)?;
+    let normalized_user = normalize_role_name(&role.name);
+    let mut active = 0_usize;
+    let mut active_for_user = 0_usize;
+    for (key, value) in entries {
         let Some(record) = decode_record(&value) else {
-            cassie.midge.raw_delete(StorageFamily::Schema, &key)?;
+            tx.delete(key.to_vec()).map_err(CassieError::from)?;
             continue;
         };
         if record.expires_at <= now {
-            cassie.midge.raw_delete(StorageFamily::Schema, &key)?;
-        } else {
-            active += 1;
+            tx.delete(key.to_vec()).map_err(CassieError::from)?;
+            continue;
+        }
+        active = active.saturating_add(1);
+        if normalize_role_name(record.user) == normalized_user {
+            active_for_user = active_for_user.saturating_add(1);
         }
     }
     if active >= max_sessions {
@@ -73,19 +128,31 @@ fn issue_with_limits(
             "REST session capacity exhausted".to_string(),
         ));
     }
+    if active_for_user >= max_sessions_per_user {
+        return Err(CassieError::Unsupported(format!(
+            "REST session quota exhausted for role '{normalized_user}'"
+        )));
+    }
 
     let token = random_token();
     let record = PersistedSession {
-        user: role.name.clone(),
+        user: normalized_user,
         database: None,
         expires_at: now.saturating_add(ttl_seconds),
         credential_fingerprint: credential_fingerprint(cassie, role),
     };
     let value = serde_json::to_vec(&record)
         .map_err(|error| CassieError::Execution(format!("encode REST session: {error}")))?;
-    cassie
-        .midge
-        .raw_put(StorageFamily::Schema, &session_key(&token), &value)?;
+    tx.put(session_key(&token), value, None)
+        .map_err(CassieError::from)?;
+    tx.put(
+        SESSION_QUOTA_REVISION_KEY.to_vec(),
+        serde_json::to_vec(&revision.saturating_add(1))
+            .map_err(|error| CassieError::Parse(error.to_string()))?,
+        None,
+    )
+    .map_err(CassieError::from)?;
+    tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
     Ok(token)
 }
 
@@ -156,14 +223,6 @@ fn credential_fingerprint(cassie: &Cassie, role: &RoleMeta) -> String {
     )
 }
 
-type SessionEntries = Vec<(Vec<u8>, Vec<u8>)>;
-
-fn session_entries(cassie: &Cassie) -> Result<SessionEntries, CassieError> {
-    cassie
-        .midge
-        .raw_scan_prefix(StorageFamily::Schema, SESSION_KEY_PREFIX)
-}
-
 fn decode_record(value: &[u8]) -> Option<PersistedSession> {
     serde_json::from_slice(value).ok()
 }
@@ -201,16 +260,23 @@ fn unix_seconds() -> Result<u64, CassieError> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Barrier};
+
     use super::{authenticate, issue, issue_with_limits, revoke, session_key, SESSION_TTL_SECONDS};
     use crate::app::{Cassie, CassieError};
+    use crate::config::{CassieRuntimeConfig, CassieRuntimeLimits};
 
     fn cassie(label: &str) -> Cassie {
+        cassie_with_config(label, CassieRuntimeConfig::default())
+    }
+
+    fn cassie_with_config(label: &str, config: CassieRuntimeConfig) -> Cassie {
         std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let path = std::env::temp_dir().join(format!(
             "cassie-rest-session-{label}-{}",
             uuid::Uuid::new_v4()
         ));
-        Cassie::new_with_data_dir(path).expect("cassie")
+        Cassie::new_with_data_dir_and_config(path, config).expect("cassie")
     }
 
     #[test]
@@ -351,5 +417,94 @@ mod tests {
             result,
             Err(CassieError::Unsupported(message)) if message.contains("capacity exhausted")
         ));
+    }
+
+    #[test]
+    fn should_atomically_enforce_the_global_session_quota_for_concurrent_issuers() {
+        // Arrange
+        let cassie = Arc::new(cassie("concurrent-global-cap"));
+        let role = cassie
+            .authenticate_principal("postgres", Some("postgres"), None)
+            .expect("bootstrap role")
+            .role;
+        let barrier = Arc::new(Barrier::new(8));
+        let issuers = (0..8)
+            .map(|_| {
+                let cassie = Arc::clone(&cassie);
+                let role = role.clone();
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    issue_with_limits(&cassie, &role, 4, SESSION_TTL_SECONDS)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let issued = issuers
+            .into_iter()
+            .flat_map(|issuer| issuer.join().expect("issuer"))
+            .count();
+
+        // Assert
+        assert_eq!(issued, 4);
+    }
+
+    #[test]
+    fn should_enforce_per_user_session_quotas_independently() {
+        // Arrange
+        let config = CassieRuntimeConfig {
+            limits: CassieRuntimeLimits {
+                rest_max_sessions_per_user: 1,
+                ..CassieRuntimeLimits::default()
+            },
+            ..CassieRuntimeConfig::default()
+        };
+        let cassie = cassie_with_config("per-user-cap", config);
+        cassie
+            .create_role("reader", true, Some("reader-password".to_string()), false)
+            .expect("reader role");
+        let admin = cassie
+            .authenticate_principal("postgres", Some("postgres"), None)
+            .expect("admin role")
+            .role;
+        let reader = cassie
+            .authenticate_principal("reader", Some("reader-password"), None)
+            .expect("reader principal")
+            .role;
+
+        // Act
+        let admin_token =
+            issue_with_limits(&cassie, &admin, 4, SESSION_TTL_SECONDS).expect("admin session");
+        let admin_overflow = issue_with_limits(&cassie, &admin, 4, SESSION_TTL_SECONDS);
+        let reader_token =
+            issue_with_limits(&cassie, &reader, 4, SESSION_TTL_SECONDS).expect("reader session");
+
+        // Assert
+        assert!(matches!(
+            admin_overflow,
+            Err(CassieError::Unsupported(message)) if message.contains("quota exhausted")
+        ));
+        assert!(authenticate(&cassie, &admin_token).is_ok());
+        assert!(authenticate(&cassie, &reader_token).is_ok());
+    }
+
+    #[test]
+    fn should_remove_expired_sessions_in_the_same_transaction_as_issuance() {
+        // Arrange
+        let cassie = cassie("atomic-expiry");
+        let role = cassie
+            .authenticate_principal("postgres", Some("postgres"), None)
+            .expect("bootstrap role")
+            .role;
+        let expired = issue_with_limits(&cassie, &role, 1, 0).expect("expired session fixture");
+
+        // Act
+        let replacement =
+            issue_with_limits(&cassie, &role, 1, SESSION_TTL_SECONDS).expect("replacement session");
+
+        // Assert
+        assert!(authenticate(&cassie, &expired).is_err());
+        assert!(authenticate(&cassie, &replacement).is_ok());
     }
 }

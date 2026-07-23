@@ -5,14 +5,14 @@ use crate::sql::{
         AlterTableOperation, AlterTableStatement, CatalogStatementRef, CommonTableExpression,
         CreateDatabaseStatement, CreateFunctionStatement, CreateGraphStatement,
         CreateIndexStatement, CreateProcedureStatement, CreateRoleStatement, CreateSchemaStatement,
-        CreateTableStatement, CreateViewStatement, DeleteStatement, DropDatabaseStatement,
-        DropFunctionStatement, DropIndexStatement, DropMaterializedProjectionStatement,
-        DropProcedureStatement, DropRetentionPolicyStatement, DropRoleStatement,
-        DropRollupStatement, DropSchemaStatement, DropTableStatement, DropViewStatement,
-        EnforceRetentionPolicyStatement, Expr, InsertStatement, OrderExpr, ProjectionStatementRef,
-        QuerySource, RefreshRollupStatement, RetentionStatementRef, RuntimeStatementRef,
-        SelectItem, SelectStatement, SetStatement, ShowStatement, StatementRouteRef,
-        UpdateStatement, VerifyProjectionStatement,
+        CreateTableStatement, CreateViewStatement, DatabaseConnectPrivilegeStatement,
+        DeleteStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
+        DropMaterializedProjectionStatement, DropProcedureStatement, DropRetentionPolicyStatement,
+        DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropTableStatement,
+        DropViewStatement, EnforceRetentionPolicyStatement, Expr, InsertStatement, OrderExpr,
+        ProjectionStatementRef, QuerySource, RefreshRollupStatement, RetentionStatementRef,
+        RuntimeStatementRef, SelectItem, SelectStatement, SetStatement, ShowStatement,
+        StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -49,6 +49,8 @@ pub enum LogicalCommand {
     CreateRole(CreateRoleStatement),
     AlterRole(AlterRoleStatement),
     DropRole(DropRoleStatement),
+    GrantDatabaseConnect(DatabaseConnectPrivilegeStatement),
+    RevokeDatabaseConnect(DatabaseConnectPrivilegeStatement),
     CreateFunction(CreateFunctionStatement),
     DropFunction(DropFunctionStatement),
     CreateProcedure(CreateProcedureStatement),
@@ -186,11 +188,7 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             LogicalCommand::AlterSchema(statement.clone()),
         ),
         CatalogStatementRef::CreateView(statement) => plan_create_view(statement),
-        CatalogStatementRef::DropView(statement) => plan_named_command(
-            &statement.name,
-            "DROP VIEW requires a name",
-            LogicalCommand::DropView(statement.clone()),
-        ),
+        CatalogStatementRef::DropView(statement) => plan_drop_view(statement),
         CatalogStatementRef::CreateRole(statement) => plan_named_command(
             &statement.name,
             "CREATE ROLE requires a name",
@@ -201,11 +199,13 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
             "ALTER ROLE requires a name",
             LogicalCommand::AlterRole(statement.clone()),
         ),
-        CatalogStatementRef::DropRole(statement) => plan_named_command(
-            &statement.name,
-            "DROP ROLE requires a name",
-            LogicalCommand::DropRole(statement.clone()),
-        ),
+        CatalogStatementRef::DropRole(statement) => plan_drop_role(statement),
+        CatalogStatementRef::GrantDatabaseConnect(statement) => {
+            plan_database_connect_command(statement, true)
+        }
+        CatalogStatementRef::RevokeDatabaseConnect(statement) => {
+            plan_database_connect_command(statement, false)
+        }
         CatalogStatementRef::CreateFunction(statement) => plan_named_command(
             &statement.name,
             "CREATE FUNCTION requires a name",
@@ -234,6 +234,40 @@ fn plan_catalog_statement(statement: CatalogStatementRef<'_>) -> Result<LogicalP
         CatalogStatementRef::CreateIndex(statement) => plan_create_index(statement),
         CatalogStatementRef::DropIndex(statement) => plan_drop_index(statement),
     }
+}
+
+fn plan_drop_view(statement: &DropViewStatement) -> Result<LogicalPlan, CassieError> {
+    plan_named_command(
+        &statement.name,
+        "DROP VIEW requires a name",
+        LogicalCommand::DropView(statement.clone()),
+    )
+}
+
+fn plan_drop_role(statement: &DropRoleStatement) -> Result<LogicalPlan, CassieError> {
+    plan_named_command(
+        &statement.name,
+        "DROP ROLE requires a name",
+        LogicalCommand::DropRole(statement.clone()),
+    )
+}
+
+fn plan_database_connect_command(
+    statement: &DatabaseConnectPrivilegeStatement,
+    grant: bool,
+) -> Result<LogicalPlan, CassieError> {
+    let (message, command) = if grant {
+        (
+            "GRANT CONNECT requires a role",
+            LogicalCommand::GrantDatabaseConnect(statement.clone()),
+        )
+    } else {
+        (
+            "REVOKE CONNECT requires a role",
+            LogicalCommand::RevokeDatabaseConnect(statement.clone()),
+        )
+    };
+    plan_named_command(&statement.role, message, command)
 }
 
 fn plan_projection_statement(

@@ -1,3 +1,4 @@
+use super::auth_rate_limit::AuthRateLimiter;
 use super::{
     Arc, AtomicBool, BTreeMap, Catalog, Midge, Mutex, NormalizedVectorCacheEntry,
     NormalizedVectorCacheKey, QueryEmbeddingCacheKey, QueryResult, RuntimeState, Serialize,
@@ -24,9 +25,13 @@ pub struct Cassie {
         Arc<Mutex<BTreeMap<VectorSearchResultCacheKey, Arc<QueryResult>>>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
+    pub(crate) bootstrap_password_hash: Option<String>,
+    pub(crate) dummy_password_hash: String,
+    pub(crate) auth_rate_limiter: Arc<AuthRateLimiter>,
     pub(crate) default_database: String,
     pub(crate) rest_tls_cert_file: Option<String>,
     pub(crate) rest_tls_key_file: Option<String>,
+    pub(crate) rest_external_https: bool,
     pub(crate) allow_insecure_non_loopback_listen: bool,
     pub started: Arc<AtomicBool>,
 }
@@ -36,5 +41,12 @@ impl Cassie {
     #[must_use]
     pub fn rest_tls_enabled(&self) -> bool {
         self.rest_tls_cert_file.is_some()
+    }
+
+    /// Reports whether direct TLS or the explicit external-HTTPS deployment
+    /// contract requires secure browser response attributes.
+    #[must_use]
+    pub fn rest_secure_transport(&self, direct_tls: bool) -> bool {
+        direct_tls || self.rest_external_https
     }
 }

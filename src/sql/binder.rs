@@ -12,10 +12,11 @@ use crate::sql::ast::{
     CallProcedureStatement, CatalogStatement, CommonTableExpression, CopyStatement,
     CreateDatabaseStatement, CreateFunctionStatement, CreateProcedureStatement,
     CreateSchemaStatement, CreateSequenceStatement, CreateViewStatement, CteQuery,
-    DropDatabaseStatement, DropFunctionStatement, DropIndexStatement, DropProcedureStatement,
-    DropSchemaStatement, DropSequenceStatement, DropViewStatement, Expr, FunctionCall,
-    InsertSource, OrderExpr, ParsedStatement, ProjectionStatement, QuerySource, QueryStatement,
-    RuntimeStatement, SelectItem, SelectSet, SelectStatement, StatementRoute,
+    DatabaseConnectPrivilegeStatement, DropDatabaseStatement, DropFunctionStatement,
+    DropIndexStatement, DropProcedureStatement, DropSchemaStatement, DropSequenceStatement,
+    DropViewStatement, Expr, FunctionCall, InsertSource, OrderExpr, ParsedStatement,
+    ProjectionStatement, QuerySource, QueryStatement, RuntimeStatement, SelectItem, SelectSet,
+    SelectStatement, StatementRoute,
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
@@ -193,6 +194,38 @@ fn bind_catalog_route(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     match statement {
+        CatalogStatement::CreateFunction(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropFunction(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CreateProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CallProcedure(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::CreateIndex(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        CatalogStatement::DropIndex(statement) => {
+            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        }
+        statement => bind_catalog_definition_route(statement, catalog, raw_sql, context),
+    }
+}
+
+fn bind_catalog_definition_route(
+    statement: CatalogStatement,
+    catalog: &Catalog,
+    raw_sql: &str,
+    context: &BindingContext,
+) -> Result<ParsedStatement, CassieError> {
+    match statement {
         CatalogStatement::CreateTable(statement) => bind_catalog_statement(
             raw_sql,
             bind_create_table(statement, catalog, context),
@@ -264,27 +297,31 @@ fn bind_catalog_route(
             raw_sql,
             QueryStatement::DropRole(statement),
         )),
-        CatalogStatement::CreateFunction(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        CatalogStatement::GrantDatabaseConnect(statement) => {
+            Ok(bind_database_connect_route(raw_sql, statement, true))
         }
-        CatalogStatement::DropFunction(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
+        CatalogStatement::RevokeDatabaseConnect(statement) => {
+            Ok(bind_database_connect_route(raw_sql, statement, false))
         }
-        CatalogStatement::CreateProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::DropProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::CallProcedure(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::CreateIndex(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
-        CatalogStatement::DropIndex(statement) => {
-            bind_catalog_routine_or_index_route(raw_sql, catalog, statement.into(), context)
-        }
+        CatalogStatement::CreateFunction(_)
+        | CatalogStatement::DropFunction(_)
+        | CatalogStatement::CreateProcedure(_)
+        | CatalogStatement::DropProcedure(_)
+        | CatalogStatement::CallProcedure(_)
+        | CatalogStatement::CreateIndex(_)
+        | CatalogStatement::DropIndex(_) => unreachable!("routine and index routes are extracted"),
+    }
+}
+
+fn bind_database_connect_route(
+    raw_sql: &str,
+    statement: DatabaseConnectPrivilegeStatement,
+    grant: bool,
+) -> ParsedStatement {
+    if grant {
+        parsed_statement(raw_sql, QueryStatement::GrantDatabaseConnect(statement))
+    } else {
+        parsed_statement(raw_sql, QueryStatement::RevokeDatabaseConnect(statement))
     }
 }
 

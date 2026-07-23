@@ -5,6 +5,7 @@ use std::str::Chars;
 pub(super) enum SplitError {
     Syntax(String),
     Unsupported(String),
+    ResourceLimit(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +18,11 @@ enum LexState {
 }
 
 pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
+    crate::sql::parser::preflight_sql(sql).map_err(|error| match error.kind() {
+        crate::sql::SqlErrorKind::ResourceLimit => SplitError::ResourceLimit(error.to_string()),
+        crate::sql::SqlErrorKind::Syntax => SplitError::Syntax(error.to_string()),
+        crate::sql::SqlErrorKind::Unsupported => SplitError::Unsupported(error.to_string()),
+    })?;
     let mut state = LexState::Normal;
     let mut current = String::new();
     let mut statements = Vec::new();
@@ -53,6 +59,11 @@ pub(super) fn split_simple_query(sql: &str) -> Result<Vec<String>, SplitError> {
         }
     }
     push_statement(&mut statements, &mut current);
+    if statements.len() > 256 {
+        return Err(SplitError::ResourceLimit(
+            "simple query statement count exceeds 256".to_string(),
+        ));
+    }
 
     if !requires_normalization {
         return if sql.trim().is_empty() {
@@ -189,4 +200,36 @@ fn push_statement(statements: &mut Vec<String>, current: &mut String) {
         statements.push(statement.to_string());
     }
     current.clear();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{split_simple_query, SplitError};
+
+    #[test]
+    fn should_reject_simple_query_batches_over_two_hundred_fifty_six_statements() {
+        // Arrange
+        let sql = "SELECT 1;".repeat(257);
+
+        // Act
+        let error = split_simple_query(&sql).expect_err("statement count limit");
+
+        // Assert
+        assert!(matches!(
+            error,
+            SplitError::ResourceLimit(message) if message.contains("statement count")
+        ));
+    }
+
+    #[test]
+    fn should_ignore_statement_delimiters_in_strings_and_comments() {
+        // Arrange
+        let sql = "SELECT ';' /* ; */; SELECT 2 -- ;\n";
+
+        // Act
+        let statements = split_simple_query(sql).expect("split query");
+
+        // Assert
+        assert_eq!(statements, vec!["SELECT ';'", "SELECT 2"]);
+    }
 }

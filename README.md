@@ -49,6 +49,21 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 For Cassie to terminate REST TLS itself, remove the insecure-listener override, configure `CASSIE_REST_TLS_CERT_FILE` and `CASSIE_REST_TLS_KEY_FILE` inside the container, and mount the PEM certificate chain and private key read-only. Cassie fails closed when direct non-loopback TLS is selected but either file is absent.
 
+When a trusted proxy terminates HTTPS, set `CASSIE_REST_EXTERNAL_HTTPS=1` so Cassie emits HSTS and marks login and logout cookies `Secure`. Cassie does not trust `Forwarded` or `X-Forwarded-Proto`. This setting does not authorize a plaintext non-loopback listener: the private proxy hop still requires `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1`.
+
+## Security Resource Configuration
+
+| Variable | Default | Contract |
+| --- | ---: | --- |
+| `CASSIE_AUTH_USER_ATTEMPTS_PER_MINUTE` | `10` | Process-local login token-bucket capacity per normalized user. |
+| `CASSIE_AUTH_IP_ATTEMPTS_PER_MINUTE` | `60` | Process-local login token-bucket capacity per peer IP. |
+| `CASSIE_AUTH_RATE_LIMIT_MAX_ENTRIES` | `4096` | Combined tracked user/IP entries; excess identities share bounded overflow buckets. |
+| `CASSIE_REST_MAX_SESSIONS_PER_USER` | `16` | Active opaque REST sessions allowed for one normalized user; the global cap remains 1,024. |
+| `CASSIE_REST_EXTERNAL_HTTPS` | `0` | Explicitly declares HTTPS outside Cassie for browser security attributes; forwarding headers remain ignored. |
+| `CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES` | `8388608` | Maximum success or error response body accepted from a remote embedding provider. |
+| `CASSIE_REST_WRITE_TIMEOUT_MS` | `10000` | REST transport write idle deadline. |
+| `CASSIE_PGWIRE_WRITE_TIMEOUT_MS` | `10000` | Pgwire transport write idle deadline. |
+
 ## Product Boundaries
 
 Cassie targets predictable read-model queries: relational reads, indexes, full-text and vector retrieval, hybrid scoring, analytical projections, time-series access, and graph traversal. PostgreSQL compatibility exists to support familiar clients and SQL workflows; it is not a promise of full PostgreSQL parity.

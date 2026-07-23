@@ -65,11 +65,16 @@ pub struct CassieRuntimeConfig {
     pub rest_listen: String,
     pub rest_tls_cert_file: Option<String>,
     pub rest_tls_key_file: Option<String>,
+    pub rest_external_https: bool,
     pub allow_insecure_non_loopback_listen: bool,
     pub admin_ui_dir: String,
     pub user: String,
     pub database: String,
     pub password: String,
+    pub auth_user_attempts_per_minute: usize,
+    pub auth_ip_attempts_per_minute: usize,
+    pub auth_rate_limit_max_entries: usize,
+    pub embeddings_max_response_bytes: usize,
     pub limits: CassieRuntimeLimits,
     pub embeddings: EmbeddingsRuntimeConfig,
 }
@@ -105,6 +110,9 @@ pub struct CassieRuntimeLimits {
     pub max_query_workers: usize,
     pub pgwire_max_connections: usize,
     pub rest_max_connections: usize,
+    pub rest_max_sessions_per_user: usize,
+    pub rest_write_timeout_ms: u64,
+    pub pgwire_write_timeout_ms: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -186,11 +194,16 @@ impl Default for CassieRuntimeConfig {
             rest_listen: "127.0.0.1:8080".to_string(),
             rest_tls_cert_file: None,
             rest_tls_key_file: None,
+            rest_external_https: false,
             allow_insecure_non_loopback_listen: false,
             admin_ui_dir: "./ui/dist".to_string(),
             user: "postgres".to_string(),
             database: "postgres".to_string(),
             password: "postgres".to_string(),
+            auth_user_attempts_per_minute: 10,
+            auth_ip_attempts_per_minute: 60,
+            auth_rate_limit_max_entries: 4_096,
+            embeddings_max_response_bytes: 8 * 1024 * 1024,
             limits: CassieRuntimeLimits::default(),
             embeddings: EmbeddingsRuntimeConfig::Disabled,
         }
@@ -229,6 +242,9 @@ impl Default for CassieRuntimeLimits {
             max_query_workers: 64,
             pgwire_max_connections: 256,
             rest_max_connections: 512,
+            rest_max_sessions_per_user: 16,
+            rest_write_timeout_ms: 10_000,
+            pgwire_write_timeout_ms: 10_000,
         }
     }
 }
@@ -270,6 +286,8 @@ impl CassieRuntimeConfig {
         config.pgwire_tls_key_file = env_reader("CASSIE_PGWIRE_TLS_KEY_FILE");
         config.rest_tls_cert_file = env_reader("CASSIE_REST_TLS_CERT_FILE");
         config.rest_tls_key_file = env_reader("CASSIE_REST_TLS_KEY_FILE");
+        config.rest_external_https =
+            parse_bool_from(&env_reader, "CASSIE_REST_EXTERNAL_HTTPS", false);
         config.allow_insecure_non_loopback_listen = parse_bool_from(
             &env_reader,
             "CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN",
@@ -286,6 +304,30 @@ impl CassieRuntimeConfig {
         }
 
         config.password = password_from_env(&env_reader, &config.password)?;
+        config.auth_user_attempts_per_minute = parse_usize_min_from(
+            &env_reader,
+            "CASSIE_AUTH_USER_ATTEMPTS_PER_MINUTE",
+            config.auth_user_attempts_per_minute,
+            1,
+        );
+        config.auth_ip_attempts_per_minute = parse_usize_min_from(
+            &env_reader,
+            "CASSIE_AUTH_IP_ATTEMPTS_PER_MINUTE",
+            config.auth_ip_attempts_per_minute,
+            1,
+        );
+        config.auth_rate_limit_max_entries = parse_usize_min_from(
+            &env_reader,
+            "CASSIE_AUTH_RATE_LIMIT_MAX_ENTRIES",
+            config.auth_rate_limit_max_entries,
+            1,
+        );
+        config.embeddings_max_response_bytes = parse_usize_min_from(
+            &env_reader,
+            "CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES",
+            config.embeddings_max_response_bytes,
+            1,
+        );
 
         let provider =
             env_reader("CASSIE_EMBEDDINGS_PROVIDER").unwrap_or_else(|| "disabled".to_string());
@@ -465,6 +507,22 @@ mod tests {
 
     fn env_reader_owned(values: HashMap<&'static str, String>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).cloned()
+    }
+
+    #[test]
+    fn should_default_security_resource_limits_to_the_public_contract() {
+        // Arrange / Act
+        let config = CassieRuntimeConfig::default();
+
+        // Assert
+        assert_eq!(config.auth_user_attempts_per_minute, 10);
+        assert_eq!(config.auth_ip_attempts_per_minute, 60);
+        assert_eq!(config.auth_rate_limit_max_entries, 4_096);
+        assert!(!config.rest_external_https);
+        assert_eq!(config.embeddings_max_response_bytes, 8_388_608);
+        assert_eq!(config.limits.rest_max_sessions_per_user, 16);
+        assert_eq!(config.limits.rest_write_timeout_ms, 10_000);
+        assert_eq!(config.limits.pgwire_write_timeout_ms, 10_000);
     }
 
     #[test]

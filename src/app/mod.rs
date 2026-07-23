@@ -76,6 +76,7 @@ pub use state::{Cassie, CassieRuntimeConfigState};
 
 mod auth;
 pub(crate) use auth::AuthenticatedPrincipal;
+mod auth_rate_limit;
 mod bulk_ingest;
 mod consistency;
 mod database_images;

@@ -51,4 +51,8 @@ External tooling remains responsible for:
 - verifying remote object-store integrity
 - choosing failover and routing policy
 
+Manifest and database-image checksums provide integrity checks, not producer
+authentication. Cassie does not sign recovery artifacts; use authenticated
+transport or external signing when an artifact crosses an untrusted channel.
+
 Snapshots do not change query planning and do not add distributed execution, cross-node reads, replication, consensus, or automatic repair.

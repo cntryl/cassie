@@ -13,6 +13,9 @@ use crate::planner::physical::PhysicalPlan;
 use crate::search::analyzer::AnalyzerConfig;
 use crate::types::Value;
 
+const MAX_REST_METRIC_LABELS: usize = 256;
+const REST_METRIC_OVERFLOW_LABEL: &str = "<other>";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ExecutionMode {
     SimpleQuery,
@@ -324,12 +327,12 @@ impl RuntimeState {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.rest.requests_total += 1;
         metrics.rest.latency_ms_total += duration_ms(elapsed);
-        *metrics
-            .rest
-            .by_method
-            .entry(method.to_ascii_uppercase())
-            .or_insert(0) += 1;
-        *metrics.rest.by_route.entry(route.to_string()).or_insert(0) += 1;
+        let method = match method {
+            "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" => method,
+            _ => REST_METRIC_OVERFLOW_LABEL,
+        };
+        increment_bounded_metric(&mut metrics.rest.by_method, method);
+        increment_bounded_metric(&mut metrics.rest.by_route, route);
         *metrics
             .rest
             .by_status_class
@@ -971,6 +974,19 @@ impl RuntimeState {
             .expect("fulltext index options")
             .insert(key, options);
     }
+}
+
+fn increment_bounded_metric(map: &mut BTreeMap<String, u64>, label: &str) {
+    if let Some(count) = map.get_mut(label) {
+        *count = count.saturating_add(1);
+        return;
+    }
+    let label = if map.len() < MAX_REST_METRIC_LABELS {
+        label
+    } else {
+        REST_METRIC_OVERFLOW_LABEL
+    };
+    *map.entry(label.to_string()).or_insert(0) += 1;
 }
 
 fn increment_boundary_counter(map: &mut BTreeMap<String, u64>, operation: &str) {

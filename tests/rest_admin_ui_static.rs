@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
@@ -288,6 +289,39 @@ fn should_serve_built_admin_assets() {
 }
 
 #[test]
+fn should_reject_admin_assets_over_the_static_file_limit() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("oversized-asset");
+    let dist = write_dist_fixture("oversized-asset");
+    let oversized = dist.join("assets").join("oversized.bin");
+    std::fs::File::create(&oversized)
+        .expect("oversized asset")
+        .set_len(8 * 1024 * 1024 + 1)
+        .expect("resize oversized asset");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+
+        // Act
+        let response = reqwest::get(format!("{base_url}/assets/oversized.bin"))
+            .await
+            .expect("oversized asset request");
+
+        // Assert
+        assert_eq!(response.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
 fn should_return_not_found_when_admin_ui_dir_is_missing() {
     // Arrange
     with_fallback();
@@ -350,7 +384,7 @@ fn should_reject_admin_asset_path_traversal() {
             .expect("read traversal response");
 
         // Assert
-        assert!(response.starts_with("HTTP/1.1 404"));
+        assert!(response.starts_with("HTTP/1.1 400"));
         assert!(!response.contains("[package]"));
 
         stop_rest_server(shutdown, server).await;
@@ -392,8 +426,10 @@ fn should_preserve_existing_route_auth_behavior() {
             .send()
             .await
             .expect("targetz request");
+        let session_cookie = login_cookie(&client, &base_url).await;
         let metrics = client
             .get(format!("{base_url}/metrics"))
+            .header("cookie", session_cookie)
             .send()
             .await
             .expect("metrics request");
@@ -519,6 +555,52 @@ fn should_reject_cross_origin_rest_state_changes() {
 
         // Assert
         assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+        stop_rest_server(shutdown, server).await;
+        let _ = std::fs::remove_dir_all(data_dir);
+        let _ = std::fs::remove_dir_all(dist);
+    });
+}
+
+#[test]
+fn should_reject_ambiguous_paths_before_rest_security_checks() {
+    // Arrange
+    with_fallback();
+    let data_dir = data_dir("ambiguous-api-path");
+    let dist = write_dist_fixture("ambiguous-api-path");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+        let client = reqwest::Client::new();
+        let session_cookie = login_cookie(&client, &base_url).await;
+
+        // Act
+        let body = r#"{"sql":"CREATE TABLE bypassed (id INT)"}"#;
+        let address = base_url.trim_start_matches("http://");
+        let mut stream = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect raw client");
+        let request = format!(
+            "POST //api/v1/admin/query/execute HTTP/1.1\r\nHost: {address}\r\nOrigin: https://evil.example\r\nContent-Type: text/plain\r\nCookie: {session_cookie}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        stream
+            .write_all(request.as_bytes())
+            .await
+            .expect("write raw request");
+        let mut response = String::new();
+        stream
+            .read_to_string(&mut response)
+            .await
+            .expect("read raw response");
+
+        // Assert
+        assert!(response.starts_with("HTTP/1.1 400"), "{response}");
         stop_rest_server(shutdown, server).await;
         let _ = std::fs::remove_dir_all(data_dir);
         let _ = std::fs::remove_dir_all(dist);

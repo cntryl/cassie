@@ -39,3 +39,33 @@ fn should_use_separate_backend_frontend_ci_workflows() {
     assert!(!frontend_contents.contains("tee "));
     assert!(!frontend_contents.contains("upload-artifact"));
 }
+
+#[test]
+fn should_cancel_superseded_backend_ci_runs_per_branch_or_pull_request() {
+    // Arrange
+    let workflow = repo_root().join(".github/workflows/ci-backend.yml");
+
+    // Act
+    let contents = fs::read_to_string(workflow).expect("backend workflow");
+
+    // Assert
+    assert!(contents.contains("concurrency:"));
+    assert!(contents.contains("ci-backend-${{ github.event.pull_request.head.ref || github.ref }}"));
+    assert!(contents.contains("cancel-in-progress: true"));
+    assert!(contents.contains("timeout-minutes: 30"));
+}
+
+#[test]
+fn should_run_backend_integration_binaries_with_bounded_parallelism() {
+    // Arrange
+    let workflow = repo_root().join(".github/workflows/ci-backend.yml");
+
+    // Act
+    let contents = fs::read_to_string(workflow).expect("backend workflow");
+
+    // Assert
+    assert!(contents.contains("cargo test --locked --lib --bins"));
+    assert!(contents.contains("find tests -maxdepth 1 -type f -name '*.rs' -print0"));
+    assert!(contents.contains("xargs -0 -n1 -P4"));
+    assert!(contents.contains("cargo test --locked --test \"$test_name\""));
+}

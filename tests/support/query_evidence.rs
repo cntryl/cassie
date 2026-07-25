@@ -29,6 +29,8 @@ impl SeededQueryFixture {
             let indexed_path = data_dir("query-evidence-indexed");
             let row_cassie = Cassie::new_with_data_dir(&row_path).expect("row Cassie");
             let indexed_cassie = Cassie::new_with_data_dir(&indexed_path).expect("indexed Cassie");
+            row_cassie.startup().expect("start row Cassie");
+            indexed_cassie.startup().expect("start indexed Cassie");
 
             seed(&row_cassie, false, self.rows);
             seed(&indexed_cassie, true, self.rows);
@@ -104,7 +106,7 @@ fn execute_pages(cassie: &Cassie, table: &str) -> Vec<Vec<Vec<Value>>> {
         )
         .expect("insert query evidence overlay");
 
-    (0..4)
+    let pages = (0..4)
         .map(|page| {
             cassie
                 .execute_sql(
@@ -118,7 +120,11 @@ fn execute_pages(cassie: &Cassie, table: &str) -> Vec<Vec<Vec<Value>>> {
                 .expect("execute query evidence page")
                 .rows
         })
-        .collect()
+        .collect::<Vec<_>>();
+    cassie
+        .execute_sql(&session, "ROLLBACK", vec![])
+        .expect("rollback query evidence transaction");
+    pages
 }
 
 fn data_dir(label: &str) -> String {

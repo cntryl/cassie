@@ -8,7 +8,7 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-backend-${{ github.event.pull_request.number || github.ref }}
+  group: ci-backend-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:

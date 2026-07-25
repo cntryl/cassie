@@ -50,6 +50,6 @@ fn should_cancel_superseded_backend_ci_runs_per_branch_or_pull_request() {
 
     // Assert
     assert!(contents.contains("concurrency:"));
-    assert!(contents.contains("ci-backend-${{ github.event.pull_request.number || github.ref }}"));
+    assert!(contents.contains("ci-backend-${{ github.event.pull_request.head.ref || github.ref }}"));
     assert!(contents.contains("cancel-in-progress: true"));
 }

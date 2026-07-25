@@ -84,6 +84,7 @@ pub(crate) enum Codec {
     Dictionary = 3,
     FrameOfReference = 4,
     Fsst = 6,
+    Alp = 5,
 }
 
 impl Codec {
@@ -95,6 +96,7 @@ impl Codec {
             3 => Ok(Self::Dictionary),
             4 => Ok(Self::FrameOfReference),
             6 => Ok(Self::Fsst),
+            5 => Ok(Self::Alp),
             _ => Err(invalid("unknown column-batch codec")),
         }
     }
@@ -111,6 +113,7 @@ impl Codec {
             Self::Dictionary => "dictionary",
             Self::FrameOfReference => "frame_of_reference",
             Self::Fsst => "fsst",
+            Self::Alp => "alp",
         }
     }
 }
@@ -284,6 +287,11 @@ fn codec_candidates(
     if logical_type == LogicalType::Utf8 {
         candidates.push((Codec::Fsst, super::fsst::encode(non_null)?));
     }
+    if logical_type == LogicalType::Float64 {
+        if let Ok(payload) = super::alp::encode(non_null) {
+            candidates.push((Codec::Alp, payload));
+        }
+    }
     Ok(candidates)
 }
 
@@ -359,6 +367,12 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
                 return Err(invalid("FSST requires text"));
             }
             super::fsst::decode(payload, non_null_count)?
+        }
+        Codec::Alp => {
+            if logical_type != LogicalType::Float64 {
+                return Err(invalid("ALP requires floats"));
+            }
+            super::alp::decode(payload, non_null_count)?
         }
     };
     if non_null.len() != non_null_count {

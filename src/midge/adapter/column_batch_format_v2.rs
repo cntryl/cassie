@@ -1,3 +1,4 @@
+mod alp;
 mod binary;
 mod bitpack;
 mod chunk;

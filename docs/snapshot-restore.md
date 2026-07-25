@@ -77,3 +77,6 @@ Cassie's image checksum is still checked during `RESTORE`; that proves transfer 
 integrity, while the detached signature and trusted identity establish provenance.
 
 Snapshots do not change query planning and do not add distributed execution, cross-node reads, replication, consensus, or automatic repair.
+
+For release-architecture rehearsal, use the [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md)
+record and verify restore-to-new-directory results separately for amd64 and arm64.

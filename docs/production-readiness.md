@@ -24,6 +24,8 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Container and supply-chain workflows for supported targets.
 - Named evidence boundaries are defined in [Deployment Profiles](deployment-profiles.md); the
   native-Linux profile remains an explicit evidence requirement rather than an implied claim.
+- The release support, upgrade, rollback, and security-response envelope is defined in
+  [Support, Release, and Security-Response Policy](support-policy.md).
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
@@ -51,7 +53,9 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
   claim.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
-- Define support policy, upgrade compatibility, release rollback, and security response expectations for the production service envelope.
+- Validate the support, upgrade compatibility, release rollback, and security response expectations
+  in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
+  artifact and rehearsal evidence.
 
 ## Promotion Evidence
 

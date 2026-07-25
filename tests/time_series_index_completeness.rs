@@ -352,7 +352,7 @@ fn should_rebuild_old_manifest_version_during_restart() {
 }
 
 #[test]
-fn should_maintain_exact_metadata_after_bulk_update_and_delete() {
+fn should_maintain_exact_metadata_after_bulk_update() {
     // Arrange
     let (cassie, path) = fixture("time-series-lifecycle-metadata");
     let session = cassie.create_session("tester", None);
@@ -365,6 +365,33 @@ fn should_maintain_exact_metadata_after_bulk_update_and_delete() {
             vec![],
         )
         .expect("update bucket membership");
+    let metadata = manifest(&cassie);
+    let counts = bucket_count_entries(&cassie);
+
+    // Assert
+    assert_eq!(metadata["version"].as_u64(), Some(1));
+    assert_eq!(metadata["total_membership"].as_u64(), Some(3));
+    assert_eq!(
+        metadata["generation"].as_u64(),
+        Some(
+            cassie
+                .midge
+                .collection_generation(&canonical_collection(&cassie))
+                .expect("collection generation")
+        )
+    );
+    assert_eq!(counts.len(), 2);
+    drop(cassie);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_maintain_exact_metadata_after_bulk_delete() {
+    // Arrange
+    let (cassie, path) = fixture("time-series-lifecycle-delete-metadata");
+    let session = cassie.create_session("tester", None);
+
+    // Act
     cassie
         .execute_sql(
             &session,
@@ -387,7 +414,7 @@ fn should_maintain_exact_metadata_after_bulk_update_and_delete() {
                 .expect("collection generation")
         )
     );
-    assert_eq!(counts.len(), 2);
+    assert_eq!(counts.len(), 1);
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);
 }

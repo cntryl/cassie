@@ -193,6 +193,8 @@ The canonical local evidence run declares
 `CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=workstation-apple-m5-arm64-apfs`. The runner
 rejects unknown profile IDs and records the selected profile in every artifact. This arm64/APFS
 profile is valid Cassie evidence, but it does not replace representative native-Linux evidence.
+The profile definitions, artifact identity, retention, and ownership contract are maintained in
+[Deployment Profiles](deployment-profiles.md).
 
 Tier 6 disables warmup and cooldown. It divides the resolved total duration across its measured samples and records both the total and per-sample duration. Smoke validation may explicitly lower the duration through the command-line option or environment variable; that result remains diagnostic rather than endurance evidence.
 

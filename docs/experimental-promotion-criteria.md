@@ -42,3 +42,16 @@ Some surfaces should remain experimental even with strong tests if their compati
 - External-provider behavior must remain tied to documented provider contracts and failure modes, not general availability guarantees.
 
 Future promotion issues should cite this document, update only the selected surface, and leave unrelated experimental surfaces unchanged.
+
+## Adaptive Evaluation Profiles
+
+The `disabled-default` profile keeps `adaptive_execution_enabled=false` and
+`operator_switching_enabled=0`. This is the default for every deployment and is the
+rollback state when feedback is stale, below its confidence threshold, or fails a cost guard.
+
+The `evaluation-conservative` profile is opt-in and uses `operator_feedback_enabled=true`,
+`adaptive_execution_enabled=true`, `adaptive_min_cost_savings_bps=500`,
+`adaptive_min_confidence_bps=900`, `operator_switching_enabled=1`, and
+`operator_switch_join_row_threshold=4096`. It is intended for representative evidence only;
+result-equivalence, deterministic EXPLAIN guard diagnostics, stale-feedback fallback, and
+operator-switch rollback tests must pass before any default change is considered.

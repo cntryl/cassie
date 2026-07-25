@@ -40,7 +40,15 @@ jobs:
         run: cargo build --locked
 
       - name: Cargo test
-        run: cargo test --locked
+        run: |
+          cargo test --locked --lib --bins
+          find tests -maxdepth 1 -type f -name '*.rs' -print0 \
+            | xargs -0 -n1 -P4 sh -c '
+                test_file="$1"
+                test_name="${test_file#tests/}"
+                test_name="${test_name%.rs}"
+                cargo test --locked --test "$test_name"
+              ' _
 
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic

@@ -17,6 +17,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [PostgreSQL Compatibility](postgres-compatibility.md)
 - [Performance Contracts](performance-contracts.md)
 - [Production Readiness](production-readiness.md)
+- [Support, Release, and Security-Response Policy](support-policy.md)
 - [Product Roadmap](product-roadmap.md)
 - [Indexes and Constraints](indexes-and-constraints.md)
 - [Architecture Diagrams](architecture-diagrams.md)

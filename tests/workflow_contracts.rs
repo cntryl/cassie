@@ -39,3 +39,17 @@ fn should_use_separate_backend_frontend_ci_workflows() {
     assert!(!frontend_contents.contains("tee "));
     assert!(!frontend_contents.contains("upload-artifact"));
 }
+
+#[test]
+fn should_cancel_superseded_backend_ci_runs_per_branch_or_pull_request() {
+    // Arrange
+    let workflow = repo_root().join(".github/workflows/ci-backend.yml");
+
+    // Act
+    let contents = fs::read_to_string(workflow).expect("backend workflow");
+
+    // Assert
+    assert!(contents.contains("concurrency:"));
+    assert!(contents.contains("ci-backend-${{ github.event.pull_request.number || github.ref }}"));
+    assert!(contents.contains("cancel-in-progress: true"));
+}

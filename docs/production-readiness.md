@@ -4,7 +4,9 @@ This document is the canonical owner for beta and Production-ready evidence. Fea
 
 ## Current Classification
 
-The Cassie query-engine baseline is Beta-ready for the documented pre-release support envelope. Stable capabilities are supported; Experimental capabilities are available for evaluation under their documented limits and may change before 1.0.
+The Cassie query-engine baseline is a **Production Candidate** for the documented pre-release
+support envelope. Stable capabilities are supported; Experimental capabilities are available for
+evaluation under their documented limits and may change before 1.0.
 
 Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
@@ -21,23 +23,30 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Container and supply-chain workflows for supported targets.
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
+- Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
 - Production-browser coverage runs the Experimental Admin UI from a real temporary Cassie process at desktop and mobile viewports. This evidence does not promote the Admin UI or broaden Cassie's readiness classification.
 
-## Beta Support Envelope
+## Production Candidate Support Envelope
 
 - PostgreSQL wire is the primary SQL interface; REST is secondary and administrative.
 - Only capabilities marked Stable are supported contracts. Experimental capabilities are evaluation surfaces, not compatibility commitments.
 - Midge is the only storage layer. Cassie is permanently single-node and does not provide distributed SQL, cluster management, replication, consensus, sharding or rebalancing, cross-node transactions, distributed planning, remote query forwarding, or automatic cross-node repair.
-- The beta bar requires the validation sequence in [Definition of Done](definition-of-done.md), UI production-dependency audit and gates, benchmark-owner compilation, and a disk-backed smoke run on the release commit.
+- The Production Candidate bar requires the validation sequence in [Definition of Done](definition-of-done.md), UI production-dependency audit and gates, benchmark-owner compilation, and a disk-backed smoke run on the release commit.
 - Smoke results are regression diagnostics, not service-level objectives or capacity claims.
 
 ## Remaining Production Blockers
 
-- Database-image checksums detect accidental or malicious content changes but do not authenticate who produced an image. Images crossing an untrusted channel require authenticated transport or external signing until a Cassie-owned signing format and key-management contract are specified.
-- Track the upstream low-severity DOMPurify advisory inherited through Monaco (`GHSA-c2j3-45gr-mqc4`); no fixed dependency version is currently available. The frontend gate continues to fail on moderate-or-higher production advisories.
+- Database-image checksums detect content changes but do not authenticate who produced an image.
+  Operators must follow the detached-signature and trusted-identity procedure in
+  [Snapshot, Backup, Restore, and Repair](snapshot-restore.md) before streaming an image from an
+  untrusted channel into `RESTORE`; Cassie intentionally does not define another signing format.
+- Keep Monaco ownership and dependency-upgrade tracking with [microsoft/monaco-editor#5352](https://github.com/microsoft/monaco-editor/issues/5352). Cassie pins the patched DOMPurify release through its package override and continues to fail the frontend gate on moderate-or-higher production advisories.
 
-- Retain complete same-commit benchmark artifacts from a named disk-backed deployment profile at representative fixture sizes and concurrency.
+- Retain complete same-commit Tier 1-6 artifacts for
+  `workstation-apple-m5-arm64-apfs`, including the two-hour Tier 6 set, and add
+  representative native-Linux capacity and soak evidence before a global Production-ready
+  claim.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
 - Define support policy, upgrade compatibility, release rollback, and security response expectations for the production service envelope.

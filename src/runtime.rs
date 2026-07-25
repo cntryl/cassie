@@ -71,7 +71,7 @@ mod admission;
 #[path = "runtime/cache_state.rs"]
 mod cache_state;
 #[path = "runtime/column_batch_metrics.rs"]
-mod column_batch_metrics;
+pub(crate) mod column_batch_metrics;
 #[path = "runtime/controls.rs"]
 mod controls;
 #[path = "runtime/feedback.rs"]
@@ -836,6 +836,14 @@ impl RuntimeState {
         let mut metrics = self.metrics.lock().expect("runtime metrics");
         metrics.aggregate_acceleration.scans += 1;
         metrics.aggregate_acceleration.accelerated_segments += accelerated_segments as u64;
+    }
+
+    /// # Panics
+    ///
+    /// Panics if the runtime metrics lock is poisoned.
+    pub fn record_direct_aggregate_acceleration(&self) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.aggregate_acceleration.direct_scans += 1;
     }
 
     /// # Panics

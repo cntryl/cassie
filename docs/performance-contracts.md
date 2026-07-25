@@ -58,7 +58,10 @@ Remote embedding providers expose controlled document and query methods. Each re
 
 - Time-series queries use ordered partition/timestamp bounds and point-fetch candidate rows. Unsupported shapes use a labelled row fallback.
 - Graph traversal reads controlled pages from edge-type-first prefixes when filtered and weight-first node prefixes when unfiltered. Both-direction scans merge by weight and edge ID. Frontier, visited, path, edge, and output state are accounted before retention; `54000` returns no partial traversal. Transaction overlays, `missing-sidecar-manifest`, `sidecar-format-mismatch`, `malformed-sidecar`, and `concurrent-source-change` use the exact session-aware row path.
-- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Accelerated aggregates validate maintenance state, source generation, metadata and summary versions, field coverage, source counts, and every segment before publishing accelerated metrics. Reasons including `maintenance_pending`, `generation_mismatch`, `metadata_format_mismatch`, `summary_format_mismatch`, `summary_missing`, `summary_checksum_mismatch`, `numeric_summary_requires_rows`, and `typed_summary_requires_rows` select the exact row aggregate.
+- Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Its canonical derived layout is a little-endian `CBM2` manifest plus separate `CBR2` row-ID and `CBC2` field chunks. Manifest publication is atomic, segment IDs are immutable, revisions fence chunk generations, and row ranges are stable and half-open. SHA-256 protects every required chunk. A missing, corrupt, stale, unsupported, or over-limit required chunk aborts the complete accelerated attempt and selects authoritative rows; partial accelerated results are never returned.
+- Column scans follow summary pruning, predicate-chunk reads, a selection bitmap, requested projection-chunk reads, and selected-value materialization. Dictionary projection chunks validate their complete framing, dictionary, and index stream while allocating scalar values only for selected positions. Supported encoded predicates are conjunctions of equality, range, `IS NULL`, and `IS NOT NULL`, with executor rechecking for exact SQL semantics. Unrequested chunks receive no reads or decodes. Transaction overlays, grouped aggregates, joins, unsupported expressions, and semantics without an exact proof use the row path.
+- Codec selection is deterministic and automatic. Plain fixed-width or bounded variable-width encoding is the baseline. Boolean and null bitmaps, constant values, typed RLE, sorted dictionaries with bit-packed indices, and checked 128-value frame-of-reference blocks are eligible. A codec must save at least `max(32 bytes, 5% of the complete plain representation)` and ties prefer lower decode complexity. Floats are limited to plain, constant, and RLE. Temporal values remain string-backed and complex values remain bounded plain. Cassie does not layer LZ4 or Zstd over Midge compression.
+- Accelerated aggregates validate maintenance state, source generation, manifest and summary versions, field coverage, source counts, and every required segment before publishing success metrics. Summary-only aggregation remains valid for eligible unfiltered queries. Filtered ungrouped `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX` may execute over encoded numeric streams and a selection bitmap only when exact row-path semantics are proven. Reasons including `maintenance_pending`, `generation_mismatch`, `metadata_format_mismatch`, `summary_format_mismatch`, `summary_missing`, `summary_checksum_mismatch`, `numeric_summary_requires_rows`, and `typed_summary_requires_rows` select the exact row aggregate.
 - Rollup or time-bucket substitution requires a planner proof of equivalence.
 
 Time-series index records, graph adjacency records, and column metadata and summaries are latest-only derived sidecars. Startup audits their version, generation, counts, checksums, and source membership as applicable and rebuilds the complete sidecar when state is missing, malformed, old, or inconsistent. Cassie does not read incompatible derived formats through a compatibility branch; authoritative Midge row records remain the recovery source.
@@ -70,6 +73,13 @@ Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use
 Golden fixtures own ordering and round-trip behavior for rows, scalar indexes, full-text postings, vectors, time-series entries, graph adjacency, and column batches. The baseline fixture must show at least a 25% reduction in total query-hot key/value bytes from the fixed pre-change fixture.
 
 Mutation benchmarks report logical mutations, Midge writes, bytes, index maintenance, and derived-state publication. Duplicate replay and no-op updates must not rewrite unchanged hot records. Amplification limits are contract assertions tied to workload shape, not elapsed time.
+
+Column-batch mutations target stable half-open row-ID ranges. A segment targets
+`segment_size`, may grow to `2 * segment_size`, and splits at the median when it overflows;
+the left half retains its segment ID and the right half receives a new ID. One-row DML
+rewrites one segment, or two only when it causes a split. Empty segments extend an adjacent
+range and are removed without normal-path merging. Publication, debt fencing, restart
+rebuild, and orphan cleanup must preserve exact row fallback under every failure.
 
 ## Cancellation and Parallel Work
 
@@ -83,11 +93,11 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 | Tier | Measures | Cassie ownership |
 | --- | --- | --- |
-| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row and layout codecs, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
-| 2 - Subsystem | One subsystem operation | Parser, binder, planner, caches, physical operators, posting merge, ANN candidate or probe selection, hybrid fusion, protocol codecs, and one projection write or replay batch over at most 2,048 rows. Full SQL execution, listeners, concurrency, and scale loops are excluded. |
+| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row and layout codecs, canonical column scalar codec encode/decode, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
+| 2 - Subsystem | One subsystem operation | Parser, binder, planner, caches, physical operators, selective encoded column scans, posting merge, ANN candidate or probe selection, hybrid fusion, protocol codecs, and one projection write or replay batch over at most 2,048 rows. Full listeners, concurrency, and scale loops are excluded. |
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
 | 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
-| 5 - Scaling/saturation | Curves and limits | Query, retrieval, lifecycle, and transport owners over 10k, 100k, and 250k fixture classes, clients at 1/2/4/8/16, and workers at 1/2/4. Large SQL, join, search, vector, hybrid, replay, rebuild, and concurrency cases belong here. |
+| 5 - Scaling/saturation | Curves and limits | Query, retrieval, lifecycle, and transport owners over 10k, 100k, and 250k fixture classes, including column decode curves and one-row column DML amplification; clients at 1/2/4/8/16; and workers at 1/2/4. Large SQL, join, search, vector, hybrid, replay, rebuild, and concurrency cases belong here. |
 | 6 - Soak/endurance | Long-lived stability | Exactly two default scenarios: mixed query/ingest/retrieval over 100k rows, and pgwire/HTTP lifecycle over 10k rows. Each scenario runs for one hour by default and proves correctness, resource bounds, permit accounting, cleanup, and zero failed operations. |
 
 When a scenario changes owners without changing behavior, it keeps its existing scenario ID. When a Tier 3 representative case is intentionally repeated as part of a Tier 5 curve, the scale case uses a distinct `perf.scale.*` ID.
@@ -124,7 +134,29 @@ Execution-result caching is disabled for every benchmark owner except the dedica
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
 
 Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
+The Tier 5 250k analytical curve records a separate 96 MiB benchmark-only profile; it remains a
+hard bound and uses a 120-second per-query timeout so the curve measures completion rather than the
+30-second runtime default. Neither setting widens runtime defaults or the 100k representative
+contract.
 The preserved dense-join row is the explicit exception: it records `benchmark_resource_profile=dense_stream_selection_4k` and uses a 4 KiB algorithm-selection profile, while the 64 MiB rule applies to column-analytical cases.
+
+The adaptive column acceptance gates are:
+
+- no selected codec exceeds the complete plain encoded size;
+- unrequested chunks receive zero reads and decodes;
+- incompressible fixtures have no more than 5% p95 regression from the plain path;
+- a codec remains selected for a representative compressible workload only when
+  end-to-end p95 improves by at least 15%;
+- selected compressible fixtures reduce derived-format bytes by at least 25%;
+- selective results, fallback, freshness, cancellation, and memory limits remain exact
+  under corruption and publication failures.
+
+Tier 2 owns paired, same-fixture acceptance rows for those latency gates:
+`perf.column.selective_encoded_scan.2k` is compared with its forced-plain baseline at a
+maximum p95 ratio of `0.85`, while `perf.column.incompressible_adaptive_scan.2k` is compared
+with its forced-plain baseline at a maximum ratio of `1.05`. The benchmark validates codec
+choices before timing and batches eight exact queries per measured sample. Forced-plain
+rebuild is benchmark-only and is not a SQL or runtime configuration surface.
 
 Each result records, from observed execution rather than expectation alone:
 
@@ -147,6 +179,7 @@ Tier 3 column, vector, and graph representatives additionally assert exact fixtu
 Tier 5 has explicit query, retrieval, lifecycle, and transport owners. Its required curves cover:
 
 - dataset sizes of 10k, 100k, and 250k rows for applicable query, retrieval, replay, rebuild, and lifecycle cases;
+- column encoded-query and one-row DML write-amplification curves at 10k, 100k, and 250k rows;
 - client counts of 1, 2, 4, 8, and 16 for applicable transport and concurrency cases;
 - worker counts of 1, 2, and 4 for applicable execution cases.
 
@@ -155,6 +188,11 @@ Every applicable owner emits evidence for every value on its declared axis. Thes
 ## Tier 6 Duration and Resource Gates
 
 `CASSIE_BENCH_SOAK_DURATION_SECONDS` sets the measured duration for each Tier 6 scenario and defaults to `3600`. The `--soak-duration-seconds` command-line option takes precedence over the environment variable, which takes precedence over the default.
+
+The canonical local evidence run declares
+`CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=workstation-apple-m5-arm64-apfs`. The runner
+rejects unknown profile IDs and records the selected profile in every artifact. This arm64/APFS
+profile is valid Cassie evidence, but it does not replace representative native-Linux evidence.
 
 Tier 6 disables warmup and cooldown. It divides the resolved total duration across its measured samples and records both the total and per-sample duration. Smoke validation may explicitly lower the duration through the command-line option or environment variable; that result remains diagnostic rather than endurance evidence.
 

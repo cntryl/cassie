@@ -18,7 +18,40 @@ const LOCAL_PROFILE_NON_GOALS: &[&str] = &[
     "not_disk_sync_unless_bench_midge_disk",
 ];
 
+const APPLE_M5_PROFILE_NON_GOALS: &[&str] = &[
+    "not_native_linux",
+    "not_global_production_ready_promotion",
+    "not_support_policy_evidence",
+];
+
 pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
+    DeploymentProfile {
+        profile_id: "workstation-apple-m5-arm64-apfs",
+        host_shape: "Apple M5 workstation, arm64, APFS",
+        storage_mode: "midge_disk_apfs",
+        data_shape: "deterministic generated read-model fixture",
+        workload_mix: "Tier 1 through Tier 6 registered workloads",
+        fixture_scale: "10k+100k+250k",
+        benchmark_command:
+            "CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=workstation-apple-m5-arm64-apfs cargo bench --locked --bench <owner-benchmark>",
+        cache_evidence: "plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: APPLE_M5_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
+    DeploymentProfile {
+        profile_id: "local-dev-fallback-2k",
+        host_shape: "local developer workstation",
+        storage_mode: "in_memory_midge_fallback",
+        data_shape: "deterministic generated subsystem fixture",
+        workload_mix: "single benchmark owner workload",
+        fixture_scale: "2k",
+        benchmark_command: "cargo bench --locked --bench <owner-benchmark>",
+        cache_evidence: "plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: LOCAL_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
     DeploymentProfile {
         profile_id: "local-dev-fallback-10k",
         host_shape: "local developer workstation",

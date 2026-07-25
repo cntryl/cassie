@@ -16,6 +16,14 @@ impl Cassie {
     #[must_use]
     pub fn metrics(&self) -> serde_json::Value {
         let snapshot = self.runtime.snapshot();
+        let mut column_batches = serde_json::to_value(snapshot.column_batches).unwrap_or_default();
+        let column_batch_operational = self.midge.column_batch_operational_metrics();
+        if let (Some(column_batches), Some(operational)) = (
+            column_batches.as_object_mut(),
+            column_batch_operational.as_object(),
+        ) {
+            column_batches.extend(operational.clone());
+        }
         serde_json::json!({
             "uptime_seconds": snapshot.runtime.uptime_seconds,
             "running_queries": snapshot.runtime.running_queries,
@@ -37,7 +45,7 @@ impl Cassie {
             "adaptive_candidates": snapshot.adaptive_candidates,
             "joins": snapshot.joins,
             "covering_indexes": snapshot.covering_indexes,
-            "column_batches": snapshot.column_batches,
+            "column_batches": column_batches,
             "time_series": snapshot.time_series,
             "aggregate_acceleration": snapshot.aggregate_acceleration,
             "parallel_scans": snapshot.parallel_scans,

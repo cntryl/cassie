@@ -590,6 +590,27 @@ fn should_require_bounded_result_evidence_from_tier3_specialized_queries() {
 }
 
 #[test]
+fn should_batch_tier3_column_queries_with_explicit_normalization() {
+    // Arrange
+    let source = include_str!("../benches/tier3_system_query.rs");
+
+    // Act
+    let has_batch_size = source.contains("const COLUMN_QUERIES_PER_BATCH: u64 = 8;");
+    let has_query_unit = source.contains(".parameter(\"logical_unit\", \"query\")");
+    let has_normalization = source.contains(".parameter(\"queries_per_logical_operation\", \"1\")");
+    let measures_complete_batch =
+        source.contains("runner.measure_batch(case, COLUMN_QUERIES_PER_BATCH, ||");
+    let executes_complete_batch = source.contains("for _ in 0..COLUMN_QUERIES_PER_BATCH");
+
+    // Assert
+    assert!(has_batch_size);
+    assert!(has_query_unit);
+    assert!(has_normalization);
+    assert!(measures_complete_batch);
+    assert!(executes_complete_batch);
+}
+
+#[test]
 fn should_require_ordered_bounded_cleanup_evidence_from_tier4_portals() {
     // Arrange
     let source = include_str!("../benches/support/workloads/pgwire.rs");

@@ -13,8 +13,11 @@ mod options;
 mod ordered_scan;
 #[path = "documents/read.rs"]
 mod read;
+#[path = "documents/report.rs"]
+mod report;
 pub(crate) use options::DocumentWriteBatchOptions;
 pub(crate) use ordered_scan::OrderedRowScanRequest;
+pub(crate) use report::DocumentWriteBatchReport;
 
 #[derive(Debug, Clone)]
 pub(crate) enum DocumentWriteOp {
@@ -25,14 +28,6 @@ pub(crate) enum DocumentWriteOp {
     Delete {
         id: String,
     },
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct DocumentWriteBatchReport {
-    pub ids: Vec<String>,
-    pub row_delta: i64,
-    pub stats: crate::runtime::ProjectionWriteStats,
-    pub data_epoch: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -323,7 +318,7 @@ impl Midge {
                     prepared_collection,
                     options,
                 )?;
-                if report_has_changes(&report) {
+                if report.has_changes() {
                     Self::refresh_vector_index_states_in_tx(
                         &mut tx,
                         &context.row_schema,
@@ -392,7 +387,7 @@ impl Midge {
                 &mut report,
             )?;
         }
-        if report_has_changes(&report) {
+        if report.has_changes() {
             Self::refresh_vector_index_states_in_tx(
                 tx,
                 &context.row_schema,
@@ -706,6 +701,7 @@ impl Midge {
             existing.payload.as_ref(),
             Some(&payload),
         )?;
+        report.changed_ids.push(prepared.id.clone());
         report.ids.push(prepared.id);
         report.stats.row_puts = report.stats.row_puts.saturating_add(1);
         report.stats.index_puts = report.stats.index_puts.saturating_add(
@@ -765,6 +761,7 @@ impl Midge {
             report.stats.metadata_deletes = report.stats.metadata_deletes.saturating_add(1);
             report.stats.row_deletes = report.stats.row_deletes.saturating_add(1);
             report.row_delta = report.row_delta.saturating_sub(1);
+            report.changed_ids.push(prepared.id.clone());
         }
         let normalized_deleted = Self::delete_normalized_vector_keys_for_document(
             tx,
@@ -986,13 +983,4 @@ impl Midge {
         }
         Ok(())
     }
-}
-
-fn report_has_changes(report: &DocumentWriteBatchReport) -> bool {
-    report.stats.row_puts > 0
-        || report.stats.row_deletes > 0
-        || report.stats.index_puts > 0
-        || report.stats.index_deletes > 0
-        || report.stats.metadata_puts > 0
-        || report.stats.metadata_deletes > 0
 }

@@ -1,7 +1,12 @@
 use cassie::app::{Cassie, CassieSession};
-use cassie::midge::adapter::{set_column_batch_maintenance_failure_point, StorageFamily};
+use cassie::catalog::ColumnBatchMetadata;
+use cassie::midge::adapter::{
+    decode_column_batch_manifest_for_test, encode_column_batch_manifest_for_test,
+    set_column_batch_maintenance_failure_point, StorageFamily,
+};
 use cassie::types::Value;
 use cntryl_midge::{TransactionMode, WriteOptions};
+use sha2::{Digest, Sha256};
 
 #[path = "support/sql.rs"]
 mod support;
@@ -117,7 +122,7 @@ fn ordered_numeric_fixture(
     }
 }
 
-fn metadata_entry(fixture: &AmountFixture) -> (Vec<u8>, serde_json::Value) {
+fn metadata_entry(fixture: &AmountFixture) -> (Vec<u8>, ColumnBatchMetadata) {
     fixture
         .cassie
         .midge
@@ -125,29 +130,38 @@ fn metadata_entry(fixture: &AmountFixture) -> (Vec<u8>, serde_json::Value) {
         .expect("scan data")
         .into_iter()
         .find_map(|(key, raw)| {
-            let metadata = serde_json::from_slice::<serde_json::Value>(&raw).ok()?;
-            metadata
-                .get("metadata_format_version")
-                .is_some()
-                .then_some((key, metadata))
+            raw.starts_with(b"CBM2")
+                .then(|| decode_column_batch_manifest_for_test(&raw).ok())
+                .flatten()
+                .map(|metadata| (key, metadata))
         })
         .expect("column batch metadata")
 }
 
-fn write_metadata(fixture: &AmountFixture, key: Vec<u8>, metadata: &serde_json::Value) {
+fn write_metadata(fixture: &AmountFixture, key: Vec<u8>, metadata: &ColumnBatchMetadata) {
+    write_raw_metadata(
+        fixture,
+        key,
+        encode_column_batch_manifest_for_test(metadata).expect("encode metadata"),
+    );
+}
+
+fn write_raw_metadata(fixture: &AmountFixture, key: Vec<u8>, metadata: Vec<u8>) {
     let mut tx = fixture
         .cassie
         .midge
         .data_tx(TransactionMode::ReadWrite)
         .expect("open data transaction");
-    tx.put(
-        key,
-        serde_json::to_vec(metadata).expect("serialize metadata"),
-        None,
-    )
-    .expect("write metadata");
+    tx.put(key, metadata, None).expect("write metadata");
     tx.commit(WriteOptions::sync())
         .expect("commit metadata mutation");
+}
+
+fn resign_manifest(mut raw: Vec<u8>) -> Vec<u8> {
+    raw.truncate(raw.len().saturating_sub(32));
+    let checksum = Sha256::digest(raw.as_slice());
+    raw.extend_from_slice(checksum.as_slice());
+    raw
 }
 
 fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
@@ -305,6 +319,64 @@ fn should_reconcile_failed_refresh_debt_after_restart() {
 }
 
 #[test]
+fn should_reconcile_existing_maintenance_debt_when_publishing_column_index() {
+    // Arrange
+    let _test_guard = COLUMN_BATCH_FAILPOINT_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    with_fallback();
+    let path = data_dir("column_batch_publication_debt");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE column_batch_publication_debt (amount BIGINT)",
+            vec![],
+        )
+        .expect("create table");
+    let collection = canonical_test_collection(&cassie, "column_batch_publication_debt");
+    set_column_batch_maintenance_failure_point(true);
+    cassie
+        .execute_sql(
+            &session,
+            "INSERT INTO column_batch_publication_debt (amount) VALUES (8)",
+            vec![],
+        )
+        .expect("row write remains durable");
+    assert!(cassie
+        .midge
+        .has_column_batch_maintenance_debt(&collection)
+        .expect("read maintenance debt"));
+
+    // Act
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX column_batch_publication_debt_idx ON column_batch_publication_debt USING column (amount) WITH (segment_size = 1)",
+            vec![],
+        )
+        .expect("publish column index");
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT SUM(amount) AS total FROM column_batch_publication_debt",
+            vec![],
+        )
+        .expect("read published column index");
+
+    // Assert
+    assert!(!cassie
+        .midge
+        .has_column_batch_maintenance_debt(&collection)
+        .expect("maintenance debt cleared"));
+    assert_eq!(result.rows, vec![vec![Value::Int64(8)]]);
+    assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
+
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_rebuild_generation_mismatch_after_restart() {
     // Arrange
     let fixture = amount_fixture(
@@ -313,11 +385,7 @@ fn should_rebuild_generation_mismatch_after_restart() {
         &[Value::Int64(4), Value::Int64(6)],
     );
     let (key, mut metadata) = metadata_entry(&fixture);
-    let stale_generation = metadata["built_generation"]
-        .as_u64()
-        .expect("built generation")
-        .saturating_add(1);
-    metadata["built_generation"] = serde_json::json!(stale_generation);
+    metadata.built_generation = metadata.built_generation.saturating_add(1);
     write_metadata(&fixture, key, &metadata);
 
     // Act
@@ -369,10 +437,7 @@ fn should_report_checked_integer_overflow_without_publishing_acceleration() {
     let accelerated_error = sum_amount(&fixture, "column_batch_integer_overflow")
         .expect_err("accelerated SUM must report overflow");
     let (key, mut metadata) = metadata_entry(&fixture);
-    metadata["built_generation"] = serde_json::json!(metadata["built_generation"]
-        .as_u64()
-        .expect("built generation")
-        .saturating_add(1));
+    metadata.built_generation = metadata.built_generation.saturating_add(1);
     write_metadata(&fixture, key, &metadata);
     let exact_error = sum_amount(&fixture, "column_batch_integer_overflow")
         .expect_err("exact SUM must report overflow");
@@ -540,9 +605,8 @@ fn should_rebuild_old_metadata_format_after_restart() {
         "column_batch_metadata_format",
         &[Value::Int64(3), Value::Int64(7)],
     );
-    let (key, mut metadata) = metadata_entry(&fixture);
-    metadata["metadata_format_version"] = serde_json::json!(0);
-    write_metadata(&fixture, key, &metadata);
+    let (key, _) = metadata_entry(&fixture);
+    write_raw_metadata(&fixture, key, b"CCB1-derived-v1".to_vec());
 
     // Act
     let fallback = sum_amount(&fixture, "column_batch_metadata_format")
@@ -577,9 +641,11 @@ fn should_reconcile_invalid_summary_formats_after_restart() {
         "column_batch_summary_recovery",
         &[Value::Int64(3), Value::Int64(7)],
     );
-    let (key, mut metadata) = metadata_entry(&fixture);
-    metadata["summary_format_version"] = serde_json::json!(0);
-    write_metadata(&fixture, key, &metadata);
+    let (key, metadata) = metadata_entry(&fixture);
+    let mut raw =
+        encode_column_batch_manifest_for_test(&metadata).expect("encode current manifest");
+    raw[6..8].copy_from_slice(&0_u16.to_le_bytes());
+    write_raw_metadata(&fixture, key, resign_manifest(raw));
 
     // Act
     let old_format = sum_amount_as(&fixture, "column_batch_summary_recovery", "old_total")
@@ -588,12 +654,13 @@ fn should_reconcile_invalid_summary_formats_after_restart() {
     let repaired = restart_fixture(fixture);
     let repaired_rows = sum_amount_as(&repaired, "column_batch_summary_recovery", "repaired_total")
         .expect("old format rebuilt");
-    let (key, mut metadata) = metadata_entry(&repaired);
-    metadata["segments"][0]["summaries"]["amount"]
-        .as_object_mut()
-        .expect("amount summary")
-        .remove("sum");
-    write_metadata(&repaired, key, &metadata);
+    let (key, _) = metadata_entry(&repaired);
+    let mut malformed = b"CBM2".to_vec();
+    malformed.extend_from_slice(&2_u16.to_le_bytes());
+    malformed.extend_from_slice(&2_u16.to_le_bytes());
+    malformed.extend_from_slice(&[0_u8; 8]);
+    malformed.extend_from_slice(Sha256::digest(malformed.as_slice()).as_slice());
+    write_raw_metadata(&repaired, key, malformed);
     let malformed = sum_amount_as(
         &repaired,
         "column_batch_summary_recovery",
@@ -603,7 +670,11 @@ fn should_reconcile_invalid_summary_formats_after_restart() {
     let malformed_metrics = repaired.cassie.metrics();
     let repaired = restart_fixture(repaired);
     let (key, mut metadata) = metadata_entry(&repaired);
-    metadata["segments"][0]["summaries"]["amount"]["non_null_count"] = serde_json::json!(99);
+    metadata.segments[0]
+        .summaries
+        .get_mut("amount")
+        .expect("amount summary")
+        .non_null_count = 99;
     write_metadata(&repaired, key, &metadata);
     let bad_checksum = sum_amount_as(&repaired, "column_batch_summary_recovery", "checksum_total")
         .expect("inconsistent summary falls back");
@@ -648,7 +719,7 @@ fn should_rebuild_source_count_mismatch_after_restart() {
         &[Value::Int64(2), Value::Int64(5)],
     );
     let (key, mut metadata) = metadata_entry(&fixture);
-    metadata["source_row_count"] = serde_json::json!(3);
+    metadata.source_row_count = 3;
     write_metadata(&fixture, key, &metadata);
 
     // Act
@@ -688,7 +759,7 @@ fn should_fallback_when_any_segment_is_missing_and_rebuild_after_restart() {
         .raw_scan_prefix(StorageFamily::Data, b"")
         .expect("scan column segments")
         .into_iter()
-        .find_map(|(key, value)| value.starts_with(b"CCB1").then_some(key))
+        .find_map(|(key, value)| value.starts_with(b"CBR2").then_some(key))
         .expect("persisted segment");
     fixture
         .cassie

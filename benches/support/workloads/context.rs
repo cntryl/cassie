@@ -34,6 +34,8 @@ pub struct BenchContext {
 }
 
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
+pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
+pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
@@ -181,7 +183,14 @@ fn configure_scaling_query_runtime(
     dataset_rows: usize,
     aggregation_workers: usize,
 ) {
-    config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+    config.limits.query_memory_budget_bytes = if dataset_rows > 100_000 {
+        LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    } else {
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    };
+    if dataset_rows > 100_000 {
+        config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
+    }
     config.limits.max_result_rows = dataset_rows.max(111_111);
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1_024;
@@ -212,17 +221,42 @@ pub fn column_batch_context(
     label: &str,
     dataset_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    ready(column_batch_context_now(label, dataset_rows))
+    column_batch_context_with_limits(
+        label,
+        dataset_rows,
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+        30_000,
+    )
 }
 
-fn column_batch_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+pub fn column_batch_context_with_limits(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    query_timeout_ms: u64,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(column_batch_context_now(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+        query_timeout_ms,
+    ))
+}
+
+fn column_batch_context_now(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    query_timeout_ms: u64,
+) -> Result<BenchContext, CassieError> {
     let ctx = context_with_index_options_and_runtime(
         label,
         dataset_rows,
         BenchIndexOptions::none(),
         BenchmarkStorageMode::Default,
         |config| {
-            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+            config.limits.query_timeout_ms = query_timeout_ms;
         },
     )?;
     let _ = ctx.cassie.execute_sql(
@@ -591,7 +625,7 @@ pub(super) fn prepare_collection(
     Ok(())
 }
 
-fn bench_document_schema() -> Schema {
+pub(super) fn bench_document_schema() -> Schema {
     Schema {
         fields: vec![
             FieldSchema {
@@ -678,7 +712,9 @@ fn put_bench_documents(ctx: &BenchContext, dataset_rows: usize) -> Result<(), Ca
         .map(|_| ())
 }
 
-fn build_bench_documents(dataset_rows: usize) -> Vec<(Option<String>, serde_json::Value)> {
+pub(super) fn build_bench_documents(
+    dataset_rows: usize,
+) -> Vec<(Option<String>, serde_json::Value)> {
     (0..dataset_rows)
         .map(|index| {
             let title = format!("title-{}", index % 16);

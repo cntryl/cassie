@@ -2,6 +2,8 @@
 
 #[path = "workloads/bound_sql.rs"]
 mod bound_sql;
+#[path = "workloads/column_codec_context.rs"]
+mod column_codec_context;
 #[path = "workloads/context.rs"]
 mod context;
 #[path = "workloads/empty_context.rs"]
@@ -39,12 +41,14 @@ pub use bound_sql::{
     plan_cache_miss as bound_plan_cache_miss, recursive_cte as bound_recursive_cte,
     time_series_window as bound_time_series_window, BoundBenchmarkSql,
 };
+pub use column_codec_context::*;
 pub use context::{
-    column_batch_context, context, disk_context_with_temp_budget, execution_result_cache_context,
-    graph_context, recursive_cte_context, replay_context, runtime, scalar_context,
-    time_series_context, time_series_disk_context_with_temp_budget, unindexed_context,
-    unindexed_disk_context_with_temp_budget, worker_scaling_context, BenchContext,
-    ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    column_batch_context, column_batch_context_with_limits, context, disk_context_with_temp_budget,
+    execution_result_cache_context, graph_context, recursive_cte_context, replay_context, runtime,
+    scalar_context, time_series_context, time_series_disk_context_with_temp_budget,
+    unindexed_context, unindexed_disk_context_with_temp_budget, worker_scaling_context,
+    BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
 pub use empty_context::{empty_context, empty_context_with_temp_budget};
 pub use hotpath::*;

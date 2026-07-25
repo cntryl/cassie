@@ -20,6 +20,8 @@ pub const REQUIRED_WORKLOAD_FAMILIES: &[&str] = &[
     "lifecycle",
     "mixed",
     "protocol",
+    "column_analytics",
+    "write_path",
 ];
 
 pub fn benchmark_scenarios() -> impl Iterator<Item = &'static PerformanceBenchmarkScenario> {

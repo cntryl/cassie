@@ -61,7 +61,9 @@ test("should_persist_multiline_sql_entered_through_monaco", async ({ page }) => 
 
   // Assert
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("cassie.query-workspace.v1:admin") ?? ""))
+    .poll(() =>
+      page.evaluate(() => sessionStorage.getItem("cassie.query-workspace.v1:admin") ?? ""),
+    )
     .toContain("SELECT 42 AS answer;");
   await page.reload();
   const restoredEditor = page.locator("[data-query-page]:visible .monaco-editor");

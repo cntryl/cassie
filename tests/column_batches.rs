@@ -105,6 +105,14 @@ fn should_read_covered_projection_from_column_batch_index() {
             panic!("expected textual plan");
         };
         assert!(plan.contains("column_batch_index=idx_column_batch_projection"));
+        assert!(plan.contains("encoded_execution=true"));
+        assert!(plan.contains(
+            "automatic_codec_policy=automatic_min_savings_max_32b_5pct"
+        ));
+        assert!(plan.contains("late_materialization=true"));
+        assert!(plan.contains("predicate_fields=title"));
+        assert!(plan.contains("projection_fields=body,title"));
+        assert!(plan.contains("column_fallback_reason=none"));
         assert_eq!(metrics["column_batches"]["scans"], 1);
         assert_eq!(metrics["column_batches"]["row_fetches_avoided"], 1);
     });
@@ -189,7 +197,7 @@ fn should_persist_hydrate_drop_column_batch_metadata() {
 }
 
 #[test]
-fn should_select_dictionary_rle_codec_for_repeated_column_values() {
+fn should_select_constant_codec_for_repeated_column_values() {
     // Arrange
     with_fallback();
     let path = data_dir("column_batch_rle_codec");
@@ -242,16 +250,24 @@ fn should_select_dictionary_rle_codec_for_repeated_column_values() {
 
         // Assert
         assert_eq!(metadata.segments.len(), 1);
-        let codec = &metadata.segments[0].codec;
-        assert_eq!(codec.codec_name, "dictionary_rle");
-        assert!(codec.compressed_len < codec.uncompressed_len);
-        assert_eq!(codec.value_count, 16);
+        let codecs = metadata.segments[0]
+            .field_chunks
+            .values()
+            .collect::<Vec<_>>();
+        assert_eq!(codecs.len(), 2);
+        assert!(codecs.iter().all(|codec| codec.codec_name == "constant"));
+        assert!(
+            codecs
+                .iter()
+                .all(|codec| codec.encoded_len < codec.decoded_len)
+        );
+        assert!(codecs.iter().all(|codec| codec.value_count == 8));
         assert_eq!(result.rows.len(), 8);
         assert_eq!(metrics["column_batches"]["scans"], 1);
-        assert!(metrics["column_batches"]["compressed_bytes_total"]
+        assert!(metrics["column_batches"]["physical_bytes_total"]
             .as_u64()
             .unwrap()
-            < metrics["column_batches"]["uncompressed_bytes_total"]
+            < metrics["column_batches"]["logical_bytes_total"]
                 .as_u64()
                 .unwrap());
     });
@@ -299,7 +315,7 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
             .unwrap();
         let segment_key = entries
             .into_iter()
-            .find_map(|(key, value)| value.starts_with(b"CCB1").then_some(key))
+            .find_map(|(key, value)| value.starts_with(b"CBC2").then_some(key))
             .expect("column batch segment should be persisted");
         let mut tx = cassie.midge.data_tx(TransactionMode::ReadWrite).unwrap();
         tx.put(segment_key, b"not-json".to_vec(), None)
@@ -401,7 +417,7 @@ fn should_prune_column_batch_segments_for_range_filter() {
         assert!(plan.contains("column_batch_index=idx_column_batch_range_pruning"));
         assert_eq!(metrics["column_batches"]["scans"], 1);
         assert!(metrics["column_batches"]["skipped_segments"].as_u64().unwrap() > 0);
-        assert!(metrics["column_batches"]["decoded_columns"].as_u64().unwrap() < 6);
+        assert!(metrics["column_batches"]["chunks_read"].as_u64().unwrap() < 8);
     });
 
     let _ = std::fs::remove_dir_all(path);

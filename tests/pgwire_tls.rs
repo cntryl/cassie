@@ -68,7 +68,7 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
     let identity =
         rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).expect("TLS identity");
     std::fs::write(&certificate_path, identity.cert.pem()).expect("certificate fixture");
-    std::fs::write(&key_path, identity.key_pair.serialize_pem()).expect("key fixture");
+    std::fs::write(&key_path, identity.signing_key.serialize_pem()).expect("key fixture");
 
     runtime().block_on(async {
         let cassie = Cassie::new_with_data_dir(&data_path).expect("cassie");
@@ -131,7 +131,7 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
     let identity =
         rcgen::generate_simple_self_signed(vec!["localhost".to_string()]).expect("TLS identity");
     std::fs::write(&certificate_path, identity.cert.pem()).expect("certificate fixture");
-    std::fs::write(&key_path, identity.key_pair.serialize_pem()).expect("key fixture");
+    std::fs::write(&key_path, identity.signing_key.serialize_pem()).expect("key fixture");
 
     runtime().block_on(async {
         let cassie = Cassie::new_with_data_dir(&data_path).expect("cassie");

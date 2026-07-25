@@ -106,7 +106,7 @@ pub fn configure_http_tls() -> Result<Option<GeneratedHttpTlsMaterial>, CassieEr
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     std::fs::write(&material.certificate_path, identity.cert.pem())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    std::fs::write(&material.key_path, identity.key_pair.serialize_pem())
+    std::fs::write(&material.key_path, identity.signing_key.serialize_pem())
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     env::set_var(
         "CASSIE_REST_TLS_CERT_FILE",

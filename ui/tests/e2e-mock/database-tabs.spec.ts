@@ -45,10 +45,10 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   await page.getByRole("button", { name: /Query 1 analytics/ }).click();
   await page.evaluate(() => {
     const key = "cassie.query-workspace.v1:admin";
-    const workspace = JSON.parse(localStorage.getItem(key) ?? "null");
+    const workspace = JSON.parse(sessionStorage.getItem(key) ?? "null");
     workspace.tabs[0].sql = "SELECT 'analytics' AS source;";
     workspace.tabs[1].sql = "SELECT 'postgres' AS source;";
-    localStorage.setItem(key, JSON.stringify(workspace));
+    sessionStorage.setItem(key, JSON.stringify(workspace));
   });
 
   await page.reload();
@@ -57,7 +57,9 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   await expect(page.locator("[data-query-page]:visible").locator(".monaco-editor")).toContainText(
     "analytics",
   );
-  const stored = await page.evaluate(() => localStorage.getItem("cassie.query-workspace.v1:admin"));
+  const stored = await page.evaluate(() =>
+    sessionStorage.getItem("cassie.query-workspace.v1:admin"),
+  );
   expect(stored).toContain("SELECT 'analytics' AS source;");
   expect(errors).toEqual([]);
 });

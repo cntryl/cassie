@@ -78,27 +78,55 @@ pub(crate) fn column_batch_metadata_key(relation_id: u64, index_id: u64) -> Vec<
     )
 }
 
-pub(crate) fn column_batch_segment_key(
+pub(crate) fn column_batch_row_ids_key(
     relation_id: u64,
     index_id: u64,
     segment_id: u64,
+    revision: u64,
 ) -> Vec<u8> {
-    let encoded_segment = LexKey::encode_u64(segment_id);
-    let relation = encoded_u64_component(relation_id);
-    let index = encoded_u64_component(index_id);
-    key(
-        FAMILY_COLUMN_BATCH,
-        &[
-            relation.as_slice(),
-            index.as_slice(),
-            b"s",
-            encoded_segment.as_bytes(),
-        ],
+    column_batch_revision_key(relation_id, index_id, segment_id, revision, &[b"r"])
+}
+
+pub(crate) fn column_batch_field_key(
+    relation_id: u64,
+    index_id: u64,
+    segment_id: u64,
+    revision: u64,
+    field: &str,
+) -> Vec<u8> {
+    column_batch_revision_key(
+        relation_id,
+        index_id,
+        segment_id,
+        revision,
+        &[b"f", field.as_bytes()],
     )
 }
 
 pub(crate) fn column_batch_index_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
     numeric_index_prefix(FAMILY_COLUMN_BATCH, relation_id, index_id)
+}
+
+fn column_batch_revision_key(
+    relation_id: u64,
+    index_id: u64,
+    segment_id: u64,
+    revision: u64,
+    suffix: &[&[u8]],
+) -> Vec<u8> {
+    let encoded_segment = LexKey::encode_u64(segment_id);
+    let encoded_revision = LexKey::encode_u64(revision);
+    let relation = encoded_u64_component(relation_id);
+    let index = encoded_u64_component(index_id);
+    let mut components = vec![
+        relation.as_slice(),
+        index.as_slice(),
+        b"s",
+        encoded_segment.as_bytes(),
+        encoded_revision.as_bytes(),
+    ];
+    components.extend_from_slice(suffix);
+    key(FAMILY_COLUMN_BATCH, components.as_slice())
 }
 
 pub(crate) fn column_batch_collection_prefix(relation_id: u64) -> Vec<u8> {

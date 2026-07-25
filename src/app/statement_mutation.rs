@@ -6,7 +6,7 @@ use crate::runtime::QueryExecutionControls;
 use super::{Cassie, CassieError, CassieSession, StatementMutationBatch, TransactionRowChange};
 
 pub(super) struct CommittedWriteBatch {
-    changed_collections: Vec<(String, i64)>,
+    changed_collections: Vec<(String, i64, Vec<String>)>,
 }
 
 impl Cassie {
@@ -103,7 +103,7 @@ impl Cassie {
             self.runtime
                 .record_projection_write_batch(collection.clone(), &report.stats);
             if report_has_changes(&report.stats) {
-                changed_collections.push((collection, report.row_delta));
+                changed_collections.push((collection, report.row_delta, report.changed_ids));
             }
             latest_epoch = latest_epoch.max(report.data_epoch);
         }
@@ -133,10 +133,12 @@ impl Cassie {
         let controls = controls
             .or(fallback_controls.as_ref())
             .expect("provided or fallback query controls");
-        for (collection, row_delta) in committed.changed_collections {
-            let maintenance = self
-                .midge
-                .refresh_document_maintenance_after_commit(&collection, row_delta);
+        for (collection, row_delta, changed_ids) in committed.changed_collections {
+            let maintenance = self.midge.refresh_document_maintenance_after_commit(
+                &collection,
+                row_delta,
+                &changed_ids,
+            );
             if maintenance.is_ok() {
                 let _ = self.refresh_projection_metadata(&collection);
             }

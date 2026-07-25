@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::time::Duration;
 
 use crate::catalog::ColumnBatchMetadata;
+use crate::types::Value;
 
 #[derive(Debug, Clone)]
 pub struct DocumentRef {
@@ -42,6 +43,25 @@ pub struct RowFilter {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ColumnBatchScanFilter {
     pub predicates: Vec<ColumnBatchScanPredicate>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnBatchAggregateSpec {
+    pub function: String,
+    pub field: Option<String>,
+    pub output_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ColumnBatchAggregateOutcome {
+    pub values: Vec<(String, Value)>,
+    pub segments_read: usize,
+    pub selected_rows: usize,
+}
+
+pub enum ColumnBatchAggregateDecision {
+    Hit(ColumnBatchAggregateOutcome),
+    Fallback(ColumnBatchScanFallbackReason),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -162,9 +182,14 @@ pub struct ColumnBatchScanOutcome {
     pub batches: Vec<Vec<DocumentRef>>,
     pub timings: MidgeScanTimings,
     pub index_name: String,
-    pub compressed_bytes: usize,
-    pub uncompressed_bytes: usize,
+    pub segments_read: usize,
+    pub chunks_read: usize,
+    pub physical_bytes: usize,
+    pub logical_bytes: usize,
+    pub predicate_values: usize,
+    pub candidate_rows: usize,
+    pub selected_rows: usize,
+    pub materialized_values: usize,
     pub skipped_segments: usize,
-    pub decoded_columns: usize,
     pub(crate) query_memory: Option<crate::runtime::QueryMemoryReservation>,
 }

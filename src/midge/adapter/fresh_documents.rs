@@ -65,7 +65,7 @@ impl Midge {
         Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
         tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
-        let _ = self.complete_column_batch_maintenance(&collection, generation);
+        let _ = self.complete_column_batch_maintenance(&collection, generation, None);
         let _ = self.complete_projection_hash_maintenance(&collection, generation, row_delta);
         Ok(ids)
     }

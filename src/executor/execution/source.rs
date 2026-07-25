@@ -373,6 +373,8 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         plan,
         env.controls,
+        env.params,
+        env.user_functions,
     )? {
         return Ok(rows);
     }

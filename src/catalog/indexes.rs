@@ -35,6 +35,8 @@ pub struct IndexMeta {
 pub struct ColumnBatchMetadata {
     pub metadata_format_version: u32,
     pub summary_format_version: u32,
+    pub manifest_revision: u64,
+    pub next_segment_id: u64,
     pub collection: String,
     pub index_name: String,
     pub schema_version: u32,
@@ -49,12 +51,15 @@ pub struct ColumnBatchMetadata {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchSegmentMeta {
     pub segment_id: u64,
+    pub revision: u64,
     pub row_id_start: Option<String>,
+    /// Exclusive upper row-ID bound. `None` denotes the final unbounded range.
     pub row_id_end: Option<String>,
     pub row_count: usize,
     pub null_bitmap_available: bool,
     pub encoding_version: u32,
-    pub codec: ColumnBatchCodecMeta,
+    pub row_ids: ColumnBatchChunkMeta,
+    pub field_chunks: std::collections::BTreeMap<String, ColumnBatchChunkMeta>,
     pub summary_checksum: String,
     pub summaries: std::collections::BTreeMap<String, ColumnBatchFieldSummary>,
 }
@@ -84,45 +89,22 @@ pub enum ColumnBatchNumericSum {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ColumnBatchCodecMeta {
+pub struct ColumnBatchChunkMeta {
+    pub logical_type: String,
+    pub codec_id: u8,
     pub codec_name: String,
     pub codec_version: u32,
-    pub uncompressed_len: usize,
-    pub compressed_len: usize,
+    pub decoded_len: usize,
+    pub encoded_len: usize,
     pub value_count: usize,
-    pub null_bitmap_encoding: String,
-    pub checksum: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchPayload {
-    pub encoding_version: u32,
-    pub codec_name: String,
-    pub codec_version: u32,
-    #[serde(default)]
-    pub row_ids: Vec<String>,
-    #[serde(default)]
-    pub rows: Vec<ColumnBatchRow>,
-    #[serde(default)]
-    pub columns: Vec<ColumnBatchColumn>,
+    pub null_count: usize,
+    pub checksum_sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ColumnBatchRow {
     pub row_id: String,
     pub values: std::collections::BTreeMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchColumn {
-    pub field: String,
-    pub runs: Vec<ColumnBatchValueRun>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct ColumnBatchValueRun {
-    pub value: serde_json::Value,
-    pub len: usize,
 }
 
 impl IndexMeta {

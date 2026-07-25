@@ -2,7 +2,7 @@ use super::{
     collect_scan, CassieError, FieldConstraint, IndexKind, IndexMeta, Midge, ProjectionMeta, Query,
     RetentionPolicyMeta,
 };
-use crate::catalog::{canonical_relation_name, local_name, ColumnBatchMetadata, RelationId};
+use crate::catalog::{canonical_relation_name, local_name, RelationId};
 
 pub(super) fn clear_pending_collection_rename(
     midge: &Midge,
@@ -597,7 +597,9 @@ pub(super) fn rename_collection_column_batch_metadata(
             .map_err(CassieError::from)?,
     )?;
     for (key, value) in entries {
-        let Ok(mut metadata) = serde_json::from_slice::<ColumnBatchMetadata>(&value) else {
+        let Ok(mut metadata) =
+            crate::midge::adapter::column_batch_format_v2::decode_manifest(&value)
+        else {
             continue;
         };
         let next_index_name =
@@ -606,7 +608,7 @@ pub(super) fn rename_collection_column_batch_metadata(
         metadata.index_name.clone_from(&next_index_name);
         tx.put(
             key,
-            serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?,
+            crate::midge::adapter::column_batch_format_v2::encode_manifest(&metadata)?,
             None,
         )
         .map_err(CassieError::from)?;

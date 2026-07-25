@@ -6,7 +6,9 @@ use crate::midge::adapter::{
     ColumnBatchScanDecision, ColumnBatchScanFilter, ControlledColumnBatchScanRequest, DocumentRef,
     RowDecode,
 };
-use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::runtime::{
+    column_batch_metrics::ColumnBatchScanMetrics, QueryExecutionControls, QueryMemoryReservation,
+};
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -208,6 +210,11 @@ pub(crate) struct ProjectedFilteredScanRequest<'a> {
     pub(crate) controls: &'a QueryExecutionControls,
 }
 
+pub(crate) struct EncodedProjectedScan {
+    pub(crate) batches: Vec<Batch>,
+    pub(crate) timings: ScanTimings,
+}
+
 struct ControlledProjectedFallback {
     batches: Vec<Vec<DocumentRef>>,
     memory: Vec<QueryMemoryReservation>,
@@ -235,7 +242,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
         if let Some(result) =
             try_controlled_column_batch_scan(cassie, request, storage_filter.as_ref())?
         {
-            return Ok(result);
+            return Ok((result.batches, result.timings));
         }
     }
     if let Some(fallback) = controlled_projected_row_fallback(cassie, session, request)? {
@@ -299,11 +306,11 @@ pub(crate) fn scan_projected_filtered_with_timings(
     Ok((batches, timings))
 }
 
-fn try_controlled_column_batch_scan(
+pub(crate) fn try_controlled_column_batch_scan(
     cassie: &Cassie,
     request: &ProjectedFilteredScanRequest<'_>,
     storage_filter: Option<&RowFilter>,
-) -> Result<Option<(Vec<Batch>, ScanTimings)>, crate::executor::QueryError> {
+) -> Result<Option<EncodedProjectedScan>, crate::executor::QueryError> {
     let outcome = cassie.midge.scan_column_batch_projected_rows_controlled(
         &ControlledColumnBatchScanRequest {
             collection: request.collection,
@@ -334,15 +341,22 @@ fn try_controlled_column_batch_scan(
             );
             timings.scan += materialize_started.elapsed();
             let rows = batches.iter().map(Vec::len).sum::<usize>();
-            cassie.runtime.record_column_batch_scan(
-                rows,
-                outcome.compressed_bytes,
-                outcome.uncompressed_bytes,
-                outcome.skipped_segments,
-                outcome.decoded_columns,
-            );
+            cassie
+                .runtime
+                .record_column_batch_scan(&ColumnBatchScanMetrics {
+                    rows,
+                    segments_read: outcome.segments_read,
+                    chunks_read: outcome.chunks_read,
+                    physical_bytes: outcome.physical_bytes,
+                    logical_bytes: outcome.logical_bytes,
+                    predicate_values: outcome.predicate_values,
+                    candidate_rows: outcome.candidate_rows,
+                    selected_rows: outcome.selected_rows,
+                    materialized_values: outcome.materialized_values,
+                    skipped_segments: outcome.skipped_segments,
+                });
             drop(query_memory);
-            Ok(Some((batches, timings)))
+            Ok(Some(EncodedProjectedScan { batches, timings }))
         }
         Ok(ColumnBatchScanDecision::Fallback(reason)) => {
             record_column_batch_fallback(cassie, request, reason);

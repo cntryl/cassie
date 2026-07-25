@@ -78,7 +78,7 @@ mod tests {
         let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
             .expect("certificate identity");
         std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
-        std::fs::write(&key, identity.key_pair.serialize_pem()).expect("key fixture");
+        std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
 
         // Act
         let config = load_server_config(

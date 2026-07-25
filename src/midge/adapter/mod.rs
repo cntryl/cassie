@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
@@ -10,12 +10,11 @@ use uuid::Uuid;
 use crate::app::CassieError;
 use crate::catalog::{
     payload_contains_index_membership, payload_contains_vector_membership,
-    CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchCodecMeta,
-    ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchPayload,
-    ColumnBatchRow, ColumnBatchSegmentMeta, ColumnBatchValueRun, DatabaseMeta,
-    FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket, IndexKind,
-    IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta, RetentionPolicyMeta,
-    RoleMeta, RollupMeta,
+    CollectionCardinalityStats, CollectionMeta, CollectionStorageMode, ColumnBatchChunkMeta,
+    ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchRow, ColumnBatchSegmentMeta,
+    DatabaseMeta, FieldCardinalityStats, FieldConstraint, FieldHeavyHitter, FieldHistogramBucket,
+    IndexKind, IndexMeta, NamespaceMeta, OperationalAssignmentMeta, ProjectionMeta,
+    RetentionPolicyMeta, RoleMeta, RollupMeta,
 };
 use crate::embeddings::{NormalizedVectorRecord, VectorIndexRecord, VectorIndexState};
 use crate::midge::row_blob::{
@@ -25,11 +24,20 @@ use crate::midge::row_blob::{
 use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
 use crate::vector::normalize as normalize_vector;
 
+mod column_batch_format_v2;
 mod core;
 pub mod fulltext_retrieval;
 mod raw_ops;
 mod transactions;
 
+#[doc(hidden)]
+pub use column_batch_format_v2::{
+    column_chunk_codec_for_test, decode_column_batch_manifest_for_test,
+    decode_column_chunk_for_test, decode_row_id_chunk_for_test,
+    decode_selected_column_chunk_for_test, encode_column_batch_manifest_for_test,
+    encode_column_chunk_for_test, encode_for_column_chunk_for_test,
+    encode_plain_column_chunk_for_test, encode_row_id_chunk_for_test,
+};
 pub use core::Midge;
 
 static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
@@ -42,6 +50,19 @@ static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_ADD_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
+
+#[derive(Default)]
+struct ColumnBatchOperationalMetrics {
+    codec_choices: BTreeMap<String, u64>,
+    full_rebuilds: u64,
+    segment_rewrites: u64,
+    segment_splits: u64,
+    compactions: u64,
+    maintenance_bytes: u64,
+    maintenance_source_rows: u64,
+    orphan_revisions_cleaned: u64,
+    write_amplification_buckets: [u64; 3],
+}
 
 #[doc(hidden)]
 pub fn set_column_batch_maintenance_failure_point(enabled: bool) {
@@ -261,6 +282,7 @@ pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRo
 pub(crate) use graphs::{GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest};
 pub(crate) use scan_types::OrderedRowBound;
 pub use scan_types::{
+    ColumnBatchAggregateDecision, ColumnBatchAggregateOutcome, ColumnBatchAggregateSpec,
     ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
     ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate,
     ColumnBatchSummaryDecision, DocumentRef, MidgeScanTimings, RowDecode, RowFilter,
@@ -483,8 +505,23 @@ impl Midge {
         key_encoding::column_batch_metadata_key(relation_id, index_id)
     }
 
-    fn column_batch_segment_key(relation_id: u64, index_id: u64, segment_id: u64) -> Vec<u8> {
-        key_encoding::column_batch_segment_key(relation_id, index_id, segment_id)
+    fn column_batch_row_ids_key(
+        relation_id: u64,
+        index_id: u64,
+        segment_id: u64,
+        revision: u64,
+    ) -> Vec<u8> {
+        key_encoding::column_batch_row_ids_key(relation_id, index_id, segment_id, revision)
+    }
+
+    fn column_batch_field_key(
+        relation_id: u64,
+        index_id: u64,
+        segment_id: u64,
+        revision: u64,
+        field: &str,
+    ) -> Vec<u8> {
+        key_encoding::column_batch_field_key(relation_id, index_id, segment_id, revision, field)
     }
 
     fn column_batch_index_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {

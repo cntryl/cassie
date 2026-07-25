@@ -96,6 +96,15 @@ impl Midge {
                 publication.target_generation = generation;
                 self.save_pending_index_publication(&publication)?;
             }
+            if publication.index.kind == IndexKind::Column
+                && self.has_column_batch_maintenance_debt(&publication.index.collection)?
+            {
+                self.complete_column_batch_maintenance(
+                    &publication.index.collection,
+                    publication.target_generation,
+                    None,
+                )?;
+            }
             match publication.index.kind {
                 IndexKind::Scalar => {
                     self.rebuild_scalar_index_for_index(&publication.index)?;

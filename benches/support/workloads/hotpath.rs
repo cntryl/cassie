@@ -29,6 +29,15 @@ static EXECUTOR_KERNEL: LazyLock<cassie::benchmark::ExecutorKernel> =
     LazyLock::new(cassie::benchmark::ExecutorKernel::sample);
 static PGWIRE_ROW: LazyLock<cassie::benchmark::PgwireRowCodecKernel> =
     LazyLock::new(|| cassie::benchmark::PgwireRowCodecKernel::sample(1));
+static COLUMN_CODEC_VALUES: LazyLock<Vec<serde_json::Value>> = LazyLock::new(|| {
+    (0..1_024)
+        .map(|index| serde_json::json!(index % 16))
+        .collect()
+});
+static COLUMN_CODEC_BYTES: LazyLock<Vec<u8>> = LazyLock::new(|| {
+    cassie::midge::adapter::encode_column_chunk_for_test("bigint", &COLUMN_CODEC_VALUES)
+        .expect("encode Tier 1 column codec fixture")
+});
 
 type VectorPair = ([f32; 8], [f32; 8]);
 type Bm25Input = (f64, f64, f64, f64, f64);
@@ -77,6 +86,12 @@ pub fn prepare_hotpath(workload: &str) -> Result<(), &'static str> {
         "row_encode_decode" => {
             LazyLock::force(&ROW_CODEC_KERNEL);
         }
+        "column_codec_encode" => {
+            LazyLock::force(&COLUMN_CODEC_VALUES);
+        }
+        "column_codec_decode" => {
+            LazyLock::force(&COLUMN_CODEC_BYTES);
+        }
         "key_encode_decode" => {
             LazyLock::force(&ROW_KEY_KERNEL);
         }
@@ -107,6 +122,19 @@ pub fn row_encode_decode() -> usize {
     let encoded_len = encoded.len();
     std::hint::black_box((encoded, decoded));
     encoded_len
+}
+
+pub fn column_codec_encode() -> usize {
+    let encoded =
+        cassie::midge::adapter::encode_column_chunk_for_test("bigint", &COLUMN_CODEC_VALUES)
+            .expect("encode Tier 1 column chunk");
+    std::hint::black_box(encoded).len()
+}
+
+pub fn column_codec_decode() -> usize {
+    let decoded = cassie::midge::adapter::decode_column_chunk_for_test(&COLUMN_CODEC_BYTES)
+        .expect("decode Tier 1 column chunk");
+    std::hint::black_box(decoded).len()
 }
 
 pub fn key_encode_decode() -> usize {

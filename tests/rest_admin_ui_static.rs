@@ -133,7 +133,7 @@ fn should_complete_rest_https_handshake() {
     let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
         .expect("certificate identity");
     std::fs::write(&certificate, identity.cert.pem()).expect("certificate fixture");
-    std::fs::write(&key, identity.key_pair.serialize_pem()).expect("key fixture");
+    std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
     let config = CassieRuntimeConfig {
         rest_tls_cert_file: Some(certificate.to_string_lossy().to_string()),
         rest_tls_key_file: Some(key.to_string_lossy().to_string()),

@@ -311,7 +311,7 @@ fn assert_failed_path_metrics_unchanged(
             ("column_batches", "scans"),
             ("column_batches", "row_fetches_avoided"),
             ("column_batches", "fallback_scans"),
-            ("column_batches", "decoded_columns"),
+            ("column_batches", "chunks_read"),
         ],
         AnalyticalFamily::ColumnAggregate => &[
             ("aggregate_acceleration", "scans"),
@@ -431,9 +431,9 @@ fn assert_success_metrics(
                 (2 * FIXTURE_ROWS) as u64
             );
             assert!(
-                metric(after, "column_batches", "decoded_columns")
-                    - metric(before, "column_batches", "decoded_columns")
-                    <= (2 * FIXTURE_ROWS * 2) as u64
+                metric(after, "column_batches", "chunks_read")
+                    - metric(before, "column_batches", "chunks_read")
+                    <= (2 * FIXTURE_ROWS * 3) as u64
             );
         }
         AnalyticalFamily::ColumnAggregate => assert_eq!(

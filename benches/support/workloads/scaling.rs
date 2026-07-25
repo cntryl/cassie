@@ -6,12 +6,13 @@ use cassie::catalog::ProjectionMeta;
 use cassie::types::{Value, Vector};
 use serde_json::json;
 
-use super::context::BenchContext;
+use super::context::{usize_mod_i64, BenchContext};
 
 pub const RELATIONAL_SCALING_SQL: &str =
     "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY score, id LIMIT 25";
 pub const JOIN_SCALING_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
-pub const COLUMN_SCALING_SQL: &str = "SELECT COUNT(*) AS rows, SUM(score) AS score_sum, AVG(score) AS score_avg FROM bench_documents";
+pub const COLUMN_SCALING_SQL: &str =
+    "SELECT title, score FROM bench_documents WHERE status = 'approved' AND score >= 90 LIMIT 1000";
 pub const WORKER_SCALING_SQL: &str = "SELECT status, COUNT(*) AS total, SUM(score) AS score_sum FROM bench_documents GROUP BY status ORDER BY status";
 pub const FULLTEXT_SCALING_SQL: &str = "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
 pub const VECTOR_SCALING_SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
@@ -42,6 +43,7 @@ pub fn query_scaling_context(
     label: &str,
     dataset_rows: usize,
     aggregation_workers: usize,
+    prepare_joins: bool,
 ) -> Ready<Result<BenchContext, CassieError>> {
     let context = super::context::scaling_query_context_now(
         label,
@@ -49,7 +51,9 @@ pub fn query_scaling_context(
         aggregation_workers,
     )
     .and_then(|context| {
-        super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
+        if prepare_joins {
+            super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
+        }
         context.cassie.execute_sql(
             &context.session,
             "CREATE INDEX bench_documents_column_idx ON bench_documents USING column (title, body, status, score) WITH (segment_size = 256)",
@@ -91,13 +95,66 @@ pub fn join_query(ctx: &BenchContext) -> Ready<usize> {
 
 pub fn column_query(ctx: &BenchContext) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let rows = query(ctx, COLUMN_SCALING_SQL, vec![], 1).into_inner();
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, COLUMN_SCALING_SQL, vec![])
+        .expect("column scaling query");
     let after = ctx.cassie.metrics();
     assert!(
-        metric_delta(&before, &after, "aggregate_acceleration", "scans") > 0,
-        "column scaling query must use aggregate acceleration"
+        matches!(result.rows.len(), 500 | 1_000),
+        "column scaling result cardinality"
     );
-    ready(rows)
+    assert!(
+        metric_delta(&before, &after, "column_batches", "scans") > 0,
+        "column scaling query must use encoded column execution: {}",
+        after["column_batches"]
+    );
+    assert!(
+        metric_delta(&before, &after, "column_batches", "predicate_values") > 0,
+        "column scaling query must evaluate encoded predicate values"
+    );
+    assert!(
+        metric_delta(&before, &after, "column_batches", "materialized_values") > 0,
+        "column scaling query must decode selected projection values"
+    );
+    ready(std::hint::black_box(result.rows.len()))
+}
+
+pub fn column_dml(ctx: &BenchContext, nonce: usize, dataset_rows: usize) -> Ready<usize> {
+    let row = nonce % dataset_rows;
+    let score = usize_mod_i64(nonce.wrapping_add(1), 100);
+    let before = ctx.cassie.metrics();
+    let id = format!("doc-{row}");
+    let written_id = ctx
+        .cassie
+        .midge
+        .put_document(
+            &ctx.collection,
+            Some(id.clone()),
+            serde_json::json!({
+                "title": format!("title-{}", row % 16),
+                "body": format!("column DML row {row}"),
+                "score": score,
+                "status": if row.is_multiple_of(2) { "approved" } else { "pending" }
+            }),
+        )
+        .expect("column DML scaling update");
+    let after = ctx.cassie.metrics();
+    let segment_rewrites = metric_delta(&before, &after, "column_batches", "segment_rewrites");
+    assert!(
+        (1..=2).contains(&segment_rewrites),
+        "single-row column DML must rewrite one segment, or two only for a split"
+    );
+    assert!(
+        metric_delta(&before, &after, "column_batches", "maintenance_source_rows") > 0,
+        "column DML must record bounded source-row maintenance"
+    );
+    assert!(
+        metric_delta(&before, &after, "column_batches", "maintenance_bytes") > 0,
+        "column DML must record derived bytes written"
+    );
+    assert_eq!(written_id, id);
+    ready(std::hint::black_box(1))
 }
 
 pub fn worker_query(ctx: &BenchContext, expected_workers: usize) -> Ready<usize> {

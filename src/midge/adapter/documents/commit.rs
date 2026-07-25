@@ -84,7 +84,11 @@ impl Midge {
             for collection in sorted_changed_collections {
                 if let Some(report) = reports.get(&collection) {
                     let generation = generations[&collection];
-                    let _ = self.complete_column_batch_maintenance(&collection, generation);
+                    let _ = self.complete_column_batch_maintenance(
+                        &collection,
+                        generation,
+                        Some(report.changed_ids.as_slice()),
+                    );
                     let _ = self.complete_projection_hash_maintenance(
                         &collection,
                         generation,

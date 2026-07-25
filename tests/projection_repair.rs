@@ -1,6 +1,5 @@
 use cassie::app::{Cassie, CassieSession, CassieSnapshotOptions, ProjectionManifestExportOptions};
-use cassie::catalog::ColumnBatchMetadata;
-use cassie::midge::adapter::{RowHashRecord, StorageFamily};
+use cassie::midge::adapter::{decode_column_batch_manifest_for_test, RowHashRecord, StorageFamily};
 use cassie::sql::ast::{ProjectionRepairScope, QueryStatement};
 use cassie::types::Value;
 
@@ -45,7 +44,7 @@ fn delete_column_batch_metadata(cassie: &Cassie, collection: &str, index_name: &
         .data_tx(cntryl_midge::TransactionMode::ReadWrite)
         .unwrap();
     for (key, value) in entries {
-        let Ok(metadata) = serde_json::from_slice::<ColumnBatchMetadata>(&value) else {
+        let Ok(metadata) = decode_column_batch_manifest_for_test(&value) else {
             continue;
         };
         if metadata.collection == collection && metadata.index_name == index_name {

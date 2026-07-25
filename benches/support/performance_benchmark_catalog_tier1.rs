@@ -22,6 +22,38 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
+        "perf.kernel.column_codec_encode",
+        "column_analytics",
+        "column_codec",
+        "tier1_hotpath_row_codec",
+        "column_codec_encode",
+        "micro",
+        0,
+        Tier1,
+        Micro,
+        Kernel,
+        "operation",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
+        "perf.kernel.column_codec_decode",
+        "column_analytics",
+        "column_codec",
+        "tier1_hotpath_row_codec",
+        "column_codec_decode",
+        "micro",
+        0,
+        Tier1,
+        Micro,
+        Kernel,
+        "operation",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
         "perf.kernel.row_key",
         "core_read",
         "key_encoding",

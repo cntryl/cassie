@@ -29,6 +29,9 @@ pub use stress_runtime_contract::{
     validate_runtime_case_contract, FixtureDeclaration, FixtureIdentityTracker, OperationUnit,
     RuntimeCaseDeclaration,
 };
+#[path = "stress_relative_gates.rs"]
+mod stress_relative_gates;
+use stress_relative_gates::{validate_relative_p95_gates, RelativeP95Gate};
 
 const DEFAULT_SOAK_DURATION_SECONDS: &str = "3600";
 const MINIMUM_CANONICAL_SOAK_DURATION: Duration = Duration::from_hours(1);
@@ -121,6 +124,7 @@ pub struct CassieStressRunner {
     runner: StressRunner,
     selected: usize,
     fixture_identities: FixtureIdentityTracker,
+    relative_p95_gates: Vec<RelativeP95Gate>,
 }
 
 #[derive(Clone)]
@@ -242,6 +246,10 @@ pub fn runner(tier: BenchmarkTier, suite: &'static str) -> CassieStressRunner {
 }
 
 impl CassieStressRunner {
+    /// # Panics
+    ///
+    /// Panics when the selected deployment profile is not registered or the benchmark
+    /// configuration is invalid.
     #[must_use]
     pub fn new(suite: &'static str, tier: BenchmarkTier) -> Self {
         let resolved = resolve_config(tier);
@@ -257,6 +265,17 @@ impl CassieStressRunner {
         runner.metadata("filtered_run", filtered_run);
         runner.metadata("owner_suite_complete", !filtered_run);
         runner.metadata("declared_tier", tier.number());
+        if let Some(profile_id) = std::env::var("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
+            .ok()
+            .filter(|value| !value.is_empty())
+        {
+            let profile = performance_benchmarks::deployment_profile_for_id(&profile_id)
+                .unwrap_or_else(|| panic!("unknown benchmark deployment profile '{profile_id}'"));
+            runner.metadata("deployment_profile_id", profile.profile_id);
+            if profile.storage_mode == "midge_disk_apfs" {
+                std::env::set_var("BENCH_MIDGE_DISK", "1");
+            }
+        }
         if let Some(run_id) = std::env::var("CASSIE_BENCH_RUN_ID")
             .ok()
             .filter(|value| !value.is_empty())
@@ -282,7 +301,21 @@ impl CassieStressRunner {
             runner,
             selected: 0,
             fixture_identities: FixtureIdentityTracker::default(),
+            relative_p95_gates: Vec::new(),
         }
+    }
+
+    pub fn require_relative_p95(
+        &mut self,
+        candidate_scenario: &'static str,
+        baseline_scenario: &'static str,
+        maximum_ratio: f64,
+    ) {
+        self.relative_p95_gates.push(RelativeP95Gate::new(
+            candidate_scenario,
+            baseline_scenario,
+            maximum_ratio,
+        ));
     }
 
     /// Measures a Tier 1 production kernel.
@@ -558,6 +591,7 @@ impl CassieStressRunner {
             eprintln!("No stress benchmarks matched the selected filters.");
         }
 
+        let relative_p95_gates = self.relative_p95_gates;
         let run = if let Some(baseline) = self.baseline {
             self.runner.finish_with_baseline(baseline)
         } else {
@@ -568,6 +602,8 @@ impl CassieStressRunner {
             Ok(run) => {
                 let gate = evaluate_run_gate(&run);
                 assert_eq!(gate, RunGate::Passed, "stress run gate failed: {gate:?}");
+                validate_relative_p95_gates(&run, &relative_p95_gates)
+                    .unwrap_or_else(|error| panic!("{error}"));
             }
             Err(error) => {
                 panic!("stress run failed to load baseline: {error}");

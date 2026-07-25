@@ -42,9 +42,8 @@ pub use constraints::{
 };
 pub use graphs::GraphMeta;
 pub use indexes::{
-    ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary, ColumnBatchMetadata,
-    ColumnBatchNumericSum, ColumnBatchPayload, ColumnBatchRow, ColumnBatchSegmentMeta,
-    ColumnBatchValueRun, IndexKind, IndexMeta,
+    ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum,
+    ColumnBatchRow, ColumnBatchSegmentMeta, IndexKind, IndexMeta,
 };
 pub use maintenance::MaintenanceDebtMeta;
 pub use metadata::Catalog;

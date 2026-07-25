@@ -1,40 +1,34 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::time::Instant;
 
 use super::{
-    collect_scan, CassieError, ColumnBatchCodecMeta, ColumnBatchColumn, ColumnBatchFieldSummary,
-    ColumnBatchMetadata, ColumnBatchPayload, ColumnBatchRow, ColumnBatchScanDecision,
-    ColumnBatchScanFallbackReason, ColumnBatchScanFilter, ColumnBatchScanOp,
-    ColumnBatchScanOutcome, ColumnBatchScanPredicate, ColumnBatchSegmentMeta, ColumnBatchValueRun,
+    collect_scan, CassieError, ColumnBatchAggregateDecision, ColumnBatchAggregateOutcome,
+    ColumnBatchAggregateSpec, ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata,
+    ColumnBatchRow, ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
+    ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate, ColumnBatchSegmentMeta,
     DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter, WriteOptions,
 };
 
-mod codec;
+mod incremental;
 mod output;
+mod storage_v2;
 mod summary;
 mod validation;
 
-use self::codec::{decode_column_batch, encode_column_batch};
 use self::output::project_column_batch_document;
-use self::summary::{
-    column_batch_summaries, column_values, compare_summary_to_json, summary_checksum,
-};
+use self::storage_v2::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
+use self::summary::{column_batch_summaries, column_values, compare_summary_to_json};
 pub(crate) use self::validation::ControlledColumnBatchSummaryDecision;
+use crate::midge::adapter::column_batch_format_v2::{
+    decode_manifest, encode_manifest, summary_checksum, MANIFEST_FORMAT_VERSION,
+    MANIFEST_SUMMARY_VERSION,
+};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::types::semantic::compare_values;
+use crate::types::Value;
 
-const COLUMN_BATCH_ENCODING_VERSION: u32 = 1;
-const COLUMN_BATCH_CODEC_VERSION: u32 = 1;
-pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = 1;
-pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = 1;
-
-struct EncodedColumnBatch {
-    codec_name: String,
-    codec_version: u32,
-    uncompressed_len: usize,
-    compressed_len: usize,
-    checksum: String,
-    bytes: Vec<u8>,
-}
+pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = MANIFEST_FORMAT_VERSION as u32;
+pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = MANIFEST_SUMMARY_VERSION as u32;
 
 struct ColumnBatchScanPlan {
     index: IndexMeta,
@@ -70,21 +64,194 @@ enum PreparedColumnBatchScan {
     Fallback(ColumnBatchScanFallbackReason),
 }
 
-struct LoadedColumnBatchSegment {
-    compressed_len: usize,
-    uncompressed_len: usize,
-    rows: Vec<ColumnBatchRow>,
-}
-
 struct ColumnBatchScanState {
     batches: Vec<Vec<DocumentRef>>,
     current: Vec<DocumentRef>,
     emitted: usize,
-    compressed_bytes: usize,
-    uncompressed_bytes: usize,
+    segments_read: usize,
+    chunks_read: usize,
+    physical_bytes: usize,
+    logical_bytes: usize,
+    predicate_values: usize,
+    candidate_rows: usize,
+    selected_rows: usize,
+    materialized_values: usize,
     skipped_segments: usize,
-    decoded_columns: usize,
     query_memory: Option<QueryMemoryReservation>,
+}
+
+enum DirectAggregateAccumulator {
+    Count(i64),
+    Sum { value: Option<Value>, seen: bool },
+    Avg { sum: f64, count: usize },
+    Min { value: Option<Value>, max: bool },
+}
+
+impl DirectAggregateAccumulator {
+    fn new(spec: &ColumnBatchAggregateSpec) -> Self {
+        match spec.function.as_str() {
+            "count" => Self::Count(0),
+            "sum" => Self::Sum {
+                value: None,
+                seen: false,
+            },
+            "avg" => Self::Avg { sum: 0.0, count: 0 },
+            "max" => Self::Min {
+                value: None,
+                max: true,
+            },
+            _ => Self::Min {
+                value: None,
+                max: false,
+            },
+        }
+    }
+
+    fn update_count(&mut self, rows: usize) -> Result<(), CassieError> {
+        let Self::Count(count) = self else {
+            return Ok(());
+        };
+        *count = count
+            .checked_add(
+                i64::try_from(rows)
+                    .map_err(|_| CassieError::Parse("aggregate row count overflow".to_string()))?,
+            )
+            .ok_or_else(|| CassieError::Parse("aggregate row count overflow".to_string()))?;
+        Ok(())
+    }
+
+    fn update_values(
+        &mut self,
+        spec: &ColumnBatchAggregateSpec,
+        values: &[Value],
+    ) -> Result<(), CassieError> {
+        match self {
+            Self::Count(count) => {
+                *count = count
+                    .checked_add(
+                        i64::try_from(values.iter().filter(|v| !v.is_null()).count()).map_err(
+                            |_| CassieError::Parse("aggregate row count overflow".to_string()),
+                        )?,
+                    )
+                    .ok_or_else(|| {
+                        CassieError::Parse("aggregate row count overflow".to_string())
+                    })?;
+            }
+            Self::Sum { value, seen } => {
+                for current in values.iter().filter(|value| !value.is_null()) {
+                    match current {
+                        Value::Int64(next) => match value {
+                            None => *value = Some(Value::Int64(*next)),
+                            Some(Value::Int64(total)) => {
+                                *total = total.checked_add(*next).ok_or_else(|| {
+                                    CassieError::Parse("aggregate integer overflow".to_string())
+                                })?;
+                            }
+                            Some(Value::Float64(total)) => *total += int_to_f64(*next),
+                            _ => {
+                                return Err(CassieError::Parse(
+                                    "unsupported aggregate type".to_string(),
+                                ))
+                            }
+                        },
+                        Value::Float64(next) => {
+                            if value.is_none() {
+                                *value = Some(Value::Float64(0.0));
+                            }
+                            if let Some(Value::Int64(total)) = value {
+                                *value = Some(Value::Float64(int_to_f64(*total)));
+                            }
+                            if let Some(Value::Float64(total)) = value {
+                                *total += next;
+                            }
+                        }
+                        _ => {
+                            return Err(CassieError::Parse(format!(
+                                "{} requires numeric input",
+                                spec.function
+                            )))
+                        }
+                    }
+                    *seen = true;
+                }
+            }
+            Self::Avg { sum, count } => {
+                for current in values {
+                    match current {
+                        Value::Int64(value) => {
+                            *sum += int_to_f64(*value);
+                            *count = count.checked_add(1).ok_or_else(|| {
+                                CassieError::Parse("aggregate row count overflow".to_string())
+                            })?;
+                        }
+                        Value::Float64(value) => {
+                            *sum += value;
+                            *count = count.checked_add(1).ok_or_else(|| {
+                                CassieError::Parse("aggregate row count overflow".to_string())
+                            })?;
+                        }
+                        Value::Null => {}
+                        _ => {
+                            return Err(CassieError::Parse(
+                                "avg requires numeric input".to_string(),
+                            ))
+                        }
+                    }
+                }
+            }
+            Self::Min { value, max } => {
+                for current in values.iter().filter(|value| !value.is_null()) {
+                    let replace = value.as_ref().is_none_or(|selected| {
+                        let ordering = compare_values(current, selected);
+                        if *max {
+                            ordering.is_gt()
+                        } else {
+                            ordering.is_lt()
+                        }
+                    });
+                    if replace {
+                        *value = Some(current.clone());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn finish(self) -> Value {
+        match self {
+            Self::Count(count) => Value::Int64(count),
+            Self::Sum { value, seen } => {
+                if seen {
+                    value.unwrap_or(Value::Null)
+                } else {
+                    Value::Null
+                }
+            }
+            Self::Avg { sum, count } => {
+                if count == 0 {
+                    Value::Null
+                } else {
+                    Value::Float64(sum / usize_to_f64(count))
+                }
+            }
+            Self::Min { value, .. } => value.unwrap_or(Value::Null),
+        }
+    }
+}
+
+fn int_to_f64(value: i64) -> f64 {
+    value
+        .to_string()
+        .parse::<f64>()
+        .expect("i64 converts to f64")
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    value
+        .to_string()
+        .parse::<f64>()
+        .expect("usize converts to f64")
 }
 
 impl ColumnBatchScanState {
@@ -101,20 +268,32 @@ impl ColumnBatchScanState {
             batches: Vec::new(),
             current: Vec::new(),
             emitted: 0,
-            compressed_bytes: 0,
-            uncompressed_bytes: 0,
+            segments_read: 0,
+            chunks_read: 0,
+            physical_bytes: 0,
+            logical_bytes: 0,
+            predicate_values: 0,
+            candidate_rows: 0,
+            selected_rows: 0,
+            materialized_values: 0,
             skipped_segments: 0,
-            decoded_columns: 0,
             query_memory,
         })
     }
 
-    fn record_segment(&mut self, segment: &LoadedColumnBatchSegment, decoded_columns: usize) {
-        self.compressed_bytes = self.compressed_bytes.saturating_add(segment.compressed_len);
-        self.uncompressed_bytes = self
-            .uncompressed_bytes
-            .saturating_add(segment.uncompressed_len);
-        self.decoded_columns = self.decoded_columns.saturating_add(decoded_columns);
+    fn record_segment(&mut self, segment: &LoadedSegment) {
+        self.segments_read = self.segments_read.saturating_add(1);
+        self.chunks_read = self.chunks_read.saturating_add(segment.chunks_read);
+        self.physical_bytes = self.physical_bytes.saturating_add(segment.encoded_bytes);
+        self.logical_bytes = self.logical_bytes.saturating_add(segment.decoded_bytes);
+        self.predicate_values = self
+            .predicate_values
+            .saturating_add(segment.predicate_values);
+        self.candidate_rows = self.candidate_rows.saturating_add(segment.candidate_rows);
+        self.selected_rows = self.selected_rows.saturating_add(segment.selected_rows);
+        self.materialized_values = self
+            .materialized_values
+            .saturating_add(segment.materialized_values);
     }
 
     fn push_projected_row(
@@ -144,16 +323,110 @@ impl ColumnBatchScanState {
                 row_decode: std::time::Duration::default(),
             },
             index_name,
-            compressed_bytes: self.compressed_bytes,
-            uncompressed_bytes: self.uncompressed_bytes,
+            segments_read: self.segments_read,
+            chunks_read: self.chunks_read,
+            physical_bytes: self.physical_bytes,
+            logical_bytes: self.logical_bytes,
+            predicate_values: self.predicate_values,
+            candidate_rows: self.candidate_rows,
+            selected_rows: self.selected_rows,
+            materialized_values: self.materialized_values,
             skipped_segments: self.skipped_segments,
-            decoded_columns: self.decoded_columns,
             query_memory: self.query_memory,
         })
     }
 }
 
 impl Midge {
+    pub(crate) fn execute_column_batch_aggregates_controlled(
+        &self,
+        collection: &str,
+        fields: &[String],
+        filter: Option<&ColumnBatchScanFilter>,
+        specs: &[ColumnBatchAggregateSpec],
+        controls: &QueryExecutionControls,
+    ) -> Result<ColumnBatchAggregateDecision, CassieError> {
+        let collection = self.canonical_collection_name(collection);
+        let plan =
+            match self.prepare_column_batch_scan(&collection, 1, fields, None, Some(controls))? {
+                PreparedColumnBatchScan::Ready(plan) => *plan,
+                PreparedColumnBatchScan::Fallback(reason) => {
+                    return Ok(ColumnBatchAggregateDecision::Fallback(reason));
+                }
+            };
+        for spec in specs {
+            let Some(field) = spec.field.as_ref() else {
+                continue;
+            };
+            let numeric = plan.metadata.segments.iter().all(|segment| {
+                segment
+                    .field_chunks
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case(field))
+                    .is_some_and(|(_, chunk)| {
+                        matches!(chunk.logical_type.as_str(), "int64" | "float64")
+                    })
+            });
+            if !numeric {
+                return Ok(ColumnBatchAggregateDecision::Fallback(
+                    ColumnBatchScanFallbackReason::FieldCoverageMismatch,
+                ));
+            }
+        }
+        let data_tx = self.begin_data_readonly_tx_for(&collection)?;
+        let wanted = fields
+            .iter()
+            .map(|field| field.to_ascii_lowercase())
+            .collect::<BTreeSet<_>>();
+        let mut accumulators = specs
+            .iter()
+            .map(DirectAggregateAccumulator::new)
+            .collect::<Vec<_>>();
+        let mut segments_read = 0usize;
+        let mut selected_rows = 0usize;
+        for segment in &plan.metadata.segments {
+            check_column_batch_controls(self, controls)?;
+            if !column_batch_segment_may_match(segment, filter) {
+                continue;
+            }
+            let loaded =
+                match scan_aggregate_segment(&data_tx, &plan.index, segment, &wanted, filter)? {
+                    Ok(loaded) => loaded,
+                    Err(reason) => return Ok(ColumnBatchAggregateDecision::Fallback(reason)),
+                };
+            segments_read = segments_read.saturating_add(1);
+            selected_rows = selected_rows.saturating_add(loaded.selected_rows);
+            for (accumulator, spec) in accumulators.iter_mut().zip(specs) {
+                let Some(field) = spec.field.as_ref() else {
+                    accumulator.update_count(loaded.selected_rows)?;
+                    continue;
+                };
+                let Some((_, values)) = loaded
+                    .values
+                    .iter()
+                    .find(|(name, _)| name.eq_ignore_ascii_case(field))
+                else {
+                    return Ok(ColumnBatchAggregateDecision::Fallback(
+                        ColumnBatchScanFallbackReason::FieldCoverageMismatch,
+                    ));
+                };
+                accumulator.update_values(spec, values)?;
+            }
+        }
+        let values = specs
+            .iter()
+            .zip(accumulators)
+            .map(|(spec, accumulator)| Ok((spec.output_name.clone(), accumulator.finish())))
+            .collect::<Result<Vec<_>, CassieError>>()?;
+        Ok(ColumnBatchAggregateDecision::Hit(
+            ColumnBatchAggregateOutcome {
+                values,
+                segments_read,
+                selected_rows,
+            },
+        ))
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.
@@ -179,6 +452,26 @@ impl Midge {
         &self,
         index: &IndexMeta,
     ) -> Result<ColumnBatchMetadata, CassieError> {
+        self.rebuild_column_batches_for_index_with_policy(index, false)
+    }
+
+    #[doc(hidden)]
+    pub fn rebuild_column_batches_plain_for_benchmark(
+        &self,
+        collection: &str,
+        index_name: &str,
+    ) -> Result<ColumnBatchMetadata, CassieError> {
+        let index = self
+            .get_index(collection, index_name)?
+            .ok_or_else(|| CassieError::Execution(format!("index not found: {index_name}")))?;
+        self.rebuild_column_batches_for_index_with_policy(&index, true)
+    }
+
+    fn rebuild_column_batches_for_index_with_policy(
+        &self,
+        index: &IndexMeta,
+        force_plain: bool,
+    ) -> Result<ColumnBatchMetadata, CassieError> {
         if index.kind != IndexKind::Column {
             return Err(CassieError::Unsupported(
                 "column batch rebuild requires a column index".to_string(),
@@ -196,47 +489,53 @@ impl Midge {
         let schema_version = row_schema.schema_version;
         let built_generation = self.collection_generation(&index.collection)?;
         let source_row_count = documents.len();
-        let mut segments = Vec::new();
-        let mut payloads = Vec::new();
-        for (segment_id, chunk) in documents.chunks(segment_size).enumerate() {
-            let segment_id = segment_id as u64;
-            let rows = chunk
-                .iter()
-                .map(|document| ColumnBatchRow {
-                    row_id: document.id.clone(),
-                    values: column_values(&document.payload, fields.as_slice()),
-                })
-                .collect::<Vec<_>>();
-            let summaries = column_batch_summaries(rows.as_slice(), fields.as_slice(), &row_schema);
-            let summary_checksum = summary_checksum(chunk.len(), &summaries)?;
-            let value_count = rows.len().saturating_mul(fields.len());
-            let (_, codec) = encode_column_batch_payload(rows.as_slice(), fields.as_slice())?;
-            let payload = codec.bytes.clone();
-            segments.push(ColumnBatchSegmentMeta {
-                segment_id,
-                row_id_start: chunk.first().map(|document| document.id.clone()),
-                row_id_end: chunk.last().map(|document| document.id.clone()),
-                row_count: chunk.len(),
-                null_bitmap_available: true,
-                encoding_version: COLUMN_BATCH_ENCODING_VERSION,
-                codec: ColumnBatchCodecMeta {
-                    codec_name: codec.codec_name,
-                    codec_version: codec.codec_version,
-                    uncompressed_len: codec.uncompressed_len,
-                    compressed_len: codec.compressed_len,
-                    value_count,
-                    null_bitmap_encoding: "validity-bitmap".to_string(),
-                    checksum: Some(codec.checksum),
-                },
-                summary_checksum,
-                summaries,
-            });
-            payloads.push((segment_id, payload));
+        let mut encoded_segments = Vec::new();
+        for (position, chunk) in documents.chunks(segment_size).enumerate() {
+            let segment_id = u64::try_from(position)
+                .map_err(|_| CassieError::ResourceLimit("too many column segments".to_string()))?;
+            let rows = storage_v2::rows_for_segment(chunk, fields.as_slice());
+            let next_position = position
+                .checked_add(1)
+                .and_then(|position| position.checked_mul(segment_size))
+                .ok_or_else(|| {
+                    CassieError::ResourceLimit("column segment range overflow".to_string())
+                })?;
+            let row_id_end = documents
+                .get(next_position)
+                .map(|document| document.id.clone());
+            let encoded = if force_plain {
+                storage_v2::encode_plain_segment_for_benchmark(
+                    segment_id,
+                    1,
+                    rows.as_slice(),
+                    fields.as_slice(),
+                    &row_schema,
+                    row_id_end,
+                )?
+            } else {
+                storage_v2::encode_segment(
+                    segment_id,
+                    1,
+                    rows.as_slice(),
+                    fields.as_slice(),
+                    &row_schema,
+                    row_id_end,
+                )?
+            };
+            encoded_segments.push(encoded);
         }
 
+        let segments = encoded_segments
+            .iter()
+            .map(|segment| segment.metadata.clone())
+            .collect::<Vec<_>>();
+        let next_segment_id = u64::try_from(segments.len())
+            .map_err(|_| CassieError::ResourceLimit("too many column segments".to_string()))?;
         let metadata = ColumnBatchMetadata {
             metadata_format_version: CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION,
             summary_format_version: CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
+            manifest_revision: 1,
+            next_segment_id,
             collection: index.collection.clone(),
             index_name: index.name.clone(),
             schema_version,
@@ -253,26 +552,20 @@ impl Midge {
             &mut data_tx,
             Self::column_batch_index_prefix(relation_id, index_id),
         )?;
+        for segment in &encoded_segments {
+            storage_v2::write_segment(&mut data_tx, relation_id, index_id, segment)?;
+        }
         data_tx
             .put(
                 Self::column_batch_metadata_key(relation_id, index_id),
-                serde_json::to_vec(&metadata)
-                    .map_err(|error| CassieError::Parse(error.to_string()))?,
+                encode_manifest(&metadata)?,
                 None,
             )
             .map_err(CassieError::from)?;
-        for (segment_id, payload) in payloads {
-            data_tx
-                .put(
-                    Self::column_batch_segment_key(relation_id, index_id, segment_id),
-                    payload,
-                    None,
-                )
-                .map_err(CassieError::from)?;
-        }
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
+        self.record_column_batch_build(encoded_segments.as_slice(), true, 0, source_row_count);
 
         Ok(metadata)
     }
@@ -297,9 +590,7 @@ impl Midge {
         else {
             return Ok(None);
         };
-        serde_json::from_slice(&raw)
-            .map(Some)
-            .map_err(|error| CassieError::Parse(format!("invalid column batch metadata: {error}")))
+        decode_manifest(&raw).map(Some)
     }
 
     /// # Errors
@@ -458,19 +749,20 @@ impl Midge {
             let _segment_memory = request
                 .controls
                 .map(|controls| {
-                    controls.reserve_query_memory(
-                        segment
-                            .codec
-                            .uncompressed_len
-                            .max(segment.codec.compressed_len),
-                    )
+                    controls.reserve_query_memory(segment_requested_bytes(segment, &plan.wanted))
                 })
                 .transpose()?;
-            let loaded = match load_column_batch_segment(&data_tx, &plan.index, segment)? {
+            let loaded = match scan_segment(
+                &data_tx,
+                &plan.index,
+                segment,
+                &plan.wanted,
+                request.segment_filter,
+            )? {
                 Ok(loaded) => loaded,
                 Err(reason) => return Ok(ColumnBatchScanDecision::Fallback(reason)),
             };
-            state.record_segment(&loaded, plan.wanted.len());
+            state.record_segment(&loaded);
             for row in loaded.rows {
                 if state.emitted >= plan.limit {
                     break;
@@ -542,6 +834,92 @@ impl Midge {
         })?;
         Ok((relation_id, index_id))
     }
+
+    fn record_column_batch_build(
+        &self,
+        segments: &[storage_v2::EncodedSegment],
+        full_rebuild: bool,
+        splits: usize,
+        source_rows: usize,
+    ) {
+        let mut metrics = self.column_batch_operational_metrics.lock();
+        if full_rebuild {
+            metrics.full_rebuilds = metrics.full_rebuilds.saturating_add(1);
+        } else {
+            metrics.segment_rewrites = metrics
+                .segment_rewrites
+                .saturating_add(u64::try_from(segments.len()).unwrap_or(u64::MAX));
+            metrics.segment_splits = metrics
+                .segment_splits
+                .saturating_add(u64::try_from(splits).unwrap_or(u64::MAX));
+            let bucket = match segments.len() {
+                0 | 1 => 0,
+                2 => 1,
+                _ => 2,
+            };
+            metrics.write_amplification_buckets[bucket] =
+                metrics.write_amplification_buckets[bucket].saturating_add(1);
+        }
+        let bytes = segments.iter().fold(0usize, |total, segment| {
+            segment.fields.values().fold(
+                total.saturating_add(segment.row_ids.len()),
+                |total, field| total.saturating_add(field.len()),
+            )
+        });
+        metrics.maintenance_bytes = metrics
+            .maintenance_bytes
+            .saturating_add(u64::try_from(bytes).unwrap_or(u64::MAX));
+        metrics.maintenance_source_rows = metrics
+            .maintenance_source_rows
+            .saturating_add(u64::try_from(source_rows).unwrap_or(u64::MAX));
+        for segment in segments {
+            for chunk in segment.metadata.field_chunks.values() {
+                let choices = metrics
+                    .codec_choices
+                    .entry(chunk.codec_name.clone())
+                    .or_default();
+                *choices = choices.saturating_add(1);
+            }
+        }
+    }
+
+    fn record_empty_column_batch_maintenance(&self) {
+        let mut metrics = self.column_batch_operational_metrics.lock();
+        metrics.segment_rewrites = metrics.segment_rewrites.saturating_add(1);
+        metrics.write_amplification_buckets[0] =
+            metrics.write_amplification_buckets[0].saturating_add(1);
+    }
+
+    fn record_column_batch_orphan_cleanup(&self, removed: usize) {
+        let mut metrics = self.column_batch_operational_metrics.lock();
+        metrics.orphan_revisions_cleaned = metrics
+            .orphan_revisions_cleaned
+            .saturating_add(u64::try_from(removed).unwrap_or(u64::MAX));
+    }
+
+    pub(crate) fn column_batch_operational_metrics(&self) -> serde_json::Value {
+        let metrics = self.column_batch_operational_metrics.lock();
+        serde_json::json!({
+            "codec_choices": metrics.codec_choices,
+            "full_rebuilds": metrics.full_rebuilds,
+            "segment_rewrites": metrics.segment_rewrites,
+            "segment_splits": metrics.segment_splits,
+            "compactions": metrics.compactions,
+            "maintenance_bytes": metrics.maintenance_bytes,
+            "maintenance_source_rows": metrics.maintenance_source_rows,
+            "orphan_revisions_cleaned": metrics.orphan_revisions_cleaned,
+            "write_amplification_buckets": {
+                "one_segment": metrics.write_amplification_buckets[0],
+                "two_segments": metrics.write_amplification_buckets[1],
+                "more_than_two_segments": metrics.write_amplification_buckets[2],
+            },
+        })
+    }
+
+    fn record_column_batch_compaction(&self) {
+        let mut metrics = self.column_batch_operational_metrics.lock();
+        metrics.compactions = metrics.compactions.saturating_add(1);
+    }
 }
 
 fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
@@ -552,49 +930,27 @@ fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
         .collect()
 }
 
+fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<String>) -> usize {
+    wanted.iter().fold(
+        segment.row_ids.decoded_len.max(segment.row_ids.encoded_len),
+        |bytes, wanted_field| {
+            let retained = segment
+                .field_chunks
+                .iter()
+                .find(|(field, _)| field.eq_ignore_ascii_case(wanted_field))
+                .map_or(0, |(_, chunk)| chunk.decoded_len.max(chunk.encoded_len));
+            bytes.saturating_add(retained)
+        },
+    )
+}
+
 fn load_column_batch_segment(
     data_tx: &cntryl_midge::Transaction,
     index: &IndexMeta,
     segment: &ColumnBatchSegmentMeta,
-) -> Result<Result<LoadedColumnBatchSegment, ColumnBatchScanFallbackReason>, CassieError> {
-    let (relation_id, index_id) = Midge::column_batch_storage_ids(index)?;
-    let Some(raw) = data_tx
-        .get(&Midge::column_batch_segment_key(
-            relation_id,
-            index_id,
-            segment.segment_id,
-        ))
-        .map_err(CassieError::from)?
-    else {
-        return Ok(Err(ColumnBatchScanFallbackReason::SegmentMissing));
-    };
-    if segment
-        .codec
-        .checksum
-        .as_ref()
-        .is_some_and(|checksum| checksum != &checksum_hex(&raw))
-    {
-        return Ok(Err(ColumnBatchScanFallbackReason::SegmentChecksumMismatch));
-    }
-    let Ok(payload) = decode_column_batch(&raw) else {
-        return Ok(Err(ColumnBatchScanFallbackReason::InvalidPayload));
-    };
-    if payload.encoding_version != COLUMN_BATCH_ENCODING_VERSION {
-        return Ok(Err(ColumnBatchScanFallbackReason::InvalidEncodingVersion));
-    }
-    if payload.codec_name != segment.codec.codec_name
-        || payload.codec_version != segment.codec.codec_version
-    {
-        return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
-    }
-    let Some(rows) = decode_column_batch_payload(&payload, segment.row_count) else {
-        return Ok(Err(ColumnBatchScanFallbackReason::SegmentDecodeFailed));
-    };
-    Ok(Ok(LoadedColumnBatchSegment {
-        compressed_len: segment.codec.compressed_len,
-        uncompressed_len: segment.codec.uncompressed_len,
-        rows,
-    }))
+) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {
+    let wanted = storage_v2::all_segment_fields(segment);
+    load_segment(data_tx, index, segment, &wanted)
 }
 
 fn column_index_segment_size(index: &IndexMeta) -> Result<usize, CassieError> {
@@ -607,140 +963,6 @@ fn column_index_segment_size(index: &IndexMeta) -> Result<usize, CassieError> {
         .parse::<usize>()
         .map_err(|_| CassieError::Parse("invalid column index segment_size".to_string()))?;
     Ok(parsed.max(1))
-}
-
-fn encode_column_batch_payload(
-    rows: &[ColumnBatchRow],
-    fields: &[String],
-) -> Result<(ColumnBatchPayload, EncodedColumnBatch), CassieError> {
-    let uncompressed = ColumnBatchPayload {
-        encoding_version: COLUMN_BATCH_ENCODING_VERSION,
-        codec_name: "uncompressed".to_string(),
-        codec_version: COLUMN_BATCH_CODEC_VERSION,
-        row_ids: Vec::new(),
-        rows: rows.to_owned(),
-        columns: Vec::new(),
-    };
-    let uncompressed_bytes = encode_column_batch(&uncompressed)?;
-    let uncompressed_len = uncompressed_bytes.len();
-
-    let rle = dictionary_rle_payload(rows, fields);
-    let rle_bytes = encode_column_batch(&rle)?;
-
-    let (payload, bytes) = if rle_bytes.len() < uncompressed_bytes.len() {
-        (rle, rle_bytes)
-    } else {
-        (uncompressed, uncompressed_bytes)
-    };
-    let codec = EncodedColumnBatch {
-        codec_name: payload.codec_name.clone(),
-        codec_version: payload.codec_version,
-        uncompressed_len,
-        compressed_len: bytes.len(),
-        checksum: checksum_hex(&bytes),
-        bytes,
-    };
-    Ok((payload, codec))
-}
-
-fn dictionary_rle_payload(rows: &[ColumnBatchRow], fields: &[String]) -> ColumnBatchPayload {
-    let row_ids = rows
-        .iter()
-        .map(|row| row.row_id.clone())
-        .collect::<Vec<_>>();
-    let columns = fields
-        .iter()
-        .map(|field| ColumnBatchColumn {
-            field: field.clone(),
-            runs: value_runs(rows, field),
-        })
-        .collect();
-    ColumnBatchPayload {
-        encoding_version: COLUMN_BATCH_ENCODING_VERSION,
-        codec_name: "dictionary_rle".to_string(),
-        codec_version: COLUMN_BATCH_CODEC_VERSION,
-        row_ids,
-        rows: Vec::new(),
-        columns,
-    }
-}
-
-fn value_runs(rows: &[ColumnBatchRow], field: &str) -> Vec<ColumnBatchValueRun> {
-    let mut runs: Vec<ColumnBatchValueRun> = Vec::new();
-    for row in rows {
-        let value = row
-            .values
-            .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map_or(serde_json::Value::Null, |(_, value)| value.clone());
-        if let Some(last) = runs.last_mut() {
-            if last.value == value {
-                last.len += 1;
-                continue;
-            }
-        }
-        runs.push(ColumnBatchValueRun { value, len: 1 });
-    }
-    runs
-}
-
-fn decode_column_batch_payload(
-    payload: &ColumnBatchPayload,
-    row_count: usize,
-) -> Option<Vec<ColumnBatchRow>> {
-    match (payload.codec_name.as_str(), payload.codec_version) {
-        ("uncompressed", COLUMN_BATCH_CODEC_VERSION) => {
-            (payload.rows.len() == row_count).then(|| payload.rows.clone())
-        }
-        ("dictionary_rle", COLUMN_BATCH_CODEC_VERSION) => {
-            decode_dictionary_rle_payload(payload, row_count)
-        }
-        _ => None,
-    }
-}
-
-fn decode_dictionary_rle_payload(
-    payload: &ColumnBatchPayload,
-    row_count: usize,
-) -> Option<Vec<ColumnBatchRow>> {
-    if payload.row_ids.len() != row_count {
-        return None;
-    }
-    let mut rows = payload
-        .row_ids
-        .iter()
-        .map(|row_id| ColumnBatchRow {
-            row_id: row_id.clone(),
-            values: BTreeMap::new(),
-        })
-        .collect::<Vec<_>>();
-
-    for column in &payload.columns {
-        let mut offset = 0usize;
-        for run in &column.runs {
-            if run.len == 0 || offset.saturating_add(run.len) > row_count {
-                return None;
-            }
-            for row in rows.iter_mut().skip(offset).take(run.len) {
-                row.values.insert(column.field.clone(), run.value.clone());
-            }
-            offset += run.len;
-        }
-        if offset != row_count {
-            return None;
-        }
-    }
-
-    Some(rows)
-}
-
-fn checksum_hex(bytes: &[u8]) -> String {
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in bytes {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
-    }
-    format!("{hash:016x}")
 }
 
 fn column_batch_segment_may_match(

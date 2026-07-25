@@ -38,7 +38,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
-        "perf.read_path.column_batch.100k",
+        "perf.read_path.column_encoded_filter_aggregate.100k",
         "core_read",
         "column_analytics",
         "tier3_system_query",

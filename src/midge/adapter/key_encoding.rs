@@ -26,11 +26,12 @@ pub(super) use graph::{
     graph_outbound_prefix, graph_prefix,
 };
 pub(super) use hot_indexes::{
-    column_batch_collection_prefix, column_batch_index_prefix, column_batch_metadata_key,
-    column_batch_segment_key, scalar_index_collection_prefix, scalar_index_data_prefix,
-    unique_constraint_reservation_field_prefix, unique_constraint_reservation_key,
-    unique_constraint_reservation_prefix, unique_index_reservation_prefix,
-    unique_scalar_index_reservation_key, unique_scalar_index_reservation_prefix,
+    column_batch_collection_prefix, column_batch_field_key, column_batch_index_prefix,
+    column_batch_metadata_key, column_batch_row_ids_key, scalar_index_collection_prefix,
+    scalar_index_data_prefix, unique_constraint_reservation_field_prefix,
+    unique_constraint_reservation_key, unique_constraint_reservation_prefix,
+    unique_index_reservation_prefix, unique_scalar_index_reservation_key,
+    unique_scalar_index_reservation_prefix,
 };
 pub(super) use time_series::{
     decode_time_series_bucket_count_key, decode_time_series_entry_key,

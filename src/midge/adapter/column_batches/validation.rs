@@ -7,8 +7,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use super::{
     collect_scan, column_batch_summaries, column_index_segment_size, column_values,
     load_column_batch_segment, summary_checksum, CassieError, ColumnBatchScanFallbackReason, Midge,
-    Query, CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION,
-    CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
+    Query, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -115,7 +114,7 @@ impl Midge {
             let _write_guard = write_gate.lock();
             if self.has_column_batch_maintenance_debt(&collection)? {
                 let generation = self.collection_generation(&collection)?;
-                self.complete_column_batch_maintenance(&collection, generation)?;
+                self.complete_column_batch_maintenance(&collection, generation, None)?;
             }
             let fields = index.normalized_fields();
             let valid = matches!(
@@ -142,6 +141,10 @@ impl Midge {
                         reason.as_str()
                     )));
                 }
+            } else if let Some(metadata) =
+                self.get_column_batch_metadata(&collection, &index.name)?
+            {
+                let _ = self.garbage_collect_column_batch_revisions(&index, &metadata);
             }
         }
         Ok(())
@@ -346,11 +349,6 @@ impl Midge {
         if expected_keys.iter().any(|key| !actual_keys.contains(key)) {
             return Ok(Err(ColumnBatchScanFallbackReason::SegmentMissing));
         }
-        if entries.len() != expected_keys.len()
-            || entries.iter().any(|(key, _)| !expected_keys.contains(key))
-        {
-            return Ok(Err(ColumnBatchScanFallbackReason::SegmentManifestMismatch));
-        }
         Ok(Ok(()))
     }
 
@@ -371,12 +369,9 @@ impl Midge {
         let mut persisted_rows = Vec::with_capacity(capacity);
         let mut previous_end: Option<&str> = None;
         for segment in &metadata.segments {
-            if previous_end.is_some_and(|previous| {
-                segment
-                    .row_id_start
-                    .as_deref()
-                    .is_none_or(|current| previous >= current)
-            }) {
+            if previous_end
+                .is_some_and(|previous| segment.row_id_start.as_deref() != Some(previous))
+            {
                 return Ok(Err(ColumnBatchScanFallbackReason::SegmentManifestMismatch));
             }
             previous_end = segment.row_id_end.as_deref();
@@ -441,19 +436,19 @@ impl Midge {
 }
 
 fn decode_latest_column_batch_metadata(raw: &[u8]) -> ValidationResult<ColumnBatchMetadata> {
-    let document = serde_json::from_slice::<serde_json::Value>(raw)
-        .map_err(|_| ColumnBatchScanFallbackReason::InvalidMetadata)?;
-    if version(&document, "metadata_format_version")
-        != Some(CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION)
-    {
+    if !crate::midge::adapter::column_batch_format_v2::has_current_header(raw) {
         return Err(ColumnBatchScanFallbackReason::MetadataFormatMismatch);
     }
-    if version(&document, "summary_format_version")
-        != Some(CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION)
-    {
+    let summary_version = raw
+        .get(6..8)
+        .and_then(|raw| <[u8; 2]>::try_from(raw).ok())
+        .map(u16::from_le_bytes);
+    let current_summary_version = u16::try_from(CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION).ok();
+    if summary_version != current_summary_version {
         return Err(ColumnBatchScanFallbackReason::SummaryFormatMismatch);
     }
-    serde_json::from_slice(raw).map_err(|_| ColumnBatchScanFallbackReason::InvalidMetadata)
+    crate::midge::adapter::column_batch_format_v2::decode_manifest(raw)
+        .map_err(|_| ColumnBatchScanFallbackReason::InvalidMetadata)
 }
 
 fn fallback(reason: ColumnBatchScanFallbackReason) -> ColumnBatchSummaryDecision {
@@ -487,19 +482,23 @@ fn controlled_metadata_retained_bytes(key: &[u8], raw: &[u8]) -> Result<usize, C
 fn controlled_segment_retained_bytes(
     segment: &crate::catalog::ColumnBatchSegmentMeta,
 ) -> Result<usize, CassieError> {
-    segment
-        .codec
-        .uncompressed_len
-        .checked_mul(4)
-        .and_then(|bytes| bytes.checked_add(segment.codec.compressed_len))
-        .ok_or_else(|| CassieError::ResourceLimit("column segment size overflow".to_string()))
-}
-
-fn version(document: &serde_json::Value, field: &str) -> Option<u32> {
-    document
-        .get(field)?
-        .as_u64()
-        .and_then(|value| u32::try_from(value).ok())
+    segment.field_chunks.values().try_fold(
+        segment
+            .row_ids
+            .decoded_len
+            .checked_add(segment.row_ids.encoded_len)
+            .ok_or_else(|| {
+                CassieError::ResourceLimit("column segment size overflow".to_string())
+            })?,
+        |bytes, chunk| {
+            bytes
+                .checked_add(chunk.decoded_len)
+                .and_then(|bytes| bytes.checked_add(chunk.encoded_len))
+                .ok_or_else(|| {
+                    CassieError::ResourceLimit("column segment size overflow".to_string())
+                })
+        },
+    )
 }
 
 fn normalized_fields(fields: &[String]) -> BTreeSet<String> {
@@ -520,22 +519,36 @@ fn invalid_segment_manifest_reason(
     if manifest_row_count != metadata.source_row_count {
         return Some(ColumnBatchScanFallbackReason::SourceRowCountMismatch);
     }
-    let expected_segments = metadata.source_row_count.div_ceil(metadata.segment_size);
-    if metadata.segments.len() != expected_segments {
+    if metadata.source_row_count == 0 && !metadata.segments.is_empty() {
         return Some(ColumnBatchScanFallbackReason::SegmentManifestMismatch);
     }
+    let Some(maximum_rows) = metadata.segment_size.checked_mul(2) else {
+        return Some(ColumnBatchScanFallbackReason::SegmentManifestMismatch);
+    };
+    let mut ids = HashSet::with_capacity(metadata.segments.len());
     let structurally_valid = metadata
         .segments
         .iter()
         .enumerate()
         .all(|(position, segment)| {
-            segment.segment_id == position as u64
+            ids.insert(segment.segment_id)
+                && segment.segment_id < metadata.next_segment_id
+                && segment.revision > 0
                 && segment.row_count > 0
-                && segment.row_count <= metadata.segment_size
+                && segment.row_count <= maximum_rows
                 && segment.row_id_start.is_some()
-                && segment.row_id_end.is_some()
-                && (position + 1 == metadata.segments.len()
-                    || segment.row_count == metadata.segment_size)
+                && segment.row_ids.value_count == segment.row_count
+                && segment.row_ids.null_count == 0
+                && segment.field_chunks.len() == metadata.fields.len()
+                && segment
+                    .field_chunks
+                    .values()
+                    .all(|chunk| chunk.value_count == segment.row_count)
+                && if position + 1 == metadata.segments.len() {
+                    segment.row_id_end.is_none()
+                } else {
+                    segment.row_id_end == metadata.segments[position + 1].row_id_start
+                }
         });
     if structurally_valid {
         None
@@ -544,18 +557,35 @@ fn invalid_segment_manifest_reason(
     }
 }
 
-fn expected_column_batch_keys(
+pub(super) fn expected_column_batch_keys(
     metadata: &ColumnBatchMetadata,
     relation_id: u64,
     index_id: u64,
 ) -> HashSet<Vec<u8>> {
-    let mut keys = HashSet::with_capacity(metadata.segments.len() + 1);
+    let chunk_count = metadata
+        .segments
+        .iter()
+        .map(|segment| segment.field_chunks.len().saturating_add(1))
+        .sum::<usize>();
+    let mut keys = HashSet::with_capacity(chunk_count.saturating_add(1));
     keys.insert(Midge::column_batch_metadata_key(relation_id, index_id));
-    keys.extend(
-        metadata.segments.iter().map(|segment| {
-            Midge::column_batch_segment_key(relation_id, index_id, segment.segment_id)
-        }),
-    );
+    for segment in &metadata.segments {
+        keys.insert(Midge::column_batch_row_ids_key(
+            relation_id,
+            index_id,
+            segment.segment_id,
+            segment.revision,
+        ));
+        keys.extend(segment.field_chunks.keys().map(|field| {
+            Midge::column_batch_field_key(
+                relation_id,
+                index_id,
+                segment.segment_id,
+                segment.revision,
+                field,
+            )
+        }));
+    }
     keys
 }
 
@@ -565,6 +595,9 @@ fn valid_segment_rows(
 ) -> bool {
     rows.len() == segment.row_count
         && rows.first().map(|row| &row.row_id) == segment.row_id_start.as_ref()
-        && rows.last().map(|row| &row.row_id) == segment.row_id_end.as_ref()
+        && segment
+            .row_id_end
+            .as_ref()
+            .is_none_or(|end| rows.last().is_some_and(|row| row.row_id < *end))
         && rows.windows(2).all(|pair| pair[0].row_id < pair[1].row_id)
 }

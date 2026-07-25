@@ -831,7 +831,7 @@ impl Midge {
         data_tx
             .commit(WriteOptions::sync())
             .map_err(CassieError::from)?;
-        self.complete_column_batch_maintenance(&pending.collection, generation)?;
+        self.complete_column_batch_maintenance(&pending.collection, generation, None)?;
         self.complete_projection_hash_maintenance(&pending.collection, generation, 0)
     }
 

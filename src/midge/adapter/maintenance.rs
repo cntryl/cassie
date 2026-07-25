@@ -130,9 +130,23 @@ impl Midge {
         &self,
         collection: &str,
         target_generation: u64,
+        changed_ids: Option<&[String]>,
     ) -> Result<(), CassieError> {
-        let rebuild = check_column_batch_maintenance_failure_point()
-            .and_then(|()| self.rebuild_column_batches_for_collection(collection));
+        let rebuild = check_column_batch_maintenance_failure_point().and_then(|()| {
+            changed_ids.map_or_else(
+                || {
+                    self.rebuild_column_batches_for_collection(collection)
+                        .map(|_| ())
+                },
+                |changed_ids| {
+                    self.refresh_column_batches_incrementally(
+                        collection,
+                        target_generation,
+                        changed_ids,
+                    )
+                },
+            )
+        });
         if let Err(error) = rebuild {
             self.record_maintenance_failure(
                 collection,
@@ -268,9 +282,11 @@ impl Midge {
         &self,
         collection: &str,
         row_delta: i64,
+        changed_ids: &[String],
     ) -> Result<(), CassieError> {
         let generation = self.collection_generation(collection)?;
-        let column_batches = self.complete_column_batch_maintenance(collection, generation);
+        let column_batches =
+            self.complete_column_batch_maintenance(collection, generation, Some(changed_ids));
         let projection_hashes =
             self.complete_projection_hash_maintenance(collection, generation, row_delta);
         column_batches.and(projection_hashes)
@@ -335,7 +351,7 @@ impl Midge {
         for debt in debts {
             if debt.artifact == COLUMN_BATCH_ARTIFACT {
                 let generation = self.collection_generation(&debt.collection)?;
-                let _ = self.complete_column_batch_maintenance(&debt.collection, generation);
+                let _ = self.complete_column_batch_maintenance(&debt.collection, generation, None);
             } else if debt.artifact == PROJECTION_HASH_ARTIFACT {
                 let generation = self.collection_generation(&debt.collection)?;
                 if self.rebuild_projection_hashes(&debt.collection).is_ok() {

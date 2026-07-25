@@ -17,6 +17,7 @@ pub struct Midge {
     collection_write_gates: Mutex<HashMap<String, Arc<ReentrantMutex<()>>>>,
     referential_write_gate: ReentrantMutex<()>,
     query_scan_entries: AtomicU64,
+    pub(super) column_batch_operational_metrics: Mutex<super::ColumnBatchOperationalMetrics>,
 }
 
 impl Drop for Midge {
@@ -79,6 +80,9 @@ impl Midge {
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
             query_scan_entries: AtomicU64::new(0),
+            column_batch_operational_metrics: Mutex::new(
+                super::ColumnBatchOperationalMetrics::default(),
+            ),
         })
     }
 
@@ -107,6 +111,9 @@ impl Midge {
             collection_write_gates: Mutex::new(HashMap::new()),
             referential_write_gate: ReentrantMutex::new(()),
             query_scan_entries: AtomicU64::new(0),
+            column_batch_operational_metrics: Mutex::new(
+                super::ColumnBatchOperationalMetrics::default(),
+            ),
         })
     }
 

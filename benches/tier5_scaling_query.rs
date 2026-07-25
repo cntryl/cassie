@@ -65,9 +65,14 @@ fn main() {
 
 fn owner_selected(runner: &stress::CassieStressRunner) -> bool {
     SCALE_ROWS.into_iter().any(|(scale, _)| {
-        ["relational_query", "join_query", "column_query"]
-            .into_iter()
-            .any(|workload| runner.is_enabled(&stress::StressCase::new(workload, scale)))
+        [
+            "relational_query",
+            "join_query",
+            "column_query",
+            "column_dml",
+        ]
+        .into_iter()
+        .any(|workload| runner.is_enabled(&stress::StressCase::new(workload, scale)))
     }) || [
         "worker_query",
         "worker_query_2",
@@ -89,6 +94,7 @@ struct ScaleCases {
     relational: Option<stress::StressCase>,
     join: Option<stress::StressCase>,
     column: Option<stress::StressCase>,
+    column_dml: Option<stress::StressCase>,
     worker_one: Option<stress::StressCase>,
     simple: Option<stress::StressCase>,
     mixed_direction: Option<stress::StressCase>,
@@ -107,6 +113,7 @@ impl ScaleCases {
             relational: selected_case(runner, "relational_query", scale, rows),
             join: selected_case(runner, "join_query", scale, rows),
             column: selected_case(runner, "column_query", scale, rows),
+            column_dml: selected_case(runner, "column_dml", scale, rows),
             worker_one: legacy
                 .then(|| selected_case(runner, "worker_query", scale, rows))
                 .flatten(),
@@ -149,6 +156,7 @@ impl ScaleCases {
         self.relational.is_some()
             || self.join.is_some()
             || self.column.is_some()
+            || self.column_dml.is_some()
             || self.worker_one.is_some()
             || self.simple.is_some()
             || self.mixed_direction.is_some()
@@ -158,6 +166,21 @@ impl ScaleCases {
             || self.recursive_cte.is_some()
             || self.window_frame.is_some()
             || !self.legacy_joins.is_empty()
+    }
+
+    fn only_column_enabled(&self) -> bool {
+        (self.column.is_some() || self.column_dml.is_some())
+            && self.relational.is_none()
+            && self.join.is_none()
+            && self.worker_one.is_none()
+            && self.simple.is_none()
+            && self.mixed_direction.is_none()
+            && self.expression.is_none()
+            && self.expression_range.is_none()
+            && self.expression_order.is_none()
+            && self.recursive_cte.is_none()
+            && self.window_frame.is_none()
+            && self.legacy_joins.is_empty()
     }
 }
 
@@ -181,12 +204,24 @@ fn measure_scale(
     }
 
     let setup_started = Instant::now();
-    let context = if scale == "100k" {
+    let prepare_joins = cases.join.is_some() || !cases.legacy_joins.is_empty();
+    let context = if cases.only_column_enabled() {
+        let (memory, timeout) = column_curve_limits(rows);
+        runtime
+            .block_on(workloads::column_batch_context_with_limits(
+                &format!("tier5-column-{scale}"),
+                rows,
+                memory,
+                timeout,
+            ))
+            .expect("column-only scaling fixture")
+    } else if scale == "100k" {
         runtime
             .block_on(workloads::query_scaling_disk_context(
                 "tier5-query-100k",
                 rows,
                 1,
+                prepare_joins,
             ))
             .expect("persisted 100k query scaling fixture")
     } else {
@@ -195,6 +230,7 @@ fn measure_scale(
                 &format!("tier5-query-{scale}"),
                 rows,
                 1,
+                prepare_joins,
             ))
             .expect("query scaling fixture")
     };
@@ -207,7 +243,7 @@ fn measure_scale(
     }
     let fixture_setup = setup_started.elapsed();
 
-    measure_primary_cases(runtime, runner, &context, fixture_setup, &cases);
+    measure_primary_cases(runtime, runner, &context, fixture_setup, rows, &cases);
     if scale == "100k" {
         let fixture = workloads::QueryScalingFixture::close(context, rows);
         measure_dense_join_reopen(
@@ -229,11 +265,23 @@ fn measure_scale(
     }
 }
 
+fn column_curve_limits(rows: usize) -> (usize, u64) {
+    if rows > 100_000 {
+        (
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
+        )
+    } else {
+        (workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, 30_000)
+    }
+}
+
 fn measure_primary_cases(
     runtime: &tokio::runtime::Runtime,
     runner: &mut stress::CassieStressRunner,
     context: &workloads::BenchContext,
     fixture_setup: Duration,
+    fixture_rows: usize,
     cases: &ScaleCases,
 ) {
     if let Some(case) = cases.relational.clone() {
@@ -267,13 +315,26 @@ fn measure_primary_cases(
             context,
             workloads::COLUMN_SCALING_SQL,
             vec![],
-            "aggregate_acceleration=true",
+            "encoded_execution=true",
         );
         runner.measure_batch(
             evidenced(case, fixture_setup, context, preflight),
             1,
             || runtime.block_on(workloads::column_query(context)),
         );
+    }
+    if let Some(case) = cases.column_dml.clone() {
+        let nonce = std::cell::Cell::new(0usize);
+        let case = case
+            .metadata("setup_time_ns", fixture_setup.as_nanos().to_string())
+            .metadata("execution_result_cache_hits", "0")
+            .preflight_evidence("column_batch_incremental_maintenance", "none")
+            .runtime_evidence(context.cassie.clone());
+        runner.measure_batch(case, 1, || {
+            let current = nonce.get();
+            nonce.set(current.wrapping_add(1));
+            runtime.block_on(workloads::column_dml(context, current, fixture_rows))
+        });
     }
     measure_legacy_scalar_cases(runner, context, fixture_setup, cases);
     measure_recursive_cte(
@@ -615,11 +676,14 @@ fn selected_case(
     let dense_stream_selection = workload == "vectorized_dense_streaming_inner_join";
     let query_memory_budget = if dense_stream_selection {
         4 * 1_024
+    } else if rows > 100_000 {
+        workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     } else {
         workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     };
     let operation_unit = match workload {
         "recursive_cte_query" | "window_frame_query" => stress::OperationUnit::ResultRow,
+        "column_dml" => stress::OperationUnit::Document,
         _ => stress::OperationUnit::Query,
     };
     let case = stress::StressCase::new(workload, scale)
@@ -632,6 +696,14 @@ fn selected_case(
             operation_unit,
         )
         .metadata("query_memory_budget_bytes", query_memory_budget.to_string());
+    let case = if rows > 100_000 {
+        case.metadata(
+            "query_timeout_ms",
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS.to_string(),
+        )
+    } else {
+        case
+    };
     let case = if dense_stream_selection {
         case.metadata("benchmark_resource_profile", "dense_stream_selection_4k")
     } else {

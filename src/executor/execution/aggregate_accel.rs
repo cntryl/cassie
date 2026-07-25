@@ -1,12 +1,15 @@
 use super::{
-    aggregate_signature, catalog, BatchRow, Cassie, CassieSession, Expr, HashSet, LogicalPlan,
-    QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
+    aggregate_signature, catalog, projected_read, BatchRow, Cassie, CassieSession, Expr,
+    FunctionMeta, HashMap, HashSet, LogicalPlan, QueryError, QueryExecutionControls, QuerySource,
+    SelectItem, Value,
 };
 use crate::catalog::{
     ColumnBatchFieldSummary, ColumnBatchMetadata, ColumnBatchNumericSum, ColumnBatchSegmentMeta,
     IndexMeta,
 };
-use crate::midge::adapter::ControlledColumnBatchSummaryDecision;
+use crate::midge::adapter::{
+    ColumnBatchAggregateDecision, ColumnBatchAggregateSpec, ControlledColumnBatchSummaryDecision,
+};
 use crate::types::semantic::compare_values;
 
 pub(super) fn try_execute_column_batch_aggregate(
@@ -14,6 +17,8 @@ pub(super) fn try_execute_column_batch_aggregate(
     session: Option<&CassieSession>,
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
+    _params: &[Value],
+    _user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let QuerySource::Collection(collection) = &plan.source else {
         return Ok(None);
@@ -29,20 +34,67 @@ pub(super) fn try_execute_column_batch_aggregate(
     }
 
     let specs = aggregate_specs(plan);
-    let fields = specs
+    if specs.is_empty() {
+        return Ok(None);
+    }
+    let mut fields = specs
         .iter()
         .filter_map(|spec| spec.field.as_ref())
         .map(|field| field.to_ascii_lowercase())
         .collect::<Vec<_>>();
+    let encoded_filter = if let Some(filter) = plan.filter.as_ref() {
+        let Some(encoded_filter) = projected_read::column_batch_scan_filter(filter) else {
+            return Ok(None);
+        };
+        for predicate in &encoded_filter.predicates {
+            if !fields
+                .iter()
+                .any(|field| field.eq_ignore_ascii_case(&predicate.field))
+            {
+                fields.push(predicate.field.to_ascii_lowercase());
+            }
+        }
+        Some(encoded_filter)
+    } else {
+        None
+    };
     let Some(index) = covering_column_index(cassie, collection, fields.as_slice()) else {
         cassie
             .runtime
             .record_aggregate_acceleration_row_blob_fallback();
         return Ok(None);
     };
+    if let Some(encoded_filter) = encoded_filter.as_ref() {
+        return execute_filtered_aggregate(&FilteredAggregateExecution {
+            cassie,
+            controls,
+            collection,
+            fields: fields.as_slice(),
+            encoded_filter,
+            specs: specs.as_slice(),
+        });
+    }
+    execute_summary_aggregate(
+        cassie,
+        collection,
+        &index,
+        specs.as_slice(),
+        fields.as_slice(),
+        controls,
+    )
+}
+
+fn execute_summary_aggregate(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    specs: &[AggregateSummarySpec],
+    fields: &[String],
+    controls: &QueryExecutionControls,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let controlled = match cassie
         .midge
-        .prepare_column_batch_summaries_controlled(collection, &index, fields.as_slice(), controls)
+        .prepare_column_batch_summaries_controlled(collection, index, fields, controls)
         .map_err(QueryError::from)?
     {
         ControlledColumnBatchSummaryDecision::Ready(controlled) => controlled,
@@ -58,7 +110,7 @@ pub(super) fn try_execute_column_batch_aggregate(
     let _summary_memory = controlled.memory;
 
     let mut values = Vec::with_capacity(specs.len());
-    for spec in &specs {
+    for spec in specs {
         let value = match aggregate_value(spec, &metadata)? {
             AggregateSummaryValue::Ready(value) => value,
             AggregateSummaryValue::Fallback(reason) => {
@@ -106,7 +158,6 @@ enum AggregateSummaryValue {
 fn eligible_plan(plan: &LogicalPlan) -> bool {
     plan.command.is_none()
         && plan.ctes.is_empty()
-        && plan.filter.is_none()
         && plan.group_by.is_empty()
         && plan.having.is_none()
         && plan.order.is_empty()
@@ -115,6 +166,59 @@ fn eligible_plan(plan: &LogicalPlan) -> bool {
         && !plan.distinct
         && plan.distinct_on.is_empty()
         && plan.set.is_none()
+}
+
+struct FilteredAggregateExecution<'a> {
+    cassie: &'a Cassie,
+    controls: &'a QueryExecutionControls,
+    collection: &'a str,
+    fields: &'a [String],
+    encoded_filter: &'a crate::midge::adapter::ColumnBatchScanFilter,
+    specs: &'a [AggregateSummarySpec],
+}
+
+fn execute_filtered_aggregate(
+    execution: &FilteredAggregateExecution<'_>,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    let request_specs = execution
+        .specs
+        .iter()
+        .map(|spec| ColumnBatchAggregateSpec {
+            function: spec.function.clone(),
+            field: spec.field.clone(),
+            output_name: spec.output_name.clone(),
+        })
+        .collect::<Vec<_>>();
+    let decision = execution
+        .cassie
+        .midge
+        .execute_column_batch_aggregates_controlled(
+            execution.collection,
+            execution.fields,
+            Some(execution.encoded_filter),
+            request_specs.as_slice(),
+            execution.controls,
+        )?;
+    let ColumnBatchAggregateDecision::Hit(outcome) = decision else {
+        execution
+            .cassie
+            .runtime
+            .record_aggregate_acceleration_row_blob_fallback();
+        return Ok(None);
+    };
+    execution
+        .cassie
+        .runtime
+        .record_direct_aggregate_acceleration();
+    execution
+        .cassie
+        .runtime
+        .record_column_batch_aggregate_scan(outcome.selected_rows);
+    execution
+        .cassie
+        .runtime
+        .record_aggregate_acceleration(outcome.segments_read);
+    Ok(Some(vec![BatchRow::new(outcome.values)]))
 }
 
 fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSummarySpec> {

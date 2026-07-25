@@ -714,7 +714,9 @@ fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
     }
 }
 
-fn column_batch_scan_filter(expr: &Expr) -> Option<crate::midge::adapter::ColumnBatchScanFilter> {
+pub(super) fn column_batch_scan_filter(
+    expr: &Expr,
+) -> Option<crate::midge::adapter::ColumnBatchScanFilter> {
     let mut predicates = Vec::new();
     collect_column_batch_predicates(expr, &mut predicates)?;
     (!predicates.is_empty()).then_some(crate::midge::adapter::ColumnBatchScanFilter { predicates })

@@ -219,10 +219,15 @@ pub struct ColumnBatchSnapshot {
     pub row_fetches_avoided: u64,
     pub fallback_scans: u64,
     pub decode_fallbacks: u64,
-    pub compressed_bytes_total: u64,
-    pub uncompressed_bytes_total: u64,
+    pub segments_read: u64,
+    pub chunks_read: u64,
+    pub physical_bytes_total: u64,
+    pub logical_bytes_total: u64,
+    pub predicate_values: u64,
+    pub selection_density_buckets: [u64; 5],
+    pub selected_rows: u64,
+    pub materialized_values: u64,
     pub skipped_segments: u64,
-    pub decoded_columns: u64,
     pub row_blob_fetches: u64,
     pub last_fallback_reason: String,
 }
@@ -247,6 +252,9 @@ pub struct AggregateAccelerationSnapshot {
     pub accelerated_segments: u64,
     pub decoded_fallback_segments: u64,
     pub row_blob_fallbacks: u64,
+    pub direct_scans: u64,
+    pub direct_row_id_chunks: u64,
+    pub direct_materialized_values: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]

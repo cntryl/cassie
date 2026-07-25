@@ -2,9 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use super::{
-    benchmark_for_scenario, benchmark_scenarios, deployment_profile_for_scenario,
-    BenchmarkSampleSummary, BenchmarkTimingMode, PerformanceBenchmarkScenario, ResultCachePolicy,
-    StressArtifactRowSummary, REQUIRED_WORKLOAD_FAMILIES,
+    benchmark_for_scenario, benchmark_scenarios, deployment_profile_for_id,
+    deployment_profile_for_scenario, BenchmarkSampleSummary, BenchmarkTimingMode,
+    PerformanceBenchmarkScenario, ResultCachePolicy, StressArtifactRowSummary,
+    REQUIRED_WORKLOAD_FAMILIES,
 };
 
 const STRESS_SCHEMA_V1: &str = "cntryl-stress.v1";
@@ -50,15 +51,23 @@ pub fn summarize_stress_artifact(
     benchmark: &PerformanceBenchmarkScenario,
     artifact_json: &str,
 ) -> Result<BenchmarkSampleSummary, String> {
-    let profile = deployment_profile_for_scenario(benchmark).ok_or_else(|| {
-        format!(
-            "missing deployment profile for scenario {} scale {}",
-            benchmark.scenario_id, benchmark.fixture_scale
-        )
-    })?;
     let artifact: serde_json::Value =
         serde_json::from_str(artifact_json).map_err(|error| error.to_string())?;
     validate_schema_version(&artifact)?;
+    let profile = artifact["metadata"]["deployment_profile_id"]
+        .as_str()
+        .map(|profile_id| {
+            deployment_profile_for_id(profile_id)
+                .ok_or_else(|| format!("unknown deployment profile '{profile_id}'"))
+        })
+        .transpose()?
+        .or_else(|| deployment_profile_for_scenario(benchmark))
+        .ok_or_else(|| {
+            format!(
+                "missing deployment profile for scenario {} scale {}",
+                benchmark.scenario_id, benchmark.fixture_scale
+            )
+        })?;
 
     let summary = artifact["summaries"]
         .as_array()

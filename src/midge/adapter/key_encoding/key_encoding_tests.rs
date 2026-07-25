@@ -102,7 +102,7 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
     let ts = time_series_index_data_prefix(7, 9);
     let row = column_store_row_prefix(7);
     let metadata = column_batch_metadata_key(7, 9);
-    let segment = column_batch_segment_key(7, 9, 1);
+    let segment = column_batch_row_ids_key(7, 9, 1, 1);
     let reservation_constraint =
         unique_constraint_reservation_key(collection, "email", &json!("tenant")).unwrap();
     let reservation_index =

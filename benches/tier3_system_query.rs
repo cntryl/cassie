@@ -9,20 +9,23 @@ const FIXTURE_SCALE: &str = "100k";
 const FIXTURE_ROWS: usize = 100_000;
 const FIXTURE_ROWS_U64: u64 = 100_000;
 const RELATIONAL_SQL: &str = "SELECT id FROM bench_documents WHERE status = $1 AND score >= $2 ORDER BY status DESC, score ASC LIMIT 50";
-const COLUMN_SQL: &str = "SELECT COUNT(*) AS rows, SUM(score) AS score_sum, AVG(score) AS score_avg FROM bench_documents";
+const COLUMN_SQL: &str = "SELECT COUNT(*) AS rows, SUM(score) AS score_sum, AVG(score) AS score_avg, MIN(score) AS score_min, MAX(score) AS score_max FROM bench_documents WHERE status = 'approved' AND score >= 90";
 const FULLTEXT_SQL: &str = "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
 const VECTOR_SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
 const HYBRID_SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
 const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
-const EXPECTED_COLUMN_ROW: [Value; 3] = [
-    Value::Int64(100_000),
-    Value::Int64(4_950_000),
-    Value::Float64(49.5),
+const EXPECTED_COLUMN_ROW: [Value; 5] = [
+    Value::Int64(5_000),
+    Value::Int64(470_000),
+    Value::Float64(94.0),
+    Value::Int64(90),
+    Value::Int64(98),
 ];
 const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
 const COLUMN_SEGMENTS: u64 = 391;
+const COLUMN_QUERIES_PER_BATCH: u64 = 8;
 const GRAPH_READ_BOUND: u64 = 8;
 
 #[path = "support/performance_benchmarks.rs"]
@@ -211,15 +214,21 @@ fn bench_column_representative(
         "aggregate_acceleration=true",
     );
     let case = evidenced(
-        case,
+        case.parameter("logical_unit", "query")
+            .parameter("queries_per_logical_operation", "1"),
         context,
         fixture_setup + case_setup.elapsed(),
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || execute_column_evidence(context));
+    runner.measure_batch(case, COLUMN_QUERIES_PER_BATCH, || {
+        execute_column_evidence(context)
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "aggregate_acceleration", "scans");
+    assert_metric_increased(&before, &after, "column_batches", "scans");
+    assert_metric_increased(&before, &after, "column_batches", "predicate_values");
+    assert_metric_increased(&before, &after, "column_batches", "materialized_values");
     let operations = metric_delta(&before, &after, "aggregate_acceleration", "scans");
     let segment_bound = operations.saturating_mul(COLUMN_SEGMENTS);
     assert_metric_delta_bounded(
@@ -563,16 +572,20 @@ fn execute_ddl(context: &workloads::BenchContext, sql: &str) {
 }
 
 fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
-    let result = context
-        .cassie
-        .execute_sql(&context.session, COLUMN_SQL, vec![])
-        .expect("Tier 3 column representative query");
-    assert_eq!(
-        result.rows,
-        vec![EXPECTED_COLUMN_ROW.to_vec()],
-        "Tier 3 column aggregate result"
-    );
-    std::hint::black_box(result.rows.len())
+    let mut result_rows = 0;
+    for _ in 0..COLUMN_QUERIES_PER_BATCH {
+        let result = context
+            .cassie
+            .execute_sql(&context.session, COLUMN_SQL, vec![])
+            .expect("Tier 3 column representative query");
+        assert_eq!(
+            result.rows,
+            vec![EXPECTED_COLUMN_ROW.to_vec()],
+            "Tier 3 column aggregate result"
+        );
+        result_rows += result.rows.len();
+    }
+    std::hint::black_box(result_rows)
 }
 
 fn execute_vector_evidence(

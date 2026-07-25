@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::fmt::Write as _;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
@@ -45,8 +46,16 @@ pub(crate) enum CancelError {
 pub(crate) fn owner_fingerprint(token: Option<&str>) -> String {
     token.map_or_else(
         || "anonymous".to_string(),
-        |token| format!("{:x}", Sha256::digest(token.as_bytes())),
+        |token| encode_hex(&Sha256::digest(token.as_bytes())),
     )
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(output, "{byte:02x}").expect("writing to a string cannot fail");
+    }
+    output
 }
 
 pub(crate) fn register(

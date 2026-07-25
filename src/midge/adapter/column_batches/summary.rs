@@ -1,12 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::app::CassieError;
 use crate::catalog::{ColumnBatchFieldSummary, ColumnBatchNumericSum, ColumnBatchRow};
 use crate::midge::row_blob::RowSchema;
 use crate::types::semantic::compare_values;
 use crate::types::{DataType, Value, Vector};
-
-use super::{checksum_hex, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION};
 
 pub(super) fn column_values(
     payload: &serde_json::Value,
@@ -58,19 +55,6 @@ pub(super) fn column_batch_summaries(
             )
         })
         .collect()
-}
-
-pub(super) fn summary_checksum(
-    row_count: usize,
-    summaries: &BTreeMap<String, ColumnBatchFieldSummary>,
-) -> Result<String, CassieError> {
-    let bytes = serde_json::to_vec(&(
-        CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
-        row_count,
-        summaries,
-    ))
-    .map_err(|error| CassieError::Parse(format!("serialize column summary: {error}")))?;
-    Ok(checksum_hex(&bytes))
 }
 
 pub(super) fn json_to_typed_value(value: &serde_json::Value) -> Value {

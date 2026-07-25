@@ -1,3 +1,7 @@
+use std::collections::BTreeSet;
+
+use crate::sql::ast::{Expr, SelectItem};
+
 use super::super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
 use super::{non_empty_or_none, projection_freshness, selected_cost};
 
@@ -119,14 +123,27 @@ fn adaptive_plan_section(physical: &crate::planner::physical::PhysicalPlan) -> S
 
 fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {
     let diagnostics = phase03_diagnostics(cassie, physical);
+    let encoded_execution =
+        physical.read.column_batch_index.is_some() || physical.aggregate.acceleration;
+    let codec_policy = if encoded_execution {
+        "automatic_min_savings_max_32b_5pct"
+    } else {
+        "none"
+    };
     let top_k_limit = physical
         .top_k
         .limit
         .map_or_else(|| "none".to_string(), |limit| limit.to_string());
     format!(
-        "covered_index={} column_batch_index={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={}",
+        "covered_index={} column_batch_index={} encoded_execution={} automatic_codec_policy={} late_materialization={} predicate_fields={} projection_fields={} column_fallback_reason={} column_native={} hybrid_row_column={} vectorized_aggregate={} parallel_pipeline={} analytical_projection={} prefilter={} time_series={} time_series_storage={} top_k={} top_k_limit={} candidate_budget={}",
         physical.read.covered_index,
         physical.read.column_batch_index.as_deref().unwrap_or("none"),
+        encoded_execution,
+        codec_policy,
+        encoded_execution,
+        predicate_fields(physical),
+        projection_fields(physical),
+        physical.read.fallback_reason.as_deref().unwrap_or("none"),
         diagnostics.column_native,
         diagnostics.hybrid_row_column,
         diagnostics.vectorized_aggregate,
@@ -139,6 +156,80 @@ fn phase03_section(cassie: &Cassie, physical: &crate::planner::physical::Physica
         top_k_limit,
         candidate_budget(cassie, physical)
     )
+}
+
+fn predicate_fields(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let mut fields = BTreeSet::new();
+    if let Some(filter) = physical.logical.filter.as_ref() {
+        collect_expr_columns(filter, &mut fields);
+    }
+    joined_fields(&fields)
+}
+
+fn projection_fields(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let mut fields = BTreeSet::new();
+    for item in &physical.logical.projection {
+        match item {
+            SelectItem::Wildcard => return "all".to_string(),
+            SelectItem::Column { name, .. } => {
+                fields.insert(name.to_ascii_lowercase());
+            }
+            SelectItem::Function { function, .. } => {
+                for argument in &function.args {
+                    collect_expr_columns(argument, &mut fields);
+                }
+            }
+            SelectItem::Expr { expr, .. } => collect_expr_columns(expr, &mut fields),
+            SelectItem::WindowFunction { function, .. } => {
+                for argument in &function.args {
+                    collect_expr_columns(argument, &mut fields);
+                }
+            }
+        }
+    }
+    joined_fields(&fields)
+}
+
+fn collect_expr_columns(expr: &Expr, fields: &mut BTreeSet<String>) {
+    match expr {
+        Expr::Column(field) => {
+            fields.insert(field.to_ascii_lowercase());
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_expr_columns(left, fields);
+            collect_expr_columns(right, fields);
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            collect_expr_columns(expr, fields);
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_expr_columns(expr, fields);
+            collect_expr_columns(low, fields);
+            collect_expr_columns(high, fields);
+        }
+        Expr::InList { expr, values, .. } => {
+            collect_expr_columns(expr, fields);
+            for value in values {
+                collect_expr_columns(value, fields);
+            }
+        }
+        Expr::Function(function) => {
+            for argument in &function.args {
+                collect_expr_columns(argument, fields);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn joined_fields(fields: &BTreeSet<String>) -> String {
+    if fields.is_empty() {
+        "none".to_string()
+    } else {
+        fields.iter().cloned().collect::<Vec<_>>().join(",")
+    }
 }
 
 fn join_section(physical: &crate::planner::physical::PhysicalPlan) -> String {

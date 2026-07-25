@@ -64,13 +64,13 @@ Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported cli
 
 ## Client Evidence
 
-The versioned certification targets are pgAdmin 9.16 and DBeaver 26.1.3 using PostgreSQL JDBC 42.7.11. Compatibility covers password/TLS connection and reconnection; supported database, schema, table, view, column, index, constraint, role, function, and procedure navigation; supported object properties; and Query Tool SQL execution, results, transactions, cancellation, graphical plans, and safe primary-key-based grid edits.
+The planned versioned certification targets are pgAdmin 9.16 and DBeaver 26.1.3 using PostgreSQL JDBC 42.7.11. The target workflow covers password/TLS connection and reconnection; supported database, schema, table, view, column, index, constraint, role, function, and procedure navigation; supported object properties; and Query Tool SQL execution, results, transactions, cancellation, graphical plans, and safe primary-key-based grid edits. The targets are not certified by the current repository until the required traces and external workflows are published.
 
 Certification requires normalized, secret-free traces and deterministic replay for startup, initialization, navigator expansion, properties, query actions, plans, and grid edits. Each trace records the client and driver version, upstream source revision, workflow step, SQL, protocol mode, expected columns, and expected row shape. A passing trace certifies only that recorded workflow.
 
 PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
 
-The repository also keeps automated coverage for the native pgwire harness and `tokio-postgres`. Per-PR external gates cover psycopg 3, PostgreSQL JDBC 42.7.11, and trace replay. Nightly and release gates use pgAdmin 9.16 and DBeaver 26.1.3. Client-version upgrades require refreshed traces and both live smoke suites before this documented support version changes.
+The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. The psycopg 3, JDBC, trace-replay, pgAdmin, and DBeaver lanes remain Planned/unverified until version-pinned workflows and retained artifacts exist. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 
 ## Intentional Differences
 

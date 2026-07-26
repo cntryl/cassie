@@ -7,13 +7,17 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: ci-backend-${{ github.event.pull_request.head.ref || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -21,22 +25,16 @@ jobs:
       - name: Update Rust toolchain
         run: rustup update stable
 
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "ci"
 
-      - name: Install Rust components
-        run: rustup component add rustfmt clippy
-
       - name: Install cntryl-tools
         run: cargo install --git https://github.com/cntryl/tools --rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c --locked cntryl-tools
-
-      - name: Cargo build
-        run: cargo build --locked
-
-      - name: Cargo test
-        run: cargo test --locked
 
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
@@ -49,3 +47,21 @@ jobs:
           find tests -type f -name '*.rs' -print0 | while IFS= read -r -d '' file; do
             cntryl-tools validate-tests -f "$file"
           done
+
+      - name: Cargo build
+        run: cargo build --locked
+        
+      - name: Cargo test
+        run: |
+          cargo test --locked --lib --bins
+          find tests -maxdepth 1 -type f -name '*.rs' -print0 \
+            | xargs -0 -n1 -P4 sh -c '
+                test_file="$1"
+                test_name="${test_file#tests/}"
+                test_name="${test_name%.rs}"
+                cargo test --locked --test "$test_name"
+              ' _
+
+
+
+

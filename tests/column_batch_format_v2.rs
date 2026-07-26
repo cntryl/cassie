@@ -105,8 +105,77 @@ fn should_limit_float_codec_selection_to_supported_encodings() {
     let decoded = decode_column_chunk_for_test(&encoded).expect("decode floats");
 
     // Assert
-    assert!(matches!(codec, "plain" | "constant" | "rle"));
+    assert!(matches!(codec, "plain" | "constant" | "rle" | "alp"));
     assert_eq!(decoded, values);
+}
+
+#[test]
+fn should_roundtrip_repeated_utf8_with_fsst() {
+    // Arrange
+    let values = (0..512)
+        .map(|position| {
+            serde_json::json!(format!(
+                "tenant-{}/event-{}-payload-{}",
+                position % 32,
+                position,
+                position % 8
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    // Act
+    let encoded = encode("text", &values);
+    let codec = column_chunk_codec_for_test(&encoded).expect("text codec");
+    let decoded = decode_column_chunk_for_test(&encoded).expect("decode FSST text");
+
+    // Assert
+    assert_eq!(codec, "fsst");
+    assert_eq!(decoded, values);
+}
+
+#[test]
+fn should_roundtrip_alp_finite_values_bit_exactly() {
+    // Arrange
+    let values = (0..512)
+        .map(|position| serde_json::json!((f64::from(position) - 256.0) / 100.0))
+        .collect::<Vec<_>>();
+
+    // Act
+    let encoded = encode("float", &values);
+    let codec = column_chunk_codec_for_test(&encoded).expect("float codec");
+    let decoded = decode_column_chunk_for_test(&encoded).expect("decode ALP floats");
+
+    // Assert
+    assert_eq!(codec, "alp");
+    assert_eq!(decoded.len(), values.len());
+    for (actual, expected) in decoded.iter().zip(values.iter()) {
+        assert_eq!(
+            actual.as_f64().expect("decoded float").to_bits(),
+            expected.as_f64().expect("input float").to_bits()
+        );
+    }
+}
+
+#[test]
+fn should_keep_signed_zero_out_of_alp() {
+    // Arrange
+    let negative_zero = serde_json::Number::from_f64(-0.0).expect("negative zero");
+    let values = vec![
+        serde_json::Value::Number(negative_zero),
+        serde_json::json!(1.25),
+    ];
+
+    // Act
+    let encoded = encode("float", &values);
+    let codec = column_chunk_codec_for_test(&encoded).expect("float codec");
+    let decoded = decode_column_chunk_for_test(&encoded).expect("decode floats");
+
+    // Assert
+    assert_ne!(codec, "alp");
+    assert_eq!(
+        decoded[0].as_f64().expect("decoded float").to_bits(),
+        (-0.0_f64).to_bits()
+    );
 }
 
 #[test]

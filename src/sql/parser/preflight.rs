@@ -188,7 +188,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_excessive_parenthesis_and_comment_nesting() {
+    fn should_reject_excessive_sql_nesting() {
         // Arrange
         let parentheses = format!("{}1{}", "(".repeat(129), ")".repeat(129));
         let comments = format!("{}x{}", "/*".repeat(129), "*/".repeat(129));
@@ -216,7 +216,7 @@ mod tests {
     }
 
     #[test]
-    fn should_ignore_delimiters_inside_strings_and_comments() {
+    fn should_ignore_delimiters_inside_sql_regions() {
         // Arrange
         let sql = format!(
             "SELECT '{}', \"{}\" /* {} */",

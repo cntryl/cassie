@@ -511,7 +511,8 @@ mod tests {
 
     #[test]
     fn should_default_security_resource_limits_to_the_public_contract() {
-        // Arrange / Act
+        // Arrange
+        // Act
         let config = CassieRuntimeConfig::default();
 
         // Assert
@@ -593,7 +594,7 @@ mod tests {
     }
 
     #[test]
-    fn should_allow_explicit_password_and_tls_on_non_loopback_listener() {
+    fn should_allow_secure_non_loopback_listener() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),

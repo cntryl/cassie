@@ -230,6 +230,12 @@ cargo bench --locked --bench '*'
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
+The manually dispatched [Benchmark Evidence workflow](../.github/workflows/benchmarks.yml)
+executes this same complete unfiltered owner suite, validates `target/stress`, and retains the
+canonical `latest.json` owner artifacts. Dispatch it only on the commit being evidenced, with a
+unique run ID and a deployment profile matching the runner; a smoke duration remains diagnostic
+and cannot pass the complete-suite validator.
+
 ## Benchmark Scope Boundary
 
 Benchmark source and test files remain under 1,000 lines. Cassie's suite does not add coverage for Midge durability, WAL, snapshot, or recovery mechanics; those remain Midge responsibilities. Benchmark completion does not by itself close deployment-profile or disk-backed production evidence.

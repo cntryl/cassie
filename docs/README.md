@@ -30,6 +30,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Projection Replay Contracts](projection-replay-contracts.md)
 - [Projection Repair Runbook](projection-repair-runbook.md)
 - [Capacity Management](capacity-management.md)
+- [Local Diagnostics Contract](local-diagnostics-contract.md)
 - [Operational Scale](operational-scale.md)
 - [Snapshot and Restore](snapshot-restore.md)
 - [Database Families](database-families.md)

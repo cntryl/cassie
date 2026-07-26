@@ -156,6 +156,7 @@ fn should_define_promotion_evidence_matrix() {
     // Arrange
     let docs_index = read(repo_root().join("docs/README.md"));
     let matrix = read(repo_root().join("docs/promotion-evidence-matrix.md"));
+    let feature_support = read(repo_root().join("docs/feature-support.md"));
 
     // Act
     let issues = [
@@ -169,4 +170,8 @@ fn should_define_promotion_evidence_matrix() {
     }
     assert!(matrix.contains("not promoted"));
     assert!(matrix.contains("same-commit"));
+    assert!(
+        feature_support.contains("Embedding providers")
+            && feature_support.contains("| Experimental |")
+    );
 }

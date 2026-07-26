@@ -59,7 +59,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | HNSW | Persisted graph point-read candidates, deterministic bounded expansion, and exact source-row reranking | Stable |
 | IVFFlat | Persisted centroid membership-prefix candidates, deterministic probes, and exact source-row reranking | Stable |
 | Hybrid retrieval | Persisted text, vector, and structured candidate intersection before exact final scoring | Stable |
-| Embedding providers | Controlled and response-bounded OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and deterministic local protocols; third-party availability is not guaranteed | Stable |
+| Embedding providers | Controlled and response-bounded OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and deterministic local protocols; third-party availability is not guaranteed | Experimental |
 | Time-series access | Ordered partition/range lookup, bucketing, rollups, retention | Experimental |
 | Column-batch analytics | Stable CBM2 batches provide deterministic automatic plain, constant, typed RLE, dictionary, and 128-value frame-of-reference codecs, summary pruning, late materialization, encoded scans, exact filtered aggregate acceleration, and generation-fenced range copy-on-write maintenance. Unsupported, stale, corrupt, or over-limit derived state falls back to authoritative rows. Codec selection is not a SQL or configuration surface. | Stable |
 | Graph traversal | Neighbor expansion and shortest paths | Experimental |

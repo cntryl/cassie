@@ -116,5 +116,6 @@ fn should_pin_cntryl_tools_from_github_source() {
     }
     assert!(contract_contents.contains("GitHub source"));
     assert!(contract_contents.contains("d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c"));
-    assert!(!contract_contents.contains("published release required"));
+    assert!(contract_contents.contains("no published crate or"));
+    assert!(contract_contents.contains("release tag is required for this contract"));
 }

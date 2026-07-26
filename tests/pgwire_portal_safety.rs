@@ -287,7 +287,7 @@ fn should_use_transaction_overlay_for_streaming_portal_results() {
 }
 
 #[test]
-fn should_share_retained_memory_budget_across_named_portals_and_release_on_close() {
+fn should_enforce_retained_memory_budget_across_named_portal_lifecycle() {
     // Arrange
     let (cassie, config, path) =
         configured_cassie_with_memory("portal-shared-memory", 1_000, 40 * 1_024);

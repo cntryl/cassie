@@ -43,24 +43,16 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Validate tests
-        run: |
-          find tests -type f -name '*.rs' -print0 | while IFS= read -r -d '' file; do
-            cntryl-tools validate-tests -f "$file"
-          done
-
+        run: cntryl-tools validate-tests
+        
       - name: Cargo build
         run: cargo build --locked
         
       - name: Cargo test
-        run: |
-          cargo test --locked --lib --bins
-          find tests -maxdepth 1 -type f -name '*.rs' -print0 \
-            | xargs -0 -n1 -P4 sh -c '
-                test_file="$1"
-                test_name="${test_file#tests/}"
-                test_name="${test_name%.rs}"
-                cargo test --locked --test "$test_name"
-              ' _
+        run: cargo test --no-run --locked
+
+      - name: Run tests
+        run: cargo test --locked
 
 
 

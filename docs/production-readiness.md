@@ -53,6 +53,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
   claim.
 - Establish and validate operational thresholds for disk growth, resource admission, backup/restore time, rebuild and repair time, failure injection, cancellation latency, and sustained mixed workloads.
 - Exercise container startup, health, restart, snapshot, restore, and failure-recovery runbooks in each supported release architecture and deployment profile.
+- The cross-architecture rehearsal record is defined in [Cross-Architecture Release Rehearsal](cross-architecture-rehearsal.md); amd64 and arm64 evidence remains pending until separate retained bundles exist.
 - Validate the support, upgrade compatibility, release rollback, and security response expectations
   in [Support, Release, and Security-Response Policy](support-policy.md) against a tagged release
   artifact and rehearsal evidence.

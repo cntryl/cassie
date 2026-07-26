@@ -146,7 +146,7 @@ mod tests {
     use crate::runtime::QueryCancellationHandle;
 
     #[test]
-    fn should_bind_cancellation_to_the_operation_owner_and_acknowledge_cleanup() {
+    fn should_cancel_owned_operation_with_cleanup_acknowledgement() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -182,14 +182,14 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_duplicate_and_completed_operation_ids() {
+    fn should_reject_duplicate_operation_ids_after_completion() {
         // Arrange
         let id = uuid::Uuid::new_v4();
         let owner = owner_fingerprint(None);
         let registration =
             register(id, owner.clone(), QueryCancellationHandle::new()).expect("register");
 
-        // Act / Assert
+        // Act
         assert!(matches!(
             register(id, owner.clone(), QueryCancellationHandle::new()),
             Err(RegisterError::Duplicate)
@@ -203,5 +203,7 @@ mod tests {
             runtime.block_on(cancel(id, &owner, Duration::from_millis(10))),
             Err(CancelError::AlreadyCompleted)
         );
+
+        // Assert
     }
 }

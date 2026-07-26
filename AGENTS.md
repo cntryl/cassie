@@ -122,6 +122,28 @@ GitVersion `ContinuousDeployment` mode, next version `0.2.0`. Branch naming conv
 - Keep PostgreSQL wire protocol as the primary query interface.
 - Keep REST secondary and administrative.
 
+## Issue and PR Formatting
+
+Create GitHub issues and pull requests as durable engineering records. Use real Markdown newlines; never submit literal `\\n` escape sequences in a body.
+
+### Issues
+
+- Use an explicit title prefix: `Bug:`, `Feature request:`, `Enhancement:`, or `Documentation/readiness:`.
+- Apply only existing repository labels: `bug` for broken behavior, `enhancement` for feature requests and improvements, `documentation` for documentation/readiness drift, and `help wanted` only when outside contribution is independently suitable.
+- Include these sections: `Type`, `Affected subsystem`, `User/operator impact`, `Current behavior`, `Expected behavior/outcome`, `Deterministic evidence`, `Confidence and support status`, and `Acceptance criteria`.
+- Include exact reproduction steps or source-backed evidence with file/test/workflow/benchmark/browser route, commit or baseline, viewport/environment where applicable, and related issue or documentation links.
+- For planned capabilities, state explicitly that the capability is absent and not a regression. For blockers, name the dependency, link it, record the next action, and do not claim completion.
+- Link individual findings to the audit or tracking issue. Check for duplicate titles/bodies before creating a new issue.
+
+### Pull requests
+
+- Match the linked issue category in the title and use sentence case after the prefix, for example `Enhancement: Add ...` or `Documentation/readiness: Define ...`.
+- Apply the matching existing label and link the issue with `Closes #N`, `Fixes #N`, or `Resolves #N` when the PR completes it.
+- Include these sections: `Type`, `Linked issue`, `Summary`, `User/operator impact`, `Current and expected behavior`, `Scope`, `Evidence and support status`, `Validation`, `Acceptance criteria`, and `Status`.
+- Record red/green TDD evidence where code changes are made. List the exact validation commands and distinguish passed, running, cancelled, and blocked checks; never report a pending check as passed.
+- State whether the PR changes runtime behavior, documentation/readiness only, or operational process. Record blockers and the next action when a PR cannot proceed.
+- Before merge, verify title, label, issue link, body formatting, acceptance criteria, required checks, and review status. Use squash merge for completed slices.
+
 ## Agentic Workflow
 
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.

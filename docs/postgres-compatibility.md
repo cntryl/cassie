@@ -72,6 +72,9 @@ PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards,
 
 The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. The psycopg 3, JDBC, trace-replay, pgAdmin, and DBeaver lanes remain Planned/unverified until version-pinned workflows and retained artifacts exist. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 
+The shared dispatch contract for these lanes is documented in [Compatibility Probe Contract](compatibility-probe-contract.md)
+and implemented by the opt-in [Compatibility Probes workflow](../.github/workflows/compatibility-probes.yml).
+
 ## Intentional Differences
 
 - No full PostgreSQL parity or extension ABI.

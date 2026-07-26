@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn should_ignore_statement_delimiters_in_strings_and_comments() {
+    fn should_ignore_statement_delimiters_inside_sql_regions() {
         // Arrange
         let sql = "SELECT ';' /* ; */; SELECT 2 -- ;\n";
 

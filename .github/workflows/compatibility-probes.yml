@@ -1,0 +1,147 @@
+name: Compatibility Probes
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: Client workflow to exercise
+        required: true
+        type: choice
+        options:
+          - native
+          - sqlx
+          - diesel
+          - prisma
+          - sqlalchemy
+          - psql
+          - desktop
+          - catalog
+      run_external:
+        description: Run an external client; false records an unavailable result
+        required: true
+        default: false
+        type: boolean
+      source_revision:
+        description: Cassie source revision recorded in the manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  SQLALCHEMY_VERSION: 2.0.36
+  PSYCOPG_VERSION: 3.2.3
+  PRISMA_VERSION: 6.1.0
+  POSTGRES_CLIENT_IMAGE: postgres:16.6-bookworm
+  DIESEL_VERSION: 2.2.6
+  SQLX_VERSION: 0.8.3
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_revision }}
+
+      - name: Set up Rust
+        if: inputs.probe == 'native' || inputs.probe == 'sqlx' || inputs.probe == 'diesel' || inputs.probe == 'prisma' || inputs.probe == 'psql'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Python
+        if: inputs.probe == 'sqlalchemy'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node
+        if: inputs.probe == 'prisma'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned external clients
+        if: inputs.run_external == true && (inputs.probe == 'sqlalchemy' || inputs.probe == 'prisma')
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.probe }}" == "sqlalchemy" ]]; then
+            python -m pip install --disable-pip-version-check \
+              "SQLAlchemy==${SQLALCHEMY_VERSION}" "psycopg[binary]==${PSYCOPG_VERSION}"
+          else
+            npm install --no-save --ignore-scripts "prisma@${PRISMA_VERSION}"
+          fi
+
+      - name: Install pinned psql wrapper
+        if: inputs.run_external == true && inputs.probe == 'psql'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/psql-pinned" <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          exec docker run --rm --network host "$POSTGRES_CLIENT_IMAGE" psql "$@"
+          EOF
+          chmod +x "$RUNNER_TEMP/psql-pinned"
+
+      - name: Run selected probe
+        shell: bash
+        env:
+          COMPATIBILITY_PROBE: ${{ inputs.probe }}
+          CASSIE_RUN_SQLALCHEMY_COMPAT: ${{ inputs.run_external && inputs.probe == 'sqlalchemy' && '1' || '0' }}
+          CASSIE_RUN_PRISMA_COMPAT: ${{ inputs.run_external && inputs.probe == 'prisma' && '1' || '0' }}
+          CASSIE_PSQL_BIN: ${{ runner.temp }}/psql-pinned
+          CASSIE_PRISMA_BIN: ${{ github.workspace }}/node_modules/.bin/prisma
+        run: |
+          set -euo pipefail
+          mkdir -p compatibility-artifacts
+          {
+            echo "probe=${{ inputs.probe }}"
+            echo "source_revision=${{ inputs.source_revision }}"
+            echo "run_external=${{ inputs.run_external }}"
+            echo "status=unavailable"
+          } > compatibility-artifacts/manifest.txt
+
+          if [[ "${{ inputs.run_external }}" != "true" ]]; then
+            echo "status=unavailable (run_external=false)"
+            exit 0
+          fi
+
+          case "${{ inputs.probe }}" in
+            native)
+              cargo test --locked --test compatibility_matrix
+              sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              ;;
+            prisma)
+              cargo test --locked --test compatibility_matrix \
+                should_validate_prisma_introspection_probe_when_enabled -- \
+                --ignored --nocapture
+              sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              ;;
+            sqlalchemy)
+              cargo test --locked --test compatibility_sqlalchemy \
+                should_validate_sqlalchemy_read_model_probe_when_enabled -- \
+                --ignored --nocapture
+              sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              ;;
+            psql)
+              cargo test --locked --test compatibility_matrix \
+                should_validate_psql_read_model_probe_when_enabled -- \
+                --ignored --nocapture
+              sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              ;;
+            sqlx|diesel|desktop|catalog)
+              echo "selected lane requires a separately provisioned client fixture or desktop runner"
+              ;;
+          esac
+
+      - name: Retain normalized probe manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-${{ inputs.probe }}-${{ inputs.source_revision }}
+          path: compatibility-artifacts/manifest.txt
+          if-no-files-found: error
+          retention-days: 30

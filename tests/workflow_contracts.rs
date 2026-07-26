@@ -95,3 +95,27 @@ fn should_define_opt_in_version_pinned_compatibility_probes() {
     assert!(contract_contents.contains("pgAdmin"));
     assert!(contract_contents.contains("DBeaver"));
 }
+
+#[test]
+fn should_pin_cntryl_tools_from_github_source() {
+    // Arrange
+    let backend = repo_root().join(".github/workflows/ci-backend.yml");
+    let benchmarks = repo_root().join(".github/workflows/benchmarks.yml");
+    let contract = repo_root().join("docs/tooling-contract.md");
+
+    // Act
+    let backend_contents = fs::read_to_string(backend).expect("backend workflow");
+    let benchmark_contents = fs::read_to_string(benchmarks).expect("benchmark workflow");
+    let contract_contents = fs::read_to_string(contract).unwrap_or_default();
+
+    // Assert
+    for contents in [&backend_contents, &benchmark_contents] {
+        assert!(contents.contains("cargo install --git https://github.com/cntryl/tools"));
+        assert!(contents.contains("--rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c"));
+        assert!(contents.contains("--locked cntryl-tools"));
+    }
+    assert!(contract_contents.contains("GitHub source"));
+    assert!(contract_contents.contains("d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c"));
+    assert!(contract_contents.contains("no published crate or"));
+    assert!(contract_contents.contains("release tag is required for this contract"));
+}

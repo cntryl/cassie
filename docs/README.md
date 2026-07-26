@@ -40,6 +40,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 
 - [Definition of Done](definition-of-done.md)
 - [Experimental Promotion Criteria](experimental-promotion-criteria.md)
+- [Promotion Evidence Matrix](promotion-evidence-matrix.md)
 - [Feature Ownership](feature-ownership.md)
 - [Module Organization](module-organization.md)
 - [Database Jargon Glossary](database-jargon-glossary.md)

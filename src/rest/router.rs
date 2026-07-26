@@ -414,9 +414,17 @@ fn dispatch_health_routes(
             StatusCode::OK,
             &crate::rest::health::health(cassie),
         )),
+        ("GET", ["healthz" | "readyz" | "startupz"]) => Some(json_response(
+            StatusCode::OK,
+            &crate::rest::health::healthz(cassie),
+        )),
         ("GET", ["liveness"]) => Some(json_response(
             StatusCode::OK,
             &crate::rest::health::liveness(cassie),
+        )),
+        ("GET", ["livez"]) => Some(json_response(
+            StatusCode::OK,
+            &crate::rest::health::livez(cassie),
         )),
         ("GET", ["targetz"]) => Some(json_response(
             StatusCode::OK,

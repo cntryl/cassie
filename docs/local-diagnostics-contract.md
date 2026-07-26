@@ -10,8 +10,10 @@ The unauthenticated endpoints are intentionally small and contain no user data:
 
 | Endpoint | Fields | Meaning |
 | --- | --- | --- |
-| `GET /health` | `status`, `ready`, `collections`, `version` | Startup/readiness and the number of locally hydrated collections. `status` is `ok` when `ready` is true and `starting` otherwise. |
-| `GET /liveness` | `ready` | The process is answering requests. This endpoint does not assert storage readiness. |
+| `GET /healthz`, `/readyz`, `/startupz` | `status`, `ready`, `collections`, `version` | Kubernetes-style startup/readiness probes over local startup state. `status` is `ok` when `ready` is true and `starting` otherwise. |
+| `GET /livez` | `ready` | Kubernetes-style liveness probe: the process is answering requests. It does not assert storage readiness. |
+
+`/health` and `/liveness` remain compatibility aliases for existing clients.
 
 Health fields are stable snake-case JSON names. `collections` is a count, not a collection-name
 list, and health responses never include credentials, query text, row values, or tenant payloads.

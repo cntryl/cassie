@@ -115,6 +115,10 @@ fn should_define_local_diagnostics_contract() {
 
     // Act
     let required_fields = [
+        "/healthz",
+        "/readyz",
+        "/livez",
+        "/startupz",
         "status",
         "ready",
         "collections",
@@ -128,7 +132,10 @@ fn should_define_local_diagnostics_contract() {
     // Assert
     assert!(docs_index.contains("local-diagnostics-contract.md"));
     for field in required_fields {
-        assert!(contract.contains(field), "missing diagnostics field: {field}");
+        assert!(
+            contract.contains(field),
+            "missing diagnostics field: {field}"
+        );
     }
     assert!(contract.contains("single-node"));
     assert!(contract.contains("no routing"));

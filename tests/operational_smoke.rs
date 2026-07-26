@@ -356,7 +356,7 @@ fn pg_error_message(payload: &[u8]) -> String {
 }
 
 #[test]
-fn should_expose_health_liveness_through_the_binary() {
+fn should_expose_kubernetes_style_health_probes_through_the_binary() {
     // Arrange
     let path = data_dir("startup");
     let rest_port = free_port();
@@ -372,14 +372,15 @@ fn should_expose_health_liveness_through_the_binary() {
 
         // Act
         wait_for_ready(&mut child, &base_url).await;
-        let liveness = request_json("GET", &base_url, "/liveness", None, None)
-            .await
-            .expect("liveness request");
-        assert!(liveness.is_success());
+        for path in ["/healthz", "/readyz", "/livez", "/startupz"] {
+            let probe = request_json("GET", &base_url, path, None, None)
+                .await
+                .expect("probe request");
+            assert!(probe.is_success(), "probe failed: {path}");
+            assert_eq!(probe.body["ready"].as_bool(), Some(true));
+        }
 
         // Assert
-        assert_eq!(liveness.body["ready"].as_bool(), Some(true));
-
         terminate_cleanly(&mut child).await;
         let _ = std::fs::remove_dir_all(&path);
     });

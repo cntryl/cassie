@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn should_grow_clear_and_release_an_accounted_vector_reservation() {
+    fn should_track_accounted_vector_reservation_lifecycle() {
         // Arrange
         let controls = controls_with_budget(128);
         let mut values = AccountedVec::try_new(&controls).expect("empty accounted vector");

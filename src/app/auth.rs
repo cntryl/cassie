@@ -271,7 +271,7 @@ mod tests {
     }
 
     #[test]
-    fn should_verify_one_password_hash_for_known_and_unknown_invalid_users() {
+    fn should_verify_invalid_user_password_with_constant_cost() {
         // Arrange
         let (cassie, path) = cassie_with_config(
             "constant-cost-auth",

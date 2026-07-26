@@ -380,6 +380,7 @@ mod tests {
         let two = parse_name("reporting.orders").expect("schema-qualified");
         let three = parse_name("tenant_db.reporting.orders").expect("database-qualified");
 
+        // Act
         // Assert
         assert_eq!(one, ParsedName::Unqualified("orders".to_string()));
         assert_eq!(
@@ -402,7 +403,10 @@ mod tests {
     #[test]
     fn should_return_qualifier_suffix_variants_for_canonical_relation_names() {
         // Arrange
-        let variants = qualifier_variants("tenant_db.reporting.orders");
+        let raw = "tenant_db.reporting.orders";
+
+        // Act
+        let variants = qualifier_variants(raw);
 
         // Assert
         assert_eq!(

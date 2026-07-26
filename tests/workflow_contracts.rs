@@ -56,7 +56,7 @@ fn should_cancel_superseded_backend_ci_runs_per_branch_or_pull_request() {
 }
 
 #[test]
-fn should_run_backend_integration_binaries_with_bounded_parallelism() {
+fn should_run_backend_checks_in_simplified_steps() {
     // Arrange
     let workflow = repo_root().join(".github/workflows/ci-backend.yml");
 
@@ -64,8 +64,34 @@ fn should_run_backend_integration_binaries_with_bounded_parallelism() {
     let contents = fs::read_to_string(workflow).expect("backend workflow");
 
     // Assert
-    assert!(contents.contains("cargo test --locked --lib --bins"));
-    assert!(contents.contains("find tests -maxdepth 1 -type f -name '*.rs' -print0"));
-    assert!(contents.contains("xargs -0 -n1 -P4"));
-    assert!(contents.contains("cargo test --locked --test \"$test_name\""));
+    assert!(contents.contains("- name: Cargo test\n        run: cargo test --no-run --locked"));
+    assert!(contents.contains("- name: Run tests\n        run: cargo test --locked"));
+    assert!(!contents.contains("cargo test --locked --lib --bins"));
+    assert!(!contents.contains("xargs -0 -n1 -P4"));
+}
+
+#[test]
+fn should_define_opt_in_version_pinned_compatibility_probes() {
+    // Arrange
+    let workflow = repo_root().join(".github/workflows/compatibility-probes.yml");
+    let contract = repo_root().join("docs/compatibility-probe-contract.md");
+
+    // Act
+    let workflow_contents = fs::read_to_string(workflow).unwrap_or_default();
+    let contract_contents = fs::read_to_string(contract).unwrap_or_default();
+
+    // Assert
+    assert!(workflow_contents.contains("workflow_dispatch:"));
+    assert!(workflow_contents.contains("COMPATIBILITY_PROBE"));
+    assert!(workflow_contents.contains("SQLALCHEMY_VERSION: 2.0.36"));
+    assert!(workflow_contents.contains("PSYCOPG_VERSION: 3.2.3"));
+    assert!(workflow_contents.contains("PRISMA_VERSION: 6.1.0"));
+    assert!(workflow_contents.contains("POSTGRES_CLIENT_IMAGE: postgres:16.6-bookworm"));
+    assert!(workflow_contents.contains("if: ${{ always() }}"));
+    assert!(!workflow_contents.contains("CASSIE_ADMIN_PASSWORD"));
+    assert!(contract_contents.contains("secret-free"));
+    assert!(contract_contents.contains("sqlx"));
+    assert!(contract_contents.contains("Diesel"));
+    assert!(contract_contents.contains("pgAdmin"));
+    assert!(contract_contents.contains("DBeaver"));
 }

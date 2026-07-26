@@ -93,7 +93,7 @@ mod tests {
     use super::sanitize_error_excerpt;
 
     #[test]
-    fn should_cap_and_strip_controls_from_provider_error_excerpts() {
+    fn should_sanitize_provider_error_excerpts() {
         // Arrange
         let body = format!("prefix\u{0}\n{}", "x".repeat(2_048));
 

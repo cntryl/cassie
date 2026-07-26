@@ -15,6 +15,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 
 - [Feature Support](feature-support.md)
 - [PostgreSQL Compatibility](postgres-compatibility.md)
+- [Compatibility Probe Contract](compatibility-probe-contract.md)
 - [Performance Contracts](performance-contracts.md)
 - [Production Readiness](production-readiness.md)
 - [Support, Release, and Security-Response Policy](support-policy.md)

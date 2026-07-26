@@ -1,6 +1,8 @@
+mod alp;
 mod binary;
 mod bitpack;
 mod chunk;
+mod fsst;
 mod manifest;
 mod row_ids;
 mod selected;

@@ -1,0 +1,60 @@
+name: Benchmark Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Unique retained benchmark run ID"
+        required: true
+        type: string
+      deployment_profile:
+        description: "Registered deployment profile matching the runner"
+        required: true
+        type: string
+      soak_duration_seconds:
+        description: "Tier 6 duration per scenario; use 3600 for canonical evidence"
+        required: true
+        default: "3600"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  complete-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "benchmark-evidence"
+
+      - name: Install cntryl-tools
+        run: cargo install --git https://github.com/cntryl/tools --rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c --locked cntryl-tools
+
+      - name: Run complete unfiltered owner suite
+        env:
+          CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}
+          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ inputs.deployment_profile }}
+          CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
+          STRESS_PROFILE: release
+          STRESS_OUTPUT_DIR: target/stress
+        run: cargo bench --locked --bench '*'
+
+      - name: Validate complete retained manifest
+        run: cargo test --locked --test benchmark_evidence_contract should_validate_complete_benchmark_artifact_manifest -- --ignored --nocapture
+
+      - name: Upload canonical owner artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cassie-benchmark-${{ inputs.run_id }}
+          path: target/stress/**/latest.json
+          if-no-files-found: error
+          retention-days: 90

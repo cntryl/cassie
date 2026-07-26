@@ -110,6 +110,30 @@ fn should_limit_float_codec_selection_to_supported_encodings() {
 }
 
 #[test]
+fn should_roundtrip_repeated_utf8_with_fsst() {
+    // Arrange
+    let values = (0..512)
+        .map(|position| {
+            serde_json::json!(format!(
+                "tenant-{}/event-{}-payload-{}",
+                position % 32,
+                position,
+                position % 8
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    // Act
+    let encoded = encode("text", &values);
+    let codec = column_chunk_codec_for_test(&encoded).expect("text codec");
+    let decoded = decode_column_chunk_for_test(&encoded).expect("decode FSST text");
+
+    // Assert
+    assert_eq!(codec, "fsst");
+    assert_eq!(decoded, values);
+}
+
+#[test]
 fn should_roundtrip_alp_finite_values_bit_exactly() {
     // Arrange
     let values = (0..512)

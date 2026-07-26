@@ -150,3 +150,23 @@ fn should_define_storage_ownership_boundary() {
     assert!(owns_midge_mechanics);
     assert!(owns_query_behavior);
 }
+
+#[test]
+fn should_define_promotion_evidence_matrix() {
+    // Arrange
+    let docs_index = read(repo_root().join("docs/README.md"));
+    let matrix = read(repo_root().join("docs/promotion-evidence-matrix.md"));
+
+    // Act
+    let issues = [
+        "#21", "#22", "#23", "#24", "#25", "#26", "#27", "#28", "#29",
+    ];
+
+    // Assert
+    assert!(docs_index.contains("promotion-evidence-matrix.md"));
+    for issue in issues {
+        assert!(matrix.contains(issue), "missing promotion issue: {issue}");
+    }
+    assert!(matrix.contains("not promoted"));
+    assert!(matrix.contains("same-commit"));
+}

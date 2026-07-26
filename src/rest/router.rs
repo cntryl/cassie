@@ -414,10 +414,15 @@ fn dispatch_health_routes(
             StatusCode::OK,
             &crate::rest::health::health(cassie),
         )),
-        ("GET", ["healthz" | "readyz" | "startupz"]) => Some(json_response(
-            StatusCode::OK,
-            &crate::rest::health::healthz(cassie),
-        )),
+        ("GET", ["healthz" | "readyz" | "startupz"]) => {
+            let body = crate::rest::health::healthz(cassie);
+            let status = if body["ready"].as_bool() == Some(true) {
+                StatusCode::OK
+            } else {
+                StatusCode::SERVICE_UNAVAILABLE
+            };
+            Some(json_response(status, &body))
+        }
         ("GET", ["liveness"]) => Some(json_response(
             StatusCode::OK,
             &crate::rest::health::liveness(cassie),

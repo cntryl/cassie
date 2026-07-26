@@ -14,6 +14,7 @@ The unauthenticated endpoints are intentionally small and contain no user data:
 | `GET /livez` | `ready` | Kubernetes-style liveness probe: the process is answering requests. It does not assert storage readiness. |
 
 `/health` and `/liveness` remain compatibility aliases for existing clients.
+Readiness-backed probes return HTTP `200` when `ready` is true and HTTP `503` while startup is incomplete.
 
 Health fields are stable snake-case JSON names. `collections` is a count, not a collection-name
 list, and health responses never include credentials, query text, row values, or tenant payloads.

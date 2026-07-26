@@ -45,6 +45,27 @@ Tune them per deployment profile before using them as alerts.
 The current `local-dev-fallback-10k` and `local-dev-fallback-100k` profiles provide repeatable developer feedback, not capacity-admission or SLA evidence. The 250k fixture class is reserved for manual Tier 5 scale evidence and carries the same limitation.
 Local benchmark runs cover projection refresh, graph setup, time-series scans, HTTP document create/get, mixed ingest/query, and HTTP vector search. Treat those observations as environment-labelled comparisons, not as production thresholds; the canonical evidence rules live in [Performance Contracts](performance-contracts.md).
 
+### Profile threshold matrix
+
+The current matrix makes the operational interpretation explicit without promoting a service
+objective from source-only evidence. The disk, cache, and fallback values below are advisory
+starting points; the remaining objective fields stay pending until a retained complete run
+provides the required measurements.
+
+| Deployment profile | Disk headroom alert | Cache alert | Fallback alert | Admission / cancel / recovery / saturation objective |
+| --- | --- | --- | --- | --- |
+| `local-dev-fallback-10k` | 30% normal, 50% before snapshot or rebuild | 90% sustained occupancy or frequent evictions | Any repeated expected-path fallback | Diagnostic only; do not promote |
+| `local-dev-fallback-100k` | 30% normal, 50% before snapshot or rebuild | 90% sustained occupancy or frequent evictions | Any repeated expected-path fallback | Diagnostic only; do not promote |
+| `local-dev-fallback-250k` | 30% normal, 50% before snapshot or rebuild | 90% sustained occupancy or frequent evictions | Any repeated expected-path fallback | Diagnostic only; do not promote |
+| `workstation-apple-m5-arm64-apfs` | Same advisory headroom rule; record physical disk usage | Same advisory cache rule; record host memory | Reproduce, explain, and retain per-path counters | Pending complete same-commit benchmark, soak, recovery, and failure-injection evidence |
+| `native-linux-amd64-disk` | Same advisory headroom rule; record mounted-volume usage | Same advisory cache rule; record host memory | Reproduce, explain, and retain per-path counters | Pending representative native-Linux evidence and owner approval |
+
+Required measurements for the pending objective column are: admission rejection rate and
+latency, cancellation acknowledgement latency, backup/restore duration, rebuild/repair
+duration, disk growth, and sustained mixed-workload saturation at the declared fixture and
+client/worker axes. Until those artifacts are retained with matching commit, toolchain, fixture,
+and profile identity, alerts are operator guidance rather than SLA or release gates.
+
 | Signal | Advisory threshold | Response |
 | --- | --- | --- |
 | Disk free space under `CASSIE_MIDGE_DATA_DIR` | Below 30% during normal serving, or below 50% before snapshots, restore tests, large index builds, or projection rebuilds. | Add capacity, move tenants, reduce retention horizon, or defer rebuild/snapshot work. |

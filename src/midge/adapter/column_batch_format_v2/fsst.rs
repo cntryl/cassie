@@ -158,3 +158,51 @@ fn encode_value(value: &[u8], symbols: &[Vec<u8>], lookup: &BTreeMap<&[u8], u16>
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    use sha2::{Digest, Sha256};
+
+    use super::{decode, encode};
+
+    #[test]
+    fn should_roundtrip_deterministic_golden_payload() {
+        // Arrange
+        let values = [
+            serde_json::json!("tenant-a/event-created"),
+            serde_json::json!("tenant-b/event-created"),
+            serde_json::json!("tenant-a/event-created"),
+            serde_json::json!("tenant-b/event-created"),
+            serde_json::json!("tenant-a/event-created"),
+            serde_json::json!("tenant-b/event-created"),
+            serde_json::json!("tenant-a/event-created"),
+            serde_json::json!("tenant-b/event-created"),
+        ];
+        let references = values.iter().collect::<Vec<_>>();
+
+        // Act
+        let encoded = encode(&references).expect("encode FSST payload");
+
+        // Assert
+        let digest = Sha256::digest(&encoded);
+        let mut digest_hex = String::with_capacity(64);
+        for byte in digest {
+            write!(&mut digest_hex, "{byte:02x}").expect("digest formatting");
+        }
+        println!(
+            "FSST payload fixture: len={}, sha256={digest_hex}",
+            encoded.len()
+        );
+        assert_eq!(encoded.len(), 3_551);
+        assert_eq!(
+            digest_hex,
+            "8557d87a09e9cfc49a84b7fb96953ab07490fd8e687f318782a0cde564ee8ad3"
+        );
+        assert_eq!(
+            decode(&encoded, values.len()).expect("decode FSST payload"),
+            values
+        );
+    }
+}

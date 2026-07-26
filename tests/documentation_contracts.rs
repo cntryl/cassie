@@ -108,6 +108,40 @@ fn should_assign_canonical_document_owners() {
 }
 
 #[test]
+fn should_define_local_diagnostics_contract() {
+    // Arrange
+    let docs_index = read(repo_root().join("docs/README.md"));
+    let contract = read(repo_root().join("docs/local-diagnostics-contract.md"));
+
+    // Act
+    let required_fields = [
+        "/healthz",
+        "/readyz",
+        "/livez",
+        "/startupz",
+        "status",
+        "ready",
+        "collections",
+        "uptime_seconds",
+        "running_queries",
+        "capacity.families",
+        "capacity.categories",
+        "pg_catalog.pg_operational_assignments",
+    ];
+
+    // Assert
+    assert!(docs_index.contains("local-diagnostics-contract.md"));
+    for field in required_fields {
+        assert!(
+            contract.contains(field),
+            "missing diagnostics field: {field}"
+        );
+    }
+    assert!(contract.contains("single-node"));
+    assert!(contract.contains("no routing"));
+}
+
+#[test]
 fn should_document_trusted_upstream_rest_tls_termination() {
     // Arrange
     let root = repo_root();

@@ -73,7 +73,7 @@ fn fixture_with_memory_budget(
 fn should_discard_hnsw_attempt_when_source_changes_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("ann-concurrent-source");
     let cassie = fixture(&path, "hnsw");
@@ -132,7 +132,7 @@ fn should_discard_hnsw_attempt_when_source_changes_before_reranking() {
 fn should_discard_ivfflat_attempt_when_source_is_replaced_before_reranking() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("ivfflat-concurrent-source");
     let cassie = fixture(&path, "ivfflat");
@@ -191,7 +191,7 @@ fn should_discard_ivfflat_attempt_when_source_is_replaced_before_reranking() {
 fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
     // Arrange
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("hnsw-controlled-cancellation");
     let cassie = fixture(&path, "hnsw");
@@ -225,7 +225,7 @@ fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
 fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics() {
     // Arrange
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("ivfflat-controlled-cancellation");
     let cassie = fixture(&path, "ivfflat");
@@ -259,7 +259,7 @@ fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics()
 fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("hnsw-low-memory");
     let cassie = fixture_with_memory_budget(&path, "hnsw", Some(1_024));
@@ -292,7 +292,7 @@ fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
 fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("hnsw-final-metrics");
     let cassie = fixture(&path, "hnsw");
@@ -331,7 +331,7 @@ fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
 fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("ivfflat-low-memory");
     let cassie = fixture_with_memory_budget(&path, "ivfflat", Some(1_024));
@@ -364,7 +364,7 @@ fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
 fn should_publish_ivfflat_metrics_only_after_selecting_the_ann_path() {
     // Arrange
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
-    support::with_fallback();
+    support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = support::data_dir("ivfflat-final-metrics");
     let cassie = fixture(&path, "ivfflat");

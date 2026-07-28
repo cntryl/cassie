@@ -4,13 +4,14 @@ use cassie::midge::adapter::set_fulltext_maintenance_failure_point;
 #[path = "support/executor.rs"]
 mod support;
 use support::{
-    cassie_temp, create_text_collection, data_dir, put_document, put_fulltext_index, with_fallback,
+    cassie_temp, create_text_collection, data_dir, put_document, put_fulltext_index,
+    use_local_storage,
 };
 
 #[test]
 fn should_replay_fulltext_publication_debt_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_publication_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

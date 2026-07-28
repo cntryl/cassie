@@ -8,7 +8,7 @@ use graph_neighbors::neighbor_rows;
 #[test]
 fn should_publish_a_graph_edge_to_other_sessions_only_after_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_visibility");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

@@ -3,8 +3,8 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -23,7 +23,7 @@ fn vectorized_join_config(batch_size: usize) -> CassieRuntimeConfig {
 #[test]
 fn should_record_merge_join_runtime_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("merge_join_runtime_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -91,7 +91,7 @@ fn should_record_merge_join_runtime_metrics() {
 #[test]
 fn should_record_vectorized_join_runtime_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vectorized_join_runtime_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -157,7 +157,7 @@ fn should_record_vectorized_join_runtime_metrics() {
 #[test]
 fn should_record_vectorized_join_spill_fallback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vectorized_join_spill_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

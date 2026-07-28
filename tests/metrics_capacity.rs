@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 type MetricsValue = serde_json::Value;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -143,7 +143,7 @@ fn assert_capacity_categories(capacity: &MetricsValue) {
 #[test]
 fn should_report_local_capacity_bytes_by_category() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("category-bytes");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()

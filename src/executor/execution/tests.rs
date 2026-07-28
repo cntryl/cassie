@@ -231,7 +231,6 @@ fn should_require_user_function_catalog_for_user_defined_function_plan() {
 #[test]
 fn should_report_execution_breakdown_for_projected_filtered_read() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
     let mut path = std::env::temp_dir();
     path.push(format!(
         "cassie-execution-breakdown-{}",

@@ -10,7 +10,7 @@ use support::*;
 #[test]
 fn should_accelerate_numeric_aggregates_from_column_summaries() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_accel_numeric");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -91,7 +91,7 @@ fn should_accelerate_numeric_aggregates_from_column_summaries() {
 #[test]
 fn should_maintain_aggregate_summaries_after_update_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_accel_maintenance");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -171,7 +171,7 @@ fn should_maintain_aggregate_summaries_after_update_delete() {
 #[test]
 fn should_fallback_to_row_blobs_for_grouped_aggregates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_accel_group_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

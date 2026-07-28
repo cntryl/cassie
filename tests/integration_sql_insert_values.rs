@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_insert_values_with_explicit_columns_returning_columns() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -60,7 +60,7 @@ fn should_execute_insert_values_with_explicit_columns_returning_columns() {
 #[test]
 fn should_insert_values_using_table_column_order() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_table_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -107,7 +107,7 @@ fn should_insert_values_using_table_column_order() {
 #[test]
 fn should_insert_multiple_values_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_multiple_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -152,7 +152,7 @@ fn should_insert_multiple_values_rows() {
 #[test]
 fn should_return_generated_row_id_from_insert_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -192,7 +192,7 @@ fn should_return_generated_row_id_from_insert_values() {
 #[test]
 fn should_execute_insert_returning_wildcard() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_returning_wildcard");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -235,7 +235,7 @@ fn should_execute_insert_returning_wildcard() {
 #[test]
 fn should_execute_insert_returning_scalar_function() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_returning_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -277,7 +277,7 @@ fn should_execute_insert_returning_scalar_function() {
 #[test]
 fn should_reject_insert_returning_unknown_function() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_returning_unknown_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -318,7 +318,7 @@ fn should_reject_insert_returning_unknown_function() {
 #[test]
 fn should_reject_insert_values_when_not_null_constraint_fails() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -355,7 +355,7 @@ fn should_reject_insert_values_when_not_null_constraint_fails() {
 #[test]
 fn should_reject_insert_values_when_not_null_column_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_missing_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -392,7 +392,7 @@ fn should_reject_insert_values_when_not_null_column_is_missing() {
 #[test]
 fn should_apply_default_values_for_insert_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -432,7 +432,7 @@ fn should_apply_default_values_for_insert_values() {
 #[test]
 fn should_preserve_explicit_insert_value_when_default_exists() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_explicit_default");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -471,7 +471,7 @@ fn should_preserve_explicit_insert_value_when_default_exists() {
 #[test]
 fn should_round_trip_insert_values_vector_field() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_vector_round_trip");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -519,7 +519,7 @@ fn should_round_trip_insert_values_vector_field() {
 #[test]
 fn should_reject_insert_values_when_vector_dimensions_mismatch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_vector_dimensions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -559,7 +559,7 @@ fn should_reject_insert_values_when_vector_dimensions_mismatch() {
 #[test]
 fn should_reject_insert_values_with_duplicate_target_column() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_duplicate_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -596,7 +596,7 @@ fn should_reject_insert_values_with_duplicate_target_column() {
 #[test]
 fn should_reject_insert_values_with_unknown_target_column() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_unknown_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -633,7 +633,7 @@ fn should_reject_insert_values_with_unknown_target_column() {
 #[test]
 fn should_store_insert_values_as_row_blobs() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_values_row_blob");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -684,7 +684,7 @@ fn should_store_insert_values_as_row_blobs() {
 #[test]
 fn should_project_missing_sparse_row_fields_as_null() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("sparse_row_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

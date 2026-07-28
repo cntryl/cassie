@@ -1,4 +1,4 @@
-import { fallback, group, route, registerRoutes } from "@askrjs/askr/router";
+import { createRouteRegistry, fallback, group, route } from "@askrjs/askr/router";
 import { requireAnonymous, requireUser } from "@askrjs/auth";
 
 import RootLayout from "./_layout";
@@ -8,8 +8,8 @@ import LogoutPage from "./logout";
 import NotFoundPage from "./not-found";
 import { resolveRouteAuth } from "@/shared/auth";
 
-export function registerRootRoutes() {
-  registerRoutes(
+export function createCassieRouteRegistry() {
+  return createRouteRegistry(
     () => {
       group({ layout: RootLayout }, () => {
         route("/login", LoginPage, { auth: requireAnonymous() });
@@ -28,4 +28,4 @@ export function registerRootRoutes() {
   );
 }
 
-registerRootRoutes();
+export const routeRegistry = createCassieRouteRegistry();

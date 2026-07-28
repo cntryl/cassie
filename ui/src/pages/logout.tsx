@@ -1,5 +1,6 @@
 import { state } from "@askrjs/askr";
-import { Link, navigate } from "@askrjs/askr/router";
+import { task } from "@askrjs/askr/resources";
+import { navigate } from "@askrjs/askr/router";
 import {
   Block,
   Brand,
@@ -11,7 +12,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  FieldError,
+  Spinner,
+  Text,
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
@@ -20,32 +22,45 @@ import { clearQueryWorkspace } from "@/features/query/query-tabs";
 import { getSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
 
+type LogoutPhase = "pending" | "error";
+
 export default function LogoutPage() {
   const session = getSession();
-  const [error, setError] = state<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = state(false);
+  const [phase, setPhase] = state<LogoutPhase>("pending");
+  const [error, setError] = state("");
+  const currentPhase = phase();
+  const errorMessage = error();
 
-  async function handleSignOut() {
-    if (isSigningOut()) {
+  task(() => signOutAndRedirect());
+
+  async function performSignOut() {
+    const response = await apiv1.logoutRestSession();
+    if (response.ok) {
       return;
     }
 
-    setError(null);
-    setIsSigningOut(true);
+    if (response.status === 401) {
+      return;
+    }
+
+    ensureResponseOk(response, "Unable to sign out");
+  }
+
+  async function signOutAndRedirect() {
+    setPhase("pending");
+    setError("");
+
     try {
-      const response = await apiv1.logoutRestSession();
-      if (!response.ok && response.status !== 401) {
-        ensureResponseOk(response, "Unable to sign out");
-      }
+      await performSignOut();
       if (session?.user) {
         clearQueryWorkspace(session.user);
       }
+
       signOut();
-      navigate("/login");
+      navigate("/login", { history: "replace" });
     } catch (caught) {
       setError(apiErrorMessage(caught));
-    } finally {
-      setIsSigningOut(false);
+      setPhase("error");
     }
   }
 
@@ -60,28 +75,29 @@ export default function LogoutPage() {
               </BrandMark>
               <BrandLabel>Cassie Admin</BrandLabel>
             </Brand>
-            <CardTitle titleAs="h1">Sign out of Cassie Admin?</CardTitle>
+            <CardTitle titleAs="h1">
+              {currentPhase === "error" ? "Sign out failed" : "Signing out"}
+            </CardTitle>
             <CardDescription>
-              {session?.user ? `You’re signed in as ${session.user}.` : "End your current session?"}
+              {currentPhase === "error"
+                ? "We could not clear your session. You may still be signed in."
+                : "Clearing your Cassie Admin session."}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Block direction="column" gap="xl">
-              {error() ? <FieldError>Sign out failed. {error()}</FieldError> : null}
-              <Block direction="column" gap="md">
-                <Button
-                  type="button"
-                  variant="destructive"
-                  width="full"
-                  onPress={handleSignOut}
-                  disabled={isSigningOut()}
-                >
-                  {isSigningOut() ? "Signing out…" : "Sign out"}
-                </Button>
-                <Button asChild variant="outline" width="full" disabled={isSigningOut()}>
-                  <Link href="/">Stay signed in</Link>
-                </Button>
-              </Block>
+            <Block direction="column" align="start" gap="md" aria-live="polite" aria-atomic="true">
+              {currentPhase === "pending" ? <Spinner label="Signing out" /> : null}
+
+              {currentPhase === "error" ? (
+                <Block direction="column" align="start" gap="md" role="alert">
+                  <Text tone="danger" size="sm">
+                    {errorMessage || "We could not clear your session. You may still be signed in."}
+                  </Text>
+                  <Button variant="outline" onPress={() => void signOutAndRedirect()}>
+                    Retry
+                  </Button>
+                </Block>
+              ) : null}
             </Block>
           </CardContent>
         </Card>

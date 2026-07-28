@@ -3,8 +3,8 @@ use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -26,7 +26,7 @@ fn execute_poc_setup(cassie: &Cassie, session: &cassie::app::CassieSession) {
 #[test]
 fn should_execute_embedded_read_model_poc_flow() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("embedded");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();

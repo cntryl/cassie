@@ -83,7 +83,7 @@ Operators should combine this view with [Capacity Management](capacity-managemen
 
 - Move a hot tenant or projection when router-side per-tenant latency, Cassie query latency, pgwire/REST blocking elapsed time, or candidate counts rise beyond the deployment profile's tolerance.
 - Isolate rebuild or verification work by claiming serving traffic on another prepared node, marking the busy assignment `draining`, and running local admin work after traffic leaves.
-- Move before disk pressure becomes critical; use host free-space measurements for `CASSIE_MIDGE_DATA_DIR`, storage-family operation counters, projection write counters, and snapshot headroom.
+- Move before disk pressure becomes critical; use host free-space measurements for `CASSIE_STORAGE_PATH`, storage-family operation counters, projection write counters, and snapshot headroom.
 - Prefer targeted tenant/projection movement over broad fleet reshaping when only one read model or tenant is hot.
 
 ## Query Behavior

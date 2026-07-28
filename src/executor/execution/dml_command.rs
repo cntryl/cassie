@@ -490,7 +490,7 @@ fn execute_call_procedure_command(
 
         let call_session = session
             .cloned()
-            .unwrap_or_else(|| CassieSession::new("postgres".to_string(), None));
+            .unwrap_or_else(|| CassieSession::new("root".to_string(), None));
         let empty_row = Vec::<(String, Value)>::new();
         let evaluated_args = statement
             .args

@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_sql_with_non_recursive_cte() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("cte_non_recursive");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,7 +97,7 @@ fn should_execute_sql_with_non_recursive_cte() {
 #[test]
 fn should_execute_sql_with_recursive_cte() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("cte_recursive");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

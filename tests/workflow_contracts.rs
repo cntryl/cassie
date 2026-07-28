@@ -64,8 +64,8 @@ fn should_run_backend_checks_in_simplified_steps() {
     let contents = fs::read_to_string(workflow).expect("backend workflow");
 
     // Assert
-    assert!(contents.contains("- name: Cargo test\n        run: cargo test --no-run --locked"));
     assert!(contents.contains("- name: Run tests\n        run: cargo test --locked"));
+    assert!(!contents.contains("cargo test --no-run --locked"));
     assert!(!contents.contains("cargo test --locked --lib --bins"));
     assert!(!contents.contains("xargs -0 -n1 -P4"));
 }
@@ -88,7 +88,7 @@ fn should_define_opt_in_version_pinned_compatibility_probes() {
     assert!(workflow_contents.contains("PRISMA_VERSION: 6.1.0"));
     assert!(workflow_contents.contains("POSTGRES_CLIENT_IMAGE: postgres:16.6-bookworm"));
     assert!(workflow_contents.contains("if: ${{ always() }}"));
-    assert!(!workflow_contents.contains("CASSIE_ADMIN_PASSWORD"));
+    assert!(!workflow_contents.contains("CASSIE_ROOT_PASSWORD"));
     assert!(contract_contents.contains("secret-free"));
     assert!(contract_contents.contains("sqlx"));
     assert!(contract_contents.contains("Diesel"));

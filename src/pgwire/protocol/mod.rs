@@ -246,7 +246,7 @@ pub fn decode(line: &str) -> ClientMessage {
 }
 
 fn decode_startup(trimmed: &str) -> ClientMessage {
-    let mut user = "postgres".to_string();
+    let mut user = "root".to_string();
     let mut database = None;
     let parts: Vec<_> = trimmed.split_whitespace().collect();
     for part in parts.iter().skip(1) {
@@ -263,7 +263,7 @@ fn decode_startup(trimmed: &str) -> ClientMessage {
 
 fn decode_password(trimmed: &str) -> ClientMessage {
     let parts: Vec<_> = trimmed.split_whitespace().collect();
-    let mut user = "postgres".to_string();
+    let mut user = "root".to_string();
     let mut password = String::new();
 
     for part in parts.iter().skip(1) {

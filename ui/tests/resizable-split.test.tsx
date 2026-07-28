@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 
 import { ResizableSplit } from "@/components/query/resizable-split";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 async function flushUi() {
   await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
@@ -48,7 +49,7 @@ async function mountVerticalSplit() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       {
         path: "/",
         handler: () => (
@@ -62,7 +63,7 @@ async function mountVerticalSplit() {
           />
         ),
       },
-    ],
+    ]),
   });
 
   await flushUi();

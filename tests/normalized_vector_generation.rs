@@ -8,12 +8,12 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_reject_normalized_vectors_from_an_older_collection_generation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("normalized_vector_generation");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

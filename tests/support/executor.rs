@@ -9,9 +9,9 @@ use std::collections::BTreeMap;
 use std::env;
 use uuid::Uuid;
 
-pub fn with_fallback() {
-    env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    env::set_var("CASSIE_MIDGE_DATA_DIR", data_dir("fallback"));
+pub fn use_local_storage() {
+    env::set_var("CASSIE_STORAGE_MODE", "local");
+    env::set_var("CASSIE_STORAGE_PATH", data_dir("fallback"));
 }
 
 pub fn data_dir(label: &str) -> String {
@@ -21,7 +21,7 @@ pub fn data_dir(label: &str) -> String {
 }
 
 pub fn cassie_temp(label: &str) -> Cassie {
-    with_fallback();
+    use_local_storage();
     Cassie::new_with_data_dir(data_dir(label)).expect("cassie")
 }
 

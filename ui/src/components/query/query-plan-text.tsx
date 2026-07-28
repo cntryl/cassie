@@ -1,4 +1,4 @@
-import { For } from "@askrjs/askr/control";
+import { For, Show } from "@askrjs/askr/control";
 import type {
   QueryExplainPlan,
   QueryPlanAnalyze,
@@ -76,13 +76,13 @@ function QueryPlanNodeView({ node }: { node: QueryPlanNode }) {
       </header>
       <h3 class="cassie-query-plan-node-title">{node.label}</h3>
       <p class="cassie-query-plan-node-detail">{node.detail}</p>
-      {node.badges.length > 0 ? (
+      <Show when={node.badges.length > 0}>
         <div class="cassie-query-plan-badges">
           <For each={node.badges} by={(badge) => badge}>
             {(badge) => <span class="cassie-query-plan-badge">{badge}</span>}
           </For>
         </div>
-      ) : null}
+      </Show>
       <dl class="cassie-query-plan-metrics">
         <For each={node.metrics} by={(metric) => metric.label}>
           {(metric) => (
@@ -122,7 +122,7 @@ function QueryPlanAnalyzeView({ analyze }: { analyze: QueryPlanAnalyze }) {
         <span>{formatNumber(Number(analyze.actual_ms))} ms</span>
         <span>{formatNumber(analyze.diagnostics.storage_reads_delta)} reads</span>
       </div>
-      {analyze.operator_actuals.length > 0 ? (
+      <Show when={analyze.operator_actuals.length > 0}>
         <div class="cassie-query-plan-actuals">
           <For each={analyze.operator_actuals} by={(actual) => actual.operator}>
             {(actual) => (
@@ -134,7 +134,7 @@ function QueryPlanAnalyzeView({ analyze }: { analyze: QueryPlanAnalyze }) {
             )}
           </For>
         </div>
-      ) : null}
+      </Show>
     </section>
   );
 }

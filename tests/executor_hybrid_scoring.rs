@@ -26,7 +26,7 @@ fn should_order_by_hybrid_score() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_hybrid_order";
 
@@ -123,7 +123,7 @@ fn should_filter_by_hybrid_score_threshold() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_hybrid_filter";
 
@@ -207,7 +207,7 @@ fn should_reject_hybrid_score_with_wrong_arity() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_hybrid_wrong_arity";
 

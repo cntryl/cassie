@@ -6,7 +6,7 @@ mod support;
 #[test]
 fn should_not_commit_an_orphaned_child_during_concurrent_parent_delete() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("foreign_key_concurrent_parent_delete");
     let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
     cassie.startup().expect("start Cassie");

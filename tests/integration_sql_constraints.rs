@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_enforce_constraints_during_ingest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("constraints_ingest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -94,7 +94,7 @@ fn should_enforce_constraints_during_ingest() {
 #[test]
 fn should_hydrate_collection_constraints_on_startup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("constraints_hydrate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -135,7 +135,7 @@ fn should_hydrate_collection_constraints_on_startup() {
 #[test]
 fn should_reject_insert_when_primary_key_is_duplicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("primary_key_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -182,7 +182,7 @@ fn should_reject_insert_when_primary_key_is_duplicate() {
 #[test]
 fn should_reject_insert_when_primary_key_is_null() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("primary_key_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -219,7 +219,7 @@ fn should_reject_insert_when_primary_key_is_null() {
 #[test]
 fn should_reject_insert_when_unique_value_is_duplicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unique_insert_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -266,7 +266,7 @@ fn should_reject_insert_when_unique_value_is_duplicate() {
 #[test]
 fn should_reject_update_when_unique_value_conflicts() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unique_update_conflict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -321,7 +321,7 @@ fn should_reject_update_when_unique_value_conflicts() {
 #[test]
 fn should_allow_only_one_concurrent_unique_insert_to_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unique_concurrent_insert");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -390,7 +390,7 @@ fn should_allow_only_one_concurrent_unique_insert_to_commit() {
 #[test]
 fn should_reject_insert_when_unique_index_value_is_duplicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unique_index_insert_duplicate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -450,7 +450,7 @@ fn should_reject_insert_when_unique_index_value_is_duplicate() {
 #[test]
 fn should_reject_update_when_unique_index_value_conflicts() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unique_index_update_conflict");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -517,7 +517,7 @@ fn should_reject_update_when_unique_index_value_conflicts() {
 #[test]
 fn should_reject_insert_when_check_constraint_fails() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("check_insert_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -557,7 +557,7 @@ fn should_reject_insert_when_check_constraint_fails() {
 #[test]
 fn should_reject_update_when_check_constraint_fails() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("check_update_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -605,7 +605,7 @@ fn should_reject_update_when_check_constraint_fails() {
 #[test]
 fn should_insert_on_conflict_do_update() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("on_conflict_do_update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -651,7 +651,7 @@ fn should_insert_on_conflict_do_update() {
 #[test]
 fn should_insert_on_conflict_do_nothing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("on_conflict_do_nothing");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

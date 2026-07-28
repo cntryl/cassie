@@ -13,8 +13,8 @@ type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -361,7 +361,7 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("root", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
@@ -496,7 +496,7 @@ fn assert_recovered_query_frames(frames: &[WireFrame]) {
 #[test]
 fn should_close_connection_on_cancel_request_without_response() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("cancel");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -560,7 +560,7 @@ fn should_close_connection_on_cancel_request_without_response() {
 #[test]
 fn should_reject_copy_data_message_with_unsupported_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("copy_data");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -637,7 +637,7 @@ fn should_reject_copy_data_message_with_unsupported_error() {
 #[test]
 fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -680,7 +680,7 @@ fn should_ignore_extended_query_messages_until_sync_after_parse_error() {
 #[test]
 fn should_return_unsupported_error_for_copy_statement() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("copy_unsupported");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

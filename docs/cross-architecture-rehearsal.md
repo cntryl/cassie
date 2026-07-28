@@ -25,20 +25,20 @@ export IMAGE='ghcr.io/cntryl/cassie@sha256:<immutable-digest>'
 export DATA_DIR="$PWD/rehearsal-data/<architecture>"
 export SNAPSHOT_DIR="$DATA_DIR/snapshots"
 export RESTORE_DIR="$DATA_DIR/restore"
-export CASSIE_ADMIN_PASSWORD='<non-default-rehearsal-secret>'
+export CASSIE_ROOT_PASSWORD='<non-default-rehearsal-secret>'
 
 mkdir -p "$DATA_DIR" "$SNAPSHOT_DIR" "$RESTORE_DIR"
 docker run --rm --name cassie-rehearsal \
   -p 127.0.0.1:18080:8080 -p 127.0.0.1:15432:5432 \
   -e CASSIE_REST_LISTEN=0.0.0.0:8080 \
   -e CASSIE_PGWIRE_LISTEN=0.0.0.0:5432 \
-  -e CASSIE_ADMIN_PASSWORD \
-  -e CASSIE_MIDGE_DATA_DIR=/data/midge \
+  -e CASSIE_ROOT_PASSWORD \
+  -e CASSIE_STORAGE_PATH=/data/midge \
   -e CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
   -v "$DATA_DIR:/data" "$IMAGE"
 ```
 
-Use a unique non-default value for `CASSIE_ADMIN_PASSWORD` and keep it out of retained
+Use a unique non-default value for `CASSIE_ROOT_PASSWORD` and keep it out of retained
 command logs. The host paths in `DATA_DIR`, `SNAPSHOT_DIR`, and `RESTORE_DIR` are mounted
 under `/data`, so use `/data/snapshots` and `/data/restore` from inside the container.
 

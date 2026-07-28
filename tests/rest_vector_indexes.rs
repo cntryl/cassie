@@ -8,7 +8,7 @@ use support::*;
 #[test]
 fn should_reject_family_specific_rest_vector_index_options() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest_vector_index_family_options");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
     cassie.startup().unwrap();

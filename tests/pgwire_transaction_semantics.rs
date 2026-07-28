@@ -28,7 +28,7 @@ fn error_field(fields: &[(char, String)], tag: char) -> Option<&str> {
 #[test]
 fn should_report_transaction_semantics_sqlstate_through_pgwire() {
     // Arrange
-    sql::with_fallback();
+    sql::use_local_storage();
     let path = sql::data_dir("pgwire_transaction_semantics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

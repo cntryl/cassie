@@ -116,7 +116,7 @@ impl Drop for RetrievalFixture {
 }
 
 fn fixture(case: RetrievalCase, memory_budget: usize) -> RetrievalFixture {
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir(&format!("specialized-{}", case.label()));
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;

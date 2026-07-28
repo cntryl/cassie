@@ -17,7 +17,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn configured_cassie(label: &str, memory_budget: usize) -> (Cassie, String) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = memory_budget;
@@ -282,7 +282,7 @@ fn should_bound_native_reads_for_limit_with_transaction_overlay() {
 fn should_report_join_budget_failure_with_program_limit_sqlstate() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("join-sqlstate");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = 4 * 1_024;

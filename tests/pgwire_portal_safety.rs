@@ -24,7 +24,7 @@ fn configured_cassie_with_memory(
     max_result_rows: usize,
     query_memory_budget_bytes: usize,
 ) -> (Cassie, CassieRuntimeConfig, String) {
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir(label);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.max_result_rows = max_result_rows;

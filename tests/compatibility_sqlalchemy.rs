@@ -85,8 +85,8 @@ struct ProbeOutput {
     stderr: String,
 }
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -107,7 +107,7 @@ struct CompatibilityServer {
 
 impl CompatibilityServer {
     async fn start(label: &str) -> Self {
-        with_fallback();
+        use_local_storage();
         let data_dir = data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();

@@ -8,7 +8,7 @@ use graph_neighbors::neighbor_rows;
 #[test]
 fn should_read_an_updated_edge_inside_its_transaction() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_update");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

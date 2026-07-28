@@ -17,9 +17,9 @@ pub struct TimeSeriesSidecarRecord {
     pub generation: u64,
 }
 
-pub fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
-    std::env::set_var("CASSIE_MIDGE_DATA_DIR", data_dir("fallback"));
+pub fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
+    std::env::set_var("CASSIE_STORAGE_PATH", data_dir("fallback"));
 }
 
 pub fn data_dir(label: &str) -> String {

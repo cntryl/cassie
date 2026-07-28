@@ -7,8 +7,8 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -376,7 +376,7 @@ async fn connect_authenticated_pgwire(
         .expect("connect pgwire");
     let (read_half, mut write_half) = socket.into_split();
     let mut reader = tokio::io::BufReader::new(read_half);
-    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("postgres", "postgres"))
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("root", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(&mut reader).await;
@@ -481,7 +481,7 @@ async fn shutdown_pgwire_server(server: tokio::task::JoinHandle<Result<(), cassi
 #[test]
 fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("reuse");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -523,7 +523,7 @@ fn should_reuse_prepared_statement_for_binary_extended_query_bindings() {
 #[test]
 fn should_parse_prepared_statement_once_across_repeated_extended_executes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parse_once");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

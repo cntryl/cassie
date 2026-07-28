@@ -6,7 +6,7 @@ mod support;
 #[test]
 fn should_preserve_other_field_rules_when_named_primary_key_is_dropped() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-primary-key");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -51,7 +51,7 @@ fn should_preserve_other_field_rules_when_named_primary_key_is_dropped() {
 #[test]
 fn should_allow_duplicate_values_when_named_unique_constraint_is_dropped() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-unique");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -95,7 +95,7 @@ fn should_allow_duplicate_values_when_named_unique_constraint_is_dropped() {
 #[test]
 fn should_remove_named_check_plus_foreign_key_constraints() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-check-foreign-key");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -146,7 +146,7 @@ fn should_remove_named_check_plus_foreign_key_constraints() {
 #[test]
 fn should_reject_dropping_unique_constraint_with_live_foreign_key_dependency() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-live-dependency");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -184,7 +184,7 @@ fn should_reject_dropping_unique_constraint_with_live_foreign_key_dependency() {
 #[test]
 fn should_hydrate_dropped_constraint_state_after_restart() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-constraint-restart");
     {
         let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
@@ -230,7 +230,7 @@ fn should_hydrate_dropped_constraint_state_after_restart() {
 #[test]
 fn should_accept_drop_constraint_if_exists_for_missing_name() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("drop-constraint-if-exists");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");

@@ -102,7 +102,7 @@ fn seed_binary_bind_docs(cassie: &Cassie, collection: &str) {
 #[test]
 fn should_close_connection_after_oversized_startup_frame() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("oversized_startup");
     let runtime = runtime();
 
@@ -150,7 +150,7 @@ fn should_close_connection_after_oversized_startup_frame() {
 #[test]
 fn should_close_connection_after_oversized_password_frame() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("oversized_password");
     let runtime = runtime();
 
@@ -176,7 +176,7 @@ fn should_close_connection_after_oversized_password_frame() {
 
         // Act
         socket
-            .write_all(&startup_frame("postgres", "postgres"))
+            .write_all(&startup_frame("root", "postgres"))
             .await
             .expect("write startup");
         let auth = {
@@ -223,7 +223,7 @@ fn should_close_connection_after_oversized_password_frame() {
 #[test]
 fn should_reject_duplicate_named_parse_until_sync() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("duplicate_parse");
     let runtime = runtime();
 
@@ -264,7 +264,7 @@ fn should_reject_duplicate_named_parse_until_sync() {
 #[test]
 fn should_invalidate_portals_when_unnamed_statement_is_replaced() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unnamed_replace");
     let runtime = runtime();
 
@@ -309,7 +309,7 @@ fn should_invalidate_portals_when_unnamed_statement_is_replaced() {
 #[test]
 fn should_reject_unsupported_bind_format_codes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("bad_formats");
     let runtime = runtime();
 
@@ -354,7 +354,7 @@ fn should_reject_unsupported_bind_format_codes() {
 #[test]
 fn should_apply_portal_result_format_to_row_description() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rowdesc_binary");
     let runtime = runtime();
 
@@ -398,7 +398,7 @@ fn should_apply_portal_result_format_to_row_description() {
 #[test]
 fn should_decode_binary_bind_parameters_by_oid() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("binary_binds");
     let runtime = runtime();
 
@@ -460,7 +460,7 @@ fn should_decode_binary_bind_parameters_by_oid() {
 #[test]
 fn should_resume_suspended_portal_after_execute_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("portal_suspend");
     let runtime = runtime();
 

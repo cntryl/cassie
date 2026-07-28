@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { QueryExplainResponse, QuerySchemaResponse } from "@/adapters";
 
-const MOCK_USER = "admin";
+const MOCK_USER = "root";
 const MOCK_PASSWORD = "pwd123";
 const MOCK_SESSION_COOKIE = "cassie_session";
 const MOCK_SESSION_TOKEN = "mock-session";

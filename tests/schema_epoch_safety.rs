@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(name: &str) -> PathBuf {
@@ -39,7 +39,7 @@ fn scalar_index_sidecars(cassie: &Cassie, collection: &str) -> Vec<(Vec<u8>, Vec
 #[test]
 fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_table_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -104,7 +104,7 @@ fn should_defer_drop_table_physical_cleanup_until_pinned_schema_epoch_drains() {
 #[test]
 fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_index_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -204,7 +204,7 @@ fn should_defer_drop_index_sidecar_cleanup_until_pinned_schema_epoch_drains() {
 #[test]
 fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_view_deferred_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -265,7 +265,7 @@ fn should_defer_drop_view_metadata_cleanup_until_pinned_schema_epoch_drains() {
 #[test]
 fn should_finish_pending_schema_cleanup_on_startup_without_rehydrating_dropped_table() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("startup_pending_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -326,7 +326,7 @@ fn should_finish_pending_schema_cleanup_on_startup_without_rehydrating_dropped_t
 #[test]
 fn should_execute_saved_plan_with_schema_snapshot_after_column_rename() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("saved_plan_column_rename");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -400,7 +400,7 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_rename() {
 #[test]
 fn should_execute_saved_plan_with_schema_snapshot_after_column_drop() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("saved_plan_column_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -470,7 +470,7 @@ fn should_execute_saved_plan_with_schema_snapshot_after_column_drop() {
 #[test]
 fn should_keep_saved_wildcard_plan_on_schema_snapshot_after_column_add() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("saved_plan_column_add");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -28,6 +28,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 ## Projection and Operations
 
 - [POC Quickstart](poc-quickstart.md)
+- [Environment Variables](environment-variables.md)
 - [Projection Replay Contracts](projection-replay-contracts.md)
 - [Projection Repair Runbook](projection-repair-runbook.md)
 - [Capacity Management](capacity-management.md)
@@ -45,4 +46,4 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Feature Ownership](feature-ownership.md)
 - [Module Organization](module-organization.md)
 - [Database Jargon Glossary](database-jargon-glossary.md)
-- [Security Model](security-model.md)
+- [Security and Response Policy](support-policy.md)

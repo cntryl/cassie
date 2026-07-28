@@ -25,7 +25,7 @@ pub(super) fn validate_startup_parameters(
             return Err(format!("unsupported startup option: {key}"));
         }
         if matches!(key.as_str(), "application_name" | "client_encoding") {
-            crate::app::CassieSession::new("postgres".to_string(), None)
+            crate::app::CassieSession::new("root".to_string(), None)
                 .set_setting(key, value)
                 .map_err(|error| error.to_string())?;
         }

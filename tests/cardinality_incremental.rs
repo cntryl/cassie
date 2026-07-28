@@ -6,7 +6,7 @@ use cassie::catalog::CollectionCardinalityStats;
 #[path = "support/sql.rs"]
 mod support;
 
-use support::{canonical_test_collection, data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, use_local_storage};
 
 fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, key: &str) -> u64 {
     after["cardinality"][key]
@@ -18,7 +18,7 @@ fn metric_delta(after: &serde_json::Value, before: &serde_json::Value, key: &str
 #[test]
 fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("incremental_unindexed_cardinality");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -75,7 +75,7 @@ fn should_increment_cardinality_for_unindexed_document_write_without_rebuild() {
 #[test]
 fn should_rebuild_cardinality_when_index_membership_changes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("indexed_cardinality_rebuild");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

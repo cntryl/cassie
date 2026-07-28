@@ -31,7 +31,7 @@ fn should_parse_verify_projection_command() {
 #[test]
 fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_row_hash_deterministic");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -115,7 +115,7 @@ fn should_keep_row_hashes_deterministic_across_restart_schema_epoch_changes() {
 #[test]
 fn should_report_empty_projection_root_after_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_row_hash_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -170,7 +170,7 @@ fn should_report_empty_projection_root_after_delete() {
 #[test]
 fn should_expose_projection_verification_state_through_catalog_views() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_hash_catalog_views");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -266,7 +266,7 @@ fn should_expose_projection_verification_state_through_catalog_views() {
 #[test]
 fn should_report_integrity_failure_for_corrupt_row_hash() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_hash_corruption");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -337,7 +337,7 @@ fn row_hash_storage_key(cassie: &Cassie, collection: &str, row_id: &str) -> Vec<
 #[test]
 fn should_block_unverified_projection_version_activation_without_unsafe_override() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_activation_verification");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

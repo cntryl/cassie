@@ -273,7 +273,7 @@ impl CassieStressRunner {
                 .unwrap_or_else(|| panic!("unknown benchmark deployment profile '{profile_id}'"));
             runner.metadata("deployment_profile_id", profile.profile_id);
             if profile.storage_mode == "midge_disk_apfs" {
-                std::env::set_var("BENCH_MIDGE_DISK", "1");
+                std::env::set_var("CASSIE_STORAGE_MODE", "local");
             }
         }
         if let Some(run_id) = std::env::var("CASSIE_BENCH_RUN_ID")

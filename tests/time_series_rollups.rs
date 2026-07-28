@@ -64,7 +64,7 @@ fn hourly_query(table: &str) -> String {
 #[test]
 fn should_rewrite_query_after_rollup_creation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_rewrite");
 
@@ -121,7 +121,7 @@ fn should_rewrite_query_after_rollup_creation() {
 #[test]
 fn should_reject_rollup_with_mismatched_source_generation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rollup_generation_fence");
 
     runtime().block_on(async {
@@ -155,7 +155,7 @@ fn should_reject_rollup_with_mismatched_source_generation() {
 #[test]
 fn should_refresh_rollup_for_dml_movement() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_dml");
 
@@ -218,7 +218,7 @@ fn should_refresh_rollup_for_dml_movement() {
 #[test]
 fn should_cleanup_rollup_after_restart_drop() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_restart");
 
@@ -266,7 +266,7 @@ fn should_cleanup_rollup_after_restart_drop() {
 #[test]
 fn should_fallback_to_source_when_rollup_is_stale() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_stale");
 
@@ -320,7 +320,7 @@ fn inject_rollup_refresh_failure(
 #[test]
 fn should_record_rollup_debt_after_refresh_failure() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_maintenance_debt");
 
@@ -375,7 +375,7 @@ fn should_record_rollup_debt_after_refresh_failure() {
 #[test]
 fn should_retry_rollup_debt_on_startup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_maintenance_restart");
 
@@ -425,7 +425,7 @@ fn should_retry_rollup_debt_on_startup() {
 #[test]
 fn should_move_rollup_debt_with_collection_rename() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("rollup_rename_debt");
 

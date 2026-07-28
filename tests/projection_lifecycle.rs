@@ -110,7 +110,7 @@ fn should_parse_materialized_projection_lifecycle_commands() {
 #[test]
 fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_idempotent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -192,7 +192,7 @@ fn should_replay_projection_batch_idempotently_with_checkpoint_metadata() {
 #[test]
 fn should_skip_existing_projection_events_while_applying_new_replay_events() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_mixed_duplicate_batch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -278,7 +278,7 @@ fn should_skip_existing_projection_events_while_applying_new_replay_events() {
 #[test]
 fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_large_hashes_stale");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -364,7 +364,7 @@ fn should_mark_large_replay_hashes_stale_without_eager_rebuild() {
 #[test]
 fn should_report_failed_freshness_for_out_of_order_replay() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_out_of_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -438,7 +438,7 @@ fn should_report_failed_freshness_for_out_of_order_replay() {
 #[test]
 fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_duplicate_in_batch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -535,7 +535,7 @@ fn should_fail_duplicate_event_id_in_batch_without_partial_replay() {
 #[test]
 fn should_refresh_materialized_projection_after_source_write() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("materialized_projection_refresh");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -633,7 +633,7 @@ fn should_refresh_materialized_projection_after_source_write() {
 #[test]
 fn should_reject_dml_against_materialized_projection_output() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("materialized_projection_read_only");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -681,7 +681,7 @@ fn should_reject_dml_against_materialized_projection_output() {
 #[test]
 fn should_activate_built_materialized_projection_version() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("materialized_projection_versions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -746,7 +746,7 @@ fn should_activate_built_materialized_projection_version() {
 #[test]
 fn should_hydrate_materialized_projection_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("materialized_projection_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

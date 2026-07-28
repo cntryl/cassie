@@ -3,7 +3,7 @@ use cassie::types::Value;
 
 #[path = "support/catalog.rs"]
 mod support;
-use support::{data_dir, execute_statement, query_rows, with_fallback};
+use support::{data_dir, execute_statement, query_rows, use_local_storage};
 
 struct NamedForeignKeyRows {
     table_constraints: Vec<Vec<Value>>,
@@ -117,7 +117,7 @@ fn assert_named_foreign_key_rows(rows: &NamedForeignKeyRows) {
 #[test]
 fn should_list_named_foreign_key_metadata_through_catalog_views() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("named_fk_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

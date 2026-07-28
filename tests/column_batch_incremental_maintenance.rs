@@ -6,7 +6,7 @@ use std::sync::{Arc, Barrier};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn segment_owns(segment: &ColumnBatchSegmentMeta, id: &str) -> bool {
     segment
@@ -75,7 +75,7 @@ fn assert_median_split(before: &ColumnBatchMetadata, after: &ColumnBatchMetadata
 #[test]
 fn should_rewrite_only_the_touched_segment_for_single_row_dml() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_incremental_single_row");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -178,7 +178,7 @@ fn should_rewrite_only_the_touched_segment_for_single_row_dml() {
 #[test]
 fn should_split_an_overflowing_range_at_the_median() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_incremental_split");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -283,7 +283,7 @@ fn should_split_an_overflowing_range_at_the_median() {
 #[test]
 fn should_rewrite_one_segment_for_actual_deletes_only() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_incremental_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -387,7 +387,7 @@ fn should_rewrite_one_segment_for_actual_deletes_only() {
 #[test]
 fn should_keep_concurrent_readers_on_complete_published_generations() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_incremental_concurrent_readers");
     let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
     let session = cassie.create_session("tester", None);
@@ -482,7 +482,7 @@ fn should_keep_concurrent_readers_on_complete_published_generations() {
 #[test]
 fn should_compact_excess_sparse_ranges_without_changing_query_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_incremental_compaction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

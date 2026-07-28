@@ -48,7 +48,7 @@ fn setup_source_and_projection(path: &Path) -> (Cassie, CassieSession) {
 #[test]
 fn should_replay_materialized_projection_debt_after_post_commit_stale_failure() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = MATERIALIZED_PROJECTION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("analytical_projection_maintenance_debt");
 
@@ -151,7 +151,7 @@ fn should_replay_materialized_projection_debt_after_post_commit_stale_failure() 
 #[test]
 fn should_reject_analytical_projection_with_mismatched_source_generation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("analytical_projection_generation_fence");
 
     runtime().block_on(async {

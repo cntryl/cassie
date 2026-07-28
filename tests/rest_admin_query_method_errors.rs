@@ -6,8 +6,8 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> PathBuf {
@@ -52,7 +52,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "postgres",
+            "username": "root",
             "password": "postgres"
         }))
         .send()
@@ -72,7 +72,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
 #[test]
 fn should_return_method_not_allowed_for_known_admin_query_paths() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("method");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

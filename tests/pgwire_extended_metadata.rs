@@ -14,7 +14,7 @@ const OID_UNKNOWN: i32 = 705;
 #[test]
 fn should_describe_typed_insert_returning_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("typed_insert_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -94,7 +94,7 @@ fn should_describe_typed_insert_returning_metadata() {
 #[test]
 fn should_infer_parameter_metadata_for_crud_returning_flows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("infer_crud_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -187,7 +187,7 @@ fn should_infer_parameter_metadata_for_crud_returning_flows() {
 #[test]
 fn should_reuse_unnamed_statement_metadata_lifecycle() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("unnamed_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -263,7 +263,7 @@ fn should_reuse_unnamed_statement_metadata_lifecycle() {
 #[test]
 fn should_preserve_table_free_parameter_oids_through_describe() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("table_free_parameter_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -314,7 +314,7 @@ fn should_preserve_table_free_parameter_oids_through_describe() {
 #[test]
 fn should_recover_ready_state_after_extended_statement_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("extended_error_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

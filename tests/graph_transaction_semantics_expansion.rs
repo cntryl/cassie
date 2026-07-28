@@ -5,7 +5,7 @@ use support::*;
 #[test]
 fn should_expand_across_edges_staged_in_one_transaction() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_expansion");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

@@ -46,14 +46,12 @@ fn binary_path() -> &'static str {
 fn spawn_cassie(data_dir: &Path, rest_port: u16, pgwire_port: u16) -> Child {
     let mut command = Command::new(binary_path());
     command
-        .env("CASSIE_MIDGE_ALLOW_FALLBACK", "1")
-        .env("CASSIE_MIDGE_DATA_DIR", data_dir)
+        .env("CASSIE_STORAGE_MODE", "local")
+        .env("CASSIE_STORAGE_PATH", data_dir)
         .env("CASSIE_REST_LISTEN", format!("127.0.0.1:{rest_port}"))
         .env("CASSIE_PGWIRE_LISTEN", format!("127.0.0.1:{pgwire_port}"))
-        .env("CASSIE_ADMIN_USER", "postgres")
         .env("CASSIE_DEFAULT_DATABASE", "postgres")
-        .env("CASSIE_ADMIN_PASSWORD", ADMIN_PASSWORD)
-        .env_remove("CASSIE_ADMIN_PASSWORD_FILE")
+        .env("CASSIE_ROOT_PASSWORD", ADMIN_PASSWORD)
         .env("CASSIE_EMBEDDINGS_PROVIDER", "disabled")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -179,7 +177,7 @@ async fn rest_login(base_url: &str) -> String {
         base_url,
         "/api/v1/auth/login",
         Some(json!({
-            "username": "postgres",
+            "username": "root",
             "password": ADMIN_PASSWORD,
         })),
         None,
@@ -224,7 +222,7 @@ async fn pgwire_query_one_text(port: u16, sql: &str) -> String {
 async fn write_pg_startup(stream: &mut TcpStream) {
     let mut payload = Vec::new();
     payload.extend_from_slice(&196_608_i32.to_be_bytes());
-    payload.extend_from_slice(b"user\0postgres\0database\0postgres\0\0");
+    payload.extend_from_slice(b"user\0root\0database\0postgres\0\0");
     write_pg_untagged(stream, &payload).await;
 }
 

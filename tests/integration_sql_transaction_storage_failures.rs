@@ -23,7 +23,7 @@ use support::*;
 fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_row_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -88,7 +88,7 @@ fn should_not_persist_row_when_row_family_failpoint_is_triggered() {
 fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_scalar_index_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -160,7 +160,7 @@ fn should_not_persist_document_when_scalar_index_family_failpoint_is_triggered()
 fn should_not_persist_document_when_time_series_index_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_time_series_index_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -232,7 +232,7 @@ fn should_not_persist_document_when_time_series_index_family_failpoint_is_trigge
 fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_graph_adjacency_failpoint");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -304,7 +304,7 @@ fn should_not_persist_document_when_graph_adjacency_family_failpoint_is_triggere
 fn should_not_persist_document_when_normalized_vector_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_normalized_vector_failpoint");
     {
         let mut config = CassieRuntimeConfig::from_env().unwrap();
@@ -382,7 +382,7 @@ fn should_not_persist_document_when_normalized_vector_family_failpoint_is_trigge
 fn should_not_persist_document_when_vector_state_family_failpoint_is_triggered() {
     // Arrange
     let _failpoint_guard = document_write_failure_point_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("write_vector_state_failpoint");
     {
         let mut config = CassieRuntimeConfig::from_env().unwrap();

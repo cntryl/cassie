@@ -2,7 +2,7 @@ use cassie::app::{Cassie, CassieError, CatalogObjectKind};
 use cassie::sql::ast::QueryStatement;
 
 fn cassie(label: &str) -> Cassie {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = std::env::temp_dir().join(format!(
         "cassie-database-connect-{label}-{}",
         uuid::Uuid::new_v4()
@@ -14,7 +14,7 @@ fn cassie(label: &str) -> Cassie {
 
 fn setup_reader(cassie: &Cassie) -> cassie::app::CassieSession {
     let admin = cassie
-        .authenticate_role("postgres", Some("postgres"), None)
+        .authenticate_role("root", Some("postgres"), None)
         .expect("admin");
     cassie
         .execute_sql(&admin, "CREATE DATABASE analytics", Vec::new())
@@ -138,7 +138,7 @@ fn should_validate_database_connect_grant_authority_targets() {
     let implicit_admin = cassie
         .execute_sql(
             &admin,
-            "REVOKE CONNECT ON DATABASE analytics FROM postgres",
+            "REVOKE CONNECT ON DATABASE analytics FROM root",
             Vec::new(),
         )
         .expect_err("admin access is implicit");

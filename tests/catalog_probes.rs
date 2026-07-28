@@ -3,8 +3,8 @@ use cassie::types::{DataType, Value};
 use std::env;
 use uuid::Uuid;
 
-fn with_fallback() {
-    env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -22,7 +22,7 @@ fn should_return_version_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("version");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -53,7 +53,7 @@ fn should_return_postgres_shaped_pg_catalog_version_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("pg_catalog_version");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -85,7 +85,7 @@ fn should_return_current_schema_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("schema");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -113,7 +113,7 @@ fn should_return_current_database_function() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("database");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -141,7 +141,7 @@ fn should_return_search_path_from_show_statement() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("show_search_path");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -178,7 +178,7 @@ fn should_return_sqlalchemy_dialect_show_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("show_sqlalchemy_metadata");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -213,7 +213,7 @@ fn should_treat_supported_set_statement_as_noop() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("set_supported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -240,7 +240,7 @@ fn should_reject_unsupported_show_variable() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("show_unsupported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));
@@ -264,7 +264,7 @@ fn should_reject_unsupported_set_variable() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("set_unsupported");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", Some("catalogdb".to_string()));

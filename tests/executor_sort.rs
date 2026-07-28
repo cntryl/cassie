@@ -26,7 +26,7 @@ fn should_sort_with_stable_tiebreaker() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_stable_tie";
 
@@ -116,7 +116,7 @@ fn should_sort_by_projection_alias_with_different_case() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_hybrid_alias_case";
 
@@ -212,7 +212,7 @@ fn should_sort_by_unprojected_column_before_projection() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_order_by_unprojected_field";
 
@@ -287,7 +287,7 @@ fn should_be_deterministic_for_repeated_execution_metadata() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_repeated_metadata";
 

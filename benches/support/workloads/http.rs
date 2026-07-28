@@ -157,8 +157,7 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
         .danger_accept_invalid_certs(secure)
         .build()
         .map_err(|error| CassieError::Execution(error.to_string()))?;
-    let session_cookie =
-        login_http_session(&client, &base_url, &config.user, &config.password).await?;
+    let session_cookie = login_http_session(&client, &base_url, "root", &config.password).await?;
     verify_authenticated_http_contract(&client, &base_url, &session_cookie).await?;
     Ok(HttpBenchContext {
         base_url,

@@ -1,5 +1,5 @@
 import { state } from "@askrjs/askr";
-import { navigate } from "@askrjs/askr/router";
+import { currentRoute, navigate } from "@askrjs/askr/router";
 import {
   Block,
   Brand,
@@ -12,9 +12,9 @@ import {
   CardHeader,
   CardTitle,
   Field,
-  FieldError,
   Input,
   Label,
+  Text,
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
@@ -22,8 +22,8 @@ import cassieLogo from "@/assets/cassie-logo.png";
 import { setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
 
-export function safeLoginContinuation(search: string) {
-  const next = new URLSearchParams(search).get("next");
+function resolveNextTarget() {
+  const next = currentRoute().query.get("next");
   return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
 
@@ -37,19 +37,20 @@ function loginErrorMessage(error: unknown) {
 }
 
 export default function LoginPage() {
-  const [username, setUsername] = state("");
+  const [username, setUsername] = state("root");
   const [password, setPassword] = state("");
-  const [error, setError] = state<string | null>(null);
-  const [isVerifying, setIsVerifying] = state(false);
+  const [error, setError] = state("");
+  const [isSigningIn, setIsSigningIn] = state(false);
+  const nextTarget = resolveNextTarget();
 
   async function handleSignIn(event?: { preventDefault?: () => void }) {
     event?.preventDefault?.();
-    if (isVerifying()) {
+    if (isSigningIn()) {
       return;
     }
 
-    setError(null);
-    setIsVerifying(true);
+    setError("");
+    setIsSigningIn(true);
     try {
       const session = unwrapResponse(
         await apiv1.loginRestSession({
@@ -62,12 +63,14 @@ export default function LoginPage() {
       );
       setSession(session);
       setPassword("");
-      navigate(safeLoginContinuation(window.location.search));
+      navigate(nextTarget, {
+        history: "replace",
+      });
     } catch (caught) {
       signOut();
       setError(loginErrorMessage(caught));
     } finally {
-      setIsVerifying(false);
+      setIsSigningIn(false);
     }
   }
 
@@ -83,7 +86,7 @@ export default function LoginPage() {
               <BrandLabel>Cassie Admin</BrandLabel>
             </Brand>
             <CardTitle titleAs="h1">Sign in to Cassie Admin</CardTitle>
-            <CardDescription>Use your operator name and password.</CardDescription>
+            <CardDescription>Sign in as root with the configured root password.</CardDescription>
           </CardHeader>
           <CardContent>
             <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
@@ -93,9 +96,9 @@ export default function LoginPage() {
                   id="login-username"
                   name="username"
                   autocomplete="username"
-                  placeholder="admin"
+                  placeholder="root"
                   required
-                  disabled={isVerifying()}
+                  disabled={isSigningIn()}
                   value={username()}
                   onInput={(event: Event) => {
                     setUsername((event.target as HTMLInputElement).value);
@@ -110,16 +113,28 @@ export default function LoginPage() {
                   type="password"
                   autocomplete="current-password"
                   required
-                  disabled={isVerifying()}
+                  disabled={isSigningIn()}
                   value={password()}
                   onInput={(event: Event) => {
                     setPassword((event.target as HTMLInputElement).value);
                   }}
                 />
               </Field>
-              {error() ? <FieldError>{error()}</FieldError> : null}
-              <Button type="submit" variant="primary" width="full" disabled={isVerifying()}>
-                {isVerifying() ? "Signing in…" : "Sign in"}
+              <div aria-live="assertive" aria-atomic="true">
+                {error() ? (
+                  <Text tone="danger" size="sm">
+                    {error()}
+                  </Text>
+                ) : null}
+              </div>
+              <Button
+                type="submit"
+                variant="primary"
+                width="full"
+                aria-busy={isSigningIn()}
+                disabled={isSigningIn()}
+              >
+                {isSigningIn() ? "Signing in..." : "Sign in"}
               </Button>
             </Block>
           </CardContent>

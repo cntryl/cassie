@@ -4,7 +4,7 @@ use cassie::types::{DataType, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn with_fallback() {
+fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
@@ -17,7 +17,7 @@ fn data_dir(name: &str) -> PathBuf {
 #[test]
 fn should_list_user_tables_through_information_schema() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("tables");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -28,7 +28,6 @@ fn should_list_user_tables_through_information_schema() {
         let cassie = Cassie::new_with_data_dir_and_config(
             &path,
             cassie::config::CassieRuntimeConfig {
-                user: "postgres".to_string(),
                 ..cassie::config::CassieRuntimeConfig::default()
             },
         )
@@ -66,7 +65,7 @@ fn should_list_user_tables_through_information_schema() {
 #[test]
 fn should_list_columns_through_information_schema_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("columns_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -77,7 +76,6 @@ fn should_list_columns_through_information_schema_after_restart() {
         let cassie = Cassie::new_with_data_dir_and_config(
             &path,
             cassie::config::CassieRuntimeConfig {
-                user: "postgres".to_string(),
                 ..cassie::config::CassieRuntimeConfig::default()
             },
         )
@@ -130,7 +128,7 @@ fn should_list_columns_through_information_schema_after_restart() {
 #[test]
 fn should_list_indexes_through_pg_catalog() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("indexes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -179,7 +177,7 @@ fn should_list_indexes_through_pg_catalog() {
 #[test]
 fn should_list_primary_key_index_through_pg_catalog() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("primary_key_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -228,7 +226,7 @@ fn should_list_primary_key_index_through_pg_catalog() {
 #[test]
 fn should_list_composite_indexes_through_pg_catalog() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("composite_indexes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -283,7 +281,7 @@ fn should_list_composite_indexes_through_pg_catalog() {
 #[test]
 fn should_report_column_store_storage_metadata_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_store_storage_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -292,7 +290,6 @@ fn should_report_column_store_storage_metadata_after_restart() {
 
     runtime.block_on(async {
         let config = CassieRuntimeConfig {
-            user: "postgres".to_string(),
             ..CassieRuntimeConfig::default()
         };
 
@@ -359,7 +356,7 @@ fn should_report_column_store_storage_metadata_after_restart() {
 #[test]
 fn should_list_namespaces_through_pg_catalog() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("namespaces");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -401,7 +398,7 @@ fn should_list_namespaces_through_pg_catalog() {
 #[test]
 fn should_list_constraints_through_information_schema() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("constraints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -446,7 +443,7 @@ fn should_list_constraints_through_information_schema() {
 #[test]
 fn should_return_admin_role_for_pg_roles_catalog_view() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("empty_pg_roles");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -464,10 +461,7 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
             .unwrap();
 
         // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![Value::String("postgres".to_string())]]
-        );
+        assert_eq!(selected.rows, vec![vec![Value::String("root".to_string())]]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -476,7 +470,7 @@ fn should_return_admin_role_for_pg_roles_catalog_view() {
 #[test]
 fn should_list_supported_types_through_pg_catalog_type_view() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pg_type");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -572,7 +566,7 @@ fn should_list_supported_types_through_pg_catalog_type_view() {
 #[test]
 fn should_list_user_defined_views_through_catalog_views() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("views");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

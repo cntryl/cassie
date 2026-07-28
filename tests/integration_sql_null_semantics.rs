@@ -3,12 +3,12 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_preserve_unknown_across_null_predicate_boolean_logic() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("null_semantics");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -69,7 +69,7 @@ fn should_preserve_unknown_across_null_predicate_boolean_logic() {
 #[test]
 fn should_reject_incompatible_operands_with_division_by_zero() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("null_semantics_errors");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

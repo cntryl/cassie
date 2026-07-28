@@ -10,8 +10,8 @@ type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -181,13 +181,13 @@ async fn spawn_pgwire_boundary_server(cassie: &Cassie) -> (SocketAddr, PgwireSer
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("root", "postgres"))
         .await
         .expect("startup write");
     let auth_frame = read_auth_frame(reader).await;
     if auth_request_code(&auth_frame.1) == Some(3) {
         let password =
-            std::env::var("CASSIE_ADMIN_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
+            std::env::var("CASSIE_ROOT_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
         tokio::io::AsyncWriteExt::write_all(writer, &password_message(&password))
             .await
             .expect("password write");
@@ -279,7 +279,7 @@ fn auth_request_code(payload: &[u8]) -> Option<i32> {
 #[test]
 fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgwire-simple");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -287,7 +287,7 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        std::env::set_var("CASSIE_ADMIN_PASSWORD", "route-password");
+        std::env::set_var("CASSIE_ROOT_PASSWORD", "route-password");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
         seed_transport_boundary_docs(&cassie);
@@ -309,7 +309,7 @@ fn should_record_pgwire_blocking_boundary_metrics_for_simple_query() {
 #[test]
 fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest-route");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -317,7 +317,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         .expect("runtime");
 
     runtime.block_on(async {
-        std::env::set_var("CASSIE_ADMIN_PASSWORD", "route-password");
+        std::env::set_var("CASSIE_ROOT_PASSWORD", "route-password");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         cassie.startup().unwrap();
 
@@ -335,7 +335,7 @@ fn should_record_rest_blocking_route_metrics_for_non_public_routes() {
         let admin_cookie = client
             .post(format!("http://{addr}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "route-password"
             }))
             .send()

@@ -3,8 +3,8 @@ use cassie::{Cassie, CassieRuntimeConfig};
 use std::sync::{Arc, Barrier};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -26,7 +26,7 @@ fn cache_config(max_entries: usize, max_bytes: usize) -> CassieRuntimeConfig {
 #[test]
 fn should_isolate_current_user_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("current-user");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let alice = cassie.create_session("alice", None);
@@ -80,7 +80,7 @@ fn should_isolate_current_user_results() {
 #[test]
 fn should_bypass_cached_results_during_transaction() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -136,7 +136,7 @@ fn should_bypass_cached_results_during_transaction() {
 #[test]
 fn should_bypass_non_immutable_user_functions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("stable-udf");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -170,7 +170,7 @@ fn should_bypass_non_immutable_user_functions() {
 #[test]
 fn should_bypass_volatile_user_functions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("volatile-udf");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -204,7 +204,7 @@ fn should_bypass_volatile_user_functions() {
 #[test]
 fn should_cache_immutable_user_functions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("immutable-udf");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -235,7 +235,7 @@ fn should_cache_immutable_user_functions() {
 #[test]
 fn should_observe_savepoint_rollback_without_cache() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("savepoint");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -299,7 +299,7 @@ fn should_observe_savepoint_rollback_without_cache() {
 #[test]
 fn should_bypass_virtual_catalog_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("virtual-catalog");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -326,7 +326,7 @@ fn should_bypass_virtual_catalog_results() {
 #[test]
 fn should_reject_oversized_cache_entries() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("oversized");
     let cassie = Cassie::new_with_data_dir_and_config(&path, cache_config(64, 1)).expect("cassie");
     let session = cassie.create_session("alice", None);
@@ -354,7 +354,7 @@ fn should_reject_oversized_cache_entries() {
 #[test]
 fn should_evict_least_recently_used_result() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("lru");
     let cassie =
         Cassie::new_with_data_dir_and_config(&path, cache_config(2, 1_000_000)).expect("cassie");
@@ -405,7 +405,7 @@ fn should_evict_least_recently_used_result() {
 #[test]
 fn should_evict_results_over_byte_budget() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("byte-budget");
     let cassie =
         Cassie::new_with_data_dir_and_config(&path, cache_config(64, 220)).expect("cassie");
@@ -439,7 +439,7 @@ fn should_evict_results_over_byte_budget() {
 #[test]
 fn should_remain_fresh_during_concurrent_invalidation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("concurrent-invalidation");
     let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
     let setup = cassie.create_session("setup", None);

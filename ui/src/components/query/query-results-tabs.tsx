@@ -121,7 +121,7 @@ export function QueryResultsTabs({
                   aria-controls={`query-${workspaceId}-result-panel-${tab.id}`}
                   aria-selected={activeTab() === tab.id}
                   tabIndex={activeTab() === tab.id ? 0 : -1}
-                  onClick={() => {
+                  onPress={() => {
                     onTabChange(tab.id);
                   }}
                 >

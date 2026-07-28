@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
-import { clearRoutes, getManifest } from "@askrjs/askr/router";
 
-import { registerRootRoutes } from "@/pages/_routes";
+import { createCassieRouteRegistry } from "@/pages/_routes";
 import { isSignedIn, signOut } from "@/shared/auth";
 
 async function flushUi() {
@@ -54,7 +53,7 @@ function installWorkflowApi() {
       return json({ error: "unauthorized" }, 401);
     }
     if (key === "POST /api/v1/auth/login") {
-      return json({ user: "admin", role: "admin" });
+      return json({ user: "root", role: "admin" });
     }
     if (key === "GET /api/v1/admin/databases") {
       return json([{ name: "analytics" }, { name: "postgres" }]);
@@ -91,8 +90,6 @@ function installWorkflowApi() {
 
 async function mountWorkflow() {
   cleanupApp("app");
-  clearRoutes();
-  registerRootRoutes();
   document.body.innerHTML = '<div id="app"></div>';
   window.history.pushState({}, "", "/login");
   const root = document.getElementById("app");
@@ -101,14 +98,13 @@ async function mountWorkflow() {
   }
 
   await import("@/pages/app/query");
-  await createSPA({ root, manifest: getManifest() });
+  await createSPA({ root, registry: createCassieRouteRegistry() });
   await flushUi();
   return root;
 }
 
 afterEach(() => {
   cleanupApp("app");
-  clearRoutes();
   document.body.innerHTML = "";
   signOut();
   vi.unstubAllGlobals();
@@ -125,7 +121,7 @@ describe("admin UI workflow", () => {
     const password = root.querySelector("#login-password") as HTMLInputElement;
 
     // Act: authenticate, then create a database-owned query tab.
-    typeInto(username, "admin");
+    typeInto(username, "root");
     typeInto(password, "pwd123");
     buttonByText(root, "Sign in").click();
     await waitFor(
@@ -161,8 +157,6 @@ describe("admin UI workflow", () => {
       throw new Error("Missing logout link");
     }
     logoutLink.click();
-    await waitFor(root, () => window.location.pathname === "/logout", "logout page");
-    buttonByText(root, "Sign out").click();
     await waitFor(root, () => window.location.pathname === "/login", "login page");
 
     // Assert

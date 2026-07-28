@@ -8,7 +8,7 @@ use graph_neighbors::neighbor_rows;
 #[test]
 fn should_merge_both_directions_for_transactional_neighbors() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_neighbors");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -225,7 +225,7 @@ async fn read_wire_frame(
 #[test]
 fn should_capture_runtime_feedback_for_normalized_select() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_capture");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -274,7 +274,7 @@ fn should_capture_runtime_feedback_for_normalized_select() {
 #[test]
 fn should_capture_runtime_feedback_for_selected_index() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_selected_index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -341,7 +341,7 @@ fn should_capture_runtime_feedback_for_selected_index() {
 #[test]
 fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_result_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -402,7 +402,7 @@ fn should_skip_feedback_lookup_when_execution_result_cache_hits() {
 #[test]
 fn should_aggregate_runtime_feedback_across_parameter_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_aggregate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -452,7 +452,7 @@ fn should_aggregate_runtime_feedback_across_parameter_values() {
 #[test]
 fn should_partition_runtime_feedback_by_schema_epoch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_schema_epoch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -506,7 +506,7 @@ fn should_partition_runtime_feedback_by_schema_epoch() {
 #[test]
 fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_eviction");
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.feedback_entries = 1;
@@ -547,7 +547,7 @@ fn should_evict_runtime_feedback_when_retention_limit_is_exceeded() {
 #[test]
 fn should_ignore_operator_feedback_when_confidence_is_too_low() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_feedback_low_confidence");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -599,7 +599,7 @@ fn should_ignore_operator_feedback_when_confidence_is_too_low() {
 #[test]
 fn should_use_confident_operator_feedback_to_switch_selected_index() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_feedback_switch");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -671,7 +671,7 @@ fn should_use_confident_operator_feedback_to_switch_selected_index() {
 #[test]
 fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_feedback_disabled");
     let config = operator_feedback_config(false);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -720,7 +720,7 @@ fn should_fall_back_to_base_index_when_operator_feedback_is_disabled() {
 #[test]
 fn should_report_stale_operator_feedback_in_explain_diagnostics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_feedback_stale");
     let mut config = operator_feedback_config(true);
     config.limits.feedback_ttl_seconds = 1;
@@ -771,7 +771,7 @@ fn should_report_stale_operator_feedback_in_explain_diagnostics() {
 #[test]
 fn should_hydrate_persisted_operator_feedback_from_storage() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_feedback_restart");
     let config = operator_feedback_config(true);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -848,7 +848,7 @@ fn should_hydrate_persisted_operator_feedback_from_storage() {
 #[test]
 fn should_report_runtime_feedback_in_explain_analyze_output() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("feedback_explain_analyze");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -888,7 +888,7 @@ fn should_report_runtime_feedback_in_explain_analyze_output() {
 #[test]
 fn should_use_runtime_feedback_for_candidate_budget() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_candidate_feedback");
     let config = adaptive_candidate_config(1, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()

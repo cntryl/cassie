@@ -27,7 +27,7 @@ fn main() {
         stress::OperationUnit::Operation,
     );
     let data_dir = if runner.is_enabled(&case) {
-        std::env::set_var("BENCH_MIDGE_DISK", "1");
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let runtime = workloads::runtime();
         let setup_started = Instant::now();
         let context = runtime

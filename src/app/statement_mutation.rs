@@ -16,7 +16,7 @@ impl Cassie {
     ) -> Result<StatementMutationBatch, CassieError> {
         session.map_or_else(
             || {
-                CassieSession::new("postgres".to_string(), Some(self.default_database.clone()))
+                CassieSession::new("root".to_string(), Some(self.default_database.clone()))
                     .fork_statement_batch()
             },
             CassieSession::fork_statement_batch,

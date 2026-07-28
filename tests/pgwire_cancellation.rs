@@ -11,7 +11,7 @@ mod support;
 #[test]
 fn should_cancel_active_pgwire_query_with_matching_backend_key() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("cancel-active-query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -88,7 +88,7 @@ fn should_cancel_active_pgwire_query_with_matching_backend_key() {
 #[test]
 fn should_ignore_pgwire_cancel_request_while_backend_is_idle() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("cancel-idle-query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

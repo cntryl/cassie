@@ -9,7 +9,7 @@ use support::*;
 #[test]
 fn should_explain_cost_model_diagnostics_for_index_choice() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("planner_cost_diagnostics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

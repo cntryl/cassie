@@ -50,7 +50,8 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 
 - All integration tests live in `tests/`. Module tests live near the code they cover.
 - **Async tests**: use `tokio::runtime::Builder::new_current_thread().enable_all().build()` — never `#[tokio::test]`.
-- Many tests need `CASSIE_MIDGE_ALLOW_FALLBACK=1` for in-memory storage fallback.
+- Benchmark fixtures select `CASSIE_STORAGE_MODE=memory` for ephemeral runs and
+  `local` explicitly when restart or persisted-state behavior is under test.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic` is a standing requirement for completed work.
 - Fix every pedantic clippy finding in touched code. Do not silence clippy with `#[allow(clippy::...)]`, lint-cap changes, reduced lint levels, or equivalent workarounds.
 
@@ -79,13 +80,14 @@ All config via `CASSIE_*` env vars (see `src/config.rs`):
 | `CASSIE_REST_TLS_CERT_FILE` | — | PEM certificate chain; pair with the key when Cassie terminates REST TLS |
 | `CASSIE_REST_TLS_KEY_FILE` | — | PEM private key; pair with the certificate when Cassie terminates REST TLS |
 | `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN` | `0` | Set `1` only for a trusted private hop behind a TLS-terminating reverse proxy or load balancer |
-| `CASSIE_MIDGE_DATA_DIR` | `./.cassie/midge` | |
-| `CASSIE_MIDGE_ALLOW_FALLBACK` | — | Set `1` for tests (in-memory) |
-| `CASSIE_ADMIN_PASSWORD_FILE` | — | Path to read password from (takes precedence over `CASSIE_ADMIN_PASSWORD`) |
+| `CASSIE_STORAGE_MODE` | `local` | `memory`, `local`, or `cloud` |
+| `CASSIE_STORAGE_PATH` | `./.cassie` | Persistent path used in local mode |
+| `CASSIE_STORAGE_PROVIDER` | — | Cloud provider; valid values are documented in `docs/environment-variables.md` |
+| `CASSIE_ROOT_PASSWORD` | `postgres` | Password for the fixed `root` administrative identity |
 | `CASSIE_EMBEDDINGS_PROVIDER` | `disabled` | `openai`, `ollama`, `tei`, `openai_compatible`, `voyage`, `cohere`, `local` |
 | `CASSIE_QUERY_TIMEOUT_MS` | `30000` | `0` = no deadline |
 
-Password can come from `CASSIE_ADMIN_PASSWORD` or `CASSIE_ADMIN_PASSWORD_FILE` (file path, read at startup).
+The administrative username is always `root`; set its password with `CASSIE_ROOT_PASSWORD`.
 
 ## Boundaries
 

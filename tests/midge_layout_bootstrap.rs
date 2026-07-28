@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 fn without_fallback() {
-    std::env::remove_var("CASSIE_MIDGE_ALLOW_FALLBACK");
+    std::env::remove_var("CASSIE_STORAGE_MODE");
 }
 
 fn data_dir(label: &str) -> String {

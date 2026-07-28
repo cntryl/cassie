@@ -3,12 +3,12 @@ use cassie::midge::adapter::set_projection_hash_maintenance_failure_point;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, use_local_storage};
 
 #[test]
 fn should_retry_projection_hash_debt_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_hash_debt_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

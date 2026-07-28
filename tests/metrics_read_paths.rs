@@ -249,7 +249,7 @@ fn assert_scalar_read_metrics(before: &serde_json::Value, after: &serde_json::Va
 #[test]
 fn should_record_runtime_metrics_for_ordered_read_paths() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("metrics_read_paths_ordered");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -285,7 +285,7 @@ fn should_record_runtime_metrics_for_ordered_read_paths() {
 #[test]
 fn should_record_runtime_metrics_for_scalar_index_read_paths() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("metrics_read_paths_scalar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

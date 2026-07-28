@@ -10,8 +10,8 @@ impl Cassie {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn new() -> Result<Self, CassieError> {
-        let data_dir = std::env::var("CASSIE_MIDGE_DATA_DIR")
-            .unwrap_or_else(|_| "./.cassie/midge".to_string());
+        let data_dir =
+            std::env::var("CASSIE_STORAGE_PATH").unwrap_or_else(|_| "./.cassie".to_string());
         Self::new_with_data_dir_and_config(data_dir, CassieRuntimeConfig::from_env()?)
     }
 
@@ -46,7 +46,6 @@ impl Cassie {
             runtime_config.auth_rate_limit_max_entries,
         ));
         let CassieRuntimeConfig {
-            user: auth_user,
             database: default_database,
             password: auth_password,
             rest_tls_cert_file,
@@ -65,7 +64,7 @@ impl Cassie {
             normalized_vector_cache: Arc::new(Mutex::new(BTreeMap::new())),
             query_embedding_cache: Arc::new(Mutex::new(BTreeMap::new())),
             vector_search_result_cache: Arc::new(Mutex::new(BTreeMap::new())),
-            auth_user,
+            auth_user: "root".to_string(),
             auth_password,
             bootstrap_password_hash,
             dummy_password_hash,

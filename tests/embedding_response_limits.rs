@@ -155,7 +155,7 @@ fn provider_configs(base_url: &str) -> Vec<EmbeddingsRuntimeConfig> {
 }
 
 fn assert_remote_providers_reject_oversized_response(status: u16, framing: Framing) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let (base_url, server) = spawn_server(status, framing, 6);
     for (index, embeddings) in provider_configs(&base_url).into_iter().enumerate() {
         let data_dir = std::env::temp_dir().join(format!(

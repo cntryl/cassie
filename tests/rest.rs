@@ -12,7 +12,7 @@ fn data_dir(label: &str) -> String {
 #[test]
 fn should_crud_collection_documents_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("crud");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_docs";
@@ -60,7 +60,7 @@ fn should_crud_collection_documents_through_rest() {
 #[test]
 fn should_reject_invalid_vector_dimensions_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("bad_vector");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_bad_vector";
@@ -99,7 +99,7 @@ fn should_reject_invalid_vector_dimensions_through_rest() {
 #[test]
 fn should_reject_missing_document_lookup_through_rest() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("missing_doc");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "rest_missing_doc";
@@ -145,7 +145,7 @@ fn should_apply_default_values_for_rest_ingest() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("postgres", None);
+        let session = cassie.create_session("root", None);
         cassie
             .execute_sql(
                 &session,
@@ -189,7 +189,7 @@ fn should_reject_rest_ingest_when_not_null_constraint_is_violated() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("postgres", None);
+        let session = cassie.create_session("root", None);
         cassie
             .execute_sql(
                 &session,
@@ -232,7 +232,7 @@ fn should_reject_rest_ingest_when_unique_constraint_is_violated() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("postgres", None);
+        let session = cassie.create_session("root", None);
         cassie
             .execute_sql(
                 &session,
@@ -284,7 +284,7 @@ fn should_reject_rest_ingest_when_check_constraint_is_violated() {
         .expect("runtime");
 
     runtime.block_on(async {
-        let session = cassie.create_session("postgres", None);
+        let session = cassie.create_session("root", None);
         cassie
             .execute_sql(
                 &session,

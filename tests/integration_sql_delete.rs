@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_delete_where_returning_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("delete_where_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -79,7 +79,7 @@ fn should_execute_delete_where_returning_rows() {
 #[test]
 fn should_execute_delete_returning_scalar_function() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("delete_returning_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -125,7 +125,7 @@ fn should_execute_delete_returning_scalar_function() {
 #[test]
 fn should_report_zero_rows_for_delete_without_matches() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("delete_no_match");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -175,7 +175,7 @@ fn should_report_zero_rows_for_delete_without_matches() {
 #[test]
 fn should_ignore_legacy_fallback_key_for_sql_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("delete_legacy_cleanup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

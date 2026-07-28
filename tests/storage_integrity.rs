@@ -37,7 +37,7 @@ fn register_collection(cassie: &Cassie, collection: &str) -> String {
 #[test]
 fn should_increment_the_durable_data_epoch_once_per_changed_batch() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("durable_data_epoch");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -75,7 +75,7 @@ fn should_increment_the_durable_data_epoch_once_per_changed_batch() {
 #[test]
 fn should_hydrate_the_durable_data_epoch_after_restart() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("durable_data_epoch_restart");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -101,7 +101,7 @@ fn should_hydrate_the_durable_data_epoch_after_restart() {
 #[test]
 fn should_increment_data_epoch_for_concurrent_writes_to_different_collections() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("concurrent_data_epoch");
     let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
     cassie.startup().expect("start Cassie");
@@ -140,7 +140,7 @@ fn should_increment_data_epoch_for_concurrent_writes_to_different_collections() 
 #[test]
 fn should_leave_data_unchanged_when_write_conflict_retries_are_exhausted() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("write_conflict_retry_exhaustion");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -171,7 +171,7 @@ fn should_leave_data_unchanged_when_write_conflict_retries_are_exhausted() {
 #[test]
 fn should_persist_collection_generation_for_changed_writes_only() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("collection_generation");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

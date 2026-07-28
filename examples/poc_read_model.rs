@@ -3,7 +3,7 @@ use cassie::Cassie;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "memory");
     let data_dir = poc_data_dir();
     let cassie = Cassie::new_with_data_dir(&data_dir)?;
     cassie.startup()?;

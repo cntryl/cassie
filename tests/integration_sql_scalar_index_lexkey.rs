@@ -8,7 +8,7 @@ use support::*;
 #[test]
 fn should_scan_scalar_index_with_signed_float_bounds() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scalar_lexkey_numeric_bounds");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -89,7 +89,7 @@ fn should_scan_scalar_index_with_signed_float_bounds() {
 #[test]
 fn should_scan_composite_scalar_index_with_embedded_nul_text() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scalar_lexkey_nul_text");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

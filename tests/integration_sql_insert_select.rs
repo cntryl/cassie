@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_insert_select_with_returning_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_select_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -81,7 +81,7 @@ fn should_execute_insert_select_with_returning_rows() {
 #[test]
 fn should_reject_insert_select_shape_mismatch_before_writing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_select_shape");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -145,7 +145,7 @@ fn should_reject_insert_select_shape_mismatch_before_writing() {
 #[test]
 fn should_apply_default_values_for_insert_select() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("insert_select_defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

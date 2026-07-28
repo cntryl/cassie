@@ -23,7 +23,7 @@ fn vectorized_join_config() -> CassieRuntimeConfig {
 #[test]
 fn should_explain_hash_join_strategy_for_inner_equi_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_hash_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -72,7 +72,7 @@ fn should_explain_hash_join_strategy_for_inner_equi_join() {
 #[test]
 fn should_explain_semi_join_strategy_for_exists_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_semi_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -121,7 +121,7 @@ fn should_explain_semi_join_strategy_for_exists_predicate() {
 #[test]
 fn should_explain_anti_join_strategy_for_not_exists_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_anti_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -170,7 +170,7 @@ fn should_explain_anti_join_strategy_for_not_exists_predicate() {
 #[test]
 fn should_explain_merge_join_strategy_when_ordering_matches_equi_key() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_merge_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -221,7 +221,7 @@ fn should_explain_merge_join_strategy_when_ordering_matches_equi_key() {
 #[test]
 fn should_not_select_merge_join_for_non_equi_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_non_equi_join_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -270,7 +270,7 @@ fn should_not_select_merge_join_for_non_equi_predicate() {
 #[test]
 fn should_explain_vectorized_join_enabled_for_inner_equi_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_vectorized_join_enabled");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -322,7 +322,7 @@ fn should_explain_vectorized_join_enabled_for_inner_equi_join() {
 #[test]
 fn should_explain_vectorized_join_fallback_for_unsupported_join_type() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_vectorized_join_unsupported");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -55,7 +55,7 @@ fn should_parse_retention_policy_commands() {
 #[test]
 fn should_lifecycle_retention_policy_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("retention_catalog");
 
     runtime().block_on(async {
@@ -134,7 +134,7 @@ fn should_lifecycle_retention_policy_metadata() {
 #[test]
 fn should_enforce_retention_idempotently() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("retention_enforce");
 
     runtime().block_on(async {
@@ -239,7 +239,7 @@ fn should_enforce_retention_idempotently() {
 #[test]
 fn should_mark_materialized_projection_stale_after_retention() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("retention_projection_stale");
 
     runtime().block_on(async {
@@ -310,7 +310,7 @@ fn should_mark_materialized_projection_stale_after_retention() {
 #[test]
 fn should_refresh_rollup_after_retention_enforcement() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("retention_rollup");
 
     runtime().block_on(async {

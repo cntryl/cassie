@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_filter_rows_with_is_null_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_is_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -71,7 +71,7 @@ fn should_filter_rows_with_is_null_predicate() {
 #[test]
 fn should_filter_rows_with_in_list_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_in_list");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -126,7 +126,7 @@ fn should_filter_rows_with_in_list_predicate() {
 #[test]
 fn should_filter_rows_with_not_in_list_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_not_in_list");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -181,7 +181,7 @@ fn should_filter_rows_with_not_in_list_predicate() {
 #[test]
 fn should_filter_rows_with_between_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_between");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -233,7 +233,7 @@ fn should_filter_rows_with_between_predicate() {
 #[test]
 fn should_filter_rows_with_not_between_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_not_between");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -288,7 +288,7 @@ fn should_filter_rows_with_not_between_predicate() {
 #[test]
 fn should_order_nulls_first_when_requested() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("order_nulls_first");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -346,7 +346,7 @@ fn should_order_nulls_first_when_requested() {
 #[test]
 fn should_order_nulls_last_when_requested() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("order_nulls_last");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -404,7 +404,7 @@ fn should_order_nulls_last_when_requested() {
 #[test]
 fn should_filter_rows_with_exists_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_exists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -456,7 +456,7 @@ fn should_filter_rows_with_exists_predicate() {
 #[test]
 fn should_filter_rows_with_empty_exists_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_empty_exists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -509,7 +509,7 @@ fn should_filter_rows_with_empty_exists_predicate() {
 #[test]
 fn should_filter_rows_with_not_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_not");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -561,7 +561,7 @@ fn should_filter_rows_with_not_predicate() {
 #[test]
 fn should_filter_rows_with_not_exists_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_not_exists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -616,7 +616,7 @@ fn should_filter_rows_with_not_exists_predicate() {
 #[test]
 fn should_filter_rows_with_is_not_null_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_is_not_null");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

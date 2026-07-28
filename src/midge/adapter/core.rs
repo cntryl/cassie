@@ -1,6 +1,6 @@
 use super::{
-    allow_memory_fallback, env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, Query,
-    StorageFamily, StorageLayout, TransactionMode, WriteOptions,
+    env, key_encoding, CassieError, ColumnFamilyHandle, Engine, Path, Query, StorageFamily,
+    StorageLayout, TransactionMode, WriteOptions,
 };
 use parking_lot::RwLock;
 use parking_lot::{Mutex, ReentrantMutex};
@@ -33,8 +33,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn new() -> Result<Self, CassieError> {
-        let data_dir =
-            env::var("CASSIE_MIDGE_DATA_DIR").unwrap_or_else(|_| "./.cassie/midge".to_string());
+        let data_dir = env::var("CASSIE_STORAGE_PATH").unwrap_or_else(|_| "./.cassie".to_string());
         Self::new_with_data_dir(data_dir)
     }
 
@@ -52,25 +51,8 @@ impl Midge {
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,
     ) -> Result<Self, CassieError> {
-        let options = cntryl_midge::OpenOptions::local(data_dir.as_ref())
-            .build()
-            .map_err(CassieError::from)?;
-
-        let engine = match Engine::open(options) {
-            Ok(engine) => engine,
-            Err(error) => {
-                if allow_memory_fallback() {
-                    Engine::open(
-                        cntryl_midge::OpenOptions::in_memory()
-                            .build()
-                            .map_err(CassieError::from)?,
-                    )
-                    .map_err(CassieError::from)?
-                } else {
-                    return Err(CassieError::from(error));
-                }
-            }
-        };
+        let options = super::storage_config::open_options(data_dir.as_ref())?;
+        let engine = Engine::open(options).map_err(CassieError::from)?;
 
         Ok(Self {
             engine,

@@ -8,7 +8,7 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn seed_ivfflat(cassie: &Cassie, collection: &str) {
     let schema = Schema {
@@ -132,7 +132,7 @@ fn assert_exact_fallback(cassie: &Cassie, collection: &str, expected_reason: &st
 #[test]
 fn should_fallback_exactly_given_missing_membership_in_probed_ivfflat_list() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_missing_probed_membership");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let collection = "ivfflat_missing_probed_membership";
@@ -149,7 +149,7 @@ fn should_fallback_exactly_given_missing_membership_in_probed_ivfflat_list() {
 #[test]
 fn should_fallback_exactly_given_corrupt_ivfflat_list_count() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_corrupt_list_count");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let collection = "ivfflat_corrupt_list_count";
@@ -179,7 +179,7 @@ fn should_fallback_exactly_given_corrupt_ivfflat_list_count() {
 #[test]
 fn should_rebuild_incomplete_ivfflat_membership_on_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_restart_rebuild");
     let collection = "ivfflat_restart_rebuild";
     {
@@ -228,7 +228,7 @@ fn should_rebuild_incomplete_ivfflat_membership_on_restart() {
 #[test]
 fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_version_rebuild");
     let collection = "ivfflat_version_rebuild";
     {

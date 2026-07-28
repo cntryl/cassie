@@ -13,7 +13,7 @@ fn data_dir(label: &str) -> String {
 #[test]
 fn should_stop_collection_scan_after_limit_is_satisfied() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("streaming-limit");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -60,7 +60,7 @@ fn should_stop_collection_scan_after_limit_is_satisfied() {
 #[test]
 fn should_stop_collection_scan_when_result_row_cap_is_exceeded() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("streaming-result-cap");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.max_result_rows = 1;
@@ -105,7 +105,7 @@ fn should_stop_collection_scan_when_result_row_cap_is_exceeded() {
 #[test]
 fn should_stop_collection_scan_after_exists_finds_a_row() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("streaming-exists");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");

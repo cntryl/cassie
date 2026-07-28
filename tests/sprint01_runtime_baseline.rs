@@ -10,7 +10,7 @@ use uuid::Uuid;
 static CONFIG_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn without_fallback() {
-    env::remove_var("CASSIE_MIDGE_ALLOW_FALLBACK");
+    env::remove_var("CASSIE_STORAGE_MODE");
 }
 
 fn data_dir(label: &str) -> String {
@@ -245,10 +245,8 @@ fn should_startup_respects_runtime_config_defaults() {
     let keys = [
         "CASSIE_PGWIRE_LISTEN",
         "CASSIE_REST_LISTEN",
-        "CASSIE_ADMIN_USER",
         "CASSIE_DEFAULT_DATABASE",
-        "CASSIE_ADMIN_PASSWORD",
-        "CASSIE_ADMIN_PASSWORD_FILE",
+        "CASSIE_ROOT_PASSWORD",
         "CASSIE_EMBEDDINGS_PROVIDER",
     ];
     let _guard = EnvGuard::capture(&keys);
@@ -263,7 +261,7 @@ fn should_startup_respects_runtime_config_defaults() {
     // Assert
     assert_eq!(config.pgwire_listen, "127.0.0.1:5432");
     assert_eq!(config.rest_listen, "127.0.0.1:8080");
-    assert_eq!(config.user, "postgres");
+    assert_eq!(config.password, "postgres");
     assert_eq!(config.password, "postgres");
     assert!(matches!(
         config.embeddings,

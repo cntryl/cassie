@@ -19,16 +19,6 @@ pub use switches::{ExecutionResultCacheEnabled, OperatorSwitchingEnabled};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CassieRuntimeConfigError {
-    #[error("{key} is set but could not be read from '{path}': {source}")]
-    PasswordFileRead {
-        key: &'static str,
-        path: String,
-        source: std::io::Error,
-    },
-
-    #[error("{key} is set but '{path}' is empty after trimming whitespace")]
-    PasswordFileEmpty { key: &'static str, path: String },
-
     #[error("{key} is set but is empty after trimming whitespace")]
     PasswordEnvironmentEmpty { key: &'static str },
 
@@ -68,7 +58,6 @@ pub struct CassieRuntimeConfig {
     pub rest_external_https: bool,
     pub allow_insecure_non_loopback_listen: bool,
     pub admin_ui_dir: String,
-    pub user: String,
     pub database: String,
     pub password: String,
     pub auth_user_attempts_per_minute: usize,
@@ -197,7 +186,6 @@ impl Default for CassieRuntimeConfig {
             rest_external_https: false,
             allow_insecure_non_loopback_listen: false,
             admin_ui_dir: "./ui/dist".to_string(),
-            user: "postgres".to_string(),
             database: "postgres".to_string(),
             password: "postgres".to_string(),
             auth_user_attempts_per_minute: 10,
@@ -295,9 +283,6 @@ impl CassieRuntimeConfig {
         );
         if let Some(v) = env_reader("CASSIE_ADMIN_UI_DIR") {
             config.admin_ui_dir = v;
-        }
-        if let Some(v) = env_reader("CASSIE_ADMIN_USER") {
-            config.user = v;
         }
         if let Some(v) = env_reader("CASSIE_DEFAULT_DATABASE") {
             config.database = v;
@@ -598,7 +583,7 @@ mod tests {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
-            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_ROOT_PASSWORD", "different-secret"),
             ("CASSIE_PGWIRE_TLS_CERT_FILE", "/etc/cassie/tls/cert.pem"),
             ("CASSIE_PGWIRE_TLS_KEY_FILE", "/etc/cassie/tls/key.pem"),
         ]);
@@ -612,11 +597,37 @@ mod tests {
     }
 
     #[test]
+    fn should_keep_the_root_administrative_identity_fixed() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_ADMIN_USER", "legacy-admin"),
+            ("CASSIE_ROOT_PASSWORD", "root-secret"),
+        ]);
+
+        // Act
+        let config =
+            CassieRuntimeConfig::from_env_reader(env_reader(values)).expect("root configuration");
+        let data_dir = std::env::temp_dir().join(format!("cassie-root-{}", uuid::Uuid::new_v4()));
+        let cassie = crate::app::Cassie::new_with_data_dir_and_config(&data_dir, config)
+            .expect("Cassie instance");
+
+        // Assert
+        assert!(cassie
+            .authenticate_role("root", Some("root-secret"), None)
+            .is_ok());
+        assert!(cassie
+            .authenticate_role("legacy-admin", Some("root-secret"), None)
+            .is_err());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
     fn should_require_pgwire_tls_for_non_loopback_listener() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
-            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_ROOT_PASSWORD", "different-secret"),
         ]);
 
         // Act
@@ -634,7 +645,7 @@ mod tests {
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
             ("CASSIE_REST_LISTEN", "0.0.0.0:8080"),
-            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_ROOT_PASSWORD", "different-secret"),
             ("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN", "1"),
         ]);
 
@@ -689,7 +700,7 @@ mod tests {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_REST_LISTEN", "0.0.0.0:8080"),
-            ("CASSIE_ADMIN_PASSWORD", "different-secret"),
+            ("CASSIE_ROOT_PASSWORD", "different-secret"),
         ]);
 
         // Act

@@ -4,6 +4,7 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
 import { signIn, signOut } from "@/shared/auth";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
 
@@ -63,7 +64,7 @@ async function mountAdminShell() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       {
         path: "/",
         handler: () => (
@@ -74,7 +75,7 @@ async function mountAdminShell() {
           </RootLayout>
         ),
       },
-    ],
+    ]),
   });
 
   await flushUi();

@@ -206,7 +206,7 @@ pub async fn pgwire_transport_for_context(
         .map_err(|error| CassieError::Execution(error.to_string()))?;
     let binary_client = BinaryPgwireClient::connect(
         server.port,
-        &client_config.user,
+        "root",
         &client_config.database,
         &client_config.password,
     )
@@ -639,7 +639,7 @@ async fn connect_pgwire_client(
     let mut client_config = tokio_postgres::Config::new();
     client_config.host("127.0.0.1");
     client_config.port(port);
-    client_config.user(&runtime_config.user);
+    client_config.user("root");
     client_config.dbname(&runtime_config.database);
     if !runtime_config.password.is_empty() {
         client_config.password(&runtime_config.password);

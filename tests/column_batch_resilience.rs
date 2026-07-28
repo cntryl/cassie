@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, canonical_test_index, data_dir, with_fallback};
+use support::{canonical_test_collection, canonical_test_index, data_dir, use_local_storage};
 
 static COLUMN_BATCH_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -27,7 +27,7 @@ fn amount_fixture(label: &str, table: &str, values: &[Value]) -> AmountFixture {
     let test_guard = COLUMN_BATCH_FAILPOINT_GUARD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -79,7 +79,7 @@ fn ordered_numeric_fixture(
     let test_guard = COLUMN_BATCH_FAILPOINT_GUARD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -214,7 +214,7 @@ fn should_preserve_integer_sum_above_two_to_the_fifty_third() {
     let _test_guard = COLUMN_BATCH_FAILPOINT_GUARD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_large_integer_sum");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -324,7 +324,7 @@ fn should_reconcile_existing_maintenance_debt_when_publishing_column_index() {
     let _test_guard = COLUMN_BATCH_FAILPOINT_GUARD
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_publication_debt");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);

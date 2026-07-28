@@ -197,7 +197,6 @@ mod tests {
         label: &str,
         config: crate::config::CassieRuntimeConfig,
     ) -> (Cassie, String) {
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let path = std::env::temp_dir()
             .join(format!(
                 "cassie-rest-listener-{label}-{}",
@@ -280,7 +279,7 @@ mod tests {
         PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
 
         // Act
-        let known = cassie.authenticate_principal("postgres", Some("wrong"), None);
+        let known = cassie.authenticate_principal("root", Some("wrong"), None);
         let known_count = PASSWORD_VERIFICATION_COUNT.with(std::cell::Cell::get);
         PASSWORD_VERIFICATION_COUNT.with(|count| count.set(0));
         let unknown = cassie.authenticate_principal("missing-user", Some("wrong"), None);

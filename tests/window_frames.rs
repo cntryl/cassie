@@ -8,7 +8,7 @@ use tokio_postgres::{Config, NoTls};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 #[path = "support/pgwire.rs"]
 mod wire;
@@ -17,7 +17,7 @@ fn execute_window_query(
     label: &str,
     query: &str,
 ) -> Result<cassie::executor::QueryResult, CassieError> {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");
@@ -243,7 +243,7 @@ fn should_apply_range_window_frame_to_peers() {
 #[test]
 fn should_keep_large_integer_range_offsets_exact() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("window_range_exact_integer");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");
@@ -395,7 +395,7 @@ fn should_default_deserialized_window_frame_exclusion() {
 #[test]
 fn should_not_return_unsupported_window_frame_sqlstate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("window_pgwire_error");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -409,7 +409,7 @@ fn should_not_return_unsupported_window_frame_sqlstate() {
         let mut config = Config::new();
         config.host("127.0.0.1");
         config.port(server.addr.port());
-        config.user("postgres");
+        config.user("root");
         config.dbname("postgres");
         config.password("postgres");
         let (client, connection) = config.connect(NoTls).await.expect("connect pgwire");

@@ -8,7 +8,7 @@ mod support;
 #[test]
 fn should_resolve_racing_do_nothing_without_unique_error() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("upsert-racing-do-nothing");
     let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
     cassie.startup().expect("startup");
@@ -58,7 +58,7 @@ fn should_resolve_racing_do_nothing_without_unique_error() {
 #[test]
 fn should_resolve_one_racing_do_update_against_committed_winner() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("upsert-racing-do-update");
     let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
     cassie.startup().expect("startup");
@@ -111,7 +111,7 @@ fn should_resolve_one_racing_do_update_against_committed_winner() {
 #[test]
 fn should_resolve_transactional_do_nothing_when_competing_commit_wins() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("upsert-transaction-do-nothing");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -161,7 +161,7 @@ fn should_resolve_transactional_do_nothing_when_competing_commit_wins() {
 #[test]
 fn should_resolve_transactional_do_update_against_committed_winner() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("upsert-transaction-do-update");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -216,7 +216,7 @@ fn should_resolve_transactional_do_update_against_committed_winner() {
 #[test]
 fn should_restore_transactional_conflict_intent_with_savepoint_rollback() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("upsert-transaction-savepoint");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");

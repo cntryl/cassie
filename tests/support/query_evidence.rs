@@ -18,7 +18,7 @@ impl SeededQueryFixture {
     }
 
     pub fn compare_indexed_pages_with_overlay(&self) -> PageComparison {
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

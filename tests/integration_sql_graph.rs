@@ -11,7 +11,7 @@ use support::*;
 #[test]
 fn should_execute_graph_neighbors_weighted_shortest_path() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_neighbors_shortest_path");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -55,7 +55,7 @@ fn should_execute_graph_neighbors_weighted_shortest_path() {
 #[test]
 fn should_execute_lateral_graph_expansion_explain_metrics_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_lateral_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -121,7 +121,7 @@ fn should_execute_lateral_graph_expansion_explain_metrics_after_restart() {
 #[test]
 fn should_reject_negative_graph_edge_weight() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_negative_weight");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -154,7 +154,7 @@ fn should_reject_negative_graph_edge_weight() {
 #[test]
 fn should_bulk_load_fresh_graph_documents_for_adjacency_reads() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_fresh_bulk_load");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

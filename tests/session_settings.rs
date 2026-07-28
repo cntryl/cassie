@@ -12,10 +12,10 @@ fn data_dir(label: &str) -> String {
 }
 
 fn cassie_and_session(label: &str) -> (Cassie, cassie::CassieSession, String) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
-    let session = cassie.create_session("postgres", Some("postgres".to_string()));
+    let session = cassie.create_session("root", Some("postgres".to_string()));
     (cassie, session, path)
 }
 

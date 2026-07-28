@@ -3,7 +3,7 @@ use cassie::types::Value;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn with_fallback() {
+fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
@@ -198,7 +198,7 @@ fn assert_orm_metadata_rows(rows: &OrmMetadataRows) {
 #[test]
 fn should_expose_orm_introspection_metadata_through_catalog_views() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

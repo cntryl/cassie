@@ -9,8 +9,8 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -42,7 +42,7 @@ fn clear_normalized_sidecars(cassie: &Cassie, collection: &str, field: &str) {
 #[test]
 fn should_persist_vector_index_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("persist");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -124,7 +124,7 @@ fn should_persist_vector_index_metadata() {
 #[test]
 fn should_persist_hnsw_vector_index_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("persist_hnsw");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -209,7 +209,7 @@ fn should_persist_hnsw_vector_index_metadata() {
 #[test]
 fn should_reload_registry_after_restart_simulation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -301,7 +301,7 @@ fn should_reload_registry_after_restart_simulation() {
 #[test]
 fn should_rebuild_missing_normalized_sidecars_on_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("normalized_restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -415,7 +415,7 @@ fn should_rebuild_missing_normalized_sidecars_on_restart() {
 #[test]
 fn should_remove_vector_state_when_dropping_vector_field() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_vector_field");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -509,7 +509,7 @@ fn should_remove_vector_state_when_dropping_vector_field() {
 #[test]
 fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_document_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("normalized_dimension_mismatch");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -584,7 +584,7 @@ fn should_reject_normalized_sidecar_rebuild_when_index_dimensions_do_not_match_d
 #[test]
 fn should_reload_generic_index_registry_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("generic_index_restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -658,7 +658,7 @@ fn should_reload_generic_index_registry_after_restart() {
 #[test]
 fn should_persist_fulltext_index_metadata_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_index_restart");
     let path_for_cleanup = path.clone();
     let runtime = tokio::runtime::Builder::new_current_thread()

@@ -4,10 +4,10 @@ use cassie::types::{Value, Vector};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn with_cassie(name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(name);
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     let session = cassie.create_session("tester", None);
@@ -16,7 +16,7 @@ fn with_cassie(name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
 }
 
 fn with_bounded_join_cassie(name: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(name);
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.vectorized_joins_enabled = true;

@@ -77,7 +77,7 @@ pub fn runtime() -> tokio::runtime::Runtime {
 }
 
 pub(super) fn configure_benchmark_environment() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "memory");
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
 }
 
@@ -158,6 +158,7 @@ pub(super) fn reopen_scaling_query_context_now(
     vectorized_join_batch_size: usize,
 ) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
     configure_scaling_query_runtime(&mut config, dataset_rows, aggregation_workers);
@@ -366,6 +367,7 @@ pub fn time_series_disk_context_with_temp_budget(
     query_memory_budget_bytes: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
     configure_benchmark_environment();
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
     ready(
         CassieRuntimeConfig::from_env()
@@ -490,6 +492,13 @@ fn context_with_index_options_and_runtime(
     configure: impl FnOnce(&mut CassieRuntimeConfig),
 ) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
+    std::env::set_var(
+        "CASSIE_STORAGE_MODE",
+        match storage_mode {
+            BenchmarkStorageMode::Default => "memory",
+            BenchmarkStorageMode::Disk => "local",
+        },
+    );
     let dir = benchmark_data_dir_for_mode(label, storage_mode);
 
     let mut config = CassieRuntimeConfig::from_env()
@@ -565,18 +574,11 @@ pub(super) fn benchmark_data_dir(label: &str) -> PathBuf {
 
 pub(super) fn benchmark_data_dir_for_mode(
     label: &str,
-    storage_mode: BenchmarkStorageMode,
+    _storage_mode: BenchmarkStorageMode,
 ) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-bench-{label}-{}", Uuid::new_v4()));
-    if matches!(storage_mode, BenchmarkStorageMode::Disk)
-        || std::env::var("BENCH_MIDGE_DISK").ok().as_deref() == Some("1")
-    {
-        return path;
-    }
-
-    std::fs::write(&path, b"force benchmark in-memory fallback")
-        .expect("write benchmark fallback marker");
+    std::fs::create_dir_all(&path).expect("create benchmark storage directory");
     path
 }
 

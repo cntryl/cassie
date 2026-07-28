@@ -9,7 +9,7 @@ fn data_dir(label: &str) -> PathBuf {
 }
 
 fn database(label: &str) -> (Cassie, CassieSession, PathBuf) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");

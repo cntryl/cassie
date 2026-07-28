@@ -4,7 +4,7 @@ use cassie::types::Value;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn with_fallback() {
+fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
@@ -31,7 +31,7 @@ fn assignment(projection_id: &str, tenant: &str) -> OperationalAssignmentMeta {
 #[test]
 fn should_persist_operational_assignment_metadata_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -88,7 +88,7 @@ fn should_persist_operational_assignment_metadata_after_restart() {
 #[test]
 fn should_not_route_or_filter_queries_from_operational_assignment_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("query_semantics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

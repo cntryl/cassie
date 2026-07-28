@@ -5,7 +5,7 @@ use support::*;
 #[test]
 fn should_choose_the_lowest_cost_path_from_transactional_edges() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_shortest_path");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

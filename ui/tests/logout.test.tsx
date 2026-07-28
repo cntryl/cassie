@@ -4,6 +4,7 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import LogoutPage from "@/pages/logout";
 import { isSignedIn, signIn, signOut } from "@/shared/auth";
 import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 async function flushUi() {
   await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
@@ -32,10 +33,10 @@ async function mountLogout() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       { path: "/logout", handler: () => <LogoutPage /> },
       { path: "/login", handler: () => <div>signed out</div> },
-    ],
+    ]),
   });
   await flushUi();
   return root;
@@ -43,10 +44,10 @@ async function mountLogout() {
 
 function signOutButton(root: Element) {
   const button = Array.from(root.querySelectorAll("button")).find((candidate) =>
-    candidate.textContent?.includes("Sign out"),
+    candidate.textContent?.includes("Retry"),
   );
   if (!(button instanceof HTMLButtonElement)) {
-    throw new Error("Missing sign out button");
+    throw new Error("Missing retry button");
   }
   return button;
 }
@@ -72,22 +73,17 @@ describe("logout page", () => {
     expect(root.querySelector(".cassie-login-panel")).not.toBeNull();
     expect(root.querySelector(".cassie-login-card")).not.toBeNull();
     expect(root.querySelector(".cassie-brand-logo")).not.toBeNull();
-    expect(root.querySelector("h1")?.textContent).toBe("Sign out of Cassie Admin?");
-    expect(root.textContent).toContain("You’re signed in as admin.");
-    expect(root.textContent).not.toContain("server-backed session");
-    expect(root.textContent).not.toContain("clears its cookie");
-    expect(root.querySelector('[data-slot="card-footer"]')).toBeNull();
+    expect(root.textContent).toContain("Signing out");
   });
 
   it("should_revoke_the_session_before_returning_to_login", async () => {
     // Arrange
     signIn("admin", "password");
     mockJsonResponse("/api/v1/auth/logout", { logged_out: true }, { method: "POST" });
-    const root = await mountLogout();
+    await mountLogout();
 
     // Act
-    signOutButton(root).click();
-    await waitForText(root, "signed out");
+    await flushUi();
 
     // Assert
     expect(fetchMock).toHaveBeenCalledOnce();
@@ -106,12 +102,14 @@ describe("logout page", () => {
     const root = await mountLogout();
 
     // Act
-    signOutButton(root).click();
     await waitForText(root, "Sign out failed");
+    expect(isSignedIn()).toBe(true);
+
+    signOutButton(root).click();
+    await flushUi();
 
     // Assert
     expect(window.location.pathname).toBe("/logout");
-    expect(isSignedIn()).toBe(true);
     expect(root.textContent).toContain("authentication unavailable");
     expect(signOutButton(root).disabled).toBe(false);
   });
@@ -124,11 +122,10 @@ describe("logout page", () => {
       { error: "unauthorized" },
       { method: "POST", status: 401 },
     );
-    const root = await mountLogout();
+    await mountLogout();
 
     // Act
-    signOutButton(root).click();
-    await waitForText(root, "signed out");
+    await flushUi();
 
     // Assert
     expect(window.location.pathname).toBe("/login");

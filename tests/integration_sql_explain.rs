@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_explain_select_query_plan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_select_plan");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -74,7 +74,7 @@ fn should_explain_select_query_plan() {
 #[test]
 fn should_explain_predicate_pushdown_for_literal_equality_filter() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_predicate_pushdown");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -134,7 +134,7 @@ fn should_explain_predicate_pushdown_for_literal_equality_filter() {
 #[test]
 fn should_report_read_path_metadata_in_explain() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_read_path_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -201,7 +201,7 @@ fn should_report_read_path_metadata_in_explain() {
 #[test]
 fn should_explain_materialized_projection_freshness() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_materialized_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -255,7 +255,7 @@ fn should_explain_materialized_projection_freshness() {
 #[test]
 fn should_explain_projection_pruning_fields() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_projection_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -321,7 +321,7 @@ fn should_explain_projection_pruning_fields() {
 #[test]
 fn should_explain_limit_pushdown_scan_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_limit_pushdown");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -376,7 +376,7 @@ fn should_explain_limit_pushdown_scan_limit() {
 #[test]
 fn should_explain_top_k_plan_for_order_limit_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -420,7 +420,7 @@ fn should_explain_top_k_plan_for_order_limit_query() {
 #[test]
 fn should_explain_storage_top_k_read_path_for_row_id_order() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_storage_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -462,7 +462,7 @@ fn should_explain_storage_top_k_read_path_for_row_id_order() {
 #[test]
 fn should_explain_keyset_read_path_for_row_id_cursor() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_keyset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -504,7 +504,7 @@ fn should_explain_keyset_read_path_for_row_id_cursor() {
 #[test]
 fn should_explain_analyze_select_query_plan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("explain_analyze_select");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

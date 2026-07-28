@@ -7,14 +7,14 @@ fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-idempotent-ddl-{name}-{}", Uuid::new_v4()))
 }
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 #[test]
 fn should_preserve_table_given_mismatched_if_not_exists_definition() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("table");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -66,7 +66,7 @@ fn should_preserve_table_given_mismatched_if_not_exists_definition() {
 #[test]
 fn should_preserve_index_metadata_given_mismatched_if_not_exists_definition() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("index");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

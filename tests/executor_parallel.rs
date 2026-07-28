@@ -72,7 +72,7 @@ fn put_documents(
 #[test]
 fn should_score_fulltext_candidates_with_parallel_workers() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_scoring_fulltext");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scoring_workers = 4;
@@ -133,7 +133,7 @@ fn should_score_fulltext_candidates_with_parallel_workers() {
 #[test]
 fn should_fallback_parallel_scoring_when_worker_limit_is_one() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_scoring_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scoring_workers = 1;
@@ -185,7 +185,7 @@ fn should_fallback_parallel_scoring_when_worker_limit_is_one() {
 #[test]
 fn should_merge_parallel_scan_batches_deterministically() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_scan_merge");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scan_workers = 4;
@@ -260,7 +260,7 @@ fn should_merge_parallel_scan_batches_deterministically() {
 #[test]
 fn should_fallback_parallel_scan_when_worker_limit_is_one() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_scan_single_worker");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_scan_workers = 1;
@@ -328,7 +328,7 @@ fn should_fallback_parallel_scan_when_worker_limit_is_one() {
 #[test]
 fn should_execute_grouped_aggregates_with_parallel_workers() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_grouped");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
@@ -429,7 +429,7 @@ fn should_execute_grouped_aggregates_with_parallel_workers() {
 #[test]
 fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_ungrouped_nulls");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
@@ -496,7 +496,7 @@ fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
 #[test]
 fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_having_order");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
@@ -559,7 +559,7 @@ fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
 #[test]
 fn should_fallback_parallel_aggregation_for_distinct() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_distinct_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;
@@ -617,7 +617,7 @@ fn should_fallback_parallel_aggregation_for_distinct() {
 #[test]
 fn should_fallback_parallel_aggregation_when_worker_limit_is_one() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_single_worker");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 1;
@@ -676,7 +676,7 @@ fn should_fallback_parallel_aggregation_when_worker_limit_is_one() {
 #[test]
 fn should_fallback_parallel_aggregation_for_user_defined_function() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_udf_fallback");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;

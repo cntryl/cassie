@@ -359,7 +359,6 @@ mod tests {
     use uuid::Uuid;
 
     fn cassie(label: &str) -> Arc<Cassie> {
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         Arc::new(
             Cassie::new_with_data_dir(format!(
                 "/tmp/cassie-rest-request-execution-{label}-{}",

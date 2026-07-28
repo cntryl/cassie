@@ -7,7 +7,7 @@ use cassie::runtime::QueryCancellationHandle;
 use uuid::Uuid;
 
 fn configured_cassie(label: &str) -> (Cassie, String) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = std::env::temp_dir()
         .join(format!(
             "cassie-rest-cancellation-{label}-{}",

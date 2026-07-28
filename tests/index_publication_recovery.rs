@@ -7,14 +7,14 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, data_dir, openai_runtime_for_vectors, with_fallback};
+use support::{canonical_test_collection, data_dir, openai_runtime_for_vectors, use_local_storage};
 
 static INDEX_PUBLICATION_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[test]
 fn should_replay_prepared_scalar_index_publication_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("index_publication_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -90,7 +90,7 @@ fn should_replay_prepared_scalar_index_publication_after_restart() {
 #[test]
 fn should_hide_vector_index_until_prepared_publication_replays() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("vector_index_publication_recovery");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors())
@@ -158,7 +158,7 @@ fn should_hide_vector_index_until_prepared_publication_replays() {
 #[test]
 fn should_rebuild_column_batches_before_prepared_publication_replays() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("column_index_publication_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");

@@ -9,8 +9,8 @@ use uuid::Uuid;
 type WireFrame = (u8, Vec<u8>);
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -185,7 +185,7 @@ async fn run_pgwire_metrics_query(addr: SocketAddr) -> Vec<WireFrame> {
     let (read_half, mut write_half) = socket.split();
     let mut reader = tokio::io::BufReader::new(read_half);
 
-    let startup = startup_frame("postgres", "postgres");
+    let startup = startup_frame("root", "postgres");
     tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
         .await
         .expect("startup write");
@@ -270,7 +270,7 @@ fn assert_pgwire_metrics(metrics: &serde_json::Value) {
 #[test]
 fn should_record_pgwire_connection_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("session_messages");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

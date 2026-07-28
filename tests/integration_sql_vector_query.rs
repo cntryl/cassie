@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_project_cosine_distance_for_vector_fields() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("cosine_distance_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -87,7 +87,7 @@ fn should_project_cosine_distance_for_vector_fields() {
 #[test]
 fn should_project_dot_product_for_vector_fields() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("dot_product_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -145,7 +145,7 @@ fn should_project_dot_product_for_vector_fields() {
 #[test]
 fn should_project_l2_distance_for_vector_fields() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("l2_distance_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -204,7 +204,7 @@ fn should_project_l2_distance_for_vector_fields() {
 #[test]
 fn should_project_pgvector_operator_distances() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgvector_operator_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

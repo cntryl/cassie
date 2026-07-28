@@ -3,7 +3,7 @@ use cassie::catalog::ProjectionVerificationState;
 
 #[path = "support/metrics.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn canonical_projection(cassie: &Cassie, projection: &str) -> String {
     cassie
@@ -26,7 +26,7 @@ fn projection_metric_delta(
 #[test]
 fn should_record_projection_replay_write_amplification() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_write_amplification");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -101,7 +101,7 @@ fn should_record_projection_replay_write_amplification() {
 #[test]
 fn should_record_duplicate_replay_checks_without_row_puts() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_replay_duplicate_checks");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -182,7 +182,7 @@ fn should_record_duplicate_replay_checks_without_row_puts() {
 #[test]
 fn should_record_projection_rebuild_write_categories() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_rebuild_write_categories");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -251,7 +251,7 @@ fn should_record_projection_rebuild_write_categories() {
 #[test]
 fn should_leave_projection_rebuild_hashes_current_after_refresh() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_rebuild_current_hashes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -330,7 +330,7 @@ fn should_leave_projection_rebuild_hashes_current_after_refresh() {
 #[test]
 fn should_record_projection_activation_metadata_write() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_activation_metadata_write");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

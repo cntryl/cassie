@@ -18,7 +18,7 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
 
   // Act / Assert
   await expectNoAccessibilityViolations(page);
-  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Choose a database to open a query workspace.")).toBeVisible();

@@ -23,7 +23,7 @@ use support::*;
 #[test]
 fn should_support_projection_aliases_for_function_columns() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("function_alias");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -105,7 +105,7 @@ fn should_project_function_columns() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_projection_mix";
 
@@ -287,7 +287,7 @@ fn should_execute_table_lifecycle_commands() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("ddl_command");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -362,7 +362,7 @@ fn should_execute_alter_table_rename_column_command() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("ddl_rename_column_command");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -425,7 +425,7 @@ fn should_execute_index_lifecycle_commands() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("ddl_index_command");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -490,7 +490,7 @@ fn should_execute_create_composite_index_command() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("ddl_composite_index_command");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -549,7 +549,7 @@ fn should_evaluate_user_function_body_after_create() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("create_function_exec");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -632,7 +632,7 @@ fn should_reject_function_use_after_drop() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let path = data_dir("drop_function_exec");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let session = cassie.create_session("tester", None);
@@ -687,7 +687,7 @@ fn should_reject_function_use_after_drop() {
 #[test]
 fn should_execute_procedure_body_with_arguments_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("procedure_exec");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -742,7 +742,7 @@ fn should_execute_procedure_body_with_arguments_after_restart() {
 #[test]
 fn should_reject_procedure_bodies_with_transaction_control() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("procedure_transaction_control");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -774,7 +774,7 @@ fn should_reject_procedure_bodies_with_transaction_control() {
 #[test]
 fn should_reject_recursive_procedure_calls() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("procedure_recursion");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

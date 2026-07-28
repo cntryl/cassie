@@ -41,7 +41,6 @@ fn should_default_new_session_database_from_config() {
     let path = data_dir("session_default_db");
     let config = CassieRuntimeConfig {
         database: "tenant_db".to_string(),
-        user: "admin".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
@@ -115,7 +114,6 @@ fn should_present_default_admin_role_in_pg_roles() {
     // Arrange
     let path = data_dir("pg_roles");
     let config = CassieRuntimeConfig {
-        user: "admin".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
@@ -138,7 +136,7 @@ fn should_present_default_admin_role_in_pg_roles() {
             .expect("pg_roles query");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::String("admin".to_string())]]);
+        assert_eq!(result.rows, vec![vec![Value::String("root".to_string())]]);
     });
 
     let _ = std::fs::remove_dir_all(path);
@@ -149,7 +147,6 @@ fn should_persist_created_login_role_in_pg_roles() {
     // Arrange
     let path = data_dir("create_login_role");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -162,7 +159,7 @@ fn should_persist_created_login_role_in_pg_roles() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
+            .authenticate_role("root", Some("sa-secret"), None)
             .expect("admin login");
 
         // Act
@@ -186,7 +183,7 @@ fn should_persist_created_login_role_in_pg_roles() {
             result.rows,
             vec![
                 vec![Value::String("alice".to_string())],
-                vec![Value::String("sa".to_string())],
+                vec![Value::String("root".to_string())],
             ]
         );
     });
@@ -199,7 +196,6 @@ fn should_authenticate_persisted_login_role_with_password() {
     // Arrange
     let path = data_dir("login_role_auth");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -212,7 +208,7 @@ fn should_authenticate_persisted_login_role_with_password() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
+            .authenticate_role("root", Some("sa-secret"), None)
             .expect("admin login");
         cassie
             .execute_sql(
@@ -255,7 +251,6 @@ fn should_rotate_login_role_password() {
     // Arrange
     let path = data_dir("rotate_login_role_password");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -268,7 +263,7 @@ fn should_rotate_login_role_password() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
+            .authenticate_role("root", Some("sa-secret"), None)
             .expect("admin login");
         cassie
             .execute_sql(
@@ -299,14 +294,13 @@ fn should_require_an_explicit_database_grant_for_non_admin_roles() {
     // Arrange
     let path = data_dir("database_grants");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
     cassie.startup().unwrap();
     let admin = cassie
-        .authenticate_role("sa", Some("sa-secret"), None)
+        .authenticate_role("root", Some("sa-secret"), None)
         .expect("admin login");
     cassie
         .execute_sql(
@@ -353,7 +347,6 @@ fn should_drop_login_role() {
     // Arrange
     let path = data_dir("drop_login_role");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -366,7 +359,7 @@ fn should_drop_login_role() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
+            .authenticate_role("root", Some("sa-secret"), None)
             .expect("admin login");
         cassie
             .execute_sql(
@@ -392,7 +385,7 @@ fn should_drop_login_role() {
 
         assert_eq!(
             roles.rows,
-            vec![vec![Value::String("sa".to_string())]],
+            vec![vec![Value::String("root".to_string())]],
             "dropped role should be removed from the catalog"
         );
     });
@@ -405,7 +398,6 @@ fn should_reject_authentication_for_dropped_login_role() {
     // Arrange
     let path = data_dir("drop_login_role_auth");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -418,7 +410,7 @@ fn should_reject_authentication_for_dropped_login_role() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("sa-secret"), None)
+            .authenticate_role("root", Some("sa-secret"), None)
             .expect("admin login");
         cassie
             .execute_sql(
@@ -446,7 +438,6 @@ fn should_require_opaque_rest_sessions() {
     // Arrange
     let path = data_dir("rest_auth");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -459,7 +450,7 @@ fn should_require_opaque_rest_sessions() {
     runtime.block_on(async {
         cassie.startup().unwrap();
         let admin = cassie
-            .authenticate_role("sa", Some("topsecret"), None)
+            .authenticate_role("root", Some("topsecret"), None)
             .expect("admin login");
         cassie
             .execute_sql(
@@ -482,7 +473,7 @@ fn should_require_opaque_rest_sessions() {
         let admin_cookie = rest_login_cookie(
             &client,
             format!("http://{addr}/api/v1/auth/login"),
-            "sa",
+            "root",
             "topsecret",
         )
         .await;

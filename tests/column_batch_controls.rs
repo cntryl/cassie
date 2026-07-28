@@ -19,7 +19,7 @@ impl Drop for Fixture {
 }
 
 fn fixture() -> Fixture {
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("column-metadata-controls");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = METADATA_REJECTION_BUDGET;

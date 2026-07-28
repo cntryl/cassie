@@ -11,7 +11,7 @@ test("should_run_the_admin_workflow_against_the_production_server", async ({ pag
   // Act: protected deep links continue through login.
   await page.goto("/?source=e2e");
   await expect(page).toHaveURL(/\/login\?next=/);
-  await page.getByLabel("Username").fill("postgres");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("wrong-password");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.locator('[data-slot="field-error"]')).toContainText(

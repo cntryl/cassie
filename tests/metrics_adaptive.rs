@@ -7,8 +7,8 @@ use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -290,7 +290,7 @@ async fn read_wire_frame(
 #[test]
 fn should_record_adaptive_candidate_expansion() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_candidate_expansion");
     let config = adaptive_candidate_config(1, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -361,7 +361,7 @@ fn should_record_adaptive_candidate_expansion() {
 #[test]
 fn should_reject_adaptive_candidate_cap_overflow() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_candidate_cap");
     let config = adaptive_candidate_config(1, 1);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -410,7 +410,7 @@ fn should_reject_adaptive_candidate_cap_overflow() {
 #[test]
 fn should_report_adaptive_candidate_budget_in_explain() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_candidate_explain");
     let config = adaptive_candidate_config(2, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -447,7 +447,7 @@ fn should_report_adaptive_candidate_budget_in_explain() {
 #[test]
 fn should_select_adaptive_read_operator_alternative() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_read_operator_select");
     let config = adaptive_execution_config(true, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -524,7 +524,7 @@ fn should_select_adaptive_read_operator_alternative() {
 #[test]
 fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_read_operator_disabled");
     let config = adaptive_execution_config(false, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -605,7 +605,7 @@ fn should_report_adaptive_read_operator_disabled_without_selected_delta() {
 #[test]
 fn should_keep_base_alternative_when_adaptive_guard_fails() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_read_operator_guard");
     let config = adaptive_execution_config(true, 10_000);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -654,7 +654,7 @@ fn should_keep_base_alternative_when_adaptive_guard_fails() {
 #[test]
 fn should_keep_base_alternative_when_confidence_guard_fails() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_read_operator_confidence");
     let config = adaptive_execution_confidence_config(true, 100, 900);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -710,7 +710,7 @@ fn should_keep_base_alternative_when_confidence_guard_fails() {
 #[test]
 fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_switch_join_threshold");
     let config = operator_switch_config(true, 2);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -780,7 +780,7 @@ fn should_switch_vectorized_join_to_merge_when_threshold_exceeded() {
 #[test]
 fn should_keep_vectorized_join_when_operator_switching_disabled() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_switch_disabled");
     let config = operator_switch_config(false, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -830,7 +830,7 @@ fn should_keep_vectorized_join_when_operator_switching_disabled() {
 #[test]
 fn should_report_runtime_operator_switch_in_explain_analyze() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_switch_explain");
     let config = operator_switch_config(true, 1);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -877,7 +877,7 @@ fn should_report_runtime_operator_switch_in_explain_analyze() {
 #[test]
 fn should_skip_runtime_operator_switch_for_unsupported_join_type() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("operator_switch_unsupported");
     let config = operator_switch_config(true, 0);
     let runtime = tokio::runtime::Builder::new_current_thread()

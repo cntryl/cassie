@@ -4,6 +4,7 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { QueryResultJson } from "@/components/query/query-result-json";
 import { QueryResultTable } from "@/components/query/query-result-table";
 import type { QueryExecutionResult } from "@/features/query/query-models";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 function largeResult(count: number): QueryExecutionResult {
   return {
@@ -19,7 +20,10 @@ async function mount(component: () => JSX.Element) {
   const root = document.getElementById("app");
   if (!root) throw new Error("missing app root");
   window.history.pushState({}, "", "/");
-  await createSPA({ root, routes: [{ path: "/", handler: component }] });
+  await createSPA({
+    root,
+    registry: createTestRouteRegistry([{ path: "/", handler: component }]),
+  });
   await new Promise<void>((resolve) => queueMicrotask(resolve));
   return root;
 }

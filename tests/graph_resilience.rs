@@ -9,7 +9,7 @@ use serde_json::json;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn current_thread_runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_current_thread()
@@ -56,7 +56,7 @@ fn graph_edge_payload(
 fn should_keep_colon_containing_node_identities_distinct_in_shortest_path() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_colon_identity");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -97,7 +97,7 @@ fn should_keep_colon_containing_node_identities_distinct_in_shortest_path() {
 fn should_merge_both_directions_by_weight_then_edge_id_before_limit() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_weighted_limit");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -154,7 +154,7 @@ fn should_merge_both_directions_by_weight_then_edge_id_before_limit() {
 fn should_return_a_self_loop_once_when_scanning_both_directions() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_self_loop_both");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -193,7 +193,7 @@ fn should_return_a_self_loop_once_when_scanning_both_directions() {
 fn should_fail_graph_traversal_atomically_given_low_query_memory() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_low_memory");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -251,7 +251,7 @@ fn should_fail_graph_traversal_atomically_given_low_query_memory() {
 fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_deterministic_cancellation");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -317,7 +317,7 @@ fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
 fn should_match_native_results_after_transaction_overlay_commit() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_overlay_fallback");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -365,7 +365,7 @@ fn should_match_native_results_after_transaction_overlay_commit() {
 fn should_preserve_graph_adjacency_across_schema_rename() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_schema_rename_drop");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -434,7 +434,7 @@ fn should_preserve_graph_adjacency_across_schema_rename() {
 fn should_remove_graph_adjacency_after_edge_collection_drop() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_edge_collection_drop");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -491,7 +491,7 @@ fn should_remove_graph_adjacency_after_edge_collection_drop() {
 fn should_retain_graph_traversal_order_after_restart() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_restart");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -538,7 +538,7 @@ fn should_retain_graph_traversal_order_after_restart() {
 fn should_rebuild_inconsistent_graph_adjacency_during_startup() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_rebuild_inconsistent_sidecar");
     let runtime = current_thread_runtime();
     runtime.block_on(async {
@@ -613,7 +613,7 @@ fn common_prefix_len(left: &[u8], right: &[u8]) -> usize {
 fn should_bound_filtered_native_graph_reads_to_the_requested_edge_type() {
     // Arrange
     let _hook_guard = query_scan_control_test_guard();
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_bounded_native_reads");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

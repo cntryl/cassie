@@ -24,6 +24,7 @@ pub fn tier3_query_context(
 
 fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let data_dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;

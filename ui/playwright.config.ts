@@ -15,7 +15,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "CASSIE_REST_LISTEN=127.0.0.1:18080 CASSIE_PGWIRE_LISTEN=127.0.0.1:15432 CASSIE_ADMIN_PASSWORD=cassie-e2e-password CASSIE_MIDGE_ALLOW_FALLBACK=1 CASSIE_ADMIN_UI_DIR=./dist ../target/debug/cassie",
+      "CASSIE_REST_LISTEN=127.0.0.1:18080 CASSIE_PGWIRE_LISTEN=127.0.0.1:15432 CASSIE_ROOT_PASSWORD=cassie-e2e-password CASSIE_STORAGE_MODE=memory CASSIE_ADMIN_UI_DIR=./dist ../target/debug/cassie",
     cwd: ".",
     url: "http://127.0.0.1:18080/health",
     timeout: 120_000,

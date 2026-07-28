@@ -3,12 +3,12 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_filtered_aggregate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +111,7 @@ fn should_accelerate_filtered_numeric_aggregates_over_encoded_selection() {
 #[test]
 fn should_preserve_empty_filtered_aggregate_semantics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_empty_filtered_aggregate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

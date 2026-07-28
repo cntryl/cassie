@@ -86,7 +86,6 @@ mod tests {
     use crate::types::{DataType, FieldSchema, Schema};
 
     fn cassie_with_collections(label: &str, names: &[&str]) -> Cassie {
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let mut path = std::env::temp_dir();
         path.push(format!(
             "cassie-rest-scope-{label}-{}",

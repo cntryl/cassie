@@ -47,7 +47,6 @@ mod tests {
     #[test]
     fn should_resolve_portal_collection_with_session_search_path() {
         // Arrange
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let path =
             std::env::temp_dir().join(format!("cassie-portal-read-spec-{}", uuid::Uuid::new_v4()));
         let cassie = Cassie::new_with_data_dir(&path).expect("cassie");

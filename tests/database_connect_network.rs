@@ -9,7 +9,7 @@ use tokio_postgres::NoTls;
 use uuid::Uuid;
 
 fn fixture(label: &str) -> (Cassie, CassieSession, String) {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = std::env::temp_dir()
         .join(format!(
             "cassie-database-connect-network-{label}-{}",
@@ -20,7 +20,7 @@ fn fixture(label: &str) -> (Cassie, CassieSession, String) {
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("postgres", Some("postgres"), None)
+        .authenticate_role("root", Some("postgres"), None)
         .expect("admin");
     for sql in [
         "CREATE DATABASE analytics",

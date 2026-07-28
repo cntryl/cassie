@@ -147,7 +147,7 @@ fn select_inner_sql(users_table: &str, orders_table: &str, limit: usize) -> Stri
 #[test]
 fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_stats() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("row_count_sample_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -206,7 +206,7 @@ fn should_sample_row_count_stats_to_reduce_larger_bounded_join_without_field_sta
 #[test]
 fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fanout_stats_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -265,7 +265,7 @@ fn should_use_fanout_stats_to_reduce_larger_bounded_join_build_side() {
 #[test]
 fn should_probe_indexed_right_source_for_bounded_inner_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("right_indexed_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -334,7 +334,7 @@ fn should_probe_indexed_right_source_for_bounded_inner_join() {
 #[test]
 fn should_keep_existing_left_index_probe_when_estimates_tie() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("indexed_bounded_tie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -389,7 +389,7 @@ fn should_keep_existing_left_index_probe_when_estimates_tie() {
 #[test]
 fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("late_match_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -442,7 +442,7 @@ fn should_select_smaller_build_side_for_late_match_bounded_inner_join() {
 #[test]
 fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("missing_stats_bounded_row_count_probe");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -504,7 +504,7 @@ fn should_use_bounded_row_count_probe_when_cardinality_stats_are_missing() {
 #[test]
 fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_left() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ambiguous_missing_stats_bounded_inner_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -568,7 +568,7 @@ fn should_keep_existing_streaming_join_when_missing_stats_do_not_prove_smaller_l
 #[test]
 fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("bounded_probe_temp_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -625,7 +625,7 @@ fn should_keep_existing_streaming_join_when_left_probe_exceeds_temp_budget() {
 #[test]
 fn should_not_apply_bounded_side_selection_to_left_join_or_ordered_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("bounded_selection_exclusions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

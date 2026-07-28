@@ -133,7 +133,6 @@ pub async fn run_connection(
                     PGWIRE_HANDSHAKE_TIMEOUT,
                     handle_startup(
                         cassie.clone(),
-                        &config,
                         &runtime,
                         &mut reader,
                         &mut write_half,
@@ -220,7 +219,6 @@ enum ConnectionStep {
 
 async fn handle_startup(
     cassie: Arc<Cassie>,
-    config: &CassieRuntimeConfig,
     runtime: &crate::runtime::RuntimeState,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
@@ -237,7 +235,7 @@ async fn handle_startup(
                 parameters
                     .get("user")
                     .cloned()
-                    .unwrap_or_else(|| config.user.clone()),
+                    .unwrap_or_else(|| "root".to_string()),
             );
             state.startup_database = parameters.get("database").cloned();
             if let Err(error) = validate_startup_parameters(&parameters) {
@@ -249,7 +247,7 @@ async fn handle_startup(
             let startup_user = state
                 .startup_user
                 .clone()
-                .unwrap_or_else(|| config.user.clone());
+                .unwrap_or_else(|| "root".to_string());
             let startup_database = state.startup_database.clone();
             if cassie.authentication_enabled() {
                 let _ = write_auth_cleartext(write_half).await;

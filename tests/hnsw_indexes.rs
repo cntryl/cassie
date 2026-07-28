@@ -161,7 +161,7 @@ fn assert_hnsw_fallback_query(
 #[test]
 fn should_hydrate_persisted_hnsw_graph_state_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_graph_restart");
     {
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
@@ -201,7 +201,7 @@ fn should_hydrate_persisted_hnsw_graph_state_after_restart() {
 #[test]
 fn should_store_hnsw_graph_state_in_the_data_family() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_graph_data_family");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -235,7 +235,7 @@ fn should_store_hnsw_graph_state_in_the_data_family() {
 #[test]
 fn should_refresh_hnsw_graph_after_document_mutations() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_graph_refresh");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -272,7 +272,7 @@ fn should_refresh_hnsw_graph_after_document_mutations() {
 #[test]
 fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_concurrent_mutation");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -340,7 +340,7 @@ fn should_keep_hnsw_reads_safe_during_concurrent_mutation() {
 #[test]
 fn should_use_hnsw_graph_for_sql_vector_top_k_with_bounded_candidates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_sql_topk");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -383,7 +383,7 @@ fn should_use_hnsw_graph_for_sql_vector_top_k_with_bounded_candidates() {
 #[test]
 fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_sql_topk_dimension_mismatch");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -413,7 +413,7 @@ fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
 #[test]
 fn should_fall_back_deterministically_when_hnsw_graph_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_missing_graph_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -454,7 +454,7 @@ fn should_fall_back_deterministically_when_hnsw_graph_is_missing() {
 #[test]
 fn should_fall_back_when_same_row_count_hnsw_graph_fingerprint_is_stale() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_stale_fingerprint_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -481,7 +481,7 @@ fn should_fall_back_when_same_row_count_hnsw_graph_fingerprint_is_stale() {
 #[test]
 fn should_fall_back_when_hnsw_graph_neighbor_reference_is_corrupt() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_corrupt_neighbor_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -508,7 +508,7 @@ fn should_fall_back_when_hnsw_graph_neighbor_reference_is_corrupt() {
 #[test]
 fn should_fall_back_when_hnsw_graph_entry_point_is_invalid() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_invalid_entry_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -535,7 +535,7 @@ fn should_fall_back_when_hnsw_graph_entry_point_is_invalid() {
 #[test]
 fn should_fall_back_when_hnsw_graph_max_layer_is_invalid() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_invalid_max_layer_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -614,7 +614,7 @@ fn should_omit_names_from_hnsw_hot_keys() {
 }
 
 fn hnsw_layout_fixture(label: &str) -> (Cassie, String, &'static str) {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -669,7 +669,7 @@ fn inspect_hnsw_layout(cassie: &Cassie, collection: &str) -> HnswLayoutInspectio
 #[test]
 fn should_scale_hnsw_query_reads_with_reachable_nodes_not_corpus_size() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_point_read_scaling");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -709,7 +709,7 @@ fn should_scale_hnsw_query_reads_with_reachable_nodes_not_corpus_size() {
 #[test]
 fn should_remove_hnsw_point_nodes_when_index_is_dropped() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hnsw_point_nodes_drop_cleanup");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();

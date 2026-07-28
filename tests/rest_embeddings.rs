@@ -73,8 +73,8 @@ impl Drop for MockOpenAiServer {
     }
 }
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -409,7 +409,7 @@ fn search_self_hosted_vector_docs(cassie: &Cassie, collection: &str) -> Vec<Stri
 #[test]
 fn should_search_vector_docs_after_ingest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_flow");
     let path_for_cleanup = path.clone();
 
@@ -459,7 +459,7 @@ fn should_search_vector_docs_after_ingest() {
 #[test]
 fn should_search_vector_docs_with_tei_provider() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("tei_search_flow");
     let path_for_cleanup = path.clone();
 
@@ -497,7 +497,7 @@ fn should_search_vector_docs_with_tei_provider() {
 #[test]
 fn should_apply_vector_search_offset_after_distance_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_search_offset");
     let path_for_cleanup = path.clone();
 
@@ -548,7 +548,7 @@ fn should_apply_vector_search_offset_after_distance_ordering() {
 #[test]
 fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_search_normalized_fallback");
     let path_for_cleanup = path.clone();
 
@@ -613,7 +613,7 @@ fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() 
 #[test]
 fn should_create_hnsw_vector_index_with_rest_option_parity() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest_hnsw_options");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![]);
@@ -658,7 +658,7 @@ fn should_create_hnsw_vector_index_with_rest_option_parity() {
 #[test]
 fn should_reject_invalid_rest_vector_index_options() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest_invalid_hnsw_options");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![]);
@@ -699,7 +699,7 @@ fn should_reject_invalid_rest_vector_index_options() {
 #[test]
 fn should_search_rest_hnsw_vector_index_with_graph_execution() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest_hnsw_search");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![
@@ -757,7 +757,7 @@ fn should_search_rest_hnsw_vector_index_with_graph_execution() {
 #[test]
 fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest_ivfflat_search");
     let path_for_cleanup = path.clone();
     let embedding_server = MockOpenAiServer::spawn(vec![
@@ -817,7 +817,7 @@ fn should_search_rest_ivfflat_vector_index_with_trained_candidates() {
 #[test]
 fn should_search_vector_docs_with_ollama_provider() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ollama_search_flow");
     let path_for_cleanup = path.clone();
 
@@ -855,7 +855,7 @@ fn should_search_vector_docs_with_ollama_provider() {
 #[test]
 fn should_fail_vector_search_when_metric_incompatible_with_index() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_incompatible_metric");
     let path_for_cleanup = path.clone();
 

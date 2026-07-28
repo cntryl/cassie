@@ -7,7 +7,7 @@ mod support;
 #[test]
 fn should_release_unique_reservation_when_document_is_deleted() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("unique_reservation_delete");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

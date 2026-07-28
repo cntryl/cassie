@@ -170,7 +170,7 @@ fn should_parse_projection_repair_commands() {
 #[test]
 fn should_plan_dry_run_repair_from_integrity_findings() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_plan");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -247,7 +247,7 @@ fn should_plan_dry_run_repair_from_integrity_findings() {
 #[test]
 fn should_execute_verified_local_hash_repair_with_audit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -322,7 +322,7 @@ fn should_execute_verified_local_hash_repair_with_audit() {
 #[test]
 fn should_repair_large_projection_hash_manifest_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_large_manifest");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -429,7 +429,7 @@ fn should_repair_large_projection_hash_manifest_after_restart() {
 #[test]
 fn should_execute_verified_column_index_repair_with_audit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_index_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -521,7 +521,7 @@ fn should_execute_verified_column_index_repair_with_audit() {
 #[test]
 fn should_execute_verified_full_rebuild_repair_with_audit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_full_rebuild_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -611,7 +611,7 @@ fn should_execute_verified_full_rebuild_repair_with_audit() {
 #[test]
 fn should_execute_verified_projection_version_repair_without_activation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_version_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -723,7 +723,7 @@ fn should_execute_verified_projection_version_repair_without_activation() {
 #[test]
 fn should_rehearse_snapshot_rollback_after_projection_version_repair() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_version_rollback");
     let snapshot = data_dir("projection_repair_version_rollback_snapshot");
     let restored = data_dir("projection_repair_version_rollback_restored");
@@ -812,7 +812,7 @@ fn should_rehearse_snapshot_rollback_after_projection_version_repair() {
 #[test]
 fn should_reject_unsafe_repair_scope_deterministically() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_unsafe");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -866,7 +866,7 @@ fn should_reject_unsafe_repair_scope_deterministically() {
 #[test]
 fn should_not_run_repair_from_query_path() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_repair_query_path");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

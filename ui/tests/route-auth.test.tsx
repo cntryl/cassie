@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
-import { clearRoutes, getManifest } from "@askrjs/askr/router";
 
-import { registerRootRoutes } from "@/pages/_routes";
+import { createCassieRouteRegistry } from "@/pages/_routes";
 import { signIn, signOut } from "@/shared/auth";
 import { mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 import { saveQueryWorkspace } from "@/features/query/query-tabs";
@@ -32,12 +31,6 @@ async function flushUi() {
 
 async function mountAt(path: string) {
   cleanupApp("app");
-  // cleanupApp() tears down the registered route manifest along with the
-  // mounted component tree, so each test needs a fresh registration —
-  // registerRootRoutes() runs the same registerRoutes() call main.tsx's
-  // "./pages/_routes" side-effect import triggers once in production.
-  clearRoutes();
-  registerRootRoutes();
 
   document.body.innerHTML = '<div id="app"></div>';
   window.history.pushState({}, "", path);
@@ -52,7 +45,7 @@ async function mountAt(path: string) {
   // lazy()'s synchronous check on first render doesn't race the import.
   await import("@/pages/app/query");
 
-  await createSPA({ root, manifest: getManifest() });
+  await createSPA({ root, registry: createCassieRouteRegistry() });
   await flushUi();
   await flushUi();
   return root;

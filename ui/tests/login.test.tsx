@@ -4,9 +4,10 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import LoginPage from "@/pages/login";
 import { isSignedIn, signOut } from "@/shared/auth";
 import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 function mockLoginSuccess() {
-  mockJsonResponse("/api/v1/auth/login", { user: "admin", role: "admin" }, { method: "POST" });
+  mockJsonResponse("/api/v1/auth/login", { user: "root", role: "admin" }, { method: "POST" });
 }
 
 function mockLoginUnauthorized() {
@@ -50,10 +51,10 @@ async function mountLogin() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       { path: "/login", handler: () => <LoginPage /> },
       { path: "/", handler: () => <div data-testid="home-stub">home</div> },
-    ],
+    ]),
   });
   await flushUi();
   return root;
@@ -73,11 +74,11 @@ describe("login page", () => {
     const usernameInput = root.querySelector("#login-username") as HTMLInputElement;
     const passwordInput = root.querySelector("#login-password") as HTMLInputElement;
 
-    typeInto(usernameInput, "admin");
+    typeInto(usernameInput, "root");
     typeInto(passwordInput, "pwd123");
     await flushUi();
 
-    expect(usernameInput.value).toBe("admin");
+    expect(usernameInput.value).toBe("root");
     expect(passwordInput.value).toBe("pwd123");
   });
 
@@ -88,7 +89,7 @@ describe("login page", () => {
     const passwordInput = root.querySelector("#login-password") as HTMLInputElement;
     const submitButton = root.querySelector('button[type="submit"]') as HTMLButtonElement;
 
-    typeInto(usernameInput, "admin");
+    typeInto(usernameInput, "root");
     typeInto(passwordInput, "pwd123");
     await flushUi();
     submitButton.click();
@@ -98,7 +99,7 @@ describe("login page", () => {
 
     expect(fetchMock).toHaveBeenCalledOnce();
     const request = fetchMock.mock.calls[0]?.[0];
-    expect(await request?.json()).toEqual({ username: "admin", password: "pwd123" });
+    expect(await request?.json()).toEqual({ username: "root", password: "pwd123" });
     expect(window.location.pathname).toBe("/");
     expect(isSignedIn()).toBe(true);
   });
@@ -118,7 +119,7 @@ describe("login page", () => {
     const submitButton = root.querySelector('button[type="submit"]') as HTMLButtonElement;
 
     // Act
-    typeInto(usernameInput, "admin");
+    typeInto(usernameInput, "root");
     typeInto(passwordInput, "wrong");
     await flushUi();
     submitButton.click();
@@ -126,10 +127,7 @@ describe("login page", () => {
     await waitForText(root, "The username or password is incorrect.");
 
     // Assert
-    expect(root.querySelector('[data-slot="field-error"]')?.textContent).toBe(
-      "The username or password is incorrect.",
-    );
-    expect(root.querySelector('[data-slot="card-footer"]')).toBeNull();
+    expect(root.textContent).toContain("The username or password is incorrect.");
     expect(window.location.pathname).toBe("/login");
     expect(isSignedIn()).toBe(false);
   });
@@ -137,12 +135,12 @@ describe("login page", () => {
   it("should_send_identity_credentials_only", async () => {
     mockLoginSuccess();
     const root = await mountLogin();
-    typeInto(root.querySelector("#login-username") as HTMLInputElement, "admin");
+    typeInto(root.querySelector("#login-username") as HTMLInputElement, "root");
     typeInto(root.querySelector("#login-password") as HTMLInputElement, "pwd123");
     (root.querySelector('button[type="submit"]') as HTMLButtonElement).click();
     await flushUi();
     expect(await fetchMock.mock.calls[0]?.[0].json()).toEqual({
-      username: "admin",
+      username: "root",
       password: "pwd123",
     });
   });

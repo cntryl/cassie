@@ -3,12 +3,12 @@ use cassie::embeddings::VectorIndexState;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, use_local_storage};
 
 #[test]
 fn should_reject_vector_state_from_an_older_collection_generation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_state_generation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -8,7 +8,7 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::{
     create_text_collection, data_dir, fulltext_index, put_document, put_fulltext_index,
-    with_fallback,
+    use_local_storage,
 };
 
 const COLLECTION: &str = "fulltext_index_completeness";
@@ -85,7 +85,7 @@ fn long_document_id(index: usize) -> String {
 #[test]
 fn should_fallback_when_one_posting_block_is_missing_among_valid_blocks() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_missing_posting_block");
     let documents = (0..96).map(|index| (long_document_id(index), "alpha".to_string()));
     let cassie = seed_index(&path, documents);
@@ -109,7 +109,7 @@ fn should_fallback_when_one_posting_block_is_missing_among_valid_blocks() {
 #[test]
 fn should_fallback_when_a_candidate_is_missing_document_statistics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_missing_document_stats");
     let cassie = seed_index(
         &path,
@@ -137,7 +137,7 @@ fn should_fallback_when_a_candidate_is_missing_document_statistics() {
 #[test]
 fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_dangling_candidate");
     let cassie = seed_index(
         &path,
@@ -173,7 +173,7 @@ fn should_fallback_before_top_k_publishes_a_dangling_candidate() {
 #[test]
 fn should_rebuild_a_malformed_manifest_during_startup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_malformed_manifest_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
     replace_artifact(&cassie, *b"FTG1", b"malformed-manifest".to_vec());
@@ -197,7 +197,7 @@ fn should_rebuild_a_malformed_manifest_during_startup() {
 #[test]
 fn should_rebuild_old_fulltext_metadata_during_startup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_old_metadata_restart");
     let cassie = seed_index(&path, [("d1".to_string(), "alpha beta".to_string())]);
     let (_, mut metadata) = artifacts_with_magic(&cassie, *b"FTM1")

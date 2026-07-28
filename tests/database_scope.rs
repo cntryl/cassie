@@ -2,8 +2,8 @@ use cassie::app::{Cassie, CassieError, CatalogObjectKind};
 use cassie::types::Value;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -54,7 +54,7 @@ fn query_rows(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) 
 #[test]
 fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("bootstrap_default_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -105,7 +105,7 @@ fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
 #[test]
 fn should_reject_queries_for_missing_session_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("missing_session_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -136,7 +136,7 @@ fn should_reject_queries_for_missing_session_database() {
 #[test]
 fn should_filter_catalog_views_plus_constraints_to_current_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("catalog_filtering");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -233,7 +233,7 @@ fn should_filter_catalog_views_plus_constraints_to_current_database() {
 #[test]
 fn should_restrict_pg_table_visibility_to_search_path() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pg_table_visibility");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

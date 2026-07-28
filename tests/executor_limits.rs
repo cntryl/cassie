@@ -29,7 +29,7 @@ fn should_execute_query_without_deadline_when_query_timeout_is_zero() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_timeout_ms = 0;
         let path = data_dir("timeout");
@@ -88,7 +88,7 @@ fn should_fail_query_when_result_limit_is_exceeded() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.max_result_rows = 1;
         let path = data_dir("max_rows");
@@ -163,7 +163,7 @@ fn should_fail_query_when_cte_recursion_depth_is_exceeded() {
 
     runtime.block_on(async {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.cte_recursion_depth = 0;
     let path = data_dir("cte_depth");
@@ -232,7 +232,7 @@ fn should_fail_query_with_resource_limit_when_memory_budget_is_exceeded() {
 
     runtime.block_on(async {
         // Arrange
-        with_fallback();
+        use_local_storage();
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = 16;
         let path = data_dir("spill_budget");
@@ -291,7 +291,7 @@ fn should_skip_offset_then_take_limit() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_offset_limit";
 
@@ -390,7 +390,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_default_offset";
 
@@ -468,7 +468,7 @@ fn should_default_missing_offset_to_zero_in_execution() {
 #[test]
 fn should_cleanup_parallel_aggregation_workers_on_timeout() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parallel_aggregation_timeout");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.parallel_aggregation_workers = 4;

@@ -169,7 +169,7 @@ export default function Layout({ children }: { children?: unknown }) {
               aria-controls="cassie-admin-sidebar-panel"
               aria-expanded={isMobileNavOpen}
               aria-label="Toggle schema browser"
-              onClick={toggleMobileNavigation}
+              onPress={toggleMobileNavigation}
             >
               <MenuIcon size={16} />
               <span>Schema browser</span>

@@ -38,7 +38,7 @@ fn seed_relation(cassie: &Cassie, name: &str, rows: usize) {
 #[test]
 fn should_enumerate_three_relation_inner_join_by_cardinality() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_three_relation_order");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -78,7 +78,7 @@ fn should_enumerate_three_relation_inner_join_by_cardinality() {
 #[test]
 fn should_use_deterministic_fallback_order_when_statistics_are_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_missing_stats_order");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -110,7 +110,7 @@ fn should_use_deterministic_fallback_order_when_statistics_are_missing() {
 #[test]
 fn should_preserve_outer_join_as_legality_barrier() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_outer_join_barrier");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -146,7 +146,7 @@ fn should_preserve_outer_join_as_legality_barrier() {
 #[test]
 fn should_enumerate_non_equality_inner_joins() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_non_equality_order");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     seed_relation(&cassie, "range_large", 8);
@@ -180,7 +180,7 @@ fn should_enumerate_non_equality_inner_joins() {
 #[test]
 fn should_use_greedy_expansion_above_eight_relations() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_greedy_nine_relations");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);
@@ -223,7 +223,7 @@ fn should_use_greedy_expansion_above_eight_relations() {
 #[test]
 fn should_explain_join_physical_properties_with_memory_bound() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("memo_physical_properties");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     let session = cassie.create_session("tester", None);

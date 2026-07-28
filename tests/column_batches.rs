@@ -40,7 +40,7 @@ fn should_parse_column_index_with_segment_size() {
 #[test]
 fn should_read_covered_projection_from_column_batch_index() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -123,7 +123,7 @@ fn should_read_covered_projection_from_column_batch_index() {
 #[test]
 fn should_persist_hydrate_drop_column_batch_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -199,7 +199,7 @@ fn should_persist_hydrate_drop_column_batch_metadata() {
 #[test]
 fn should_select_constant_codec_for_repeated_column_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_rle_codec");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -278,7 +278,7 @@ fn should_select_constant_codec_for_repeated_column_values() {
 #[test]
 fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_corrupt_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -350,7 +350,7 @@ fn should_fallback_to_row_blobs_for_corrupt_column_segment() {
 #[test]
 fn should_prune_column_batch_segments_for_range_filter() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_range_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -426,7 +426,7 @@ fn should_prune_column_batch_segments_for_range_filter() {
 #[test]
 fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_sparse_null_pruning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -490,7 +490,7 @@ fn should_preserve_sparse_nulls_during_column_batch_scan_pruning() {
 #[test]
 fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_scan_rebuild");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -569,7 +569,7 @@ fn should_rebuild_column_batch_scan_metadata_after_update_delete() {
 #[test]
 fn should_fallback_to_row_blobs_for_active_session_changes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_session_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

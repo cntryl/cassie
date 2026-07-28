@@ -6,8 +6,8 @@ use cassie::sql::parser;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -291,7 +291,7 @@ async fn read_wire_frame(
 #[test]
 fn should_record_vector_counts_for_ordered_search_expression() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_candidates");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -408,7 +408,7 @@ fn should_record_vector_counts_for_ordered_search_expression() {
 #[test]
 fn should_record_vector_prefilter_candidate_counts() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_prefilter_counts");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -484,7 +484,7 @@ fn should_record_vector_prefilter_candidate_counts() {
 #[test]
 fn should_record_search_operator_statistics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_operator_stats");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -575,7 +575,7 @@ fn should_record_search_operator_statistics() {
 #[test]
 fn should_record_search_operator_candidates_after_posting_list_filtering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_operator_posting_list_candidates");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -674,7 +674,7 @@ fn should_record_search_operator_candidates_after_posting_list_filtering() {
 #[test]
 fn should_preserve_candidate_tie_order() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_candidate_ties");
     let config = adaptive_candidate_config(1, 100);
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -712,7 +712,7 @@ fn should_preserve_candidate_tie_order() {
 #[test]
 fn should_cache_fulltext_scoring_metadata_for_repeated_search_queries() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_scoring_metadata_cache");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

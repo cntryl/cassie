@@ -10,8 +10,8 @@ use cassie::config::CassieRuntimeConfig;
 use tokio_postgres::{error::DbError, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -38,7 +38,7 @@ struct CompatibilityServer {
 
 impl CompatibilityServer {
     async fn start(label: &str) -> Self {
-        with_fallback();
+        use_local_storage();
         let data_dir = data_dir(label);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.password = "postgres".to_string();
@@ -68,7 +68,7 @@ impl CompatibilityServer {
         let mut config = tokio_postgres::Config::new();
         config.host("127.0.0.1");
         config.port(self.addr.port());
-        config.user("postgres");
+        config.user("root");
         config.password("postgres");
         config.dbname("postgres");
 

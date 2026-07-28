@@ -81,7 +81,6 @@ export function CreateDatabaseDialog({
                 id="create-database-name"
                 name="database"
                 autocomplete="off"
-                autofocus
                 required
                 disabled={pending()}
                 ref={setNameInput}

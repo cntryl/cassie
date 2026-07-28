@@ -789,7 +789,6 @@ mod tests {
     #[test]
     fn should_build_projected_rows_without_eager_lookup() {
         // Arrange
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
         let path = data_dir("projected-lazy-lookup");
         let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
         let collection = "scan_projected_lazy_lookup";

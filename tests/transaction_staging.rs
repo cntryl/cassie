@@ -3,13 +3,13 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn with_two_collections<T>(
     label: &str,
     test: impl FnOnce(&Cassie, &cassie::app::CassieSession) -> T,
 ) -> T {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");
@@ -190,7 +190,7 @@ fn should_recover_after_multi_collection_rollback() {
 #[test]
 fn should_commit_cross_collection_delete_cascade() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_stage_cascade");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");
@@ -259,7 +259,7 @@ fn should_commit_cross_collection_delete_cascade() {
 #[test]
 fn should_commit_cross_collection_update_cascade() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_stage_update_cascade");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");

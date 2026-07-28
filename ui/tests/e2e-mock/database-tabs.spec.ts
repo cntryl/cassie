@@ -6,7 +6,7 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   page.on("pageerror", (error) => errors.push(error.message));
 
   await page.goto("/login");
-  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Choose a database to open a query workspace.")).toBeVisible();
@@ -67,7 +67,7 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
 test("should_keep_the_database_tree_visible_and_create_a_database", async ({ page }) => {
   // Arrange
   await page.goto("/login");
-  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
 

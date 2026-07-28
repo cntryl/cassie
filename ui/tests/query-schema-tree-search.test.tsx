@@ -4,6 +4,7 @@ import { state } from "@askrjs/askr";
 
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import type { QuerySchemaDatabase } from "@/features/query/query-models";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 // Mounted in isolation (not through QueryPage's <Portal>) so these tests are
 // unaffected by the pre-existing askr Portal-duplication issue that can
@@ -67,12 +68,12 @@ async function mountSchemaTree() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       {
         path: "/",
         handler: () => <QuerySchemaTree schema={schema} onSelectItem={() => {}} />,
       },
-    ],
+    ]),
   });
 
   await flushUi();
@@ -97,7 +98,7 @@ async function mountDynamicSchemaTree() {
 
   await createSPA({
     root,
-    routes: [{ path: "/", handler: DynamicSchemaTree }],
+    registry: createTestRouteRegistry([{ path: "/", handler: DynamicSchemaTree }]),
   });
   await flushUi();
   return root;

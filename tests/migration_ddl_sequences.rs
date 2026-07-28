@@ -3,7 +3,7 @@ use cassie::types::Value;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-fn with_fallback() {
+fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
@@ -195,7 +195,7 @@ fn expected_sequence_class_rows() -> Vec<Vec<Value>> {
 #[test]
 fn should_apply_sequence_defaults_metadata_through_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("sequence-defaults");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -224,7 +224,7 @@ fn should_apply_sequence_defaults_metadata_through_restart() {
 #[test]
 fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("serial");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

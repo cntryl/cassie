@@ -12,7 +12,7 @@ use support::*;
 #[test]
 fn should_pack_internal_key_segments_with_compact_markers() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("key_segment_compaction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

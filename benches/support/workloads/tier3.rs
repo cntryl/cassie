@@ -29,7 +29,7 @@ impl VectorAccessPath {
 }
 
 pub fn configure_tier3_environment() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     std::env::set_var(
         "CASSIE_QUERY_MEMORY_BUDGET_BYTES",

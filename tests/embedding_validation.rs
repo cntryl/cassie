@@ -9,8 +9,8 @@ use cassie::embeddings::{
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -91,7 +91,7 @@ fn vector_index_record(
 #[test]
 fn should_reject_ingest_when_query_provider_model_mismatch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("provider_mismatch");
     let path_for_cleanup = path.clone();
     let openai = Cassie::new_with_data_dir_and_config(
@@ -164,7 +164,7 @@ fn should_reject_ingest_when_query_provider_model_mismatch() {
 #[test]
 fn should_reject_ingest_when_dimensions_change() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("dimension_mismatch");
     let path_for_cleanup = path.clone();
     let cassie = Cassie::new_with_data_dir_and_config(
@@ -213,7 +213,7 @@ fn should_reject_ingest_when_dimensions_change() {
 #[test]
 fn should_reject_query_when_metric_different() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("metric_mismatch");
     let path_for_cleanup = path.clone();
     let cassie = Cassie::new_with_data_dir_and_config(

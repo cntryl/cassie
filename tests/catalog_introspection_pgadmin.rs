@@ -3,7 +3,7 @@ use cassie::types::Value;
 
 #[path = "support/catalog.rs"]
 mod support;
-use support::{data_dir, execute_statement, query_rows, with_fallback};
+use support::{data_dir, execute_statement, query_rows, use_local_storage};
 
 struct PgAdminCatalogRows {
     namespace: Vec<Vec<Value>>,
@@ -82,7 +82,7 @@ fn collect_pgadmin_catalog_rows(cassie: &Cassie, session: &CassieSession) -> PgA
 fn assert_pgadmin_namespace(rows: &PgAdminCatalogRows) -> i64 {
     assert_eq!(rows.namespace.len(), 1);
     assert_eq!(rows.namespace[0][1], Value::String("public".to_string()));
-    assert_eq!(rows.namespace[0][2], Value::String("postgres".to_string()));
+    assert_eq!(rows.namespace[0][2], Value::String("root".to_string()));
     assert_eq!(rows.namespace[0][3], Value::Bool(true));
     let Value::Int64(public_oid) = rows.namespace[0][0] else {
         panic!("public namespace oid should be numeric");
@@ -219,7 +219,7 @@ fn assert_pgadmin_catalog_rows(rows: &PgAdminCatalogRows) {
 #[test]
 fn should_support_pgadmin_browser_workflow_catalog_queries() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgadmin_browser");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

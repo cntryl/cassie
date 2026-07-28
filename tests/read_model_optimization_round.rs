@@ -211,7 +211,7 @@ fn assert_indexed_join_result(
 #[test]
 fn should_lock_scalar_read_model_hot_path_access_paths() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_hot_paths");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -271,7 +271,7 @@ fn should_lock_scalar_read_model_hot_path_access_paths() {
 #[test]
 fn should_lock_column_batch_covered_read_hot_path() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_column_batch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -373,7 +373,7 @@ fn should_lock_column_batch_covered_read_hot_path() {
 #[test]
 fn should_lock_vectorized_join_hot_path_when_enabled() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_vectorized_join");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -455,7 +455,7 @@ fn should_lock_vectorized_join_hot_path_when_enabled() {
 #[test]
 fn should_stop_vectorized_join_after_unordered_limit_budget() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_vectorized_join_limit_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -548,7 +548,7 @@ fn should_stop_vectorized_join_after_unordered_limit_budget() {
 #[test]
 fn should_push_unordered_left_join_limit_into_left_source_scan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_left_join_source_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -640,7 +640,7 @@ fn should_push_unordered_left_join_limit_into_left_source_scan() {
 #[test]
 fn should_probe_indexed_left_source_for_bounded_inner_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_indexed_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -680,7 +680,7 @@ fn should_probe_indexed_left_source_for_bounded_inner_join() {
 #[test]
 fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_streaming_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -787,7 +787,7 @@ fn should_stream_unindexed_bounded_inner_join_until_output_budget() {
 #[test]
 fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_dense_streaming_inner_join_budget");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -884,7 +884,7 @@ fn should_stream_dense_bounded_inner_join_without_materializing_right_source() {
 #[test]
 fn should_lock_pgwire_prepared_read_hot_path_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_model_pgwire_prepared");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -937,7 +937,7 @@ fn should_lock_pgwire_prepared_read_hot_path_metrics() {
         let mut client_config = tokio_postgres::Config::new();
         client_config.host("127.0.0.1");
         client_config.port(addr.port());
-        client_config.user("postgres");
+        client_config.user("root");
         client_config.password("postgres");
         client_config.dbname("postgres");
         let (client, connection) = client_config

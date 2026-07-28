@@ -7,8 +7,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn temp_path(label: &str) -> PathBuf {
@@ -25,7 +25,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "postgres",
+            "username": "root",
             "password": "postgres"
         }))
         .send()
@@ -124,7 +124,7 @@ async fn spawn_tls_rest_server(
 #[test]
 fn should_complete_rest_https_handshake() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("https-handshake");
     let tls_dir = temp_path("https-identity");
     std::fs::create_dir_all(&tls_dir).expect("create TLS directory");
@@ -171,7 +171,7 @@ fn should_complete_rest_https_handshake() {
         let login = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()
@@ -193,7 +193,7 @@ fn should_complete_rest_https_handshake() {
 #[test]
 fn should_serve_admin_index_for_shell_routes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("admin-index");
     let dist = write_dist_fixture("admin-index");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -240,7 +240,7 @@ fn should_serve_admin_index_for_shell_routes() {
 #[test]
 fn should_serve_built_admin_assets() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("admin-asset");
     let dist = write_dist_fixture("admin-asset");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -291,7 +291,7 @@ fn should_serve_built_admin_assets() {
 #[test]
 fn should_reject_admin_assets_over_the_static_file_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("oversized-asset");
     let dist = write_dist_fixture("oversized-asset");
     let oversized = dist.join("assets").join("oversized.bin");
@@ -324,7 +324,7 @@ fn should_reject_admin_assets_over_the_static_file_limit() {
 #[test]
 fn should_return_not_found_when_admin_ui_dir_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("missing-admin-ui");
     let missing_dist = temp_path("missing-admin-ui");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -355,7 +355,7 @@ fn should_return_not_found_when_admin_ui_dir_is_missing() {
 #[test]
 fn should_reject_admin_asset_path_traversal() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("admin-traversal");
     let dist = write_dist_fixture("admin-traversal");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -396,7 +396,7 @@ fn should_reject_admin_asset_path_traversal() {
 #[test]
 fn should_preserve_existing_route_auth_behavior() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("existing-routes");
     let dist = write_dist_fixture("existing-routes");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -463,7 +463,7 @@ fn should_preserve_existing_route_auth_behavior() {
 #[test]
 fn should_reject_oversized_rest_request_body() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("oversized-body");
     let dist = write_dist_fixture("oversized-body");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -497,7 +497,7 @@ fn should_reject_oversized_rest_request_body() {
 #[test]
 fn should_reject_non_json_rest_write_requests() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("non-json-body");
     let dist = write_dist_fixture("non-json-body");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -511,7 +511,7 @@ fn should_reject_non_json_rest_write_requests() {
         // Act
         let response = reqwest::Client::new()
             .post(format!("{base_url}/api/v1/auth/login"))
-            .body("username=postgres&password=postgres")
+            .body("username=root&password=postgres")
             .send()
             .await
             .expect("non-JSON request");
@@ -530,7 +530,7 @@ fn should_reject_non_json_rest_write_requests() {
 #[test]
 fn should_reject_cross_origin_rest_state_changes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("cross-origin");
     let dist = write_dist_fixture("cross-origin");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -546,7 +546,7 @@ fn should_reject_cross_origin_rest_state_changes() {
             .post(format!("{base_url}/api/v1/auth/login"))
             .header("origin", "https://evil.example")
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()
@@ -564,7 +564,7 @@ fn should_reject_cross_origin_rest_state_changes() {
 #[test]
 fn should_reject_ambiguous_paths_before_rest_security_checks() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("ambiguous-api-path");
     let dist = write_dist_fixture("ambiguous-api-path");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -610,7 +610,7 @@ fn should_reject_ambiguous_paths_before_rest_security_checks() {
 #[test]
 fn should_not_serve_admin_shell_for_unmatched_api_routes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("unmatched-api");
     let dist = write_dist_fixture("unmatched-api");
     let runtime = tokio::runtime::Builder::new_current_thread()

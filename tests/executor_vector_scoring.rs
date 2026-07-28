@@ -22,7 +22,7 @@ fn should_execute_query_filters_by_vector_score_function() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_vector_score_filter";
 
@@ -88,7 +88,7 @@ fn should_execute_query_orders_by_vector_distance_function_parameterized() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_vector_order_func";
 
@@ -171,7 +171,7 @@ fn should_order_by_pgvector_dot_operator() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_dot_order";
 
@@ -257,7 +257,7 @@ fn should_order_by_pgvector_l2_operator() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_l2_order";
 
@@ -343,7 +343,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_vector_mismatch";
 
@@ -393,7 +393,7 @@ fn should_fail_query_when_vector_function_dimensions_mismatch() {
 #[test]
 fn should_execute_create_vector_index_command() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ddl_vector_index_create_command");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -463,7 +463,7 @@ fn should_execute_create_vector_index_command() {
 #[test]
 fn should_reject_invalid_hnsw_vector_index_options() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ddl_vector_index_invalid_hnsw");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -502,7 +502,7 @@ fn should_reject_invalid_hnsw_vector_index_options() {
 #[test]
 fn should_execute_drop_vector_index_command() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ddl_vector_index_drop_command");
     let cassie = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()

@@ -5,7 +5,7 @@ use support::*;
 #[test]
 fn should_restore_a_graph_edge_after_savepoint_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("graph_transaction_savepoint");
     let runtime = current_thread_runtime();
     runtime.block_on(async {

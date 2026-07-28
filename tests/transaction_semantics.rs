@@ -4,13 +4,13 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn with_source_table<T>(
     label: &str,
     test: impl FnOnce(&Cassie, &cassie::app::CassieSession) -> T,
 ) -> T {
-    with_fallback();
+    use_local_storage();
     let path = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("startup");

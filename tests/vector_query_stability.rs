@@ -88,7 +88,7 @@ fn result_ids(rows: &[Vec<Value>]) -> Vec<String> {
 #[test]
 fn should_match_exact_top_k_with_hnsw_for_bound_vector_parameters() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_hnsw_exact_baseline");
     let cassie = vector_cassie(&path);
@@ -126,7 +126,7 @@ fn should_match_exact_top_k_with_hnsw_for_bound_vector_parameters() {
 #[test]
 fn should_reach_ivfflat_recall_threshold_against_exact_top_k() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_ivfflat_recall_baseline");
     let cassie = vector_cassie(&path);
@@ -166,7 +166,7 @@ fn should_reach_ivfflat_recall_threshold_against_exact_top_k() {
 #[test]
 fn should_use_explicit_exact_fallback_for_filtered_hnsw_after_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_hnsw_filtered_fallback");
     let cassie = vector_cassie(&path);
@@ -215,7 +215,7 @@ fn should_use_explicit_exact_fallback_for_filtered_hnsw_after_delete() {
 #[test]
 fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_exact_memory_budget");
     let cassie = vector_cassie_with_memory_budget(&path, 32);
@@ -243,7 +243,7 @@ fn should_enforce_query_memory_budget_during_exact_vector_top_k() {
 #[test]
 fn should_cancel_during_exact_vector_scoring() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("vector_exact_active_cancellation");
     let cassie = Arc::new(vector_cassie(&path));

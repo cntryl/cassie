@@ -12,8 +12,8 @@ type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -301,7 +301,7 @@ async fn spawn_pgwire_server_with_config(
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("root", "postgres"))
         .await
         .expect("write startup");
     let (auth_tag, auth_payload) = read_wire_frame(reader).await;
@@ -458,7 +458,7 @@ fn assert_simple_query_backend_frames(frames: &[WireFrame]) {
 #[test]
 fn should_copy_csv_from_stdin_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("copy_stdin");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -504,7 +504,7 @@ fn should_copy_csv_from_stdin_rows() {
 #[test]
 fn should_execute_binary_simple_query_return_backend_frames() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("success");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -547,7 +547,7 @@ fn should_execute_binary_simple_query_return_backend_frames() {
 #[test]
 fn should_return_row_description_for_empty_simple_query_result() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("empty_result");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -636,7 +636,7 @@ fn should_return_row_description_for_empty_simple_query_result() {
 #[test]
 fn should_recover_ready_after_simple_query_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("error");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -724,7 +724,7 @@ fn should_recover_ready_after_simple_query_error() {
 #[test]
 fn should_recover_pgwire_after_oversized_sql_resource_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("sql-resource-limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -774,7 +774,7 @@ fn should_recover_pgwire_after_oversized_sql_resource_limit() {
 #[test]
 fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("retryable_storage");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -832,7 +832,7 @@ fn should_report_retryable_storage_error_with_cannot_connect_now_sqlstate() {
 #[test]
 fn should_report_division_by_zero_with_sqlstate_22012() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("division_by_zero");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -896,7 +896,7 @@ fn should_report_division_by_zero_with_sqlstate_22012() {
 #[test]
 fn should_report_deadline_exceeded_with_query_canceled_sqlstate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("query_deadline");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

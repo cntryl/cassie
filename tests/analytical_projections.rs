@@ -39,7 +39,7 @@ fn should_parse_analytical_materialized_projection_options() {
 #[test]
 fn should_persist_analytical_projection_options() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("analytical_projection_options");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -93,7 +93,7 @@ fn should_persist_analytical_projection_options() {
 #[test]
 fn should_route_covered_query_to_fresh_analytical_projection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("analytical_projection_route");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -179,7 +179,7 @@ fn should_route_covered_query_to_fresh_analytical_projection() {
 #[test]
 fn should_fallback_to_source_when_analytical_projection_is_stale() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("analytical_projection_stale_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -258,7 +258,7 @@ fn should_fallback_to_source_when_analytical_projection_is_stale() {
 #[test]
 fn should_reject_dml_against_analytical_projection_output() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("analytical_projection_output_dml");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

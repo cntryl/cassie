@@ -24,9 +24,10 @@ fn should_make_the_named_workstation_profile_disk_backed() {
 
     // Act
     let selects_disk = harness.contains("profile.storage_mode == \"midge_disk_apfs\"");
-    let configures_midge = harness.contains("std::env::set_var(\"BENCH_MIDGE_DISK\", \"1\")");
+    let configures_local_storage =
+        harness.contains("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")");
 
     // Assert
     assert!(selects_disk);
-    assert!(configures_midge);
+    assert!(configures_local_storage);
 }

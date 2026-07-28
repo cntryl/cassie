@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_maintain_include_values_after_update_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("include_update_delete");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -89,7 +89,7 @@ fn should_maintain_include_values_after_update_delete() {
 #[test]
 fn should_execute_update_where_returning_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_where_returning");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -155,7 +155,7 @@ fn should_execute_update_where_returning_rows() {
 #[test]
 fn should_execute_update_returning_scalar_function() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_returning_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -201,7 +201,7 @@ fn should_execute_update_returning_scalar_function() {
 #[test]
 fn should_preserve_row_id_when_update_rewrites_row_blob() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_preserve_id");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -251,7 +251,7 @@ fn should_preserve_row_id_when_update_rewrites_row_blob() {
 #[test]
 fn should_reject_update_validation_failure_without_mutating_row() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_validation_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -303,7 +303,7 @@ fn should_reject_update_validation_failure_without_mutating_row() {
 #[test]
 fn should_report_zero_rows_for_update_without_matches() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_no_match");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -349,7 +349,7 @@ fn should_report_zero_rows_for_update_without_matches() {
 #[test]
 fn should_reject_update_with_duplicate_assignment_target() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_duplicate_assignment");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -386,7 +386,7 @@ fn should_reject_update_with_duplicate_assignment_target() {
 #[test]
 fn should_reject_update_with_unknown_assignment_target() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update_unknown_assignment");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

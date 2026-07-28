@@ -12,7 +12,7 @@ use support::*;
 #[test]
 fn should_read_persisted_postings_before_fetching_candidate_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_sql");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -89,7 +89,7 @@ fn should_read_persisted_postings_before_fetching_candidate_rows() {
 #[test]
 fn should_match_row_baseline_scores_from_persisted_postings() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_scores");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -146,7 +146,7 @@ fn should_match_row_baseline_scores_from_persisted_postings() {
 #[test]
 fn should_apply_structured_predicates_only_to_posting_candidates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_structured_filter");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -221,7 +221,7 @@ fn should_apply_structured_predicates_only_to_posting_candidates() {
 #[test]
 fn should_overlay_transaction_mutations_on_fulltext_fallback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_transaction_overlay");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -317,7 +317,7 @@ fn should_overlay_transaction_mutations_on_fulltext_fallback() {
 #[test]
 fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_memory_budget");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
@@ -367,7 +367,7 @@ fn should_enforce_memory_budget_during_persisted_fulltext_scoring() {
 #[test]
 fn should_cancel_persisted_fulltext_scoring_at_a_candidate_boundary() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
     let path = data_dir("persisted_fulltext_cancellation");
     let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));

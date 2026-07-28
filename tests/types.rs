@@ -2,8 +2,8 @@ use cassie::app::Cassie;
 use cassie::types::{DataType, Value, Vector};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -75,7 +75,7 @@ fn should_validate_deterministic_type_oid_assignments() {
 #[test]
 fn should_roundtrip_supported_sql_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("roundtrip");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

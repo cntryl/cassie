@@ -6,8 +6,8 @@ use uuid::Uuid;
 mod support;
 use support::canonical_test_collection;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -20,7 +20,7 @@ fn data_dir(label: &str) -> String {
 }
 
 fn setup_query_values(cassie: &Cassie) {
-    let session = cassie.create_session("postgres", None);
+    let session = cassie.create_session("root", None);
     cassie
         .execute_sql(
             &session,
@@ -135,7 +135,7 @@ fn openapi_operation<'a>(openapi: &'a str, path: &str) -> &'a str {
 #[test]
 fn should_serialize_admin_query_values_as_plain_json() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("query-values");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -182,7 +182,7 @@ fn should_serialize_admin_query_values_as_plain_json() {
 #[test]
 fn should_preserve_user_payload_key_shape() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("payload-shape");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -232,7 +232,7 @@ fn should_preserve_user_payload_key_shape() {
 #[test]
 fn should_keep_metadata_response_keys_snake_case() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("response-keys");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");

@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("should_present_logout_as_the_login_pages_companion", async ({ page }) => {
   // Arrange
   await page.goto("/login");
-  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
 
@@ -14,10 +14,8 @@ test("should_present_logout_as_the_login_pages_companion", async ({ page }) => {
   const cardBounds = await page.locator('[data-slot="card"]').boundingBox();
 
   // Assert
-  await expect(page.getByRole("heading", { name: "Sign out of Cassie Admin?" })).toBeVisible();
-  await expect(page.getByText("You’re signed in as admin.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Stay signed in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Signing out" })).toBeVisible();
+  await expect(page.getByText("Clearing your Cassie Admin session.")).toBeVisible();
   expect(viewport).not.toBeNull();
   expect(pageBounds).not.toBeNull();
   expect(cardBounds).not.toBeNull();

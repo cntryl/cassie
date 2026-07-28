@@ -17,7 +17,7 @@ use support::*;
 #[test]
 fn should_execute_sql_query_after_catalog_hydration() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -78,7 +78,7 @@ fn should_execute_sql_query_after_catalog_hydration() {
 #[test]
 fn should_persist_namespace_on_create_schema() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("create_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -114,7 +114,7 @@ fn should_persist_namespace_on_create_schema() {
 #[test]
 fn should_rename_schema_through_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rename_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -161,7 +161,7 @@ fn should_rename_schema_through_sql() {
 #[test]
 fn should_drop_schema_through_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -197,7 +197,7 @@ fn should_drop_schema_through_sql() {
 #[test]
 fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("create_schema_if_not_exists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -229,7 +229,7 @@ fn should_ignore_duplicate_create_schema_when_if_not_exists_is_set() {
 #[test]
 fn should_rename_column_through_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rename_column");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

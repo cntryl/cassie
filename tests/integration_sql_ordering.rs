@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_apply_limit_offset_after_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("limit_offset_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -122,7 +122,7 @@ fn should_apply_limit_offset_after_ordering() {
 #[test]
 fn should_page_by_row_id_with_storage_top_k() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("row_id_storage_top_k");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -188,7 +188,7 @@ fn should_page_by_row_id_with_storage_top_k() {
 #[test]
 fn should_page_by_row_id_with_keyset_cursor() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("row_id_keyset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -254,7 +254,7 @@ fn should_page_by_row_id_with_keyset_cursor() {
 #[test]
 fn should_filter_projected_scan_range_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projected_scan_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -341,7 +341,7 @@ fn should_filter_projected_scan_range_query_without_changing_results() {
 #[test]
 fn should_filter_projected_scan_simple_equality_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projected_scan_equality");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -418,7 +418,7 @@ fn should_filter_projected_scan_simple_equality_query_without_changing_results()
 #[test]
 fn should_apply_vector_distance_offset_after_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("vector_distance_offset_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -499,7 +499,7 @@ fn should_apply_vector_distance_offset_after_ordering() {
 #[test]
 fn should_apply_fulltext_offset_after_score_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_top_k_offset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -579,7 +579,7 @@ fn should_apply_fulltext_offset_after_score_ordering() {
 #[test]
 fn should_apply_hybrid_offset_after_score_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_top_k_offset");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

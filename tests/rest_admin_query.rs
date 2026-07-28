@@ -12,8 +12,8 @@ use uuid::Uuid;
 
 type QueryEndpointCase = (reqwest::Method, String, Option<serde_json::Value>);
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> PathBuf {
@@ -57,7 +57,7 @@ async fn stop_rest_server(
 
 fn seed_query_catalog(cassie: &Cassie) {
     let session = cassie
-        .authenticate_role("postgres", Some("postgres"), None)
+        .authenticate_role("root", Some("postgres"), None)
         .expect("admin session");
     cassie
         .execute_sql(
@@ -175,7 +175,7 @@ async fn login_cookie(client: &Client, base_url: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "postgres",
+            "username": "root",
             "password": "postgres"
         }))
         .send()
@@ -211,10 +211,10 @@ async fn post_admin_query(
 #[test]
 fn should_scope_each_admin_request_to_its_explicit_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("explicit-database-scope")).expect("cassie");
     let admin = cassie
-        .authenticate_role("postgres", Some("postgres"), None)
+        .authenticate_role("root", Some("postgres"), None)
         .expect("admin session");
     cassie
         .execute_sql(&admin, "CREATE DATABASE analytics", Vec::new())
@@ -295,7 +295,7 @@ fn should_scope_each_admin_request_to_its_explicit_database() {
 #[test]
 fn should_reject_unauthorized_access_to_admin_query_routes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("unauthorized");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -332,7 +332,7 @@ fn should_reject_unauthorized_access_to_admin_query_routes() {
 #[test]
 fn should_execute_admin_query_through_rest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -374,7 +374,7 @@ fn should_execute_admin_query_through_rest() {
 #[test]
 fn should_complete_admin_query_workflow_given_one_authenticated_session() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("authenticated-workflow");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -428,7 +428,7 @@ fn should_complete_admin_query_workflow_given_one_authenticated_session() {
 #[test]
 fn should_validate_admin_query_through_rest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("validate");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -484,7 +484,7 @@ fn should_validate_admin_query_through_rest() {
 #[test]
 fn should_map_admin_query_errors_to_semantic_http_statuses() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("query-errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -558,7 +558,7 @@ fn should_map_admin_query_errors_to_semantic_http_statuses() {
 #[test]
 fn should_return_gateway_timeout_for_admin_query_deadlines() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("deadline");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -631,7 +631,7 @@ fn should_return_gateway_timeout_for_admin_query_deadlines() {
 #[test]
 fn should_acknowledge_admin_query_cancellation_before_returning() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("operation-cancellation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -695,7 +695,7 @@ fn should_acknowledge_admin_query_cancellation_before_returning() {
 #[test]
 fn should_explain_admin_query_through_rest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("explain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -764,7 +764,7 @@ fn should_explain_admin_query_through_rest() {
 #[test]
 fn should_return_admin_query_schema_sections_in_stable_order() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -847,7 +847,7 @@ fn should_return_admin_query_schema_sections_in_stable_order() {
 #[test]
 fn should_serve_restful_admin_aliases() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("restful-aliases");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

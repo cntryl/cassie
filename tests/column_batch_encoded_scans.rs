@@ -5,7 +5,7 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn metric(metrics: &serde_json::Value, name: &str) -> u64 {
     metrics["column_batches"][name].as_u64().unwrap_or_default()
@@ -86,7 +86,7 @@ fn corrupted_isolation_fixture(path: &str) -> EncodedScanFixture {
 #[test]
 fn should_late_materialize_selected_values_despite_unrequested_corruption() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_encoded_scan_isolation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -175,7 +175,7 @@ fn should_late_materialize_selected_values_despite_unrequested_corruption() {
 #[test]
 fn should_apply_encoded_conjunctions_with_null_predicates_exactly() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_batch_encoded_conjunctions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_text_scalar_functions_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scalar_text_functions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -71,7 +71,7 @@ fn should_execute_text_scalar_functions_query() {
 #[test]
 fn should_execute_coalesce_scalar_function_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scalar_coalesce_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -119,7 +119,7 @@ fn should_execute_coalesce_scalar_function_query() {
 #[test]
 fn should_execute_numeric_scalar_function_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scalar_numeric_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -164,7 +164,7 @@ fn should_execute_numeric_scalar_function_query() {
 #[test]
 fn should_filter_rows_with_cast_function_expression() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_cast_function");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -212,7 +212,7 @@ fn should_filter_rows_with_cast_function_expression() {
 #[test]
 fn should_filter_rows_with_postgres_style_cast_expression() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("predicate_pg_cast");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -260,7 +260,7 @@ fn should_filter_rows_with_postgres_style_cast_expression() {
 #[test]
 fn should_project_rows_with_cast_expressions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_cast_expressions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -313,7 +313,7 @@ fn should_project_rows_with_cast_expressions() {
 #[test]
 fn should_reject_invalid_cast_expression() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("invalid_cast_expression");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -36,7 +36,7 @@ fn operator_switch_join_config(enabled: bool, threshold: usize) -> CassieRuntime
 #[test]
 fn should_execute_inner_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_inner");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -99,7 +99,7 @@ fn should_execute_inner_join_query() {
 #[test]
 fn should_execute_left_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_left");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -155,7 +155,7 @@ fn should_execute_left_join_query() {
 #[test]
 fn should_not_join_null_keys_in_merge_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_merge_duplicate_null_keys");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -222,7 +222,7 @@ fn should_not_join_null_keys_in_merge_join() {
 #[test]
 fn should_not_join_null_keys_in_vectorized_inner_join() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_vectorized_inner_duplicate_null_keys");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -291,7 +291,7 @@ fn should_not_join_null_keys_in_vectorized_inner_join() {
 #[test]
 fn should_execute_vectorized_left_join_unmatched_rows() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_vectorized_left_unmatched");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -355,7 +355,7 @@ fn should_execute_vectorized_left_join_unmatched_rows() {
 #[test]
 fn should_preserve_join_results_when_operator_switch_replays_inputs() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let fixed_path = data_dir("join_operator_switch_fixed");
     let switched_path = data_dir("join_operator_switch_replay");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -459,7 +459,7 @@ fn should_preserve_join_results_when_operator_switch_replays_inputs() {
 #[test]
 fn should_execute_right_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_right");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -511,7 +511,7 @@ fn should_execute_right_join_query() {
 #[test]
 fn should_execute_full_outer_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_full_outer");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -576,7 +576,7 @@ fn should_execute_full_outer_join_query() {
 #[test]
 fn should_execute_cross_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_cross");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -648,7 +648,7 @@ fn should_execute_cross_join_query() {
 #[test]
 fn should_execute_lateral_join_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_lateral");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -734,7 +734,7 @@ fn should_execute_lateral_join_query() {
 #[test]
 fn should_execute_cross_apply_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_cross_apply");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -799,7 +799,7 @@ fn should_execute_cross_apply_query() {
 #[test]
 fn should_execute_outer_apply_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("join_outer_apply");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -854,7 +854,7 @@ fn should_execute_outer_apply_query() {
 #[test]
 fn should_execute_from_subquery_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("from_subquery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

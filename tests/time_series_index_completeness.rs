@@ -11,7 +11,7 @@ const INDEX: &str = "idx_ts_complete_time";
 const QUERY: &str = "SELECT amount FROM ts_complete_events WHERE event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T02:00:00Z' ORDER BY amount";
 
 fn fixture(label: &str) -> (Cassie, String) {
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir(label);
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");

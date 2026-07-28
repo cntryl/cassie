@@ -44,7 +44,7 @@ fn copy_done_frame() -> Vec<u8> {
 #[test]
 fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = data_dir("round_trip");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

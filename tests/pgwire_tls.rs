@@ -59,7 +59,7 @@ async fn connect_tls(
 #[test]
 fn should_execute_pgwire_query_over_negotiated_tls() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let data_path = support::data_dir("tls-query");
     let tls_path = std::env::temp_dir().join(format!("cassie-pgwire-tls-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&tls_path).expect("TLS directory");
@@ -122,7 +122,7 @@ fn should_execute_pgwire_query_over_negotiated_tls() {
 #[test]
 fn should_preserve_pgwire_cancel_protocol_over_tls() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let data_path = support::data_dir("tls-cancel");
     let tls_path = std::env::temp_dir().join(format!("cassie-pgwire-tls-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&tls_path).expect("TLS directory");
@@ -186,7 +186,7 @@ fn should_preserve_pgwire_cancel_protocol_over_tls() {
 #[test]
 fn should_reject_invalid_pgwire_tls_identity_before_listening() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let data_path = support::data_dir("tls-invalid-identity");
 
     runtime().block_on(async {

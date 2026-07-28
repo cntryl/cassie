@@ -39,7 +39,7 @@ fn should_report_cancellation_handle_state() {
 #[test]
 fn should_cancel_embedded_query_before_execution() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-query-cancelled");
     let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
     cassie.startup().expect("startup");
@@ -99,7 +99,7 @@ fn should_release_query_memory_when_reservation_drops() {
 #[test]
 fn should_cancel_embedded_query_during_recursive_execution() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-query-active-cancel");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.cte_recursion_depth = 1_000_000;
@@ -138,7 +138,7 @@ fn should_cancel_embedded_query_during_recursive_execution() {
 #[test]
 fn should_cancel_embedded_query_during_ordered_execution() {
     // Arrange
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let path = data_dir("embedded-ordered-query-cancel");
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
     config.limits.query_memory_budget_bytes = 1024 * 1024 * 1024;

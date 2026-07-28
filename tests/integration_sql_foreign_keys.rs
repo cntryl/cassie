@@ -15,7 +15,7 @@ use support::*;
 #[test]
 fn should_reject_insert_when_foreign_key_parent_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("foreign_key_missing_parent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -76,7 +76,7 @@ fn should_reject_insert_when_foreign_key_parent_is_missing() {
 #[test]
 fn should_reject_parent_mutation_when_foreign_key_children_exist() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("foreign_key_referenced_parent");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -157,7 +157,7 @@ fn should_reject_parent_mutation_when_foreign_key_children_exist() {
 #[test]
 fn should_apply_foreign_key_delete_actions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("foreign_key_delete_actions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -252,7 +252,7 @@ fn should_apply_foreign_key_delete_actions() {
 #[test]
 fn should_apply_foreign_key_update_actions() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("foreign_key_update_actions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

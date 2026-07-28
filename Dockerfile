@@ -51,7 +51,7 @@ RUN npm run build
 
 FROM debian:trixie-slim AS runtime-fs
 
-RUN mkdir -p /data/midge \
+RUN mkdir -p /data/cassie \
 	&& chown -R 65532:65532 /data
 
 FROM gcr.io/distroless/cc-debian13 AS runtime
@@ -60,7 +60,7 @@ WORKDIR /app
 
 ENV CASSIE_REST_LISTEN=0.0.0.0:8080 \
 	CASSIE_PGWIRE_LISTEN=0.0.0.0:5432 \
-	CASSIE_MIDGE_DATA_DIR=/data/midge \
+	CASSIE_STORAGE_PATH=/data/cassie \
 	CASSIE_ADMIN_UI_DIR=/app/ui/dist
 
 COPY --from=runtime-fs --chown=65532:65532 /data /data

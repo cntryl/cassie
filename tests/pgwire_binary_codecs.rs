@@ -135,7 +135,7 @@ fn read_i32(payload: &[u8], cursor: &mut usize) -> i32 {
 #[test]
 fn should_encode_binary_result_codecs_with_exact_bytes() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-result-codecs");
 
     runtime().block_on(async {
@@ -203,7 +203,7 @@ fn should_encode_binary_result_codecs_with_exact_bytes() {
 #[test]
 fn should_decode_binary_temporal_uuid_parameters() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-parameter-codecs");
 
     runtime().block_on(async {
@@ -262,7 +262,7 @@ fn should_decode_binary_temporal_uuid_parameters() {
 #[test]
 fn should_encode_binary_vector_array_codecs() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-unsupported-codecs");
 
     runtime().block_on(async {
@@ -334,7 +334,7 @@ fn should_encode_binary_vector_array_codecs() {
 #[test]
 fn should_decode_binary_vector_array_parameters() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-vector-array-parameters");
 
     runtime().block_on(async {
@@ -404,7 +404,7 @@ fn should_decode_binary_vector_array_parameters() {
 #[test]
 fn should_reject_binary_array_lengths_that_exceed_the_payload() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-array-length");
 
     runtime().block_on(async {
@@ -446,7 +446,7 @@ fn should_reject_binary_array_lengths_that_exceed_the_payload() {
 #[test]
 fn should_apply_mixed_result_formats_with_null_values() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("binary-mixed-formats");
 
     runtime().block_on(async {

@@ -3,8 +3,8 @@ use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -20,7 +20,7 @@ fn data_dir(label: &str) -> String {
 #[test]
 fn should_isolate_duplicate_relation_names_across_databases_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("restart_isolation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +111,7 @@ fn should_isolate_duplicate_relation_names_across_databases_after_restart() {
 #[test]
 fn should_rewrite_collection_sidecars_when_schema_is_renamed() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rename_schema_sidecars");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -219,7 +219,7 @@ fn should_rewrite_collection_sidecars_when_schema_is_renamed() {
 #[test]
 fn should_reject_dropping_non_empty_schema_without_cascade() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_non_empty_schema");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -254,7 +254,7 @@ fn should_reject_dropping_non_empty_schema_without_cascade() {
 #[test]
 fn should_reject_dropping_current_or_non_empty_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("drop_database_guards");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -9,7 +9,7 @@ use support::*;
 #[test]
 fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_mixed_order_prefix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -111,7 +111,7 @@ fn should_scan_mixed_order_suffix_when_prefix_order_field_is_equality_bound() {
 #[test]
 fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_mixed_order_suffix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -219,7 +219,7 @@ fn should_scan_index_prefix_then_sort_mixed_direction_suffix() {
 #[test]
 fn should_scan_nonselective_index_prefix_then_heap_mixed_direction_suffix() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_nonselective_mixed_order_suffix");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -322,7 +322,7 @@ fn should_scan_nonselective_index_prefix_then_heap_mixed_direction_suffix() {
 #[test]
 fn should_scan_expression_index_after_restart_with_row_blob_projection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_expression_index_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -427,7 +427,7 @@ fn should_scan_expression_index_after_restart_with_row_blob_projection() {
 #[test]
 fn should_scan_expression_index_range_with_row_blob_projection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_expression_index_range");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -513,7 +513,7 @@ fn should_scan_expression_index_range_with_row_blob_projection() {
 #[test]
 fn should_scan_expression_index_order_limit_with_row_blob_projection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_expression_index_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -20,7 +20,7 @@ fn runtime() -> tokio::runtime::Runtime {
 #[test]
 fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = MATERIALIZED_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("transaction_commit_materialized_boundary");
 
@@ -105,7 +105,7 @@ fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
 #[test]
 fn should_replay_rollup_debt_after_durable_transaction_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("transaction_commit_rollup_boundary");
 

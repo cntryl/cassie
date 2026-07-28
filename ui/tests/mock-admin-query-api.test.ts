@@ -47,7 +47,7 @@ describe("mock admin query API", () => {
     const login = await fetch(`${baseUrl}/api/v1/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "admin", password: "pwd123", database: "analytics" }),
+      body: JSON.stringify({ username: "root", password: "pwd123", database: "analytics" }),
     });
     const cookie = sessionCookie(login);
     const session = await fetch(`${baseUrl}/api/v1/auth/session`, {
@@ -76,7 +76,7 @@ describe("mock admin query API", () => {
     // Assert
     expect(login.status).toBe(200);
     expect(await session.json()).toEqual({
-      user: "admin",
+      user: "root",
       role: "admin",
     });
     expect(catalog.status).toBe(200);
@@ -93,7 +93,7 @@ describe("mock admin query API", () => {
     const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "admin", password: "wrong" }),
+      body: JSON.stringify({ username: "root", password: "wrong" }),
     });
 
     // Assert

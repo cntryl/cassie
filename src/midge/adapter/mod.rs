@@ -228,8 +228,7 @@ pub(crate) use graphs::graph_edge_record_from_payload;
 mod key_encoding;
 mod layout;
 use layout::{
-    allow_memory_fallback, FamilyScope, RawStorageEntry, DEFAULT_FAMILY_NAME, SCHEMA_FAMILY_NAME,
-    TEMP_FAMILY_NAME,
+    FamilyScope, RawStorageEntry, DEFAULT_FAMILY_NAME, SCHEMA_FAMILY_NAME, TEMP_FAMILY_NAME,
 };
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
@@ -247,6 +246,7 @@ pub use query_scan_control::{
 };
 mod repair;
 mod scalar_indexes;
+mod storage_config;
 pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 mod scan_types;
 mod schema_cleanup;

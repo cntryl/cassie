@@ -11,7 +11,7 @@ mod support;
 #[test]
 fn should_stop_portal_scan_after_requested_page_is_buffered() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("portal-streaming-page");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -96,7 +96,7 @@ fn should_stop_portal_scan_after_requested_page_is_buffered() {
 #[test]
 fn should_cancel_suspended_portal_before_resume() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("portal-suspended-cancel");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -200,7 +200,7 @@ fn should_cancel_suspended_portal_before_resume() {
 #[test]
 fn should_resume_portal_from_original_snapshot_after_concurrent_insert() {
     // Arrange
-    support::with_fallback();
+    support::use_local_storage();
     let path = support::data_dir("portal-snapshot-resume");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -60,7 +60,7 @@ fn seed_replayed_projection(path: &str, table: &str) {
 #[test]
 fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_manifest_source");
     let snapshot = data_dir("snapshot_manifest_bundle");
     seed_replayed_projection(&source, "snapshot_manifest_docs");
@@ -111,7 +111,7 @@ fn should_create_snapshot_manifest_with_projection_checkpoint_hash_metadata() {
 #[test]
 fn should_record_collection_generations_for_snapshot_consistency() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_collection_generations_source");
     let snapshot = data_dir("snapshot_collection_generations_bundle");
     seed_replayed_projection(&source, "snapshot_collection_generations_docs");
@@ -149,7 +149,7 @@ fn should_record_collection_generations_for_snapshot_consistency() {
 #[test]
 fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_restore_source");
     let snapshot = data_dir("snapshot_restore_bundle");
     let restored = data_dir("snapshot_restore_restored");
@@ -216,7 +216,7 @@ fn should_restore_snapshot_to_new_data_dir_for_startup_query() {
 #[test]
 fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_incompatible_source");
     let snapshot = data_dir("snapshot_incompatible_bundle");
     let restored = data_dir("snapshot_incompatible_restored");
@@ -255,7 +255,7 @@ fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
 #[test]
 fn should_reject_restore_when_manifest_epoch_does_not_match_copied_state() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_epoch_mismatch_source");
     let snapshot = data_dir("snapshot_epoch_mismatch_bundle");
     let restored = data_dir("snapshot_epoch_mismatch_restored");
@@ -296,7 +296,7 @@ fn should_reject_restore_when_manifest_epoch_does_not_match_copied_state() {
 #[test]
 fn should_remove_partial_snapshot_after_copy_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_copy_error_source");
     let snapshot = data_dir("snapshot_copy_error_bundle");
     seed_replayed_projection(&source, "snapshot_copy_error_docs");
@@ -329,7 +329,7 @@ fn should_remove_partial_snapshot_after_copy_error() {
 #[test]
 fn should_remove_partial_restore_after_copy_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("restore_copy_error_source");
     let snapshot = data_dir("restore_copy_error_bundle");
     let target = data_dir("restore_copy_error_target");
@@ -368,7 +368,7 @@ fn should_remove_partial_restore_after_copy_error() {
 #[test]
 fn should_reject_snapshot_destination_through_a_symlink_into_the_source() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("snapshot_symlink_source");
     let alias = data_dir("snapshot_symlink_alias");
     seed_replayed_projection(&source, "snapshot_symlink_docs");
@@ -391,7 +391,7 @@ fn should_reject_snapshot_destination_through_a_symlink_into_the_source() {
 #[test]
 fn should_reject_restore_target_that_contains_the_snapshot() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let source = data_dir("restore_overlap_source");
     let target = data_dir("restore_overlap_target");
     let snapshot = std::path::Path::new(&target).join("bundle");

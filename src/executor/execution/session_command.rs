@@ -68,7 +68,7 @@ pub(super) fn execute_set(
 }
 
 fn default_setting(name: &str) -> Result<String, crate::app::CassieError> {
-    CassieSession::new("postgres".to_string(), None).setting(name)
+    CassieSession::new("root".to_string(), None).setting(name)
 }
 
 fn setting_display_name(name: &str) -> &str {

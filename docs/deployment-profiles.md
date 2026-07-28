@@ -7,7 +7,7 @@ diagnostic and must not be recorded as disk-backed deployment evidence.
 ## `workstation-apple-m5-arm64-apfs`
 
 - Host: Apple M5, arm64, macOS, APFS.
-- Storage: disk-backed `CASSIE_MIDGE_DATA_DIR` on the local APFS volume.
+- Storage: disk-backed `CASSIE_STORAGE_PATH` on the local APFS volume.
 - Runtime: repository defaults unless a benchmark owner declares an override in the artifact.
 - Fixtures: Tier 1-4 declared workload fixtures plus Tier 5 scale axes and both Tier 6 endurance scenarios.
 - Workload: mixed SQL reads/writes, retrieval, projections, transport, restart, and recovery-sensitive paths.
@@ -17,7 +17,7 @@ diagnostic and must not be recorded as disk-backed deployment evidence.
 ## `native-linux-amd64-disk`
 
 - Host: Linux amd64, with the CPU, memory, kernel, filesystem, and mounted-volume identity recorded.
-- Storage: disk-backed `CASSIE_MIDGE_DATA_DIR` on the declared native filesystem; fallback storage is not valid.
+- Storage: disk-backed `CASSIE_STORAGE_PATH` on the declared native filesystem; fallback storage is not valid.
 - Runtime: repository defaults plus explicitly recorded profile overrides for admission, memory, workers, and timeouts.
 - Fixtures: the same Tier 1-6 owner and scale contract as the Apple profile wherever the owner applies.
 - Workload: the same named mixed workload and client/worker axes, preserving fixture and query-shape identity.

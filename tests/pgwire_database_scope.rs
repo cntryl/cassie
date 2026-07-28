@@ -3,8 +3,8 @@ use std::time::Duration;
 use cassie::app::Cassie;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -101,7 +101,7 @@ fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
 #[test]
 fn should_report_3d000_for_missing_startup_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("missing_database");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -133,7 +133,7 @@ fn should_report_3d000_for_missing_startup_database() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        let startup = startup_frame("postgres", "missing_db");
+        let startup = startup_frame("root", "missing_db");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");

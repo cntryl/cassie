@@ -16,7 +16,7 @@ fn create_manifest_source(
     label: &str,
     title: &str,
 ) -> (Cassie, String, String, ProjectionManifestExportOptions) {
-    with_fallback();
+    use_local_storage();
     let dir = data_dir(label);
     let cassie = Cassie::new_with_data_dir(&dir).expect("cassie");
     cassie.startup().expect("startup");
@@ -78,7 +78,7 @@ async fn login_cookie(client: &reqwest::Client, base_url: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "sa",
+            "username": "root",
             "password": "topsecret"
         }))
         .send()
@@ -249,7 +249,7 @@ fn should_exclude_sensitive_values_from_manifest() {
 #[test]
 fn should_rehydrate_persisted_consistency_report_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_consistency_restart");
     let report_id = {
         let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
@@ -359,10 +359,9 @@ fn should_record_consistency_metrics() {
 #[test]
 fn should_support_admin_rest_manifest_consistency_workflow() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_consistency_rest");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };
@@ -452,10 +451,9 @@ fn should_support_admin_rest_manifest_consistency_workflow() {
 #[test]
 fn should_support_restful_projection_consistency_aliases() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_consistency_restful_aliases");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "topsecret".to_string(),
         ..CassieRuntimeConfig::default()
     };

@@ -8,7 +8,7 @@ use cassie::types::{DataType, FieldSchema, Schema};
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{canonical_test_collection, data_dir, with_fallback};
+use support::{canonical_test_collection, data_dir, use_local_storage};
 
 static COLLECTION_DROP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 static COLLECTION_RENAME_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -18,7 +18,7 @@ static FIELD_ADD_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new((
 #[test]
 fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = FIELD_ADD_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_field_add_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -122,7 +122,7 @@ fn should_replay_add_column_derived_state_after_schema_commit_interruption() {
 #[test]
 fn should_discard_rejected_collection_rename_intent_on_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("schema_operation_rejected_rename");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -189,7 +189,7 @@ fn should_discard_rejected_collection_rename_intent_on_restart() {
 #[test]
 fn should_replay_drop_collection_cleanup_after_schema_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = COLLECTION_DROP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_drop_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -231,14 +231,6 @@ fn should_replay_drop_collection_cleanup_after_schema_commit() {
     drop(cassie);
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("replay collection drop");
-    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
-    restarted_again
-        .startup()
-        .expect("replay collection drop idempotently");
-
-    // Assert
-    assert!(schema_after_interrupt.is_none());
-    assert_eq!(generation_after_interrupt, 1);
     assert!(restarted.midge.collection_schema("drop_recovery").is_none());
     assert_eq!(
         restarted
@@ -247,6 +239,15 @@ fn should_replay_drop_collection_cleanup_after_schema_commit() {
             .unwrap(),
         0
     );
+    drop(restarted);
+    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
+    restarted_again
+        .startup()
+        .expect("replay collection drop idempotently");
+
+    // Assert
+    assert!(schema_after_interrupt.is_none());
+    assert_eq!(generation_after_interrupt, 1);
     assert!(restarted_again
         .midge
         .collection_schema("drop_recovery")
@@ -258,7 +259,7 @@ fn should_replay_drop_collection_cleanup_after_schema_commit() {
 #[test]
 fn should_replay_drop_graph_collection_cleanup_without_orphaned_adjacency() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = COLLECTION_DROP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_drop_graph_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -338,7 +339,7 @@ fn should_replay_drop_graph_collection_cleanup_without_orphaned_adjacency() {
 #[test]
 fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = INDEX_DROP_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_drop_index_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -405,12 +406,6 @@ fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
     drop(cassie);
     let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
     restarted.startup().expect("replay index cleanup");
-    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
-    restarted_again
-        .startup()
-        .expect("replay index cleanup idempotently");
-
-    // Assert
     assert!(restarted
         .midge
         .get_index(&collection, "drop_index_recovery_title_idx")
@@ -421,6 +416,13 @@ fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
         .raw_scan_prefix(StorageFamily::Data, &prefix)
         .expect("read removed scalar sidecars")
         .is_empty());
+    drop(restarted);
+    let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
+    restarted_again
+        .startup()
+        .expect("replay index cleanup idempotently");
+
+    // Assert
     assert!(restarted_again
         .midge
         .get_index(&collection, "drop_index_recovery_title_idx")
@@ -433,7 +435,7 @@ fn should_replay_drop_index_cleanup_after_metadata_interrupt() {
 #[test]
 fn should_replay_collection_rename_data_after_schema_commit_interruption() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = COLLECTION_RENAME_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_rename_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -483,7 +485,7 @@ fn should_replay_collection_rename_data_after_schema_commit_interruption() {
 #[test]
 fn should_preserve_destination_write_when_collection_rename_replays() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let _failpoint_guard = COLLECTION_RENAME_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("schema_operation_rename_destination_write");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
@@ -547,7 +549,7 @@ fn should_preserve_destination_write_when_collection_rename_replays() {
 #[test]
 fn should_replay_field_rename_data_after_schema_commit_interruption() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("schema_operation_field_rename_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -594,7 +596,7 @@ fn should_replay_field_rename_data_after_schema_commit_interruption() {
 #[test]
 fn should_replay_field_drop_data_after_schema_commit_interruption() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("schema_operation_field_drop_recovery");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

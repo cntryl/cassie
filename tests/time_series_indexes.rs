@@ -37,7 +37,7 @@ fn should_parse_time_series_index_options() {
 #[test]
 fn should_select_time_series_index_for_timestamp_range_explain() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_explain");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -94,7 +94,7 @@ fn should_select_time_series_index_for_timestamp_range_explain() {
 #[test]
 fn should_execute_timestamp_range_with_time_series_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_execute");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -182,7 +182,7 @@ fn should_execute_timestamp_range_with_time_series_metrics() {
 #[test]
 fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_fresh_bulk_load");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -273,7 +273,7 @@ fn should_bulk_load_fresh_time_series_documents_for_bucket_reads() {
 #[test]
 fn should_bound_partitioned_time_series_bucket_reads() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_bounded_partition_reads");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -343,7 +343,7 @@ fn should_bound_partitioned_time_series_bucket_reads() {
 #[test]
 fn should_preserve_time_series_range_reads_after_mutations_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_mutations");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -449,7 +449,7 @@ fn should_preserve_time_series_range_reads_after_mutations_restart() {
 #[test]
 fn should_keep_time_series_sidecars_current_during_concurrent_rebuilds() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_concurrent_rebuilds");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     cassie.startup().unwrap();
@@ -518,7 +518,7 @@ fn should_keep_time_series_sidecars_current_during_concurrent_rebuilds() {
 #[test]
 fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_missing_sidecar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -585,7 +585,7 @@ fn should_fallback_to_row_blobs_when_bucket_membership_is_missing() {
 #[test]
 fn should_cleanup_bucket_membership_after_retention() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_retention_sidecar");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -668,7 +668,7 @@ fn should_cleanup_bucket_membership_after_retention() {
 #[test]
 fn should_reject_time_series_index_on_non_timestamp_field() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_index_invalid_type");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -706,7 +706,7 @@ fn should_reject_time_series_index_on_non_timestamp_field() {
 #[test]
 fn should_prune_parameterized_time_series_ranges() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("time_series_parameterized_controls");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

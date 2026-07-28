@@ -77,7 +77,7 @@ fn confident_feedback(elapsed_ms: u64, storage_reads: u64) -> RuntimeFeedbackObs
 #[test]
 fn should_order_column_top_k_with_deterministic_tie_break() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_top_k_tie");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -163,7 +163,7 @@ fn should_order_column_top_k_with_deterministic_tie_break() {
 #[test]
 fn should_preserve_results_for_adaptive_read_operator_choice() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let fixed_path = data_dir("adaptive_read_operator_fixed");
     let adaptive_path = data_dir("adaptive_read_operator_enabled");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -266,7 +266,7 @@ fn should_preserve_results_for_adaptive_read_operator_choice() {
 #[test]
 fn should_fall_back_for_filtered_ordered_column_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_top_k_filter_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -347,7 +347,7 @@ fn should_fall_back_for_filtered_ordered_column_query_without_changing_results()
 #[test]
 fn should_fall_back_for_function_projection_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projected_scan_function_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -411,7 +411,7 @@ fn should_fall_back_for_function_projection_query_without_changing_results() {
 #[test]
 fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projected_scan_wildcard_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -481,7 +481,7 @@ fn should_fall_back_for_wildcard_projection_query_without_changing_results() {
 #[test]
 fn should_describe_select_projection_with_column_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("describe_sql_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -540,7 +540,7 @@ fn should_describe_select_projection_with_column_metadata() {
 #[test]
 fn should_execute_projected_crud_queries_against_column_store_tables() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_store_projection_crud");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -626,7 +626,7 @@ fn should_execute_projected_crud_queries_against_column_store_tables() {
 #[test]
 fn should_create_column_store_tables_without_feature_gate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_store_disabled");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -658,7 +658,7 @@ fn should_create_column_store_tables_without_feature_gate() {
 #[test]
 fn should_reject_column_store_schema_rewrites_before_partial_write() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("column_store_schema_rewrite");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -4,7 +4,7 @@ use cassie::types::{DataType, FieldSchema, Schema};
 
 #[path = "support/metrics.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 fn canonical_public_relation(name: &str) -> String {
     canonical_relation_name("postgres", "public", name)
@@ -163,7 +163,7 @@ fn assert_read_path_metrics(after: &serde_json::Value, before: &ReadPathBaseline
 #[test]
 fn should_report_runtime_metrics_snapshot() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("startup_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -266,7 +266,7 @@ fn should_report_runtime_metrics_snapshot() {
 #[test]
 fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_path_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -293,7 +293,7 @@ fn should_record_read_path_metrics_for_point_lookup_collection_scan() {
 #[test]
 fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("cardinality_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -363,7 +363,7 @@ fn should_expose_cardinality_metrics_with_explain_plan_estimates() {
 #[test]
 fn should_record_query_error_statistics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("query_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -408,7 +408,7 @@ fn should_record_query_error_statistics() {
 #[test]
 fn should_count_failed_scan_as_storage_read_error() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("scan_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

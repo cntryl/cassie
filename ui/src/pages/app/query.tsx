@@ -1,6 +1,6 @@
 import { state } from "@askrjs/askr";
 import { createQuery, queryScope } from "@askrjs/askr/data";
-import { For } from "@askrjs/askr/control";
+import { For, Show } from "@askrjs/askr/control";
 import {
   Dialog,
   DialogClose,
@@ -268,7 +268,7 @@ export default function QueryPage() {
         )}
       </For>
 
-      {dialogOpen() ? (
+      <Show when={dialogOpen()}>
         <Dialog open onOpenChange={setDialogOpen}>
           <DialogPortal>
             <DialogOverlay class="cassie-query-dialog-overlay" />
@@ -291,20 +291,22 @@ export default function QueryPage() {
                 />
               ) : null}
               <div class="cassie-query-database-list">
-                {filteredDatabases().map((database) => (
-                  <div key={database.name}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        createTab(database.name);
-                        setDialogOpen(false);
-                      }}
-                    >
-                      <strong>{database.name}</strong>
-                      {database.description ? <span>{database.description}</span> : null}
-                    </button>
-                  </div>
-                ))}
+                <For each={filteredDatabases()} by={(database) => database.name}>
+                  {(database) => (
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          createTab(database.name);
+                          setDialogOpen(false);
+                        }}
+                      >
+                        <strong>{database.name}</strong>
+                        {database.description ? <span>{database.description}</span> : null}
+                      </button>
+                    </div>
+                  )}
+                </For>
               </div>
               <DialogClose asChild>
                 <Button type="button" variant="ghost" onPress={() => setDialogOpen(false)}>
@@ -314,7 +316,7 @@ export default function QueryPage() {
             </DialogContent>
           </DialogPortal>
         </Dialog>
-      ) : null}
+      </Show>
       {createDatabaseOpen() ? (
         <CreateDatabaseDialog
           databaseNames={() => (databaseQuery.data ?? []).map((database) => database.name)}

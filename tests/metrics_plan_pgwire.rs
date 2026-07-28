@@ -2,8 +2,8 @@ use cassie::app::Cassie;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -121,7 +121,7 @@ async fn read_until_ready(
 #[test]
 fn should_report_plan_cache_metrics() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("plan_cache_metrics");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -197,7 +197,7 @@ fn should_report_plan_cache_metrics() {
 #[test]
 fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgwire_protocol_errors");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -232,7 +232,7 @@ fn should_track_protocol_errors_for_missing_prepared_statement_describe() {
             .expect("connect pgwire");
         let (read_half, mut write_half) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
-        let startup = startup_frame("postgres", "postgres");
+        let startup = startup_frame("root", "postgres");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("startup write");

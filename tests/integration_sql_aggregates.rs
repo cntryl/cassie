@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_grouped_count_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_count");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -82,7 +82,7 @@ fn should_execute_grouped_count_query() {
 #[test]
 fn should_execute_basic_numeric_aggregates_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_numeric");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -135,7 +135,7 @@ fn should_execute_basic_numeric_aggregates_query() {
 #[test]
 fn should_ignore_null_values_for_basic_aggregates_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_nulls");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -189,7 +189,7 @@ fn should_ignore_null_values_for_basic_aggregates_query() {
 #[test]
 fn should_execute_row_number_window_function_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("window_row_number");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -267,7 +267,7 @@ fn should_execute_row_number_window_function_query() {
 #[test]
 fn should_execute_basic_value_window_functions_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("window_basic_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -357,7 +357,7 @@ fn should_execute_basic_value_window_functions_query() {
 #[test]
 fn should_filter_grouped_rows_with_having() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("aggregate_having");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

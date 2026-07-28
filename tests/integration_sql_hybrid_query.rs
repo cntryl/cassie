@@ -24,7 +24,7 @@ fn hybrid_params(query: &str) -> Vec<Value> {
 #[test]
 fn should_order_hybrid_top_k_by_score_with_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_top_k_limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -103,7 +103,7 @@ fn should_order_hybrid_top_k_by_score_with_limit() {
 #[test]
 fn should_generate_hybrid_candidates_from_text_matches() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_text_candidates");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -190,7 +190,7 @@ fn should_generate_hybrid_candidates_from_text_matches() {
 #[test]
 fn should_explain_mixed_text_vector_execution_stages() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_explain_mixed_stages");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -251,7 +251,7 @@ fn should_explain_mixed_text_vector_execution_stages() {
 #[test]
 fn should_reject_hybrid_text_candidate_without_vector() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_missing_vector");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -334,7 +334,7 @@ fn bounded_hybrid_fixture_with_limits(
     max_candidates: usize,
     query_memory_budget_bytes: Option<usize>,
 ) -> (Cassie, String, &'static str) {
-    with_fallback();
+    use_local_storage();
     let path = data_dir("hybrid_bounded_candidates");
     let mut config = CassieRuntimeConfig::from_env().unwrap();
     config.limits.adaptive_candidate_max = max_candidates;

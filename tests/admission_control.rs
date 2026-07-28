@@ -7,8 +7,8 @@ use pgwire::{complete_startup, parse_error_fields, read_wire_frame};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -44,7 +44,7 @@ async fn read_http_response_head(stream: &mut tokio::net::TcpStream) -> String {
 #[test]
 fn should_reject_pgwire_connections_over_admission_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgwire");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -106,7 +106,7 @@ fn should_reject_pgwire_connections_over_admission_limit() {
 #[test]
 fn should_release_rest_admission_permit_after_overflow_503() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

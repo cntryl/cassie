@@ -48,7 +48,7 @@ fn should_parse_projection_compare_command() {
 #[test]
 fn should_diff_projection_hashes_deterministically() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_diff_hashes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -105,7 +105,7 @@ fn should_diff_projection_hashes_deterministically() {
 #[test]
 fn should_compare_projection_manifest_root_digest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_compare_manifest");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -158,7 +158,7 @@ fn should_compare_projection_manifest_root_digest() {
 #[test]
 fn should_report_projection_diff_resume_cursor_for_bounded_output() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_diff_resume_cursor");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -239,7 +239,7 @@ fn should_report_projection_diff_resume_cursor_for_bounded_output() {
 #[test]
 fn should_reject_projection_manifest_missing_hash_metadata() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_compare_missing_metadata");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -299,7 +299,7 @@ fn should_reject_projection_manifest_missing_hash_metadata() {
 #[test]
 fn should_persist_projection_comparison_report_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("projection_comparison_report_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

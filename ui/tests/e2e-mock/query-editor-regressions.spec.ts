@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 
 async function openAnalyticsQuery(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("button", { name: "New Query" }).first().click();

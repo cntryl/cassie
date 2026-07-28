@@ -11,6 +11,7 @@ Cassie uses `cntryl-midge` directly as its only storage layer. Midge provides pe
 ## Start Here
 
 - [Documentation map](docs/README.md)
+- [Environment variables](docs/environment-variables.md)
 - [Feature behavior and status](docs/feature-support.md)
 - [PostgreSQL wire and client contract](docs/postgres-compatibility.md)
 - [Performance contracts](docs/performance-contracts.md)
@@ -45,7 +46,12 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 ## Container
 
-`compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ADMIN_PASSWORD`. Do not publish that plaintext hop directly to an untrusted network.
+The `Containers` workflow publishes `ghcr.io/cntryl/cassie` as a multi-architecture
+image. Every run receives its GitVersion SemVer tag and branch tag. A run from
+`main` also updates `latest`, so a main build publishes the same manifest under
+`:<semver>`, `:main`, and `:latest`.
+
+`compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ROOT_PASSWORD` for the fixed `root` login. Do not publish that plaintext hop directly to an untrusted network.
 
 For Cassie to terminate REST TLS itself, remove the insecure-listener override, configure `CASSIE_REST_TLS_CERT_FILE` and `CASSIE_REST_TLS_KEY_FILE` inside the container, and mount the PEM certificate chain and private key read-only. Cassie fails closed when direct non-loopback TLS is selected but either file is absent.
 

@@ -13,8 +13,8 @@ type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -354,7 +354,7 @@ async fn spawn_pgwire_server(cassie: &Cassie) -> (SocketAddr, PgwireServer) {
 }
 
 async fn start_pgwire_session(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {
-    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("postgres", "postgres"))
+    tokio::io::AsyncWriteExt::write_all(writer, &startup_frame("root", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;
@@ -449,7 +449,7 @@ fn assert_close_cascade_frames(frames: &[WireFrame], cassie: &Cassie) {
 #[test]
 fn should_close_statement_cascade_referenced_portals_before_reuse() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("close_cascade");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

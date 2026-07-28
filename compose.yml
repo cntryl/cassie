@@ -9,9 +9,8 @@ services:
     environment:
       CASSIE_REST_LISTEN: 0.0.0.0:8080
       CASSIE_PGWIRE_LISTEN: 0.0.0.0:5432
-      CASSIE_ADMIN_USER: ${CASSIE_ADMIN_USER:-cassie}
-      CASSIE_ADMIN_PASSWORD: ${CASSIE_ADMIN_PASSWORD:?set a non-default bootstrap secret}
-      CASSIE_MIDGE_DATA_DIR: /data/midge
+      CASSIE_ROOT_PASSWORD: ${CASSIE_ROOT_PASSWORD:?set a non-default root secret}
+      CASSIE_STORAGE_PATH: /data/cassie
       CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN: "1"
     volumes:
       - cassie-data:/data

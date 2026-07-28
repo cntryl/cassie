@@ -31,8 +31,8 @@ pub struct RowDescription {
     pub format_code: i16,
 }
 
-pub fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+pub fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 pub fn data_dir(label: &str) -> String {
@@ -244,7 +244,7 @@ async fn complete_startup_with_password_and_backend_key(
     password: &str,
 ) -> (i32, i32) {
     writer
-        .write_all(&startup_frame("postgres", "postgres"))
+        .write_all(&startup_frame("root", "postgres"))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;

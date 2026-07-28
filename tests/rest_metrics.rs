@@ -1,8 +1,8 @@
 use cassie::app::Cassie;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -15,7 +15,7 @@ async fn login_cookie(client: &reqwest::Client, addr: std::net::SocketAddr) -> S
     client
         .post(format!("http://{addr}/api/v1/auth/login"))
         .json(&serde_json::json!({
-            "username": "postgres",
+            "username": "root",
             "password": "postgres"
         }))
         .send()
@@ -73,7 +73,7 @@ fn assert_rest_metrics(metrics: &serde_json::Value) {
 #[test]
 fn should_record_rest_request_metrics_for_http_routes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("http_routes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

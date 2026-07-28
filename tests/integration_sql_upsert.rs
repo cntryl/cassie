@@ -7,14 +7,14 @@ fn data_dir(name: &str) -> PathBuf {
     std::env::temp_dir().join(format!("cassie-upsert-{name}-{}", Uuid::new_v4()))
 }
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 #[test]
 fn should_update_conflicting_row_given_parameters_excluded_filter_and_returning() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("update");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -45,7 +45,7 @@ fn should_update_conflicting_row_given_parameters_excluded_filter_and_returning(
 #[test]
 fn should_reject_invalid_conflict_update_before_mutation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("binding");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -76,7 +76,7 @@ fn should_reject_invalid_conflict_update_before_mutation() {
 #[test]
 fn should_persist_only_committed_upsert_given_rollback_then_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transactions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

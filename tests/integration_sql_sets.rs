@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_execute_distinct_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("distinct_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -67,7 +67,7 @@ fn should_execute_distinct_query() {
 #[test]
 fn should_execute_union_all_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("union_all_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -136,7 +136,7 @@ fn should_execute_union_all_query() {
 #[test]
 fn should_execute_union_query_with_deduplication() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("union_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -200,7 +200,7 @@ fn should_execute_union_query_with_deduplication() {
 #[test]
 fn should_execute_intersect_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("intersect_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -249,7 +249,7 @@ fn should_execute_intersect_query() {
 #[test]
 fn should_execute_except_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("except_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -297,7 +297,7 @@ fn should_execute_except_query() {
 #[test]
 fn should_execute_distinct_on_query_with_ordering() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("distinct_on_query");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -354,7 +354,7 @@ fn should_execute_distinct_on_query_with_ordering() {
 #[test]
 fn should_apply_order_limit_offset_after_union_all() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("union_global_order");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -401,7 +401,7 @@ fn should_apply_order_limit_offset_after_union_all() {
 #[test]
 fn should_execute_chained_union_all_query() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("union_all_chained");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -7,8 +7,8 @@ use reqwest::StatusCode;
 use tokio_postgres::NoTls;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -24,17 +24,16 @@ fn data_dir(label: &str) -> String {
 #[test]
 fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("statement_families");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("sa", Some("sa-secret"), None)
+        .authenticate_role("root", Some("sa-secret"), None)
         .expect("admin login");
     cassie
         .execute_sql(
@@ -124,17 +123,16 @@ fn should_enforce_read_only_access_for_authenticated_non_admin_roles() {
 #[test]
 fn should_enforce_authenticated_read_only_access_through_rest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("rest");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("sa", Some("sa-secret"), None)
+        .authenticate_role("root", Some("sa-secret"), None)
         .expect("admin login");
     cassie
         .execute_sql(
@@ -228,17 +226,16 @@ fn should_enforce_authenticated_read_only_access_through_rest() {
 #[test]
 fn should_report_insufficient_privilege_sqlstate_through_pgwire() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("pgwire");
     let config = CassieRuntimeConfig {
-        user: "sa".to_string(),
         password: "sa-secret".to_string(),
         ..CassieRuntimeConfig::default()
     };
     let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).expect("cassie");
     cassie.startup().expect("startup");
     let admin = cassie
-        .authenticate_role("sa", Some("sa-secret"), None)
+        .authenticate_role("root", Some("sa-secret"), None)
         .expect("admin login");
     cassie
         .execute_sql(

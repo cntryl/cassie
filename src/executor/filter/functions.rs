@@ -119,7 +119,7 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
         "current_user" | "session_user" | "current_role" => {
             Some(require_zero_args(name, args).map(|()| {
                 Value::String(
-                    session.map_or_else(|| "postgres".to_string(), |session| session.user.clone()),
+                    session.map_or_else(|| "root".to_string(), |session| session.user.clone()),
                 )
             }))
         }
@@ -131,7 +131,7 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
             Value::String(text.to_string())
         })),
         "pg_get_userbyid" | "pg_catalog.pg_get_userbyid" => {
-            Some(require_arg_count(name, args, 1).map(|()| Value::String("postgres".to_string())))
+            Some(require_arg_count(name, args, 1).map(|()| Value::String("root".to_string())))
         }
         "obj_description" | "pg_catalog.obj_description" => {
             Some(require_arg_count_range(name, args, 1..=2).map(|()| Value::Null))
@@ -159,7 +159,7 @@ fn evaluate_current_setting(
     let setting = to_text(&args[0]);
     let missing_ok = matches!(args.get(1), Some(Value::Bool(true)));
     let value = session.map_or_else(
-        || CassieSession::new("postgres".to_string(), None).setting(&setting),
+        || CassieSession::new("root".to_string(), None).setting(&setting),
         |session| session.setting(&setting),
     );
     match value {

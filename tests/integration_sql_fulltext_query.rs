@@ -16,7 +16,7 @@ use support::*;
 #[test]
 fn should_order_fulltext_top_k_by_score_with_limit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_top_k_limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -97,7 +97,7 @@ fn should_order_fulltext_top_k_by_score_with_limit() {
 #[test]
 fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_unordered_match");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -186,7 +186,7 @@ fn should_execute_unordered_fulltext_query_with_matching_search_predicate() {
 #[test]
 fn should_project_search_function_as_boolean_match() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_boolean_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -248,7 +248,7 @@ fn should_project_search_function_as_boolean_match() {
 #[test]
 fn should_project_search_score_as_numeric_relevance() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("search_score_projection");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -319,7 +319,7 @@ fn should_project_search_score_as_numeric_relevance() {
 #[test]
 fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_unordered_mismatch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -391,7 +391,7 @@ fn should_fall_back_for_unordered_fulltext_mismatched_search_query_without_chang
 #[test]
 fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_unordered_extra_filter");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -470,7 +470,7 @@ fn should_fall_back_for_unordered_fulltext_additional_filters_without_changing_r
 #[test]
 fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_complex_fallback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -548,7 +548,7 @@ fn should_fall_back_for_complex_fulltext_query_without_changing_results() {
 #[test]
 fn should_project_snippet_without_highlighting_generated_markup() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("snippet_generated_markup");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -609,7 +609,7 @@ fn should_project_snippet_without_highlighting_generated_markup() {
 #[test]
 fn should_hydrate_fulltext_analyzer_options_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_analyzer_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -681,7 +681,7 @@ fn should_hydrate_fulltext_analyzer_options_after_restart() {
 #[test]
 fn should_hydrate_fulltext_tokenizer_options_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("fulltext_tokenizer_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

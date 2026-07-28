@@ -214,7 +214,7 @@ fn should_parse_ivfflat_vector_index_options() {
 #[test]
 fn should_persist_ivfflat_vector_index_options() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_vector_index_options");
     let cassie =
         Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors()).expect("cassie");
@@ -257,7 +257,7 @@ fn should_persist_ivfflat_vector_index_options() {
 #[test]
 fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_candidate_lists");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -299,7 +299,7 @@ fn should_use_trained_ivfflat_candidate_lists_for_top_k() {
 #[test]
 fn should_read_only_probed_ivfflat_candidates() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_point_reads");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_point_reads";
@@ -343,7 +343,7 @@ fn should_read_only_probed_ivfflat_candidates() {
 #[test]
 fn should_read_persisted_ivfflat_candidate_ids_without_source_scan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_persisted_candidate_ids");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_persisted_candidate_ids";
@@ -383,7 +383,7 @@ fn should_read_persisted_ivfflat_candidate_ids_without_source_scan() {
 #[test]
 fn should_store_ivfflat_membership_outside_training_manifest() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_membership_layout");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_membership_layout";
@@ -423,7 +423,7 @@ fn should_store_ivfflat_membership_outside_training_manifest() {
 #[test]
 fn should_refresh_ivfflat_training_after_document_writes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_write_refresh");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -478,7 +478,7 @@ fn should_refresh_ivfflat_training_after_document_writes() {
 #[test]
 fn should_keep_ivfflat_reads_safe_during_concurrent_mutation() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_concurrent_mutation");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_concurrent_mutation";
@@ -538,7 +538,7 @@ fn should_keep_ivfflat_reads_safe_during_concurrent_mutation() {
 #[test]
 fn should_fall_back_when_ivfflat_training_assignment_coverage_is_missing() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_missing_assignment_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_missing_assignment_fallback";
@@ -568,7 +568,7 @@ fn should_fall_back_when_ivfflat_training_assignment_coverage_is_missing() {
 #[test]
 fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_bad_list_bounds_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_bad_list_bounds_fallback";
@@ -600,7 +600,7 @@ fn should_fall_back_when_ivfflat_training_list_bounds_are_bad() {
 #[test]
 fn should_fall_back_when_same_row_count_ivfflat_training_fingerprint_is_stale() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ivfflat_stale_fingerprint_fallback");
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
     let collection = "ivfflat_stale_fingerprint_fallback";

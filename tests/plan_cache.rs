@@ -6,8 +6,8 @@ use cassie::sql::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema};
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -26,7 +26,7 @@ fn adaptive_execution_config() -> CassieRuntimeConfig {
 #[test]
 fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("reuse_across_sessions");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -114,7 +114,7 @@ fn should_reuse_cached_plan_across_sessions_without_sharing_bind_values() {
 #[test]
 fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("diagnostic_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -178,7 +178,7 @@ fn should_report_diagnostic_plan_cache_hit_after_query_execution() {
 #[test]
 fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("reuse_equivalent_sql_whitespace");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -249,7 +249,7 @@ fn should_reuse_cached_plan_for_equivalent_sql_with_different_whitespace() {
 #[test]
 fn should_reuse_cached_execution_result_without_additional_storage_reads() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("execution_result_cache_hit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -332,7 +332,7 @@ fn should_reuse_cached_execution_result_without_additional_storage_reads() {
 #[test]
 fn should_invalidate_cached_execution_result_after_write() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("execution_result_cache_invalidation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -407,7 +407,7 @@ fn should_invalidate_cached_execution_result_after_write() {
 #[test]
 fn should_isolate_cached_plans_by_database() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("database_isolation");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -468,7 +468,7 @@ fn should_isolate_cached_plans_by_database() {
 #[test]
 fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("first_non_durable_miss_out_of_cf2");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -531,7 +531,7 @@ fn should_keep_first_non_durable_plan_miss_out_of_cf2() {
 #[test]
 fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("reuse_after_restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -617,7 +617,7 @@ fn should_reuse_cf2_cached_plan_after_restart_without_l1_state() {
 #[test]
 fn should_separate_cached_plans_by_adaptive_config() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("adaptive_config_key");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -693,7 +693,7 @@ fn should_separate_cached_plans_by_adaptive_config() {
 #[test]
 fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("invalidate_after_ddl");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -767,7 +767,7 @@ fn should_invalidate_cached_plan_after_ddl_changes_catalog_state() {
 #[test]
 fn should_evict_oldest_plan_when_cache_capacity_is_one() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("eviction");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -857,7 +857,7 @@ fn should_evict_oldest_plan_when_cache_capacity_is_one() {
 #[test]
 fn should_not_cache_transaction_control_statements() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_controls_bypass_cache");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -892,7 +892,7 @@ fn should_not_cache_transaction_control_statements() {
 #[test]
 fn should_promote_non_durable_l1_plan_without_extra_cf2_reads_on_second_hit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("l1_promotion_without_extra_cf2_reads");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

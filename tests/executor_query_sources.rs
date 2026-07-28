@@ -97,7 +97,7 @@ fn should_execute_query_with_alias_filters() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let mut path = std::env::temp_dir();
     path.push(format!("cassie-exec-{}", Uuid::new_v4()));
     let cassie = Cassie::new_with_data_dir(&path).unwrap();
@@ -134,7 +134,7 @@ fn should_execute_query_respects_boolean_precedence() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_precedence";
 
@@ -227,7 +227,7 @@ fn should_execute_query_parentheses_override_precedence() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_precedence_paren";
 
@@ -320,7 +320,7 @@ fn should_execute_query_with_non_recursive_cte() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_simple";
 
@@ -390,7 +390,7 @@ fn should_execute_query_with_ordered_cte_dependencies() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_dependency";
 
@@ -451,7 +451,7 @@ fn should_execute_query_passes_params_to_cte_main_query() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_params";
 
@@ -512,7 +512,7 @@ fn should_execute_recursive_cte_until_stabilization() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_recursive";
 
@@ -572,7 +572,7 @@ fn should_execute_recursive_cte_enforces_depth_limit_when_no_stabilization() {
     // Arrange
     // Act
     // Assert
-    with_fallback();
+    use_local_storage();
     let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
     let collection = "exec_cte_infinite";
 

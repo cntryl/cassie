@@ -91,7 +91,7 @@ struct FallbackEvidence {
 
 impl Fixture {
     fn new(family: AnalyticalFamily, memory_budget: usize) -> Self {
-        std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let path = std::env::temp_dir()
             .join(format!(
                 "cassie-specialized-analytical-{}-{}",

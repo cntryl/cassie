@@ -4,7 +4,7 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use std::path::PathBuf;
 use uuid::Uuid;
 
-fn with_fallback() {
+fn use_local_storage() {
     if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
         std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
     }
@@ -59,7 +59,7 @@ fn seed_view_docs(cassie: &Cassie, collection: &str) {
 #[test]
 fn should_create_select_drop_user_defined_view() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("create_select_drop");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -107,7 +107,7 @@ fn should_create_select_drop_user_defined_view() {
 #[test]
 fn should_select_from_nested_user_defined_views() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("nested");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -158,7 +158,7 @@ fn should_select_from_nested_user_defined_views() {
 #[test]
 fn should_hydrate_user_defined_views_after_restart() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("restart");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -207,7 +207,7 @@ fn should_hydrate_user_defined_views_after_restart() {
 #[test]
 fn should_reject_dml_against_user_defined_view() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("read_only");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

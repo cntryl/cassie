@@ -4,8 +4,8 @@ use cassie::app::Cassie;
 
 const TEST_PASSWORD: &str = "cassie-pgwire-startup-password";
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> String {
@@ -164,7 +164,7 @@ fn parse_parameter_status(payload: &[u8]) -> (String, String) {
 #[test]
 fn should_support_binary_startup_with_password_authentication() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("auth_ok");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -195,7 +195,7 @@ fn should_support_binary_startup_with_password_authentication() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        let startup = startup_frame("postgres", "postgres");
+        let startup = startup_frame("root", "postgres");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
@@ -214,7 +214,7 @@ fn should_support_binary_startup_with_password_authentication() {
 #[test]
 fn should_emit_startup_parameter_statuses_after_password_authentication() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("parameter_statuses");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -245,7 +245,7 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        let startup = startup_frame("postgres", "postgres");
+        let startup = startup_frame("root", "postgres");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");
@@ -281,7 +281,7 @@ fn should_emit_startup_parameter_statuses_after_password_authentication() {
 #[test]
 fn should_emit_backend_key_data_after_authentication() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("backend_key_data");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -308,12 +308,9 @@ fn should_emit_backend_key_data_after_authentication() {
             .expect("connect pgwire");
         let (read_half, mut write_half) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
-        tokio::io::AsyncWriteExt::write_all(
-            &mut write_half,
-            &startup_frame("postgres", "postgres"),
-        )
-        .await
-        .expect("write startup");
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup_frame("root", "postgres"))
+            .await
+            .expect("write startup");
         complete_password_authentication(&mut reader, &mut write_half).await;
 
         // Act
@@ -344,7 +341,7 @@ fn should_emit_backend_key_data_after_authentication() {
 #[test]
 fn should_accept_libpq_startup_hints_with_password_authentication() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("libpq_hints");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -376,7 +373,7 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
 
         // Act
         let startup = startup_frame_with_params(
-            "postgres",
+            "root",
             "postgres",
             &[
                 ("_pq_.libpq_version", "170000"),
@@ -401,7 +398,7 @@ fn should_accept_libpq_startup_hints_with_password_authentication() {
 #[test]
 fn should_return_not_supported_for_ssl_request() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ssl_request");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -452,7 +449,7 @@ fn should_return_not_supported_for_ssl_request() {
 #[test]
 fn should_error_when_password_does_not_match_for_cleartext_auth() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("auth_failure");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -485,7 +482,7 @@ fn should_error_when_password_does_not_match_for_cleartext_auth() {
         let mut reader = tokio::io::BufReader::new(read_half);
 
         // Act
-        let startup = startup_frame("postgres", "postgres");
+        let startup = startup_frame("root", "postgres");
         tokio::io::AsyncWriteExt::write_all(&mut write_half, &startup)
             .await
             .expect("write startup");

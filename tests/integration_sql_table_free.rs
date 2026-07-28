@@ -3,12 +3,12 @@ use cassie::types::Value;
 
 #[path = "support/sql.rs"]
 mod support;
-use support::{data_dir, with_fallback};
+use support::{data_dir, use_local_storage};
 
 #[test]
 fn should_execute_table_free_literal_alias_cast_projection() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("table_free_literals");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");
@@ -57,7 +57,7 @@ fn should_execute_table_free_literal_alias_cast_projection() {
 #[test]
 fn should_execute_table_free_parameter_through_union_all() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("table_free_parameters");
     let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
     cassie.startup().expect("start Cassie");

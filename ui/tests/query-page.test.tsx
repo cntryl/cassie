@@ -10,6 +10,7 @@ import { saveQueryWorkspace } from "@/features/query/query-tabs";
 import { queryService } from "@/features/query/query-service";
 import { querySchemaResponse } from "./fixtures/query-schema";
 import { explainPlan } from "./fixtures/query-explain-plan";
+import { createTestRouteRegistry } from "./support/test-route-registry";
 
 function mockQuerySchemaSuccess() {
   mockJsonResponse("/api/v1/admin/catalog", querySchemaResponse);
@@ -232,7 +233,7 @@ async function mountQueryRoute() {
 
   await createSPA({
     root,
-    routes: [
+    registry: createTestRouteRegistry([
       {
         path: "/",
         handler: () => (
@@ -243,7 +244,7 @@ async function mountQueryRoute() {
           </RootLayout>
         ),
       },
-    ],
+    ]),
   });
 
   await flushUi();

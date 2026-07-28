@@ -22,7 +22,7 @@ use support::*;
 #[test]
 fn should_transition_session_state_for_transaction_control() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_state");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -53,7 +53,7 @@ fn should_transition_session_state_for_transaction_control() {
 #[test]
 fn should_restore_idle_state_on_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -81,7 +81,7 @@ fn should_restore_idle_state_on_rollback() {
 #[test]
 fn should_keep_autocommit_writes_visible_after_success() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_autocommit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -126,7 +126,7 @@ fn should_keep_autocommit_writes_visible_after_success() {
 #[test]
 fn should_reject_unsupported_transaction_control_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_unsupported");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -156,7 +156,7 @@ fn should_reject_unsupported_transaction_control_sql() {
 #[test]
 fn should_rollback_to_savepoint_discard_later_writes() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_savepoint_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -218,7 +218,7 @@ fn should_rollback_to_savepoint_discard_later_writes() {
 #[test]
 fn should_release_savepoint_prevent_later_rollback_to_it() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_savepoint_release");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -251,7 +251,7 @@ fn should_release_savepoint_prevent_later_rollback_to_it() {
 #[test]
 fn should_reject_savepoint_outside_transaction() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_savepoint_outside");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -280,7 +280,7 @@ fn should_reject_savepoint_outside_transaction() {
 #[test]
 fn should_rollback_to_savepoint_recover_failed_transaction() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_savepoint_failed_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -344,7 +344,7 @@ fn should_rollback_to_savepoint_recover_failed_transaction() {
 #[test]
 fn should_reject_advisory_lock_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_advisory_lock");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -384,7 +384,7 @@ fn should_reject_advisory_lock_sql() {
 #[test]
 fn should_discard_transaction_writes_after_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_rollback_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -431,7 +431,7 @@ fn should_discard_transaction_writes_after_rollback() {
 #[test]
 fn should_reject_work_after_transaction_error_until_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_failed_state");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -478,7 +478,7 @@ fn should_reject_work_after_transaction_error_until_rollback() {
 #[test]
 fn should_commit_multi_collection_transaction_atomically() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_multi_collection_atomic");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -540,7 +540,7 @@ fn should_commit_multi_collection_transaction_atomically() {
 #[test]
 fn should_not_bump_data_epoch_for_no_op_delete() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_no_op_delete_data_epoch");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -596,7 +596,7 @@ fn should_not_bump_data_epoch_for_no_op_delete() {
 #[test]
 fn should_replace_same_id_in_single_statement() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_same_id_replace");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -649,7 +649,7 @@ fn should_replace_same_id_in_single_statement() {
 #[test]
 fn should_allow_work_after_failed_transaction_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_failed_recovery");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -695,7 +695,7 @@ fn should_allow_work_after_failed_transaction_rollback() {
 #[test]
 fn should_discard_transaction_update_after_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_update_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -752,7 +752,7 @@ fn should_discard_transaction_update_after_rollback() {
 #[test]
 fn should_discard_transaction_delete_after_rollback() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_delete_rollback");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -809,7 +809,7 @@ fn should_discard_transaction_delete_after_rollback() {
 #[test]
 fn should_read_own_transaction_update_before_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_update_read_your_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -862,7 +862,7 @@ fn should_read_own_transaction_update_before_commit() {
 #[test]
 fn should_read_own_transaction_delete_before_commit() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transaction_delete_read_your_writes");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -33,7 +33,7 @@ fn new_cassie(path: &str) -> Cassie {
 fn startup_frame() -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
-    payload.extend_from_slice(b"user\0postgres\0database\0postgres\0\0");
+    payload.extend_from_slice(b"user\0root\0database\0postgres\0\0");
 
     let mut frame = Vec::new();
     frame.extend_from_slice(
@@ -260,7 +260,7 @@ fn assert_ready(frames: &[WireFrame]) {
 #[test]
 fn should_execute_simple_query_statements_in_order_with_one_ready_frame() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("ordered");
 
     runtime().block_on(async {
@@ -302,7 +302,7 @@ fn should_execute_simple_query_statements_in_order_with_one_ready_frame() {
 #[test]
 fn should_preserve_semicolon_delimiters_in_quoted_commented_sql() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("quotes-comments");
 
     runtime().block_on(async {
@@ -342,7 +342,7 @@ fn should_preserve_semicolon_delimiters_in_quoted_commented_sql() {
 #[test]
 fn should_ignore_empty_statements_in_a_simple_query_batch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("empty");
 
     runtime().block_on(async {
@@ -383,7 +383,7 @@ fn should_ignore_empty_statements_in_a_simple_query_batch() {
 #[test]
 fn should_stop_after_the_first_error_in_a_simple_query_batch() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("stop-on-error");
 
     runtime().block_on(async {
@@ -435,7 +435,7 @@ fn should_stop_after_the_first_error_in_a_simple_query_batch() {
 #[test]
 fn should_execute_transaction_control_statements_in_order() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("transactions");
 
     runtime().block_on(async {
@@ -479,7 +479,7 @@ fn should_execute_transaction_control_statements_in_order() {
 #[test]
 fn should_reject_copy_when_mixed_with_other_simple_query_statements() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("copy-mixed");
 
     runtime().block_on(async {

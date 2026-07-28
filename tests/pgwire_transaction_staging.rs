@@ -23,7 +23,7 @@ fn simple_query_frame(query: &str) -> Vec<u8> {
 #[test]
 fn should_commit_multi_collection_staging_with_transaction_ready_status() {
     // Arrange
-    sql::with_fallback();
+    sql::use_local_storage();
     let path = sql::data_dir("pgwire_transaction_staging");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

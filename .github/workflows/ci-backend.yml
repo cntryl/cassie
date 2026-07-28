@@ -36,6 +36,12 @@ jobs:
       - name: Install cntryl-tools
         run: cargo install --git https://github.com/cntryl/tools --rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c --locked cntryl-tools
 
+      - name: Cargo build
+        run: cargo build --locked
+
+      - name: Run tests
+        run: cargo test --locked
+
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 
@@ -44,16 +50,6 @@ jobs:
 
       - name: Validate tests
         run: cntryl-tools validate-tests
-        
-      - name: Cargo build
-        run: cargo build --locked
-        
-      - name: Cargo test
-        run: cargo test --no-run --locked
 
-      - name: Run tests
-        run: cargo test --locked
-
-
-
-
+      - name: Validate docs
+        run: cntryl-tools validate-docs --root docs

@@ -26,7 +26,7 @@ fn should_execute_simple_filtered_query() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let path = data_dir("smoke");
         let cassie = Cassie::new_with_data_dir(&path).unwrap();
         let collection = "exec_smoke";
@@ -87,7 +87,7 @@ fn should_execute_query_across_multiple_batches_without_truncation() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_multi_batch";
 
@@ -163,7 +163,7 @@ fn should_preserve_filtered_projection_across_multiple_batches() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_multi_batch_filter";
 
@@ -251,7 +251,7 @@ fn should_project_missing_columns_as_null() {
         .expect("runtime");
 
     runtime.block_on(async {
-        with_fallback();
+        use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
         let collection = "exec_missing_projection_column";
 
@@ -313,7 +313,7 @@ fn should_project_missing_columns_as_null() {
 #[test]
 fn should_project_complex_values_through_filtered_ordered_scan() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let path = data_dir("zero_copy_projected_complex_values");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()

@@ -7,8 +7,8 @@ use reqwest::{Client, StatusCode};
 use tokio::sync::Notify;
 use uuid::Uuid;
 
-fn with_fallback() {
-    std::env::set_var("CASSIE_MIDGE_ALLOW_FALLBACK", "1");
+fn use_local_storage() {
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
 }
 
 fn data_dir(label: &str) -> PathBuf {
@@ -61,7 +61,7 @@ fn cookie(response: &reqwest::Response) -> String {
 #[test]
 fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("invalid-login");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -77,7 +77,7 @@ fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
         let response = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "wrong"
             }))
             .send()
@@ -95,7 +95,7 @@ fn should_reject_invalid_rest_login_without_issuing_a_cookie() {
 #[test]
 fn should_revoke_cookie_session_after_logout() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("session-lifecycle");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -109,7 +109,7 @@ fn should_revoke_cookie_session_after_logout() {
         let login = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()
@@ -165,7 +165,7 @@ fn should_revoke_cookie_session_after_logout() {
 #[test]
 fn should_reject_password_bearing_bearer_credentials() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("bearer-rejected");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -180,7 +180,7 @@ fn should_reject_password_bearing_bearer_credentials() {
         // Act
         let response = client
             .get(format!("{base_url}/api/v1/auth/session"))
-            .header("authorization", "Bearer postgres:postgres")
+            .header("authorization", "Bearer root:postgres")
             .send()
             .await
             .expect("bearer response");
@@ -195,7 +195,7 @@ fn should_reject_password_bearing_bearer_credentials() {
 #[test]
 fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("forwarded-headers");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -213,7 +213,7 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
             .header("forwarded", "proto=https")
             .header("x-forwarded-proto", "https")
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()
@@ -236,7 +236,7 @@ fn should_ignore_forwarding_headers_when_deriving_plaintext_cookie_security() {
 #[test]
 fn should_secure_external_https_login_logout_cookies() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("external-https");
     let config = CassieRuntimeConfig {
         rest_external_https: true,
@@ -255,7 +255,7 @@ fn should_secure_external_https_login_logout_cookies() {
         let login = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()
@@ -292,7 +292,7 @@ fn should_secure_external_https_login_logout_cookies() {
 #[test]
 fn should_refund_success_before_throttling_excess_rest_logins() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("login-throttle");
     let config = CassieRuntimeConfig {
         auth_user_attempts_per_minute: 1,
@@ -313,7 +313,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
             client
                 .post(format!("{base_url}/api/v1/auth/login"))
                 .json(&serde_json::json!({
-                    "username": "postgres",
+                    "username": "root",
                     "password": "postgres"
                 }))
                 .send()
@@ -325,7 +325,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
         let invalid = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "POSTGRES",
+                "username": "root",
                 "password": "wrong"
             }))
             .send()
@@ -334,7 +334,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
         let throttled = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "wrong"
             }))
             .send()
@@ -361,7 +361,7 @@ fn should_refund_success_before_throttling_excess_rest_logins() {
 #[test]
 fn should_map_oversized_rest_sql_to_bad_request() {
     // Arrange
-    with_fallback();
+    use_local_storage();
     let data_dir = data_dir("sql-resource-limit");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -375,7 +375,7 @@ fn should_map_oversized_rest_sql_to_bad_request() {
         let login = client
             .post(format!("{base_url}/api/v1/auth/login"))
             .json(&serde_json::json!({
-                "username": "postgres",
+                "username": "root",
                 "password": "postgres"
             }))
             .send()

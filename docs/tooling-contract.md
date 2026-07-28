@@ -12,7 +12,7 @@ CI and benchmark workflows install the tool with:
 
 ```sh
 cargo install --git https://github.com/cntryl/tools \
-  --rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c \
+  --rev b2a06b1a635de752803f5860339fc3cecbc19742 \
   --locked cntryl-tools
 ```
 

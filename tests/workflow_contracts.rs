@@ -111,11 +111,11 @@ fn should_pin_cntryl_tools_from_github_source() {
     // Assert
     for contents in [&backend_contents, &benchmark_contents] {
         assert!(contents.contains("cargo install --git https://github.com/cntryl/tools"));
-        assert!(contents.contains("--rev d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c"));
+        assert!(contents.contains("--rev b2a06b1a635de752803f5860339fc3cecbc19742"));
         assert!(contents.contains("--locked cntryl-tools"));
     }
     assert!(contract_contents.contains("GitHub source"));
-    assert!(contract_contents.contains("d36dc1c09462a4fd691ed9fdcc4413eb61f0c80c"));
+    assert!(contract_contents.contains("b2a06b1a635de752803f5860339fc3cecbc19742"));
     assert!(contract_contents.contains("no published crate or"));
     assert!(contract_contents.contains("release tag is required for this contract"));
 }

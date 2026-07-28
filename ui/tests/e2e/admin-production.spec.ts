@@ -14,9 +14,7 @@ test("should_run_the_admin_workflow_against_the_production_server", async ({ pag
   await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("wrong-password");
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.locator('[data-slot="field-error"]')).toContainText(
-    "username or password is incorrect",
-  );
+  await expect(page.getByText("The username or password is incorrect.")).toBeVisible();
 
   await page.getByLabel("Password").fill("cassie-e2e-password");
   await page.getByRole("button", { name: "Sign in" }).click();
@@ -26,11 +24,11 @@ test("should_run_the_admin_workflow_against_the_production_server", async ({ pag
     .getByRole("dialog")
     .getByRole("button", { name: /postgres/ })
     .click();
-  await expect(page.locator('[data-query-editor="monaco"]')).toBeVisible();
+  await expect(page.locator('[data-query-editor="monaco"]').first()).toBeVisible();
   await page.waitForTimeout(250);
   consoleErrors.length = 0;
 
-  await page.getByRole("button", { name: /Run/ }).click();
+  await page.getByRole("button", { name: /Run/ }).first().click();
   await expect(page.getByText("SELECT").first()).toBeVisible();
 
   // Assert production CSP and SPA fallback are served by Cassie itself.

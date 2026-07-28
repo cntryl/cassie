@@ -42,9 +42,6 @@ jobs:
           npm install --global npm@11.16.0
           npm ci
 
-      - name: Check generated adapters
-        run: npm run gen:adapters:check
-
       - name: Verify current Askr packages
         run: |
           npx --no-install askr upgrade
@@ -53,20 +50,23 @@ jobs:
       - name: Askr analyzer
         run: npx --no-install askr analyze
 
+      - name: Check generated adapters
+        run: npm run gen:adapters:check
+
       - name: UI format check
         run: npm run fmt:check
 
       - name: UI lint
         run: npm run lint
 
+      - name: Production dependency audit
+        run: npm run audit:production
+
       - name: UI type check
         run: npm run type-check
 
       - name: UI build
         run: npm run build
-
-      - name: UI tests
-        run: npm run test -- --run
 
       - name: Build temporary Cassie server
         working-directory: .
@@ -75,8 +75,8 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: UI tests
+        run: npm run test -- --run
+
       - name: Production browser tests
         run: npm run test:e2e
-
-      - name: Production dependency audit
-        run: npm run audit:production

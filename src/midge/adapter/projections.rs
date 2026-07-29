@@ -1,4 +1,4 @@
-use super::{CassieError, Midge, ProjectionMeta, StorageFamily, WriteOptions};
+use super::{CassieError, Midge, ProjectionMeta, StorageFamily};
 
 impl Midge {
     /// # Errors
@@ -9,7 +9,8 @@ impl Midge {
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let mut tx = self.begin_schema_rw_tx()?;
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -38,7 +39,8 @@ impl Midge {
         tx.delete(Self::projection_key(&collection))
             .map_err(CassieError::from)?;
         Self::delete_keys_with_prefix(&mut tx, Self::projection_event_prefix(&collection))?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -127,7 +129,8 @@ impl Midge {
             )
             .map_err(CassieError::from)?;
         }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 }

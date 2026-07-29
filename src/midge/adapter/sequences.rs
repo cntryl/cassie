@@ -1,4 +1,4 @@
-use super::{key_encoding, CassieError, Midge, StorageFamily, WriteOptions};
+use super::{key_encoding, CassieError, Midge, StorageFamily};
 use crate::catalog::name_matches;
 
 impl Midge {
@@ -11,7 +11,8 @@ impl Midge {
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -66,7 +67,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -96,7 +98,8 @@ impl Midge {
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&stored_name), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(next)
     }
 }

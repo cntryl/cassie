@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{collect_scan, CassieError, IndexKind, IndexMeta, Midge, Query, WriteOptions};
+use super::{collect_scan, CassieError, IndexKind, IndexMeta, Midge, Query};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 enum IndexPublicationState {
@@ -42,7 +42,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// Rebuilds prepared data-family index state and atomically publishes its schema metadata.
@@ -138,7 +139,9 @@ impl Midge {
                 &publication.index.name,
             ))
             .map_err(CassieError::from)?;
-            return tx.commit(WriteOptions::sync()).map_err(CassieError::from);
+            return tx
+                .commit(self.write_options_sync())
+                .map_err(CassieError::from);
         }
     }
 
@@ -154,6 +157,7 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 }

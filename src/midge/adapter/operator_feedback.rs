@@ -60,7 +60,7 @@ impl Midge {
             tx.put(Self::runtime_feedback_key(key), value, None)
                 .map_err(CassieError::from)?;
         }
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }

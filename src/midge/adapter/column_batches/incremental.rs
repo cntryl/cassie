@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     column_values, encode_manifest, storage_v2, CassieError, ColumnBatchMetadata, ColumnBatchRow,
-    ColumnBatchSegmentMeta, IndexKind, IndexMeta, Midge, WriteOptions,
+    ColumnBatchSegmentMeta, IndexKind, IndexMeta, Midge,
     CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
 };
 
@@ -163,7 +163,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         self.record_empty_column_batch_maintenance();
         let _ = self.garbage_collect_column_batch_revisions(index, &metadata);
         Ok(true)
@@ -192,7 +193,8 @@ impl Midge {
                 removed = removed.saturating_add(1);
             }
         }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         self.record_column_batch_orphan_cleanup(removed);
         Ok(removed)
     }
@@ -256,7 +258,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         self.record_column_batch_compaction();
         let _ = self.garbage_collect_column_batch_revisions(index, &compacted);
         Ok(true)
@@ -383,7 +386,8 @@ fn publish_incremental_segments(
         None,
     )
     .map_err(CassieError::from)?;
-    tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+    tx.commit(midge.write_options_sync())
+        .map_err(CassieError::from)?;
     let maintenance_source_rows = encoded
         .iter()
         .map(|segment| segment.metadata.row_count)

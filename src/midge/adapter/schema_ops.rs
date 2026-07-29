@@ -3,7 +3,7 @@ use super::{
     check_field_add_failure_point, check_field_drop_failure_point,
     check_field_rename_failure_point, collect_scan, key_encoding, CassieError, CollectionMeta,
     FieldConstraint, FieldSchema, IndexKind, IndexMeta, Midge, NamespaceMeta, ProjectionMeta,
-    Query, RetentionPolicyMeta, RowSchema, Schema, WriteOptions,
+    Query, RetentionPolicyMeta, RowSchema, Schema,
 };
 
 #[path = "schema_ops_helpers.rs"]
@@ -69,7 +69,8 @@ impl Midge {
             Self::save_namespaces(&mut tx, &namespaces)?;
         }
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
     pub fn list_namespaces(&self) -> Vec<String> {
@@ -147,7 +148,8 @@ impl Midge {
         namespaces.retain(|entry| entry != &stored);
         Self::save_namespaces(&mut tx, &namespaces)?;
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -217,7 +219,8 @@ impl Midge {
         .map_err(CassieError::from)?;
         Self::save_namespaces(&mut tx, &namespaces)?;
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -306,7 +309,7 @@ impl Midge {
         Self::save_collections(&mut schema_tx, &collections)?;
         schema_tx.delete(schema_key).map_err(CassieError::from)?;
         schema_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_collection_drop_failure_point()?;
 
@@ -388,7 +391,7 @@ impl Midge {
             .delete(Self::root_hash_key(name))
             .map_err(CassieError::from)?;
         data_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)
     }
 
@@ -458,7 +461,8 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         check_field_add_failure_point()?;
         self.complete_field_add_data(&pending)?;
         self.clear_pending_field_add(collection, &field_name)
@@ -535,7 +539,8 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         check_field_drop_failure_point()?;
         self.complete_field_drop_data(&pending)?;
         schema_ops_helpers::clear_pending_field_drop(self, collection, field)
@@ -621,7 +626,8 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         check_field_rename_failure_point()?;
         self.complete_field_rename_data(collection, current_name, next_name)?;
         self.clear_pending_field_rename(collection, current_name, next_name)
@@ -674,7 +680,7 @@ impl Midge {
             .map_err(CassieError::from)?;
 
         schema_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_collection_rename_failure_point()?;
         self.complete_collection_rename_data(current_name, next_name)?;
@@ -728,7 +734,7 @@ impl Midge {
                 .map_err(CassieError::from)?;
         }
         data_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.rebuild_time_series_indexes_for_collection(next_name)?;
         self.rebuild_projection_hashes(next_name)?;
@@ -829,7 +835,7 @@ impl Midge {
             generation,
         )?;
         data_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.complete_column_batch_maintenance(&pending.collection, generation, None)?;
         self.complete_projection_hash_maintenance(&pending.collection, generation, 0)
@@ -870,7 +876,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::field_add_operation_key(collection, field))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn complete_field_rename_data(
@@ -939,7 +946,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::field_rename_operation_key(collection, current, next))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn complete_field_drop_data(&self, pending: &PendingFieldDrop) -> Result<(), CassieError> {

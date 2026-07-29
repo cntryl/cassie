@@ -3,7 +3,6 @@ use super::{
     key_encoding, payload_contains_index_membership, payload_contains_vector_membership,
     CassieError, CollectionCardinalityStats, FieldConstraint, IndexKind, IndexMeta, Midge,
     ProjectionMeta, Query, RetentionPolicyMeta, RoleMeta, RollupMeta, Schema, StorageFamily,
-    WriteOptions,
 };
 use crate::catalog::name_matches;
 
@@ -54,7 +53,8 @@ impl Midge {
             } else {
                 let mut tx = self.begin_schema_rw_tx()?;
                 let id = Self::allocate_object_id_to_tx(&mut tx)?;
-                tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)?;
                 id
             };
         metadata.set_storage_ids(relation_id, storage_id);
@@ -152,7 +152,7 @@ impl Midge {
                     data_tx.delete(key).map_err(CassieError::from)?;
                 }
                 data_tx
-                    .commit(cntryl_midge::WriteOptions::sync())
+                    .commit(self.write_options_sync())
                     .map_err(CassieError::from)?;
             }
             check_index_drop_failure_point()?;
@@ -160,7 +160,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::index_key(&stored_collection, &stored_name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -174,7 +174,7 @@ impl Midge {
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::rollup_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -201,7 +201,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::rollup_key(name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -215,7 +215,7 @@ impl Midge {
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::retention_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -242,7 +242,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::retention_key(name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -264,7 +264,7 @@ impl Midge {
             let mut counter_tx = self.begin_schema_rw_tx()?;
             let id = Self::allocate_object_id_to_tx(&mut counter_tx)?;
             counter_tx
-                .commit(WriteOptions::sync())
+                .commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
             id
         };
@@ -273,7 +273,7 @@ impl Midge {
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::graph_key(&metadata.name), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.reconcile_graph_adjacency_for(&metadata)
     }
@@ -300,7 +300,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::graph_key(name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -313,7 +313,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::vector_index_key(collection, field))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
         let mut data_tx = self.begin_data_rw_tx_for(collection)?;
@@ -356,7 +356,7 @@ impl Midge {
             .delete(key_encoding::hnsw_source_summary_key(relation_id, field_id))
             .map_err(CassieError::from)?;
         data_tx
-            .commit(cntryl_midge::WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -377,7 +377,7 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -421,7 +421,7 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -462,7 +462,7 @@ impl Midge {
             .map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::constraints_key(collection), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -536,7 +536,8 @@ impl Midge {
         stats.built_generation = self.collection_generation(&collection)?;
         let mut tx = self.begin_schema_rw_tx()?;
         Self::save_cardinality_stats_to_tx(&mut tx, &collection, &stats)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -548,7 +549,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::cardinality_key(&collection))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -618,7 +620,7 @@ impl Midge {
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -666,7 +668,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::function_key(name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -683,7 +685,7 @@ impl Midge {
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -731,7 +733,7 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::procedure_key(name))
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -745,7 +747,7 @@ impl Midge {
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -787,7 +789,7 @@ impl Midge {
     pub fn delete_view(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::view_key(name)).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -801,7 +803,7 @@ impl Midge {
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -843,7 +845,7 @@ impl Midge {
     pub fn delete_role(&self, name: &str) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::role_key(name)).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }

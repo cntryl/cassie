@@ -1,6 +1,5 @@
 use super::{
     collect_scan, CassieError, Midge, Query, RawStorageEntry, StorageFamily, TransactionMode,
-    WriteOptions,
 };
 
 impl Midge {
@@ -16,7 +15,8 @@ impl Midge {
         let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
         tx.put(key.to_vec(), value.to_vec(), None)
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// # Errors
@@ -25,7 +25,8 @@ impl Midge {
     pub fn raw_delete(&self, family: StorageFamily, key: &[u8]) -> Result<(), CassieError> {
         let mut tx = self.transaction(family, TransactionMode::ReadWrite)?;
         tx.delete(key.to_vec()).map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// # Errors
@@ -157,7 +158,8 @@ impl Midge {
             tx.delete(key).map_err(CassieError::from)?;
         }
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(deleted)
     }
 }

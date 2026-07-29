@@ -33,6 +33,13 @@ impl Cassie {
             data_dir.as_ref(),
             &runtime_config.database,
         )?);
+        Self::new_with_midge_and_config(midge, runtime_config)
+    }
+
+    fn new_with_midge_and_config(
+        midge: Arc<Midge>,
+        runtime_config: CassieRuntimeConfig,
+    ) -> Result<Self, CassieError> {
         let embedding_provider = build_embedding_provider(&runtime_config)?;
         let bootstrap_password_hash = if runtime_config.password.is_empty() {
             None
@@ -229,5 +236,157 @@ impl Cassie {
             self.runtime.record_shutdown();
             self.runtime.mark_shutdown();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crate::catalog::{IndexKind, IndexMeta};
+    use crate::executor::filter::SearchContext;
+    use crate::midge::adapter::{DocumentWriteBatchOptions, DocumentWriteOp, Midge};
+    use crate::runtime::query_cache::{self, FulltextStatsCacheKey};
+    use crate::types::{DataType, FieldSchema, Schema};
+
+    use super::{Cassie, CassieRuntimeConfig};
+
+    static INDEX_PUBLICATION_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn write_cloud_fixture(cassie: &Cassie, collection: &str) -> String {
+        cassie
+            .midge
+            .create_collection(
+                collection,
+                Schema {
+                    fields: vec![FieldSchema {
+                        name: "title".to_string(),
+                        data_type: DataType::Text,
+                        nullable: false,
+                    }],
+                },
+            )
+            .expect("create cloud collection");
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("sync".to_string()),
+                serde_json::json!({"title": "sync"}),
+            )
+            .expect("write synchronous document");
+        cassie
+            .midge
+            .apply_document_write_batch_with_options(
+                collection,
+                vec![DocumentWriteOp::Put {
+                    id: "buffered".to_string(),
+                    payload: serde_json::json!({"title": "buffered"}),
+                }],
+                &DocumentWriteBatchOptions::buffered(cassie.midge.write_options_buffered()),
+            )
+            .expect("write buffered-intent document");
+        let index = IndexMeta {
+            collection: collection.to_string(),
+            name: "idx_title".to_string(),
+            field: "title".to_string(),
+            fields: vec!["title".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::Scalar,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
+        let _failpoint_guard = INDEX_PUBLICATION_FAILPOINT_GUARD
+            .lock()
+            .expect("lock index publication failpoint");
+        crate::midge::adapter::set_index_publication_failure_point(true);
+        cassie
+            .midge
+            .put_index(&index)
+            .expect_err("interrupt cloud index publication after its prepared commit");
+        cassie
+            .midge
+            .replay_pending_index_publications()
+            .expect("recover prepared cloud index publication");
+        cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(collection)
+            .expect("write cloud maintenance metadata");
+        let role = cassie
+            .midge
+            .get_role("root")
+            .expect("load root role")
+            .expect("root role");
+        let token = crate::rest::sessions::issue(cassie, &role).expect("write cloud REST session");
+        query_cache::store_fulltext_stats(
+            &cassie.midge,
+            &cassie.runtime,
+            FulltextStatsCacheKey {
+                collection,
+                field: "title",
+                analyzer_key: "standard",
+                schema_epoch: 1,
+                data_epoch: 1,
+            },
+            &SearchContext::default(),
+        )
+        .expect("write cloud query cache");
+        token
+    }
+
+    fn assert_cloud_startup_and_mutations(strict: bool) {
+        // Arrange
+        let cache =
+            std::env::temp_dir().join(format!("cassie-cloud-startup-{}", uuid::Uuid::new_v4()));
+        let config = CassieRuntimeConfig::default();
+        let midge = Arc::new(
+            Midge::new_cloud_simulated_for_test(&cache, &config.database, strict)
+                .expect("open simulated cloud"),
+        );
+        let cassie =
+            Cassie::new_with_midge_and_config(Arc::clone(&midge), config).expect("create Cassie");
+
+        // Act
+        cassie.startup().expect("start cloud-backed Cassie");
+        let collection = "public.cloud_documents";
+        let token = write_cloud_fixture(&cassie, collection);
+
+        // Assert
+        assert!(cassie.is_started());
+        assert!(cassie
+            .midge
+            .get_document(collection, "buffered")
+            .expect("read buffered document")
+            .is_some());
+        assert!(cassie
+            .midge
+            .get_index(collection, "idx_title")
+            .expect("read index")
+            .is_some());
+        assert_eq!(
+            crate::rest::sessions::authenticate(&cassie, &token)
+                .expect("authenticate cloud session")
+                .session
+                .user,
+            "root"
+        );
+
+        drop(cassie);
+        drop(midge);
+        std::fs::remove_dir_all(cache).expect("remove cloud cache");
+    }
+
+    #[test]
+    fn should_support_background_cloud_storage_lifecycle() {
+        // Arrange / Act / Assert
+        assert_cloud_startup_and_mutations(false);
+    }
+
+    #[test]
+    fn should_support_strict_cloud_storage_lifecycle() {
+        // Arrange / Act / Assert
+        assert_cloud_startup_and_mutations(true);
     }
 }

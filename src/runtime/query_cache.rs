@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cntryl_lexkey::{Encoder, LexKey};
-use cntryl_midge::{TransactionMode, WriteOptions};
+use cntryl_midge::TransactionMode;
 use serde::{Deserialize, Serialize};
 
 use crate::app::CassieError;
@@ -112,7 +112,8 @@ fn put_temp_json<T: Serialize>(
     let mut tx = midge.temp_tx(TransactionMode::ReadWrite)?;
     tx.put(key, raw, Some(ttl_seconds))
         .map_err(CassieError::from)?;
-    tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+    tx.commit(midge.write_options_sync())
+        .map_err(CassieError::from)?;
     runtime.record_storage_access("temp", true, true);
     Ok(())
 }
@@ -120,7 +121,8 @@ fn put_temp_json<T: Serialize>(
 fn delete_temp_key(midge: &Midge, runtime: &RuntimeState, key: Vec<u8>) -> Result<(), CassieError> {
     let mut tx = midge.temp_tx(TransactionMode::ReadWrite)?;
     tx.delete(key).map_err(CassieError::from)?;
-    tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+    tx.commit(midge.write_options_sync())
+        .map_err(CassieError::from)?;
     runtime.record_storage_access("temp", true, true);
     Ok(())
 }

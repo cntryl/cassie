@@ -6,7 +6,7 @@ use super::{
     ColumnBatchAggregateSpec, ColumnBatchChunkMeta, ColumnBatchFieldSummary, ColumnBatchMetadata,
     ColumnBatchRow, ColumnBatchScanDecision, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
     ColumnBatchScanOp, ColumnBatchScanOutcome, ColumnBatchScanPredicate, ColumnBatchSegmentMeta,
-    DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter, WriteOptions,
+    DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter,
 };
 
 mod incremental;
@@ -563,7 +563,7 @@ impl Midge {
             )
             .map_err(CassieError::from)?;
         data_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.record_column_batch_build(encoded_segments.as_slice(), true, 0, source_row_count);
 
@@ -612,7 +612,7 @@ impl Midge {
             Self::column_batch_index_prefix(relation_id, index_id),
         )?;
         data_tx
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }

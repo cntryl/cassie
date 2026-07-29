@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     collect_scan, key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query,
-    RawStorageEntry, TransactionMode, WriteOptions,
+    RawStorageEntry, TransactionMode,
 };
 
 /// The resolved physical owner of one logical database.
@@ -58,14 +58,15 @@ impl Midge {
             physical_family: metadata.physical_family.clone(),
         };
         Self::write_lifecycle_record(&mut tx, &record)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
 
         let handle = self.create_physical_family(&metadata.physical_family)?;
         let mut finalize = self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
         Self::write_database_metadata(&mut finalize, &metadata)?;
         Self::delete_lifecycle_record(&mut finalize, &record.operation_id)?;
         finalize
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(DatabaseFamily { metadata, handle })
     }
@@ -134,7 +135,7 @@ impl Midge {
                 self.begin_schema_tx_for_handle(schema, TransactionMode::ReadWrite)?;
             Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
             cleanup
-                .commit(WriteOptions::sync())
+                .commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
         }
         Ok(())
@@ -247,14 +248,15 @@ impl Midge {
             physical_family: metadata.physical_family.clone(),
         };
         Self::write_lifecycle_record(&mut tx, &record)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
 
         let handle = self.create_physical_family(&metadata.physical_family)?;
         let mut finalize = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
         Self::write_database_metadata(&mut finalize, &metadata)?;
         Self::delete_lifecycle_record(&mut finalize, &record.operation_id)?;
         finalize
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.database_families.write().insert(
             metadata.name.to_ascii_lowercase(),
@@ -307,7 +309,7 @@ impl Midge {
         let mut journal = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
         Self::write_lifecycle_record(&mut journal, &record)?;
         journal
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
         let mut catalog = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
@@ -318,7 +320,7 @@ impl Midge {
         databases.retain(|entry| !entry.eq_ignore_ascii_case(&metadata.name));
         Self::save_databases(&mut catalog, &databases)?;
         catalog
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
         self.engine
@@ -327,7 +329,7 @@ impl Midge {
         let mut cleanup = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
         Self::delete_lifecycle_record(&mut cleanup, &record.operation_id)?;
         cleanup
-            .commit(WriteOptions::sync())
+            .commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         self.database_families
             .write()
@@ -386,7 +388,8 @@ impl Midge {
         };
         let mut tx = self.begin_schema_rw_tx()?;
         Self::write_lifecycle_record(&mut tx, &record)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         let handle = self.create_physical_family(&metadata.physical_family)?;
         Ok(StagedDatabaseFamily {
             metadata,
@@ -411,7 +414,8 @@ impl Midge {
             tx.put(key.clone(), value.clone(), None)
                 .map_err(CassieError::from)?;
         }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn commit_staged_database_family(
@@ -488,7 +492,8 @@ impl Midge {
         merge_string_list(&mut tx, Self::collections_key(), collection_names)?;
         merge_string_list(&mut tx, Self::namespaces_key(), namespace_names)?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         self.database_families.write().insert(
             staged.metadata.name.to_ascii_lowercase(),
             DatabaseFamily {
@@ -506,7 +511,8 @@ impl Midge {
         self.drop_physical_family_if_present(&staged.metadata.physical_family)?;
         let mut tx = self.begin_schema_rw_tx()?;
         Self::delete_lifecycle_record(&mut tx, &staged.operation_id)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn resolve_database_family(

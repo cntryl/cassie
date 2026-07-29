@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     check_column_batch_maintenance_failure_point, check_projection_hash_maintenance_failure_point,
-    collect_scan, CassieError, Midge, Query, WriteOptions,
+    collect_scan, CassieError, Midge, Query,
 };
 
 const COLUMN_BATCH_ARTIFACT: &str = "column_batch";
@@ -165,7 +165,8 @@ impl Midge {
             COLUMN_BATCH_ARTIFACT,
         ))
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(super) fn complete_projection_hash_maintenance(
@@ -200,7 +201,8 @@ impl Midge {
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         tx.delete(Self::maintenance_debt_key(collection, artifact))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn record_maintenance_failure(
@@ -232,7 +234,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn record_rollup_maintenance_failure(

@@ -86,7 +86,7 @@ impl Midge {
     ) -> Result<String, CassieError> {
         let storage_collection = self.canonical_collection_name(collection);
         let doc_id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
-        let mut options = DocumentWriteBatchOptions::sync();
+        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
         options.normalized_vector_collection = Some(collection.to_string());
         self.apply_document_write_batch_with_options(
             &storage_collection,
@@ -115,7 +115,7 @@ impl Midge {
                 payload,
             })
             .collect::<Vec<_>>();
-        let mut options = DocumentWriteBatchOptions::sync();
+        let mut options = DocumentWriteBatchOptions::sync(self.write_options_sync());
         options.normalized_vector_collection = Some(collection.to_string());
         let report =
             self.apply_document_write_batch_with_options(&storage_collection, ops, &options)?;
@@ -225,7 +225,7 @@ impl Midge {
         self.apply_document_write_batch_with_options(
             collection,
             operations,
-            &DocumentWriteBatchOptions::sync(),
+            &DocumentWriteBatchOptions::sync(self.write_options_sync()),
         )
     }
 

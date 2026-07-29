@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 use super::super::key_encoding;
-use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord, WriteOptions};
+use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord};
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
@@ -860,7 +860,8 @@ impl Midge {
             graph.source_fingerprint,
             graph.row_count,
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(super) fn write_ivfflat_source_summary(
@@ -881,7 +882,8 @@ impl Midge {
             source_fingerprint,
             row_count,
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(super) fn write_hnsw_source_summary_to_tx(

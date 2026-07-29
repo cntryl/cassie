@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     collect_scan, decode_row, key_encoding, CassieError, IndexMeta, Midge, Query, RowSchema,
-    WriteOptions,
 };
 use crate::search::analyzer::AnalyzerConfig;
 
@@ -337,7 +336,8 @@ impl Midge {
         let generation = self.collection_generation(&collection)?;
         let mut tx = self.begin_data_rw_tx_for(&collection)?;
         self.rebuild_fulltext_index_in_tx(&mut tx, &collection, index, generation)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn rebuild_fulltext_index_in_tx(

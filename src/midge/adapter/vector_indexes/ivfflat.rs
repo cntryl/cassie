@@ -2,7 +2,7 @@ use super::codec::{decode_normalized_vector, decode_vector_index_state, Persiste
 use super::math::{ivfflat_training_order, nearest_ivfflat_centroid};
 use super::{
     collect_scan, CassieError, Midge, NormalizedVectorRecord, Query, VectorIndexRecord,
-    VectorIndexState, WriteOptions,
+    VectorIndexState,
 };
 use std::collections::BTreeMap;
 
@@ -177,7 +177,8 @@ impl Midge {
             training.source_fingerprint,
             training.row_count,
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// # Errors

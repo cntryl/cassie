@@ -4,6 +4,16 @@ These named profiles define how Cassie benchmark and readiness evidence is colle
 profile is a reproducible comparison boundary, not an SLA. Local fallback-storage runs are
 diagnostic and must not be recorded as disk-backed deployment evidence.
 
+## Cloud-backed runtime configuration
+
+Cloud deployments set `CASSIE_STORAGE_MODE=cloud`, choose one of the documented
+`CASSIE_STORAGE_PROVIDER` values, and provide that provider's required bucket or
+container, region, endpoint, and credentials. Set
+`CASSIE_STORAGE_CLOUD_DURABILITY=background` for local acknowledgement followed
+by asynchronous cloud upload, or `strict` when every commit must wait for the
+cloud provider. `background` is the default. The complete provider matrix and
+credential sources are in [Environment Variables](environment-variables.md).
+
 ## `workstation-apple-m5-arm64-apfs`
 
 - Host: Apple M5, arm64, macOS, APFS.

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use super::{
     graph_edge_record_from_payload, CassieError, GraphAdjacencyManifest, GraphEdgeRecord, Midge,
-    WriteOptions, GRAPH_ADJACENCY_FORMAT_VERSION,
+    GRAPH_ADJACENCY_FORMAT_VERSION,
 };
 
 impl Midge {
@@ -56,7 +56,8 @@ impl Midge {
         for (key, _) in entries {
             tx.delete(key).map_err(CassieError::from)?;
         }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     fn load_graph_source_records(
@@ -99,7 +100,8 @@ impl Midge {
             generation,
             u64::try_from(records.len()).unwrap_or(u64::MAX),
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 }
 

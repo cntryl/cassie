@@ -54,6 +54,7 @@ names belong in `CASSIE_STORAGE_PROVIDER`, never in `CASSIE_STORAGE_MODE`.
 | `CASSIE_STORAGE_MODE` | `memory`, `local`, or `cloud` | `local` | Selects ephemeral memory, persistent local disk, or cloud-backed storage. |
 | `CASSIE_STORAGE_PATH` | Directory path | `./.cassie` | Persistent data directory when `CASSIE_STORAGE_MODE=local`. |
 | `CASSIE_STORAGE_PROVIDER` | Provider identifier listed below | Unset | Required when `CASSIE_STORAGE_MODE=cloud`. |
+| `CASSIE_STORAGE_CLOUD_DURABILITY` | `background` or `strict` | `background` | Cloud commit durability. `background` acknowledges after the local barrier and uploads asynchronously; `strict` waits for cloud-provider acknowledgement. Used only when `CASSIE_STORAGE_MODE=cloud`. |
 | `CASSIE_STORAGE_PREFIX` | Object-key prefix | Empty | Optional namespace prefix for cloud objects. |
 | `CASSIE_STORAGE_CACHE_PATH` | Directory path | `./.cassie-cloud-cache` | Local cache for cloud-backed storage. |
 | `CASSIE_STORAGE_BUCKET` | Bucket name | Unset | Required by bucket-shaped providers unless an emulator default applies. |
@@ -83,6 +84,11 @@ These are the only valid values for both `CASSIE_STORAGE_PROVIDER` and
 
 Any other provider identifier fails startup. The `sqrzl-*` providers are
 development emulators, not production provider choices.
+
+All Cassie-owned bootstrap, schema, document, index, session, cache, recovery,
+and maintenance commits use the selected cloud durability. Local and memory
+storage retain their existing synchronous or buffered policies; cloud storage
+never receives Midge's local-only `sync` or `buffered` policies.
 
 ### Cloud Credential Variables
 

@@ -28,7 +28,7 @@
     "@askrjs/monaco": "0.0.6",
     "@askrjs/themes": "0.0.16",
     "@askrjs/ui": "0.0.20",
-    "@askrjs/vite": "0.0.7",
+    "@askrjs/vite": "0.0.8",
     "monaco-editor": "0.56.0"
   },
   "devDependencies": {
@@ -37,8 +37,8 @@
     "@playwright/test": "1.62.0",
     "@types/node": "^26.1.2",
     "autoprefixer": "^10.5.4",
-    "jsdom": "^30.0.0",
-    "postcss": "^8.5.24",
+    "jsdom": "^30.0.1",
+    "postcss": "^8.5.25",
     "typescript": "^7.0.2",
     "vite-plus": "^0.2.6"
   },

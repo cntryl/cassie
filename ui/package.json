@@ -21,7 +21,7 @@
     "fmt": "vp fmt . --ignore-path .oxfmtignore"
   },
   "dependencies": {
-    "@askrjs/askr": "0.0.78",
+    "@askrjs/askr": "0.0.79",
     "@askrjs/auth": "0.0.7",
     "@askrjs/fetch": "0.0.2",
     "@askrjs/lucide": "0.0.5",

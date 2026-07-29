@@ -1,4 +1,4 @@
-use super::{CassieError, Midge, OperationalAssignmentMeta, StorageFamily, WriteOptions};
+use super::{CassieError, Midge, OperationalAssignmentMeta, StorageFamily};
 
 impl Midge {
     /// # Errors
@@ -17,7 +17,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

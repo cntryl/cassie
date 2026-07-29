@@ -4,7 +4,7 @@ use super::Cassie;
 
 impl Cassie {
     pub(crate) fn document_write_options(&self, collection: &str) -> DocumentWriteBatchOptions {
-        let mut options = DocumentWriteBatchOptions::sync();
+        let mut options = DocumentWriteBatchOptions::sync(self.midge.write_options_sync());
         self.add_derived_maintenance_debt_options(collection, &mut options);
         options
     }
@@ -13,7 +13,7 @@ impl Cassie {
         &self,
         collection: &str,
     ) -> DocumentWriteBatchOptions {
-        let mut options = DocumentWriteBatchOptions::buffered();
+        let mut options = DocumentWriteBatchOptions::buffered(self.midge.write_options_buffered());
         self.add_derived_maintenance_debt_options(collection, &mut options);
         options
     }
@@ -22,7 +22,7 @@ impl Cassie {
         &self,
         collections: &[String],
     ) -> DocumentWriteBatchOptions {
-        let mut options = DocumentWriteBatchOptions::sync();
+        let mut options = DocumentWriteBatchOptions::sync(self.midge.write_options_sync());
         for collection in collections {
             self.add_derived_maintenance_debt_options(collection, &mut options);
         }

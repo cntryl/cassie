@@ -6,7 +6,6 @@ use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
 use crate::types::Value;
-use cntryl_midge::WriteOptions;
 use std::collections::{BTreeMap, HashMap};
 
 mod codec;
@@ -120,7 +119,8 @@ impl Midge {
             }
         }
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -138,7 +138,8 @@ impl Midge {
             &mut tx,
             Self::scalar_index_data_prefix(relation_id, index_id),
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

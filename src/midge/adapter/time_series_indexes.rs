@@ -1,4 +1,4 @@
-use cntryl_midge::{Query, WriteOptions};
+use cntryl_midge::Query;
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
 use super::{
@@ -269,7 +269,8 @@ impl Midge {
         Self::record_column_batch_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
         Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, &collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         let _ = self.complete_column_batch_maintenance(&collection, generation, None);
         let _ = self.complete_projection_hash_maintenance(&collection, generation, row_delta);
         Ok(ids)
@@ -500,7 +501,8 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(crate) fn delete_time_series_index_data(
@@ -517,7 +519,8 @@ impl Midge {
             &mut tx,
             key_encoding::time_series_index_artifact_prefix(relation_id, index_id),
         )?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

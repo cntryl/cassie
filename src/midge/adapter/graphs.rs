@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{check_document_write_failure_point, DocumentWriteFailurePoint};
 
-use super::{encode_row, CassieError, Midge, Uuid, WriteOptions};
+use super::{encode_row, CassieError, Midge, Uuid};
 use crate::catalog::name_matches;
 
 #[path = "graphs/reconcile.rs"]
@@ -129,7 +129,8 @@ impl Midge {
         Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
         Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
         Self::increment_data_epoch_in_tx(&mut tx)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         let _ = self.complete_column_batch_maintenance(collection, generation, None);
         let _ = self.complete_projection_hash_maintenance(collection, generation, row_delta);
         Ok(ids)

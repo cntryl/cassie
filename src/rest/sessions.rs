@@ -2,7 +2,7 @@ use std::fmt::Write as _;
 use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cntryl_midge::{ConflictPolicy, Query, TransactionMode, WriteOptions};
+use cntryl_midge::{ConflictPolicy, Query, TransactionMode};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -152,7 +152,8 @@ fn issue_transaction(
         None,
     )
     .map_err(CassieError::from)?;
-    tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+    tx.commit(cassie.midge.write_options_sync())
+        .map_err(CassieError::from)?;
     Ok(token)
 }
 

@@ -1,4 +1,4 @@
-use super::{CassieError, IndexKind, Midge, StorageFamily, Uuid, WriteOptions};
+use super::{CassieError, IndexKind, Midge, StorageFamily, Uuid};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -195,7 +195,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         tx.delete(Self::schema_cleanup_key(&cleanup.cleanup_id))
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 
@@ -220,7 +221,8 @@ impl Midge {
             serde_json::to_vec(cleanup).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(Self::schema_cleanup_key(&cleanup.cleanup_id), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 }

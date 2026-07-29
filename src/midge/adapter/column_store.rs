@@ -1,7 +1,7 @@
 use super::{
     collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
     CollectionStorageMode, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, OrderedRowBound,
-    ProjectionMeta, Query, RowFilter, RowSchema, Schema, WriteOptions,
+    ProjectionMeta, Query, RowFilter, RowSchema, Schema,
 };
 use std::time::Duration;
 
@@ -112,7 +112,8 @@ impl Midge {
             Self::save_collections(&mut tx, &collections)?;
         }
 
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

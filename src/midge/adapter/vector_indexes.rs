@@ -1,7 +1,7 @@
 use super::{
     check_document_write_failure_point, collect_scan, normalize_vector, CassieError,
     DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
-    VectorIndexRecord, VectorIndexState, WriteOptions,
+    VectorIndexRecord, VectorIndexState,
 };
 #[path = "vector_indexes/codec.rs"]
 pub(super) mod codec;
@@ -200,7 +200,8 @@ impl Midge {
         let mut tx = self.begin_data_rw_tx_for(collection)?;
         Self::write_vector_index_state_to_tx(&mut tx, relation_id, field_id, &state)?;
         drop(state);
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     pub(super) fn write_vector_index_state_to_tx(
@@ -421,7 +422,7 @@ impl Midge {
         let value =
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key, value, None).map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }
@@ -691,7 +692,8 @@ impl Midge {
             )
             .map_err(CassieError::from)?;
         }
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(())
     }
 

@@ -11,6 +11,7 @@ use std::time::Duration;
 
 pub struct Midge {
     pub(super) engine: Engine,
+    write_policy: super::storage_config::WritePolicy,
     pub(super) storage_layout: OnceLock<StorageLayout>,
     pub(super) database_families: RwLock<BTreeMap<String, super::DatabaseFamily>>,
     pub(super) default_database: String,
@@ -51,11 +52,18 @@ impl Midge {
         data_dir: impl AsRef<Path>,
         default_database: impl Into<String>,
     ) -> Result<Self, CassieError> {
-        let options = super::storage_config::open_options(data_dir.as_ref())?;
-        let engine = Engine::open(options).map_err(CassieError::from)?;
+        let config = super::storage_config::open_config(data_dir.as_ref())?;
+        Self::open_with_write_policy(config.open_options, default_database, config.write_policy)
+    }
 
+    fn open_with_write_policy(
+        options: cntryl_midge::OpenOptions,
+        default_database: impl Into<String>,
+        write_policy: super::storage_config::WritePolicy,
+    ) -> Result<Self, CassieError> {
         Ok(Self {
-            engine,
+            engine: Engine::open(options).map_err(CassieError::from)?,
+            write_policy,
             storage_layout: OnceLock::new(),
             database_families: RwLock::new(BTreeMap::new()),
             default_database: default_database.into(),
@@ -66,6 +74,27 @@ impl Midge {
                 super::ColumnBatchOperationalMetrics::default(),
             ),
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_cloud_simulated_for_test(
+        cache_path: impl AsRef<Path>,
+        default_database: impl Into<String>,
+        strict: bool,
+    ) -> Result<Self, CassieError> {
+        let options = cntryl_midge::OpenOptions::cloud_simulated(
+            cache_path.as_ref(),
+            "cassie-test",
+            "startup",
+        )
+        .build()
+        .map_err(CassieError::from)?;
+        let write_policy = if strict {
+            super::storage_config::WritePolicy::CloudStrict
+        } else {
+            super::storage_config::WritePolicy::CloudBackground
+        };
+        Self::open_with_write_policy(options, default_database, write_policy)
     }
 
     /// # Errors
@@ -85,18 +114,21 @@ impl Midge {
         let options = cntryl_midge::OpenOptions::local(data_dir.as_ref())
             .build()
             .map_err(CassieError::from)?;
-        Ok(Self {
-            engine: Engine::open(options).map_err(CassieError::from)?,
-            storage_layout: OnceLock::new(),
-            database_families: RwLock::new(BTreeMap::new()),
-            default_database: default_database.into(),
-            collection_write_gates: Mutex::new(HashMap::new()),
-            referential_write_gate: ReentrantMutex::new(()),
-            query_scan_entries: AtomicU64::new(0),
-            column_batch_operational_metrics: Mutex::new(
-                super::ColumnBatchOperationalMetrics::default(),
-            ),
-        })
+        Self::open_with_write_policy(
+            options,
+            default_database,
+            super::storage_config::WritePolicy::Local,
+        )
+    }
+
+    #[must_use]
+    pub(crate) fn write_options_sync(&self) -> WriteOptions {
+        self.write_policy.sync()
+    }
+
+    #[must_use]
+    pub(crate) fn write_options_buffered(&self) -> WriteOptions {
+        self.write_policy.buffered()
     }
 
     #[doc(hidden)]
@@ -177,7 +209,8 @@ impl Midge {
             None => {
                 tx.put(marker_key, key_encoding::LAYOUT_MARKER_VALUE.to_vec(), None)
                     .map_err(CassieError::from)?;
-                tx.commit(WriteOptions::sync()).map_err(CassieError::from)
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)
             }
         }
     }
@@ -275,5 +308,50 @@ impl Midge {
             .entry(collection.to_ascii_lowercase())
             .or_insert_with(|| Arc::new(ReentrantMutex::new(())))
             .clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use cntryl_midge::{OpenOptions, WriteOptions};
+
+    use super::Midge;
+    use crate::midge::adapter::storage_config::WritePolicy;
+
+    #[test]
+    fn should_bootstrap_a_fresh_cloud_backed_namespace() {
+        // Arrange
+        let cache =
+            std::env::temp_dir().join(format!("cassie-cloud-bootstrap-{}", uuid::Uuid::new_v4()));
+        let options = OpenOptions::cloud_simulated(&cache, "cassie-test", "bootstrap")
+            .build()
+            .expect("simulated cloud options");
+        let midge =
+            Midge::open_with_write_policy(options, "postgres", WritePolicy::CloudBackground)
+                .expect("open simulated cloud");
+
+        // Act
+        let layout = midge
+            .bootstrap_families()
+            .expect("bootstrap cloud families");
+
+        // Assert
+        let schema_tx = midge
+            .engine
+            .begin_tx(layout.schema.id(), cntryl_midge::TransactionMode::ReadOnly)
+            .expect("schema transaction");
+        assert_eq!(
+            schema_tx
+                .get(&crate::midge::adapter::key_encoding::layout_marker_key())
+                .expect("read layout marker"),
+            Some(
+                crate::midge::adapter::key_encoding::LAYOUT_MARKER_VALUE
+                    .to_vec()
+                    .into()
+            )
+        );
+        assert_eq!(midge.write_options_sync(), WriteOptions::cloud_async());
+        drop(midge);
+        std::fs::remove_dir_all(cache).expect("remove cloud cache");
     }
 }

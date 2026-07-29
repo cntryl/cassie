@@ -12,7 +12,7 @@ pub(super) fn clear_pending_collection_rename(
     let mut tx = midge.begin_schema_rw_tx()?;
     tx.delete(Midge::schema_operation_key(current, next))
         .map_err(CassieError::from)?;
-    tx.commit(cntryl_midge::WriteOptions::sync())
+    tx.commit(midge.write_options_sync())
         .map_err(CassieError::from)
 }
 
@@ -24,7 +24,7 @@ pub(super) fn clear_pending_field_drop(
     let mut tx = midge.begin_schema_rw_tx()?;
     tx.delete(Midge::field_drop_operation_key(collection, field))
         .map_err(CassieError::from)?;
-    tx.commit(cntryl_midge::WriteOptions::sync())
+    tx.commit(midge.write_options_sync())
         .map_err(CassieError::from)
 }
 
@@ -229,7 +229,7 @@ pub(super) fn delete_dropped_field_data(
         Midge::unique_constraint_reservation_field_prefix(collection, field),
     )?;
     data_tx
-        .commit(super::WriteOptions::sync())
+        .commit(midge.write_options_sync())
         .map_err(CassieError::from)?;
     Ok(())
 }

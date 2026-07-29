@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{
-    collect_scan, encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema, WriteOptions,
-};
+use super::{collect_scan, encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -270,7 +268,8 @@ impl Midge {
             write_range_hash_record_to_tx(&mut tx, record)?;
         }
         write_root_hash_record_to_tx(&mut tx, &root)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
 
         self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
         Ok(root)
@@ -318,7 +317,8 @@ impl Midge {
             write_range_hash_record_to_tx(&mut tx, record)?;
         }
         write_root_hash_record_to_tx(&mut tx, &root)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
         self.update_projection_hash_metadata(collection, &records, &ranges, &root)?;

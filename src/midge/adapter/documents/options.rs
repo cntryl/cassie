@@ -10,9 +10,9 @@ pub(crate) struct DocumentWriteBatchOptions {
 }
 
 impl DocumentWriteBatchOptions {
-    pub(crate) fn sync() -> Self {
+    pub(crate) fn sync(commit: WriteOptions) -> Self {
         Self {
-            commit: WriteOptions::sync(),
+            commit,
             refresh_after_commit: true,
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,
@@ -20,9 +20,9 @@ impl DocumentWriteBatchOptions {
         }
     }
 
-    pub(crate) fn buffered() -> Self {
+    pub(crate) fn buffered(commit: WriteOptions) -> Self {
         Self {
-            commit: WriteOptions::buffered(),
+            commit,
             refresh_after_commit: true,
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,

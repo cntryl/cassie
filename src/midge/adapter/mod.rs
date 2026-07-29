@@ -694,7 +694,8 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
         let next = Self::load_schema_epoch_from_tx(&tx)?.saturating_add(1);
         Self::save_schema_epoch_to_tx(&mut tx, next)?;
-        tx.commit(WriteOptions::sync()).map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
         Ok(next)
     }
 

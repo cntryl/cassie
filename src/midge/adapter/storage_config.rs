@@ -3,7 +3,7 @@ use std::path::Path;
 
 use cntryl_midge::{
     AzureCredentialSource, CloudProviderConfig, GcsApiStyle, GcsCredentialSource, OpenOptions,
-    S3CredentialSource,
+    S3CredentialSource, WriteOptions,
 };
 
 use crate::app::CassieError;
@@ -14,20 +14,53 @@ const DEFAULT_SQRZL_ACCESS_KEY: &str = "admin";
 const DEFAULT_SQRZL_SECRET_KEY: &str = "sqrzl-secret";
 const DEFAULT_SQRZL_BUCKET: &str = "cassie";
 
-pub(super) fn open_options(data_dir: &Path) -> Result<OpenOptions, CassieError> {
-    open_options_from(data_dir, &|key| env::var(key).ok())
+#[derive(Debug)]
+pub(super) struct StorageConfig {
+    pub(super) open_options: OpenOptions,
+    pub(super) write_policy: WritePolicy,
 }
 
-fn open_options_from(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum WritePolicy {
+    Local,
+    CloudBackground,
+    CloudStrict,
+}
+
+impl WritePolicy {
+    #[must_use]
+    pub(super) fn sync(self) -> WriteOptions {
+        match self {
+            Self::Local => WriteOptions::sync(),
+            Self::CloudBackground => WriteOptions::cloud_async(),
+            Self::CloudStrict => WriteOptions::cloud_strict(),
+        }
+    }
+
+    #[must_use]
+    pub(super) fn buffered(self) -> WriteOptions {
+        match self {
+            Self::Local => WriteOptions::buffered(),
+            Self::CloudBackground => WriteOptions::cloud_async(),
+            Self::CloudStrict => WriteOptions::cloud_strict(),
+        }
+    }
+}
+
+pub(super) fn open_config(data_dir: &Path) -> Result<StorageConfig, CassieError> {
+    open_config_from(data_dir, &|key| env::var(key).ok())
+}
+
+fn open_config_from(
     data_dir: &Path,
     read_env: &impl Fn(&str) -> Option<String>,
-) -> Result<OpenOptions, CassieError> {
+) -> Result<StorageConfig, CassieError> {
     let mode = env_non_empty(read_env, "CASSIE_STORAGE_MODE")
         .unwrap_or_else(|| "local".to_string())
         .to_ascii_lowercase();
-    let builder = match mode.as_str() {
-        "memory" => OpenOptions::in_memory(),
-        "local" => OpenOptions::local(data_dir),
+    let (builder, write_policy) = match mode.as_str() {
+        "memory" => (OpenOptions::in_memory(), WritePolicy::Local),
+        "local" => (OpenOptions::local(data_dir), WritePolicy::Local),
         "cloud" => {
             let provider_name = required_env(read_env, "CASSIE_STORAGE_PROVIDER")?;
             let provider =
@@ -35,7 +68,11 @@ fn open_options_from(
             let cache_path = env_non_empty(read_env, "CASSIE_STORAGE_CACHE_PATH")
                 .unwrap_or_else(|| DEFAULT_CLOUD_CACHE_PATH.to_string());
             let prefix = env_non_empty(read_env, "CASSIE_STORAGE_PREFIX").unwrap_or_default();
-            OpenOptions::cloud(cache_path, provider, prefix)
+            let write_policy = cloud_write_policy(read_env)?;
+            (
+                OpenOptions::cloud(cache_path, provider, prefix),
+                write_policy,
+            )
         }
         _ => {
             return Err(unsupported(format!(
@@ -43,7 +80,26 @@ fn open_options_from(
             )))
         }
     };
-    builder.build().map_err(CassieError::from)
+    Ok(StorageConfig {
+        open_options: builder.build().map_err(CassieError::from)?,
+        write_policy,
+    })
+}
+
+fn cloud_write_policy(
+    read_env: &impl Fn(&str) -> Option<String>,
+) -> Result<WritePolicy, CassieError> {
+    match env_non_empty(read_env, "CASSIE_STORAGE_CLOUD_DURABILITY")
+        .unwrap_or_else(|| "background".to_string())
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "background" => Ok(WritePolicy::CloudBackground),
+        "strict" => Ok(WritePolicy::CloudStrict),
+        other => Err(unsupported(format!(
+            "unsupported CASSIE_STORAGE_CLOUD_DURABILITY='{other}'; expected background or strict"
+        ))),
+    }
 }
 
 fn build_cloud_provider_config(
@@ -254,11 +310,12 @@ fn unsupported(message: String) -> CassieError {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::fs;
     use std::path::Path;
 
-    use cntryl_midge::Storage;
+    use cntryl_midge::{Storage, WriteOptions};
 
-    use super::open_options_from;
+    use super::open_config_from;
 
     fn reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(ToString::to_string)
@@ -275,8 +332,9 @@ mod tests {
         ]);
 
         // Act
-        let options =
-            open_options_from(Path::new("./unused"), &reader(values)).expect("cloud options");
+        let options = open_config_from(Path::new("./unused"), &reader(values))
+            .expect("cloud options")
+            .open_options;
 
         // Assert
         assert!(matches!(options.storage(), Storage::Cloud { .. }));
@@ -288,10 +346,132 @@ mod tests {
         let values = HashMap::from([("CASSIE_STORAGE_MODE", "aws-s3")]);
 
         // Act
-        let error = open_options_from(Path::new("./unused"), &reader(values))
+        let error = open_config_from(Path::new("./unused"), &reader(values))
             .expect_err("provider names are not storage modes");
 
         // Assert
         assert!(error.to_string().contains("memory, local, or cloud"));
+    }
+
+    #[test]
+    fn should_map_background_cloud_durability_to_cloud_async_writes() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_STORAGE_MODE", "cloud"),
+            ("CASSIE_STORAGE_PROVIDER", "aws-s3"),
+            ("CASSIE_STORAGE_BUCKET", "cassie-production"),
+            ("CASSIE_STORAGE_REGION", "us-east-1"),
+            ("CASSIE_STORAGE_CLOUD_DURABILITY", "background"),
+        ]);
+
+        // Act
+        let config =
+            open_config_from(Path::new("./unused"), &reader(values)).expect("cloud config");
+
+        // Assert
+        assert_eq!(config.write_policy.sync(), WriteOptions::cloud_async());
+        assert_eq!(config.write_policy.buffered(), WriteOptions::cloud_async());
+    }
+
+    #[test]
+    fn should_map_strict_cloud_durability_to_cloud_strict_writes() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_STORAGE_MODE", "cloud"),
+            ("CASSIE_STORAGE_PROVIDER", "aws-s3"),
+            ("CASSIE_STORAGE_BUCKET", "cassie-production"),
+            ("CASSIE_STORAGE_REGION", "us-east-1"),
+            ("CASSIE_STORAGE_CLOUD_DURABILITY", "strict"),
+        ]);
+
+        // Act
+        let config =
+            open_config_from(Path::new("./unused"), &reader(values)).expect("cloud config");
+
+        // Assert
+        assert_eq!(config.write_policy.sync(), WriteOptions::cloud_strict());
+        assert_eq!(config.write_policy.buffered(), WriteOptions::cloud_strict());
+    }
+
+    #[test]
+    fn should_reject_unknown_cloud_durability() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_STORAGE_MODE", "cloud"),
+            ("CASSIE_STORAGE_PROVIDER", "aws-s3"),
+            ("CASSIE_STORAGE_BUCKET", "cassie-production"),
+            ("CASSIE_STORAGE_REGION", "us-east-1"),
+            ("CASSIE_STORAGE_CLOUD_DURABILITY", "eventual"),
+        ]);
+
+        // Act
+        let error = open_config_from(Path::new("./unused"), &reader(values))
+            .expect_err("unknown durability must fail");
+
+        // Assert
+        assert!(error.to_string().contains("expected background or strict"));
+    }
+
+    #[test]
+    fn should_preserve_memory_write_policies() {
+        // Arrange
+        let memory = HashMap::from([("CASSIE_STORAGE_MODE", "memory")]);
+
+        // Act
+        let memory =
+            open_config_from(Path::new("./unused"), &reader(memory)).expect("memory config");
+
+        // Assert
+        assert_eq!(memory.write_policy.sync(), WriteOptions::sync());
+        assert_eq!(memory.write_policy.buffered(), WriteOptions::buffered());
+    }
+
+    #[test]
+    fn should_preserve_local_write_policies() {
+        // Arrange
+        let local = HashMap::from([("CASSIE_STORAGE_MODE", "local")]);
+
+        // Act
+        let local = open_config_from(Path::new("./unused"), &reader(local)).expect("local config");
+
+        // Assert
+        assert_eq!(local.write_policy.sync(), WriteOptions::sync());
+        assert_eq!(local.write_policy.buffered(), WriteOptions::buffered());
+    }
+
+    #[test]
+    fn should_keep_local_only_write_constructors_inside_the_storage_policy() {
+        // Arrange
+        let source_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let sync_constructor = ["WriteOptions::", "sync()"].concat();
+        let buffered_constructor = ["WriteOptions::", "buffered()"].concat();
+        let mut pending = vec![source_root];
+        let mut violations = Vec::new();
+
+        // Act
+        while let Some(path) = pending.pop() {
+            for entry in fs::read_dir(path).expect("read source directory") {
+                let path = entry.expect("source entry").path();
+                if path.is_dir() {
+                    pending.push(path);
+                } else if path.extension().is_some_and(|extension| extension == "rs")
+                    && path
+                        .file_name()
+                        .is_none_or(|name| name != "storage_config.rs")
+                {
+                    let source = fs::read_to_string(&path).expect("read Rust source");
+                    if source.contains(&sync_constructor) || source.contains(&buffered_constructor)
+                    {
+                        violations.push(path);
+                    }
+                }
+            }
+        }
+
+        // Assert
+        assert!(
+            violations.is_empty(),
+            "local-only write constructors bypass storage policy: {violations:?}"
+        );
     }
 }

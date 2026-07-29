@@ -13,7 +13,7 @@ impl Midge {
             serde_json::to_vec(report).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(projection_repair_report_key(&report.report_id), value, None)
             .map_err(CassieError::from)?;
-        tx.commit(cntryl_midge::WriteOptions::sync())
+        tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())
     }

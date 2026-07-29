@@ -1,4 +1,4 @@
-import { For } from "@askrjs/askr/control";
+import { For, Show } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
 import {
   SidebarGroup,
@@ -43,7 +43,7 @@ export function QuerySchemaTreeDatabase({
         </span>
         <span class="cassie-query-schema-database-label">{database.label}</span>
       </button>
-      {isOpen() ? (
+      <Show when={isOpen()}>
         <SidebarGroupContent class="cassie-query-schema-database-content">
           <For each={database.namespaces} by={(namespace) => namespace.id}>
             {(namespace) => (
@@ -55,7 +55,7 @@ export function QuerySchemaTreeDatabase({
             )}
           </For>
         </SidebarGroupContent>
-      ) : null}
+      </Show>
     </SidebarGroup>
   );
 }

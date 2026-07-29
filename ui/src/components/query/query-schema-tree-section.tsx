@@ -1,4 +1,4 @@
-import { For } from "@askrjs/askr/control";
+import { For, Show } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
 import {
   SidebarGroup,
@@ -47,7 +47,7 @@ export function QuerySchemaTreeSection({
           <span class="cassie-query-schema-section-count">{section.items.length}</span>
         </button>
       </SidebarGroupLabel>
-      {isOpen() ? (
+      <Show when={isOpen()}>
         <SidebarGroupContent>
           <SidebarMenu class="cassie-query-schema-section-list" aria-label={section.label}>
             <For each={section.items} by={(item) => item.id}>
@@ -61,7 +61,7 @@ export function QuerySchemaTreeSection({
             </For>
           </SidebarMenu>
         </SidebarGroupContent>
-      ) : null}
+      </Show>
     </SidebarGroup>
   );
 }

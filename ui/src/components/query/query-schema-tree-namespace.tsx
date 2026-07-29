@@ -1,4 +1,4 @@
-import { For } from "@askrjs/askr/control";
+import { For, Show } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
 import {
   SidebarGroup,
@@ -45,7 +45,7 @@ export function QuerySchemaTreeNamespace({
         </span>
         <span class="cassie-query-schema-namespace-label">{namespace.label}</span>
       </button>
-      {isOpen() ? (
+      <Show when={isOpen()}>
         <SidebarGroupContent class="cassie-query-schema-namespace-content">
           <For each={namespace.sections} by={(section) => section.id}>
             {(section) => (
@@ -57,7 +57,7 @@ export function QuerySchemaTreeNamespace({
             )}
           </For>
         </SidebarGroupContent>
-      ) : null}
+      </Show>
     </SidebarGroup>
   );
 }

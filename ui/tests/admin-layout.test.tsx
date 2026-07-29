@@ -116,7 +116,7 @@ describe("admin shell sidebar resize", () => {
     expect(brandLink?.textContent).toContain("Cassie Admin");
     expect(brandLogo).toBeInstanceOf(HTMLImageElement);
     expect(brandLogo?.getAttribute("alt")).toBe("");
-    expect(brandLogo?.getAttribute("src")).toContain("cassie-logo.png");
+    expect(brandLogo?.getAttribute("src")).toContain("/assets/cassie-logo-64x64.png");
     expect(root.querySelector(".cassie-admin-header")).toBeNull();
     expect(sidebar?.contains(brandLink ?? null)).toBe(true);
     expect(sidebar?.contains(footer ?? null)).toBe(true);

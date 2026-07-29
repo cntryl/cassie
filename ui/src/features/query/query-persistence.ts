@@ -1,40 +1,51 @@
 import { saveQueryWorkspace, type PersistedQueryWorkspace } from "./query-tabs";
 
 export interface QueryPersistenceCoordinator {
-  schedule(workspace: PersistedQueryWorkspace): void;
+  schedule(workspace: PersistedQueryWorkspace, operationId?: string): void;
   flush(): boolean;
   dispose(): boolean;
 }
 
 export function createQueryPersistenceCoordinator(
   user: string,
-  onFailure: () => void,
+  onStatus: (failed: boolean) => void,
   delayMs = 250,
 ): QueryPersistenceCoordinator {
-  let pending: PersistedQueryWorkspace | null = null;
+  let pending: { workspace: PersistedQueryWorkspace; operationId: string } | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+
+  function markPersisted(failed: boolean) {
+    onStatus(failed);
+  }
 
   function clearTimer() {
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
 
-  function flush() {
+  function flush(operationId?: string) {
     clearTimer();
     if (pending === null) return true;
-    const workspace = pending;
+    if (operationId !== undefined && operationId !== pending.operationId) return true;
+
+    const workspace = pending.workspace;
     pending = null;
     const saved = saveQueryWorkspace(user, workspace);
-    if (!saved) onFailure();
+    markPersisted(!saved);
     return saved;
   }
 
+  function schedule(workspace: PersistedQueryWorkspace, operationId = "coordinator") {
+    pending = { workspace, operationId };
+    markPersisted(false);
+    clearTimer();
+    timer = setTimeout(() => {
+      flush(operationId);
+    }, delayMs);
+  }
+
   return {
-    schedule(workspace) {
-      pending = workspace;
-      clearTimer();
-      timer = setTimeout(flush, delayMs);
-    },
+    schedule,
     flush,
     dispose: flush,
   };

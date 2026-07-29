@@ -34,6 +34,31 @@ interface MonacoProviderRegistry {
 }
 
 const providerRegistries = new WeakMap<object, MonacoProviderRegistry>();
+interface MonacoEditorResource {
+  monaco: object | null;
+  editor: MonacoEditorInstance | null;
+  changeDisposable: { dispose(): void } | null;
+  systemThemeQuery: MediaQueryList | null;
+  systemThemeListener: ((event: MediaQueryListEvent) => void) | null;
+}
+
+const editorResources = new Map<string, MonacoEditorResource>();
+
+function getEditorResource(modelUri: string) {
+  let resource = editorResources.get(modelUri);
+  if (!resource) {
+    resource = {
+      monaco: null,
+      editor: null,
+      changeDisposable: null,
+      systemThemeQuery: null,
+      systemThemeListener: null,
+    };
+    editorResources.set(modelUri, resource);
+  }
+
+  return resource;
+}
 
 function emptyCompletionItems(): MonacoCompletionItem[] {
   return [];
@@ -56,12 +81,7 @@ export function MonacoSqlEditor({
   );
   const themeScope = theme();
   const modelUri = `inmemory://cassie/query/${encodeURIComponent(tabId)}.sql`;
-  let providerRegistry: MonacoProviderRegistry | null = null;
-  let editorInstance: MonacoEditorInstance | null = null;
-  let monacoKey: object | null = null;
-  let changeDisposable: { dispose(): void } | null = null;
-  let systemThemeQuery: MediaQueryList | null = null;
-  let systemThemeListener: ((event: MediaQueryListEvent) => void) | null = null;
+  const resource = getEditorResource(modelUri);
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
   const followsSystemDark = systemDark();
@@ -103,6 +123,14 @@ export function MonacoSqlEditor({
   // jsdom can't run Monaco (no real Worker/Canvas/ResizeObserver support), so
   // tests always exercise this same plain-textarea contract instead — real
   // browsers only fall back here if Monaco itself fails to load (onError).
+  if (resource.monaco) {
+    const registry = providerRegistries.get(resource.monaco);
+    if (registry) {
+      registry.owners.set(modelUri, latestCompletionProvider);
+      if (active()) registry.activeUri = modelUri;
+    }
+  }
+
   if (isTestMode || typeof window === "undefined" || isEditorUnavailable) {
     return (
       <div
@@ -137,8 +165,8 @@ export function MonacoSqlEditor({
   }
 
   function handleBeforeMount(monaco: MonacoNamespace) {
-    monacoKey = monaco as object;
-    let registry = providerRegistries.get(monaco as object);
+    resource.monaco = monaco as object;
+    let registry = providerRegistries.get(resource.monaco);
     if (!registry) {
       const owners = new Map<
         string,
@@ -193,41 +221,51 @@ export function MonacoSqlEditor({
       providerRegistries.set(monaco as object, registry);
     }
     registry.owners.set(modelUri, latestCompletionProvider);
-    if (active()) registry.activeUri = modelUri;
-    providerRegistry = registry;
+    if (active()) {
+      registry.activeUri = modelUri;
+    }
   }
 
   function handleMount(editor: MonacoEditorInstance) {
-    editorInstance = editor;
-    changeDisposable?.dispose();
-    changeDisposable = editor.onDidChangeModelContent(() => {
+    resource.editor = editor;
+    resource.changeDisposable?.dispose();
+    resource.changeDisposable = editor.onDidChangeModelContent(() => {
       onChange(editor.getValue());
     });
-    if (active() && providerRegistry) providerRegistry.activeUri = modelUri;
+    const registry = resource.monaco ? providerRegistries.get(resource.monaco) : null;
+    if (active() && registry) {
+      registry.activeUri = modelUri;
+    }
     if (typeof window.matchMedia === "function") {
-      systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      systemThemeListener = (event) => setSystemDark(event.matches);
-      systemThemeQuery.addEventListener("change", systemThemeListener);
+      resource.systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      resource.systemThemeListener = (event) => setSystemDark(event.matches);
+      resource.systemThemeQuery.addEventListener("change", resource.systemThemeListener);
     }
   }
 
   function handleUnmount() {
-    editorInstance = null;
-    providerRegistry?.owners.delete(modelUri);
-    if (providerRegistry?.activeUri === modelUri) providerRegistry.activeUri = null;
-    if (providerRegistry?.owners.size === 0) {
-      providerRegistry.disposable.dispose();
-      if (monacoKey) providerRegistries.delete(monacoKey);
+    const registry = resource.monaco ? providerRegistries.get(resource.monaco) : null;
+    resource.editor?.dispose();
+    resource.editor = null;
+    if (resource.systemThemeQuery && resource.systemThemeListener) {
+      resource.systemThemeQuery.removeEventListener("change", resource.systemThemeListener);
     }
-    providerRegistry = null;
-    monacoKey = null;
-    changeDisposable?.dispose();
-    changeDisposable = null;
-    if (systemThemeQuery && systemThemeListener) {
-      systemThemeQuery.removeEventListener("change", systemThemeListener);
+    resource.systemThemeQuery = null;
+    resource.systemThemeListener = null;
+    resource.changeDisposable?.dispose();
+    resource.changeDisposable = null;
+    registry?.owners.delete(modelUri);
+    if (registry?.activeUri === modelUri) {
+      registry.activeUri = null;
     }
-    systemThemeQuery = null;
-    systemThemeListener = null;
+    if (registry?.owners.size === 0) {
+      registry.disposable.dispose();
+      if (resource.monaco) {
+        providerRegistries.delete(resource.monaco);
+      }
+    }
+    resource.monaco = null;
+    editorResources.delete(modelUri);
   }
 
   const selectedTheme = themeScope.theme();
@@ -238,7 +276,7 @@ export function MonacoSqlEditor({
 
   function handleEditorKeyDown(event: KeyboardEvent) {
     if (!event.metaKey && !event.ctrlKey) return;
-    const editor = editorInstance;
+    const editor = resource.editor;
     if (!editor) return;
     const key = event.key.toLowerCase();
     if (key === "a") {
@@ -271,7 +309,7 @@ export function MonacoSqlEditor({
         theme={monacoTheme}
         options={{
           readOnly: disabled,
-          automaticLayout: false,
+          automaticLayout: true,
           minimap: { enabled: false },
           fontSize: 13,
           lineNumbers: "on",

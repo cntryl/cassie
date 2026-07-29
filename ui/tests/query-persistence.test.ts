@@ -22,7 +22,8 @@ describe("query draft persistence", () => {
 
   it("should_coalesce_draft_writes_after_250_ms", () => {
     // Arrange
-    const coordinator = createQueryPersistenceCoordinator("alice-coalesce", vi.fn());
+    const onStatus = vi.fn();
+    const coordinator = createQueryPersistenceCoordinator("alice-coalesce", onStatus);
 
     // Act
     coordinator.schedule(workspace("SELECT 1"));
@@ -33,11 +34,13 @@ describe("query draft persistence", () => {
     expect(loadQueryWorkspace("alice-coalesce").tabs).toHaveLength(0);
     vi.advanceTimersByTime(1);
     expect(loadQueryWorkspace("alice-coalesce").tabs[0]?.sql).toBe("SELECT 2");
+    expect(onStatus).toHaveBeenCalledWith(false);
   });
 
   it("should_flush_the_latest_draft_during_teardown", () => {
     // Arrange
-    const coordinator = createQueryPersistenceCoordinator("alice-flush", vi.fn());
+    const onStatus = vi.fn();
+    const coordinator = createQueryPersistenceCoordinator("alice-flush", onStatus);
     coordinator.schedule(workspace("SELECT 'latest'"));
 
     // Act
@@ -46,12 +49,13 @@ describe("query draft persistence", () => {
     // Assert
     expect(saved).toBe(true);
     expect(loadQueryWorkspace("alice-flush").tabs[0]?.sql).toBe("SELECT 'latest'");
+    expect(onStatus).toHaveBeenCalledWith(false);
   });
 
   it("should_reject_oversized_drafts_without_losing_the_previous_draft", () => {
     // Arrange
-    const onFailure = vi.fn();
-    const coordinator = createQueryPersistenceCoordinator("alice-limit", onFailure);
+    const onStatus = vi.fn();
+    const coordinator = createQueryPersistenceCoordinator("alice-limit", onStatus);
     coordinator.schedule(workspace("SELECT 'safe'"));
     coordinator.flush();
     coordinator.schedule(workspace("x".repeat(1024 * 1024)));
@@ -61,7 +65,54 @@ describe("query draft persistence", () => {
 
     // Assert
     expect(saved).toBe(false);
-    expect(onFailure).toHaveBeenCalledOnce();
+    expect(onStatus).toHaveBeenCalledWith(false);
+    expect(onStatus).toHaveBeenCalledWith(true);
     expect(loadQueryWorkspace("alice-limit").tabs[0]?.sql).toBe("SELECT 'safe'");
   });
-});
+
+  it("should_ignore_flush_requests_that_do_not_match_the_pending_operation_id", () => {
+    // Arrange
+    const onStatus = vi.fn();
+    const coordinator = createQueryPersistenceCoordinator("alice-stale", onStatus);
+
+    coordinator.schedule(workspace("SELECT 'first'"), "op-first");
+    coordinator.schedule(workspace("SELECT 'second'"), "op-second");
+
+    // Act
+    const staleSave = coordinator.flush("op-first");
+    vi.advanceTimersByTime(250);
+
+    // Assert
+    expect(staleSave).toBe(true);
+    expect(loadQueryWorkspace("alice-stale").tabs).toHaveLength(0);
+
+    // Act
+    const latestSave = coordinator.flush();
+
+    // Assert
+    expect(latestSave).toBe(true);
+    expect(loadQueryWorkspace("alice-stale").tabs[0]?.sql).toBe("SELECT 'second'");
+    expect(onStatus).toHaveBeenCalledWith(false);
+  });
+
+  it("should_report_success_after_a_later_failure_is_recovered", () => {
+    // Arrange
+    const onStatus = vi.fn();
+    const coordinator = createQueryPersistenceCoordinator("alice-recover", onStatus);
+
+    coordinator.schedule(workspace("SELECT 'safe'"));
+    expect(coordinator.flush()).toBe(true);
+    coordinator.schedule(workspace("x".repeat(1024 * 1024 + 1)));
+
+    // Act
+    const failedSave = coordinator.flush();
+    coordinator.schedule(workspace("SELECT 42"));
+    const recoveredSave = coordinator.flush();
+
+    // Assert
+    expect(failedSave).toBe(false);
+    expect(recoveredSave).toBe(true);
+    expect(onStatus).toHaveBeenLastCalledWith(false);
+    expect(loadQueryWorkspace("alice-recover").tabs[0]?.sql).toBe("SELECT 42");
+  });
+}); 

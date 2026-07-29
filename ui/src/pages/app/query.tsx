@@ -44,6 +44,7 @@ import {
   type QuerySchemaDatabase,
   QuerySchemaItem,
   QueryStatus,
+  type QueryExecutionResult,
   type QueryTabRuntimeState,
 } from "@/features/query/query-models";
 import { createAdminQuerySchemaQuery } from "@/features/query/query-query";
@@ -55,7 +56,6 @@ import {
 import { queryService } from "@/features/query/query-service";
 import {
   loadQueryWorkspace,
-  saveQueryWorkspace,
   type PersistedQueryTab,
 } from "@/features/query/query-tabs";
 import { createQueryPersistenceCoordinator } from "@/features/query/query-persistence";
@@ -87,18 +87,27 @@ export default function QueryPage() {
   const [createDatabaseOpen, setCreateDatabaseOpen] = state(false);
   const [filter, setFilter] = state("");
   const [persistenceFailed, setPersistenceFailed] = state(false);
+  const [persistenceOperationId, setPersistenceOperationId] = state("");
   const [closeCandidate, setCloseCandidate] = state<PersistedQueryTab | null>(null);
   const [closeError, setCloseError] = state<string | null>(null);
-  const persistence = createQueryPersistenceCoordinator(user, () => setPersistenceFailed(true));
+  const persistence = createQueryPersistenceCoordinator(
+    user,
+    (failed) => setPersistenceFailed(failed),
+  );
   const databaseQuery = createQuery({
     key: workspaceQueries.key("databases"),
     fetch: fetchDatabases,
   });
 
-  function persist(nextTabs: PersistedQueryTab[], nextActiveTabId: string | null) {
+  function persist(
+    nextTabs: PersistedQueryTab[],
+    nextActiveTabId: string | null,
+    operationId = crypto.randomUUID(),
+  ) {
     setTabs(nextTabs);
     setActiveTabId(nextActiveTabId);
-    saveQueryWorkspace(user, { version: 1, tabs: nextTabs, activeTabId: nextActiveTabId });
+    setPersistenceOperationId(operationId);
+    persistence.schedule({ version: 1, tabs: nextTabs, activeTabId: nextActiveTabId }, operationId);
   }
 
   function createTab(database: string) {
@@ -128,13 +137,13 @@ export default function QueryPage() {
       if (tab.id === id) tab.sql = sql;
       return tab;
     });
-    persistence.schedule({ version: 1, tabs: nextTabs, activeTabId: activeTabId() });
+    persist(nextTabs, activeTabId());
   }
 
   function activateTab(id: string | null) {
     setActiveTabId(id);
     for (const [tabId, reportActive] of activeWorkspaceReporters) reportActive(tabId === id);
-    saveQueryWorkspace(user, { version: 1, tabs: tabs(), activeTabId: id });
+    persist(tabs(), id);
     syncActiveDom(id);
   }
 
@@ -158,7 +167,7 @@ export default function QueryPage() {
   }
 
   async function closeTab(tab: PersistedQueryTab) {
-    persistence.flush();
+    persistence.flush(persistenceOperationId() || undefined);
     const controller = controllers.get(tab.id);
     if (controller?.isBusy()) {
       try {
@@ -195,6 +204,7 @@ export default function QueryPage() {
     );
   const currentFilter = filter();
   const currentCloseError = closeError();
+  const currentPersistenceOperationId = persistenceOperationId();
   const databaseTree = (): QuerySchemaDatabase[] =>
     (databaseQuery.data ?? []).map((database) => ({
       id: database.name,
@@ -207,10 +217,11 @@ export default function QueryPage() {
       id="main-content"
       class="cassie-query-route"
       data-has-saved-queries={tabs().length > 0 ? "true" : "false"}
+      data-persistence-operation-id={currentPersistenceOperationId}
       tabindex={-1}
       ref={(node: HTMLElement | null) => {
         if (node === null) {
-          persistence.dispose();
+          persistence.flush(persistenceOperationId() || undefined);
         }
       }}
     >
@@ -429,6 +440,8 @@ function QueryWorkspace({
   const [validationToast, setValidationToast] = state<QueryValidationToastData | null>(null);
   const [stopError, setStopError] = state<string | null>(null);
   const [stopPending, setStopPending] = state(false);
+  const [executionResult, setExecutionResult] = state<QueryExecutionResult | null>(null);
+  const [planResult, setPlanResult] = state<QueryExecutionResult | null>(null);
   let activeOperationId: string | null = null;
   let dirty = false;
 
@@ -517,11 +530,12 @@ function QueryWorkspace({
   const isExecutionBusy = executeMutation.pending || explainMutation.pending;
   const isValidating = validateMutation.pending || status() === "validating";
   const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
-  const activeExecution = activeTab() === "plan" ? explainMutation.result : executeMutation.result;
   const canRun = hasQuery && !isQueryBusy && availability() === "available";
   selectedItemId();
   validationToast();
   const currentStopError = stopError();
+  const currentExecutionResult =
+    activeTab() === "plan" ? planResult() : executionResult();
 
   const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
   const actionErrorMessage =
@@ -565,6 +579,8 @@ function QueryWorkspace({
       explainMutation.abort();
     }
 
+    setExecutionResult(null);
+    setPlanResult(null);
     executeMutation.reset();
     validateMutation.reset();
     explainMutation.reset();
@@ -640,9 +656,11 @@ function QueryWorkspace({
 
     const operationId = beginOperation("explaining");
     explainMutation.reset();
+    setPlanResult(null);
     setActiveTab("plan");
     try {
       await explainMutation.execute({ database: tab.database, sql: currentQuery(), operationId });
+      setPlanResult(explainMutation.result);
     } catch {
       // Mutation state owns the visible error. Swallow the rethrow so an
       // expected HTTP failure or user abort does not become an unhandled
@@ -659,9 +677,11 @@ function QueryWorkspace({
 
     const operationId = beginOperation("running");
     executeMutation.reset();
+    setExecutionResult(null);
     setActiveTab("results");
     try {
       await executeMutation.execute({ database: tab.database, sql: currentQuery(), operationId });
+      setExecutionResult(executeMutation.result);
       if (executeMutation.result !== null && changesSchema(executeMutation.result.command)) {
         queryService.invalidateSchema(tab.database);
         await schemaQuery.refresh();
@@ -839,31 +859,31 @@ function QueryWorkspace({
                   errorMessage={actionErrorMessage}
                 />
 
-                <QueryExecutionSummary result={activeExecution} />
+                <QueryExecutionSummary result={currentExecutionResult} />
 
                 <QueryResultsTabs
                   workspaceId={tab.id}
                   activeTab={activeTab}
                   onTabChange={handleTabChange}
                   resultsContent={
-                    activeExecution ? (
-                      <QueryResultTable result={activeExecution} />
+                    currentExecutionResult ? (
+                      <QueryResultTable result={currentExecutionResult} />
                     ) : (
                       <QueryPlaceholder title="No rows" description="No query has run yet." />
                     )
                   }
                   listContent={
-                    activeExecution ? (
+                    currentExecutionResult ? (
                       <>
-                        <QueryResultJson result={activeExecution} />
+                        <QueryResultJson result={currentExecutionResult} />
                       </>
                     ) : (
                       <QueryPlaceholder title="No rows" description="No query has run yet." />
                     )
                   }
                   planContent={
-                    activeExecution ? (
-                      <QueryPlanText result={activeExecution} />
+                    currentExecutionResult ? (
+                      <QueryPlanText result={currentExecutionResult} />
                     ) : (
                       <QueryPlaceholder
                         title="No plan"

@@ -2,6 +2,7 @@ import { VirtualTable, type VirtualTableColumn } from "@askrjs/themes/components
 
 import type { QueryResultValue } from "@/adapters";
 import type { QueryExecutionResult } from "@/features/query/query-models";
+import { QueryResultCell } from "./query-result-cell";
 import { QueryPlaceholder } from "./query-placeholder";
 
 export interface QueryResultTableProps {
@@ -39,7 +40,9 @@ export function QueryResultTable({ result }: QueryResultTableProps) {
       id: "row-number",
       header: "#",
       width: 64,
-      cellComponent: ({ row }) => <span class="cassie-query-row-number">{row.index + 1}</span>,
+      cellComponent: ({ row }) => (
+        <span class="cassie-query-row-number cassie-query-row-number-cell">{row.index + 1}</span>
+      ),
     },
     ...headers.map((header, columnIndex) => ({
       id: `column-${columnIndex}`,
@@ -48,12 +51,10 @@ export function QueryResultTable({ result }: QueryResultTableProps) {
       cellComponent: ({ row }: { row: ResultRow }) => {
         const value = row.values[columnIndex] ?? null;
         return (
-          <span
-            class={value === null ? "cassie-query-cell-null" : undefined}
+          <QueryResultCell
+            value={value}
             title={displayQueryValue(value)}
-          >
-            {displayQueryValue(value)}
-          </span>
+          />
         );
       },
     })),

@@ -1,11 +1,8 @@
 import { For } from "@askrjs/askr/control";
+import { state } from "@askrjs/askr";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
 } from "@askrjs/themes/components";
 import { ChevronRightIcon, DatabaseIcon } from "@askrjs/lucide";
 
@@ -23,38 +20,42 @@ export function QuerySchemaTreeDatabase({
   selectedItemId,
   onSelectItem,
 }: QuerySchemaTreeDatabaseProps) {
+  const [isOpen, setIsOpen] = state(true);
+
   return (
-    <Collapsible defaultOpen>
-      <SidebarGroup
-        class="cassie-query-schema-database"
-        data-testid="query-schema-tree-database"
-        data-database={database.id}
+    <SidebarGroup
+      class="cassie-query-schema-database"
+      data-testid="query-schema-tree-database"
+      data-database={database.id}
+    >
+      <button
+        type="button"
+        class="cassie-query-schema-database-toggle"
+        aria-expanded={isOpen() ? "true" : "false"}
+        data-state={isOpen() ? "open" : "closed"}
+        onClick={() => setIsOpen((previous) => !previous)}
       >
-        <SidebarGroupLabel asChild class="cassie-query-schema-database-toggle">
-          <CollapsibleTrigger>
-            <span class="cassie-query-schema-database-chevron" aria-hidden="true">
-              <ChevronRightIcon size={13} />
-            </span>
-            <span class="cassie-query-schema-database-icon" aria-hidden="true">
-              <DatabaseIcon size={13} />
-            </span>
-            <span class="cassie-query-schema-database-label">{database.label}</span>
-          </CollapsibleTrigger>
-        </SidebarGroupLabel>
-        <CollapsibleContent>
-          <SidebarGroupContent class="cassie-query-schema-database-content">
-            <For each={database.namespaces} by={(namespace) => namespace.id}>
-              {(namespace) => (
-                <QuerySchemaTreeNamespace
-                  namespace={namespace}
-                  selectedItemId={selectedItemId}
-                  onSelectItem={onSelectItem}
-                />
-              )}
-            </For>
-          </SidebarGroupContent>
-        </CollapsibleContent>
-      </SidebarGroup>
-    </Collapsible>
+        <span class="cassie-query-schema-database-chevron" aria-hidden="true">
+          <ChevronRightIcon size={13} />
+        </span>
+        <span class="cassie-query-schema-database-icon" aria-hidden="true">
+          <DatabaseIcon size={13} />
+        </span>
+        <span class="cassie-query-schema-database-label">{database.label}</span>
+      </button>
+      {isOpen() ? (
+        <SidebarGroupContent class="cassie-query-schema-database-content">
+          <For each={database.namespaces} by={(namespace) => namespace.id}>
+            {(namespace) => (
+              <QuerySchemaTreeNamespace
+                namespace={namespace}
+                selectedItemId={selectedItemId}
+                onSelectItem={onSelectItem}
+              />
+            )}
+          </For>
+        </SidebarGroupContent>
+      ) : null}
+    </SidebarGroup>
   );
 }

@@ -1,5 +1,28 @@
 import { state } from "@askrjs/askr";
 
+type SignalState<T> = {
+  get: () => T;
+  set: (value: T | ((previous: T) => T)) => void;
+};
+
+function createSignalState<T>(initial: T): SignalState<T> {
+  try {
+    const [get, set] = state(initial);
+    return {
+      get,
+      set,
+    };
+  } catch {
+    let value = initial;
+    return {
+      get: () => value,
+      set: (next) => {
+        value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
+      },
+    };
+  }
+}
+
 export function clamp(value: number, min: number, max: number) {
   if (Number.isNaN(value)) {
     return min;
@@ -40,8 +63,24 @@ export interface DragResizeOptions {
 // (mutating a pane's own inline style vs. setting a CSS var on an ancestor),
 // so both are left as caller-supplied callbacks rather than folded in here.
 export function createDragResize(options: DragResizeOptions) {
-  const [value, setValue] = state(clamp(options.initialValue, options.min, options.max));
-  const [dragging, setDragging] = state(false);
+  const valueState = createSignalState(clamp(options.initialValue, options.min, options.max));
+  const setValue = valueState.set;
+  const draggingState = createSignalState(false);
+  let dragging = draggingState.get();
+  const activePointerIdState = createSignalState<number | null>(null);
+  let activePointerId = activePointerIdState.get();
+
+  function setActivePointerId(pointerId: number | null) {
+    activePointerId = pointerId;
+    activePointerIdState.set(pointerId);
+  }
+  function setDraggingState(isDragging: boolean) {
+    dragging = isDragging;
+    draggingState.set(isDragging);
+  }
+  function value() {
+    return dragging || activePointerId !== null ? pendingValue : valueState.get();
+  }
   let start: DragResizeStart = { clientX: 0, clientY: 0, value: 0 };
   let handleEl: HTMLElement | null = null;
   let pendingValue = clamp(options.initialValue, options.min, options.max);
@@ -66,8 +105,11 @@ export function createDragResize(options: DragResizeOptions) {
   }
 
   function onPointerDown(event: PointerEvent) {
-    const target = event.currentTarget;
+    const target = event.currentTarget ?? event.target;
     if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    if (activePointerId !== null) {
       return;
     }
 
@@ -82,14 +124,14 @@ export function createDragResize(options: DragResizeOptions) {
       return;
     }
 
-    setDragging(true);
-    applyClamped(next);
+    setDraggingState(true);
+    setActivePointerId(event.pointerId);
     event.preventDefault();
     target.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (!dragging()) {
+    if (!dragging || activePointerId === null) {
       return;
     }
 
@@ -101,29 +143,39 @@ export function createDragResize(options: DragResizeOptions) {
   }
 
   function onPointerUp(event: PointerEvent) {
-    if (!dragging()) {
+    if (event.pointerId !== activePointerId) {
+      return;
+    }
+    if (!dragging) {
+      setActivePointerId(null);
       return;
     }
 
-    const target = event.currentTarget;
+    const target = event.currentTarget ?? event.target;
     if (!(target instanceof HTMLElement)) {
       return;
     }
 
     const next = options.computeNextValue(event, start) ?? value();
     commit(next);
-    setDragging(false);
+    setDraggingState(false);
+    setActivePointerId(null);
     target.releasePointerCapture(event.pointerId);
   }
 
   function onPointerCancel(event: PointerEvent) {
-    if (!dragging()) {
+    if (event.pointerId !== activePointerId) {
+      return;
+    }
+    if (!dragging) {
+      setActivePointerId(null);
       return;
     }
 
     commit(pendingValue);
-    setDragging(false);
-    const target = event.currentTarget;
+    setDraggingState(false);
+    setActivePointerId(null);
+    const target = event.currentTarget ?? event.target;
     if (target instanceof HTMLElement) {
       try {
         target.releasePointerCapture(event.pointerId);
@@ -135,12 +187,17 @@ export function createDragResize(options: DragResizeOptions) {
   }
 
   function onLostPointerCapture() {
-    if (!dragging()) {
+    if (!dragging) {
+      setActivePointerId(null);
+      return;
+    }
+    if (activePointerId === null) {
       return;
     }
 
     commit(pendingValue);
-    setDragging(false);
+    setDraggingState(false);
+    setActivePointerId(null);
   }
 
   function onKeyDown(event: KeyboardEvent) {
@@ -174,7 +231,7 @@ export function createDragResize(options: DragResizeOptions) {
 
   return {
     value,
-    dragging,
+    dragging: () => dragging,
     setHandleEl,
     onPointerDown,
     onPointerMove,

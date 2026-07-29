@@ -139,10 +139,6 @@
   font-size: 0.85rem;
 }
 
-.cassie-query-execution-summary[data-empty="true"] {
-  display: none;
-}
-
 .cassie-query-execution-summary p {
   margin: 0;
 }

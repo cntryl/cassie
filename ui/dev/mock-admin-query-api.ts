@@ -356,7 +356,7 @@ export function createMockAdminQueryMiddleware(): MockAdminQueryMiddleware {
       sql?: string;
       operation_id?: string;
     };
-    if (!body.database || !["analytics", "postgres"].includes(body.database)) {
+    if (!body.database || !databases.some((candidate) => candidate.name === body.database)) {
       sendJson(res, 400, { error: "a valid database is required" });
       return null;
     }

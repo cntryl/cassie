@@ -133,7 +133,7 @@ export function QueryResultsTabs({
           </TabsList>
         }
       />
-      <div class="cassie-query-tab-content" aria-live="polite" tabindex={0}>
+      <div class="cassie-query-tab-content" aria-live="polite" tabIndex={0}>
         <TabsContent
           class="cassie-query-tab-panel"
           id={`query-${workspaceId}-result-panel-results`}

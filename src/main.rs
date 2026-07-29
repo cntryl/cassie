@@ -2,13 +2,23 @@ use cassie::{Cassie, CassieError, CassieRuntimeConfig};
 use std::sync::Arc;
 use tokio::sync::Notify;
 
-#[tokio::main]
-async fn main() -> Result<(), CassieError> {
+fn main() -> Result<(), CassieError> {
     tracing_subscriber::fmt().with_env_filter("info").init();
 
     let config = CassieRuntimeConfig::from_env()?;
     let cassie = Arc::new(Cassie::new()?);
-    cassie.startup()?;
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| CassieError::Execution(format!("Tokio runtime setup failed: {error}")))?
+        .block_on(run(cassie, config))
+}
+
+async fn run(cassie: Arc<Cassie>, config: CassieRuntimeConfig) -> Result<(), CassieError> {
+    if let Err(error) = cassie.startup() {
+        drop_cassie(cassie).await?;
+        return Err(error);
+    }
 
     let shutdown = Arc::new(Notify::new());
     let mut pgwire = tokio::spawn(cassie::pgwire::server::run_with_shutdown(
@@ -53,8 +63,15 @@ async fn main() -> Result<(), CassieError> {
     }
     .await;
 
-    cassie.shutdown();
+    drop_cassie(cassie).await?;
     result
+}
+
+async fn drop_cassie(cassie: Arc<Cassie>) -> Result<(), CassieError> {
+    cassie.shutdown();
+    tokio::task::spawn_blocking(move || drop(cassie))
+        .await
+        .map_err(|error| CassieError::Execution(format!("Cassie shutdown task failed: {error}")))
 }
 
 async fn join_server(

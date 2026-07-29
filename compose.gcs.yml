@@ -1,0 +1,33 @@
+services:
+  cassie:
+    restart: on-failure
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:5432:5432"
+    environment:
+      CASSIE_REST_LISTEN: 0.0.0.0:8080
+      CASSIE_PGWIRE_LISTEN: 0.0.0.0:5432
+      CASSIE_ROOT_PASSWORD: ${CASSIE_ROOT_PASSWORD:?set a non-default root secret}
+      CASSIE_STORAGE_MODE: cloud
+      CASSIE_STORAGE_PROVIDER: sqrzl-gcs
+      CASSIE_STORAGE_BUCKET: cassie
+      CASSIE_STORAGE_ENDPOINT: http://sqrzl-emulator:9000
+      CASSIE_STORAGE_CACHE_PATH: /data/cassie-cloud-cache
+      CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN: "1"
+    depends_on:
+      - sqrzl-emulator
+    volumes:
+      - cassie-gcs-data:/data
+
+  sqrzl-emulator:
+    image: ghcr.io/sqrzl/sqrzl-emulator:latest
+    environment:
+      SQRZL_BUCKET_LIST: cassie
+    ports:
+      - "127.0.0.1:9000:9000"
+
+volumes:
+  cassie-gcs-data:

@@ -77,7 +77,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |
 | REST | Secondary administrative and resource API | Experimental |
-| Admin UI | Local operational interface over REST | Experimental |
+| Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows | Stable |
 
 ## Intentional Limits
 

@@ -1,7 +1,8 @@
 use std::fs::File;
-use std::io::{BufReader, ErrorKind};
+use std::io::ErrorKind;
 use std::sync::Arc;
 
+use rustls::pki_types::pem::PemObject;
 use rustls::ServerConfig;
 
 use crate::app::CassieError;
@@ -27,7 +28,7 @@ fn read_certificates(
     path: &str,
 ) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, CassieError> {
     let file = File::open(path).map_err(|error| tls_file_error("certificate", path, &error))?;
-    rustls_pemfile::certs(&mut BufReader::new(file))
+    rustls::pki_types::CertificateDer::pem_reader_iter(file)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| {
             CassieError::Execution(format!("invalid REST TLS certificate '{path}': {error}"))
@@ -36,7 +37,9 @@ fn read_certificates(
 
 fn read_private_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>, CassieError> {
     let file = File::open(path).map_err(|error| tls_file_error("private key", path, &error))?;
-    rustls_pemfile::private_key(&mut BufReader::new(file))
+    rustls::pki_types::PrivateKeyDer::pem_reader_iter(file)
+        .next()
+        .transpose()
         .map_err(|error| {
             CassieError::Execution(format!("invalid REST TLS private key '{path}': {error}"))
         })?

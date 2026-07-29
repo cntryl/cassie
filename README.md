@@ -53,6 +53,20 @@ image. Every run receives its GitVersion SemVer tag and branch tag. A run from
 
 `compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ROOT_PASSWORD` for the fixed `root` login. Do not publish that plaintext hop directly to an untrusted network.
 
+The provider-specific development profiles use the Sqrzl storage emulator. Copy
+`.env.example` to `.env`, set `CASSIE_ROOT_PASSWORD`, and start one profile:
+
+```sh
+docker compose up -d                         # local disk storage
+docker compose -f compose.s3.yml up -d       # S3-compatible emulator
+docker compose -f compose.azure.yml up -d    # Azure Blob emulator
+docker compose -f compose.gcs.yml up -d      # GCS emulator
+```
+
+The provider profiles pull `ghcr.io/sqrzl/sqrzl-emulator:latest` and connect to
+it over the Compose network; the emulator is also published on host port 9000
+for local diagnostics.
+
 For Cassie to terminate REST TLS itself, remove the insecure-listener override, configure `CASSIE_REST_TLS_CERT_FILE` and `CASSIE_REST_TLS_KEY_FILE` inside the container, and mount the PEM certificate chain and private key read-only. Cassie fails closed when direct non-loopback TLS is selected but either file is absent.
 
 When a trusted proxy terminates HTTPS, set `CASSIE_REST_EXTERNAL_HTTPS=1` so Cassie emits HSTS and marks login and logout cookies `Secure`. Cassie does not trust `Forwarded` or `X-Forwarded-Proto`. This setting does not authorize a plaintext non-loopback listener: the private proxy hop still requires `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1`.

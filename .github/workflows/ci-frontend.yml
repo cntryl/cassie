@@ -40,7 +40,7 @@ jobs:
       - name: Install UI dependencies
         run: |
           npm install --global npm@11.16.0
-          npm ci
+          npm ci --strict-allow-scripts
 
       - name: Verify current Askr packages
         run: |

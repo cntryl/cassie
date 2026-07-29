@@ -10,6 +10,7 @@ services:
       CASSIE_REST_LISTEN: 0.0.0.0:8080
       CASSIE_PGWIRE_LISTEN: 0.0.0.0:5432
       CASSIE_ROOT_PASSWORD: ${CASSIE_ROOT_PASSWORD:?set a non-default root secret}
+      CASSIE_STORAGE_MODE: local
       CASSIE_STORAGE_PATH: /data/cassie
       CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN: "1"
     volumes:

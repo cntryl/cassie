@@ -41,12 +41,6 @@ impl Cassie {
         runtime_config: CassieRuntimeConfig,
     ) -> Result<Self, CassieError> {
         let embedding_provider = build_embedding_provider(&runtime_config)?;
-        let bootstrap_password_hash = if runtime_config.password.is_empty() {
-            None
-        } else {
-            Some(super::auth::hash_password(&runtime_config.password)?)
-        };
-        let dummy_password_hash = super::auth::hash_password(&uuid::Uuid::new_v4().to_string())?;
         let auth_rate_limiter = Arc::new(super::auth_rate_limit::AuthRateLimiter::new(
             runtime_config.auth_user_attempts_per_minute,
             runtime_config.auth_ip_attempts_per_minute,
@@ -73,8 +67,8 @@ impl Cassie {
             vector_search_result_cache: Arc::new(Mutex::new(BTreeMap::new())),
             auth_user: "root".to_string(),
             auth_password,
-            bootstrap_password_hash,
-            dummy_password_hash,
+            bootstrap_password_hash: super::auth::LazyPasswordHash::default(),
+            dummy_password_hash: super::auth::LazyPasswordHash::default(),
             auth_rate_limiter,
             default_database,
             rest_tls_cert_file,

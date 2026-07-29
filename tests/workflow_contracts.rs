@@ -71,6 +71,28 @@ fn should_run_backend_checks_in_simplified_steps() {
 }
 
 #[test]
+fn should_optimize_test_profile_for_suite_throughput() {
+    // Arrange
+    let manifest = repo_root().join("Cargo.toml");
+
+    // Act
+    let contents = fs::read_to_string(manifest).expect("Cargo manifest");
+    let test_profile = contents
+        .split_once("[profile.test]")
+        .map(|(_, remainder)| remainder)
+        .and_then(|remainder| remainder.split("\n[").next())
+        .expect("test profile");
+
+    // Assert
+    assert!(
+        test_profile
+            .lines()
+            .any(|line| line.trim() == "opt-level = 1"),
+        "test binaries must use lightweight optimization for suite throughput"
+    );
+}
+
+#[test]
 fn should_define_opt_in_version_pinned_compatibility_probes() {
     // Arrange
     let workflow = repo_root().join(".github/workflows/compatibility-probes.yml");

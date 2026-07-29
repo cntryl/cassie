@@ -1,4 +1,4 @@
-use super::auth::{hash_password, verify_password};
+use super::auth::verify_password;
 use super::{current_time_millis, normalize_role_name, Cassie, CassieError, Instant, RoleMeta};
 
 impl Cassie {
@@ -285,11 +285,9 @@ impl Cassie {
         if let Some(role) = roles.iter_mut().find(|role| role.name == admin_name) {
             self.reconcile_bootstrap_role_password(role)?;
         } else {
-            let password_hash = if self.auth_password.is_empty() {
-                None
-            } else {
-                Some(hash_password(&self.auth_password)?)
-            };
+            let password_hash = self
+                .initialize_bootstrap_password_hash()?
+                .map(str::to_owned);
             let role = RoleMeta::bootstrap_admin(&self.auth_user, password_hash);
             self.midge.put_role(&role).map_err(|error| {
                 self.runtime.record_storage_access("schema", false, false);
@@ -330,14 +328,15 @@ impl Cassie {
             Some(_) => false,
         };
         if password_matches {
+            if let Some(hash) = role.password_hash.as_deref() {
+                self.remember_bootstrap_password_hash(hash);
+            }
             return Ok(());
         }
 
-        role.password_hash = if self.auth_password.is_empty() {
-            None
-        } else {
-            Some(hash_password(&self.auth_password)?)
-        };
+        role.password_hash = self
+            .initialize_bootstrap_password_hash()?
+            .map(str::to_owned);
         self.midge.put_role(role).map_err(|error| {
             self.runtime.record_storage_access("schema", false, false);
             CassieError::Storage(format!("rotate bootstrap role credentials: {error}"))

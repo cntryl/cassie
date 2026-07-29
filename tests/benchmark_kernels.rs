@@ -409,9 +409,12 @@ fn should_report_verified_vector_access_paths_given_persisted_state() {
 #[test]
 fn should_bound_hnsw_hybrid_candidates_given_default_maximum() {
     // Arrange
-    const FIXTURE_ROWS: usize = 4_096;
-    const EXPECTED_CANDIDATE_BOUND: u64 = 20 * 64;
+    const EXPECTED_CANDIDATE_BOUND: usize = 20 * 64;
+    const FIXTURE_ROWS: usize = EXPECTED_CANDIDATE_BOUND + 1;
     const SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
+    const _: () = assert!(FIXTURE_ROWS > EXPECTED_CANDIDATE_BOUND);
+    let expected_candidate_bound =
+        u64::try_from(EXPECTED_CANDIDATE_BOUND).expect("candidate bound fits u64");
     workloads::configure_tier3_environment();
     let runtime = workloads::runtime();
     let context = runtime
@@ -454,11 +457,11 @@ fn should_bound_hnsw_hybrid_candidates_given_default_maximum() {
     assert!(candidates > 0);
     assert!(candidate_row_fetches > 0);
     assert!(
-        candidates <= EXPECTED_CANDIDATE_BOUND,
+        candidates <= expected_candidate_bound,
         "hybrid candidate count {candidates} exceeded {EXPECTED_CANDIDATE_BOUND}"
     );
     assert!(
-        candidate_row_fetches <= EXPECTED_CANDIDATE_BOUND,
+        candidate_row_fetches <= expected_candidate_bound,
         "hybrid candidate row fetches {candidate_row_fetches} exceeded {EXPECTED_CANDIDATE_BOUND}"
     );
     assert_eq!(

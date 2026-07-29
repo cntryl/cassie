@@ -2,12 +2,14 @@ use std::sync::{Arc, Barrier};
 
 use cassie::app::Cassie;
 use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
+use parking_lot::RwLock;
 
 #[path = "support/sql.rs"]
 mod support;
 
 const TABLE: &str = "ann_concurrent_source";
 const QUERY: &str = "SELECT id, vector_distance(embedding, '[0,0,0]') AS distance FROM ann_concurrent_source ORDER BY distance ASC LIMIT 5";
+static ANN_RERANK_BARRIER_TEST_GUARD: RwLock<()> = RwLock::new(());
 
 fn fixture(path: &str, index_type: &str) -> Arc<Cassie> {
     fixture_with_memory_budget(path, index_type, None)
@@ -72,6 +74,7 @@ fn fixture_with_memory_budget(
 #[test]
 fn should_discard_hnsw_attempt_when_source_changes_before_reranking() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -131,6 +134,7 @@ fn should_discard_hnsw_attempt_when_source_changes_before_reranking() {
 #[test]
 fn should_discard_ivfflat_attempt_when_source_is_replaced_before_reranking() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -190,6 +194,7 @@ fn should_discard_ivfflat_attempt_when_source_is_replaced_before_reranking() {
 #[test]
 fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -224,6 +229,7 @@ fn should_cancel_hnsw_candidate_loading_without_publishing_success_metrics() {
 #[test]
 fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -258,6 +264,7 @@ fn should_cancel_ivfflat_membership_loading_without_publishing_success_metrics()
 #[test]
 fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -291,6 +298,7 @@ fn should_reject_hnsw_loading_when_query_memory_is_exhausted() {
 #[test]
 fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -330,6 +338,7 @@ fn should_publish_hnsw_metrics_only_after_selecting_the_ann_path() {
 #[test]
 fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
@@ -363,6 +372,7 @@ fn should_reject_ivfflat_loading_when_query_memory_is_exhausted() {
 #[test]
 fn should_publish_ivfflat_metrics_only_after_selecting_the_ann_path() {
     // Arrange
+    let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.read();
     let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
     support::use_local_storage();
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");

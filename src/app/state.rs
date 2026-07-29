@@ -1,3 +1,4 @@
+use super::auth::LazyPasswordHash;
 use super::auth_rate_limit::AuthRateLimiter;
 use super::{
     Arc, AtomicBool, BTreeMap, Catalog, Midge, Mutex, NormalizedVectorCacheEntry,
@@ -25,8 +26,8 @@ pub struct Cassie {
         Arc<Mutex<BTreeMap<VectorSearchResultCacheKey, Arc<QueryResult>>>>,
     pub(crate) auth_user: String,
     pub(crate) auth_password: String,
-    pub(crate) bootstrap_password_hash: Option<String>,
-    pub(crate) dummy_password_hash: String,
+    pub(crate) bootstrap_password_hash: LazyPasswordHash,
+    pub(crate) dummy_password_hash: LazyPasswordHash,
     pub(crate) auth_rate_limiter: Arc<AuthRateLimiter>,
     pub(crate) default_database: String,
     pub(crate) rest_tls_cert_file: Option<String>,

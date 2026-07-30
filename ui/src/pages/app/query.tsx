@@ -54,10 +54,7 @@ import {
   createValidateQueryMutation,
 } from "@/features/query/query-actions";
 import { queryService } from "@/features/query/query-service";
-import {
-  loadQueryWorkspace,
-  type PersistedQueryTab,
-} from "@/features/query/query-tabs";
+import { loadQueryWorkspace, type PersistedQueryTab } from "@/features/query/query-tabs";
 import { createQueryPersistenceCoordinator } from "@/features/query/query-persistence";
 import { apiv1 } from "@/adapters";
 import { getSession } from "@/shared/auth";
@@ -90,9 +87,8 @@ export default function QueryPage() {
   const [persistenceOperationId, setPersistenceOperationId] = state("");
   const [closeCandidate, setCloseCandidate] = state<PersistedQueryTab | null>(null);
   const [closeError, setCloseError] = state<string | null>(null);
-  const persistence = createQueryPersistenceCoordinator(
-    user,
-    (failed) => setPersistenceFailed(failed),
+  const persistence = createQueryPersistenceCoordinator(user, (failed) =>
+    setPersistenceFailed(failed),
   );
   const databaseQuery = createQuery({
     key: workspaceQueries.key("databases"),
@@ -534,8 +530,7 @@ function QueryWorkspace({
   selectedItemId();
   validationToast();
   const currentStopError = stopError();
-  const currentExecutionResult =
-    activeTab() === "plan" ? planResult() : executionResult();
+  const currentExecutionResult = activeTab() === "plan" ? planResult() : executionResult();
 
   const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
   const actionErrorMessage =
@@ -680,9 +675,13 @@ function QueryWorkspace({
     setExecutionResult(null);
     setActiveTab("results");
     try {
-      await executeMutation.execute({ database: tab.database, sql: currentQuery(), operationId });
-      setExecutionResult(executeMutation.result);
-      if (executeMutation.result !== null && changesSchema(executeMutation.result.command)) {
+      const result = await executeMutation.execute({
+        database: tab.database,
+        sql: currentQuery(),
+        operationId,
+      });
+      setExecutionResult(result);
+      if (result && changesSchema(result.command)) {
         queryService.invalidateSchema(tab.database);
         await schemaQuery.refresh();
       }

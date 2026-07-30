@@ -15,7 +15,7 @@ import { Sidebar } from "@askrjs/themes/components";
 import { ThemeToggle } from "@askrjs/themes/theme";
 
 import { clamp } from "@/shared/drag-resize";
-import { cassieLogoPath, resetCassieLogoOnFailure } from "@/shared/cassie-brand-assets";
+import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import {
   SIDEBAR_WIDTH_MAX_PX,
   SIDEBAR_WIDTH_MIN_PX,
@@ -154,8 +154,7 @@ export default function Layout({ children }: { children?: unknown }) {
                       class="cassie-brand-logo"
                       data-testid="cassie-brand-logo"
                       src={cassieLogoPath}
-                      data-cassie-logo-fallback="false"
-                      onError={resetCassieLogoOnFailure}
+                      {...cassieLogoImageProps}
                       alt=""
                     />
                   </BrandMark>

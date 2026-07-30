@@ -115,4 +115,4 @@ describe("query draft persistence", () => {
     expect(onStatus).toHaveBeenLastCalledWith(false);
     expect(loadQueryWorkspace("alice-recover").tabs[0]?.sql).toBe("SELECT 42");
   });
-}); 
+});

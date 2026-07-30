@@ -2,7 +2,7 @@ import { saveQueryWorkspace, type PersistedQueryWorkspace } from "./query-tabs";
 
 export interface QueryPersistenceCoordinator {
   schedule(workspace: PersistedQueryWorkspace, operationId?: string): void;
-  flush(): boolean;
+  flush(operationId?: string): boolean;
   dispose(): boolean;
 }
 

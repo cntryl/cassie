@@ -18,7 +18,7 @@ import {
 
 import { apiv1 } from "@/adapters";
 import { clearQueryWorkspace } from "@/features/query/query-tabs";
-import { cassieLogoPath, resetCassieLogoOnFailure } from "@/shared/cassie-brand-assets";
+import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import { getSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
 
@@ -74,8 +74,7 @@ export default function LogoutPage() {
                 <img
                   class="cassie-brand-logo"
                   src={cassieLogoPath}
-                  data-cassie-logo-fallback="false"
-                  onError={resetCassieLogoOnFailure}
+                  {...cassieLogoImageProps}
                   alt=""
                 />
               </BrandMark>

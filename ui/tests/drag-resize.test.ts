@@ -24,9 +24,11 @@ describe("drag resize behavior", () => {
       },
     });
     const handle = document.createElement("button");
-    (handle as HTMLElement & { setPointerCapture: (id: number) => void }).setPointerCapture = () => {};
-    (handle as HTMLElement & { releasePointerCapture: (id: number) => void }).releasePointerCapture =
+    (handle as HTMLElement & { setPointerCapture: (id: number) => void }).setPointerCapture =
       () => {};
+    (
+      handle as HTMLElement & { releasePointerCapture: (id: number) => void }
+    ).releasePointerCapture = () => {};
     handle.onpointerdown = resize.onPointerDown;
     handle.onpointermove = resize.onPointerMove;
     handle.onpointerup = resize.onPointerUp;

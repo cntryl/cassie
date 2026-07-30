@@ -18,7 +18,7 @@ import {
 } from "@askrjs/themes/components";
 
 import { apiv1 } from "@/adapters";
-import { cassieLogoPath, resetCassieLogoOnFailure } from "@/shared/cassie-brand-assets";
+import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import { setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
 
@@ -79,13 +79,12 @@ export default function LoginPage() {
       <Block class="cassie-login-panel" width="full" gap="lg">
         <Card class="cassie-login-card" variant="raised">
           <CardHeader>
-              <Brand>
+            <Brand>
               <BrandMark aria-hidden="true">
                 <img
                   class="cassie-brand-logo"
                   src={cassieLogoPath}
-                  data-cassie-logo-fallback="false"
-                  onError={resetCassieLogoOnFailure}
+                  {...cassieLogoImageProps}
                   alt=""
                 />
               </BrandMark>

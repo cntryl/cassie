@@ -50,12 +50,7 @@ export function QueryResultTable({ result }: QueryResultTableProps) {
       width: 180,
       cellComponent: ({ row }: { row: ResultRow }) => {
         const value = row.values[columnIndex] ?? null;
-        return (
-          <QueryResultCell
-            value={value}
-            title={displayQueryValue(value)}
-          />
-        );
+        return <QueryResultCell value={value} title={displayQueryValue(value)} />;
       },
     })),
   ];

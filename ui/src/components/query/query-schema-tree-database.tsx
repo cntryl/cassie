@@ -1,9 +1,6 @@
 import { For, Show } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
-import {
-  SidebarGroup,
-  SidebarGroupContent,
-} from "@askrjs/themes/components";
+import { SidebarGroup, SidebarGroupContent } from "@askrjs/themes/components";
 import { ChevronRightIcon, DatabaseIcon } from "@askrjs/lucide";
 
 import type { QuerySchemaDatabase, QuerySchemaItem } from "@/features/query/query-models";

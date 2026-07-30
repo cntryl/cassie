@@ -14,16 +14,11 @@ import { apiv1 } from "@/adapters";
 import { apiErrorMessage, unwrapResponse } from "@/shared/errors/api";
 
 interface CreateDatabaseDialogProps {
-  databaseNames: () => string[];
   onClose: () => void;
   onCreated: (name: string) => Promise<void>;
 }
 
-export function CreateDatabaseDialog({
-  databaseNames,
-  onClose,
-  onCreated,
-}: CreateDatabaseDialogProps) {
+export function CreateDatabaseDialog({ onClose, onCreated }: CreateDatabaseDialogProps) {
   const [error, setError] = state<string | null>(null);
   const [pending, setPending] = state(false);
   let nameInput: HTMLInputElement | null = null;
@@ -41,24 +36,16 @@ export function CreateDatabaseDialog({
     }
     if (pending()) return;
 
-    const names = databaseNames();
-    const administrationDatabase = names.includes("postgres")
-      ? "postgres"
-      : (names[0] ?? "postgres");
     setError(null);
     setPending(true);
     try {
-      unwrapResponse(
-        await apiv1.createAdminQueryExecution({
-          body: {
-            database: administrationDatabase,
-            sql: `CREATE DATABASE ${databaseName}`,
-            operation_id: crypto.randomUUID(),
-          },
+      const database = unwrapResponse(
+        await apiv1.createAdminDatabase({
+          body: { name: databaseName },
         }),
         "Unable to create database",
       );
-      await onCreated(databaseName);
+      await onCreated(database.name);
       onClose();
     } catch (caught) {
       setError(apiErrorMessage(caught));

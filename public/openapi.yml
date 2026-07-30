@@ -1210,6 +1210,14 @@ components:
           type: string
         description:
           type: string
+    CreateDatabaseRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          pattern: '^[A-Za-z_][A-Za-z0-9_]*$'
     LogoutResponse:
       type: object
       required: [logged_out]
@@ -1660,6 +1668,35 @@ paths:
                   $ref: '#/components/schemas/DatabaseSummary'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    post:
+      tags: [Catalog]
+      summary: Create a logical database
+      operationId: createAdminDatabase
+      security:
+        - cassieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDatabaseRequest'
+      responses:
+        '201':
+          description: Canonical database summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 

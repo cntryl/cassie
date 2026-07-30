@@ -20,10 +20,9 @@ test("should_run_the_admin_workflow_against_the_production_server", async ({ pag
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/\?source=e2e/);
   await page.getByRole("button", { name: "New Query" }).first().click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /postgres/ })
-    .click();
+  await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
+  await page.getByRole("option", { name: "postgres" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
   await expect(page.locator('[data-query-editor="monaco"]').first()).toBeVisible();
   await page.waitForTimeout(250);
   consoleErrors.length = 0;

@@ -29,10 +29,9 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
   await expect(page.getByRole("dialog")).toHaveCSS("opacity", "1");
   await expectNoAccessibilityViolations(page);
 
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /postgres/ })
-    .click();
-  await expect(page.getByRole("button", { name: /Query 1 postgres/ })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
+  await page.getByRole("option", { name: "Database1" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });

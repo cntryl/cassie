@@ -135,12 +135,29 @@ describe("admin UI workflow", () => {
       () => root.textContent?.includes("analytics") === true,
       "database selector",
     );
-    buttonByText(root.querySelector('[role="dialog"]') ?? root, "analytics").click();
+    const newQueryDialog = root.querySelector('[role="dialog"]') ?? root;
+    typeInto(newQueryDialog.querySelector("#new-query-name") as HTMLInputElement, "Revenue report");
+    buttonByText(newQueryDialog, "Select a database").click();
+    const databaseMenu = document.querySelector('[data-slot="select-content"]') ?? root;
+    const analyticsOption = databaseMenu.querySelector<HTMLButtonElement>(
+      '[role="option"][data-value="analytics"], [role="option"]',
+    );
+    if (!analyticsOption) throw new Error("Missing analytics database option");
+    analyticsOption.click();
+    expect(root.querySelector("[data-query-page]")).toBeNull();
+    expect(root.querySelector('[role="dialog"]')).not.toBeNull();
+    await waitFor(
+      root,
+      () => !buttonByText(root.querySelector('[role="dialog"]') ?? root, "Create").disabled,
+      "enabled query creation",
+    );
+    buttonByText(root.querySelector('[role="dialog"]') ?? root, "Create").click();
     await waitFor(root, () => root.querySelector("[data-query-page]") !== null, "query page");
 
     // Assert
     expect(window.location.pathname).toBe("/");
     expect(root.textContent).toContain("analytics");
+    expect(root.textContent).toContain("Revenue report");
     expect(isSignedIn()).toBe(true);
 
     // Act: run the default query and inspect its result.

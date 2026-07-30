@@ -80,6 +80,7 @@ mod auth_rate_limit;
 mod bulk_ingest;
 mod consistency;
 mod database_images;
+mod databases;
 mod defaults;
 mod diagnostics;
 mod document_scans;

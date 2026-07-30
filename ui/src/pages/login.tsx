@@ -80,13 +80,8 @@ export default function LoginPage() {
         <Card class="cassie-login-card" variant="raised">
           <CardHeader>
             <Brand>
-              <BrandMark aria-hidden="true">
-                <img
-                  class="cassie-brand-logo"
-                  src={cassieLogoPath}
-                  {...cassieLogoImageProps}
-                  alt=""
-                />
+              <BrandMark class="cassie-brand-mark" aria-hidden="true">
+                <img src={cassieLogoPath} {...cassieLogoImageProps} width="32" height="32" alt="" />
               </BrandMark>
               <BrandLabel>Cassie Admin</BrandLabel>
             </Brand>

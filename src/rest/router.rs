@@ -458,21 +458,29 @@ async fn dispatch_admin_routes(
 
     match (context.method.as_str(), context.segments) {
         ("GET", ["api", "v1", "admin", "databases"]) => {
-            let mut database_metadata = cassie
-                .midge
-                .list_databases()
-                .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
-            database_metadata.sort_by_key(|database| database.name.to_ascii_lowercase());
-            let databases = database_metadata
-                .into_iter()
-                .map(|database| {
-                    serde_json::json!({
-                        "name": database.name,
-                        "description": database.description,
-                    })
-                })
-                .collect::<Vec<_>>();
-            Ok(Some(json_response(StatusCode::OK, &databases)))
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_list_databases",
+                |cassie| crate::rest::databases::list(&cassie),
+            )
+            .await
+            .map(|databases| Some(json_response(StatusCode::OK, &databases)))
+        }
+        ("POST", ["api", "v1", "admin", "databases"]) => {
+            let body = body.clone();
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_create_database",
+                move |cassie| crate::rest::databases::create(&cassie, body.as_ref()),
+            )
+            .await
+            .map(|database| Some(json_response(StatusCode::CREATED, &database)))
         }
         (
             "POST",

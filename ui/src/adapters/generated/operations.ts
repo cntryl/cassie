@@ -1,4 +1,4 @@
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
 
 export type ListAdminCatalogQuery = {
   "database": string;
@@ -23,6 +23,20 @@ export type ListAdminDatabasesResponse200 = Array<DatabaseSummary>;
 export type ListAdminDatabasesError_401 = Error;
 
 export type ListAdminDatabasesError_503 = Error;
+
+export type CreateAdminDatabaseBody = CreateDatabaseRequest;
+
+export type CreateAdminDatabaseResponse201 = DatabaseSummary;
+
+export type CreateAdminDatabaseError_400 = Error;
+
+export type CreateAdminDatabaseError_401 = Error;
+
+export type CreateAdminDatabaseError_403 = Error;
+
+export type CreateAdminDatabaseError_409 = Error;
+
+export type CreateAdminDatabaseError_503 = Error;
 
 export type CompareProjectionConsistencyBody = ConsistencyCheckRequest;
 

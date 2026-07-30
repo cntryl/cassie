@@ -24,6 +24,10 @@ export type CreateCollectionResponse = {
   "collection": string;
 };
 
+export type CreateDatabaseRequest = {
+  "name": string;
+};
+
 export type CreateDocumentResponse = {
   "id": string;
 };

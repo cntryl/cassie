@@ -78,5 +78,8 @@ jobs:
       - name: UI tests
         run: npm run test -- --run
 
+      - name: Mock browser tests
+        run: npm run test:e2e:mock
+
       - name: Production browser tests
         run: npm run test:e2e

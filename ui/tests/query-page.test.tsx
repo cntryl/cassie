@@ -1,294 +1,79 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { describe, expect, it } from "vite-plus/test";
 
-import RootLayout from "@/pages/_layout";
-import AppLayout from "@/pages/app/_layout";
-import QueryPage from "@/pages/app/query";
-import { type ColumnMeta, type QuerySchemaResponse } from "@/adapters";
-import { fetchMock, mockJsonResponse, resetFetchMock } from "./support/mock-fetch";
 import { saveQueryWorkspace } from "@/features/query/query-tabs";
-import { queryService } from "@/features/query/query-service";
-import { querySchemaResponse } from "./fixtures/query-schema";
-import { explainPlan } from "./fixtures/query-explain-plan";
-import { createTestRouteRegistry } from "./support/test-route-registry";
+import {
+  buttonByText,
+  editorTextarea,
+  fetchMock,
+  flushUi,
+  mockExecuteError,
+  mockExecuteSuccess,
+  mockExecuteWithNullSuccess,
+  mockExecuteWithTypedValuesSuccess,
+  mockExplainError,
+  mockExplainSuccess,
+  mockJsonResponse,
+  mockQuerySchemaWithColumnsSuccess,
+  mockValidateError,
+  mockValidateSuccess,
+  mountQueryRoute,
+  updateEditor,
+  waitForText,
+} from "./support/query-page-harness";
 
-function mockQuerySchemaSuccess() {
-  mockJsonResponse("/api/v1/admin/catalog", querySchemaResponse);
-}
-
-function mockQuerySchemaWithColumnsSuccess() {
-  const data: QuerySchemaResponse = {
-    sections: [
-      {
-        id: "tables",
-        label: "Tables",
-        items: [
-          {
-            id: "table:postgres.public.documents",
-            kind: "table",
-            label: "postgres.public.documents",
-            database: "postgres",
-            schema: "public",
-            name: "documents",
-            metadata: "2 columns",
-            columns: [
-              {
-                id: "column:postgres.public.documents:id",
-                name: "id",
-                data_type: "uuid",
-                primary_key: true,
-              },
-              {
-                id: "column:postgres.public.documents:title",
-                name: "title",
-                data_type: "text",
-                primary_key: false,
-              },
-            ],
-          },
-        ],
-      },
-      { id: "views", label: "Views", items: [] },
-      { id: "indexes", label: "Indexes", items: [] },
-      { id: "udfs", label: "UDFs", items: [] },
-      { id: "procedures", label: "Procedures", items: [] },
-    ],
-  };
-
-  mockJsonResponse("/api/v1/admin/catalog", data);
-}
-
-function column(name: string): ColumnMeta {
-  return {
-    atttypmod: -1,
-    data_type: "text",
-    format_code: 0,
-    name,
-    nullable: true,
-    type_oid: 25,
-    typlen: -1,
-  };
-}
-
-function mockValidateSuccess() {
-  mockJsonResponse(
-    "/api/v1/admin/query-validations",
-    {
-      columns: [column("id"), column("name")],
-      command: "SELECT",
-      valid: true,
-    },
-    { method: "POST" },
+async function expandSchemaSection(root: Element, section = "tables") {
+  await waitForText(root, "public");
+  const sectionElement = root.querySelector(
+    `[data-testid="query-schema-tree-section"][data-section="${section}"]`,
   );
-}
-
-function mockValidateError() {
-  mockJsonResponse(
-    "/api/v1/admin/query-validations",
-    { error: 'syntax error at or near "SELET"' },
-    { method: "POST", status: 400 },
-  );
-}
-
-function mockExecuteSuccess() {
-  mockJsonResponse(
-    "/api/v1/admin/query-executions",
-    {
-      columns: [column("id"), column("name")],
-      command: "SELECT",
-      rows: [["doc-1", "Document 1"]],
-    },
-    { method: "POST" },
-  );
-}
-
-function mockSchemaChangingCommandSuccess(command = "CREATE TABLE") {
-  mockJsonResponse(
-    "/api/v1/admin/query-executions",
-    {
-      columns: [],
-      command,
-      rows: [],
-    },
-    { method: "POST" },
-  );
-}
-
-function mockExecuteWithNullSuccess() {
-  mockJsonResponse(
-    "/api/v1/admin/query-executions",
-    {
-      columns: [column("id"), column("name")],
-      command: "SELECT",
-      rows: [
-        ["doc-1", null],
-        ["doc-2", "NULL"],
-      ],
-    },
-    { method: "POST" },
-  );
-}
-
-function mockExecuteWithTypedValuesSuccess() {
-  mockJsonResponse(
-    "/api/v1/admin/query-executions",
-    {
-      columns: [
-        column("count"),
-        column("active"),
-        column("profile"),
-        column("tags"),
-        column("missing"),
-      ],
-      command: "SELECT",
-      rows: [[42, true, { name: "Ada" }, ["sql", 2], null]],
-    },
-    { method: "POST" },
-  );
-}
-
-function mockExecuteError() {
-  mockJsonResponse(
-    "/api/v1/admin/query-executions",
-    { error: "collection not found: missing_table" },
-    { method: "POST", status: 404 },
-  );
-}
-
-function mockExplainError() {
-  mockJsonResponse(
-    "/api/v1/admin/query-explanations",
-    { error: "query timeout exceeded" },
-    { method: "POST", status: 504 },
-  );
-}
-
-function mockExplainSuccess() {
-  mockJsonResponse(
-    "/api/v1/admin/query-explanations",
-    {
-      columns: [column("QUERY PLAN")],
-      command: "EXPLAIN",
-      rows: [["Index Scan using idx_documents_title on documents\n  Index Cond: (title = 'one')"]],
-      plan: explainPlan,
-    },
-    { method: "POST" },
-  );
-}
-
-async function flushUi() {
-  await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
-  await new Promise<void>((resolve) => setTimeout(resolve, 0));
-}
-
-async function waitForText(root: Element, text: string) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  const toggle = sectionElement?.querySelector<HTMLElement>("[aria-expanded]");
+  if (!sectionElement || !toggle) {
+    throw new Error(`Missing ${section} schema section`);
+  }
+  if (toggle.getAttribute("aria-expanded") !== "true") {
+    toggle.click();
     await flushUi();
-    if (root.textContent?.includes(text)) {
-      return;
-    }
   }
-
-  throw new Error(`Timed out waiting for text ${text}. Current text: ${root.textContent ?? ""}`);
+  return sectionElement;
 }
-
-function buttonByText(root: Element, text: string) {
-  const button = Array.from(root.querySelectorAll("button")).find((element) =>
-    element.textContent?.includes(text),
-  );
-
-  if (!button) {
-    throw new Error(`Missing button with text ${text}`);
-  }
-
-  return button as HTMLButtonElement;
-}
-
-function editorTextarea(root: Element) {
-  const editor = root.querySelector(
-    '[data-query-editor="fallback"] textarea',
-  ) as HTMLTextAreaElement | null;
-  if (!editor) {
-    throw new Error("Missing fallback editor");
-  }
-
-  return editor;
-}
-
-function updateEditor(root: Element, value: string) {
-  const editor = editorTextarea(root);
-  editor.value = value;
-  editor.dispatchEvent(new Event("input", { bubbles: true }));
-}
-
-async function mountQueryRoute() {
-  cleanupApp("app");
-  document.body.innerHTML = '<div id="app"></div>';
-  window.history.pushState({}, "", "/");
-
-  const root = document.getElementById("app");
-  if (!root) {
-    throw new Error("Missing test app root");
-  }
-
-  await createSPA({
-    root,
-    registry: createTestRouteRegistry([
-      {
-        path: "/",
-        handler: () => (
-          <RootLayout>
-            <AppLayout>
-              <QueryPage />
-            </AppLayout>
-          </RootLayout>
-        ),
-      },
-    ]),
-  });
-
-  await flushUi();
-  return root;
-}
-
-afterEach(() => {
-  vi.clearAllMocks();
-  cleanupApp("app");
-  document.body.innerHTML = "";
-  resetFetchMock();
-});
-
-beforeEach(() => {
-  vi.restoreAllMocks();
-  vi.useRealTimers();
-  mockQuerySchemaSuccess();
-  queryService.invalidateSchema("postgres");
-  mockJsonResponse("/api/v1/admin/databases", [{ name: "postgres" }]);
-  saveQueryWorkspace("anonymous", {
-    version: 1,
-    activeTabId: "query-1",
-    tabs: [
-      {
-        id: "query-1",
-        ordinal: 1,
-        title: "Query 1",
-        database: "postgres",
-        sql: "SELECT 1 AS ready;",
-      },
-    ],
-  });
-});
 
 describe("admin query page composition", () => {
+  it("should_rename_a_saved_query_inline", async () => {
+    // Arrange
+    const root = await mountQueryRoute();
+    const renameButton = root.querySelector<HTMLButtonElement>(
+      'button[aria-label="Rename Query 1"]',
+    );
+
+    // Act
+    renameButton?.click();
+    await flushUi();
+    const input = root.querySelector<HTMLInputElement>(
+      'input[aria-label="Query name for Query 1"]',
+    );
+    expect(input).not.toBeNull();
+    if (input) {
+      input.value = "Customer lookup";
+      input.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    }
+    root.querySelector<HTMLButtonElement>('button[aria-label="Save query name"]')?.click();
+    await flushUi();
+
+    // Assert
+    expect(root.textContent).toContain("Customer lookup");
+    expect(root.querySelector('button[aria-label="Rename Customer lookup"]')).not.toBeNull();
+  });
+
   it("should_confirm_saved_query_deletion_with_standard_destructive_actions", async () => {
     // Arrange
     const root = await mountQueryRoute();
 
     // Act
     const removeButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove Query 1"]'),
+      document.querySelectorAll<HTMLButtonElement>('button[aria-label="Delete Query 1"]'),
     );
     const removeButton = removeButtons[removeButtons.length - 1];
+    expect(removeButton?.querySelector("svg")).not.toBeNull();
     removeButton?.click();
     await waitForText(document.body, "Delete query?");
 
@@ -300,6 +85,12 @@ describe("admin query page composition", () => {
     const deleteButton = buttonByText(dialog ?? root, "Delete query");
     expect(deleteButton.getAttribute("data-variant")).toBe("destructive");
     expect(root.querySelector("#saved-query-query-1")).not.toBeNull();
+
+    deleteButton.click();
+    await flushUi();
+
+    expect(root.querySelector("#saved-query-query-1")).toBeNull();
+    expect(document.querySelector(".cassie-delete-query-dialog")).toBeNull();
   });
 
   it("should_keep_the_database_tree_visible_without_an_open_query", async () => {
@@ -326,6 +117,51 @@ describe("admin query page composition", () => {
     const tree = root.querySelector('[data-testid="query-schema-tree"]');
     expect(tree?.textContent).toContain("analytics");
     expect(tree?.textContent).toContain("postgres");
+  });
+
+  it("should_create_a_database_through_the_dedicated_admin_endpoint", async () => {
+    // Arrange
+    mockJsonResponse(
+      "/api/v1/admin/databases",
+      { name: "reporting" },
+      { method: "POST", status: 201 },
+    );
+    const root = await mountQueryRoute();
+    root.querySelector<HTMLButtonElement>('button[aria-label="Create database"]')?.click();
+    await flushUi();
+    const dialogs = document.querySelectorAll('[role="dialog"]');
+    expect(dialogs).toHaveLength(1);
+    const dialog = dialogs[0];
+    const nameInput = dialog?.querySelector<HTMLInputElement>("#create-database-name");
+    if (!dialog || !nameInput) {
+      throw new Error("Missing create database dialog");
+    }
+
+    // Act
+    nameInput.value = "Reporting";
+    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+    await flushUi();
+    const createButton = buttonByText(dialog, "Create database");
+    createButton.click();
+    await waitForText(root, "reporting");
+
+    // Assert
+    const createRequest = fetchMock.mock.calls
+      .map(([request]) => request)
+      .find(
+        (request) =>
+          request.method === "POST" && new URL(request.url).pathname === "/api/v1/admin/databases",
+      );
+    expect(createRequest).toBeDefined();
+    expect(await createRequest?.clone().json()).toEqual({ name: "Reporting" });
+    expect(
+      fetchMock.mock.calls.some(([request]) => {
+        return (
+          request.method === "POST" &&
+          new URL(request.url).pathname === "/api/v1/admin/query-executions"
+        );
+      }),
+    ).toBe(false);
   });
 
   it("should_keep_an_unavailable_database_draft_editable", async () => {
@@ -356,129 +192,6 @@ describe("admin query page composition", () => {
     expect(root.querySelector('[data-query-editor="fallback"] textarea')).toBe(editor);
     expect(editor.disabled).toBe(false);
     expect(editor.value).toBe("SELECT 2;");
-  });
-
-  it("should_keep_the_editor_mounted_when_query_actions_update_state", async () => {
-    // Arrange
-    mockValidateSuccess();
-    const root = await mountQueryRoute();
-    const editor = editorTextarea(root);
-    const panel = root.querySelector('[data-testid="query-editor-panel"]');
-
-    // Act
-    buttonByText(root, "Validate").click();
-    await waitForText(root, "Validation passed");
-
-    // Assert
-    expect(root.querySelector('[data-testid="query-editor-panel"]')).toBe(panel);
-    expect(root.querySelector('[data-query-editor="fallback"] textarea')).toBe(editor);
-  });
-
-  it("should_create_a_database_from_the_database_tree", async () => {
-    // Arrange
-    saveQueryWorkspace("anonymous", { version: 1, activeTabId: null, tabs: [] });
-    mockSchemaChangingCommandSuccess("CREATE DATABASE");
-    const root = await mountQueryRoute();
-
-    // Act
-    (root.querySelector('button[aria-label="Create database"]') as HTMLButtonElement).click();
-    const input = root.querySelector("#create-database-name") as HTMLInputElement;
-    input.value = "analytics";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    buttonByText(root.querySelector('[role="dialog"]') ?? root, "Create database").click();
-    await waitForText(root, "Query 1");
-
-    // Assert
-    const request = fetchMock.mock.calls
-      .map(([candidate]) => candidate)
-      .find((candidate) => new URL(candidate.url).pathname === "/api/v1/admin/query-executions");
-    expect(await request?.json()).toEqual({
-      database: "postgres",
-      sql: "CREATE DATABASE analytics",
-      operation_id: expect.any(String),
-    });
-  });
-
-  it("should_keep_the_create_database_dialog_mounted_while_typing", async () => {
-    // Arrange
-    const root = await mountQueryRoute();
-    (root.querySelector('button[aria-label="Create database"]') as HTMLButtonElement).click();
-    const dialog = root.querySelector('[role="dialog"]');
-    const overlay = root.querySelector('[data-slot="dialog-overlay"]');
-    const input = root.querySelector("#create-database-name") as HTMLInputElement;
-
-    // Act
-    input.value = "a";
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    await flushUi();
-
-    // Assert
-    expect(root.querySelector('[role="dialog"]')).toBe(dialog);
-    expect(root.querySelector('[data-slot="dialog-overlay"]')).toBe(overlay);
-    expect(root.querySelector("#create-database-name")).toBe(input);
-  });
-
-  it("should_refresh_the_schema_given_a_successful_create_table", async () => {
-    // Arrange
-    mockSchemaChangingCommandSuccess();
-    const root = await mountQueryRoute();
-    updateEditor(root, "CREATE TABLE ui_demo (demo_id INT PRIMARY KEY, name TEXT NOT NULL);");
-    await flushUi();
-
-    // Act
-    buttonByText(root, "Run").click();
-    await waitForText(root, "CREATE TABLE");
-
-    // Assert
-    const catalogRequests = fetchMock.mock.calls.filter(
-      ([request]) => new URL(request.url).pathname === "/api/v1/admin/catalog",
-    );
-    expect(catalogRequests).toHaveLength(2);
-  });
-
-  it("should_refresh_the_schema_given_a_successful_graph_ddl_command", async () => {
-    // Arrange
-    mockSchemaChangingCommandSuccess("CREATE GRAPH");
-    const root = await mountQueryRoute();
-    updateEditor(root, "CREATE GRAPH ui_graph;");
-    await flushUi();
-
-    // Act
-    buttonByText(root, "Run").click();
-    await waitForText(root, "CREATE GRAPH");
-
-    // Assert
-    const catalogRequests = fetchMock.mock.calls.filter(
-      ([request]) => new URL(request.url).pathname === "/api/v1/admin/catalog",
-    );
-    expect(catalogRequests).toHaveLength(2);
-  });
-
-  it("should_keep_workspace_chrome_compact_given_the_query_page", async () => {
-    // Arrange
-    const root = await mountQueryRoute();
-
-    // Act
-    const heading = root.querySelector("#query-workspace-title-query-1");
-
-    // Assert
-    expect(heading?.textContent).toBe("Query 1 query workspace");
-    expect(heading?.classList.contains("sr-only")).toBe(true);
-    expect(root.querySelector('[data-slot="page-header"]')).toBe(null);
-    expect(root.querySelector('[data-testid="query-starters"]')).toBe(null);
-    expect(root.querySelector("[data-query-page]")?.getAttribute("aria-labelledby")).toBe(
-      "query-workspace-title-query-1",
-    );
-    expect(root.querySelector('[aria-label="Query tabs"]')).toBeNull();
-    expect(root.textContent).toContain("My Queries");
-    const databaseTree = root.querySelector('[data-testid="query-schema-tree"]');
-    const myQueries = root.querySelector('[aria-labelledby="my-queries-title"]');
-    expect(databaseTree).not.toBeNull();
-    expect(myQueries).not.toBeNull();
-    if (databaseTree && myQueries)
-      expect(
-        databaseTree.compareDocumentPosition(myQueries) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ).toBeTruthy();
   });
 
   it("renders shell structure and query page containers", async () => {
@@ -544,6 +257,7 @@ describe("admin query page composition", () => {
 
   it("updates query text on schema item selection", async () => {
     const root = await mountQueryRoute();
+    await expandSchemaSection(root);
 
     const schemaItem = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     if (!schemaItem) {
@@ -571,7 +285,8 @@ describe("admin query page composition", () => {
 
     buttonByText(root, "Run").click();
     await waitForText(root, "1 row");
-    expect(root.textContent).toContain("Command");
+    expect(root.textContent).not.toContain("Command");
+    expect(root.querySelector('[aria-label="Executed command"]')?.textContent).toBe("SELECT");
     expect(root.textContent).toContain("1 row");
 
     updateEditor(root, "SELECT id FROM documents;");
@@ -687,8 +402,9 @@ describe("admin query page composition", () => {
     expect(container.style.getPropertyValue("--cassie-split-size")).toBe("75%");
   });
 
-  it("collapses and expands schema sections, defaulting empty sections to collapsed", async () => {
+  it("should_hide_empty_schema_sections_and_start_populated_sections_collapsed", async () => {
     const root = await mountQueryRoute();
+    await waitForText(root, "public");
 
     const tablesSection = root.querySelector(
       '[data-testid="query-schema-tree-section"][data-section="tables"]',
@@ -696,24 +412,16 @@ describe("admin query page composition", () => {
     const viewsSection = root.querySelector(
       '[data-testid="query-schema-tree-section"][data-section="views"]',
     );
-    if (!tablesSection || !viewsSection) {
-      throw new Error("Missing schema sections");
+    if (!tablesSection) {
+      throw new Error("Missing tables schema section");
     }
 
     const tablesToggle = tablesSection.querySelector("[aria-expanded]");
-    const viewsToggle = viewsSection.querySelector("[aria-expanded]");
-    if (!(tablesToggle instanceof HTMLElement) || !(viewsToggle instanceof HTMLElement)) {
-      throw new Error("Missing section toggles");
+    if (!(tablesToggle instanceof HTMLElement)) {
+      throw new Error("Missing tables section toggle");
     }
 
-    expect(tablesToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(viewsToggle.getAttribute("aria-expanded")).toBe("false");
-    expect(
-      tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]'),
-    ).toBeTruthy();
-
-    tablesToggle.click();
-    await flushUi();
+    expect(viewsSection).toBeNull();
     expect(tablesToggle.getAttribute("aria-expanded")).toBe("false");
     expect(tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]')).toBe(
       null,
@@ -725,10 +433,15 @@ describe("admin query page composition", () => {
     expect(
       tablesSection.querySelector('[data-item-id="table:postgres.public.documents"]'),
     ).toBeTruthy();
+
+    tablesToggle.click();
+    await flushUi();
+    expect(tablesToggle.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("selects a schema item without overwriting the SQL editor", async () => {
     const root = await mountQueryRoute();
+    await expandSchemaSection(root);
     const editor = editorTextarea(root);
     const originalValue = editor.value;
 
@@ -779,8 +492,9 @@ describe("admin query page composition", () => {
     expect(root.textContent).toContain("1 row");
   });
 
-  it("nests schema sections under a postgres database and public namespace, both expanded by default", async () => {
+  it("should_expand_the_active_database_namespace_while_groups_remain_collapsed", async () => {
     const root = await mountQueryRoute();
+    await waitForText(root, "public");
 
     const database = root.querySelector(
       '[data-testid="query-schema-tree-database"][data-database="postgres"]',
@@ -805,25 +519,24 @@ describe("admin query page composition", () => {
         '[data-testid="query-schema-tree-namespace"][data-namespace="public"]',
       ),
     ).toBeTruthy();
-    expect(
-      namespace.querySelector('[data-item-id="table:postgres.public.documents"]'),
-    ).toBeTruthy();
-
-    namespaceToggle.click();
-    await flushUi();
-    expect(namespaceToggle.getAttribute("aria-expanded")).toBe("false");
+    const tablesToggle = namespace.querySelector<HTMLElement>(
+      '[data-testid="query-schema-tree-section"][data-section="tables"] [aria-expanded]',
+    );
+    expect(tablesToggle?.getAttribute("aria-expanded")).toBe("false");
     expect(namespace.querySelector('[data-item-id="table:postgres.public.documents"]')).toBe(null);
 
     namespaceToggle.click();
     await flushUi();
+    expect(namespaceToggle.getAttribute("aria-expanded")).toBe("false");
+
+    namespaceToggle.click();
+    await flushUi();
     expect(namespaceToggle.getAttribute("aria-expanded")).toBe("true");
-    expect(
-      namespace.querySelector('[data-item-id="table:postgres.public.documents"]'),
-    ).toBeTruthy();
   });
 
   it("renders a kind icon on schema items", async () => {
     const root = await mountQueryRoute();
+    await expandSchemaSection(root);
 
     const item = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     expect(item?.querySelector("svg")).toBeTruthy();
@@ -832,6 +545,7 @@ describe("admin query page composition", () => {
   it("expands a table to show its columns, with a key icon on the primary key", async () => {
     mockQuerySchemaWithColumnsSuccess();
     const root = await mountQueryRoute();
+    await expandSchemaSection(root);
 
     const item = root.querySelector('[data-item-id="table:postgres.public.documents"]');
     const row = item?.closest('[data-testid="query-schema-item-row"]');

@@ -4,12 +4,10 @@
   overflow: hidden;
 }
 
-.cassie-brand-logo {
-  display: block;
-  inline-size: 2rem;
-  block-size: 2rem;
-  border-radius: var(--ak-radius-sm, 0.375rem);
-  object-fit: cover;
+.cassie-brand-mark {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .cassie-admin-workspace {

@@ -44,7 +44,7 @@ describe("mock admin query API", () => {
     const response = await fetch(`${baseUrl}/api/v1/auth/login`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ username: "root", password: "pwd123", database: "analytics" }),
+      body: JSON.stringify({ username: "root", password: "pwd123" }),
     });
 
     if (!response.ok) {
@@ -63,14 +63,14 @@ describe("mock admin query API", () => {
     const session = await fetch(`${baseUrl}/api/v1/auth/session`, {
       headers: { cookie },
     });
-    const catalog = await fetch(`${baseUrl}/api/v1/admin/catalog?database=analytics`, {
+    const catalog = await fetch(`${baseUrl}/api/v1/admin/catalog?database=Database1`, {
       headers: { cookie },
     });
     const execute = await fetch(`${baseUrl}/api/v1/admin/query-executions`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
       body: JSON.stringify({
-        database: "analytics",
+        database: "Database1",
         sql: "SELECT 1 AS ready;",
         operation_id: "operation-1",
       }),
@@ -101,14 +101,10 @@ describe("mock admin query API", () => {
     const cookie = await createSession(baseUrl);
 
     // Act
-    const createDatabase = await fetch(`${baseUrl}/api/v1/admin/query-executions`, {
+    const createDatabase = await fetch(`${baseUrl}/api/v1/admin/databases`, {
       method: "POST",
       headers: { "content-type": "application/json", cookie },
-      body: JSON.stringify({
-        database: "analytics",
-        sql: "CREATE DATABASE reporting",
-        operation_id: "op-create",
-      }),
+      body: JSON.stringify({ name: "reporting" }),
     });
     const validation = await fetch(`${baseUrl}/api/v1/admin/query-validations`, {
       method: "POST",
@@ -145,8 +141,8 @@ describe("mock admin query API", () => {
     });
 
     // Assert
-    expect(createDatabase.status).toBe(200);
-    expect((await createDatabase.json()).command).toBe("CREATE DATABASE");
+    expect(createDatabase.status).toBe(201);
+    expect(await createDatabase.json()).toEqual({ name: "reporting" });
     expect(validation.status).toBe(200);
     const validationPayload = await validation.json();
     expect(validationPayload.command).toBe("SELECT");

@@ -3,6 +3,7 @@ import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { state } from "@askrjs/askr";
 
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
+import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
 import type { QuerySchemaDatabase } from "@/features/query/query-models";
 import { createTestRouteRegistry } from "./support/test-route-registry";
 
@@ -53,6 +54,22 @@ const schema: QuerySchemaDatabase[] = [
   },
 ];
 
+function loadedCatalogs(databases: QuerySchemaDatabase[]): DatabaseCatalogEntry[] {
+  return databases.map((database) => ({
+    canonicalName: database.id.toLocaleLowerCase(),
+    name: database.label,
+    status: "loaded",
+    expanded: true,
+    database,
+  }));
+}
+
+const schemaTreeActions = {
+  onSetDatabaseExpanded: () => {},
+  onSearchCatalogs: () => {},
+  onRetryDatabase: () => {},
+};
+
 async function flushUi() {
   await new Promise<void>((resolve) => queueMicrotask(() => resolve()));
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -71,7 +88,14 @@ async function mountSchemaTree() {
     registry: createTestRouteRegistry([
       {
         path: "/",
-        handler: () => <QuerySchemaTree schema={schema} onSelectItem={() => {}} />,
+        handler: () => (
+          <QuerySchemaTree
+            catalogs={loadedCatalogs(schema)}
+            activeDatabase="postgres"
+            onSelectItem={() => {}}
+            {...schemaTreeActions}
+          />
+        ),
       },
     ]),
   });
@@ -85,7 +109,14 @@ let updateDynamicSchema: ((next: QuerySchemaDatabase[]) => void) | null = null;
 function DynamicSchemaTree() {
   const [currentSchema, setCurrentSchema] = state(schema);
   updateDynamicSchema = setCurrentSchema;
-  return <QuerySchemaTree schema={currentSchema} onSelectItem={() => {}} />;
+  return (
+    <QuerySchemaTree
+      catalogs={() => loadedCatalogs(currentSchema())}
+      activeDatabase="postgres"
+      onSelectItem={() => {}}
+      {...schemaTreeActions}
+    />
+  );
 }
 
 async function mountDynamicSchemaTree() {
@@ -171,11 +202,14 @@ describe("schema tree search", () => {
     const body = root.querySelector('[aria-label="Schema sections"]');
     expect(input.value).toBe("");
     expect(body?.getAttribute("data-schema-mode")).toBe("tree");
-    expect(
-      root
-        .querySelector('[data-testid="query-schema-tree-normal"]')
-        ?.querySelector('[data-item-id="table:postgres.public.accounts"]'),
-    ).toBeTruthy();
+    const tables = root.querySelector(
+      '[data-testid="query-schema-tree-section"][data-section="tables"]',
+    );
+    const toggle = tables?.querySelector<HTMLElement>("[aria-expanded]");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    toggle?.click();
+    await flushUi();
+    expect(tables?.querySelector('[data-item-id="table:postgres.public.accounts"]')).toBeTruthy();
   });
 
   it("should_refresh_active_search_results_given_new_schema_data", async () => {

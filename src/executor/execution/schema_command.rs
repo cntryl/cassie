@@ -153,16 +153,8 @@ pub(super) fn create_database(
     cassie: &Cassie,
     statement: &CreateDatabaseStatement,
 ) -> Result<QueryResult, QueryError> {
-    if statement.if_not_exists && cassie.catalog.database_exists(&statement.name) {
-        return Ok(empty_command("CREATE DATABASE"));
-    }
-
-    cassie.midge.create_database(&statement.name, None)?;
-    let public_schema =
-        crate::catalog::canonical_schema_name(&statement.name, crate::catalog::DEFAULT_SCHEMA);
-    cassie.midge.create_namespace(&public_schema)?;
-    cassie.catalog.register_database(&statement.name, None);
-    cassie.catalog.register_namespace(&public_schema, None);
+    let _database =
+        cassie.create_logical_database(&statement.name, statement.if_not_exists)?;
 
     Ok(empty_command("CREATE DATABASE"))
 }

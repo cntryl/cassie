@@ -2,6 +2,7 @@ import { state } from "@askrjs/askr";
 
 import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@askrjs/monaco";
 import { theme } from "@askrjs/themes/theme";
+import { observeEditorLayout, type EditorLayoutObserver } from "@/shared/editor-resize-observer";
 
 export interface MonacoCompletionItem {
   label: string;
@@ -40,6 +41,7 @@ interface MonacoEditorResource {
   changeDisposable: { dispose(): void } | null;
   systemThemeQuery: MediaQueryList | null;
   systemThemeListener: ((event: MediaQueryListEvent) => void) | null;
+  layoutObserver: EditorLayoutObserver | null;
 }
 
 const editorResources = new Map<string, MonacoEditorResource>();
@@ -53,6 +55,7 @@ function getEditorResource(modelUri: string) {
       changeDisposable: null,
       systemThemeQuery: null,
       systemThemeListener: null,
+      layoutObserver: null,
     };
     editorResources.set(modelUri, resource);
   }
@@ -85,6 +88,11 @@ export function MonacoSqlEditor({
   const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
   const followsSystemDark = systemDark();
+  let editorHost: HTMLElement | null = null;
+
+  function setEditorHost(node: unknown) {
+    editorHost = node instanceof HTMLElement ? node : null;
+  }
 
   function handleFallbackKeyDown(event: KeyboardEvent) {
     if (event.key !== "Tab" || event.shiftKey) {
@@ -241,6 +249,10 @@ export function MonacoSqlEditor({
       resource.systemThemeListener = (event) => setSystemDark(event.matches);
       resource.systemThemeQuery.addEventListener("change", resource.systemThemeListener);
     }
+    if (editorHost && typeof ResizeObserver !== "undefined") {
+      resource.layoutObserver?.disconnect();
+      resource.layoutObserver = observeEditorLayout(editorHost, () => resource.editor?.layout());
+    }
   }
 
   function handleUnmount() {
@@ -254,6 +266,8 @@ export function MonacoSqlEditor({
     resource.systemThemeListener = null;
     resource.changeDisposable?.dispose();
     resource.changeDisposable = null;
+    resource.layoutObserver?.disconnect();
+    resource.layoutObserver = null;
     registry?.owners.delete(modelUri);
     if (registry?.activeUri === modelUri) {
       registry.activeUri = null;
@@ -301,6 +315,7 @@ export function MonacoSqlEditor({
       data-query-editor="monaco"
       aria-label="SQL editor"
       onKeyDownCapture={handleEditorKeyDown}
+      ref={setEditorHost}
     >
       <MonacoEditor
         path={modelUri}
@@ -309,7 +324,7 @@ export function MonacoSqlEditor({
         theme={monacoTheme}
         options={{
           readOnly: disabled,
-          automaticLayout: true,
+          automaticLayout: false,
           minimap: { enabled: false },
           fontSize: 13,
           lineNumbers: "on",

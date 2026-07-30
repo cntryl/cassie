@@ -3,15 +3,20 @@ import { state } from "@askrjs/askr";
 import { Button, Text } from "@askrjs/themes/components";
 import { PlusIcon, SearchIcon, XIcon } from "@askrjs/lucide";
 
+import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
 import type { QuerySchemaDatabase, QuerySchemaItem } from "@/features/query/query-models";
 import { QuerySchemaTreeDatabase } from "./query-schema-tree-database";
 import { QuerySchemaTreeItem } from "./query-schema-tree-item";
 
 interface QuerySchemaTreeProps {
-  schema: QuerySchemaDatabase[] | (() => QuerySchemaDatabase[]);
+  catalogs: DatabaseCatalogEntry[] | (() => DatabaseCatalogEntry[]);
+  activeDatabase?: string | (() => string | undefined);
   selectedItemId?: string | (() => string | undefined);
   onSelectItem: (item: QuerySchemaItem) => void;
   onCreateDatabase?: () => void;
+  onSetDatabaseExpanded: (database: string, expanded: boolean) => void;
+  onSearchCatalogs: () => void;
+  onRetryDatabase: (database: string) => void;
 }
 
 interface QuerySchemaSearchGroup {
@@ -51,12 +56,18 @@ function filterDatabases(
 }
 
 export function QuerySchemaTree({
-  schema,
+  catalogs,
+  activeDatabase,
   selectedItemId,
   onSelectItem,
   onCreateDatabase,
+  onSetDatabaseExpanded,
+  onSearchCatalogs,
+  onRetryDatabase,
 }: QuerySchemaTreeProps) {
-  const getSchema = () => (typeof schema === "function" ? schema() : schema);
+  const getCatalogs = () => (typeof catalogs === "function" ? catalogs() : catalogs);
+  const getActiveDatabase = () =>
+    typeof activeDatabase === "function" ? activeDatabase() : activeDatabase;
   const getSelectedItemId = () =>
     typeof selectedItemId === "function" ? selectedItemId() : selectedItemId;
 
@@ -67,6 +78,7 @@ export function QuerySchemaTree({
     if (target instanceof HTMLInputElement) {
       const value = target.value;
       setQuery(value);
+      if (value.trim()) onSearchCatalogs();
     }
   }
 
@@ -74,10 +86,26 @@ export function QuerySchemaTree({
     setQuery("");
   }
 
-  const matches = () => filterDatabases(getSchema(), query());
+  const loadedDatabases = () =>
+    getCatalogs()
+      .filter(
+        (catalog): catalog is DatabaseCatalogEntry & { database: QuerySchemaDatabase } =>
+          catalog.status === "loaded" && catalog.database !== undefined,
+      )
+      .map((catalog) => catalog.database);
+  const matches = () => filterDatabases(loadedDatabases(), query());
   const isSearching = () => query().trim().length > 0;
   const hasMatches = () => matches().length > 0;
-  const schemaMode = () => (isSearching() ? (hasMatches() ? "results" : "empty") : "tree");
+  const pendingCatalogCount = () =>
+    getCatalogs().filter((catalog) => catalog.status === "idle" || catalog.status === "loading")
+      .length;
+  const settledCatalogCount = () => getCatalogs().length - pendingCatalogCount();
+  const failedCatalogs = () => getCatalogs().filter((catalog) => catalog.status === "error");
+  const schemaMode = () => {
+    if (!isSearching()) return "tree";
+    if (hasMatches() || failedCatalogs().length > 0) return "results";
+    return pendingCatalogCount() > 0 ? "loading" : "empty";
+  };
 
   return (
     <section
@@ -136,18 +164,34 @@ export function QuerySchemaTree({
           data-testid="query-schema-tree-normal"
           data-schema-panel="normal"
         >
-          <For each={getSchema} by={(database) => database.id}>
-            {(database) => (
+          <For each={getCatalogs} by={(catalog) => catalog.canonicalName}>
+            {(catalog) => (
               <QuerySchemaTreeDatabase
-                database={database}
+                catalog={catalog}
+                active={catalog.canonicalName === getActiveDatabase()?.trim().toLocaleLowerCase()}
                 selectedItemId={getSelectedItemId}
                 onSelectItem={onSelectItem}
+                onSetExpanded={onSetDatabaseExpanded}
+                onRetry={onRetryDatabase}
               />
             )}
           </For>
         </div>
 
         <p class="cassie-query-schema-empty-search">No matches for “{query()}”.</p>
+
+        <Text
+          class="cassie-query-schema-search-progress"
+          size="sm"
+          tone="muted"
+          role="status"
+          hidden={!isSearching() || pendingCatalogCount() === 0}
+          style={{
+            display: isSearching() && pendingCatalogCount() > 0 ? undefined : "none",
+          }}
+        >
+          Loading catalogs {settledCatalogCount()} of {getCatalogs().length}…
+        </Text>
 
         <div
           class="cassie-query-schema-tree-body-root"
@@ -169,6 +213,27 @@ export function QuerySchemaTree({
                     )}
                   </For>
                 </ul>
+              </div>
+            )}
+          </For>
+          <For each={failedCatalogs} by={(catalog) => catalog.canonicalName}>
+            {(catalog) => (
+              <div
+                class="cassie-query-schema-search-group cassie-query-schema-search-failure"
+                data-database={catalog.name}
+              >
+                <span class="cassie-query-schema-search-group-label">{catalog.name}</span>
+                <Text size="sm" tone="muted">
+                  Catalog unavailable.
+                </Text>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => onRetryDatabase(catalog.name)}
+                >
+                  Retry
+                </Button>
               </div>
             )}
           </For>

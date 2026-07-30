@@ -1,6 +1,7 @@
 pub(crate) mod body;
 pub mod collections;
 pub mod consistency;
+pub(crate) mod databases;
 pub mod documents;
 pub mod health;
 pub mod indexes;

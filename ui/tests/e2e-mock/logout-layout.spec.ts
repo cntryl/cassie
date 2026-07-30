@@ -6,6 +6,14 @@ test("should_present_logout_as_the_login_pages_companion", async ({ page }) => {
   await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
+  let releaseLogout!: () => void;
+  const logoutReleased = new Promise<void>((resolve) => {
+    releaseLogout = resolve;
+  });
+  await page.route("**/api/v1/auth/logout", async (route) => {
+    await logoutReleased;
+    await route.continue();
+  });
 
   // Act
   await page.goto("/logout");
@@ -28,4 +36,8 @@ test("should_present_logout_as_the_login_pages_companion", async ({ page }) => {
   expect(Math.abs(cardBounds.y + cardBounds.height / 2 - viewport.height / 2)).toBeLessThanOrEqual(
     1,
   );
+
+  releaseLogout();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 });

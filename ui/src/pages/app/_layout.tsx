@@ -149,12 +149,13 @@ export default function Layout({ children }: { children?: unknown }) {
             <div class="cassie-admin-sidebar-brand">
               <Brand asChild>
                 <Link href="/" aria-label="Cassie admin home">
-                  <BrandMark aria-hidden="true">
+                  <BrandMark class="cassie-brand-mark" aria-hidden="true">
                     <img
-                      class="cassie-brand-logo"
                       data-testid="cassie-brand-logo"
                       src={cassieLogoPath}
                       {...cassieLogoImageProps}
+                      width="32"
+                      height="32"
                       alt=""
                     />
                   </BrandMark>

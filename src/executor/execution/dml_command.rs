@@ -220,7 +220,7 @@ fn execute_schema_object_group(
         LogicalCommand::CreateGraph(statement) => Some(CommandExecution::invalidating(
             super::schema_command::create_graph(cassie, statement),
         )),
-        LogicalCommand::CreateDatabase(statement) => Some(CommandExecution::invalidating(
+        LogicalCommand::CreateDatabase(statement) => Some(CommandExecution::new(
             super::schema_command::create_database(cassie, statement),
         )),
         LogicalCommand::DropDatabase(statement) => Some(CommandExecution::invalidating(

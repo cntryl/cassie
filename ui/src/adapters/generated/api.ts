@@ -1,6 +1,6 @@
 import { defineApi, createClient, del, get, json, post } from "@askrjs/fetch";
 import type { ClientOptions } from "@askrjs/fetch";
-import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
+import type { CollectionCreateRequest, ConsistencyCheckRequest, CreateCollectionResponse, CreateDatabaseRequest, CreateDocumentResponse, CreateIndexRequest, DatabaseSummary, DeleteDocumentResponse, DocumentPayload, Error, ExportManifestRequest, Health, LogoutResponse, ProjectionCheckReport, ProjectionConsistencyReports, ProjectionManifest, QueryExecuteRequest, QueryExplainRequest, QueryExplainResponse, QueryOperationCancellation, QueryResult, QuerySchemaResponse, QueryValidateRequest, QueryValidateResponse, SearchRequest, Session, VectorIndexResponse } from "./schemas";
 import type { CancelAdminQueryOperationPath, CreateDocumentPath, CreateIndexPath, CreateProjectionVerificationManifestPath, DeleteDocumentPath, ExportProjectionManifestPath, GetAdminQuerySchemaQuery, GetDocumentPath, ListAdminCatalogQuery, VectorSearchPath } from "./operations";
 
 export const api = defineApi({
@@ -12,6 +12,11 @@ export const api = defineApi({
   listAdminDatabases: get("/api/v1/admin/databases")
     .returns(json<Array<DatabaseSummary>>())
     .errors({ "401": json<Error>(), "503": json<Error>() })
+    .security([{"cassieAuth":[]}]),
+  createAdminDatabase: post("/api/v1/admin/databases")
+    .body(json<CreateDatabaseRequest>())
+    .returns(201, json<DatabaseSummary>())
+    .errors({ "400": json<Error>(), "401": json<Error>(), "403": json<Error>(), "409": json<Error>(), "503": json<Error>() })
     .security([{"cassieAuth":[]}]),
   compareProjectionConsistency: post("/api/v1/admin/projection-consistency-checks")
     .body(json<ConsistencyCheckRequest>())

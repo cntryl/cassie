@@ -13,54 +13,70 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   errors.length = 0;
 
   await page.getByRole("button", { name: "New Query" }).first().click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /analytics/ })
-    .click();
-  await expect(page.getByRole("button", { name: /Query 1 analytics/ })).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
+  await page.getByRole("option", { name: "Database1" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
+  await expect(page.getByTestId("query-schema-tree")).toContainText("customers");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("orders");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("reporting");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("audit");
   const editorPanel = page.getByTestId("query-editor-panel");
   await expect(editorPanel).toBeVisible();
   const editorBounds = await editorPanel.boundingBox();
   expect(editorBounds).not.toBeNull();
   expect(editorBounds?.height).toBeGreaterThan(200);
-  const analyticsResponse = page.waitForResponse((response) =>
+  const database1Response = page.waitForResponse((response) =>
     response.url().includes("/api/v1/admin/query-executions"),
   );
   await page.locator("[data-query-page]:visible").getByRole("button", { name: "Run" }).click();
-  const analyticsResult = await analyticsResponse;
-  expect(analyticsResult.status()).toBe(200);
-  expect((await analyticsResult.json()).rows.length).toBeGreaterThan(0);
+  const database1Result = await database1Response;
+  expect(database1Result.status()).toBe(200);
+  expect((await database1Result.json()).rows.length).toBeGreaterThan(0);
 
   await page.getByRole("button", { name: "New query" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /postgres/ })
-    .click();
-  await expect(page.getByRole("button", { name: /Query 2 postgres/ })).toBeVisible();
-  const postgresResponse = page.waitForResponse((response) =>
+  await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
+  await page.getByRole("option", { name: "Database2" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  await expect(page.getByRole("button", { name: /Query 2 Database2/ })).toBeVisible();
+  await expect(page.getByTestId("query-schema-tree")).toContainText("warehouses");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("tickets");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("inventory");
+  await expect(page.getByTestId("query-schema-tree")).toContainText("support");
+  const database2Response = page.waitForResponse((response) =>
     response.url().includes("/api/v1/admin/query-executions"),
   );
   await page.locator("[data-query-page]:visible").getByRole("button", { name: "Run" }).click();
-  expect((await (await postgresResponse).json()).rows.length).toBeGreaterThan(0);
-  await page.getByRole("button", { name: /Query 1 analytics/ }).click();
+  expect((await (await database2Response).json()).rows.length).toBeGreaterThan(0);
+  await page.getByRole("button", { name: /Query 1 Database1/ }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const workspace = JSON.parse(
+          sessionStorage.getItem("cassie.query-workspace.v1:root") ?? "null",
+        );
+        return workspace?.activeTabId === workspace?.tabs[0]?.id;
+      }),
+    )
+    .toBe(true);
   await page.evaluate(() => {
-    const key = "cassie.query-workspace.v1:admin";
+    const key = "cassie.query-workspace.v1:root";
     const workspace = JSON.parse(sessionStorage.getItem(key) ?? "null");
-    workspace.tabs[0].sql = "SELECT 'analytics' AS source;";
-    workspace.tabs[1].sql = "SELECT 'postgres' AS source;";
+    workspace.tabs[0].sql = "SELECT 'Database1' AS source;";
+    workspace.tabs[1].sql = "SELECT 'Database2' AS source;";
     sessionStorage.setItem(key, JSON.stringify(workspace));
   });
 
   await page.reload();
-  await expect(page.getByRole("button", { name: /Query 1 analytics/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Query 2 postgres/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Query 2 Database2/ })).toBeVisible();
   await expect(page.locator("[data-query-page]:visible").locator(".monaco-editor")).toContainText(
-    "analytics",
+    "Database1",
   );
   const stored = await page.evaluate(() =>
-    sessionStorage.getItem("cassie.query-workspace.v1:admin"),
+    sessionStorage.getItem("cassie.query-workspace.v1:root"),
   );
-  expect(stored).toContain("SELECT 'analytics' AS source;");
+  expect(stored).toContain("SELECT 'Database1' AS source;");
   expect(errors).toEqual([]);
 });
 
@@ -76,8 +92,10 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
   const sidebar = page.getByRole("complementary", { name: "Schema browser" });
   const sidebarFooter = page.getByTestId("admin-sidebar-footer");
   await expect(tree).toBeVisible();
-  await expect(tree.getByText("analytics", { exact: true })).toBeVisible();
-  await expect(tree.getByText("postgres", { exact: true })).toBeVisible();
+  await expect(tree.getByText("Database1", { exact: true })).toBeVisible();
+  await expect(tree.getByText("Database2", { exact: true })).toBeVisible();
+  await expect(tree.getByText("customers", { exact: true })).toBeVisible();
+  await expect(tree.getByText("warehouses", { exact: true })).toBeVisible();
   await expect(page.locator(".cassie-admin-header")).toHaveCount(0);
   await expect(sidebar.getByLabel("Cassie admin home")).toBeVisible();
   await expect(sidebarFooter.getByLabel("Toggle color theme")).toBeVisible();
@@ -107,13 +125,13 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
   await page.getByLabel("Database name").fill("reporting");
   const response = page.waitForResponse(
     (candidate) =>
-      candidate.url().includes("/api/v1/admin/query-executions") &&
+      candidate.url().includes("/api/v1/admin/databases") &&
       candidate.request().method() === "POST",
   );
   await page.getByRole("dialog").getByRole("button", { name: "Create database" }).click();
 
   // Assert
-  expect((await response).status()).toBe(200);
+  expect((await response).status()).toBe(201);
   await expect(page.getByRole("button", { name: /Query 1 reporting/ })).toBeVisible();
   await expect(
     tree.locator(".cassie-query-schema-database-label", { hasText: "reporting" }),

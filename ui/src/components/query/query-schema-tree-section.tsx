@@ -22,22 +22,22 @@ export function QuerySchemaTreeSection({
   selectedItemId,
   onSelectItem,
 }: QuerySchemaTreeSectionProps) {
-  const isEmpty = section.items.length === 0;
-  const [isOpen, setIsOpen] = state(!isEmpty);
+  const [isOpen, setIsOpen] = state(false);
+  const containsSelection = () => section.items.some((item) => item.id === selectedItemId?.());
+  const expanded = () => isOpen() || containsSelection();
 
   return (
     <SidebarGroup
       class="cassie-query-schema-section"
       data-testid="query-schema-tree-section"
       data-section={section.id}
-      data-empty={isEmpty ? "true" : undefined}
     >
       <SidebarGroupLabel asChild class="cassie-query-schema-section-toggle">
         <button
           type="button"
           class="cassie-query-schema-section-toggle"
-          aria-expanded={isOpen() ? "true" : "false"}
-          data-state={isOpen() ? "open" : "closed"}
+          aria-expanded={expanded() ? "true" : "false"}
+          data-state={expanded() ? "open" : "closed"}
           onClick={() => setIsOpen((previous) => !previous)}
         >
           <span class="cassie-query-schema-section-chevron" aria-hidden="true">
@@ -47,7 +47,7 @@ export function QuerySchemaTreeSection({
           <span class="cassie-query-schema-section-count">{section.items.length}</span>
         </button>
       </SidebarGroupLabel>
-      <Show when={isOpen()}>
+      <Show when={expanded()}>
         <SidebarGroupContent>
           <SidebarMenu class="cassie-query-schema-section-list" aria-label={section.label}>
             <For each={section.items} by={(item) => item.id}>

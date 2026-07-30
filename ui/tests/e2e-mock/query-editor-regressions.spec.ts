@@ -1,15 +1,14 @@
 import { expect, type Page, test } from "@playwright/test";
 
-async function openAnalyticsQuery(page: Page) {
+async function openDatabase1Query(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.getByRole("button", { name: "New Query" }).first().click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /analytics/ })
-    .click();
+  await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
+  await page.getByRole("option", { name: "Database1" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
 
   const editor = page.locator("[data-query-page]:visible .monaco-editor");
   await expect(editor).toBeVisible({ timeout: 15_000 });
@@ -23,7 +22,7 @@ async function expectEditorFocused(editor: ReturnType<Page["locator"]>) {
 
 test("should_preserve_focus_selection_and_history_while_editing_sql", async ({ page }) => {
   // Arrange
-  const editor = await openAnalyticsQuery(page);
+  const editor = await openDatabase1Query(page);
 
   // Act / Assert: consecutive input must not lose focus.
   await page.keyboard.type(" abc");
@@ -52,7 +51,7 @@ test("should_preserve_focus_selection_and_history_while_editing_sql", async ({ p
 
 test("should_persist_multiline_sql_entered_through_monaco", async ({ page }) => {
   // Arrange
-  await openAnalyticsQuery(page);
+  await openDatabase1Query(page);
   const sql = "SELECT 42 AS answer;\nSELECT 'saved' AS state;";
 
   // Act
@@ -61,9 +60,7 @@ test("should_persist_multiline_sql_entered_through_monaco", async ({ page }) => 
 
   // Assert
   await expect
-    .poll(() =>
-      page.evaluate(() => sessionStorage.getItem("cassie.query-workspace.v1:admin") ?? ""),
-    )
+    .poll(() => page.evaluate(() => sessionStorage.getItem("cassie.query-workspace.v1:root") ?? ""))
     .toContain("SELECT 42 AS answer;");
   await page.reload();
   const restoredEditor = page.locator("[data-query-page]:visible .monaco-editor");
@@ -73,7 +70,7 @@ test("should_persist_multiline_sql_entered_through_monaco", async ({ page }) => 
 
 test("should_keep_editor_usable_when_query_actions_run", async ({ page }) => {
   // Arrange
-  const editor = await openAnalyticsQuery(page);
+  const editor = await openDatabase1Query(page);
   const runButton = page.getByRole("button", { name: "Run" });
   await expect(runButton).toBeEnabled();
   await expect(page.locator(".cassie-query-availability-status")).toHaveCount(0);
@@ -114,8 +111,8 @@ test("should_keep_editor_usable_when_query_actions_run", async ({ page }) => {
 
 test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   // Arrange
-  const editor = await openAnalyticsQuery(page);
-  await expect(page.getByText("events", { exact: true }).first()).toBeVisible();
+  const editor = await openDatabase1Query(page);
+  await expect(page.getByText("orders", { exact: true }).first()).toBeVisible();
 
   // Act / Assert: SQL keyword completion.
   await page.keyboard.press("Meta+A");
@@ -128,23 +125,23 @@ test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   // Act / Assert: loaded schema completion.
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+A");
-  await page.keyboard.insertText("SELECT * FROM eve");
+  await page.keyboard.insertText("SELECT * FROM ord");
   await page.keyboard.press("Control+Space");
   await expect(suggestions).toBeVisible();
-  await expect(suggestions).toContainText("events");
-  await expect(suggestions).toContainText("table · analytics.public");
-  await expect(suggestions).not.toContainText("archive_old_documents");
+  await expect(suggestions).toContainText("orders");
+  await expect(suggestions).toContainText("table · Database1.public");
+  await expect(suggestions).not.toContainText("rebalance_stock");
   await page.keyboard.press("Enter");
-  await expect(editor).toContainText("SELECT * FROM public.events");
+  await expect(editor).toContainText("SELECT * FROM public.orders");
 
   // Act / Assert: only columns from the referenced relation after an alias dot.
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+A");
-  await page.keyboard.insertText("SELECT * FROM public.events e WHERE e.");
+  await page.keyboard.insertText("SELECT * FROM public.orders o WHERE o.");
   await page.keyboard.press("Control+Space");
   await expect(suggestions).toBeVisible();
   await expect(suggestions).toContainText("id");
-  await expect(suggestions).toContainText("uuid · primary key · public.events");
+  await expect(suggestions).toContainText("uuid · primary key · public.orders");
   await expect(suggestions).not.toContainText("accounts");
   await page.keyboard.press("Enter");
   await expect(editor).toContainText("WHERE e.id");

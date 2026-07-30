@@ -3,9 +3,13 @@ use crate::catalog::DatabaseMeta;
 
 impl Catalog {
     pub fn register_database(&self, name: &str, description: Option<String>) {
+        self.register_database_metadata(DatabaseMeta::new(name, description));
+    }
+
+    pub fn register_database_metadata(&self, database: DatabaseMeta) {
         self.databases
             .write()
-            .insert(name.to_string(), DatabaseMeta::new(name, description));
+            .insert(database.name.clone(), database);
         self.bump_version();
     }
 

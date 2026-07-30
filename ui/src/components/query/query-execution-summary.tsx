@@ -27,9 +27,8 @@ export function QueryExecutionSummary({ result }: QueryExecutionSummaryProps) {
       aria-label="Execution summary"
       data-empty={result ? undefined : "true"}
     >
-      <p class="cassie-query-execution-summary-command">
-        <strong>Command</strong>
-        <span>{result?.command ?? NBSP}</span>
+      <p class="cassie-query-execution-summary-command" aria-label="Executed command">
+        {result?.command ?? NBSP}
       </p>
       <p class="cassie-query-execution-summary-meta">
         {result ? `${rowText} · ${columnText}` : NBSP}

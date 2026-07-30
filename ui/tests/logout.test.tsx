@@ -72,7 +72,7 @@ describe("logout page", () => {
     expect(root.querySelector("main.cassie-login-page")).not.toBeNull();
     expect(root.querySelector(".cassie-login-panel")).not.toBeNull();
     expect(root.querySelector(".cassie-login-card")).not.toBeNull();
-    expect(root.querySelector(".cassie-brand-logo")).not.toBeNull();
+    expect(root.querySelector(".cassie-brand-mark img")).not.toBeNull();
     expect(root.textContent).toContain("Signing out");
   });
 

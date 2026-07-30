@@ -4,6 +4,7 @@ export interface PersistedQueryTab {
   title: string;
   database: string;
   sql: string;
+  editorSplitPercent?: number;
 }
 
 export interface PersistedQueryWorkspace {
@@ -50,7 +51,7 @@ export function loadQueryWorkspace(user: string): PersistedQueryWorkspace {
   try {
     const value = JSON.parse(readStoredValue(queryWorkspaceKey(user)) ?? "null");
     if (value?.version !== 1 || !Array.isArray(value.tabs)) return emptyWorkspace();
-    const tabs = value.tabs
+    const tabs: PersistedQueryTab[] = value.tabs
       .slice(0, MAX_PERSISTED_TABS)
       .filter(
         (tab: Partial<PersistedQueryTab>) =>
@@ -60,7 +61,22 @@ export function loadQueryWorkspace(user: string): PersistedQueryWorkspace {
           typeof tab.database === "string" &&
           typeof tab.sql === "string" &&
           tab.sql.length <= MAX_PERSISTED_SQL_CHARS,
-      );
+      )
+      .map((tab: PersistedQueryTab) => {
+        if (!Number.isFinite(tab.editorSplitPercent)) {
+          return {
+            id: tab.id,
+            ordinal: tab.ordinal,
+            title: tab.title,
+            database: tab.database,
+            sql: tab.sql,
+          };
+        }
+        return {
+          ...tab,
+          editorSplitPercent: Math.min(80, Math.max(30, tab.editorSplitPercent as number)),
+        };
+      });
     return {
       version: 1,
       tabs,

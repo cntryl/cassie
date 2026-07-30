@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/e2e-mock",
   fullyParallel: false,
+  workers: 1,
   forbidOnly: Boolean(process.env.CI),
   reporter: "line",
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.001 } },

@@ -8,30 +8,36 @@ import { QuerySchemaTreeSection } from "./query-schema-tree-section";
 
 interface QuerySchemaTreeNamespaceProps {
   namespace: QuerySchemaNamespace;
+  openByDefault: boolean;
   selectedItemId?: () => string | undefined;
   onSelectItem: (item: QuerySchemaItem) => void;
 }
 
 export function QuerySchemaTreeNamespace({
   namespace,
+  openByDefault,
   selectedItemId,
   onSelectItem,
 }: QuerySchemaTreeNamespaceProps) {
-  const isEmpty = namespace.sections.every((section) => section.items.length === 0);
-  const [isOpen, setIsOpen] = state(!isEmpty);
+  const populatedSections = namespace.sections.filter((section) => section.items.length > 0);
+  const [isOpen, setIsOpen] = state(openByDefault);
+  const containsSelection = () =>
+    populatedSections.some((section) =>
+      section.items.some((item) => item.id === selectedItemId?.()),
+    );
+  const expanded = () => isOpen() || containsSelection();
 
   return (
     <SidebarGroup
       class="cassie-query-schema-namespace"
       data-testid="query-schema-tree-namespace"
       data-namespace={namespace.id}
-      data-empty={isEmpty ? "true" : undefined}
     >
       <button
         type="button"
         class="cassie-query-schema-namespace-toggle"
-        aria-expanded={isOpen() ? "true" : "false"}
-        data-state={isOpen() ? "open" : "closed"}
+        aria-expanded={expanded() ? "true" : "false"}
+        data-state={expanded() ? "open" : "closed"}
         onClick={() => setIsOpen((previous) => !previous)}
       >
         <span class="cassie-query-schema-namespace-chevron" aria-hidden="true">
@@ -42,9 +48,9 @@ export function QuerySchemaTreeNamespace({
         </span>
         <span class="cassie-query-schema-namespace-label">{namespace.label}</span>
       </button>
-      <Show when={isOpen()}>
+      <Show when={expanded()}>
         <SidebarGroupContent class="cassie-query-schema-namespace-content">
-          <For each={namespace.sections} by={(section) => section.id}>
+          <For each={populatedSections} by={(section) => section.id}>
             {(section) => (
               <QuerySchemaTreeSection
                 section={section}

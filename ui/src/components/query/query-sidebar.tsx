@@ -1,33 +1,45 @@
-import { For } from "@askrjs/askr/control";
-import { FileTextIcon, PlusIcon, XIcon } from "@askrjs/lucide";
-import { Button, Text } from "@askrjs/themes/components";
+import { state } from "@askrjs/askr";
+import { For, Show } from "@askrjs/askr/control";
+import { CheckIcon, FileTextIcon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "@askrjs/lucide";
+import { Button, Input, Text } from "@askrjs/themes/components";
 
-import type { QuerySchemaDatabase, QuerySchemaItem } from "@/features/query/query-models";
+import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
+import type { QuerySchemaItem } from "@/features/query/query-models";
 import type { PersistedQueryTab } from "@/features/query/query-tabs";
 import { QuerySchemaTree } from "./query-schema-tree";
 
 interface QuerySidebarProps {
   queries: PersistedQueryTab[] | (() => PersistedQueryTab[]);
   activeQueryId: string | null | (() => string | null);
-  schema: QuerySchemaDatabase[] | (() => QuerySchemaDatabase[]);
+  catalogs: DatabaseCatalogEntry[] | (() => DatabaseCatalogEntry[]);
+  activeDatabase?: string | (() => string | undefined);
   selectedItemId?: string | (() => string | undefined);
   onActivateQuery: (id: string) => void;
+  onRenameQuery: (id: string, title: string) => void;
   onRemoveQuery: (query: PersistedQueryTab) => void;
   onNewQuery: () => void;
   onCreateDatabase: () => void;
   onSelectSchemaItem: (item: QuerySchemaItem) => void;
+  onSetDatabaseExpanded: (database: string, expanded: boolean) => void;
+  onSearchCatalogs: () => void;
+  onRetryDatabase: (database: string) => void;
 }
 
 export function QuerySidebar({
   queries,
   activeQueryId,
-  schema,
+  catalogs,
+  activeDatabase,
   selectedItemId,
   onActivateQuery,
+  onRenameQuery,
   onRemoveQuery,
   onNewQuery,
   onCreateDatabase,
   onSelectSchemaItem,
+  onSetDatabaseExpanded,
+  onSearchCatalogs,
+  onRetryDatabase,
 }: QuerySidebarProps) {
   const getQueries = () => (typeof queries === "function" ? queries() : queries);
   const getActiveQueryId = () =>
@@ -36,10 +48,14 @@ export function QuerySidebar({
   return (
     <div class="cassie-query-sidebar">
       <QuerySchemaTree
-        schema={schema}
+        catalogs={catalogs}
+        activeDatabase={activeDatabase}
         selectedItemId={selectedItemId}
         onSelectItem={onSelectSchemaItem}
         onCreateDatabase={onCreateDatabase}
+        onSetDatabaseExpanded={onSetDatabaseExpanded}
+        onSearchCatalogs={onSearchCatalogs}
+        onRetryDatabase={onRetryDatabase}
       />
       <section class="cassie-query-list" aria-labelledby="my-queries-title">
         <header class="cassie-query-list-header">
@@ -74,33 +90,134 @@ export function QuerySidebar({
         >
           <For each={getQueries} by={(query) => query.id}>
             {(query) => (
-              <li class="cassie-query-list-item">
-                <button
-                  type="button"
-                  id={`saved-query-${query.id}`}
-                  class="cassie-query-list-select"
-                  aria-current={getActiveQueryId() === query.id ? "page" : undefined}
-                  onClick={() => onActivateQuery(query.id)}
-                >
-                  <FileTextIcon size={14} aria-hidden="true" />
-                  <span>
-                    <strong>{query.title}</strong>
-                    <small>{query.database}</small>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  class="cassie-query-list-remove"
-                  aria-label={`Remove ${query.title}`}
-                  onClick={() => onRemoveQuery(query)}
-                >
-                  <XIcon size={13} aria-hidden="true" />
-                </button>
-              </li>
+              <SavedQueryListItem
+                query={query}
+                active={getActiveQueryId() === query.id}
+                onActivate={onActivateQuery}
+                onRename={onRenameQuery}
+                onRemove={onRemoveQuery}
+              />
             )}
           </For>
         </ul>
       </section>
     </div>
+  );
+}
+
+function SavedQueryListItem({
+  query,
+  active,
+  onActivate,
+  onRename,
+  onRemove,
+}: {
+  query: PersistedQueryTab;
+  active: boolean;
+  onActivate: (id: string) => void;
+  onRename: (id: string, title: string) => void;
+  onRemove: (query: PersistedQueryTab) => void;
+}) {
+  const [editing, setEditing] = state(false);
+  const [draft, setDraft] = state(query.title);
+
+  const cancel = () => {
+    setDraft(query.title);
+    setEditing(false);
+  };
+  const save = () => {
+    if (!draft().trim()) return;
+    onRename(query.id, draft());
+    setEditing(false);
+  };
+
+  return (
+    <li class="cassie-query-list-item" data-editing={editing() ? "true" : undefined}>
+      <Show
+        when={editing()}
+        fallback={
+          <>
+            <QuerySelectButton query={query} active={active} onActivate={onActivate} />
+            <Button
+              type="button"
+              class="cassie-query-list-action"
+              size="icon"
+              variant="ghost"
+              aria-label={`Rename ${query.title}`}
+              title={`Rename ${query.title}`}
+              onPress={() => setEditing(true)}
+            >
+              <PencilIcon size={14} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              class="cassie-query-list-action"
+              size="icon"
+              variant="ghost"
+              aria-label={`Delete ${query.title}`}
+              title={`Delete ${query.title}`}
+              onPress={() => onRemove(query)}
+            >
+              <Trash2Icon size={14} color="var(--ak-color-danger)" aria-hidden="true" />
+            </Button>
+          </>
+        }
+      >
+        <Input
+          aria-label={`Query name for ${query.title}`}
+          value={draft()}
+          onInput={(event) => setDraft((event.target as HTMLInputElement).value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") save();
+            if (event.key === "Escape") cancel();
+          }}
+        />
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label="Save query name"
+          disabled={!draft().trim()}
+          onPress={save}
+        >
+          <CheckIcon size={14} aria-hidden="true" />
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label="Cancel renaming"
+          onPress={cancel}
+        >
+          <XIcon size={14} aria-hidden="true" />
+        </Button>
+      </Show>
+    </li>
+  );
+}
+
+function QuerySelectButton({
+  query,
+  active,
+  onActivate,
+}: {
+  query: PersistedQueryTab;
+  active: boolean;
+  onActivate: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      id={`saved-query-${query.id}`}
+      class="cassie-query-list-select"
+      aria-current={active ? "page" : undefined}
+      onClick={() => onActivate(query.id)}
+    >
+      <FileTextIcon size={14} aria-hidden="true" />
+      <span>
+        <strong>{query.title}</strong>
+        <small>{query.database}</small>
+      </span>
+    </button>
   );
 }

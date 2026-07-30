@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createQueryPersistenceCoordinator } from "@/features/query/query-persistence";
-import { loadQueryWorkspace } from "@/features/query/query-tabs";
+import {
+  loadQueryWorkspace,
+  type PersistedQueryWorkspace,
+  queryWorkspaceKey,
+  saveQueryWorkspace,
+} from "@/features/query/query-tabs";
 
-const workspace = (sql: string) => ({
+const workspace = (sql: string): PersistedQueryWorkspace => ({
   version: 1 as const,
   tabs: [{ id: "tab-1", ordinal: 1, title: "Query 1", database: "postgres", sql }],
   activeTabId: "tab-1",
@@ -114,5 +119,42 @@ describe("query draft persistence", () => {
     expect(recoveredSave).toBe(true);
     expect(onStatus).toHaveBeenLastCalledWith(false);
     expect(loadQueryWorkspace("alice-recover").tabs[0]?.sql).toBe("SELECT 42");
+  });
+
+  it("should_accept_old_tabs_and_sanitize_restored_editor_split_percentages", () => {
+    // Arrange
+    const tabs = [
+      { ...workspace("old").tabs[0] },
+      { ...workspace("low").tabs[0], id: "low", editorSplitPercent: 12 },
+      { ...workspace("high").tabs[0], id: "high", editorSplitPercent: 95 },
+      { ...workspace("invalid").tabs[0], id: "invalid", editorSplitPercent: null },
+    ];
+    window.sessionStorage.setItem(
+      queryWorkspaceKey("alice-splits"),
+      JSON.stringify({ version: 1, tabs, activeTabId: "old" }),
+    );
+
+    // Act
+    const restored = loadQueryWorkspace("alice-splits");
+
+    // Assert
+    expect(restored.tabs.map((tab) => tab.editorSplitPercent)).toEqual([
+      undefined,
+      30,
+      80,
+      undefined,
+    ]);
+  });
+
+  it("should_round_trip_a_committed_editor_split_percentage", () => {
+    // Arrange
+    const next = workspace("SELECT 1");
+    next.tabs[0] = { ...next.tabs[0], editorSplitPercent: 64 };
+
+    // Act
+    expect(saveQueryWorkspace("alice-split-save", next)).toBe(true);
+
+    // Assert
+    expect(loadQueryWorkspace("alice-split-save").tabs[0]?.editorSplitPercent).toBe(64);
   });
 });

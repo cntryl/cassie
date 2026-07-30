@@ -78,6 +78,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::AuthenticationRateLimited => "authentication_rate_limited",
         CassieError::InsufficientPrivilege => "insufficient_privilege",
         CassieError::CatalogObjectNotFound { .. } => "catalog_object_not_found",
+        CassieError::CatalogObjectAlreadyExists { .. } => "catalog_object_already_exists",
         CassieError::NotFound(_) => "not_found",
         CassieError::Unsupported(_) => "unsupported",
         CassieError::Storage(_) => "storage",

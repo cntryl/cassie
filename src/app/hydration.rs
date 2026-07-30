@@ -34,8 +34,7 @@ impl Cassie {
         })?;
         self.runtime.record_storage_access("schema", false, true);
         for database in databases {
-            self.catalog
-                .register_database(&database.name, database.description.clone());
+            self.catalog.register_database_metadata(database);
         }
         Ok(())
     }

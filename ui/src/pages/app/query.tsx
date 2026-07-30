@@ -1,15 +1,6 @@
 import { state } from "@askrjs/askr";
 import { createQuery, queryScope } from "@askrjs/askr/data";
 import { For, Show } from "@askrjs/askr/control";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-} from "@askrjs/ui";
 import { TriangleAlertIcon } from "@askrjs/lucide";
 import {
   Alert,
@@ -35,10 +26,15 @@ import { QueryResultJson } from "@/components/query/query-result-json";
 import { QueryResultTable } from "@/components/query/query-result-table";
 import { QueryResultTab, QueryResultsTabs } from "@/components/query/query-results-tabs";
 import { QuerySidebar } from "@/components/query/query-sidebar";
+import { NewQueryDialog } from "@/components/query/new-query-dialog";
 import type { QueryValidationToastData } from "@/components/query/query-validation-toast";
 import { QueryValidationToast } from "@/components/query/query-validation-toast";
 import { ResizableSplit } from "@/components/query/resizable-split";
 import { SidebarPortalContent } from "@/components/shell/sidebar-portal-host";
+import {
+  DatabaseCatalogController,
+  type DatabaseCatalogEntry,
+} from "@/features/query/database-catalog-controller";
 import { buildSqlCompletionItems } from "@/features/query/query-completions";
 import {
   type QuerySchemaDatabase,
@@ -47,7 +43,6 @@ import {
   type QueryExecutionResult,
   type QueryTabRuntimeState,
 } from "@/features/query/query-models";
-import { createAdminQuerySchemaQuery } from "@/features/query/query-query";
 import {
   createExecuteQueryMutation,
   createExplainQueryMutation,
@@ -82,18 +77,55 @@ export default function QueryPage() {
   const [activeTabId, setActiveTabId] = state<string | null>(restored.activeTabId);
   const [dialogOpen, setDialogOpen] = state(false);
   const [createDatabaseOpen, setCreateDatabaseOpen] = state(false);
-  const [filter, setFilter] = state("");
+  const [newQueryDraft] = state({ name: "", database: "" });
   const [persistenceFailed, setPersistenceFailed] = state(false);
   const [persistenceOperationId, setPersistenceOperationId] = state("");
   const [closeCandidate, setCloseCandidate] = state<PersistedQueryTab | null>(null);
   const [closeError, setCloseError] = state<string | null>(null);
+  const [catalogRevision, setCatalogRevision] = state(0);
   const persistence = createQueryPersistenceCoordinator(user, (failed) =>
     setPersistenceFailed(failed),
   );
+  const [catalogController] = state(
+    new DatabaseCatalogController(
+      (database, options) => queryService.getSchema(database, options),
+      () => setCatalogRevision((revision) => revision + 1),
+      (database) => queryService.invalidateSchema(database),
+    ),
+  );
+  const databaseCatalogs = catalogController();
   const databaseQuery = createQuery({
     key: workspaceQueries.key("databases"),
     fetch: fetchDatabases,
   });
+  catalogRevision();
+  const initialActiveDatabase = restored.tabs.find(
+    (tab) => tab.id === restored.activeTabId,
+  )?.database;
+  if (initialActiveDatabase) {
+    queueMicrotask(() => void databaseCatalogs.activate(initialActiveDatabase));
+  }
+
+  const catalogEntries = () => {
+    catalogRevision();
+    const entries = databaseCatalogs.entries();
+    const known = new Set(entries.map((entry) => entry.canonicalName));
+    for (const database of databaseQuery.data ?? []) {
+      const canonicalName = database.name.trim().toLocaleLowerCase();
+      if (!known.has(canonicalName)) {
+        entries.push({
+          canonicalName,
+          name: database.name,
+          status: "idle",
+          expanded: false,
+        });
+      }
+    }
+    return entries.sort((left, right) =>
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+    );
+  };
+  const currentActiveDatabase = () => tabs().find((tab) => tab.id === activeTabId())?.database;
 
   function persist(
     nextTabs: PersistedQueryTab[],
@@ -106,26 +138,49 @@ export default function QueryPage() {
     persistence.schedule({ version: 1, tabs: nextTabs, activeTabId: nextActiveTabId }, operationId);
   }
 
-  function createTab(database: string) {
+  function createTab(database: string, requestedTitle = "") {
     const ordinal = tabs().reduce((largest, tab) => Math.max(largest, tab.ordinal), 0) + 1;
     const tab: PersistedQueryTab = {
       id: crypto.randomUUID(),
       ordinal,
-      title: `Query ${ordinal}`,
+      title: requestedTitle.trim() || `Query ${ordinal}`,
       database,
       sql: defaultQuery,
     };
+    databaseCatalogs.insert(database);
+    void databaseCatalogs.activate(database);
     persist([...tabs(), tab], tab.id);
     requestAnimationFrame(() => {
       syncActiveDom(tab.id);
       focusQuery(tab.id);
     });
     setDialogOpen(false);
-    setFilter("");
+    newQueryDraft().name = "";
+    newQueryDraft().database = "";
+  }
+
+  function openNewQuery() {
+    newQueryDraft().name = "";
+    newQueryDraft().database = "";
+    setDialogOpen(true);
+  }
+
+  function renameTab(id: string, title: string) {
+    const nextTitle = title.trim();
+    if (!nextTitle) return;
+    persist(
+      tabs().map((tab) => (tab.id === id ? { ...tab, title: nextTitle } : tab)),
+      activeTabId(),
+    );
   }
 
   function openCreateDatabase() {
     setCreateDatabaseOpen(true);
+  }
+
+  function loadCatalogsForSearch() {
+    databaseCatalogs.reconcile((databaseQuery.data ?? []).map((database) => database.name));
+    void databaseCatalogs.loadRemaining(3);
   }
 
   function updateSql(id: string, sql: string) {
@@ -136,7 +191,16 @@ export default function QueryPage() {
     persist(nextTabs, activeTabId());
   }
 
+  function updateEditorSplit(id: string, editorSplitPercent: number) {
+    persist(
+      tabs().map((tab) => (tab.id === id ? { ...tab, editorSplitPercent } : tab)),
+      activeTabId(),
+    );
+  }
+
   function activateTab(id: string | null) {
+    const database = tabs().find((tab) => tab.id === id)?.database;
+    if (database) void databaseCatalogs.activate(database);
     setActiveTabId(id);
     for (const [tabId, reportActive] of activeWorkspaceReporters) reportActive(tabId === id);
     persist(tabs(), id);
@@ -194,25 +258,14 @@ export default function QueryPage() {
     if (databaseQuery.error && !databaseQuery.data) return "discovery-error";
     return availableNames().has(database) ? "available" : "unavailable";
   };
-  const filteredDatabases = () =>
-    (databaseQuery.data ?? []).filter((database) =>
-      database.name.toLowerCase().includes(filter().trim().toLowerCase()),
-    );
-  const currentFilter = filter();
   const currentCloseError = closeError();
   const currentPersistenceOperationId = persistenceOperationId();
-  const databaseTree = (): QuerySchemaDatabase[] =>
-    (databaseQuery.data ?? []).map((database) => ({
-      id: database.name,
-      label: database.name,
-      namespaces: [],
-    }));
-
   return (
     <main
       id="main-content"
       class="cassie-query-route"
       data-has-saved-queries={tabs().length > 0 ? "true" : "false"}
+      data-catalog-revision={catalogRevision()}
       data-persistence-operation-id={currentPersistenceOperationId}
       tabindex={-1}
       ref={(node: HTMLElement | null) => {
@@ -234,12 +287,19 @@ export default function QueryPage() {
           <QuerySidebar
             queries={tabs}
             activeQueryId={activeTabId}
-            schema={databaseTree}
+            catalogs={catalogEntries}
+            activeDatabase={currentActiveDatabase}
             onActivateQuery={(id) => activateTab(id)}
+            onRenameQuery={renameTab}
             onRemoveQuery={requestCloseTab}
-            onNewQuery={() => setDialogOpen(true)}
+            onNewQuery={openNewQuery}
             onCreateDatabase={openCreateDatabase}
             onSelectSchemaItem={() => undefined}
+            onSetDatabaseExpanded={(database, expanded) => {
+              void databaseCatalogs.setExpanded(database, expanded);
+            }}
+            onSearchCatalogs={loadCatalogsForSearch}
+            onRetryDatabase={(database) => void databaseCatalogs.retry(database)}
           />
         </SidebarPortalContent>
       ) : null}
@@ -248,7 +308,7 @@ export default function QueryPage() {
         <section class="cassie-query-empty" aria-labelledby="empty-workspace-title">
           <h1 id="empty-workspace-title">New Query</h1>
           <p>Choose a database to open a query workspace.</p>
-          <Button type="button" variant="primary" onPress={() => setDialogOpen(true)}>
+          <Button type="button" variant="primary" onPress={openNewQuery}>
             New Query
           </Button>
         </section>
@@ -261,76 +321,48 @@ export default function QueryPage() {
             active={activeTabId() === tab.id}
             availability={() => databaseAvailability(tab.database)}
             onSqlChange={(sql) => updateSql(tab.id, sql)}
+            onEditorSplitChange={(percent) => updateEditorSplit(tab.id, percent)}
             onRuntimeChange={() => undefined}
             onActiveRegister={(reporter) => activeWorkspaceReporters.set(tab.id, reporter)}
             onRegister={(controller) => controllers.set(tab.id, controller)}
             onCreateDatabase={openCreateDatabase}
-            databases={() => (databaseQuery.data ?? []).map((database) => database.name)}
+            catalogs={catalogEntries}
             queries={tabs}
             activeQueryId={activeTabId}
             onActivateQuery={(id) => activateTab(id)}
+            onRenameQuery={renameTab}
             onRemoveQuery={requestCloseTab}
-            onNewQuery={() => setDialogOpen(true)}
+            onNewQuery={openNewQuery}
+            onSetDatabaseExpanded={(database, expanded) => {
+              void databaseCatalogs.setExpanded(database, expanded);
+            }}
+            onSearchCatalogs={loadCatalogsForSearch}
+            onRetryDatabase={(database) => void databaseCatalogs.retry(database)}
+            onSchemaChanged={(database) => databaseCatalogs.refresh(database)}
           />
         )}
       </For>
 
       <Show when={dialogOpen()}>
-        <Dialog open onOpenChange={setDialogOpen}>
-          <DialogPortal>
-            <DialogOverlay class="cassie-query-dialog-overlay" />
-            <DialogContent class="cassie-query-dialog">
-              <DialogTitle>New Query</DialogTitle>
-              <DialogDescription>Select the database this tab will use.</DialogDescription>
-              <input
-                aria-label="Filter databases"
-                placeholder="Filter databases"
-                value={currentFilter}
-                onInput={(event: Event) => setFilter((event.target as HTMLInputElement).value)}
-              />
-              {databaseQuery.loading ? <p>Loading databases…</p> : null}
-              {databaseQuery.error ? (
-                <Alert
-                  title="Unable to load databases"
-                  variant="danger"
-                  description={apiErrorMessage(databaseQuery.error)}
-                  icon={<TriangleAlertIcon size={16} />}
-                />
-              ) : null}
-              <div class="cassie-query-database-list">
-                <For each={filteredDatabases()} by={(database) => database.name}>
-                  {(database) => (
-                    <div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          createTab(database.name);
-                          setDialogOpen(false);
-                        }}
-                      >
-                        <strong>{database.name}</strong>
-                        {database.description ? <span>{database.description}</span> : null}
-                      </button>
-                    </div>
-                  )}
-                </For>
-              </div>
-              <DialogClose asChild>
-                <Button type="button" variant="ghost" onPress={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-              </DialogClose>
-            </DialogContent>
-          </DialogPortal>
-        </Dialog>
+        <NewQueryDialog
+          draft={newQueryDraft()}
+          databases={() => (databaseQuery.data ?? []).map((database) => database.name)}
+          loading={databaseQuery.loading}
+          error={databaseQuery.error ? apiErrorMessage(databaseQuery.error) : null}
+          suggestedName={`Query ${
+            tabs().reduce((largest, tab) => Math.max(largest, tab.ordinal), 0) + 1
+          }`}
+          onClose={() => setDialogOpen(false)}
+          onCreate={createTab}
+        />
       </Show>
       {createDatabaseOpen() ? (
         <CreateDatabaseDialog
-          databaseNames={() => (databaseQuery.data ?? []).map((database) => database.name)}
           onClose={() => setCreateDatabaseOpen(false)}
           onCreated={async (name) => {
             await databaseQuery.refresh();
             createTab(name);
+            await databaseCatalogs.activate(name);
           }}
         />
       ) : null}
@@ -393,16 +425,22 @@ interface QueryWorkspaceProps {
   active: boolean;
   availability: () => DatabaseAvailability;
   onSqlChange: (sql: string) => void;
+  onEditorSplitChange: (percent: number) => void;
   onRuntimeChange: (runtime: QueryTabRuntimeState) => void;
   onActiveRegister: (setActive: (active: boolean) => void) => void;
   onRegister: (controller: { isBusy: () => boolean; cancel: () => Promise<void> }) => void;
   onCreateDatabase: () => void;
-  databases: () => string[];
+  catalogs: () => DatabaseCatalogEntry[];
   queries: () => PersistedQueryTab[];
   activeQueryId: () => string | null;
   onActivateQuery: (id: string) => void;
+  onRenameQuery: (id: string, title: string) => void;
   onRemoveQuery: (query: PersistedQueryTab) => void;
   onNewQuery: () => void;
+  onSetDatabaseExpanded: (database: string, expanded: boolean) => void;
+  onSearchCatalogs: () => void;
+  onRetryDatabase: (database: string) => void;
+  onSchemaChanged: (database: string) => Promise<void>;
 }
 
 function QueryWorkspace({
@@ -410,18 +448,23 @@ function QueryWorkspace({
   active,
   availability,
   onSqlChange,
+  onEditorSplitChange,
   onRuntimeChange,
   onActiveRegister,
   onRegister,
   onCreateDatabase,
-  databases,
+  catalogs,
   queries,
   activeQueryId,
   onActivateQuery,
+  onRenameQuery,
   onRemoveQuery,
   onNewQuery,
+  onSetDatabaseExpanded,
+  onSearchCatalogs,
+  onRetryDatabase,
+  onSchemaChanged,
 }: QueryWorkspaceProps) {
-  const schemaQuery = createAdminQuerySchemaQuery(tab.database);
   const executeMutation = createExecuteQueryMutation();
   const validateMutation = createValidateQueryMutation();
   const explainMutation = createExplainQueryMutation();
@@ -432,7 +475,7 @@ function QueryWorkspace({
   const [activeTab, setActiveTab] = state<QueryResultTab>("results");
   const [selectedItemId, setSelectedItemId] = state<string | null>(null);
   const [status, setStatus] = state<QueryStatus>("idle");
-  const [editorHeight, setEditorHeight] = state(52);
+  const [editorHeight, setEditorHeight] = state(tab.editorSplitPercent ?? 52);
   const [validationToast, setValidationToast] = state<QueryValidationToastData | null>(null);
   const [stopError, setStopError] = state<string | null>(null);
   const [stopPending, setStopPending] = state(false);
@@ -511,11 +554,8 @@ function QueryWorkspace({
   }
 
   const getSchemaDatabases = () => {
-    const schemaDatabases = schemaQuery.data?.databases ?? [];
-    const loaded = new Map(schemaDatabases.map((database) => [database.id, database]));
-    return databases().map(
-      (database): QuerySchemaDatabase =>
-        loaded.get(database) ?? { id: database, label: database, namespaces: [] },
+    return catalogs().flatMap((catalog): QuerySchemaDatabase[] =>
+      catalog.status === "loaded" && catalog.database ? [catalog.database] : [],
     );
   };
   const getCompletionItems = (context: Parameters<typeof buildSqlCompletionItems>[2]) =>
@@ -530,7 +570,10 @@ function QueryWorkspace({
   selectedItemId();
   validationToast();
   const currentStopError = stopError();
-  const currentExecutionResult = activeTab() === "plan" ? planResult() : executionResult();
+  const currentExecutionResultValue = executionResult();
+  const currentPlanResult = planResult();
+  const currentExecutionResult =
+    activeTab() === "plan" ? currentPlanResult : currentExecutionResultValue;
 
   const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
   const actionErrorMessage =
@@ -622,7 +665,7 @@ function QueryWorkspace({
         showValidationToast({
           variant: result.valid ? "success" : "warning",
           title: result.valid ? "Validation passed" : "Validation failed",
-          description: `Command ${result.command}`,
+          description: result.command,
         });
       }
     } catch {
@@ -682,8 +725,7 @@ function QueryWorkspace({
       });
       setExecutionResult(result);
       if (result && changesSchema(result.command)) {
-        queryService.invalidateSchema(tab.database);
-        await schemaQuery.refresh();
+        await onSchemaChanged(tab.database);
       }
     } catch {
       // Mutation state owns the visible error. Swallow the rethrow so an
@@ -772,13 +814,18 @@ function QueryWorkspace({
           <QuerySidebar
             queries={queries}
             activeQueryId={activeQueryId}
-            schema={getSchemaDatabases}
+            catalogs={catalogs}
+            activeDatabase={tab.database}
             selectedItemId={() => selectedItemId() ?? undefined}
             onActivateQuery={onActivateQuery}
+            onRenameQuery={onRenameQuery}
             onRemoveQuery={onRemoveQuery}
             onNewQuery={onNewQuery}
             onCreateDatabase={onCreateDatabase}
             onSelectSchemaItem={handleSchemaSelection}
+            onSetDatabaseExpanded={onSetDatabaseExpanded}
+            onSearchCatalogs={onSearchCatalogs}
+            onRetryDatabase={onRetryDatabase}
           />
         </SidebarPortalContent>
       ) : null}
@@ -805,19 +852,6 @@ function QueryWorkspace({
           {tab.title} query workspace
         </h1>
 
-        {schemaQuery.loading && !schemaQuery.data ? (
-          <p class="cassie-query-loading">Loading query schema…</p>
-        ) : null}
-
-        {schemaQuery.error && !schemaQuery.data ? (
-          <Alert
-            title="Unable to load query schema"
-            variant="danger"
-            description={apiErrorMessage(schemaQuery.error)}
-            icon={<TriangleAlertIcon size={16} />}
-          />
-        ) : null}
-
         <section class="cassie-query-workspace" aria-label="Query workspace">
           <div class="cassie-query-availability-slot">
             <QueryAvailabilityStatus
@@ -831,7 +865,10 @@ function QueryWorkspace({
             initialSize={editorHeight()}
             min={30}
             max={80}
-            onResize={(size) => setEditorHeight(size)}
+            onResize={(size) => {
+              setEditorHeight(size);
+              onEditorSplitChange(size);
+            }}
             first={
               <QueryEditorPanel
                 tabId={tab.id}
@@ -891,20 +928,6 @@ function QueryWorkspace({
                     )
                   }
                 />
-
-                {schemaQuery.error ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => {
-                      queryService.invalidateSchema(tab.database);
-                      void schemaQuery.refresh();
-                    }}
-                  >
-                    Retry schema
-                  </Button>
-                ) : null}
 
                 {hasQuery ? null : (
                   <p class="cassie-query-run-note">

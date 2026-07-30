@@ -38,13 +38,41 @@
 
 .cassie-query-list-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   border-radius: var(--cassie-row-radius);
 }
 
+.cassie-query-list-item[data-editing="true"] {
+  gap: 0.125rem;
+}
+
+.cassie-query-list-action {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--ak-duration-fast, 160ms) var(--ak-ease-standard, ease);
+}
+
+.cassie-query-list-item:hover .cassie-query-list-action,
+.cassie-query-list-item:focus-within .cassie-query-list-action,
+.cassie-query-list-item:has(.cassie-query-list-select[aria-current="page"])
+  .cassie-query-list-action {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .cassie-query-list-item:has(.cassie-query-list-select[aria-current="page"]) {
   background: var(--ak-color-selected);
+}
+
+@media (hover: none) {
+  .cassie-query-list-action {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .cassie-query-list-select {
@@ -75,25 +103,6 @@
 .cassie-query-list-select small {
   color: var(--ak-color-text, CanvasText);
   font-weight: normal;
-}
-
-.cassie-query-list-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  border: 0;
-  border-radius: var(--cassie-row-radius);
-  background: transparent;
-  color: var(--cassie-text-muted);
-  cursor: pointer;
-}
-
-.cassie-query-list-remove:hover,
-.cassie-query-list-remove:focus-visible {
-  background: color-mix(in srgb, var(--cassie-text) 8%, transparent);
-  color: var(--cassie-text);
 }
 
 .cassie-query-sidebar > .cassie-query-schema-tree {
@@ -239,6 +248,7 @@
 .cassie-query-schema-database-toggle,
 .cassie-query-schema-namespace-toggle,
 .cassie-query-schema-section-toggle {
+  min-block-size: var(--ak-density-control-height-sm, 2rem);
   display: flex;
   align-items: center;
   gap: var(--ak-space-sm, 0.5rem);
@@ -480,7 +490,4 @@
   flex: 0 0 auto;
   color: var(--cassie-text-muted);
   font-size: var(--ak-font-size-xs);
-}
-.cassie-query-schema-section-label {
-  color: CanvasText;
 }

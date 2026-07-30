@@ -147,6 +147,12 @@ pub enum CassieError {
         name: String,
     },
 
+    #[error("{kind} '{name}' already exists")]
+    CatalogObjectAlreadyExists {
+        kind: CatalogObjectKind,
+        name: String,
+    },
+
     #[error("not found: {0}")]
     NotFound(String),
 
@@ -172,6 +178,9 @@ impl CassieError {
             Self::CollectionNotFound(table) => missing_relation_descriptor(table),
             Self::CatalogObjectNotFound { kind, name } => {
                 missing_catalog_object_descriptor(*kind, name, self.to_string())
+            }
+            Self::CatalogObjectAlreadyExists { kind, name } => {
+                existing_catalog_object_descriptor(*kind, name, self.to_string())
             }
             Self::NotNullViolation { .. }
             | Self::UniqueViolation { .. }
@@ -205,6 +214,25 @@ impl CassieError {
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
         }
+    }
+}
+
+fn existing_catalog_object_descriptor(
+    kind: CatalogObjectKind,
+    name: &str,
+    message: String,
+) -> CassieErrorDescriptor {
+    CassieErrorDescriptor {
+        http_status: 409,
+        sql_state: match kind {
+            CatalogObjectKind::Database => "42P04",
+            _ => "42710",
+        },
+        message,
+        table: matches!(kind, CatalogObjectKind::Relation | CatalogObjectKind::View)
+            .then(|| local_name(name)),
+        column: None,
+        constraint: None,
     }
 }
 

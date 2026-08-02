@@ -158,7 +158,7 @@ function SavedQueryListItem({
               title={`Delete ${query.title}`}
               onPress={() => onRemove(query)}
             >
-              <Trash2Icon size={14} color="var(--ak-color-danger)" aria-hidden="true" />
+              <Trash2Icon size={14} class="cassie-query-delete-icon" aria-hidden="true" />
             </Button>
           </>
         }

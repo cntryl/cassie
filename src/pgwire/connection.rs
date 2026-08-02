@@ -524,7 +524,9 @@ async fn handle_simple_query(
             .as_ref()
             .filter(|_| simple_query::is_streaming_copy(&statements[0]))
             .map(crate::runtime::PgwireBackendRegistration::begin_query);
-        let cancellation_handle = copy_cancellation.as_ref().map(|guard| guard.handle());
+        let cancellation_handle = copy_cancellation
+            .as_ref()
+            .map(crate::runtime::PgwireQueryCancellationGuard::handle);
         let copy_outcome = copy::try_handle_simple_copy_query(
             cassie.clone(),
             session.clone(),

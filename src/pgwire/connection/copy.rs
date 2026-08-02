@@ -478,21 +478,13 @@ async fn handle_simple_copy_from_stdin(
                 let statement_for_copy = statement.clone();
                 let result =
                     run_pgwire_blocking(cassie.clone(), "pgwire_copy_from_stdin", move |cassie| {
-                        let count = if let Some(cancellation) = cancellation.as_ref() {
-                            cassie.copy_from_csv_stdin_with_cancellation(
-                                &session_for_copy,
-                                &statement_for_copy,
-                                &payload,
-                                cancellation,
-                            )
-                        } else {
-                            cassie.copy_from_csv_stdin(
-                                &session_for_copy,
-                                &statement_for_copy,
-                                &payload,
-                            )
-                        }?;
-                        Ok(format!("COPY {count}"))
+                        execute_copy_payload(
+                            &cassie,
+                            &session_for_copy,
+                            &statement_for_copy,
+                            &payload,
+                            cancellation.as_ref(),
+                        )
                     })
                     .await;
 
@@ -550,4 +542,19 @@ async fn handle_simple_copy_from_stdin(
             }
         }
     }
+}
+
+fn execute_copy_payload(
+    cassie: &Cassie,
+    session: &CassieSession,
+    statement: &CopyStatement,
+    payload: &[u8],
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
+) -> Result<String, CassieError> {
+    let count = if let Some(cancellation) = cancellation {
+        cassie.copy_from_csv_stdin_with_cancellation(session, statement, payload, cancellation)
+    } else {
+        cassie.copy_from_csv_stdin(session, statement, payload)
+    }?;
+    Ok(format!("COPY {count}"))
 }

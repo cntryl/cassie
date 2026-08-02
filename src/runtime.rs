@@ -129,8 +129,8 @@ use helpers::{
 pub use helpers::{error_class, hash_params, parameter_shape, sql_fingerprint};
 pub(crate) use hybrid_metrics::HybridRetrievalDiagnostics;
 pub(crate) use join_metrics::VectorizedJoinInputRows;
-pub(crate) use pgwire_state::PgwireBackendRegistration;
 pub use pgwire_state::PgwireSessionGuard;
+pub(crate) use pgwire_state::{PgwireBackendRegistration, PgwireQueryCancellationGuard};
 pub(crate) use projection_metrics::ProjectionWriteStats;
 pub use schema_epochs::RunningQueryGuard;
 use schema_epochs::SchemaEpochTracker;

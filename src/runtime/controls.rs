@@ -208,3 +208,64 @@ fn memory_limit_error(budget: usize, requested: usize) -> CassieError {
         "query memory budget exceeded: {requested} > {budget}"
     ))
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Instant;
+
+    use super::QueryExecutionControls;
+    use crate::config::CassieRuntimeLimits;
+
+    fn controls_with_budget(bytes: usize) -> QueryExecutionControls {
+        QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: bytes,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        )
+    }
+
+    #[test]
+    fn should_fail_exactly_at_the_query_memory_budget() {
+        // Arrange
+        let controls = controls_with_budget(8);
+
+        // Act
+        let reservation = controls.reserve_query_memory(8);
+        let overflow = controls.reserve_query_memory(1);
+
+        // Assert
+        assert_eq!(reservation.expect("exact budget").bytes(), 8);
+        assert!(overflow.is_err());
+    }
+
+    #[test]
+    fn should_release_shrunk_query_memory_reservations() {
+        // Arrange
+        let controls = controls_with_budget(8);
+        let mut reservation = controls.reserve_query_memory(8).expect("full budget");
+
+        // Act
+        reservation.shrink_to(3);
+        let replacement = controls.reserve_query_memory(5);
+
+        // Assert
+        assert_eq!(reservation.bytes(), 3);
+        assert_eq!(replacement.expect("released budget").bytes(), 5);
+    }
+
+    #[test]
+    fn should_reject_reservation_growth_given_integer_overflow() {
+        // Arrange
+        let controls = controls_with_budget(usize::MAX);
+        let mut reservation = controls.reserve_query_memory(1).expect("first byte");
+
+        // Act
+        let overflow = reservation.try_grow(usize::MAX);
+
+        // Assert
+        assert!(overflow.is_err());
+        assert_eq!(reservation.bytes(), 1);
+    }
+}

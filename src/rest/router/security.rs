@@ -1,5 +1,5 @@
 use hyper::{
-    body::{Body, Incoming},
+    body::Body,
     header::{HeaderMap, HeaderValue, CACHE_CONTROL, CONTENT_TYPE},
     Method, Request, Response, StatusCode,
 };
@@ -74,10 +74,10 @@ pub(super) fn canonical_request_path(raw_path: &str) -> Result<String, (StatusCo
     })
 }
 
-pub(super) fn validate_rest_origin(
+pub(super) fn validate_rest_origin<B>(
     method: &Method,
     path: &str,
-    request: &Request<Incoming>,
+    request: &Request<B>,
 ) -> Result<(), (StatusCode, String)> {
     if !path.starts_with("/api/")
         || !matches!(
@@ -112,10 +112,10 @@ pub(super) fn validate_rest_origin(
     }
 }
 
-pub(super) fn validate_rest_content_type(
+pub(super) fn validate_rest_content_type<B: Body>(
     method: &Method,
     path: &str,
-    request: &Request<Incoming>,
+    request: &Request<B>,
 ) -> Result<(), (StatusCode, String)> {
     if requires_json_content_type(method, path)
         && request_has_body(request)
@@ -133,7 +133,7 @@ fn requires_json_content_type(method: &Method, path: &str) -> bool {
     path.starts_with("/api/") && matches!(method, &Method::POST | &Method::PUT | &Method::PATCH)
 }
 
-fn request_has_body(request: &Request<Incoming>) -> bool {
+fn request_has_body<B: Body>(request: &Request<B>) -> bool {
     request
         .body()
         .size_hint()

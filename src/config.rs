@@ -629,6 +629,30 @@ mod tests {
     }
 
     #[test]
+    fn should_allow_loopback_pgwire_without_tls() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_ROOT_PASSWORD", "different-secret")]);
+
+        // Act
+        let config = CassieRuntimeConfig::from_env_reader(env_reader(values));
+
+        // Assert
+        assert!(config.is_ok());
+    }
+
+    #[test]
+    fn should_allow_loopback_rest_without_tls() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_ROOT_PASSWORD", "different-secret")]);
+
+        // Act
+        let config = CassieRuntimeConfig::from_env_reader(env_reader(values));
+
+        // Assert
+        assert!(config.is_ok());
+    }
+
+    #[test]
     fn should_require_pgwire_tls_for_non_loopback_listener() {
         // Arrange
         let values = HashMap::from([
@@ -646,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn should_allow_explicit_insecure_non_loopback_listener_override() {
+    fn should_allow_non_loopback_listeners_given_explicit_insecure_override() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_PGWIRE_LISTEN", "0.0.0.0:5432"),
@@ -703,7 +727,7 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_partial_pgwire_tls_configuration() {
+    fn should_reject_pgwire_when_only_a_tls_certificate_is_configured() {
         // Arrange
         let values = HashMap::from([("CASSIE_PGWIRE_TLS_CERT_FILE", "/tmp/cassie-cert.pem")]);
 
@@ -739,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn should_require_rest_tls_for_non_loopback_listener() {
+    fn should_reject_non_loopback_rest_without_tls() {
         // Arrange
         let values = HashMap::from([
             ("CASSIE_REST_LISTEN", "0.0.0.0:8080"),
@@ -756,9 +780,9 @@ mod tests {
     }
 
     #[test]
-    fn should_reject_partial_rest_tls_configuration() {
+    fn should_reject_rest_when_only_a_tls_key_is_configured() {
         // Arrange
-        let values = HashMap::from([("CASSIE_REST_TLS_CERT_FILE", "/tmp/cassie-cert.pem")]);
+        let values = HashMap::from([("CASSIE_REST_TLS_KEY_FILE", "/tmp/cassie-key.pem")]);
 
         // Act
         let error = CassieRuntimeConfig::from_env_reader(env_reader(values))

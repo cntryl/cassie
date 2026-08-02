@@ -419,7 +419,7 @@ async fn handle_ready(
         return ConnectionStep::Continue(HandshakeState::Ready);
     };
     if *awaiting_sync {
-        return handle_sync_wait(runtime, reader, write_half, awaiting_sync, &session).await;
+        return handle_sync_wait(runtime, reader, write_half, state, awaiting_sync, &session).await;
     }
     if next_tag == b'Q' {
         return handle_simple_query(cassie, runtime, reader, write_half, state).await;
@@ -440,6 +440,7 @@ async fn handle_sync_wait(
     runtime: &crate::runtime::RuntimeState,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
     awaiting_sync: &mut bool,
     session: &CassieSession,
 ) -> ConnectionStep {
@@ -452,6 +453,9 @@ async fn handle_sync_wait(
         state::FrontendMessage::Sync => {
             runtime.record_pgwire_message("sync");
             *awaiting_sync = false;
+            if std::mem::take(&mut state.invalidate_portals_on_sync) {
+                state.clear_all_portals(runtime);
+            }
             let _ = write_ready_for_query(write_half, session).await;
         }
         state::FrontendMessage::Terminate => return ConnectionStep::Break,
@@ -514,20 +518,26 @@ async fn handle_simple_query(
         return ConnectionStep::Continue(HandshakeState::Ready);
     }
 
-    if statements.len() == 1
-        && matches!(
-            copy::try_handle_simple_copy_query(
-                cassie.clone(),
-                session.clone(),
-                &statements[0],
-                reader,
-                write_half
-            )
-            .await,
-            copy::SimpleCopyOutcome::Handled
+    if statements.len() == 1 {
+        let copy_cancellation = state
+            .backend_registration
+            .as_ref()
+            .filter(|_| simple_query::is_streaming_copy(&statements[0]))
+            .map(crate::runtime::PgwireBackendRegistration::begin_query);
+        let cancellation_handle = copy_cancellation.as_ref().map(|guard| guard.handle());
+        let copy_outcome = copy::try_handle_simple_copy_query(
+            cassie.clone(),
+            session.clone(),
+            &statements[0],
+            cancellation_handle.as_ref(),
+            reader,
+            write_half,
         )
-    {
-        return ConnectionStep::Continue(HandshakeState::Ready);
+        .await;
+        drop(copy_cancellation);
+        if matches!(copy_outcome, copy::SimpleCopyOutcome::Handled) {
+            return ConnectionStep::Continue(HandshakeState::Ready);
+        }
     }
 
     for statement in statements {

@@ -97,3 +97,36 @@ fn require_tls_for_address(
         Err(error(listener.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+
+    use super::{validate_pgwire_listener_transport, validate_rest_listener_transport};
+    use crate::config::CassieRuntimeConfig;
+
+    #[test]
+    fn should_allow_loopback_pgwire_without_tls() {
+        // Arrange
+        let config = CassieRuntimeConfig::default();
+        let listener = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 5432);
+
+        // Act
+        let result = validate_pgwire_listener_transport(&config, listener);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn should_allow_loopback_rest_without_tls() {
+        // Arrange
+        let listener = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8080);
+
+        // Act
+        let result = validate_rest_listener_transport(None, None, false, listener);
+
+        // Assert
+        assert!(result.is_ok());
+    }
+}

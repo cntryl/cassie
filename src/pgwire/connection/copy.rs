@@ -30,6 +30,7 @@ pub(super) async fn try_handle_simple_copy_query(
     cassie: Arc<Cassie>,
     session: CassieSession,
     sql: &str,
+    cancellation: Option<&crate::runtime::QueryCancellationHandle>,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
@@ -89,7 +90,16 @@ pub(super) async fn try_handle_simple_copy_query(
     {
         return SimpleCopyOutcome::ConnectionClosed;
     }
-    if handle_simple_copy_from_stdin(cassie, session, statement, reader, write_half).await {
+    if handle_simple_copy_from_stdin(
+        cassie,
+        session,
+        statement,
+        cancellation.cloned(),
+        reader,
+        write_half,
+    )
+    .await
+    {
         SimpleCopyOutcome::Handled
     } else {
         SimpleCopyOutcome::ConnectionClosed
@@ -435,6 +445,7 @@ async fn handle_simple_copy_from_stdin(
     cassie: Arc<Cassie>,
     session: CassieSession,
     statement: CopyStatement,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> bool {
@@ -467,9 +478,21 @@ async fn handle_simple_copy_from_stdin(
                 let statement_for_copy = statement.clone();
                 let result =
                     run_pgwire_blocking(cassie.clone(), "pgwire_copy_from_stdin", move |cassie| {
-                        cassie
-                            .copy_from_csv_stdin(&session_for_copy, &statement_for_copy, &payload)
-                            .map(|count| format!("COPY {count}"))
+                        let count = if let Some(cancellation) = cancellation.as_ref() {
+                            cassie.copy_from_csv_stdin_with_cancellation(
+                                &session_for_copy,
+                                &statement_for_copy,
+                                &payload,
+                                cancellation,
+                            )
+                        } else {
+                            cassie.copy_from_csv_stdin(
+                                &session_for_copy,
+                                &statement_for_copy,
+                                &payload,
+                            )
+                        }?;
+                        Ok(format!("COPY {count}"))
                     })
                     .await;
 

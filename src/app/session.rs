@@ -351,6 +351,10 @@ impl CassieSession {
         self.settings.lock().get(name)
     }
 
+    pub(crate) fn settings_fingerprint(&self) -> u64 {
+        crate::runtime::stable_fingerprint(&*self.settings.lock())
+    }
+
     /// Validates and applies a supported session setting.
     ///
     /// # Errors

@@ -59,6 +59,7 @@ pub struct ExecutionResultCacheKey {
     pub user: String,
     pub database: Option<String>,
     pub search_path: Vec<String>,
+    pub settings_fingerprint: u64,
     pub mode: ExecutionMode,
 }
 

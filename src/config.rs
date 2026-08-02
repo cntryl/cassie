@@ -629,30 +629,6 @@ mod tests {
     }
 
     #[test]
-    fn should_allow_loopback_pgwire_without_tls() {
-        // Arrange
-        let values = HashMap::from([("CASSIE_ROOT_PASSWORD", "different-secret")]);
-
-        // Act
-        let config = CassieRuntimeConfig::from_env_reader(env_reader(values));
-
-        // Assert
-        assert!(config.is_ok());
-    }
-
-    #[test]
-    fn should_allow_loopback_rest_without_tls() {
-        // Arrange
-        let values = HashMap::from([("CASSIE_ROOT_PASSWORD", "different-secret")]);
-
-        // Act
-        let config = CassieRuntimeConfig::from_env_reader(env_reader(values));
-
-        // Assert
-        assert!(config.is_ok());
-    }
-
-    #[test]
     fn should_require_pgwire_tls_for_non_loopback_listener() {
         // Arrange
         let values = HashMap::from([

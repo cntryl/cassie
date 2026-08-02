@@ -353,7 +353,6 @@ mod tests {
         limits: CassieRuntimeLimits,
         test: impl FnOnce(&Midge, &RuntimeState),
     ) {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let path = std::env::temp_dir().join(format!("cassie-cache-{label}-{}", Uuid::new_v4()));
         let midge = Midge::new_with_data_dir(&path).expect("midge");
         let runtime = RuntimeState::new(limits);

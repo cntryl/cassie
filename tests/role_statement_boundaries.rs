@@ -1,8 +1,12 @@
-use cassie::app::{Cassie, CassieSession};
+use cassie::app::{Cassie, CassieError, CassieSession};
 
 #[path = "support/sql.rs"]
 mod support;
 use support::{data_dir, use_local_storage};
+
+fn assert_insufficient_privilege(result: Result<cassie::executor::QueryResult, CassieError>) {
+    assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
+}
 
 fn with_roles(test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &CassieSession)) {
     use_local_storage();
@@ -67,7 +71,7 @@ fn should_reject_read_only_role_explain_for_an_insert_statement() {
         );
 
         // Assert
-        assert!(result.is_err());
+        assert_insufficient_privilege(result);
     });
 }
 
@@ -83,7 +87,7 @@ fn should_reject_read_only_role_explain_for_a_nested_mutating_statement() {
         );
 
         // Assert
-        assert!(result.is_err());
+        assert_insufficient_privilege(result);
     });
 }
 
@@ -99,7 +103,7 @@ fn should_reject_read_only_role_copy_from_stdin() {
         );
 
         // Assert
-        assert!(result.is_err());
+        assert_insufficient_privilege(result);
     });
 }
 
@@ -115,7 +119,7 @@ fn should_reject_read_only_role_copy_to_stdout() {
         );
 
         // Assert
-        assert!(result.is_err());
+        assert_insufficient_privilege(result);
     });
 }
 

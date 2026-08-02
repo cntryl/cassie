@@ -678,6 +678,7 @@ fn result_key(sql_fingerprint: u64) -> ExecutionResultCacheKey {
         user: "benchmark".to_string(),
         database: None,
         search_path: Vec::new(),
+        settings_fingerprint: 0,
         mode: ExecutionMode::SimpleQuery,
     }
 }

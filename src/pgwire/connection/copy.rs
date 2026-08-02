@@ -551,10 +551,6 @@ fn execute_copy_payload(
     payload: &[u8],
     cancellation: Option<&crate::runtime::QueryCancellationHandle>,
 ) -> Result<String, CassieError> {
-    let count = if let Some(cancellation) = cancellation {
-        cassie.copy_from_csv_stdin_with_cancellation(session, statement, payload, cancellation)
-    } else {
-        cassie.copy_from_csv_stdin(session, statement, payload)
-    }?;
+    let count = cassie.ingest_copy_csv_payload(session, statement, payload, cancellation)?;
     Ok(format!("COPY {count}"))
 }

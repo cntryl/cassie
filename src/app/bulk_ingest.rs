@@ -49,6 +49,20 @@ impl Cassie {
         result
     }
 
+    pub(crate) fn ingest_copy_csv_payload(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        payload: &[u8],
+        cancellation: Option<&QueryCancellationHandle>,
+    ) -> Result<usize, CassieError> {
+        if let Some(cancellation) = cancellation {
+            self.copy_from_csv_stdin_with_cancellation(session, statement, payload, cancellation)
+        } else {
+            self.copy_from_csv_stdin(session, statement, payload)
+        }
+    }
+
     fn copy_from_csv_stdin_inner(
         &self,
         session: &CassieSession,

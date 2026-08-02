@@ -78,7 +78,7 @@ fn should_reject_query_memory_above_remaining_budget() {
 }
 
 #[test]
-fn should_release_query_memory_when_reservation_drops() {
+fn should_allow_memory_reservation_after_a_prior_reservation_is_dropped() {
     // Arrange
     let mut config = CassieRuntimeConfig::default();
     config.limits.query_memory_budget_bytes = 10;

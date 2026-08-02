@@ -4,6 +4,7 @@ use std::time::Instant;
 use super::{Cassie, CassieError, CassieSession, TransactionRowChange, Uuid};
 use crate::catalog::FieldMeta;
 use crate::midge::adapter::DocumentWriteOp;
+use crate::runtime::QueryCancellationHandle;
 use crate::sql::ast::{CopyFormat, CopyStatement};
 use crate::types::DataType;
 
@@ -20,11 +21,46 @@ impl Cassie {
         payload: &[u8],
     ) -> Result<usize, CassieError> {
         let transactional = session.is_transaction_active();
-        let result = self.copy_from_csv_stdin_inner(session, statement, payload);
+        let result = self.copy_from_csv_stdin_inner(session, statement, payload, None);
         if result.is_err() && transactional {
             session.mark_transaction_failed();
         }
         result
+    }
+
+    /// Copies CSV rows atomically while honoring an external query-cancellation handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when cancellation, validation, storage, or execution fails.
+    pub fn copy_from_csv_stdin_with_cancellation(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        payload: &[u8],
+        cancellation: &QueryCancellationHandle,
+    ) -> Result<usize, CassieError> {
+        let transactional = session.is_transaction_active();
+        let result =
+            self.copy_from_csv_stdin_inner(session, statement, payload, Some(cancellation));
+        if result.is_err() && transactional {
+            session.mark_transaction_failed();
+        }
+        result
+    }
+
+    pub(crate) fn ingest_copy_csv_payload(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        payload: &[u8],
+        cancellation: Option<&QueryCancellationHandle>,
+    ) -> Result<usize, CassieError> {
+        if let Some(cancellation) = cancellation {
+            self.copy_from_csv_stdin_with_cancellation(session, statement, payload, cancellation)
+        } else {
+            self.copy_from_csv_stdin(session, statement, payload)
+        }
     }
 
     fn copy_from_csv_stdin_inner(
@@ -32,7 +68,9 @@ impl Cassie {
         session: &CassieSession,
         statement: &CopyStatement,
         payload: &[u8],
+        cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
+        check_copy_cancellation(cancellation)?;
         let transactional = session.is_transaction_active();
         let database = session.current_database().unwrap_or(&self.default_database);
         let context = crate::sql::binder::BindingContext::scoped(database, session.search_path());
@@ -65,6 +103,7 @@ impl Cassie {
         let mut affected = 0usize;
 
         for (row_index, row) in rows.into_iter().enumerate() {
+            check_copy_cancellation(cancellation)?;
             if row.len() != columns.len() {
                 return Err(CassieError::Parse(format!(
                     "COPY row {} has {} columns but target expects {}",
@@ -114,6 +153,7 @@ impl Cassie {
         }
 
         if transactional {
+            check_copy_cancellation(cancellation)?;
             session.publish_statement_batch(&batch)?;
             return Ok(affected);
         }
@@ -127,6 +167,7 @@ impl Cassie {
         }
 
         let operations = copy_write_operations(writes)?;
+        check_copy_cancellation(cancellation)?;
         let options = self.buffered_document_write_options(&statement.table);
         let report = self.midge.apply_document_write_batch_with_options(
             &statement.table,
@@ -136,6 +177,16 @@ impl Cassie {
         finish_copy_batch(self, &statement, &report.stats)?;
         self.runtime.set_data_epoch(self.midge.data_epoch()?);
         Ok(affected)
+    }
+}
+
+fn check_copy_cancellation(
+    cancellation: Option<&QueryCancellationHandle>,
+) -> Result<(), CassieError> {
+    if cancellation.is_some_and(QueryCancellationHandle::is_cancelled) {
+        Err(CassieError::QueryCancelled)
+    } else {
+        Ok(())
     }
 }
 
@@ -353,4 +404,51 @@ fn push_csv_field(row: &mut Vec<Option<String>>, field: &mut String, field_start
     let value = std::mem::take(field);
     row.push((value != COPY_NULL).then_some(value));
     *field_started = false;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_csv_payload;
+
+    #[test]
+    fn should_parse_copy_csv_quoted_newlines() {
+        // Arrange
+        let payload = b"row-1,\"first line\nsecond line\"\n";
+
+        // Act
+        let rows = parse_csv_payload(payload).expect("quoted newline");
+
+        // Assert
+        assert_eq!(
+            rows,
+            vec![vec![
+                Some("row-1".to_string()),
+                Some("first line\nsecond line".to_string())
+            ]]
+        );
+    }
+
+    #[test]
+    fn should_parse_copy_csv_escaped_quotes() {
+        // Arrange
+        let payload = b"row-1,\"a \"\"quoted\"\" value\"\n";
+
+        // Act
+        let rows = parse_csv_payload(payload).expect("escaped quotes");
+
+        // Assert
+        assert_eq!(rows[0][1], Some("a \"quoted\" value".to_string()));
+    }
+
+    #[test]
+    fn should_preserve_copy_null_values_given_configured_null_markers() {
+        // Arrange
+        let payload = b"row-1,\\N,\"\\N\"\n";
+
+        // Act
+        let rows = parse_csv_payload(payload).expect("null markers");
+
+        // Assert
+        assert_eq!(rows[0], vec![Some("row-1".to_string()), None, None]);
+    }
 }

@@ -71,4 +71,62 @@ mod tests {
         assert_eq!(metrics.runtime.query_admission_rejections, 1);
         assert_eq!(metrics.runtime.query_admission_permits, 2);
     }
+
+    #[test]
+    fn should_reject_the_next_query_given_the_worker_cap_is_exhausted() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits {
+            max_query_workers: 1,
+            ..CassieRuntimeLimits::default()
+        }));
+        let active = runtime.try_begin_running_query().expect("first permit");
+
+        // Act
+        let rejected = runtime.try_begin_running_query();
+
+        // Assert
+        assert!(rejected.is_none());
+        drop(active);
+    }
+
+    #[test]
+    fn should_release_query_worker_admission_after_cancellation() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits {
+            max_query_workers: 1,
+            ..CassieRuntimeLimits::default()
+        }));
+        let cancelled = runtime.try_begin_running_query().expect("active query");
+
+        // Act
+        drop(cancelled);
+        let replacement = runtime.try_begin_running_query();
+
+        // Assert
+        assert!(replacement.is_some());
+    }
+
+    #[test]
+    fn should_release_query_worker_admission_after_panic() {
+        // Arrange
+        let runtime = Arc::new(RuntimeState::new(CassieRuntimeLimits {
+            max_query_workers: 1,
+            ..CassieRuntimeLimits::default()
+        }));
+        let worker_runtime = Arc::clone(&runtime);
+
+        // Act
+        let panicked = std::thread::spawn(move || {
+            let _guard = worker_runtime
+                .try_begin_running_query()
+                .expect("worker permit");
+            panic!("injected query worker panic");
+        })
+        .join();
+        let replacement = runtime.try_begin_running_query();
+
+        // Assert
+        assert!(panicked.is_err());
+        assert!(replacement.is_some());
+    }
 }

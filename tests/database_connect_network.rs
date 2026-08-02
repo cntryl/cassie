@@ -89,7 +89,7 @@ fn set_database_access(cassie: &Cassie, admin: &CassieSession, grant: bool) {
 }
 
 #[test]
-fn should_revalidate_database_connect_for_an_active_pgwire_session() {
+fn should_revalidate_connect_privileges_given_an_already_authenticated_session() {
     // Arrange
     let (cassie, admin, path) = fixture("pgwire");
     let runtime = tokio::runtime::Builder::new_current_thread()

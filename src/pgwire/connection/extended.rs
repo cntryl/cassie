@@ -67,6 +67,14 @@ pub(super) async fn handle_frontend_message(
         }
     };
 
+    let invalidate_portals_on_error = matches!(
+        &message,
+        FrontendMessage::Parse { query, .. }
+            if query
+                .trim_start()
+                .get(..5)
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case("copy "))
+    );
     match dispatch_message(cassie, runtime, write_half, state, session, message).await {
         Ok(DispatchOutcome::Continue) => ConnectionStep::Continue(HandshakeState::Ready),
         Ok(DispatchOutcome::Break) => ConnectionStep::Break,
@@ -75,6 +83,7 @@ pub(super) async fn handle_frontend_message(
                 runtime.record_pgwire_protocol_error();
             }
             let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
+            state.invalidate_portals_on_sync |= invalidate_portals_on_error;
             *awaiting_sync = true;
             ConnectionStep::Continue(HandshakeState::Ready)
         }

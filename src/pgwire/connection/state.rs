@@ -82,6 +82,7 @@ pub(super) struct SessionState {
     pub(super) portal_memory_controls: QueryExecutionControls,
     pub(super) next_prepared_id: u64,
     pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
+    pub(super) invalidate_portals_on_sync: bool,
 }
 
 impl SessionState {
@@ -102,6 +103,7 @@ impl SessionState {
             ),
             next_prepared_id: 1,
             backend_registration: None,
+            invalidate_portals_on_sync: false,
         }
     }
 
@@ -161,6 +163,16 @@ impl SessionState {
             runtime.record_pgwire_portal_delta(delta);
         });
         self.prepared_statements.clear();
+        let portal_names = self.portals.keys().cloned().collect::<Vec<_>>();
+        for name in portal_names {
+            self.remove_portal(&name);
+        }
+    }
+
+    pub(super) fn clear_all_portals(&mut self, runtime: &RuntimeState) {
+        record_negative_delta(self.portals.len(), |delta| {
+            runtime.record_pgwire_portal_delta(delta);
+        });
         let portal_names = self.portals.keys().cloned().collect::<Vec<_>>();
         for name in portal_names {
             self.remove_portal(&name);

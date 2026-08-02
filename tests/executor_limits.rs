@@ -21,7 +21,7 @@ mod support;
 use support::*;
 
 #[test]
-fn should_execute_query_without_deadline_when_query_timeout_is_zero() {
+fn should_create_no_deadline_given_a_zero_query_timeout() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -80,7 +80,7 @@ fn should_execute_query_without_deadline_when_query_timeout_is_zero() {
 }
 
 #[test]
-fn should_fail_query_when_result_limit_is_exceeded() {
+fn should_return_no_partial_rows_given_a_result_limit_overflow() {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

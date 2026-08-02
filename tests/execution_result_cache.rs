@@ -78,6 +78,126 @@ fn should_isolate_current_user_results() {
 }
 
 #[test]
+fn should_isolate_execution_results_given_different_authenticated_roles() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("authenticated-roles");
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let alice = cassie.create_session("alice", None);
+    let bob = cassie.create_session("bob", None);
+    cassie
+        .execute_sql(&alice, "CREATE TABLE cache_role_rows (value TEXT)", vec![])
+        .expect("create table");
+    cassie
+        .execute_sql(
+            &alice,
+            "INSERT INTO cache_role_rows (value) VALUES ('shared')",
+            vec![],
+        )
+        .expect("seed row");
+
+    // Act
+    let alice_result = cassie
+        .execute_sql(&alice, "SELECT value FROM cache_role_rows", vec![])
+        .expect("alice query");
+    let bob_result = cassie
+        .execute_sql(&bob, "SELECT value FROM cache_role_rows", vec![])
+        .expect("bob query");
+    let metrics = cassie.metrics();
+
+    // Assert
+    assert_eq!(alice_result.rows, bob_result.rows);
+    assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(0));
+    assert_eq!(
+        metrics["execution_result_cache"]["misses"].as_u64(),
+        Some(2)
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_isolate_execution_results_given_different_search_paths() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("search-paths");
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    cassie.startup().expect("startup");
+    let setup = cassie.create_session("setup", None);
+    for sql in [
+        "CREATE SCHEMA alpha",
+        "CREATE SCHEMA beta",
+        "CREATE TABLE alpha.cache_path_rows (value TEXT)",
+        "CREATE TABLE beta.cache_path_rows (value TEXT)",
+        "INSERT INTO alpha.cache_path_rows (value) VALUES ('alpha')",
+        "INSERT INTO beta.cache_path_rows (value) VALUES ('beta')",
+    ] {
+        cassie
+            .execute_sql(&setup, sql, vec![])
+            .expect("setup schema");
+    }
+    let alpha = cassie.create_session("reader", None);
+    let beta = cassie.create_session("reader", None);
+    cassie
+        .execute_sql(&alpha, "SET search_path TO alpha", vec![])
+        .expect("alpha path");
+    cassie
+        .execute_sql(&beta, "SET search_path TO beta", vec![])
+        .expect("beta path");
+
+    // Act
+    let alpha_result = cassie
+        .execute_sql(&alpha, "SELECT value FROM cache_path_rows", vec![])
+        .expect("alpha query");
+    let beta_result = cassie
+        .execute_sql(&beta, "SELECT value FROM cache_path_rows", vec![])
+        .expect("beta query");
+
+    // Assert
+    assert_eq!(alpha_result.rows, vec![vec![Value::String("alpha".into())]]);
+    assert_eq!(beta_result.rows, vec![vec![Value::String("beta".into())]]);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_isolate_execution_results_given_different_session_settings() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("session-settings");
+    let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+    let first = cassie.create_session("reader", None);
+    let second = cassie.create_session("reader", None);
+    cassie
+        .execute_sql(&first, "SET application_name TO first_client", vec![])
+        .expect("first setting");
+    cassie
+        .execute_sql(&second, "SET application_name TO second_client", vec![])
+        .expect("second setting");
+
+    // Act
+    let first_result = cassie
+        .execute_sql(&first, "SELECT current_setting('application_name')", vec![])
+        .expect("first setting query");
+    let second_result = cassie
+        .execute_sql(
+            &second,
+            "SELECT current_setting('application_name')",
+            vec![],
+        )
+        .expect("second setting query");
+
+    // Assert
+    assert_eq!(
+        first_result.rows,
+        vec![vec![Value::String("first_client".into())]]
+    );
+    assert_eq!(
+        second_result.rows,
+        vec![vec![Value::String("second_client".into())]]
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_bypass_cached_results_during_transaction() {
     // Arrange
     use_local_storage();

@@ -96,6 +96,14 @@ pub fn simple_query_frame(sql: &str) -> Vec<u8> {
     frontend_frame(b'Q', &payload)
 }
 
+pub fn copy_data_frame(payload: &[u8]) -> Vec<u8> {
+    frontend_frame(b'd', payload)
+}
+
+pub fn copy_done_frame() -> Vec<u8> {
+    frontend_frame(b'c', &[])
+}
+
 pub fn password_message(password: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(password.as_bytes());
@@ -243,8 +251,18 @@ async fn complete_startup_with_password_and_backend_key(
     writer: &mut (impl AsyncWrite + Unpin),
     password: &str,
 ) -> (i32, i32) {
+    complete_startup_as(reader, writer, "root", "postgres", password).await
+}
+
+pub async fn complete_startup_as(
+    reader: &mut (impl AsyncRead + Unpin),
+    writer: &mut (impl AsyncWrite + Unpin),
+    user: &str,
+    database: &str,
+    password: &str,
+) -> (i32, i32) {
     writer
-        .write_all(&startup_frame("root", "postgres"))
+        .write_all(&startup_frame(user, database))
         .await
         .expect("write startup");
     let auth = read_wire_frame(reader).await;

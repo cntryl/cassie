@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use serde::Serialize;
+
 use super::CassieError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +80,7 @@ pub(crate) const SETTINGS: &[SettingSpec] = &[
     },
 ];
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub(crate) struct SessionSettings {
     mutable: BTreeMap<String, String>,
 }

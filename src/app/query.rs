@@ -537,6 +537,7 @@ impl Cassie {
             user: session.user.clone(),
             database: session.database.clone(),
             search_path: session.search_path(),
+            settings_fingerprint: session.settings_fingerprint(),
             mode,
         });
         QueryCacheContext {

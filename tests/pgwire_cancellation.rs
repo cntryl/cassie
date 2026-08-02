@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 mod support;
 
 #[test]
-fn should_cancel_active_pgwire_query_with_matching_backend_key() {
+fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
     // Arrange
     support::use_local_storage();
     let path = support::data_dir("cancel-active-query");
@@ -86,7 +86,7 @@ fn should_cancel_active_pgwire_query_with_matching_backend_key() {
 }
 
 #[test]
-fn should_ignore_pgwire_cancel_request_while_backend_is_idle() {
+fn should_ignore_a_cancel_request_given_a_stale_backend_secret() {
     // Arrange
     support::use_local_storage();
     let path = support::data_dir("cancel-idle-query");
@@ -124,7 +124,10 @@ fn should_ignore_pgwire_cancel_request_while_backend_is_idle() {
             .await
             .expect("cancel connection");
         cancel_socket
-            .write_all(&support::cancel_request_frame(process_id, secret_key))
+            .write_all(&support::cancel_request_frame(
+                process_id,
+                secret_key.wrapping_add(1),
+            ))
             .await
             .expect("write idle cancel request");
         cancel_socket

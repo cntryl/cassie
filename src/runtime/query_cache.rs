@@ -304,3 +304,181 @@ pub(crate) fn store_fulltext_stats(
         ttl_seconds,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::CassieRuntimeLimits;
+    use crate::planner::logical::LogicalPlan;
+    use crate::runtime::{ExecutionMode, ParameterShape};
+    use crate::sql::ast::QuerySource;
+    use uuid::Uuid;
+
+    fn cache_key(schema_epoch: u64) -> PlanCacheKey {
+        PlanCacheKey {
+            sql_fingerprint: 42,
+            schema_epoch,
+            data_epoch: 3,
+            index_feedback_epoch: 4,
+            cost_model_version: 2,
+            adaptive_config_hash: 0,
+            parameter_shape: vec![ParameterShape::Int64],
+            mode: ExecutionMode::SimpleQuery,
+            database: Some("postgres".to_string()),
+            search_path: vec!["public".to_string()],
+        }
+    }
+
+    fn physical_plan() -> PhysicalPlan {
+        crate::planner::physical::build(LogicalPlan {
+            command: None,
+            source: QuerySource::SingleRow,
+            collection: String::new(),
+            ctes: Vec::new(),
+            distinct: false,
+            distinct_on: Vec::new(),
+            projection: Vec::new(),
+            filter: None,
+            group_by: Vec::new(),
+            having: None,
+            order: Vec::new(),
+            limit: None,
+            offset: None,
+            set: None,
+        })
+    }
+
+    fn cache_fixture(
+        label: &str,
+        limits: CassieRuntimeLimits,
+        test: impl FnOnce(&Midge, &RuntimeState),
+    ) {
+        let path = std::env::temp_dir().join(format!("cassie-cache-{label}-{}", Uuid::new_v4()));
+        let midge = Midge::new_with_data_dir(&path).expect("midge");
+        let runtime = RuntimeState::new(limits);
+        test(&midge, &runtime);
+        drop(midge);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_ignore_malformed_persisted_plan_cache_entries_given_a_matching_cache_key() {
+        // Arrange
+        cache_fixture(
+            "malformed-ignore",
+            CassieRuntimeLimits::default(),
+            |midge, runtime| {
+                let key = cache_key(1);
+                midge
+                    .raw_put(StorageFamily::Temp, &plan_entry_key(&key), b"not-json")
+                    .expect("inject malformed entry");
+
+                // Act
+                let result = lookup_plan(midge, runtime, &key).expect("cache lookup");
+
+                // Assert
+                assert!(result.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn should_delete_malformed_persisted_plan_cache_entries_after_rejection() {
+        // Arrange
+        cache_fixture(
+            "malformed-delete",
+            CassieRuntimeLimits::default(),
+            |midge, runtime| {
+                let key = cache_key(1);
+                let storage_key = plan_entry_key(&key);
+                midge
+                    .raw_put(StorageFamily::Temp, &storage_key, b"not-json")
+                    .expect("inject malformed entry");
+
+                // Act
+                lookup_plan(midge, runtime, &key).expect("cache lookup");
+                let persisted = midge
+                    .raw_get(StorageFamily::Temp, &storage_key)
+                    .expect("read rejected entry");
+
+                // Assert
+                assert!(persisted.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn should_reject_persisted_plan_cache_entries_given_a_schema_epoch_mismatch() {
+        // Arrange
+        cache_fixture(
+            "schema-epoch",
+            CassieRuntimeLimits::default(),
+            |midge, runtime| {
+                let requested = cache_key(2);
+                let entry = CachedPlanEntry {
+                    key: cache_key(1),
+                    plan: physical_plan(),
+                    created_at_ms: current_time_millis(),
+                };
+                put_temp_json(midge, runtime, plan_entry_key(&requested), &entry, 60)
+                    .expect("persist mismatched entry");
+
+                // Act
+                let result = lookup_plan(midge, runtime, &requested).expect("cache lookup");
+
+                // Assert
+                assert!(result.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn should_invalidate_fulltext_stats_given_a_data_epoch_change() {
+        // Arrange
+        cache_fixture(
+            "fulltext-data-epoch",
+            CassieRuntimeLimits::default(),
+            |midge, runtime| {
+                store_fulltext_stats(
+                    midge,
+                    runtime,
+                    FulltextStatsCacheKey {
+                        collection: "documents",
+                        field: "body",
+                        analyzer_key: "default",
+                        schema_epoch: 1,
+                        data_epoch: 1,
+                    },
+                    &SearchContext::default(),
+                )
+                .expect("store statistics");
+
+                // Act
+                let stale =
+                    lookup_fulltext_stats(midge, runtime, "documents", "body", "default", 1, 2)
+                        .expect("lookup statistics");
+
+                // Assert
+                assert!(stale.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn should_fall_back_to_planning_given_a_zero_plan_cache_ttl() {
+        // Arrange
+        let limits = CassieRuntimeLimits {
+            cf2_plan_ttl_seconds: 0,
+            ..CassieRuntimeLimits::default()
+        };
+        cache_fixture("zero-ttl", limits, |midge, runtime| {
+            let key = cache_key(1);
+
+            // Act
+            let result = lookup_plan(midge, runtime, &key).expect("cache lookup");
+
+            // Assert
+            assert!(result.is_none());
+        });
+    }
+}

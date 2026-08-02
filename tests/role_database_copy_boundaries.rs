@@ -62,9 +62,12 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
 #[test]
 fn should_reject_read_only_role_database_backup() {
     // Arrange
-    let fields = database_copy_error("role-database-backup", "BACKUP DATABASE postgres TO STDOUT");
+    let sql = "BACKUP DATABASE postgres TO STDOUT";
 
-    // Act / Assert
+    // Act
+    let fields = database_copy_error("role-database-backup", sql);
+
+    // Assert
     assert!(fields
         .iter()
         .any(|(kind, value)| *kind == 'C' && value == "42501"));
@@ -73,12 +76,12 @@ fn should_reject_read_only_role_database_backup() {
 #[test]
 fn should_reject_read_only_role_database_restore() {
     // Arrange
-    let fields = database_copy_error(
-        "role-database-restore",
-        "RESTORE DATABASE restored FROM STDIN",
-    );
+    let sql = "RESTORE DATABASE restored FROM STDIN";
 
-    // Act / Assert
+    // Act
+    let fields = database_copy_error("role-database-restore", sql);
+
+    // Assert
     assert!(fields
         .iter()
         .any(|(kind, value)| *kind == 'C' && value == "42501"));

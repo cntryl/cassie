@@ -35,7 +35,8 @@ fn with_roles(test_name: &str, test: impl FnOnce(&Cassie, &CassieSession, &Cassi
 }
 
 #[test]
-fn should_allow_read_only_role_to_execute_select_show_set_and_transaction_statements() {
+fn should_allow_read_only_role_to_execute_statements_given_select_show_set_and_transaction_families(
+) {
     // Arrange
     with_roles("role-read-only-statements", |cassie, _admin, reader| {
         let statements = [

@@ -9,7 +9,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 mod support;
 
 #[test]
-fn should_cancel_only_the_backend_matching_the_process_id_and_secret() {
+fn should_cancel_only_the_backend_given_matching_process_id_and_secret() {
     // Arrange
     support::use_local_storage();
     let path = support::data_dir("cancel-active-query");

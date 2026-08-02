@@ -10,7 +10,7 @@ use tokio::sync::Notify;
 mod support;
 
 #[test]
-fn should_apply_the_same_parser_complexity_limit_through_rest_pgwire_and_direct_sql() {
+fn should_apply_the_same_parser_complexity_limit_given_rest_pgwire_and_direct_sql() {
     // Arrange
     support::use_local_storage();
     let path = support::data_dir("parser-transport-limit");
@@ -18,12 +18,13 @@ fn should_apply_the_same_parser_complexity_limit_through_rest_pgwire_and_direct_
     cassie.startup().expect("startup");
     let direct_session = cassie.create_session("direct", None);
     let oversized = "x".repeat(1024 * 1024 + 1);
-    let direct = cassie.execute_sql(&direct_session, &oversized, vec![]);
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
+    // Act
+    let direct = cassie.execute_sql(&direct_session, &oversized, vec![]);
     let (pgwire_fields, rest_status) = runtime.block_on(async {
         let pgwire = support::spawn_server(cassie.clone()).await;
         let mut socket = tokio::net::TcpStream::connect(pgwire.addr)
@@ -95,7 +96,7 @@ fn should_apply_the_same_parser_complexity_limit_through_rest_pgwire_and_direct_
         (pgwire_fields, rest_status)
     });
 
-    // Act / Assert
+    // Assert
     assert!(matches!(direct, Err(CassieError::ResourceLimit(_))));
     assert!(pgwire_fields
         .iter()

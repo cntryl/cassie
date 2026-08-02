@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use tokio::io::{AsyncWriteExt, BufReader};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
 
 #[path = "support/pgwire.rs"]
 mod support;
@@ -131,6 +131,11 @@ fn should_ignore_pgwire_cancel_request_while_backend_is_idle() {
             .shutdown()
             .await
             .expect("close cancel request");
+        let mut cancel_response = Vec::new();
+        cancel_socket
+            .read_to_end(&mut cancel_response)
+            .await
+            .expect("wait for idle cancel request processing");
         query_write
             .write_all(&support::simple_query_frame("SELECT 1"))
             .await

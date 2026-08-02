@@ -72,9 +72,8 @@ function changesSchema(command: string) {
 const workspaceQueries = queryScope("query-workspace");
 const fetchDatabases = async ({ signal }: { signal?: AbortSignal }) =>
   unwrapResponse(await apiv1.listAdminDatabases({ signal }), "Unable to load databases");
-const workspaceRegistry = new QueryWorkspaceRegistry();
-
 export default function QueryPage() {
+  const workspaceRegistry = new QueryWorkspaceRegistry();
   const user = getSession()?.user ?? "anonymous";
   const restored = loadQueryWorkspace(user);
   const [tabs, setTabs] = state<PersistedQueryTab[]>(restored.tabs);
@@ -163,7 +162,10 @@ export default function QueryPage() {
   }
 
   function renameTab(id: string, title: string) {
-    persist(renameWorkspaceTab(tabs(), id, title), activeTabId());
+    const currentTabs = tabs();
+    const nextTabs = renameWorkspaceTab(currentTabs, id, title);
+    if (nextTabs === currentTabs) return;
+    persist(nextTabs, activeTabId());
   }
 
   function openCreateDatabase() {

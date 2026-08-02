@@ -37,6 +37,18 @@ describe("query workspace orchestration", () => {
     expect(updated).toBe(renamed);
   });
 
+  it("should_leave_tabs_unchanged_given_a_blank_rename", () => {
+    // Arrange
+    const tabs = [firstTab];
+
+    // Act
+    const renamed = renameWorkspaceTab(tabs, firstTab.id, "   ");
+
+    // Assert
+    expect(renamed).toBe(tabs);
+    expect(renamed[0]?.title).toBe(firstTab.title);
+  });
+
   it("should_select_the_previous_tab_given_the_active_workspace_is_removed", () => {
     // Arrange
     const second = createWorkspaceTab([firstTab], "analytics", "", "query-2");

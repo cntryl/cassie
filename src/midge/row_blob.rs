@@ -421,15 +421,24 @@ impl<'a> RowDirectory<'a> {
             entries.insert(field_id, (type_tag, offset, len));
         }
         let payload = cursor.remaining();
+        let mut encoded_payload_len = 0usize;
         for (_, offset, len) in entries.values() {
-            if offset
-                .checked_add(*len)
-                .is_none_or(|end| end > payload.len())
-            {
+            let Some(end) = offset.checked_add(*len) else {
+                return Err(CassieError::Parse(
+                    "invalid row blob field bounds".to_string(),
+                ));
+            };
+            if end > payload.len() {
                 return Err(CassieError::Parse(
                     "invalid row blob field bounds".to_string(),
                 ));
             }
+            encoded_payload_len = encoded_payload_len.max(end);
+        }
+        if encoded_payload_len != payload.len() {
+            return Err(CassieError::Parse(
+                "row blob contains trailing bytes".to_string(),
+            ));
         }
         Ok(Self {
             presence,

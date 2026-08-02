@@ -53,7 +53,7 @@ fn should_parse_exact_database_connect_grant_forms() {
 }
 
 #[test]
-fn should_revalidate_active_sessions_across_idempotent_database_connect_changes() {
+fn should_revoke_live_database_access_given_a_connect_grant_removal() {
     // Arrange
     let cassie = cassie("live-revalidation");
     let admin = setup_reader(&cassie);

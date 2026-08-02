@@ -381,3 +381,43 @@ fn should_reject_invalid_bytea_payloads_for_row_blob_encoding() {
     // Assert
     assert!(result.is_err());
 }
+
+#[test]
+fn should_reject_row_encoding_with_trailing_bytes() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 42})).unwrap();
+    encoded.push(0xff);
+
+    // Act
+    let result = decode_row(&schema, &encoded);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
+fn should_reject_row_encoding_with_truncated_values() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 42})).unwrap();
+    encoded.pop();
+
+    // Act
+    let result = decode_row(&schema, &encoded);
+
+    // Assert
+    assert!(result.is_err());
+}

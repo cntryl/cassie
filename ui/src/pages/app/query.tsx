@@ -51,11 +51,16 @@ import {
 import { queryService } from "@/features/query/query-service";
 import { loadQueryWorkspace, type PersistedQueryTab } from "@/features/query/query-tabs";
 import { createQueryPersistenceCoordinator } from "@/features/query/query-persistence";
+import { QueryWorkspaceRegistry } from "@/features/query/query-workspace-registry";
+import {
+  createWorkspaceTab,
+  removeWorkspaceTab,
+  renameWorkspaceTab,
+  updateWorkspaceTab,
+} from "@/features/query/query-workspace-tabs";
 import { apiv1 } from "@/adapters";
 import { getSession } from "@/shared/auth";
 import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
-
-const defaultQuery = "SELECT 1 AS ready;";
 
 const schemaChangingCommandPrefixes = ["ALTER ", "CREATE ", "DROP "];
 export type DatabaseAvailability = "checking" | "available" | "unavailable" | "discovery-error";
@@ -67,10 +72,8 @@ function changesSchema(command: string) {
 const workspaceQueries = queryScope("query-workspace");
 const fetchDatabases = async ({ signal }: { signal?: AbortSignal }) =>
   unwrapResponse(await apiv1.listAdminDatabases({ signal }), "Unable to load databases");
-const controllers = new Map<string, { isBusy: () => boolean; cancel: () => Promise<void> }>();
-const activeWorkspaceReporters = new Map<string, (active: boolean) => void>();
-
 export default function QueryPage() {
+  const workspaceRegistry = new QueryWorkspaceRegistry();
   const user = getSession()?.user ?? "anonymous";
   const restored = loadQueryWorkspace(user);
   const [tabs, setTabs] = state<PersistedQueryTab[]>(restored.tabs);
@@ -139,14 +142,7 @@ export default function QueryPage() {
   }
 
   function createTab(database: string, requestedTitle = "") {
-    const ordinal = tabs().reduce((largest, tab) => Math.max(largest, tab.ordinal), 0) + 1;
-    const tab: PersistedQueryTab = {
-      id: crypto.randomUUID(),
-      ordinal,
-      title: requestedTitle.trim() || `Query ${ordinal}`,
-      database,
-      sql: defaultQuery,
-    };
+    const tab = createWorkspaceTab(tabs(), database, requestedTitle, crypto.randomUUID());
     databaseCatalogs.insert(database);
     void databaseCatalogs.activate(database);
     persist([...tabs(), tab], tab.id);
@@ -166,12 +162,10 @@ export default function QueryPage() {
   }
 
   function renameTab(id: string, title: string) {
-    const nextTitle = title.trim();
-    if (!nextTitle) return;
-    persist(
-      tabs().map((tab) => (tab.id === id ? { ...tab, title: nextTitle } : tab)),
-      activeTabId(),
-    );
+    const currentTabs = tabs();
+    const nextTabs = renameWorkspaceTab(currentTabs, id, title);
+    if (nextTabs === currentTabs) return;
+    persist(nextTabs, activeTabId());
   }
 
   function openCreateDatabase() {
@@ -184,25 +178,18 @@ export default function QueryPage() {
   }
 
   function updateSql(id: string, sql: string) {
-    const nextTabs = tabs().map((tab) => {
-      if (tab.id === id) tab.sql = sql;
-      return tab;
-    });
-    persist(nextTabs, activeTabId());
+    persist(updateWorkspaceTab(tabs(), id, { sql }), activeTabId());
   }
 
   function updateEditorSplit(id: string, editorSplitPercent: number) {
-    persist(
-      tabs().map((tab) => (tab.id === id ? { ...tab, editorSplitPercent } : tab)),
-      activeTabId(),
-    );
+    persist(updateWorkspaceTab(tabs(), id, { editorSplitPercent }), activeTabId());
   }
 
   function activateTab(id: string | null) {
     const database = tabs().find((tab) => tab.id === id)?.database;
     if (database) void databaseCatalogs.activate(database);
     setActiveTabId(id);
-    for (const [tabId, reportActive] of activeWorkspaceReporters) reportActive(tabId === id);
+    workspaceRegistry.activate(id);
     persist(tabs(), id);
     syncActiveDom(id);
   }
@@ -228,7 +215,7 @@ export default function QueryPage() {
 
   async function closeTab(tab: PersistedQueryTab) {
     persistence.flush(persistenceOperationId() || undefined);
-    const controller = controllers.get(tab.id);
+    const controller = workspaceRegistry.controller(tab.id);
     if (controller?.isBusy()) {
       try {
         await controller.cancel();
@@ -237,17 +224,12 @@ export default function QueryPage() {
         return;
       }
     }
-    const nextTabs = tabs().filter((candidate) => candidate.id !== tab.id);
-    const nextActive =
-      activeTabId() === tab.id
-        ? (nextTabs[Math.max(0, tabs().findIndex((candidate) => candidate.id === tab.id) - 1)]
-            ?.id ?? null)
-        : activeTabId();
-    persist(nextTabs, nextActive);
-    controllers.delete(tab.id);
+    const next = removeWorkspaceTab(tabs(), activeTabId(), tab.id);
+    persist(next.tabs, next.activeTabId);
+    workspaceRegistry.remove(tab.id);
     setCloseCandidate(null);
     requestAnimationFrame(() => {
-      if (nextActive) focusQuery(nextActive);
+      if (next.activeTabId) focusQuery(next.activeTabId);
       else document.getElementById("new-query-button")?.focus();
     });
   }
@@ -323,8 +305,10 @@ export default function QueryPage() {
             onSqlChange={(sql) => updateSql(tab.id, sql)}
             onEditorSplitChange={(percent) => updateEditorSplit(tab.id, percent)}
             onRuntimeChange={() => undefined}
-            onActiveRegister={(reporter) => activeWorkspaceReporters.set(tab.id, reporter)}
-            onRegister={(controller) => controllers.set(tab.id, controller)}
+            onActiveRegister={(reporter) =>
+              workspaceRegistry.registerActiveReporter(tab.id, reporter)
+            }
+            onRegister={(controller) => workspaceRegistry.registerController(tab.id, controller)}
             onCreateDatabase={openCreateDatabase}
             catalogs={catalogEntries}
             queries={tabs}
@@ -380,7 +364,7 @@ export default function QueryPage() {
                   <AlertDialogDescription>
                     “{closeCandidate()?.title}” will be permanently deleted from this browser. This
                     action cannot be undone
-                    {controllers.get(closeCandidate()?.id ?? "")?.isBusy()
+                    {workspaceRegistry.controller(closeCandidate()?.id ?? "")?.isBusy()
                       ? ", and its running operation will be cancelled first."
                       : "."}
                   </AlertDialogDescription>

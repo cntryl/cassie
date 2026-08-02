@@ -7,6 +7,10 @@
   overflow: auto;
 }
 
+.cassie-query-delete-icon {
+  color: var(--ak-color-danger);
+}
+
 .cassie-query-list {
   display: grid;
   gap: var(--ak-space-2, 0.5rem);

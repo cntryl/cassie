@@ -111,20 +111,6 @@
   overflow: auto;
 }
 
-/* A route component returning multiple top-level elements (e.g. a page that
-   renders a <Portal> and a fixed-position element alongside its <main>) gets
-   wrapped by askr in a synthetic, unstyled div with no explicit height. That
-   div otherwise breaks the block-size: 100% chain for anything inside it
-   (like .cassie-query-page), since percentage heights only resolve against a
-   parent with a *definite* size — the wrapper falls back to sizing itself to
-   content instead, letting pages with tall/short tab content grow or shrink
-   the whole shell instead of scrolling internally. Give it the same
-   full-height treatment as .cassie-admin-route-surface itself. */
-.cassie-admin-route-surface > div {
-  block-size: 100%;
-  min-block-size: 0;
-}
-
 @media (max-width: 48rem) {
   .cassie-admin-root {
     block-size: auto;

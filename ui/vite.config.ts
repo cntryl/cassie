@@ -2,7 +2,7 @@ import { askr } from "@askrjs/vite";
 import autoprefixer from "autoprefixer";
 import { defineConfig } from "vite-plus";
 
-import { mockAdminQueryApiPlugin } from "./dev/mock-admin-query-api";
+import { mockAdminQueryApiPlugin } from "./dev/mock-admin-query-api.js";
 
 const useMockApi = process.env.VITE_MOCK_API === "true";
 
@@ -71,7 +71,6 @@ const config = {
     },
   },
   resolve: {
-    dedupe: ["@askrjs/askr", "@askrjs/ui"],
     alias: [
       {
         find: "@",

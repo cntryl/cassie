@@ -77,7 +77,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |
 | REST | Secondary administrative and resource API | Experimental |
-| Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows. Blocked by `askrjs/askr#169` and `askrjs/askr-themes#25` until upstream fixes land. | Experimental |
+| Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows. Exact-package repository and mock-browser coverage is green; the real-Cassie production-browser rerun remains open. | Experimental |
 
 ## Intentional Limits
 

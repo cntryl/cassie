@@ -1,4 +1,24 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
+
+async function expandTables(page: Page, database: string, namespace: string) {
+  const databaseTree = page.locator(
+    `[data-testid="query-schema-tree-database"][data-database="${database}"]`,
+  );
+  const databaseToggle = databaseTree.locator(":scope > button");
+  if ((await databaseToggle.getAttribute("aria-expanded")) !== "true") {
+    await databaseToggle.click();
+  }
+  await expect(databaseTree).toHaveAttribute("data-load-state", "loaded");
+
+  const namespaceTree = databaseTree.locator(`[data-namespace="${namespace}"]`);
+  const namespaceToggle = namespaceTree.locator(":scope > button");
+  if ((await namespaceToggle.getAttribute("aria-expanded")) !== "true") {
+    await namespaceToggle.click();
+  }
+
+  const tables = namespaceTree.locator('[data-section="tables"]');
+  await tables.getByRole("button", { name: /^Tables / }).click();
+}
 
 test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ page }) => {
   const errors: string[] = [];
@@ -17,6 +37,7 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   await page.getByRole("option", { name: "Database1" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
   await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
+  await expandTables(page, "Database1", "public");
   await expect(page.getByTestId("query-schema-tree")).toContainText("customers");
   await expect(page.getByTestId("query-schema-tree")).toContainText("orders");
   await expect(page.getByTestId("query-schema-tree")).toContainText("reporting");
@@ -39,6 +60,8 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   await page.getByRole("option", { name: "Database2" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
   await expect(page.getByRole("button", { name: /Query 2 Database2/ })).toBeVisible();
+  await expandTables(page, "Database2", "inventory");
+  await expandTables(page, "Database2", "support");
   await expect(page.getByTestId("query-schema-tree")).toContainText("warehouses");
   await expect(page.getByTestId("query-schema-tree")).toContainText("tickets");
   await expect(page.getByTestId("query-schema-tree")).toContainText("inventory");
@@ -80,8 +103,9 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   expect(errors).toEqual([]);
 });
 
-test("should_keep_the_database_tree_visible_and_create_a_database", async ({ page }) => {
+test("should_keep_the_database_tree_visible_and_create_a_database", async ({ page }, testInfo) => {
   // Arrange
+  const databaseName = `reporting_${testInfo.project.name.replace(/-/g, "_")}`;
   await page.goto("/login");
   await page.getByLabel("Username").fill("root");
   await page.getByLabel("Password").fill("pwd123");
@@ -94,8 +118,6 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
   await expect(tree).toBeVisible();
   await expect(tree.getByText("Database1", { exact: true })).toBeVisible();
   await expect(tree.getByText("Database2", { exact: true })).toBeVisible();
-  await expect(tree.getByText("customers", { exact: true })).toBeVisible();
-  await expect(tree.getByText("warehouses", { exact: true })).toBeVisible();
   await expect(page.locator(".cassie-admin-header")).toHaveCount(0);
   await expect(sidebar.getByLabel("Cassie admin home")).toBeVisible();
   await expect(sidebarFooter.getByLabel("Toggle color theme")).toBeVisible();
@@ -112,8 +134,12 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
   }
 
   await tree.getByRole("button", { name: "Create database" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   const viewport = page.viewportSize();
-  const dialogBounds = await page.getByRole("dialog").boundingBox();
+  const dialogBounds = await dialog.boundingBox();
   expect(viewport).not.toBeNull();
   expect(dialogBounds).not.toBeNull();
   if (viewport && dialogBounds) {
@@ -122,7 +148,7 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
       2,
     );
   }
-  await page.getByLabel("Database name").fill("reporting");
+  await page.getByLabel("Database name").fill(databaseName);
   const response = page.waitForResponse(
     (candidate) =>
       candidate.url().includes("/api/v1/admin/databases") &&
@@ -132,8 +158,8 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
 
   // Assert
   expect((await response).status()).toBe(201);
-  await expect(page.getByRole("button", { name: /Query 1 reporting/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Query 1 ${databaseName}` })).toBeVisible();
   await expect(
-    tree.locator(".cassie-query-schema-database-label", { hasText: "reporting" }),
+    tree.locator(".cassie-query-schema-database-label", { hasText: databaseName }),
   ).toBeVisible();
 });

@@ -29,7 +29,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
-- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The current exact-package run is blocked by [askrjs/askr#169](https://github.com/askrjs/askr/issues/169) and [askrjs/askr-themes#25](https://github.com/askrjs/askr-themes/issues/25). Rerun the complete UI gate after both upstream fixes before treating this as release evidence for the Admin UI's Experimental status.
+- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.0.84` and Askr UI `0.0.23` package run clears the former control-boundary and theme blockers in repository tests and mock-browser coverage. A complete real-Cassie browser rerun remains required before treating that evidence as release evidence for the Admin UI's Experimental status.
 
 ## Production Candidate Support Envelope
 
@@ -41,8 +41,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 ## Remaining Production Blockers
 
-- Resolve [askrjs/askr#169](https://github.com/askrjs/askr/issues/169), [askrjs/askr-themes#25](https://github.com/askrjs/askr-themes/issues/25), and [Documentation/readiness: Track Admin UI browser-audit remediation at 89dbc52](https://github.com/cntryl/cassie/issues/49) before treating this as an unblocked production-ready candidate. Until both upstream issues resolve, keep the Admin UI at Experimental readiness, not Stable.
-  The current Askr control-boundary regression can retain empty or collapsed branches and duplicate the first query workspace; Cassie does not carry a consumer workaround.
+- Complete [Documentation/readiness: Track Admin UI browser-audit remediation at 89dbc52](https://github.com/cntryl/cassie/issues/49), including the real-Cassie production-browser rerun, before treating the Admin UI as an unblocked production-ready candidate.
 - Database-image checksums detect content changes but do not authenticate who produced an image.
   Operators must follow the detached-signature and trusted-identity procedure in
   [Snapshot, Backup, Restore, and Repair](snapshot-restore.md) before streaming an image from an

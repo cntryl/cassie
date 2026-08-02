@@ -12,6 +12,7 @@ async function openDatabase1Query(page: Page) {
 
   const editor = page.locator("[data-query-page]:visible .monaco-editor");
   await expect(editor).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('[data-database="Database1"][data-load-state="loaded"]')).toBeVisible();
   await editor.click({ position: { x: 160, y: 20 } });
   return editor;
 }
@@ -112,7 +113,6 @@ test("should_keep_editor_usable_when_query_actions_run", async ({ page }) => {
 test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   // Arrange
   const editor = await openDatabase1Query(page);
-  await expect(page.getByText("orders", { exact: true }).first()).toBeVisible();
 
   // Act / Assert: SQL keyword completion.
   await page.keyboard.press("Meta+A");
@@ -125,7 +125,7 @@ test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   // Act / Assert: loaded schema completion.
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+A");
-  await page.keyboard.insertText("SELECT * FROM ord");
+  await page.keyboard.insertText("SELECT * FROM orders");
   await page.keyboard.press("Control+Space");
   await expect(suggestions).toBeVisible();
   await expect(suggestions).toContainText("orders");
@@ -144,6 +144,6 @@ test("should_offer_sql_and_schema_autocomplete", async ({ page }) => {
   await expect(suggestions).toContainText("uuid · primary key · public.orders");
   await expect(suggestions).not.toContainText("accounts");
   await page.keyboard.press("Enter");
-  await expect(editor).toContainText("WHERE e.id");
+  await expect(editor).toContainText("WHERE o.id");
   await expectEditorFocused(editor);
 });

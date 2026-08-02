@@ -153,8 +153,7 @@ pub(super) fn create_database(
     cassie: &Cassie,
     statement: &CreateDatabaseStatement,
 ) -> Result<QueryResult, QueryError> {
-    let _database =
-        cassie.create_logical_database(&statement.name, statement.if_not_exists)?;
+    let _database = cassie.create_logical_database(&statement.name, statement.if_not_exists)?;
 
     Ok(empty_command("CREATE DATABASE"))
 }

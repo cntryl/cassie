@@ -492,65 +492,12 @@ function QueryWorkspace({
     onRuntimeChange({ dirty, phase, outcome, unread: !isActive() && outcome !== "none", message });
   }
 
-  // Plain closure state, not state() — this timer id is never rendered, only
-  // read inside the handlers below, so making it reactive would just force a
-  // needless extra re-render on every show/dismiss.
-  let validationToastTimer: ReturnType<typeof setTimeout> | null = null;
-  let isValidationToastSuspended = false;
-
-  function clearValidationToastTimer() {
-    if (validationToastTimer !== null) {
-      clearTimeout(validationToastTimer);
-      validationToastTimer = null;
-    }
-  }
-
-  function scheduleValidationToastDismiss() {
-    clearValidationToastTimer();
-    if (isValidationToastSuspended) {
-      return;
-    }
-    validationToastTimer = setTimeout(() => {
-      validationToastTimer = null;
-      setValidationToast(null);
-    }, 4000);
-  }
-
   function showValidationToast(toast: QueryValidationToastData) {
     setValidationToast(toast);
-    scheduleValidationToastDismiss();
   }
 
   function dismissValidationToast() {
-    clearValidationToastTimer();
     setValidationToast(null);
-  }
-
-  // Pause the auto-dismiss while the toast is hovered or has focus (e.g. on
-  // its dismiss button) so it can't disappear out from under a user who's
-  // still reading or interacting with it, then resume the countdown once
-  // they leave — otherwise a screen-reader user tabbing to the dismiss
-  // button could have the toast vanish mid-interaction.
-  function suspendValidationToastTimer() {
-    isValidationToastSuspended = true;
-    clearValidationToastTimer();
-  }
-
-  function resumeValidationToastTimer() {
-    isValidationToastSuspended = false;
-    if (validationToast() !== null) {
-      scheduleValidationToastDismiss();
-    }
-  }
-
-  // askr has no onUnmount/onCleanup hook; the established pattern in this
-  // codebase (see monaco-sql-editor.tsx's mountEditor) is a ref callback that
-  // fires with null on unmount. Used here only to stop a pending toast timer
-  // from firing against a torn-down page.
-  function handleMainRef(node: HTMLElement | null) {
-    if (node === null) {
-      clearValidationToastTimer();
-    }
   }
 
   const getSchemaDatabases = () => {
@@ -833,8 +780,6 @@ function QueryWorkspace({
       <QueryValidationToast
         toast={isActive() ? validationToast() : null}
         onDismiss={dismissValidationToast}
-        onPause={suspendValidationToastTimer}
-        onResume={resumeValidationToastTimer}
       />
 
       <section
@@ -844,7 +789,6 @@ function QueryWorkspace({
         id={`query-workspace-${tab.id}`}
         role="region"
         aria-labelledby={`query-workspace-title-${tab.id}`}
-        ref={handleMainRef}
         hidden={!isActive()}
         style={{ display: isActive() ? undefined : "none" }}
       >

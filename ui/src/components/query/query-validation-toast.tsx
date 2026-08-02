@@ -1,4 +1,11 @@
-import { Alert } from "@askrjs/themes/components";
+import {
+  Toast,
+  ToastClose,
+  ToastDescription,
+  ToastHost,
+  ToastTitle,
+  ToastViewport,
+} from "@askrjs/themes/components";
 
 export type QueryValidationToastVariant = "success" | "warning" | "danger";
 
@@ -11,45 +18,21 @@ export interface QueryValidationToastData {
 export interface QueryValidationToastProps {
   toast: QueryValidationToastData | null;
   onDismiss: () => void;
-  onPause: () => void;
-  onResume: () => void;
 }
 
-// A thin positioned wrapper around <Alert> rather than askr-themes' <Toast>
-// primitive: mounting <Toast> anywhere alongside an askr <Portal> (as this
-// page already has, for the schema tree) throws the render scheduler into an
-// infinite update loop — reproduced in isolation down to <Toast open={false}>
-// plus a sibling/ancestor <Portal>, independent of any app logic. Filed
-// upstream; swap back once fixed. <Alert> is a separate, unaffected
-// component that already renders variant-colored title/description/dismiss
-// markup, so it's reused here instead of hand-rolling the same thing again.
-// Upstream: https://github.com/askrjs/askr-themes/issues/13
-export function QueryValidationToast({
-  toast,
-  onDismiss,
-  onPause,
-  onResume,
-}: QueryValidationToastProps) {
+export function QueryValidationToast({ toast, onDismiss }: QueryValidationToastProps) {
   return (
-    <div
-      class="cassie-query-validation-toast"
-      data-testid="query-validation-toast"
-      data-variant={toast?.variant}
-      hidden={toast === null}
-      onMouseEnter={onPause}
-      onMouseLeave={onResume}
-      onFocusIn={onPause}
-      onFocusOut={onResume}
-    >
+    <ToastHost>
+      <ToastViewport />
       {toast ? (
-        <Alert
-          variant={toast.variant}
-          title={toast.title}
-          description={toast.description}
-          dismissLabel="Dismiss notification"
-          onDismiss={onDismiss}
-        />
+        <Toast id="query-validation-toast" open variant={toast.variant}>
+          <ToastTitle>{toast.title}</ToastTitle>
+          <ToastDescription>{toast.description}</ToastDescription>
+          <ToastClose aria-label="Dismiss notification" onPress={onDismiss}>
+            Dismiss
+          </ToastClose>
+        </Toast>
       ) : null}
-    </div>
+    </ToastHost>
   );
 }

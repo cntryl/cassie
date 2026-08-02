@@ -7,11 +7,6 @@ import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-con
 import type { QuerySchemaDatabase } from "@/features/query/query-models";
 import { createTestRouteRegistry } from "./support/test-route-registry";
 
-// Mounted in isolation (not through QueryPage's <Portal>) so these tests are
-// unaffected by the pre-existing askr Portal-duplication issue that can
-// otherwise put two schema-tree instances in the DOM once an async schema
-// fetch resolves after initial mount. See project memory / askrjs/askr for
-// that separate, already-reported issue.
 const schema: QuerySchemaDatabase[] = [
   {
     id: "postgres",

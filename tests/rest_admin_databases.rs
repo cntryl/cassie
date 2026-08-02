@@ -50,12 +50,7 @@ async fn stop_rest_server(
     let _ = server.await;
 }
 
-async fn login_cookie(
-    client: &Client,
-    base_url: &str,
-    username: &str,
-    password: &str,
-) -> String {
+async fn login_cookie(client: &Client, base_url: &str, username: &str, password: &str) -> String {
     client
         .post(format!("{base_url}/api/v1/auth/login"))
         .json(&serde_json::json!({
@@ -245,8 +240,7 @@ fn should_require_admin_authorization_to_create_database() {
     runtime.block_on(async {
         let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
         let client = Client::new();
-        let reader_cookie =
-            login_cookie(&client, &base_url, "reader", "reader-secret").await;
+        let reader_cookie = login_cookie(&client, &base_url, "reader", "reader-secret").await;
 
         // Act
         let unauthorized = client

@@ -286,7 +286,9 @@ describe("admin query page composition", () => {
     buttonByText(root, "Run").click();
     await waitForText(root, "1 row");
     expect(root.textContent).not.toContain("Command");
-    expect(root.querySelector('[aria-label="Executed command"]')?.textContent).toBe("SELECT");
+    expect(root.querySelector(".cassie-query-execution-summary-command")?.textContent).toBe(
+      "SELECT",
+    );
     expect(root.textContent).toContain("1 row");
 
     updateEditor(root, "SELECT id FROM documents;");
@@ -301,11 +303,10 @@ describe("admin query page composition", () => {
     buttonByText(root, "Validate").click();
     await waitForText(root, "Validation failed");
 
-    const toast = root.querySelector('[data-testid="query-validation-toast"]');
+    const toast = root.querySelector('[data-slot="toast"]');
     if (!(toast instanceof HTMLElement)) {
       throw new Error("Missing validation toast");
     }
-    expect(toast.hidden).toBe(false);
     expect(toast.getAttribute("data-variant")).toBe("danger");
     expect(toast.textContent).toContain('syntax error at or near "SELET"');
   });
@@ -317,11 +318,10 @@ describe("admin query page composition", () => {
     buttonByText(root, "Validate").click();
     await waitForText(root, "Validation passed");
 
-    const toast = root.querySelector('[data-testid="query-validation-toast"]');
+    const toast = root.querySelector('[data-slot="toast"]');
     if (!(toast instanceof HTMLElement)) {
       throw new Error("Missing validation toast");
     }
-    expect(toast.hidden).toBe(false);
     expect(toast.getAttribute("data-variant")).toBe("success");
 
     const dismissButton = toast.querySelector('button[aria-label="Dismiss notification"]');
@@ -330,7 +330,7 @@ describe("admin query page composition", () => {
     }
     dismissButton.click();
     await flushUi();
-    expect(toast.hidden).toBe(true);
+    expect(root.querySelector('[data-slot="toast"]')).toBeNull();
   });
 
   it("should_expose_keyboard_resizing_for_split_handles", async () => {

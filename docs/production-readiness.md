@@ -29,7 +29,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
-- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.0.85` and Askr UI `0.0.23` package run clears the former control-boundary and theme blockers with 101 repository tests, 18 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases passing together. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
+- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.0.85` and Askr UI `0.0.24` package run clears the former control-boundary and theme blockers with 102 repository tests, 18 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases passing together. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
 
 ## Production Candidate Support Envelope
 

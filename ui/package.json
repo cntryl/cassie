@@ -27,7 +27,7 @@
     "@askrjs/lucide": "0.0.6",
     "@askrjs/monaco": "0.0.6",
     "@askrjs/themes": "0.0.19",
-    "@askrjs/ui": "0.0.23",
+    "@askrjs/ui": "0.0.24",
     "@askrjs/vite": "0.0.11",
     "monaco-editor": "0.56.0"
   },

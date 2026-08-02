@@ -15,14 +15,24 @@ pub(super) fn validate_transport_tls_policy(
         config.rest_tls_key_file.as_ref(),
         CassieRuntimeConfigError::RestTlsPair,
     )?;
+    let pgwire_address = config.pgwire_listen.parse::<SocketAddr>().map_err(|_| {
+        CassieRuntimeConfigError::InvalidPgwireListener {
+            listener: config.pgwire_listen.clone(),
+        }
+    })?;
+    let rest_address = config.rest_listen.parse::<SocketAddr>().map_err(|_| {
+        CassieRuntimeConfigError::InvalidRestListener {
+            listener: config.rest_listen.clone(),
+        }
+    })?;
     if !config.allow_insecure_non_loopback_listen {
-        require_tls_for_non_loopback(
-            &config.pgwire_listen,
+        require_tls_for_address(
+            pgwire_address,
             config.pgwire_tls_cert_file.is_some(),
             |listener| CassieRuntimeConfigError::PgwireTlsRequired { listener },
         )?;
-        require_tls_for_non_loopback(
-            &config.rest_listen,
+        require_tls_for_address(
+            rest_address,
             config.rest_tls_cert_file.is_some(),
             |listener| CassieRuntimeConfigError::RestTlsRequired { listener },
         )?;
@@ -73,21 +83,6 @@ fn validate_pair<T: ?Sized>(
         Ok(())
     } else {
         Err(error)
-    }
-}
-
-fn require_tls_for_non_loopback(
-    listener: &str,
-    tls_configured: bool,
-    error: impl FnOnce(String) -> CassieRuntimeConfigError,
-) -> Result<(), CassieRuntimeConfigError> {
-    let Ok(address) = listener.parse::<SocketAddr>() else {
-        return Ok(());
-    };
-    if address.ip().is_loopback() || tls_configured {
-        Ok(())
-    } else {
-        Err(error(listener.to_string()))
     }
 }
 

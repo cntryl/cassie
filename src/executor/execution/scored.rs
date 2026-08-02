@@ -206,7 +206,12 @@ fn score_fulltext_top_k_candidates(
         }
         handles
             .into_iter()
-            .map(|handle| handle.join().expect("parallel scoring worker"))
+            .map(|handle| {
+                crate::executor::worker::join_scoped_worker(
+                    handle,
+                    "parallel scoring worker panicked",
+                )?
+            })
             .collect::<Result<Vec<_>, QueryError>>()
     })?;
 

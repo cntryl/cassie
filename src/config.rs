@@ -45,6 +45,12 @@ pub enum CassieRuntimeConfigError {
 
     #[error("pgwire TLS is required for non-loopback listener '{listener}'")]
     PgwireTlsRequired { listener: String },
+
+    #[error("pgwire listener '{listener}' is not a valid socket address")]
+    InvalidPgwireListener { listener: String },
+
+    #[error("REST listener '{listener}' is not a valid socket address")]
+    InvalidRestListener { listener: String },
 }
 
 #[derive(Debug, Clone)]
@@ -657,6 +663,43 @@ mod tests {
         assert!(config.allow_insecure_non_loopback_listen);
         assert!(config.pgwire_tls_cert_file.is_none());
         assert!(config.rest_tls_cert_file.is_none());
+    }
+
+    #[test]
+    fn should_reject_invalid_pgwire_listener() {
+        // Arrange
+        let values = HashMap::from([("CASSIE_PGWIRE_LISTEN", "localhost:5432")]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("pgwire listener must be a literal socket address");
+
+        // Assert
+        assert!(matches!(
+            error,
+            CassieRuntimeConfigError::InvalidPgwireListener { listener }
+                if listener == "localhost:5432"
+        ));
+    }
+
+    #[test]
+    fn should_reject_invalid_rest_listener_with_insecure_override() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_REST_LISTEN", "localhost:8080"),
+            ("CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN", "1"),
+        ]);
+
+        // Act
+        let error = CassieRuntimeConfig::from_env_reader(env_reader(values))
+            .expect_err("REST listener must be parsed despite the insecure override");
+
+        // Assert
+        assert!(matches!(
+            error,
+            CassieRuntimeConfigError::InvalidRestListener { listener }
+                if listener == "localhost:8080"
+        ));
     }
 
     #[test]

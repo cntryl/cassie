@@ -28,6 +28,11 @@ source code.
 | `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN` | Boolean | `false` | Allows a plaintext non-loopback listener only for a trusted private hop behind a TLS terminator. |
 | `CASSIE_ADMIN_UI_DIR` | Directory path | `./ui/dist` | Directory containing the built Admin UI assets. |
 
+Listener values must be literal socket addresses such as `127.0.0.1:5432`,
+`0.0.0.0:8080`, or `[::1]:5432`. Hostnames are not supported, and malformed
+listener values fail startup configuration preflight even when insecure
+non-loopback listeners are explicitly allowed.
+
 Non-loopback listeners fail closed unless their transport is protected by
 Cassie TLS or `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=true` explicitly
 declares a trusted private hop. The default `postgres` bootstrap password is

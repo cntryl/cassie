@@ -8,6 +8,7 @@ pub mod projection;
 pub mod scan;
 pub(crate) mod semantic;
 pub mod sort;
+mod worker;
 
 pub use aggregate::columns_from_projection;
 

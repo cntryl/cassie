@@ -146,9 +146,10 @@ fn aggregate_query_batches_parallel(
             .collect::<Vec<_>>()
             .into_iter()
             .map(|handle| {
-                handle.join().map_err(|_| {
-                    QueryError::General("parallel aggregation worker panicked".into())
-                })?
+                crate::executor::worker::join_scoped_worker(
+                    handle,
+                    "parallel aggregation worker panicked",
+                )?
             })
             .collect::<Result<Vec<_>, QueryError>>()
     })?;

@@ -1,6 +1,7 @@
 use crate::app::{Cassie, CassieError, CassieSession, SessionRowCursor};
 use crate::catalog::{CollectionSchema, IndexKind};
 use crate::executor::batch::{Batch, BatchRow, BatchStream, DEFAULT_BATCH_SIZE};
+use crate::executor::QueryError;
 use crate::midge::adapter::RowFilter;
 use crate::midge::adapter::{
     ColumnBatchScanDecision, ColumnBatchScanFilter, ControlledColumnBatchScanRequest, DocumentRef,
@@ -182,7 +183,7 @@ pub(crate) fn scan_limit(
     cassie.runtime.record_storage_access("data", false, true);
     let schema = cassie.catalog.get_schema(collection);
 
-    let batches = document_batches_to_rows(cassie, document_batches, schema.as_ref());
+    let batches = document_batches_to_rows(cassie, document_batches, schema.as_ref())?;
     let _memory = controls.reserve_query_memory(
         batches
             .iter()
@@ -253,7 +254,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
             request.fields,
             request.document_filter,
             schema.as_ref(),
-        );
+        )?;
         if has_session_changes
             && has_covering_column_index(cassie, request.collection, request.fields)
         {
@@ -293,7 +294,7 @@ pub(crate) fn scan_projected_filtered_with_timings(
         request.fields,
         request.document_filter,
         schema.as_ref(),
-    );
+    )?;
     if has_session_changes && has_covering_column_index(cassie, request.collection, request.fields)
     {
         let rows = batches.iter().map(Vec::len).sum::<usize>();
@@ -338,7 +339,7 @@ pub(crate) fn try_controlled_column_batch_scan(
                 request.fields,
                 request.document_filter,
                 schema.as_ref(),
-            );
+            )?;
             timings.scan += materialize_started.elapsed();
             let rows = batches.iter().map(Vec::len).sum::<usize>();
             cassie
@@ -506,22 +507,22 @@ fn document_batches_to_rows(
     cassie: &Cassie,
     document_batches: Vec<Vec<DocumentRef>>,
     schema: Option<&CollectionSchema>,
-) -> Vec<Batch> {
+) -> Result<Vec<Batch>, QueryError> {
     let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
     if worker_limit == 1 || document_batches.len() < 2 {
         cassie.runtime.record_parallel_scan_fallback();
-        return document_batches
+        return Ok(document_batches
             .into_iter()
             .map(|documents| document_batch_to_rows(documents, schema))
-            .collect();
+            .collect());
     }
 
     let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
         cassie.runtime.record_parallel_scan_fallback();
-        return document_batches
+        return Ok(document_batches
             .into_iter()
             .map(|documents| document_batch_to_rows(documents, schema))
-            .collect();
+            .collect());
     };
     let workers = worker_guard.workers().min(document_batches.len());
     let partitions = partition_document_batches(document_batches, workers);
@@ -537,15 +538,20 @@ fn document_batches_to_rows(
         }
         handles
             .into_iter()
-            .flat_map(|handle| handle.join().expect("parallel scan worker"))
-            .collect::<Vec<_>>()
-    });
+            .map(|handle| {
+                super::worker::join_scoped_worker(handle, "parallel scan worker panicked")
+            })
+            .collect::<Result<Vec<_>, QueryError>>()
+    })?
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
     indexed.sort_by_key(|(index, _)| *index);
     let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
     cassie
         .runtime
         .record_parallel_scan(workers, indexed.len(), rows);
-    indexed.into_iter().map(|(_, batch)| batch).collect()
+    Ok(indexed.into_iter().map(|(_, batch)| batch).collect())
 }
 
 fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&CollectionSchema>) -> Batch {
@@ -586,30 +592,30 @@ fn projected_document_batches_to_rows(
     fields: &[String],
     document_filter: Option<&ProjectedDocumentFilter>,
     schema: Option<&CollectionSchema>,
-) -> Vec<Batch> {
+) -> Result<Vec<Batch>, QueryError> {
     let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
     if worker_limit == 1 || document_batches.len() < 2 {
         cassie.runtime.record_parallel_scan_fallback();
-        return document_batches
+        return Ok(document_batches
             .into_iter()
             .filter_map(|documents| {
                 let rows =
                     projected_document_batch_to_rows(documents, fields, document_filter, schema);
                 (!rows.is_empty()).then_some(rows)
             })
-            .collect();
+            .collect());
     }
 
     let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
         cassie.runtime.record_parallel_scan_fallback();
-        return document_batches
+        return Ok(document_batches
             .into_iter()
             .filter_map(|documents| {
                 let rows =
                     projected_document_batch_to_rows(documents, fields, document_filter, schema);
                 (!rows.is_empty()).then_some(rows)
             })
-            .collect();
+            .collect());
     };
     let workers = worker_guard.workers().min(document_batches.len());
     let partitions = partition_document_batches(document_batches, workers);
@@ -635,18 +641,23 @@ fn projected_document_batches_to_rows(
         }
         handles
             .into_iter()
-            .flat_map(|handle| handle.join().expect("parallel projected scan worker"))
-            .collect::<Vec<_>>()
-    });
+            .map(|handle| {
+                super::worker::join_scoped_worker(handle, "parallel projected scan worker panicked")
+            })
+            .collect::<Result<Vec<_>, QueryError>>()
+    })?
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
     indexed.sort_by_key(|(index, _)| *index);
     let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
     cassie
         .runtime
         .record_parallel_scan(workers, indexed.len(), rows);
-    indexed
+    Ok(indexed
         .into_iter()
         .filter_map(|(_, batch)| (!batch.is_empty()).then_some(batch))
-        .collect()
+        .collect())
 }
 
 fn partition_document_batches(

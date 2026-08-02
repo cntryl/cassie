@@ -110,6 +110,9 @@ mod tests {
         check_document_write_failure_point, set_document_write_failure_point,
         DocumentWriteFailurePoint,
     };
+    use crate::midge::adapter::{
+        check_index_publication_failure_point, set_index_publication_failure_point,
+    };
 
     #[test]
     fn should_isolate_document_write_failure_points_by_test_thread() {
@@ -138,5 +141,33 @@ mod tests {
             .expect_err("armed thread should consume its failpoint")
             .to_string()
             .contains("time-series-index"));
+    }
+
+    #[test]
+    fn should_isolate_index_publication_failure_points_by_test_thread() {
+        // Arrange
+        let armed = Arc::new(Barrier::new(2));
+        let checked = Arc::new(Barrier::new(2));
+        let worker_armed = Arc::clone(&armed);
+        let worker_checked = Arc::clone(&checked);
+        let worker = std::thread::spawn(move || {
+            set_index_publication_failure_point(true);
+            worker_armed.wait();
+            worker_checked.wait();
+            check_index_publication_failure_point()
+        });
+        armed.wait();
+
+        // Act
+        let unrelated = check_index_publication_failure_point();
+        checked.wait();
+        let injected = worker.join().expect("failpoint worker");
+
+        // Assert
+        assert!(unrelated.is_ok());
+        assert!(injected
+            .expect_err("armed thread should consume its failpoint")
+            .to_string()
+            .contains("index publication"));
     }
 }

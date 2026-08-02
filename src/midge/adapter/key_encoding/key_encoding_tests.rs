@@ -36,6 +36,53 @@ fn should_build_prefix_that_matches_only_child_keys() {
 }
 
 #[test]
+fn should_distinguish_scoped_keys_given_database_schema_and_collection_names_containing_delimiters()
+{
+    // Arrange
+    let name = r#"tenant."reporting.v2"."events.2026""#;
+
+    // Act
+    let database = database_key(name);
+    let namespace = namespace_key(name);
+    let collection = collection_schema_key(name);
+
+    // Assert
+    assert_ne!(database, namespace);
+    assert_ne!(namespace, collection);
+    assert_ne!(database, collection);
+}
+
+#[test]
+fn should_preserve_key_scope_given_unicode_and_case_variants() {
+    // Arrange
+    let lowercase = collection_schema_key("tenant.public.cafe");
+    let uppercase = collection_schema_key("tenant.public.CAFE");
+    let unicode = collection_schema_key("tenant.public.café");
+
+    // Act
+    let distinct = lowercase != uppercase && lowercase != unicode && uppercase != unicode;
+
+    // Assert
+    assert!(distinct);
+}
+
+#[test]
+fn should_not_cross_collection_boundaries_during_prefix_scans() {
+    // Arrange
+    let orders_prefix = index_collection_prefix("tenant.public.orders");
+    let orders_key = index_key("tenant.public.orders", "created_at_idx");
+    let archive_key = index_key("tenant.public.orders_archive", "created_at_idx");
+
+    // Act
+    let includes_child = orders_key.starts_with(&orders_prefix);
+    let includes_sibling = archive_key.starts_with(&orders_prefix);
+
+    // Assert
+    assert!(includes_child);
+    assert!(!includes_sibling);
+}
+
+#[test]
 fn should_preserve_scalar_value_ordering() {
     // Arrange
     let values = vec![

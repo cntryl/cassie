@@ -64,7 +64,7 @@ fn should_preserve_table_given_mismatched_if_not_exists_definition() {
 }
 
 #[test]
-fn should_preserve_index_metadata_given_mismatched_if_not_exists_definition() {
+fn should_preserve_idempotent_ddl_given_repeated_create_index_if_not_exists() {
     // Arrange
     use_local_storage();
     let path = data_dir("index");

@@ -6,7 +6,7 @@ fn magnitude(values: &[f32]) -> f32 {
 }
 
 #[test]
-fn should_produce_deterministic_local_document_embeddings() {
+fn should_generate_identical_local_embeddings_given_identical_input_and_configuration() {
     // Arrange
     let provider = LocalProvider::with_config(LocalProviderConfig {
         model: "cassie-local-hash-v1".to_string(),
@@ -35,7 +35,7 @@ fn should_produce_deterministic_local_document_embeddings() {
 }
 
 #[test]
-fn should_normalize_local_embeddings_to_unit_length() {
+fn should_normalize_non_zero_local_embeddings_to_unit_length() {
     // Arrange
     let provider = LocalProvider::with_config(LocalProviderConfig {
         model: "cassie-local-hash-v1".to_string(),
@@ -75,4 +75,37 @@ fn should_distinguish_local_query_embeddings_from_document_embeddings() {
     assert_ne!(document.values, query.values);
     assert_eq!(document.values.len(), 12);
     assert_eq!(query.values.len(), 12);
+}
+
+#[test]
+fn should_handle_empty_local_embedding_input() {
+    // Arrange
+    let provider = LocalProvider::with_config(LocalProviderConfig {
+        model: "cassie-local-hash-v1".to_string(),
+        dimensions: 8,
+    })
+    .expect("provider should configure");
+
+    // Act
+    let embeddings = provider
+        .embed_documents(&[])
+        .expect("empty embedding batch should succeed");
+
+    // Assert
+    assert!(embeddings.is_empty());
+}
+
+#[test]
+fn should_reject_invalid_local_embedding_dimensions() {
+    // Arrange
+    let invalid_dimensions = 0;
+
+    // Act
+    let result = LocalProvider::with_config(LocalProviderConfig {
+        model: "cassie-local-hash-v1".to_string(),
+        dimensions: invalid_dimensions,
+    });
+
+    // Assert
+    assert!(result.is_err());
 }

@@ -21,18 +21,18 @@
     "fmt": "vp fmt . --ignore-path .oxfmtignore"
   },
   "dependencies": {
-    "@askrjs/askr": "0.0.84",
+    "@askrjs/askr": "0.0.85",
     "@askrjs/auth": "0.0.7",
     "@askrjs/fetch": "0.0.2",
     "@askrjs/lucide": "0.0.6",
     "@askrjs/monaco": "0.0.6",
     "@askrjs/themes": "0.0.19",
     "@askrjs/ui": "0.0.23",
-    "@askrjs/vite": "0.0.10",
+    "@askrjs/vite": "0.0.11",
     "monaco-editor": "0.56.0"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.0.17",
+    "@askrjs/cli": "0.0.18",
     "@axe-core/playwright": "4.12.1",
     "@playwright/test": "1.62.1",
     "@types/node": "^26.1.2",

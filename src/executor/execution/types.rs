@@ -82,7 +82,30 @@ impl ExecutionBreakdownDurations {
 }
 
 fn duration_micros(duration: Duration) -> u64 {
-    duration.as_micros().try_into().unwrap_or(u64::MAX)
+    if duration.is_zero() {
+        return 0;
+    }
+    duration.as_micros().try_into().unwrap_or(u64::MAX).max(1)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::duration_micros;
+
+    #[test]
+    fn should_report_sub_microsecond_execution_stages_as_one_microsecond() {
+        // Arrange
+        let measured = Duration::from_nanos(1);
+
+        // Act
+        let micros = duration_micros(measured);
+
+        // Assert
+        assert_eq!(micros, 1);
+        assert_eq!(duration_micros(Duration::ZERO), 0);
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

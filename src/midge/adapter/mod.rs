@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::path::Path;
@@ -44,12 +45,15 @@ static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static ROLLUP_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static INDEX_PUBLICATION_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static INDEX_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_ADD_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
 static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
+
+thread_local! {
+    static INDEX_PUBLICATION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+}
 
 #[derive(Default)]
 struct ColumnBatchOperationalMetrics {
@@ -122,11 +126,11 @@ pub(crate) fn check_collection_drop_failure_point() -> Result<(), CassieError> {
 
 #[doc(hidden)]
 pub fn set_index_publication_failure_point(enabled: bool) {
-    INDEX_PUBLICATION_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    INDEX_PUBLICATION_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_index_publication_failure_point() -> Result<(), CassieError> {
-    if INDEX_PUBLICATION_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if INDEX_PUBLICATION_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during index publication".to_string(),
         ));

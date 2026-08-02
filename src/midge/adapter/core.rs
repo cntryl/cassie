@@ -352,6 +352,16 @@ mod tests {
         );
         assert_eq!(midge.write_options_sync(), WriteOptions::cloud_async());
         drop(midge);
-        std::fs::remove_dir_all(cache).expect("remove cloud cache");
+        for attempt in 0..10 {
+            match std::fs::remove_dir_all(&cache) {
+                Ok(()) => break,
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::DirectoryNotEmpty && attempt < 9 =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(error) => panic!("remove cloud cache: {error}"),
+            }
+        }
     }
 }

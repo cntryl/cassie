@@ -10,7 +10,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand_core::OsRng;
+use rand_core_06::OsRng;
 
 use crate::catalog::{
     normalize_role_name, Catalog, CollectionSchema, ConstraintCheck, ConstraintOperator,

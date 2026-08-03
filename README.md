@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ui/public/assets/cassie-logo-64x64.png" alt="Cassie logo" width="240">
+  <img src="ui/public/assets/cassie-logo-256x256.png" alt="Cassie logo" width="256">
 </p>
 
 # Cassie

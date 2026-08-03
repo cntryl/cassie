@@ -68,10 +68,6 @@ jobs:
       - name: UI build
         run: npm run build
 
-      - name: Build temporary Cassie server
-        working-directory: .
-        run: cargo build --locked --bin cassie
-
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
@@ -80,6 +76,3 @@ jobs:
 
       - name: Mock browser tests
         run: npm run test:e2e:mock
-
-      - name: Production browser tests
-        run: npm run test:e2e

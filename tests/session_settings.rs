@@ -1,15 +1,9 @@
 use cassie::app::Cassie;
 use cassie::types::Value;
-use uuid::Uuid;
 
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-session-settings-{label}-{}",
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn cassie_and_session(label: &str) -> (Cassie, cassie::CassieSession, String) {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");

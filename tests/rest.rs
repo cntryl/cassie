@@ -3,11 +3,9 @@ use cassie::catalog::canonical_relation_name;
 use cassie::rest::{collections, documents};
 use uuid::Uuid;
 
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-rest-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_crud_collection_documents_through_rest() {

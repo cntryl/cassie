@@ -14,7 +14,10 @@ use cassie::embeddings::DEFAULT_EMBEDDING_MODEL;
 use cassie::midge::adapter::StorageFamily;
 use cassie::rest;
 use cntryl_midge::{TransactionMode, WriteOptions};
-use uuid::Uuid;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 #[derive(Clone)]
 struct MockResponse {
@@ -75,12 +78,6 @@ impl Drop for MockOpenAiServer {
 
 fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-rest-embeds-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
 }
 
 fn canonical_collection(name: &str) -> String {

@@ -1,20 +1,13 @@
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::types::Value;
-use uuid::Uuid;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-schema-scope-storage-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
 }
 
 #[test]

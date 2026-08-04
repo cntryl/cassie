@@ -2,31 +2,20 @@ use std::time::Duration;
 
 use cassie::app::Cassie;
 
+#[path = "support/pgwire.rs"]
+mod pgwire_support;
+
+use pgwire_support::{
+    data_dir, parse_error_fields, password_message, startup_frame, use_local_storage,
+};
+
 const TEST_PASSWORD: &str = "cassie-pgwire-startup-password";
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-pgwire-startup-{}-{}",
-        label,
-        uuid::Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
 
 fn authenticated_config() -> cassie::config::CassieRuntimeConfig {
     cassie::config::CassieRuntimeConfig {
         password: TEST_PASSWORD.to_string(),
         ..cassie::config::CassieRuntimeConfig::default()
     }
-}
-
-fn startup_frame(user: &str, database: &str) -> Vec<u8> {
-    startup_frame_with_params(user, database, &[])
 }
 
 fn startup_frame_with_params(user: &str, database: &str, params: &[(&str, &str)]) -> Vec<u8> {
@@ -63,40 +52,11 @@ fn ssl_request_frame() -> Vec<u8> {
     frame
 }
 
-fn password_message(password: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(password.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'p');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("password frame size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
 async fn read_wire_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, i32, Vec<u8>) {
-    let mut header = [0u8; 5];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut header)
-        .await
-        .expect("read frame header");
-
-    let tag = header[0];
-    let len = i32::from_be_bytes(header[1..].try_into().expect("frame length"));
-    let payload_len = usize::try_from(len - 4).expect("non-negative frame payload");
-    let mut payload = vec![0u8; payload_len];
-    if !payload.is_empty() {
-        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
-            .await
-            .expect("read frame payload");
-    }
-
+    let (tag, payload) = pgwire_support::read_wire_frame(reader).await;
+    let len = i32::try_from(payload.len() + 4).expect("frame length must fit into i32");
     (tag, len, payload)
 }
 
@@ -135,23 +95,6 @@ fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let value = std::str::from_utf8(&tail[..end]).expect("cstring should be utf-8");
     *cursor += end + 1;
     value.to_string()
-}
-
-fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
-    let mut cursor = 0usize;
-    let mut fields = Vec::new();
-
-    while cursor < payload.len() {
-        let field_type = payload[cursor];
-        cursor += 1;
-        if field_type == 0 {
-            break;
-        }
-        let value = read_cstring(payload, &mut cursor);
-        fields.push((char::from(field_type), value));
-    }
-
-    fields
 }
 
 fn parse_parameter_status(payload: &[u8]) -> (String, String) {

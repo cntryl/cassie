@@ -7,17 +7,9 @@ use cassie::embeddings::{
     DEFAULT_EMBEDDING_MODEL,
 };
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-embed-val-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn openai_runtime(base_url: String) -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");

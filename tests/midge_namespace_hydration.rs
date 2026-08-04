@@ -9,14 +9,12 @@ use cntryl_midge::TransactionMode;
 use std::path::PathBuf;
 use uuid::Uuid;
 
+#[path = "support/executor.rs"]
+mod support;
+use support::data_dir;
+
 fn without_fallback() {
     std::env::remove_var("CASSIE_STORAGE_MODE");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-v1-{}-{}", label, Uuid::new_v4()));
-    dir.to_string_lossy().to_string()
 }
 
 fn normalize_family_ids(layout: &StorageLayout) -> (u32, u32, u32) {

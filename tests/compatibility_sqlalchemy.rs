@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
-use uuid::Uuid;
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 const SQLALCHEMY_PROBE: &str = r#"
 import sys
@@ -83,20 +85,6 @@ struct ProbeOutput {
     status_code: Option<i32>,
     stdout: String,
     stderr: String,
-}
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-sqlalchemy-compatibility-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
 }
 
 struct CompatibilityServer {

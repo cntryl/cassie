@@ -1,18 +1,13 @@
 use cassie::app::Cassie;
 use cassie::catalog::{OperationalAssignmentMeta, OperationalAssignmentState};
 use cassie::types::Value;
-use std::path::PathBuf;
-use uuid::Uuid;
 
-fn use_local_storage() {
-    if std::env::var("CASSIE_EMBEDDINGS_PROVIDER").is_err() {
-        std::env::set_var("CASSIE_EMBEDDINGS_PROVIDER", "fallback");
-    }
-}
-
-fn data_dir(name: &str) -> PathBuf {
-    std::env::temp_dir().join(format!("cassie-operational-{name}-{}", Uuid::new_v4()))
-}
+#[path = "support/data_dir.rs"]
+mod data_dir;
+#[path = "support/local_storage.rs"]
+mod local_storage;
+use data_dir::data_dir;
+use local_storage::use_local_storage;
 
 fn assignment(projection_id: &str, tenant: &str) -> OperationalAssignmentMeta {
     OperationalAssignmentMeta {

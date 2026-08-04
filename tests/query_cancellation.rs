@@ -3,14 +3,10 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::runtime::{QueryCancellationHandle, QueryExecutionControls};
 use std::time::Instant;
 use std::{sync::Arc, time::Duration};
-use uuid::Uuid;
 
-fn data_dir(label: &str) -> String {
-    std::env::temp_dir()
-        .join(format!("cassie-{label}-{}", Uuid::new_v4()))
-        .to_string_lossy()
-        .into_owned()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_expose_query_memory_budget_with_clean_baseline_name() {

@@ -1,13 +1,9 @@
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-image-{label}-{}", Uuid::new_v4()));
-    path.to_string_lossy().into_owned()
-}
+#[path = "support/executor.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_round_trip_one_database_as_bounded_chunks() {

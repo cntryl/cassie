@@ -3,11 +3,14 @@ pub mod performance_benchmarks;
 #[path = "../benches/support/stress.rs"]
 #[allow(dead_code)]
 mod stress;
+#[path = "../benches/support/workloads.rs"]
+mod workloads;
 
 use std::collections::BTreeSet;
 use std::time::Duration;
 use std::{cell::Cell, panic::AssertUnwindSafe};
 
+use cassie::types::Value;
 use serde_json::json;
 
 fn tier1_row_case(
@@ -808,4 +811,156 @@ fn should_label_dense_join_algorithm_selection_profile() {
     assert!(artifact_profile_is_declared);
     assert!(contract_names_profile);
     assert!(contract.contains("4 KiB algorithm-selection profile"));
+}
+
+// Merged from tests/benchmark_soak_contract.rs to cut a separate test binary.
+#[test]
+fn should_cleanup_transport_soak_fixture_after_measurement() {
+    // Arrange
+    let source = include_str!("../benches/tier6_soak_transport.rs");
+
+    // Act
+    let shuts_down_cassie = source.contains("context.cassie.shutdown()");
+    let removes_data_dir = source.contains("std::fs::remove_dir_all(&data_dir)");
+    let removes_marker_file = source.contains("std::fs::remove_file(&data_dir)");
+    let verifies_cleanup = source.contains("assert!(!data_dir.exists()");
+
+    // Assert
+    assert!(shuts_down_cassie);
+    assert!(removes_data_dir);
+    assert!(removes_marker_file);
+    assert!(verifies_cleanup);
+}
+
+#[test]
+fn should_own_only_generated_tls_material_given_http_benchmark_configuration() {
+    // Arrange
+    let tls_source = include_str!("../benches/support/workloads/http.rs");
+    let callers = [
+        include_str!("../benches/tier4_integration_http.rs"),
+        include_str!("../benches/tier4_integration_protocol_compare.rs"),
+        include_str!("../benches/tier5_scaling_transport.rs"),
+        include_str!("../benches/tier6_soak_transport.rs"),
+    ];
+
+    // Act
+    let returns_generated_ownership =
+        tls_source.contains("Result<Option<GeneratedHttpTlsMaterial>, CassieError>");
+    let leaves_user_paths_unowned = tls_source.contains("return Ok(None);");
+    let generated_material_has_cleanup = tls_source.contains("impl GeneratedHttpTlsMaterial")
+        && tls_source.contains("pub fn cleanup(");
+    let every_caller_retains_and_cleans = callers
+        .iter()
+        .all(|source| source.contains("generated_http_tls") && source.contains(".cleanup()"));
+
+    // Assert
+    assert!(returns_generated_ownership);
+    assert!(leaves_user_paths_unowned);
+    assert!(generated_material_has_cleanup);
+    assert!(every_caller_retains_and_cleans);
+}
+
+#[test]
+fn should_enforce_configured_tier6_result_row_bounds() {
+    // Arrange
+    let mixed = include_str!("../benches/tier6_soak_mixed.rs");
+    let transport = include_str!("../benches/tier6_soak_transport.rs");
+
+    // Act
+    let mixed_configures_bound = mixed.contains("TIER6_MAX_RESULT_ROWS")
+        && mixed.contains("context_with_mock_tei_embeddings(")
+        && mixed.contains("\"configured_max_result_rows\"");
+    let transport_configures_bound = transport.contains("TIER6_MAX_RESULT_ROWS")
+        && transport.contains("scalar_context(")
+        && transport.contains("\"configured_max_result_rows\"");
+    let every_mixed_result_is_gated = mixed.contains("assert_result_cardinality_within_bound(");
+    let every_transport_result_is_gated = transport
+        .matches("assert_result_cardinality_within_bound(")
+        .count()
+        >= 4;
+
+    // Assert
+    assert!(mixed_configures_bound);
+    assert!(transport_configures_bound);
+    assert!(every_mixed_result_is_gated);
+    assert!(every_transport_result_is_gated);
+}
+
+// Merged from tests/benchmark_sql_contract.rs to cut a separate test binary.
+
+#[test]
+fn should_bind_dynamic_plan_cache_values_given_closed_alias_selection() {
+    // Arrange
+    let nonce = 17;
+
+    // Act
+    let statement = workloads::bound_plan_cache_miss(nonce);
+
+    // Assert
+    assert!(statement.sql.contains("id AS miss_17"));
+    assert!(statement.sql.contains("score >= $1"));
+    assert!(statement.sql.contains("status IN ($2, $3, $4)"));
+    assert!(!statement.sql.contains("miss-17"));
+    assert_eq!(statement.params[3], Value::String("miss-17".to_string()));
+}
+
+#[test]
+fn should_cycle_only_closed_plan_cache_identifiers_given_large_nonce() {
+    // Arrange
+    let first = workloads::bound_plan_cache_miss(0);
+
+    // Act
+    let cycled = workloads::bound_plan_cache_miss(64);
+
+    // Assert
+    assert_eq!(first.sql, cycled.sql);
+    assert_ne!(first.params, cycled.params);
+}
+
+#[test]
+fn should_bind_recursive_values_given_dynamic_fixture() {
+    // Arrange
+    let upper_bound = 7;
+
+    // Act
+    let recursive = workloads::bound_recursive_cte(upper_bound);
+
+    // Assert
+    assert!(recursive.sql.contains("seq.n < $1"));
+    assert!(!recursive.sql.contains("seq.n < 7"));
+    assert_eq!(recursive.params, [Value::Int64(7)]);
+}
+
+#[test]
+fn should_bind_time_series_values_given_dynamic_fixture() {
+    // Arrange
+    let start = "2026-01-10T00:00:00Z";
+    let end = "2026-01-12T00:00:00Z";
+
+    // Act
+    let time_series = workloads::bound_time_series_window(start, end);
+
+    // Assert
+    assert!(time_series.sql.contains("event_at >= $1"));
+    assert!(time_series.sql.contains("event_at < $2"));
+    assert!(!time_series.sql.contains("2026-01-10"));
+    assert_eq!(time_series.params.len(), 2);
+}
+
+#[test]
+fn should_warm_the_same_bound_fulltext_statement_that_is_measured() {
+    // Arrange
+    let scaling = include_str!("../benches/support/workloads/scaling.rs");
+    let legacy = include_str!("../benches/support/workloads/scaling_legacy.rs");
+    let retrieval = include_str!("../benches/tier5_scaling_retrieval.rs");
+
+    // Act
+    let production_uses_shared_params = scaling.contains("fulltext_scaling_params()");
+    let warmup_uses_shared_params = legacy.contains("super::scaling::fulltext_scaling_params()");
+    let preflight_uses_shared_params = retrieval.contains("workloads::fulltext_scaling_params()");
+
+    // Assert
+    assert!(production_uses_shared_params);
+    assert!(warmup_uses_shared_params);
+    assert!(preflight_uses_shared_params);
 }

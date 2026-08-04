@@ -5,20 +5,13 @@ use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use reqwest::StatusCode;
 use tokio_postgres::NoTls;
-use uuid::Uuid;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn use_local_storage() {
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    std::env::temp_dir()
-        .join(format!(
-            "cassie-role-authorization-{label}-{}",
-            Uuid::new_v4()
-        ))
-        .to_string_lossy()
-        .to_string()
 }
 
 #[test]

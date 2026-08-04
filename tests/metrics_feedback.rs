@@ -1,42 +1,15 @@
 #![allow(unused_imports, dead_code)]
+
+#[path = "support/pgwire.rs"]
+mod pgwire_support;
+
 use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::{IndexKind, IndexMeta};
 use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
 use cassie::types::{DataType, FieldSchema, Schema};
+use pgwire_support::{data_dir, describe_statement_frame, startup_frame, use_local_storage};
 use std::collections::BTreeMap;
 use std::time::Duration;
-use uuid::Uuid;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-metrics-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
-}
-
-fn startup_frame(user: &str, database: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
-    payload.extend_from_slice(b"user\0");
-    payload.extend_from_slice(user.as_bytes());
-    payload.push(0);
-    payload.extend_from_slice(b"database\0");
-    payload.extend_from_slice(database.as_bytes());
-    payload.push(0);
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("startup payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
 
 fn operator_feedback_config(enabled: bool) -> cassie::config::CassieRuntimeConfig {
     let mut config = cassie::config::CassieRuntimeConfig::from_env().expect("runtime config");
@@ -163,23 +136,6 @@ fn register_adaptive_candidate_collection(cassie: &Cassie, collection: &str) {
     }
 }
 
-fn describe_statement_frame(statement_name: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.push(b'S');
-    payload.extend_from_slice(statement_name.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'D');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("describe payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, i32, Vec<u8>) {
@@ -202,24 +158,7 @@ async fn read_auth_frame(
 async fn read_wire_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, Vec<u8>) {
-    let mut tag = [0u8; 1];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
-        .await
-        .expect("read frame tag");
-
-    let mut len = [0u8; 4];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut len)
-        .await
-        .expect("read frame length");
-    let len = i32::from_be_bytes(len);
-    let mut payload = vec![0u8; usize::try_from(len - 4).expect("non-negative payload length")];
-    if !payload.is_empty() {
-        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
-            .await
-            .expect("read frame payload");
-    }
-
-    (tag[0], payload)
+    pgwire_support::read_wire_frame(reader).await
 }
 
 #[test]

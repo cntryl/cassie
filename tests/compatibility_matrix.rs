@@ -9,20 +9,9 @@ use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use tokio_postgres::{error::DbError, NoTls, SimpleQueryMessage};
 use uuid::Uuid;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-compatibility-matrix-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn temp_dir(label: &str) -> PathBuf {
     let mut path = std::env::temp_dir();

@@ -1,18 +1,7 @@
 use cassie::app::Cassie;
-use uuid::Uuid;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-application-schema-{label}-{}",
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 const PIPELINE_APPLICATION_STATEMENTS: &[&str] = &[
     r#"CREATE TABLE "pipeline_statuses" (

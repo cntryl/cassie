@@ -9,20 +9,13 @@ use cassie::sql::ast::{Expr, QueryStatement, SelectItem};
 use cassie::sql::parser::parse_statement;
 use cassie::types::{DataType, FieldSchema, Schema, Value};
 use tokio_postgres::{NoTls, SimpleQueryMessage};
-use uuid::Uuid;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn use_local_storage() {
     env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-scalar-functions-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
 }
 
 struct CompatibilityServer {

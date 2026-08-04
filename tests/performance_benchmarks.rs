@@ -973,3 +973,126 @@ fn should_resolve_expected_stress_artifact_paths() {
         PathBuf::from("target/stress/tier3_system_query/latest.json")
     );
 }
+
+// Merged from tests/performance_column_codec.rs to cut a separate test binary.
+#[test]
+fn should_register_paired_column_codec_acceptance_scenarios() {
+    // Arrange
+    let catalog = include_str!("../benches/support/performance_benchmark_catalog_tier2.rs");
+    let expected = [
+        "perf.column.selective_encoded_scan.2k",
+        "selective_encoded_scan",
+        "perf.column.selective_plain_scan_baseline.2k",
+        "selective_plain_scan_baseline",
+        "perf.column.incompressible_adaptive_scan.2k",
+        "incompressible_adaptive_scan",
+        "perf.column.incompressible_plain_scan_baseline.2k",
+        "incompressible_plain_scan_baseline",
+    ];
+
+    // Act
+    let registered = expected.map(|value| catalog.contains(value));
+    let fixture_count = catalog.matches("2_048,\n        Tier2").count();
+
+    // Assert
+    assert!(registered.into_iter().all(|present| present));
+    assert!(catalog.matches("\"tier2_subsystem_column_scan\"").count() >= 4);
+    assert!(fixture_count >= 4);
+}
+
+#[test]
+fn should_apply_column_codec_relative_p95_gates() {
+    // Arrange
+    let owner = include_str!("../benches/tier2_subsystem_column_scan.rs");
+    let fixture = include_str!("../benches/support/workloads/column_codec_context.rs");
+
+    // Act
+    let relative_gate_count = owner.matches("require_relative_p95").count();
+    let forces_plain_baseline = fixture
+        .matches("rebuild_column_batches_plain_for_benchmark")
+        .count();
+    let verifies_incompressible_plain = fixture.contains("assert_plain_chunks");
+
+    // Assert
+    assert_eq!(relative_gate_count, 2);
+    assert_eq!(forces_plain_baseline, 2);
+    assert!(verifies_incompressible_plain);
+}
+
+// Merged from tests/performance_column_dml.rs to cut a separate test binary.
+#[test]
+fn should_register_tier_five_column_dml_amplification_curves() {
+    // Arrange
+    let catalog = include_str!("../benches/support/performance_benchmark_catalog_tier5.rs");
+    let expected = [
+        "perf.scale.query.column_dml.10k",
+        "perf.scale.query.column_dml.100k",
+        "perf.scale.query.column_dml.250k",
+    ];
+
+    // Act
+    let registered = expected.map(|scenario_id| catalog.contains(scenario_id));
+    let workload_count = catalog.matches("\"column_dml\"").count();
+
+    // Assert
+    assert!(registered.into_iter().all(|present| present));
+    assert_eq!(workload_count, 3);
+    assert!(catalog.contains("10_000,\n        Tier5"));
+    assert!(catalog.contains("100_000,\n        Tier5"));
+    assert!(catalog.contains("250_000,\n        Tier5"));
+}
+
+#[test]
+fn should_measure_column_dml_with_write_amplification_evidence() {
+    // Arrange
+    let workload = include_str!("../benches/support/workloads/scaling.rs");
+    let owner = include_str!("../benches/tier5_scaling_query.rs");
+
+    // Act
+    let records_rewrites = workload.contains("\"segment_rewrites\"");
+    let records_source_rows = workload.contains("\"maintenance_source_rows\"");
+    let exercises_encoded_filter =
+        workload.contains("WHERE status = 'approved' AND score >= 90 LIMIT 1000");
+    let invokes_workload = owner.contains("workloads::column_dml");
+
+    // Assert
+    assert!(records_rewrites);
+    assert!(records_source_rows);
+    assert!(exercises_encoded_filter);
+    assert!(invokes_workload);
+}
+
+// Merged from tests/performance_workstation_profile.rs to cut a separate test binary.
+const PERFORMANCE_WORKSTATION_PROFILE_ID: &str = "workstation-apple-m5-arm64-apfs";
+
+#[test]
+fn should_register_the_named_apple_m5_evidence_profile() {
+    // Arrange
+    let profiles = include_str!("../benches/support/performance_benchmark_profiles.rs");
+
+    // Act
+    let has_profile = profiles.contains(PERFORMANCE_WORKSTATION_PROFILE_ID);
+
+    // Assert
+    assert!(has_profile);
+    assert!(profiles.contains("Apple M5 workstation, arm64, APFS"));
+    assert!(profiles.contains("storage_mode: \"midge_disk_apfs\""));
+    assert!(profiles.contains("fixture_scale: \"10k+100k+250k\""));
+    assert!(profiles.contains("\"not_native_linux\""));
+    assert!(profiles.contains("deployment_profile_for_id"));
+}
+
+#[test]
+fn should_make_the_named_workstation_profile_disk_backed() {
+    // Arrange
+    let harness = include_str!("../benches/support/stress.rs");
+
+    // Act
+    let selects_disk = harness.contains("profile.storage_mode == \"midge_disk_apfs\"");
+    let configures_local_storage =
+        harness.contains("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")");
+
+    // Assert
+    assert!(selects_disk);
+    assert!(configures_local_storage);
+}

@@ -1,17 +1,10 @@
 use cassie::app::Cassie;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
-use uuid::Uuid;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-metrics-joins-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/metrics.rs"]
+mod support;
+use support::*;
 
 fn vectorized_join_config(batch_size: usize) -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("runtime config");

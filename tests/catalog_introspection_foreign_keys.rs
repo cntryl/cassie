@@ -1,9 +1,15 @@
 use cassie::app::{Cassie, CassieSession};
 use cassie::types::Value;
 
+#[path = "support/data_dir.rs"]
+mod data_dir;
+#[path = "support/local_storage.rs"]
+mod local_storage;
 #[path = "support/catalog.rs"]
 mod support;
-use support::{data_dir, execute_statement, query_rows, use_local_storage};
+use data_dir::data_dir;
+use local_storage::use_local_storage;
+use support::{execute_statement, query_rows};
 
 struct NamedForeignKeyRows {
     table_constraints: Vec<Vec<Value>>,

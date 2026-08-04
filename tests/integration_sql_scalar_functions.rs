@@ -13,60 +13,10 @@ use cntryl_midge::{TransactionMode, WriteOptions};
 mod support;
 use support::*;
 
-#[test]
-fn should_execute_text_scalar_functions_query() {
-    // Arrange
-    use_local_storage();
-    let path = data_dir("scalar_text_functions");
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
-
-    runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE scalar_text_functions (title TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO scalar_text_functions (title) VALUES ('  Alpha  ')",
-                vec![],
-            )
-            .unwrap();
-
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT lower(title) AS lowered, upper(title) AS raised, length(title) AS chars, substring(title, 3, 5) AS slice, trim(title) AS trimmed, concat(trim(title), '-done') AS combined FROM scalar_text_functions",
-                vec![],
-            )
-            .unwrap();
-
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![
-                Value::String("  alpha  ".to_string()),
-                Value::String("  ALPHA  ".to_string()),
-                Value::Int64(9),
-                Value::String("Alpha".to_string()),
-                Value::String("Alpha".to_string()),
-                Value::String("Alpha-done".to_string())
-            ]]
-        );
-
-        let _ = std::fs::remove_dir_all(path);
-    });
-}
+// should_execute_text_scalar_functions_query removed: strictly subsumed by
+// scalar_functions.rs::should_execute_string_scalar_functions_in_query_path,
+// which covers the same lower/upper/trim/substring/concat/length assertions
+// plus len()/WHERE/ORDER BY on the same operations.
 
 #[test]
 fn should_execute_coalesce_scalar_function_query() {

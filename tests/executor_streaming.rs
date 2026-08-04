@@ -1,14 +1,9 @@
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::Value;
-use uuid::Uuid;
-
-fn data_dir(label: &str) -> String {
-    std::env::temp_dir()
-        .join(format!("cassie-{label}-{}", Uuid::new_v4()))
-        .to_string_lossy()
-        .into_owned()
-}
+#[path = "support/executor.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_stop_collection_scan_after_limit_is_satisfied() {

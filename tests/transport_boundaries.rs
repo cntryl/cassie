@@ -1,132 +1,25 @@
+#[path = "support/pgwire.rs"]
+mod pgwire_support;
+
 use std::net::SocketAddr;
 
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
+use pgwire_support::{
+    data_dir, password_message, read_until_ready, read_wire_frame, simple_query_frame,
+    startup_frame, use_local_storage,
+};
 
 type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-transport-boundaries-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
-
-fn startup_frame(user: &str, database: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
-    payload.extend_from_slice(b"user\0");
-    payload.extend_from_slice(user.as_bytes());
-    payload.push(0);
-    payload.extend_from_slice(b"database\0");
-    payload.extend_from_slice(database.as_bytes());
-    payload.push(0);
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("startup payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
-fn simple_query_frame(sql: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(sql.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'Q');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("simple query payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
-fn password_message(password: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(password.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'p');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("password payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
 async fn read_auth_frame(
     reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
 ) -> (u8, Vec<u8>) {
-    let mut header = [0u8; 5];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut header)
-        .await
-        .expect("read auth frame header");
-
-    let len = i32::from_be_bytes(header[1..].try_into().expect("auth frame length"));
-    let mut payload =
-        vec![0u8; usize::try_from(len - 4).expect("non-negative auth payload length")];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
-        .await
-        .expect("read auth frame payload");
-
-    (header[0], payload)
-}
-
-async fn read_wire_frame(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
-) -> (u8, Vec<u8>) {
-    let mut tag = [0u8; 1];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
-        .await
-        .expect("read frame tag");
-
-    let mut len = [0u8; 4];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut len)
-        .await
-        .expect("read frame length");
-    let len = i32::from_be_bytes(len);
-    let mut payload = vec![0u8; usize::try_from(len - 4).expect("non-negative payload length")];
-    if !payload.is_empty() {
-        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
-            .await
-            .expect("read frame payload");
-    }
-
-    (tag[0], payload)
-}
-
-async fn read_until_ready(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
-) -> Vec<u8> {
-    loop {
-        let frame = read_wire_frame(reader).await;
-        if frame.0 == b'Z' {
-            return frame.1;
-        }
-    }
+    read_wire_frame(reader).await
 }
 
 fn read_boundary_counter(

@@ -199,7 +199,6 @@ opt-level = 0
 
 [profile.test]
 opt-level = 1
-codegen-units = 1
 
 [workspace.lints.clippy]
 pedantic = "warn"

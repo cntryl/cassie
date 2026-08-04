@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::{Command as StdCommand, Stdio};
 use std::time::Duration;
 
@@ -24,12 +24,9 @@ impl JsonHttpResponse {
     }
 }
 
-fn data_dir(label: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "cassie-operational-smoke-{label}-{}",
-        Uuid::new_v4()
-    ))
-}
+#[path = "support/data_dir.rs"]
+mod data_dir;
+use data_dir::data_dir;
 
 fn free_port() -> u16 {
     std::net::TcpListener::bind("127.0.0.1:0")

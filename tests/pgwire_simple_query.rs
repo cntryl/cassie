@@ -1,3 +1,6 @@
+#[path = "support/pgwire.rs"]
+mod pgwire_support;
+
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -5,132 +8,16 @@ use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
+use pgwire_support::{
+    copy_data_frame, copy_done_frame, data_dir, parse_data_row, parse_error_fields,
+    password_message, read_until_ready, read_wire_frame, simple_query_frame, startup_frame,
+    use_local_storage,
+};
 
 type WireFrame = (u8, Vec<u8>);
 type PgwireReader<'a> = tokio::io::BufReader<tokio::net::tcp::ReadHalf<'a>>;
 type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
 type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-pgwire-simple-query-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
-
-fn startup_frame(user: &str, database: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(&0x0003_0000_i32.to_be_bytes());
-    payload.extend_from_slice(b"user\0");
-    payload.extend_from_slice(user.as_bytes());
-    payload.push(0);
-    payload.extend_from_slice(b"database\0");
-    payload.extend_from_slice(database.as_bytes());
-    payload.push(0);
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("startup payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
-fn simple_query_frame(sql: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(sql.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'Q');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("simple query payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
-fn password_message(password: &str) -> Vec<u8> {
-    let mut payload = Vec::new();
-    payload.extend_from_slice(password.as_bytes());
-    payload.push(0);
-
-    let mut frame = Vec::new();
-    frame.push(b'p');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("password payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(&payload);
-    frame
-}
-
-fn copy_data_frame(payload: &[u8]) -> Vec<u8> {
-    let mut frame = Vec::new();
-    frame.push(b'd');
-    frame.extend_from_slice(
-        &i32::try_from(payload.len() + 4)
-            .expect("copy payload size must fit into i32")
-            .to_be_bytes(),
-    );
-    frame.extend_from_slice(payload);
-    frame
-}
-
-fn copy_done_frame() -> Vec<u8> {
-    let mut frame = Vec::new();
-    frame.push(b'c');
-    frame.extend_from_slice(&4_i32.to_be_bytes());
-    frame
-}
-
-async fn read_wire_frame(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
-) -> (u8, Vec<u8>) {
-    let mut tag = [0u8; 1];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut tag)
-        .await
-        .expect("read frame tag");
-
-    let mut len = [0u8; 4];
-    tokio::io::AsyncReadExt::read_exact(reader, &mut len)
-        .await
-        .expect("read frame length");
-    let len = i32::from_be_bytes(len);
-    let mut payload = vec![0u8; usize::try_from(len - 4).expect("non-negative payload length")];
-    if !payload.is_empty() {
-        tokio::io::AsyncReadExt::read_exact(reader, &mut payload)
-            .await
-            .expect("read frame payload");
-    }
-
-    (tag[0], payload)
-}
-
-async fn read_until_ready(
-    reader: &mut tokio::io::BufReader<tokio::net::tcp::ReadHalf<'_>>,
-) -> Vec<u8> {
-    loop {
-        let frame = read_wire_frame(reader).await;
-        if frame.0 == b'Z' {
-            return frame.1;
-        }
-    }
-}
 
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
@@ -175,44 +62,6 @@ fn parse_row_description(payload: &[u8]) -> Vec<(String, i32, i16, i32, i16)> {
         let _type_mod = read_i32(payload, &mut cursor);
         let format_code = read_i16(payload, &mut cursor);
         fields.push((name, table_oid, type_size, type_oid, format_code));
-    }
-
-    fields
-}
-
-fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
-    let mut cursor = 0usize;
-    let field_count = read_i16(payload, &mut cursor);
-    let mut values = Vec::new();
-
-    for _ in 0..field_count {
-        let len = read_i32(payload, &mut cursor);
-        if len < 0 {
-            values.push(None);
-            continue;
-        }
-        let len = usize::try_from(len).expect("payload length should fit usize");
-        let end = cursor + len;
-        let text = std::str::from_utf8(&payload[cursor..end]).expect("data row should be utf-8");
-        cursor = end;
-        values.push(Some(text.to_string()));
-    }
-
-    values
-}
-
-fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
-    let mut cursor = 0usize;
-    let mut fields = Vec::new();
-
-    while cursor < payload.len() {
-        let field_type = payload[cursor];
-        cursor += 1;
-        if field_type == 0 {
-            break;
-        }
-        let value = read_cstring(payload, &mut cursor);
-        fields.push((char::from(field_type), value));
     }
 
     fields

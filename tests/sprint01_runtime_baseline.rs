@@ -5,18 +5,15 @@ use cassie::{app::CassieError, Cassie, CassieRuntimeConfig};
 use std::env;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use uuid::Uuid;
+
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 static CONFIG_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn without_fallback() {
     env::remove_var("CASSIE_STORAGE_MODE");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut dir = env::temp_dir();
-    dir.push(format!("cassie-v1-runtime-{}-{}", label, Uuid::new_v4()));
-    dir.to_string_lossy().to_string()
 }
 
 struct EnvGuard {

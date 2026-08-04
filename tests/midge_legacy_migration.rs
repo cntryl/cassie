@@ -3,13 +3,10 @@ use cassie::catalog::canonical_relation_name;
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
 use cntryl_midge::{TransactionMode, WriteOptions};
-use uuid::Uuid;
 
-fn data_dir(label: &str) -> String {
-    let mut dir = std::env::temp_dir();
-    dir.push(format!("cassie-v1-break-{}-{}", label, Uuid::new_v4()));
-    dir.to_string_lossy().to_string()
-}
+#[path = "support/executor.rs"]
+mod support;
+use support::data_dir;
 
 fn put_legacy_data_key(path: &str, key: &[u8]) {
     let cassie = Cassie::new_with_data_dir(path).unwrap();

@@ -1,16 +1,8 @@
 use cassie::app::{Cassie, CassieError};
 use cassie::config::CassieRuntimeConfig;
-use uuid::Uuid;
-
-fn data_dir(label: &str) -> String {
-    std::env::temp_dir()
-        .join(format!(
-            "cassie-bootstrap-credential-{label}-{}",
-            Uuid::new_v4()
-        ))
-        .to_string_lossy()
-        .into_owned()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 fn config(password: &str) -> CassieRuntimeConfig {
     CassieRuntimeConfig {

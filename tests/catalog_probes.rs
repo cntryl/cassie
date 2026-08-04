@@ -1,17 +1,8 @@
 use cassie::app::Cassie;
 use cassie::types::{DataType, Value};
-use std::env;
-use uuid::Uuid;
-
-fn use_local_storage() {
-    env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-probes-{}-{}", label, Uuid::new_v4()));
-    path.to_string_lossy().to_string()
-}
+#[path = "support/sql.rs"]
+mod support;
+use support::*;
 
 #[test]
 fn should_return_version_function() {

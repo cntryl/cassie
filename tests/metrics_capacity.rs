@@ -1,23 +1,12 @@
 use cassie::app::Cassie;
 use cassie::embeddings::{DistanceMetric, VectorIndexMetadata, VectorIndexRecord, VectorIndexType};
 use cassie::types::{Value, Vector};
-use uuid::Uuid;
+
+#[path = "support/metrics.rs"]
+mod support;
+use support::*;
 
 type MetricsValue = serde_json::Value;
-
-fn use_local_storage() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "local");
-}
-
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "cassie-metrics-capacity-{}-{}",
-        label,
-        Uuid::new_v4()
-    ));
-    path.to_string_lossy().to_string()
-}
 
 fn seed_capacity_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) {
     cassie

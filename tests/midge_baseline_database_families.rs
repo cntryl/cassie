@@ -2,13 +2,10 @@ use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
 use cassie::midge::adapter::StorageFamily;
 use cassie::types::{DataType, FieldSchema, Schema};
-use uuid::Uuid;
 
-fn data_dir(label: &str) -> String {
-    let mut path = std::env::temp_dir();
-    path.push(format!("cassie-layout-v1-{label}-{}", Uuid::new_v4()));
-    path.to_string_lossy().into_owned()
-}
+#[path = "support/executor.rs"]
+mod support;
+use support::data_dir;
 
 fn schema() -> Schema {
     Schema {

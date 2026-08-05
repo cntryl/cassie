@@ -32,6 +32,9 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
   await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
   await page.getByRole("option", { name: "Database1" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await page.getByRole("button", { name: "Toggle schema browser" }).click();
+  }
   await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });

@@ -59,7 +59,7 @@ function persistSidebarWidth(px: number) {
 
 export default function Layout({ children }: { children?: unknown }) {
   const session = getSession();
-  const [mobileNavOpen, setMobileNavOpen] = state(true);
+  const [mobileNavOpen, setMobileNavOpen] = state(false);
   const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
   const isMobileNavOpen = mobileNavOpen();
 
@@ -169,7 +169,7 @@ export default function Layout({ children }: { children?: unknown }) {
               class="cassie-admin-sidebar-toggle"
               variant="outline"
               aria-controls="cassie-admin-sidebar-panel"
-              aria-expanded={isMobileNavOpen}
+              aria-expanded={isMobileNavOpen ? "true" : "false"}
               aria-label="Toggle schema browser"
               onPress={toggleMobileNavigation}
             >

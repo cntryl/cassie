@@ -1,6 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 
+async function openMobileSchemaBrowser(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) >= 768) return;
+  const toggle = page.getByRole("button", { name: "Toggle schema browser" });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+}
+
 async function expandTables(page: Page, database: string, namespace: string) {
+  await openMobileSchemaBrowser(page);
   const databaseTree = page.locator(
     `[data-testid="query-schema-tree-database"][data-database="${database}"]`,
   );
@@ -36,8 +43,15 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   await page.getByRole("dialog").getByRole("button", { name: "Database" }).click();
   await page.getByRole("option", { name: "Database1" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
-  await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await expect(page.getByRole("button", { name: "Toggle schema browser" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await expect(page.getByTestId("query-editor-panel")).toBeVisible();
+  }
   await expandTables(page, "Database1", "public");
+  await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
   await expect(page.getByTestId("query-schema-tree")).toContainText("customers");
   await expect(page.getByTestId("query-schema-tree")).toContainText("orders");
   await expect(page.getByTestId("query-schema-tree")).toContainText("reporting");
@@ -91,6 +105,7 @@ test("should_keep_database_query_tabs_isolated_and_restore_drafts", async ({ pag
   });
 
   await page.reload();
+  await openMobileSchemaBrowser(page);
   await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Query 2 Database2/ })).toBeVisible();
   await expect(page.locator("[data-query-page]:visible").locator(".monaco-editor")).toContainText(
@@ -114,6 +129,7 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
   // Act / Assert: the database tree exists before a query does.
   const tree = page.getByTestId("query-schema-tree");
   const sidebar = page.getByRole("complementary", { name: "Schema browser" });
+  await openMobileSchemaBrowser(page);
   const sidebarFooter = page.getByTestId("admin-sidebar-footer");
   await expect(tree).toBeVisible();
   await expect(tree.getByText("Database1", { exact: true })).toBeVisible();

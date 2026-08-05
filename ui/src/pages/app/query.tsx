@@ -501,11 +501,6 @@ function QueryWorkspace({
   selectedItemId();
   validationToast();
   const currentStopError = stopError();
-  const currentExecutionResultValue = executionResult();
-  const currentPlanResult = planResult();
-  const currentExecutionResult =
-    activeTab() === "plan" ? currentPlanResult : currentExecutionResultValue;
-
   const actionError = activeTab() === "plan" ? explainMutation.error : executeMutation.error;
   const actionErrorMessage =
     status() === "stopping" || actionError === null
@@ -823,31 +818,33 @@ function QueryWorkspace({
                   errorMessage={actionErrorMessage}
                 />
 
-                <QueryExecutionSummary result={currentExecutionResult} />
+                <QueryExecutionSummary
+                  result={activeTab() === "plan" ? planResult() : executionResult()}
+                />
 
                 <QueryResultsTabs
                   workspaceId={tab.id}
                   activeTab={activeTab}
                   onTabChange={handleTabChange}
                   resultsContent={
-                    currentExecutionResult ? (
-                      <QueryResultTable result={currentExecutionResult} />
+                    executionResult() ? (
+                      <QueryResultTable result={executionResult() as QueryExecutionResult} />
                     ) : (
                       <QueryPlaceholder title="No rows" description="No query has run yet." />
                     )
                   }
                   listContent={
-                    currentExecutionResult ? (
+                    executionResult() ? (
                       <>
-                        <QueryResultJson result={currentExecutionResult} />
+                        <QueryResultJson result={executionResult() as QueryExecutionResult} />
                       </>
                     ) : (
                       <QueryPlaceholder title="No rows" description="No query has run yet." />
                     )
                   }
                   planContent={
-                    currentExecutionResult ? (
-                      <QueryPlanText result={currentExecutionResult} />
+                    planResult() ? (
+                      <QueryPlanText result={planResult() as QueryExecutionResult} />
                     ) : (
                       <QueryPlaceholder
                         title="No plan"

@@ -12,6 +12,10 @@ async function openDatabase1Query(page: Page) {
 
   const editor = page.locator("[data-query-page]:visible .monaco-editor");
   await expect(editor).toBeVisible({ timeout: 15_000 });
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    const toggle = page.getByRole("button", { name: "Toggle schema browser" });
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  }
   await expect(page.locator('[data-database="Database1"][data-load-state="loaded"]')).toBeVisible();
   await editor.click({ position: { x: 160, y: 20 } });
   return editor;

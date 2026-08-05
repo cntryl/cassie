@@ -628,6 +628,42 @@ describe("admin query page composition", () => {
     expect(JSON.parse(json ?? "{}").rows[0]).toEqual([42, true, { name: "Ada" }, ["sql", 2], null]);
   });
 
+  it("should_keep_execution_and_explain_results_isolated_across_result_tabs", async () => {
+    // Arrange
+    mockExecuteSuccess();
+    mockExplainSuccess();
+    const root = await mountQueryRoute();
+
+    // Act: execute, then inspect JSON and the empty plan state.
+    buttonByText(root, "Run").click();
+    await waitForText(root, "doc-1");
+    buttonByText(root, "JSON").click();
+    await flushUi();
+    expect(root.querySelector('[data-tab-content="list"]')?.textContent).toContain("doc-1");
+    buttonByText(root, "Plan").click();
+    await flushUi();
+
+    // Assert: execution JSON is not presented as a plan.
+    const planPanel = root.querySelector('[data-tab-content="plan"]');
+    expect(planPanel?.textContent).toContain("No plan");
+    expect(planPanel?.querySelector(".cassie-query-json")).toBeNull();
+
+    // Act: explain, then return to execution views.
+    buttonByText(root, "Explain").click();
+    await waitForText(root, "Read with idx_documents_title");
+    expect(
+      root.querySelector('[data-tab-content="plan"] [data-testid="query-plan-visual"]'),
+    ).not.toBeNull();
+    buttonByText(root, "Grid").click();
+    await flushUi();
+    expect(root.querySelector('[data-tab-content="results"]')?.textContent).toContain("doc-1");
+    buttonByText(root, "JSON").click();
+    await flushUi();
+
+    // Assert: the original execution result remains available after explaining.
+    expect(root.querySelector('[data-tab-content="list"]')?.textContent).toContain("doc-1");
+  });
+
   it("should_render_execute_failures_without_an_unhandled_rejection", async () => {
     // Arrange
     mockExecuteError();

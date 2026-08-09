@@ -28,11 +28,17 @@ fn read_certificates(
     path: &str,
 ) -> Result<Vec<rustls::pki_types::CertificateDer<'static>>, CassieError> {
     let file = File::open(path).map_err(|error| tls_file_error("certificate", path, &error))?;
-    rustls::pki_types::CertificateDer::pem_reader_iter(file)
+    let certificates = rustls::pki_types::CertificateDer::pem_reader_iter(file)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| {
             CassieError::Execution(format!("invalid REST TLS certificate '{path}': {error}"))
-        })
+        })?;
+    if certificates.is_empty() {
+        return Err(CassieError::Execution(format!(
+            "REST TLS certificate '{path}' contains no certificates"
+        )));
+    }
+    Ok(certificates)
 }
 
 fn read_private_key(path: &str) -> Result<rustls::pki_types::PrivateKeyDer<'static>, CassieError> {
@@ -126,6 +132,27 @@ mod tests {
 
         // Assert
         assert!(error.to_string().contains("REST TLS"));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn should_reject_empty_rest_tls_certificate_chain() {
+        // Arrange
+        let (directory, certificate, key) = temporary_paths();
+        let identity = rcgen::generate_simple_self_signed(vec!["localhost".to_string()])
+            .expect("certificate identity");
+        std::fs::write(&certificate, b"# no certificate blocks\n").expect("certificate fixture");
+        std::fs::write(&key, identity.signing_key.serialize_pem()).expect("key fixture");
+
+        // Act
+        let error = load_server_config(
+            Some(certificate.to_str().expect("certificate path")),
+            Some(key.to_str().expect("key path")),
+        )
+        .expect_err("empty certificate chain should fail closed");
+
+        // Assert
+        assert!(error.to_string().contains("contains no certificates"));
         let _ = std::fs::remove_dir_all(directory);
     }
 }

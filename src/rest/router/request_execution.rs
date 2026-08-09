@@ -60,14 +60,13 @@ pub(super) async fn run_server(
             accept = listener.accept() => {
                 let (stream, peer) = accept.map_err(|error| CassieError::Execution(error.to_string()))?;
                 let Ok(permit) = admission.clone().try_acquire_owned() else {
-                    if tls_config.is_none() {
-                        let write_timeout = Duration::from_millis(
-                            cassie.runtime.limits().rest_write_timeout_ms,
-                        );
-                        tokio::spawn(async move {
-                            serve_rejection(stream, write_timeout).await;
-                        });
-                    }
+                    let write_timeout = Duration::from_millis(
+                        cassie.runtime.limits().rest_write_timeout_ms,
+                    );
+                    let rejection_tls_config = tls_config.clone();
+                    tokio::spawn(async move {
+                        serve_admission_rejection(stream, rejection_tls_config, write_timeout).await;
+                    });
                     continue;
                 };
                 let cassie = Arc::clone(&cassie);
@@ -101,6 +100,27 @@ pub(super) async fn run_server(
     }
 
     Ok(())
+}
+
+async fn serve_admission_rejection(
+    stream: tokio::net::TcpStream,
+    tls_config: Option<Arc<rustls::ServerConfig>>,
+    write_timeout: Duration,
+) {
+    if let Some(config) = tls_config {
+        match tokio::time::timeout(
+            REST_TLS_HANDSHAKE_TIMEOUT,
+            TlsAcceptor::from(config).accept(stream),
+        )
+        .await
+        {
+            Ok(Ok(stream)) => serve_rejection(stream, write_timeout).await,
+            Ok(Err(error)) => tracing::warn!(%error, "rest TLS admission rejection failed"),
+            Err(_) => tracing::warn!("rest TLS admission rejection timed out"),
+        }
+    } else {
+        serve_rejection(stream, write_timeout).await;
+    }
 }
 
 async fn serve_rejection<S>(stream: S, write_timeout: Duration)

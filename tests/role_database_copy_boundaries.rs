@@ -19,6 +19,16 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
             vec![],
         )
         .expect("create reader");
+    cassie
+        .execute_sql(&admin, "CREATE DATABASE denied_copy", vec![])
+        .expect("create denied database");
+    cassie
+        .execute_sql(
+            &admin,
+            "GRANT CONNECT ON DATABASE postgres TO image_reader",
+            vec![],
+        )
+        .expect("grant scoped database access");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -62,7 +72,7 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
 #[test]
 fn should_reject_read_only_role_database_backup() {
     // Arrange
-    let sql = "BACKUP DATABASE postgres TO STDOUT";
+    let sql = "BACKUP DATABASE denied_copy TO STDOUT";
 
     // Act
     let fields = database_copy_error("role-database-backup", sql);
@@ -76,7 +86,7 @@ fn should_reject_read_only_role_database_backup() {
 #[test]
 fn should_reject_read_only_role_database_restore() {
     // Arrange
-    let sql = "RESTORE DATABASE restored FROM STDIN";
+    let sql = "RESTORE DATABASE denied_copy FROM STDIN";
 
     // Act
     let fields = database_copy_error("role-database-restore", sql);

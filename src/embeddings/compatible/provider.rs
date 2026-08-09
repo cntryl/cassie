@@ -1,12 +1,12 @@
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
-use crate::embeddings::response::read_response;
+use crate::embeddings::response::{read_response, validate_response_indices};
 use crate::embeddings::EmbeddingProvider;
 use crate::runtime::QueryExecutionControls;
 use std::time::Duration;
 
-use reqwest::blocking::{Client, RequestBuilder};
+use reqwest::{Client, RequestBuilder};
 use serde::{Deserialize, Serialize};
 
 use crate::embeddings::{Embedding, EmbeddingError};
@@ -125,14 +125,14 @@ impl OpenAiCompatibleProvider {
             let request_snapshot = request.clone();
             let api_key = self.api_key.clone();
             let max_response_bytes = self.max_response_bytes;
-            let response = run_controlled_request(self.provider_name(), controls, move || {
+            let response = run_controlled_request(self.provider_name(), controls, async move {
                 let builder = client
                     .post(endpoint)
                     .timeout(timeout)
                     .json(&request_snapshot);
                 let builder = add_auth_header(builder, api_key.as_deref());
-                let response = builder.send()?;
-                read_response(response, max_response_bytes)
+                let response = builder.send().await?;
+                read_response(response, max_response_bytes).await
             })?;
 
             match response {
@@ -246,6 +246,7 @@ fn validate_embeddings(
             data.len()
         )));
     }
+    validate_response_indices("OpenAI-compatible", data.iter().map(|entry| entry.index))?;
     for item in &data {
         if item.embedding.len() != expected_dimensions {
             return Err(EmbeddingError::ParseError(format!(
@@ -260,4 +261,32 @@ fn validate_embeddings(
             values: entry.embedding,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_reject_compatible_response_with_noncontiguous_indices() {
+        // Arrange
+        let data = vec![
+            OpenAiCompatibleEmbeddingData {
+                index: 0,
+                embedding: vec![0.1, 0.2],
+            },
+            OpenAiCompatibleEmbeddingData {
+                index: 0,
+                embedding: vec![0.3, 0.4],
+            },
+        ];
+
+        // Act
+        let error =
+            validate_embeddings(data, 2, 2).expect_err("duplicate response index should fail");
+
+        // Assert
+        assert!(matches!(error, EmbeddingError::ParseError(_)));
+        assert!(error.to_string().contains("index"));
+    }
 }

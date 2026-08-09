@@ -1,12 +1,12 @@
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
-use crate::embeddings::response::{read_response, ResponseReadError};
+use crate::embeddings::response::{read_response, validate_response_indices, ResponseReadError};
 use crate::embeddings::EmbeddingProvider;
 use crate::runtime::QueryExecutionControls;
 use std::time::{Duration, Instant};
 
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::embeddings::{Embedding, EmbeddingError};
@@ -160,14 +160,15 @@ impl OpenAiProvider {
         let client = self.client.clone();
         let api_key = self.api_key.clone();
         let max_response_bytes = self.max_response_bytes;
-        run_controlled_request(self.provider_name(), controls, move || {
+        run_controlled_request(self.provider_name(), controls, async move {
             let response = client
                 .post(&endpoint)
                 .timeout(timeout)
                 .header("Authorization", format!("Bearer {api_key}"))
                 .json(&request)
-                .send()?;
-            read_response(response, max_response_bytes)
+                .send()
+                .await?;
+            read_response(response, max_response_bytes).await
         })
     }
 
@@ -250,26 +251,7 @@ impl OpenAiProvider {
                             message: error.to_string(),
                         });
                     }
-
-                    if attempt >= self.max_retries {
-                        return Err(EmbeddingError::RetryExhausted {
-                            provider: self.provider_name().to_string(),
-                            attempts: attempt,
-                            message: error.to_string(),
-                        });
-                    }
-
-                    tracing::warn!(
-                        provider = %self.provider_name(),
-                        model = %self.model,
-                        attempt,
-                        "retrying OpenAI request"
-                    );
-                    controlled_backoff(
-                        self.provider_name(),
-                        Duration::from_millis(50 * attempt as u64),
-                        controls,
-                    )?;
+                    return Err(error.into_embedding_error(self.provider_name()));
                 }
             }
         }
@@ -293,6 +275,7 @@ impl OpenAiProvider {
                 "OpenAI response length does not match request length".to_string(),
             ));
         }
+        validate_response_indices("OpenAI", ordered.iter().map(|entry| entry.index))?;
         for item in &ordered {
             if item.embedding.len() != self.dimensions {
                 return Err(EmbeddingError::ParseError(format!(
@@ -383,5 +366,41 @@ pub fn dimensions_for_model(model: &str) -> Result<usize, EmbeddingError> {
         model => Err(EmbeddingError::InvalidConfiguration(format!(
             "unsupported OpenAI model: {model}"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_reject_openai_response_with_noncontiguous_indices() {
+        // Arrange
+        let provider = OpenAiProvider::with_config(OpenAiProviderConfig {
+            api_key: "test-key".to_string(),
+            model: "text-embedding-3-small".to_string(),
+            timeout: Duration::from_secs(1),
+            max_batch_size: 2,
+            max_retries: 1,
+            base_url: "http://127.0.0.1:1".to_string(),
+        })
+        .expect("provider");
+        let embedding = vec![0.1_f32; provider.dimensions];
+        let response = serde_json::json!({
+            "data": [
+                { "index": 0, "embedding": embedding },
+                { "index": 0, "embedding": vec![0.2_f32; provider.dimensions] }
+            ]
+        })
+        .to_string();
+
+        // Act
+        let error = provider
+            .parse_successful_embeddings(&response, 0, 2)
+            .expect_err("duplicate response index should fail");
+
+        // Assert
+        assert!(matches!(error, EmbeddingError::ParseError(_)));
+        assert!(error.to_string().contains("index"));
     }
 }

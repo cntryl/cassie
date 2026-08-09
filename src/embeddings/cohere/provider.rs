@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::embeddings::provider::{
@@ -137,14 +137,15 @@ impl CohereProvider {
             let api_key = self.api_key.clone();
             let max_response_bytes = self.max_response_bytes;
 
-            let response = run_controlled_request(self.provider_name(), controls, move || {
+            let response = run_controlled_request(self.provider_name(), controls, async move {
                 let response = client
                     .post(endpoint)
                     .timeout(timeout)
                     .header("Authorization", format!("Bearer {api_key}"))
                     .json(&request_snapshot)
-                    .send()?;
-                read_response(response, max_response_bytes)
+                    .send()
+                    .await?;
+                read_response(response, max_response_bytes).await
             })?;
 
             match response {

@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{Shutdown, TcpListener};
 use std::time::{Duration, Instant};
 
 use cassie::config::CassieRuntimeLimits;
@@ -7,6 +7,7 @@ use cassie::embeddings::cohere::{CohereProvider, CohereProviderConfig};
 use cassie::embeddings::compatible::{OpenAiCompatibleProvider, OpenAiCompatibleProviderConfig};
 use cassie::embeddings::ollama::{OllamaProvider, OllamaProviderConfig};
 use cassie::embeddings::openai::{OpenAiProvider, OpenAiProviderConfig};
+use cassie::embeddings::provider::active_controlled_request_workers_for_diagnostics;
 use cassie::embeddings::tei::{TeiProvider, TeiProviderConfig};
 use cassie::embeddings::voyage::{VoyageProvider, VoyageProviderConfig};
 use cassie::embeddings::{EmbeddingError, EmbeddingProvider};
@@ -53,6 +54,49 @@ fn delayed_tei_server() -> (
         let _ = stream.write_all(response.as_bytes());
     });
     (base_url, accepted_rx, thread)
+}
+
+fn mid_body_reset_server() -> (String, std::thread::JoinHandle<usize>) {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind reset server");
+    listener
+        .set_nonblocking(true)
+        .expect("configure reset server");
+    let base_url = format!("http://{}", listener.local_addr().expect("server address"));
+    let thread = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_millis(500);
+        let mut request_count = 0usize;
+        while Instant::now() < deadline {
+            match listener.accept() {
+                Ok((mut stream, _)) => {
+                    request_count += 1;
+                    let mut request = [0_u8; 8_192];
+                    let _ = stream.read(&mut request);
+                    let response = b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 64\r\nconnection: close\r\n\r\n{\"partial\":";
+                    let _ = stream.write_all(response);
+                    let _ = stream.flush();
+                    let _ = stream.shutdown(Shutdown::Both);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("reset server accept failed: {error}"),
+            }
+        }
+        request_count
+    });
+    (base_url, thread)
+}
+
+fn assert_mid_body_reset_is_not_retried(
+    provider_factory: impl FnOnce(String) -> Box<dyn EmbeddingProvider>,
+) {
+    let (base_url, server) = mid_body_reset_server();
+    let provider = provider_factory(base_url);
+    let error = provider
+        .embed_documents(&["retry consistency".to_string()])
+        .expect_err("truncated provider response should fail");
+    assert!(matches!(error, EmbeddingError::RequestError(_)));
+    assert_eq!(server.join().expect("reset server"), 1);
 }
 
 fn deadline_controls() -> QueryExecutionControls {
@@ -209,6 +253,7 @@ fn should_clamp_cohere_retry_backoff_to_query_deadline() {
 #[test]
 fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeout() {
     // Arrange
+    let baseline_workers = active_controlled_request_workers_for_diagnostics();
     let (base_url, accepted, server) = delayed_tei_server();
     let provider = TeiProvider::with_config(TeiProviderConfig {
         base_url,
@@ -246,5 +291,105 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
         "cancellation waited for the provider transport: {:?}",
         started.elapsed()
     );
+    assert_eq!(
+        active_controlled_request_workers_for_diagnostics(),
+        baseline_workers,
+        "cancelled request worker should terminate before the caller returns"
+    );
     server.join().expect("delayed server");
+}
+
+#[test]
+fn should_not_retry_mid_body_reset_for_any_remote_provider() {
+    // Arrange
+    let baseline_workers = active_controlled_request_workers_for_diagnostics();
+
+    // Act
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            OpenAiProvider::with_config(OpenAiProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "text-embedding-3-small".to_string(),
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+                base_url,
+            })
+            .expect("OpenAI provider"),
+        )
+    });
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
+                base_url,
+                api_key: Some("test-key".to_string()),
+                model: "compatible-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+            })
+            .expect("compatible provider"),
+        )
+    });
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            TeiProvider::with_config(TeiProviderConfig {
+                base_url,
+                model: "tei-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+            })
+            .expect("TEI provider"),
+        )
+    });
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            OllamaProvider::with_config(OllamaProviderConfig {
+                base_url,
+                model: "ollama-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+            })
+            .expect("Ollama provider"),
+        )
+    });
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            VoyageProvider::with_config(VoyageProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "voyage-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+                base_url,
+            })
+            .expect("Voyage provider"),
+        )
+    });
+    assert_mid_body_reset_is_not_retried(|base_url| {
+        Box::new(
+            CohereProvider::with_config(CohereProviderConfig {
+                api_key: "test-key".to_string(),
+                model: "cohere-test".to_string(),
+                dimensions: 3,
+                timeout: Duration::from_secs(1),
+                max_batch_size: 8,
+                max_retries: 3,
+                base_url,
+            })
+            .expect("Cohere provider"),
+        )
+    });
+
+    // Assert
+    assert_eq!(
+        active_controlled_request_workers_for_diagnostics(),
+        baseline_workers
+    );
 }

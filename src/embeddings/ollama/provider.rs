@@ -6,7 +6,7 @@ use crate::embeddings::EmbeddingProvider;
 use crate::runtime::QueryExecutionControls;
 use std::time::Duration;
 
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::embeddings::{Embedding, EmbeddingError};
@@ -115,13 +115,14 @@ impl OllamaProvider {
             let endpoint = endpoint.clone();
             let request_snapshot = request.clone();
             let max_response_bytes = self.max_response_bytes;
-            let response = run_controlled_request(self.provider_name(), controls, move || {
+            let response = run_controlled_request(self.provider_name(), controls, async move {
                 let response = client
                     .post(endpoint)
                     .timeout(timeout)
                     .json(&request_snapshot)
-                    .send()?;
-                read_response(response, max_response_bytes)
+                    .send()
+                    .await?;
+                read_response(response, max_response_bytes).await
             })?;
 
             match response {

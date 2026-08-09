@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use reqwest::blocking::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::embeddings::provider::{
     controlled_backoff, controlled_request_timeout, run_controlled_request,
 };
-use crate::embeddings::response::read_response;
+use crate::embeddings::response::{read_response, validate_response_indices};
 use crate::embeddings::EmbeddingProvider;
 use crate::embeddings::{Embedding, EmbeddingError};
 use crate::runtime::QueryExecutionControls;
@@ -140,14 +140,15 @@ impl VoyageProvider {
             let api_key = self.api_key.clone();
             let max_response_bytes = self.max_response_bytes;
 
-            let response = run_controlled_request(self.provider_name(), controls, move || {
+            let response = run_controlled_request(self.provider_name(), controls, async move {
                 let response = client
                     .post(endpoint)
                     .timeout(timeout)
                     .header("Authorization", format!("Bearer {api_key}"))
                     .json(&request_snapshot)
-                    .send()?;
-                read_response(response, max_response_bytes)
+                    .send()
+                    .await?;
+                read_response(response, max_response_bytes).await
             })?;
 
             match response {
@@ -278,6 +279,7 @@ fn validate_embeddings(
             data.len()
         )));
     }
+    validate_response_indices("Voyage", data.iter().map(|entry| entry.index))?;
 
     for item in &data {
         if item.embedding.len() != expected_dimensions {
@@ -294,4 +296,32 @@ fn validate_embeddings(
             values: entry.embedding,
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_reject_voyage_response_with_noncontiguous_indices() {
+        // Arrange
+        let data = vec![
+            VoyageEmbeddingData {
+                index: 0,
+                embedding: vec![0.1, 0.2],
+            },
+            VoyageEmbeddingData {
+                index: 0,
+                embedding: vec![0.3, 0.4],
+            },
+        ];
+
+        // Act
+        let error =
+            validate_embeddings(data, 2, 2).expect_err("duplicate response index should fail");
+
+        // Assert
+        assert!(matches!(error, EmbeddingError::ParseError(_)));
+        assert!(error.to_string().contains("index"));
+    }
 }

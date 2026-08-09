@@ -1,6 +1,31 @@
 use crate::embeddings::{Embedding, EmbeddingError};
 use crate::runtime::QueryExecutionControls;
+use std::future::Future;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+
+static ACTIVE_CONTROLLED_REQUEST_WORKERS: AtomicUsize = AtomicUsize::new(0);
+
+struct ControlledRequestWorkerGuard;
+
+impl ControlledRequestWorkerGuard {
+    fn new() -> Self {
+        ACTIVE_CONTROLLED_REQUEST_WORKERS.fetch_add(1, Ordering::AcqRel);
+        Self
+    }
+}
+
+impl Drop for ControlledRequestWorkerGuard {
+    fn drop(&mut self) {
+        ACTIVE_CONTROLLED_REQUEST_WORKERS.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+#[doc(hidden)]
+#[must_use]
+pub fn active_controlled_request_workers_for_diagnostics() -> usize {
+    ACTIVE_CONTROLLED_REQUEST_WORKERS.load(Ordering::Acquire)
+}
 
 pub trait EmbeddingProvider: Send + Sync {
     fn provider_name(&self) -> &'static str;
@@ -108,6 +133,26 @@ pub(crate) fn controlled_backoff(
     check_controls(provider, controls)
 }
 
+enum ControlledRequestOutcome<T, E> {
+    Completed(Result<T, E>),
+    Cancelled,
+    RuntimeError(String),
+}
+
+fn join_controlled_request_worker(
+    worker: &mut Option<std::thread::JoinHandle<()>>,
+    provider: &str,
+) -> Result<(), EmbeddingError> {
+    let Some(worker) = worker.take() else {
+        return Err(EmbeddingError::RequestError(format!(
+            "{provider} request worker was already joined"
+        )));
+    };
+    worker
+        .join()
+        .map_err(|_| EmbeddingError::RequestError(format!("{provider} request worker panicked")))
+}
+
 pub(crate) fn run_controlled_request<T, E, F>(
     provider: &str,
     controls: Option<&QueryExecutionControls>,
@@ -116,23 +161,69 @@ pub(crate) fn run_controlled_request<T, E, F>(
 where
     T: Send + 'static,
     E: Send + 'static,
-    F: FnOnce() -> Result<T, E> + Send + 'static,
+    F: Future<Output = Result<T, E>> + Send + 'static,
 {
-    let Some(controls) = controls else {
-        return Ok(request());
-    };
-    check_controls(provider, controls)?;
+    if let Some(controls) = controls {
+        check_controls(provider, controls)?;
+    }
     let (sender, receiver) = std::sync::mpsc::sync_channel(1);
-    std::thread::spawn(move || {
-        let _ = sender.send(request());
-    });
+    let (cancel_sender, cancel_receiver) = tokio::sync::oneshot::channel();
+    let worker = std::thread::Builder::new()
+        .name(format!("cassie-{provider}-request"))
+        .spawn(move || {
+            let _worker_guard = ControlledRequestWorkerGuard::new();
+            let outcome = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(runtime) => runtime.block_on(async move {
+                    tokio::select! {
+                        result = request => ControlledRequestOutcome::Completed(result),
+                        _ = cancel_receiver => ControlledRequestOutcome::Cancelled,
+                    }
+                }),
+                Err(error) => ControlledRequestOutcome::RuntimeError(error.to_string()),
+            };
+            let _ = sender.send(outcome);
+        })
+        .map_err(|error| {
+            EmbeddingError::RequestError(format!(
+                "{provider} request worker could not start: {error}"
+            ))
+        })?;
+    let mut worker = Some(worker);
+    let mut cancel_sender = Some(cancel_sender);
     loop {
         match receiver.recv_timeout(Duration::from_millis(5)) {
-            Ok(result) => return Ok(result),
+            Ok(ControlledRequestOutcome::Completed(result)) => {
+                join_controlled_request_worker(&mut worker, provider)?;
+                return Ok(result);
+            }
+            Ok(ControlledRequestOutcome::Cancelled) => {
+                join_controlled_request_worker(&mut worker, provider)?;
+                return Err(EmbeddingError::Cancelled {
+                    provider: provider.to_string(),
+                });
+            }
+            Ok(ControlledRequestOutcome::RuntimeError(message)) => {
+                join_controlled_request_worker(&mut worker, provider)?;
+                return Err(EmbeddingError::RequestError(format!(
+                    "{provider} request runtime failed: {message}"
+                )));
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                check_controls(provider, controls)?;
+                if let Some(controls) = controls {
+                    if let Err(control_error) = check_controls(provider, controls) {
+                        if let Some(cancel_sender) = cancel_sender.take() {
+                            let _ = cancel_sender.send(());
+                        }
+                        join_controlled_request_worker(&mut worker, provider)?;
+                        return Err(control_error);
+                    }
+                }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                join_controlled_request_worker(&mut worker, provider)?;
                 return Err(EmbeddingError::RequestError(format!(
                     "{provider} request worker stopped without a response"
                 )));

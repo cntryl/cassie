@@ -28,6 +28,9 @@ export interface DragResizeOptions {
   onCommit?: (value: number) => void;
 }
 
+// @askrjs/themes still exposes only non-functional ResizablePanel catalog
+// markup (askrjs/askr-themes#62), so this shared behavior must not be replaced
+// with those styling-only components during cleanup.
 // Shared pointer-drag + keyboard-step resize interaction: used by both the
 // query editor/results split pane and the admin nav sidebar width handle,
 // which independently reimplemented this exact pattern (pointer capture,

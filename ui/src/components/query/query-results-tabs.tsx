@@ -1,4 +1,5 @@
 import type { IconProps } from "@askrjs/askr/foundations/icon";
+import { rovingFocus } from "@askrjs/askr/foundations/interactions";
 import type { JSXElement } from "@askrjs/askr/jsx-runtime";
 import { For } from "@askrjs/askr/control";
 import { BracesIcon, LayoutGridIcon, ListTreeIcon } from "@askrjs/lucide";
@@ -39,44 +40,38 @@ export function QueryResultsTabs({
     tabListEl = node;
   }
 
-  // Standard ARIA tablist keyboard pattern: only the active tab sits in the
-  // normal Tab-key sequence (roving tabindex, set below), and Left/Right/
-  // Home/End move focus + selection between tabs without needing Tab at all.
-  function handleTabListKeyDown(event: KeyboardEvent) {
-    const currentIndex = tabItems.findIndex((tab) => tab.id === activeTab());
-    if (currentIndex === -1) {
+  function navigateToTab(index: number) {
+    const nextTab = tabItems[index];
+    if (!nextTab) {
       return;
     }
-
-    const nextIndex = (() => {
-      if (event.key === "ArrowRight") {
-        return (currentIndex + 1) % tabItems.length;
-      }
-      if (event.key === "ArrowLeft") {
-        return (currentIndex - 1 + tabItems.length) % tabItems.length;
-      }
-      if (event.key === "Home") {
-        return 0;
-      }
-      if (event.key === "End") {
-        return tabItems.length - 1;
-      }
-
-      return null;
-    })();
-
-    if (nextIndex === null) {
-      return;
-    }
-
-    event.preventDefault();
-    const nextTab = tabItems[nextIndex];
     onTabChange(nextTab.id);
-
     const nextTrigger = tabListEl?.querySelector(`[data-tab="${nextTab.id}"]`);
     if (nextTrigger instanceof HTMLElement) {
       nextTrigger.focus();
     }
+  }
+
+  const navigation = () =>
+    rovingFocus({
+      currentIndex: tabItems.findIndex((tab) => tab.id === activeTab()),
+      itemCount: tabItems.length,
+      orientation: "horizontal",
+      loop: true,
+      onNavigate: navigateToTab,
+    });
+
+  // rovingFocus owns arrow-key navigation and tabindex. Its current public
+  // contract does not include Home/End, so this adapter preserves those ARIA
+  // tablist keys and delegates every arrow key to the framework primitive.
+  function handleTabListKeyDown(event: KeyboardEvent) {
+    if (event.key !== "Home" && event.key !== "End") {
+      navigation().container.onKeyDown(event);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    navigateToTab(event.key === "Home" ? 0 : tabItems.length - 1);
   }
 
   // Each usage below calls activeTab() directly at its own JSX position
@@ -108,6 +103,7 @@ export function QueryResultsTabs({
             <For each={tabItems} by={(tab) => tab.id}>
               {(tab) => (
                 <Button
+                  {...navigation().item(tabItems.findIndex((item) => item.id === tab.id))}
                   type="button"
                   role="tab"
                   size="xs"
@@ -120,7 +116,6 @@ export function QueryResultsTabs({
                   id={`query-${workspaceId}-result-tab-${tab.id}`}
                   aria-controls={`query-${workspaceId}-result-panel-${tab.id}`}
                   aria-selected={activeTab() === tab.id}
-                  tabIndex={activeTab() === tab.id ? 0 : -1}
                   onPress={() => {
                     onTabChange(tab.id);
                   }}

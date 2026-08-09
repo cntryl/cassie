@@ -19,6 +19,8 @@ export function ResizableSplit({
   first,
   second,
 }: ResizableSplitProps) {
+  // Keep this behavior local while askrjs/askr-themes#62 remains open:
+  // the themed ResizablePanel exports are styling-only catalog stubs.
   let container: HTMLElement | null = null;
   let primaryPane: HTMLElement | null = null;
 

@@ -1,11 +1,15 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { navigate } from "@askrjs/askr/router";
 
+import { DatabaseCatalogController } from "@/features/query/database-catalog-controller";
 import { saveQueryWorkspace } from "@/features/query/query-tabs";
 import {
   buttonByText,
   editorTextarea,
   fetchMock,
   flushUi,
+  mockExecuteSuccess,
+  mockExplainSuccess,
   mockJsonResponse,
   mockSchemaChangingCommandSuccess,
   mockValidateSuccess,
@@ -29,6 +33,110 @@ describe("admin query page lifecycle and actions", () => {
     // Assert
     expect(root.querySelector('[data-testid="query-editor-panel"]')).toBe(panel);
     expect(root.querySelector('[data-query-editor="fallback"] textarea')).toBe(editor);
+  });
+
+  it("should_disable_query_actions_immediately_when_the_editor_is_cleared", async () => {
+    // Arrange
+    const root = await mountQueryRoute();
+
+    // Act
+    updateEditor(root, "");
+    await flushUi();
+
+    // Assert
+    expect(buttonByText(root, "Run").disabled).toBe(true);
+    expect(buttonByText(root, "Validate").disabled).toBe(true);
+    expect(buttonByText(root, "Explain").disabled).toBe(true);
+  });
+
+  it("should_enable_query_actions_immediately_when_text_is_entered", async () => {
+    // Arrange
+    saveQueryWorkspace("anonymous", {
+      version: 1,
+      activeTabId: "query-1",
+      tabs: [
+        {
+          id: "query-1",
+          ordinal: 1,
+          title: "Query 1",
+          database: "postgres",
+          sql: "",
+        },
+      ],
+    });
+    const root = await mountQueryRoute();
+
+    // Act
+    updateEditor(root, "SELECT 2;");
+    await flushUi();
+
+    // Assert
+    expect(buttonByText(root, "Run").disabled).toBe(false);
+    expect(buttonByText(root, "Validate").disabled).toBe(false);
+    expect(buttonByText(root, "Explain").disabled).toBe(false);
+  });
+
+  it("should_preserve_query_feedback_across_a_workspace_tab_round_trip", async () => {
+    // Arrange
+    saveQueryWorkspace("anonymous", {
+      version: 1,
+      activeTabId: "query-1",
+      tabs: [
+        {
+          id: "query-1",
+          ordinal: 1,
+          title: "Query 1",
+          database: "postgres",
+          sql: "SELECT 1 AS ready;",
+        },
+        {
+          id: "query-2",
+          ordinal: 2,
+          title: "Query 2",
+          database: "postgres",
+          sql: "SELECT 2 AS ready;",
+        },
+      ],
+    });
+    mockValidateSuccess();
+    mockExecuteSuccess();
+    mockExplainSuccess();
+    const root = await mountQueryRoute();
+    buttonByText(root, "Run").click();
+    await waitForText(root, "1 row");
+    buttonByText(root, "Explain").click();
+    await waitForText(root, "Read with idx_documents_title");
+    buttonByText(root, "Grid").click();
+    await flushUi();
+    buttonByText(root, "Validate").click();
+    await waitForText(root, "Validation passed");
+
+    // Act
+    document.getElementById("saved-query-query-2")?.click();
+    await flushUi();
+    document.getElementById("saved-query-query-1")?.click();
+    await flushUi();
+
+    // Assert
+    expect(root.querySelector('[data-tab-content="results"] table')).not.toBeNull();
+    expect(root.textContent).toContain("Validation passed");
+    buttonByText(root, "Plan").click();
+    await flushUi();
+    expect(root.textContent).toContain("Read with idx_documents_title");
+  });
+
+  it("should_dispose_database_catalog_requests_when_the_page_unmounts", async () => {
+    // Arrange
+    const dispose = vi.spyOn(DatabaseCatalogController.prototype, "dispose");
+    const root = await mountQueryRoute();
+    expect(root.querySelector("[data-query-page]")).not.toBeNull();
+
+    // Act
+    navigate("/other");
+    await waitForText(root, "Other route");
+
+    // Assert
+    expect(dispose).toHaveBeenCalled();
   });
 
   it("should_create_a_database_from_the_database_tree", async () => {

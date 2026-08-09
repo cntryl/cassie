@@ -255,6 +255,45 @@ describe("admin query page composition", () => {
     expect(root.querySelector('[data-tab-content="list"]')).toBeTruthy();
   });
 
+  it("should_roam_result_tabs_with_framework_keyboard_navigation", async () => {
+    // Arrange
+    const root = await mountQueryRoute();
+    const grid = root.querySelector<HTMLElement>('[data-testid="query-result-tab-results"]');
+    const json = root.querySelector<HTMLElement>('[data-testid="query-result-tab-list"]');
+    const plan = root.querySelector<HTMLElement>('[data-testid="query-result-tab-plan"]');
+    if (!grid || !json || !plan) {
+      throw new Error("Missing result tabs");
+    }
+    grid.focus();
+
+    // Act
+    grid.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }));
+    await flushUi();
+
+    // Assert
+    expect(grid.getAttribute("data-roving-index")).toBe("0");
+    expect(json.getAttribute("data-roving-index")).toBe("1");
+    expect(json.getAttribute("aria-selected")).toBe("true");
+    expect(json.tabIndex).toBe(0);
+    expect(document.activeElement).toBe(json);
+
+    // Act
+    json.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "End" }));
+    await flushUi();
+    expect(plan.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(plan);
+
+    plan.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Home" }));
+    await flushUi();
+    expect(grid.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(grid);
+
+    grid.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "ArrowLeft" }));
+    await flushUi();
+    expect(plan.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(plan);
+  });
+
   it("updates query text on schema item selection", async () => {
     const root = await mountQueryRoute();
     await expandSchemaSection(root);

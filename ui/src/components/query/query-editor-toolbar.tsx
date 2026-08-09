@@ -9,7 +9,7 @@ interface QueryEditorToolbarProps {
   onStop: () => void;
   isBusy: boolean;
   isStopping: boolean;
-  hasQuery: boolean;
+  hasQuery: () => boolean;
 }
 
 export function QueryEditorToolbar({
@@ -22,7 +22,7 @@ export function QueryEditorToolbar({
   isStopping,
   hasQuery,
 }: QueryEditorToolbarProps) {
-  const canRun = hasQuery && !isBusy;
+  const canRun = () => hasQuery() && !isBusy;
 
   return (
     <div class="cassie-query-editor-toolbar" data-testid="query-editor-toolbar" role="toolbar">
@@ -43,7 +43,7 @@ export function QueryEditorToolbar({
         variant="secondary"
         title="Validate SQL"
         onPress={onValidate}
-        disabled={!canRun}
+        disabled={!canRun()}
       >
         <CheckCircle2Icon size={14} />
         <span>Validate</span>
@@ -54,7 +54,7 @@ export function QueryEditorToolbar({
         variant="secondary"
         title="Explain SQL execution plan"
         onPress={onExplain}
-        disabled={!canRun}
+        disabled={!canRun()}
       >
         <ListTreeIcon size={14} />
         <span>Explain</span>
@@ -80,7 +80,7 @@ export function QueryEditorToolbar({
           variant="primary"
           size="xs"
           title="Execute SQL"
-          disabled={!canRun}
+          disabled={!canRun()}
           data-action="play"
           onPress={onPlay}
         >

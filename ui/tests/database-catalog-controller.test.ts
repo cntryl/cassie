@@ -16,6 +16,25 @@ function schemaFor(database: string): QuerySchema {
 }
 
 describe("database catalog controller", () => {
+  it("should_abort_in_flight_catalog_loads_when_disposed", async () => {
+    // Arrange
+    let signal: AbortSignal | undefined;
+    const controller = new DatabaseCatalogController((_database, options) => {
+      signal = options?.signal;
+      return new Promise(() => undefined);
+    });
+    controller.insert("Database1");
+    void controller.activate("Database1");
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(signal).toBeDefined();
+
+    // Act
+    controller.dispose();
+
+    // Assert
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("should_load_and_expand_the_active_database_before_collapsed_siblings", async () => {
     // Arrange
     const requested: string[] = [];

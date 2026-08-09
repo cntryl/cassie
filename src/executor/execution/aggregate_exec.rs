@@ -160,10 +160,14 @@ fn aggregate_query_batches_parallel(
     let mut merged_memory = group_memory::replace_partial(None, context.controls, &merged)?;
     for partial in partials.drain(..) {
         for (signature, group) in partial {
-            merged
-                .entry(signature)
-                .and_modify(|existing| existing.merge(&group))
-                .or_insert(group);
+            match merged.entry(signature) {
+                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                    entry.get_mut().merge(&group)?;
+                }
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(group);
+                }
+            }
             merged_memory =
                 group_memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
         }

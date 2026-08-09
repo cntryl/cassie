@@ -178,6 +178,19 @@ fn should_generate_snippet_with_highlight_markup() {
 }
 
 #[test]
+fn should_highlight_unicode_snippet_after_expanding_lowercase_character() {
+    // Arrange
+    let input = "İstanbul is nice";
+    let terms = vec!["nice".to_string()];
+
+    // Act
+    let output = bm25::snippet(input, &terms);
+
+    // Assert
+    assert_eq!(output, "İstanbul is <mark>nice</mark>");
+}
+
+#[test]
 fn should_filter_stop_words_before_scoring_tokens() {
     // Arrange
     let input = "The quick brown fox and the lazy dog";

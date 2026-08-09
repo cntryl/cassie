@@ -11,6 +11,26 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static OWNED_VALUE_MOVES: AtomicU64 = AtomicU64::new(0);
 
+thread_local! {
+    static PROJECTION_BUILD_FAILURE_POINT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[doc(hidden)]
+pub fn set_projection_build_failure_point(enabled: bool) {
+    PROJECTION_BUILD_FAILURE_POINT.with(|failure_point| failure_point.set(enabled));
+}
+
+fn check_projection_build_failure_point() -> Result<(), QueryError> {
+    let injected =
+        PROJECTION_BUILD_FAILURE_POINT.with(|failure_point| failure_point.replace(false));
+    if injected {
+        return Err(QueryError::General(
+            "injected projection build failure".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub(crate) fn project_rows<R>(
     rows: Vec<R>,
     projection: &[SelectItem],
@@ -135,6 +155,7 @@ pub(crate) fn project_batches(
     user_functions: &std::collections::HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
 ) -> Result<Vec<Batch>, QueryError> {
+    check_projection_build_failure_point()?;
     let ops = compile_projection_ops(projection);
     if ops.iter().all(ProjectionOp::can_move_owned)
         && batches

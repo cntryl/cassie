@@ -1,5 +1,6 @@
 use cassie::app::{Cassie, CassieError};
 use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
+use cassie::executor::projection::set_projection_build_failure_point;
 use cassie::midge::adapter::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
 };
@@ -438,6 +439,119 @@ fn should_cancel_at_a_deterministic_mid_scan_boundary_without_leaking_reservatio
         Some(0)
     );
 
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_cancel_unindexed_heap_top_k_at_controlled_scan_boundary() {
+    // Arrange
+    let _hook_guard = query_scan_control_test_guard();
+    let (cassie, path) = configured_cassie("heap-top-k-cancellation", 64 * 1_024);
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE controlled_heap_top_k_cancel (payload TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    seed_documents(&cassie, "controlled_heap_top_k_cancel", 64, 128);
+    let before = cassie.midge.query_scan_entries_for_diagnostics();
+    set_query_scan_cancellation_after_entries(Some(3));
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "SELECT payload FROM controlled_heap_top_k_cancel ORDER BY payload LIMIT 5",
+            vec![],
+        )
+        .expect_err("heap top-k should observe controlled cancellation");
+    set_query_scan_cancellation_after_entries(None);
+    let visited = cassie
+        .midge
+        .query_scan_entries_for_diagnostics()
+        .saturating_sub(before);
+
+    // Assert
+    assert!(matches!(error, CassieError::QueryCancelled));
+    assert_eq!(visited, 3);
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
+    // Arrange
+    let _hook_guard = query_scan_control_test_guard();
+    let (cassie, path) = configured_cassie("heap-top-k-memory", 1_024);
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE controlled_heap_top_k_memory (payload TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    seed_documents(&cassie, "controlled_heap_top_k_memory", 64, 256);
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "SELECT payload FROM controlled_heap_top_k_memory ORDER BY payload LIMIT 10",
+            vec![],
+        )
+        .expect_err("heap top-k should respect query memory budget");
+
+    // Assert
+    assert!(matches!(error, CassieError::ResourceLimit(_)));
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_expanding_projection_before_building_output() {
+    // Arrange
+    let (cassie, path) = configured_cassie("expanding-projection-memory", 1_024);
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE controlled_expanding_projection (payload TEXT)",
+            vec![],
+        )
+        .expect("create table");
+    seed_documents(&cassie, "controlled_expanding_projection", 1, 256);
+    set_projection_build_failure_point(true);
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "SELECT concat(payload, payload, payload, payload) AS expanded FROM controlled_expanding_projection",
+            vec![],
+        )
+        .expect_err("projection should reserve expansion before building");
+    set_projection_build_failure_point(false);
+
+    // Assert
+    assert!(
+        matches!(error, CassieError::ResourceLimit(_)),
+        "unexpected expanding projection error: {error:?}"
+    );
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(
+        cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
     let _ = std::fs::remove_dir_all(path);
 }
 

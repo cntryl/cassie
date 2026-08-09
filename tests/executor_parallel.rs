@@ -557,6 +557,43 @@ fn should_preserve_having_order_limit_offset_for_parallel_aggregation() {
 }
 
 #[test]
+fn should_report_parallel_integer_sum_merge_overflow() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("parallel_aggregation_sum_overflow");
+    let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+    config.limits.parallel_aggregation_workers = 4;
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+    let collection = "exec_parallel_aggregation_overflow";
+    let session = cassie.create_session("tester", None);
+    create_registered_collection(&cassie, collection, &[("amount", DataType::BigInt)]);
+    let partial_safe_amount = i64::MAX / 1024;
+    put_documents(
+        &cassie,
+        collection,
+        (0..PARALLEL_ROW_COUNT).map(|index| {
+            (
+                format!("doc-{index:04}"),
+                serde_json::json!({ "amount": partial_safe_amount }),
+            )
+        }),
+    );
+
+    // Act
+    let error = cassie
+        .execute_sql(
+            &session,
+            "SELECT SUM(amount) FROM exec_parallel_aggregation_overflow",
+            vec![],
+        )
+        .expect_err("parallel aggregate merge should report overflow");
+
+    // Assert
+    assert!(error.to_string().contains("aggregate integer overflow"));
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_fallback_parallel_aggregation_for_distinct() {
     // Arrange
     use_local_storage();

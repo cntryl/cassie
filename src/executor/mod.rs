@@ -12,6 +12,64 @@ mod worker;
 
 pub use aggregate::columns_from_projection;
 
+type MaterializedProjectionReplaceBarriers = (
+    std::sync::Arc<std::sync::Barrier>,
+    std::sync::Arc<std::sync::Barrier>,
+);
+
+static MATERIALIZED_PROJECTION_REPLACE_BARRIERS: std::sync::OnceLock<
+    std::sync::Mutex<Option<MaterializedProjectionReplaceBarriers>>,
+> = std::sync::OnceLock::new();
+static MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS: std::sync::OnceLock<
+    std::sync::Mutex<Option<MaterializedProjectionReplaceBarriers>>,
+> = std::sync::OnceLock::new();
+
+#[doc(hidden)]
+pub fn set_materialized_projection_replace_start_barriers(
+    ready: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    *MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("materialized projection replace start barrier mutex") = ready.zip(resume);
+}
+
+#[doc(hidden)]
+pub fn set_materialized_projection_replace_barriers(
+    dropped: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    *MATERIALIZED_PROJECTION_REPLACE_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("materialized projection replace barrier mutex") = dropped.zip(resume);
+}
+
+pub(crate) fn pause_after_materialized_projection_drop() {
+    let barriers = MATERIALIZED_PROJECTION_REPLACE_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("materialized projection replace barrier mutex")
+        .take();
+    if let Some((dropped, resume)) = barriers {
+        dropped.wait();
+        resume.wait();
+    }
+}
+
+pub(crate) fn pause_before_materialized_projection_replace() {
+    let barriers = MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("materialized projection replace start barrier mutex")
+        .take();
+    if let Some((ready, resume)) = barriers {
+        ready.wait();
+        resume.wait();
+    }
+}
+
 #[doc(hidden)]
 pub fn set_vector_ann_rerank_barriers(
     selected: Option<std::sync::Arc<std::sync::Barrier>>,

@@ -31,16 +31,15 @@ pub fn snippet(text: &str, terms: &[String]) -> String {
         return text.to_string();
     }
 
-    let lower_text = text.to_lowercase();
     let mut out = String::new();
     let mut cursor = 0usize;
     while cursor < text.len() {
         let matched = normalized_terms
             .iter()
-            .find(|term| lower_text[cursor..].starts_with(term.as_str()));
+            .find_map(|term| lowercase_match_end(&text[cursor..], term));
 
-        if let Some(term) = matched {
-            let end = cursor + term.len();
+        if let Some(matched_bytes) = matched {
+            let end = cursor + matched_bytes;
             out.push_str("<mark>");
             out.push_str(&text[cursor..end]);
             out.push_str("</mark>");
@@ -56,4 +55,19 @@ pub fn snippet(text: &str, terms: &[String]) -> String {
     }
 
     out
+}
+
+fn lowercase_match_end(text: &str, term: &str) -> Option<usize> {
+    let mut normalized = String::new();
+    for (index, character) in text.char_indices() {
+        normalized.extend(character.to_lowercase());
+        let original_end = index + character.len_utf8();
+        if normalized == term || normalized.starts_with(term) {
+            return Some(original_end);
+        }
+        if !term.starts_with(&normalized) {
+            return None;
+        }
+    }
+    None
 }

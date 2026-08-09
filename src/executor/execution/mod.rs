@@ -68,7 +68,7 @@ use dispatch::{
     build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
     ensure_query_memory_budget_for_rows, execute_physical_plan, execute_plan,
     execute_plan_with_execution_breakdown, execute_plan_with_outer_row, plan_execution_env,
-    resolve_exists_expr, ExistsResolutionContext,
+    reserve_projection_output_before_building, resolve_exists_expr, ExistsResolutionContext,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};

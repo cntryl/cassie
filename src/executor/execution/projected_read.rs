@@ -1,12 +1,15 @@
 use super::{
-    batch, catalog, ensure_query_memory_budget, filter, projection, scan, sort, virtual_views,
-    BatchRow, BinaryOp, Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta,
-    HashMap, Instant, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem,
-    Value,
+    batch, catalog, ensure_query_memory_budget, filter, projection,
+    reserve_projection_output_before_building, scan, sort, virtual_views, BatchRow, BinaryOp,
+    Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap, Instant,
+    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
 };
 
+mod breakdown;
 #[path = "projected_read/specialized.rs"]
 mod specialized;
+
+pub(super) use breakdown::execute_projected_filtered_read_with_breakdown;
 
 pub(super) fn is_row_id_column(column: &str) -> bool {
     column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
@@ -193,12 +196,9 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
                 finalization.user_functions,
                 finalization.session,
             )?;
-            let replacement_memory =
-                ensure_query_memory_budget(finalization.controls, &filtered_batches)?;
-            drop(cloned_input_memory);
             drop(batch_memory);
             *batches = filtered_batches;
-            batch_memory = replacement_memory;
+            batch_memory = cloned_input_memory;
             let _ = filter_started;
         }
     }
@@ -225,6 +225,11 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     }
 
     let cloned_input_memory = ensure_query_memory_budget(finalization.controls, batches)?;
+    let projected_output_memory = reserve_projection_output_before_building(
+        finalization.controls,
+        batches,
+        &finalization.plan.projection,
+    )?;
     let projected_batches = projection::project_batches(
         batches.clone(),
         &finalization.plan.projection,
@@ -233,11 +238,10 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
         finalization.user_functions,
         finalization.session,
     )?;
-    let replacement_memory = ensure_query_memory_budget(finalization.controls, &projected_batches)?;
     drop(cloned_input_memory);
     drop(batch_memory);
     *batches = projected_batches;
-    batch_memory = replacement_memory;
+    batch_memory = projected_output_memory;
 
     *batches = slice_batches_for_plan(
         batches.clone(),
@@ -303,116 +307,6 @@ fn execute_projected_point_lookup_read(
         },
         &mut batches,
     )
-}
-
-pub(super) fn execute_projected_filtered_read_with_breakdown(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    plan: &LogicalPlan,
-    user_functions: &HashMap<String, FunctionMeta>,
-    params: &[Value],
-    controls: &QueryExecutionControls,
-) -> Result<Option<(Vec<BatchRow>, ExecutionBreakdownDurations)>, QueryError> {
-    let Some(spec) = projected_filtered_read_spec(plan) else {
-        return Ok(None);
-    };
-    if virtual_views::schema(&spec.collection).is_some()
-        || cassie.catalog.get_view(&spec.collection).is_some()
-    {
-        return Ok(None);
-    }
-    if let Some(rows) = super::time_series_read::try_execute_time_series_read(
-        cassie,
-        session,
-        plan,
-        user_functions,
-        params,
-        controls,
-    )? {
-        return Ok(Some((rows, ExecutionBreakdownDurations::default())));
-    }
-
-    let mut breakdown = ExecutionBreakdownDurations::default();
-
-    if let Some(spec) = point_lookup_read_spec(plan, params) {
-        let result_started = Instant::now();
-        let rows = execute_projected_point_lookup_read(
-            cassie,
-            session,
-            user_functions,
-            params,
-            controls,
-            plan,
-            &spec,
-        )?;
-        breakdown.result_build += result_started.elapsed();
-        return Ok(Some((rows, breakdown)));
-    }
-
-    let scan = scan_projected_read_batches(cassie, session, &spec, plan, controls)?;
-    let mut batches = scan.batches;
-    breakdown.row_decode += scan.scan_timings.row_decode;
-    let measured_scan = scan
-        .scan_timings
-        .scan
-        .saturating_add(scan.scan_timings.row_decode);
-    breakdown.scan += scan
-        .scan_timings
-        .scan
-        .saturating_add(scan.started.elapsed().saturating_sub(measured_scan));
-
-    if scan.pushdown_filter_absent {
-        if let Some(filter_expr) = &plan.filter {
-            let filter_started = Instant::now();
-            batches = filter::filter_batches(
-                batches,
-                filter_expr,
-                params,
-                None,
-                user_functions,
-                session,
-            )?;
-            ensure_query_memory_budget(controls, &batches)?;
-            breakdown.filter += filter_started.elapsed();
-        }
-    }
-
-    let mut heap_top_k_collection_name = None;
-    if !plan.order.is_empty() {
-        let sort_started = Instant::now();
-        let (sorted_batches, collection_name) =
-            sort_projected_batches(batches, plan, params, user_functions, session, controls)?;
-        batches = sorted_batches;
-        heap_top_k_collection_name = collection_name;
-        ensure_query_memory_budget(controls, &batches)?;
-        breakdown.sort += sort_started.elapsed();
-    }
-
-    let projection_started = Instant::now();
-    batches = projection::project_batches(
-        batches,
-        &plan.projection,
-        params,
-        None,
-        user_functions,
-        session,
-    )?;
-    ensure_query_memory_budget(controls, &batches)?;
-    breakdown.projection += projection_started.elapsed();
-
-    let result_started = Instant::now();
-    batches = slice_batches_for_plan(batches, plan.offset, plan.limit);
-    let rows = batch::try_flatten_batches(batches)?;
-    breakdown.result_build += result_started.elapsed();
-
-    if let Some(collection) = heap_top_k_collection_name {
-        cassie
-            .runtime
-            .record_read_path_heap_top_k(&collection, rows.len());
-    }
-    record_covering_index_usage(cassie, plan, rows.len(), None);
-
-    Ok(Some((rows, breakdown)))
 }
 
 pub(super) struct ProjectedFilteredReadSpec {

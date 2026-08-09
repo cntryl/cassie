@@ -114,5 +114,7 @@ mod write_refresh;
 pub use consistency::ProjectionManifestExportOptions;
 pub use database_images::{DatabaseBackupStream, DatabaseRestoreSession, DATABASE_IMAGE_VERSION};
 pub use query_explain::{QueryExplainOutput, QueryExplainPlan};
+#[doc(hidden)]
+pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepare_barriers};
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};

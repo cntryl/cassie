@@ -129,6 +129,7 @@ fn validate_bound_select_references(
     projection_aliases: &HashSet<String>,
 ) -> Result<(), CassieError> {
     validate_projection_references(&select.projection, known_fields)?;
+    validate_grouped_projection(&select.projection, &select.group_by)?;
     validate_expression_references(
         select.filter.as_ref(),
         known_fields,
@@ -150,6 +151,85 @@ fn validate_bound_select_references(
     validate_order_by_references(&select.order, known_fields, projection_aliases)?;
     validate_distinct_on_order_prefix(&select.distinct_on, &select.order)?;
     Ok(())
+}
+
+fn validate_grouped_projection(
+    projection: &[SelectItem],
+    group_by: &[Expr],
+) -> Result<(), CassieError> {
+    if group_by.is_empty() {
+        return Ok(());
+    }
+    for item in projection {
+        let expression = match item {
+            SelectItem::Wildcard => {
+                return Err(CassieError::Planner(
+                    "wildcard projection must appear in the GROUP BY clause".to_string(),
+                ));
+            }
+            SelectItem::Column { name, .. } => Expr::Column(name.clone()),
+            SelectItem::Function { function, .. }
+                if crate::sql::functions::is_aggregate_function(&function.name) =>
+            {
+                continue;
+            }
+            SelectItem::Function { function, .. } => Expr::Function(function.clone()),
+            SelectItem::Expr { expr, .. } => expr.clone(),
+            SelectItem::WindowFunction { .. } => continue,
+        };
+        if group_by
+            .iter()
+            .any(|grouped| format!("{grouped:?}") == format!("{expression:?}"))
+        {
+            continue;
+        }
+        if let Some(column) = first_ungrouped_column(&expression, group_by) {
+            return Err(CassieError::Planner(format!(
+                "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn first_ungrouped_column<'a>(expr: &'a Expr, group_by: &[Expr]) -> Option<&'a str> {
+    match expr {
+        Expr::Column(column) => (!group_by.iter().any(
+            |grouped| matches!(grouped, Expr::Column(name) if name.eq_ignore_ascii_case(column)),
+        ))
+        .then_some(column),
+        Expr::Function(function)
+            if crate::sql::functions::is_aggregate_function(&function.name) =>
+        {
+            None
+        }
+        Expr::Function(function) => function
+            .args
+            .iter()
+            .find_map(|argument| first_ungrouped_column(argument, group_by)),
+        Expr::Binary { left, right, .. } => first_ungrouped_column(left, group_by)
+            .or_else(|| first_ungrouped_column(right, group_by)),
+        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
+            first_ungrouped_column(expr, group_by)
+        }
+        Expr::InList { expr, values, .. } => first_ungrouped_column(expr, group_by).or_else(|| {
+            values
+                .iter()
+                .find_map(|value| first_ungrouped_column(value, group_by))
+        }),
+        Expr::Between {
+            expr, low, high, ..
+        } => first_ungrouped_column(expr, group_by)
+            .or_else(|| first_ungrouped_column(low, group_by))
+            .or_else(|| first_ungrouped_column(high, group_by)),
+        Expr::Exists(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => None,
+    }
 }
 
 pub(super) fn validate_recursive_cte_shape(
@@ -471,7 +551,16 @@ pub(super) fn source_fields(
         )),
         QuerySource::Join { left, right, .. } => {
             let mut fields = source_fields(catalog, left, scope)?;
-            fields.extend(source_fields(catalog, right, scope)?);
+            let right_fields = source_fields(catalog, right, scope)?;
+            let ambiguous = fields
+                .intersection(&right_fields)
+                .filter(|field| !field.contains('.') && !field.starts_with("__cassie_ambiguous__."))
+                .cloned()
+                .collect::<Vec<_>>();
+            for field in ambiguous {
+                fields.insert(format!("__cassie_ambiguous__.{field}"));
+            }
+            fields.extend(right_fields);
             Ok(fields)
         }
     }

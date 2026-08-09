@@ -194,6 +194,7 @@ pub enum Expr {
     Param(usize),
     StringLiteral(String),
     NumberLiteral(f64),
+    IntegerLiteral(i64),
     BoolLiteral(bool),
     Null,
     Binary {

@@ -97,7 +97,10 @@ fn encoded_binary_filter_field(left: &Expr, right: &Expr) -> Option<BTreeSet<Str
 fn encoded_literal(expr: &Expr) -> bool {
     matches!(
         expr,
-        Expr::StringLiteral(_) | Expr::BoolLiteral(_) | Expr::NumberLiteral(_)
+        Expr::StringLiteral(_)
+            | Expr::BoolLiteral(_)
+            | Expr::NumberLiteral(_)
+            | Expr::IntegerLiteral(_)
     )
 }
 

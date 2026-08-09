@@ -101,7 +101,7 @@ fn expression_operand_family(
             Ok(crate::sql::field_type_for_column(field_types, name).map(data_type_family))
         }
         Expr::StringLiteral(value) => Ok(Some(string_literal_family(value))),
-        Expr::NumberLiteral(_) => Ok(Some(OperandFamily::Numeric)),
+        Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) => Ok(Some(OperandFamily::Numeric)),
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
         Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
         Expr::Function(function) => {
@@ -129,6 +129,9 @@ fn expression_operand_family(
                 | BinaryOp::Lte
                 | BinaryOp::Gt
                 | BinaryOp::Gte => {
+                    if validate_typed_string_comparison(left, right, field_types)? {
+                        return Ok(Some(OperandFamily::Boolean));
+                    }
                     require_compatible_families(left_family, right_family, "comparison")?;
                     Ok(Some(OperandFamily::Boolean))
                 }
@@ -167,6 +170,39 @@ fn expression_operand_family(
             require_compatible_families(expression_family, high_family, "BETWEEN")?;
             Ok(Some(OperandFamily::Boolean))
         }
+    }
+}
+
+fn validate_typed_string_comparison(
+    left: &Expr,
+    right: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<bool, CassieError> {
+    let (
+        (Expr::Column(column), Expr::StringLiteral(literal))
+        | (Expr::StringLiteral(literal), Expr::Column(column)),
+    ) = ((left, right),)
+    else {
+        return Ok(false);
+    };
+    match crate::sql::field_type_for_column(field_types, column) {
+        Some(DataType::Uuid) => {
+            uuid::Uuid::parse_str(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid UUID literal '{literal}'")))?;
+            Ok(true)
+        }
+        Some(DataType::Bytea) => {
+            let digits = literal.strip_prefix("\\x").ok_or_else(|| {
+                CassieError::Planner(format!("invalid BYTEA literal '{literal}'"))
+            })?;
+            if digits.len() % 2 != 0 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(CassieError::Planner(format!(
+                    "invalid BYTEA literal '{literal}'"
+                )));
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
     }
 }
 
@@ -390,6 +426,7 @@ pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
         Expr::Column(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => false,
     }
@@ -445,29 +482,18 @@ pub(super) fn validate_function_calls(
     functions: Vec<FunctionCall>,
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
-    let mut signatures = crate::sql::functions::registry()
+    let user_functions = catalog
+        .list_functions()
         .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function.arity))
+        .map(|function| {
+            (
+                function.name.to_ascii_lowercase(),
+                crate::sql::functions::FunctionArity::Exact(function.args.len()),
+            )
+        })
         .collect::<HashMap<_, _>>();
 
-    for function in catalog.list_functions() {
-        signatures.insert(
-            function.name.to_ascii_lowercase(),
-            crate::sql::functions::FunctionArity::Exact(function.args.len()),
-        );
-    }
-
     for function in functions {
-        if matches!(
-            function.name.to_ascii_lowercase().as_str(),
-            "graph_neighbors"
-                | "graph_expand"
-                | "graph_shortest_path"
-                | "pg_show_all_settings"
-                | "pg_catalog.pg_show_all_settings"
-        ) {
-            continue;
-        }
         if function.name.eq_ignore_ascii_case("cast") {
             if function.args.len() != 2 {
                 return Err(CassieError::Planner(format!(
@@ -477,20 +503,23 @@ pub(super) fn validate_function_calls(
             }
             continue;
         }
-        if let Some(arity) = crate::sql::functions::aggregate_arity(&function.name) {
-            if function.args.len() != arity {
+        if let Some(metadata) = crate::sql::functions::function(&function.name) {
+            if metadata.bypass_arity_validation {
+                continue;
+            }
+            if !metadata.arity.matches(function.args.len()) {
                 return Err(CassieError::Planner(format!(
-                    "aggregate function '{}' expects {} args, got {}",
+                    "function '{}' expects {}, got {}",
                     function.name,
-                    arity,
+                    metadata.arity.describe(),
                     function.args.len()
                 )));
             }
             continue;
         }
         let lookup = function.name.to_ascii_lowercase();
-        let Some(arity) = signatures.get(&lookup).or_else(|| {
-            signatures
+        let Some(arity) = user_functions.get(&lookup).or_else(|| {
+            user_functions
                 .iter()
                 .find(|(candidate, _)| name_matches(candidate, &function.name))
                 .map(|(_, arity)| arity)
@@ -613,6 +642,29 @@ pub(super) fn distinct_on_expr_matches_order(left: &Expr, right: &Expr) -> bool 
     }
 }
 
+fn validate_column_reference(
+    name: &str,
+    known_fields: &HashSet<String>,
+    projection_aliases: &HashSet<String>,
+    allow_projection_alias: bool,
+) -> Result<(), CassieError> {
+    let name = name.to_ascii_lowercase();
+    if !name.contains('.') && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
+        return Err(CassieError::Planner(format!(
+            "column reference '{name}' is ambiguous"
+        )));
+    }
+    if known_fields.contains("*") || name == "id" || known_fields.contains(&name) {
+        return Ok(());
+    }
+    if allow_projection_alias && projection_aliases.contains(&name) {
+        return Ok(());
+    }
+    Err(CassieError::Planner(format!(
+        "unresolvable column reference '{name}'; known fields or aliases required"
+    )))
+}
+
 pub(super) fn validate_expression(
     expr: &Expr,
     known_fields: &HashSet<String>,
@@ -620,20 +672,12 @@ pub(super) fn validate_expression(
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
     match expr {
-        Expr::Column(name) => {
-            let name = name.to_ascii_lowercase();
-            if known_fields.contains("*") || name == "id" || known_fields.contains(&name) {
-                return Ok(());
-            }
-
-            if allow_projection_alias && projection_aliases.contains(&name) {
-                return Ok(());
-            }
-
-            Err(CassieError::Planner(format!(
-                "unresolvable column reference '{name}'; known fields or aliases required"
-            )))
-        }
+        Expr::Column(name) => validate_column_reference(
+            name,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
         Expr::Binary { left, right, .. } => {
             validate_expression(
                 left,
@@ -700,6 +744,7 @@ pub(super) fn validate_expression(
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => Ok(()),
         Expr::Function(function) => {
             if crate::sql::functions::is_aggregate_function(&function.name) {

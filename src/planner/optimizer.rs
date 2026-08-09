@@ -202,7 +202,7 @@ fn relation_rows<S: BuildHasher>(
 
 fn relation_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name) => local_name(name),
+        QuerySource::Collection(name) => name.to_ascii_lowercase(),
         _ => "derived".to_string(),
     }
 }
@@ -217,7 +217,7 @@ fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
     match expr {
         Expr::Column(column) => {
             if let Some((qualifier, _)) = column.rsplit_once('.') {
-                relations.insert(local_name(qualifier));
+                relations.insert(qualifier.to_ascii_lowercase());
             }
         }
         Expr::Binary { left, right, .. } => {
@@ -249,6 +249,7 @@ fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }
@@ -377,6 +378,7 @@ fn collect_expression_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }

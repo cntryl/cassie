@@ -466,6 +466,7 @@ pub(super) fn resolve_exists_expr<'a>(
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Function(_) => Ok(expr.clone()),

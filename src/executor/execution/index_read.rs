@@ -571,6 +571,7 @@ fn expr_has_column(expr: &Expr) -> bool {
         Expr::Exists(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => false,
@@ -706,6 +707,7 @@ fn expr_to_json(expr: &Expr, params: &[Value]) -> Option<serde_json::Value> {
             }
             serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
         }
+        Expr::IntegerLiteral(value) => Some(serde_json::Value::Number((*value).into())),
         Expr::BoolLiteral(value) => Some(serde_json::Value::Bool(*value)),
         Expr::Null => Some(serde_json::Value::Null),
         Expr::Param(index) => params.get(*index).map(value_to_json),

@@ -95,6 +95,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::IsNull { .. }

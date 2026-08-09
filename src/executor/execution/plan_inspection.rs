@@ -167,6 +167,7 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => false,
     }

@@ -227,6 +227,7 @@ fn canonical_literal(expr: &Expr) -> Option<String> {
             let number = serde_json::Number::from_f64(*value)?;
             serde_json::Value::Number(number)
         }
+        Expr::IntegerLiteral(value) => serde_json::Value::Number((*value).into()),
         Expr::BoolLiteral(value) => serde_json::Value::Bool(*value),
         Expr::Null => serde_json::Value::Null,
         _ => return None,

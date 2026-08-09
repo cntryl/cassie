@@ -414,12 +414,14 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
                 Expr::Column(_),
                 Expr::StringLiteral(_)
                     | Expr::NumberLiteral(_)
+                    | Expr::IntegerLiteral(_)
                     | Expr::BoolLiteral(_)
                     | Expr::Null
                     | Expr::Param(_)
             ) | (
                 Expr::StringLiteral(_)
                     | Expr::NumberLiteral(_)
+                    | Expr::IntegerLiteral(_)
                     | Expr::BoolLiteral(_)
                     | Expr::Null
                     | Expr::Param(_),
@@ -464,6 +466,7 @@ fn collect_expr_column_refs(expr: &Expr, fields: &mut BTreeSet<String>) {
         Expr::Exists(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => {}
@@ -522,6 +525,7 @@ fn expr_is_constant(expr: &Expr) -> bool {
     match expr {
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => true,
@@ -557,6 +561,7 @@ fn expr_has_column(expr: &Expr) -> bool {
         Expr::Exists(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => false,
@@ -706,6 +711,7 @@ fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Op
         Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => Some(()),
         Expr::Binary { left, op, right } => {
@@ -876,6 +882,7 @@ fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => Vec::new(),
     }
 }
@@ -921,6 +928,7 @@ fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => true,
     }
 }

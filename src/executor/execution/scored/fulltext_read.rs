@@ -712,6 +712,7 @@ fn expression_literal(expr: &Expr, params: &[Value]) -> Option<serde_json::Value
     match expr {
         Expr::StringLiteral(value) => Some(serde_json::Value::String(value.clone())),
         Expr::NumberLiteral(value) => serde_json::Number::from_f64(*value).map(Into::into),
+        Expr::IntegerLiteral(value) => Some(serde_json::Value::Number((*value).into())),
         Expr::BoolLiteral(value) => Some(serde_json::Value::Bool(*value)),
         Expr::Null => Some(serde_json::Value::Null),
         Expr::Param(index) => params.get(*index).and_then(value_literal),

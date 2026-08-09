@@ -1,4 +1,4 @@
-use super::clauses::{split_top_level, strip_parentheses};
+use super::clauses::{split_top_level, split_top_level_last, strip_parentheses};
 use super::schema::{parse_data_type, starts_with_keyword};
 use super::{
     parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
@@ -225,25 +225,37 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
-    for (operator, parsed) in [(" + ", BinaryOp::Add), (" - ", BinaryOp::Sub)] {
-        if let Some((left, right)) = split_top_level(raw, operator) {
-            return Ok(Expr::Binary {
-                left: Box::new(parse_arithmetic_expression(left)?),
-                right: Box::new(parse_arithmetic_expression(right)?),
-                op: parsed,
-            });
-        }
+    if let Some((left, right, op)) =
+        split_arithmetic_operator(raw, &[(" + ", BinaryOp::Add), (" - ", BinaryOp::Sub)])
+    {
+        return Ok(Expr::Binary {
+            left: Box::new(parse_arithmetic_expression(left)?),
+            right: Box::new(parse_arithmetic_expression(right)?),
+            op,
+        });
     }
-    for (operator, parsed) in [(" * ", BinaryOp::Mul), (" / ", BinaryOp::Div)] {
-        if let Some((left, right)) = split_top_level(raw, operator) {
-            return Ok(Expr::Binary {
-                left: Box::new(parse_arithmetic_expression(left)?),
-                right: Box::new(parse_arithmetic_expression(right)?),
-                op: parsed,
-            });
-        }
+    if let Some((left, right, op)) =
+        split_arithmetic_operator(raw, &[(" * ", BinaryOp::Mul), (" / ", BinaryOp::Div)])
+    {
+        return Ok(Expr::Binary {
+            left: Box::new(parse_arithmetic_expression(left)?),
+            right: Box::new(parse_arithmetic_expression(right)?),
+            op,
+        });
     }
     parse_expr_token(raw)
+}
+
+fn split_arithmetic_operator<'a>(
+    raw: &'a str,
+    operators: &[(&str, BinaryOp)],
+) -> Option<(&'a str, &'a str, BinaryOp)> {
+    operators
+        .iter()
+        .filter_map(|(operator, parsed)| {
+            split_top_level_last(raw, operator).map(|(left, right)| (left, right, parsed.clone()))
+        })
+        .max_by_key(|(left, _, _)| left.len())
 }
 
 pub(super) fn contains_top_level_between(raw: &str) -> bool {
@@ -370,8 +382,25 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.starts_with('\'') && raw.ends_with('\'') {
         return Ok(Expr::StringLiteral(raw.trim_matches('\'').to_string()));
     }
-    if let Ok(v) = raw.parse::<f64>() {
-        return Ok(Expr::NumberLiteral(v));
+    if is_integer_literal(raw) {
+        let value = raw
+            .parse::<i64>()
+            .map_err(|_| SqlError::new(format!("numeric literal out of range '{raw}'")))?;
+        if (-9_007_199_254_740_992..=9_007_199_254_740_992).contains(&value) {
+            let value = raw
+                .parse::<f64>()
+                .map_err(|_| SqlError::new(format!("invalid number '{raw}'")))?;
+            return Ok(Expr::NumberLiteral(value));
+        }
+        return Ok(Expr::IntegerLiteral(value));
+    }
+    if let Ok(value) = raw.parse::<f64>() {
+        if !value.is_finite() {
+            return Err(SqlError::new(format!(
+                "numeric literal out of range '{raw}'"
+            )));
+        }
+        return Ok(Expr::NumberLiteral(value));
     }
     if let Some(exists) = parse_exists_expression(raw)? {
         return Ok(exists);
@@ -388,6 +417,11 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
 
     Ok(Expr::Column(raw.to_string()))
+}
+
+fn is_integer_literal(raw: &str) -> bool {
+    let digits = raw.strip_prefix(['+', '-']).unwrap_or(raw);
+    !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 pub(super) fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlError> {

@@ -292,42 +292,20 @@ pub(super) fn infer_function_return_type(
         return Some(metadata.return_type.clone());
     }
 
-    match name.as_str() {
-        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score"
-        | "cosine_distance" | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "min"
-        | "max"
-        | "lower"
-        | "upper"
-        | "substring"
-        | "trim"
-        | "concat"
-        | "snippet"
-        | "version"
-        | "pg_catalog.version"
-        | "current_schema"
-        | "current_database"
-        | "current_user"
-        | "session_user"
-        | "current_role"
-        | "quote_ident"
-        | "pg_catalog.quote_ident"
-        | "format_type"
-        | "pg_catalog.format_type"
-        | "pg_get_expr"
-        | "pg_catalog.pg_get_expr"
-        | "pg_get_userbyid"
-        | "pg_catalog.pg_get_userbyid"
-        | "obj_description"
-        | "pg_catalog.obj_description" => Some(DataType::Text),
-        "count" | "length" | "len" => Some(DataType::Int),
-        "coalesce" => function
+    let metadata = crate::sql::functions::function(&name)?;
+    match metadata.return_type {
+        crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
+        crate::sql::functions::FunctionReturnType::Text => Some(DataType::Text),
+        crate::sql::functions::FunctionReturnType::Int => Some(DataType::Int),
+        crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
+        crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
+        crate::sql::functions::FunctionReturnType::FirstNonNullArgument => function
             .args
             .iter()
             .find_map(|arg| infer_expr_type(arg, source_schema, user_functions, parameter_types))
             .filter(|data_type| !matches!(data_type, DataType::Null))
             .or(Some(DataType::Text)),
-        "abs" => function
+        crate::sql::functions::FunctionReturnType::NumericArgument => function
             .args
             .first()
             .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
@@ -336,13 +314,7 @@ pub(super) fn infer_function_return_type(
                 _ => DataType::Float,
             })
             .or(Some(DataType::Float)),
-        "has_schema_privilege"
-        | "pg_catalog.has_schema_privilege"
-        | "has_table_privilege"
-        | "pg_catalog.has_table_privilege"
-        | "pg_table_is_visible"
-        | "pg_catalog.pg_table_is_visible" => Some(DataType::Boolean),
-        _ => None,
+        crate::sql::functions::FunctionReturnType::Unknown => None,
     }
 }
 
@@ -360,6 +332,7 @@ pub(crate) fn infer_expr_type(
         }
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::IntegerLiteral(_) => Some(DataType::BigInt),
         Expr::BoolLiteral(_)
         | Expr::Exists(_)
         | Expr::IsNull { .. }

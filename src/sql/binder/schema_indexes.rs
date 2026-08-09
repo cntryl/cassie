@@ -144,9 +144,11 @@ pub(super) fn validate_index_expression(
             validate_index_expression(low, known_fields)?;
             validate_index_expression(high, known_fields)
         }
-        Expr::StringLiteral(_) | Expr::NumberLiteral(_) | Expr::BoolLiteral(_) | Expr::Null => {
-            Ok(())
-        }
+        Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => Ok(()),
     }
 }
 

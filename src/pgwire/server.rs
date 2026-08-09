@@ -59,6 +59,10 @@ pub async fn run_with_shutdown(
                         tracing::info!(target: "pgwire", peer = %peer_addr, "accepted");
                         let Ok(permit) = admission.clone().try_acquire_owned() else {
                             tracing::warn!(target: "pgwire", peer = %peer_addr, "connection admission rejected");
+                            if require_tls {
+                                drop(socket);
+                                continue;
+                            }
                             tokio::spawn(async move {
                                 crate::pgwire::connection::reject_too_many_connections(socket).await;
                             });

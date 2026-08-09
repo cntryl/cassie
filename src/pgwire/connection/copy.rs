@@ -148,7 +148,15 @@ async fn handle_database_copy(
     reader: &mut PgwireReader,
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
-    if session.is_authenticated_read_only() {
+    let database = match &command {
+        DatabaseCopyCommand::Backup { source } => source,
+        DatabaseCopyCommand::Restore { target } => target,
+    };
+    let can_access_database = cassie
+        .catalog
+        .get_role(&session.user)
+        .is_some_and(|role| role.can_access_database(database));
+    if !can_access_database || session.is_authenticated_read_only() {
         let error = PgWireError::from_cassie_error(
             PgWireSeverity::Error,
             &crate::app::CassieError::InsufficientPrivilege,

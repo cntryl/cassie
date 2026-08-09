@@ -308,7 +308,7 @@ export default function QueryPage() {
         </section>
       ) : null}
 
-      <For each={tabs} by={(tab) => tab.id}>
+      <For each={() => tabs()} by={(tab) => tab.id}>
         {(tab) => (
           <QueryWorkspace
             tab={tab}
@@ -497,7 +497,7 @@ function QueryWorkspace({
   };
   const getCompletionItems = (context: Parameters<typeof buildSqlCompletionItems>[2]) =>
     buildSqlCompletionItems(getSchemaDatabases(), tab.database, context);
-  const currentQuery = queryDraft;
+  const currentQuery = () => queryDraft();
 
   const isExecutionBusy = executeMutation.pending || explainMutation.pending;
   const isValidating = validateMutation.pending || status() === "validating";

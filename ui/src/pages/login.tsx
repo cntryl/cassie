@@ -27,13 +27,13 @@ function resolveNextTarget() {
   return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
 }
 
-function loginErrorMessage(error: unknown) {
-  if (error instanceof AppApiError) {
-    if (error.status === 401 || error.status === 403)
+function loginErrorMessage(cause: unknown) {
+  if (cause instanceof AppApiError) {
+    if (cause.status === 401 || cause.status === 403)
       return "The username or password is incorrect.";
-    if (error.status >= 500) return "Cassie is unavailable. Try again in a moment.";
+    if (cause.status >= 500) return "Cassie is unavailable. Try again in a moment.";
   }
-  return apiErrorMessage(error);
+  return apiErrorMessage(cause);
 }
 
 export default function LoginPage() {

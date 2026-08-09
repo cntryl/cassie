@@ -29,7 +29,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Bounded pull execution, portal streaming, cancellation, result-cache isolation and invalidation, compact row layout, specialized access paths, and shared worker-permit coverage.
 - Canonical v2 column-batch format and corruption tests, automatic typed codecs, selected-value dictionary decoding, encoded scan and filtered-aggregate parity, generation-fenced range copy-on-write DML, and paired Tier 2 codec acceptance gates.
 - Locked UI install, production-dependency audit, generated-client freshness, tests, type checking, lint, and production build.
-- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.0.85` and Askr UI `0.0.24` package run clears the former control-boundary and theme blockers with 102 repository tests, 18 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases passing together. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
+- Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.0.91`, Askr UI `0.0.27`, and `@askrjs/monaco` `0.0.8` package run passes 109 repository tests, 18 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie also isolates live query-text reactivity from Monaco host reconciliation so editor selection and history survive controlled edits; the remaining upstream transient-ref behavior is tracked in [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22). This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
 
 ## Production Candidate Support Envelope
 
@@ -45,7 +45,7 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
   Operators must follow the detached-signature and trusted-identity procedure in
   [Snapshot, Backup, Restore, and Repair](snapshot-restore.md) before streaming an image from an
   untrusted channel into `RESTORE`; Cassie intentionally does not define another signing format.
-- Keep Monaco ownership and dependency-upgrade tracking with [microsoft/monaco-editor#5352](https://github.com/microsoft/monaco-editor/issues/5352). Cassie pins the patched DOMPurify release through its package override and continues to fail the frontend gate on moderate-or-higher production advisories.
+- Keep Monaco ownership and dependency-upgrade tracking with [microsoft/monaco-editor#5352](https://github.com/microsoft/monaco-editor/issues/5352) and [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22). Cassie pins DOMPurify `3.4.13` through its package override; the production-dependency audit currently reports zero vulnerabilities.
 
 - Retain complete same-commit Tier 1-6 artifacts for
   `workstation-apple-m5-arm64-apfs`, including the two-hour Tier 6 set, and add

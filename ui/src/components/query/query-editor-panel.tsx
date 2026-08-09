@@ -11,7 +11,8 @@ interface QueryEditorPanelProps {
   tabId: string;
   database: string;
   active: () => boolean;
-  query: string;
+  initialQuery: string;
+  query: () => string;
   onQueryChange: (query: string) => void;
   isRunning: boolean;
   actionsEnabled: boolean;
@@ -28,6 +29,7 @@ export function QueryEditorPanel({
   tabId,
   database,
   active,
+  initialQuery,
   query,
   onQueryChange,
   isRunning,
@@ -51,7 +53,7 @@ export function QueryEditorPanel({
   // since default actions run after the full capture+bubble dispatch.
   function handleKeyDown(event: KeyboardEvent) {
     const isRunShortcut = event.key === "Enter" && (event.metaKey || event.ctrlKey);
-    if (!isRunShortcut || isRunning || query.trim().length === 0) {
+    if (!isRunShortcut || isRunning || query().trim().length === 0) {
       return;
     }
 
@@ -87,7 +89,7 @@ export function QueryEditorPanel({
             onStop={onStop}
             isBusy={isRunning}
             isStopping={isStopping}
-            hasQuery={query.trim().length > 0 && actionsEnabled}
+            hasQuery={() => query().trim().length > 0 && actionsEnabled}
           />
         }
       />
@@ -95,7 +97,7 @@ export function QueryEditorPanel({
         <MonacoSqlEditor
           tabId={tabId}
           active={active}
-          value={query}
+          value={initialQuery}
           onChange={onQueryChange}
           disabled={isRunning}
           completionProvider={completionItems}

@@ -244,6 +244,10 @@ async function mountQueryRoute() {
           </RootLayout>
         ),
       },
+      {
+        path: "/other",
+        handler: () => <main>Other route</main>,
+      },
     ]),
   });
 

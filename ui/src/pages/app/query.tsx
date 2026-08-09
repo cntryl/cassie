@@ -1,4 +1,4 @@
-import { state } from "@askrjs/askr";
+import { getSignal, state } from "@askrjs/askr";
 import { createQuery, queryScope } from "@askrjs/askr/data";
 import { For, Show } from "@askrjs/askr/control";
 import { TriangleAlertIcon } from "@askrjs/lucide";
@@ -20,6 +20,7 @@ import { QueryAvailabilityStatus } from "@/components/query/query-availability-s
 import { CreateDatabaseDialog } from "@/components/query/create-database-dialog";
 import { QueryExecutionBanner } from "@/components/query/query-execution-banner";
 import { QueryExecutionSummary } from "@/components/query/query-execution-summary";
+import { setMonacoSqlEditorValue } from "@/components/query/monaco-sql-editor";
 import { QueryPlaceholder } from "@/components/query/query-placeholder";
 import { QueryPlanText } from "@/components/query/query-plan-text";
 import { QueryResultJson } from "@/components/query/query-result-json";
@@ -41,7 +42,6 @@ import {
   QuerySchemaItem,
   QueryStatus,
   type QueryExecutionResult,
-  type QueryTabRuntimeState,
 } from "@/features/query/query-models";
 import {
   createExecuteQueryMutation,
@@ -97,6 +97,18 @@ export default function QueryPage() {
     ),
   );
   const databaseCatalogs = catalogController();
+  const [lifecycle] = state({ cleanupRegistered: false });
+  if (!lifecycle().cleanupRegistered) {
+    lifecycle().cleanupRegistered = true;
+    getSignal().addEventListener(
+      "abort",
+      () => {
+        persistence.flush(persistenceOperationId() || undefined);
+        databaseCatalogs.dispose();
+      },
+      { once: true },
+    );
+  }
   const databaseQuery = createQuery({
     key: workspaceQueries.key("databases"),
     fetch: fetchDatabases,
@@ -296,7 +308,7 @@ export default function QueryPage() {
         </section>
       ) : null}
 
-      <For each={() => tabs().filter((tab) => tab.id === activeTabId())} by={(tab) => tab.id}>
+      <For each={() => tabs()} by={(tab) => tab.id}>
         {(tab) => (
           <QueryWorkspace
             tab={tab}
@@ -304,7 +316,6 @@ export default function QueryPage() {
             availability={() => databaseAvailability(tab.database)}
             onSqlChange={(sql) => updateSql(tab.id, sql)}
             onEditorSplitChange={(percent) => updateEditorSplit(tab.id, percent)}
-            onRuntimeChange={() => undefined}
             onActiveRegister={(reporter) =>
               workspaceRegistry.registerActiveReporter(tab.id, reporter)
             }
@@ -410,7 +421,6 @@ interface QueryWorkspaceProps {
   availability: () => DatabaseAvailability;
   onSqlChange: (sql: string) => void;
   onEditorSplitChange: (percent: number) => void;
-  onRuntimeChange: (runtime: QueryTabRuntimeState) => void;
   onActiveRegister: (setActive: (active: boolean) => void) => void;
   onRegister: (controller: { isBusy: () => boolean; cancel: () => Promise<void> }) => void;
   onCreateDatabase: () => void;
@@ -427,13 +437,18 @@ interface QueryWorkspaceProps {
   onSchemaChanged: (database: string) => Promise<void>;
 }
 
+function QueryRunNote({ query }: { query: () => string }) {
+  return query().trim().length > 0 ? null : (
+    <p class="cassie-query-run-note">Type SQL to enable run, validate, and explain actions.</p>
+  );
+}
+
 function QueryWorkspace({
   tab,
   active,
   availability,
   onSqlChange,
   onEditorSplitChange,
-  onRuntimeChange,
   onActiveRegister,
   onRegister,
   onCreateDatabase,
@@ -453,7 +468,7 @@ function QueryWorkspace({
   const validateMutation = createValidateQueryMutation();
   const explainMutation = createExplainQueryMutation();
 
-  const [queryDraft] = state({ value: tab.sql });
+  const [queryDraft, setQueryDraft] = state(tab.sql);
   const [isActive, setIsActive] = state(active);
   onActiveRegister(setIsActive);
   const [activeTab, setActiveTab] = state<QueryResultTab>("results");
@@ -466,15 +481,6 @@ function QueryWorkspace({
   const [executionResult, setExecutionResult] = state<QueryExecutionResult | null>(null);
   const [planResult, setPlanResult] = state<QueryExecutionResult | null>(null);
   let activeOperationId: string | null = null;
-  let dirty = false;
-
-  function reportRuntime(
-    phase: QueryTabRuntimeState["phase"],
-    outcome: QueryTabRuntimeState["outcome"],
-    message?: string,
-  ) {
-    onRuntimeChange({ dirty, phase, outcome, unread: !isActive() && outcome !== "none", message });
-  }
 
   function showValidationToast(toast: QueryValidationToastData) {
     setValidationToast(toast);
@@ -491,13 +497,13 @@ function QueryWorkspace({
   };
   const getCompletionItems = (context: Parameters<typeof buildSqlCompletionItems>[2]) =>
     buildSqlCompletionItems(getSchemaDatabases(), tab.database, context);
-  const currentQuery = () => queryDraft().value;
-  const hasQuery = currentQuery().trim().length > 0;
+  const currentQuery = () => queryDraft();
 
   const isExecutionBusy = executeMutation.pending || explainMutation.pending;
   const isValidating = validateMutation.pending || status() === "validating";
   const isQueryBusy = status() !== "idle" || isExecutionBusy || isValidating;
-  const canRun = hasQuery && !isQueryBusy && availability() === "available";
+  const canRun = () =>
+    currentQuery().trim().length > 0 && !isQueryBusy && availability() === "available";
   selectedItemId();
   validationToast();
   const currentStopError = stopError();
@@ -512,14 +518,6 @@ function QueryWorkspace({
     activeOperationId = operationId;
     setStopError(null);
     setStatus(nextStatus);
-    reportRuntime(
-      nextStatus === "running"
-        ? "executing"
-        : nextStatus === "validating"
-          ? "validating"
-          : "explaining",
-      "none",
-    );
     return operationId;
   }
 
@@ -529,7 +527,6 @@ function QueryWorkspace({
     }
     activeOperationId = null;
     setStatus("idle");
-    reportRuntime("idle", "succeeded");
   }
 
   function resetQueryFeedback() {
@@ -557,10 +554,8 @@ function QueryWorkspace({
       return;
     }
 
-    queryDraft().value = nextQuery;
-    dirty = true;
+    setQueryDraft(nextQuery);
     onSqlChange(nextQuery);
-    reportRuntime("idle", "none");
   }
 
   function handleSchemaSelection(item: QuerySchemaItem) {
@@ -570,15 +565,14 @@ function QueryWorkspace({
   function handleTrimQuery() {
     const trimmed = currentQuery().trim();
     if (trimmed === currentQuery()) return;
-    queryDraft().value = trimmed;
+    setQueryDraft(trimmed);
+    setMonacoSqlEditorValue(tab.id, trimmed);
     resetQueryFeedback();
-    dirty = true;
     onSqlChange(trimmed);
-    reportRuntime("idle", "none");
   }
 
   async function runValidate() {
-    if (!canRun) {
+    if (!canRun()) {
       return;
     }
 
@@ -614,7 +608,7 @@ function QueryWorkspace({
   }
 
   async function runExplain() {
-    if (!canRun) {
+    if (!canRun()) {
       return;
     }
 
@@ -635,7 +629,7 @@ function QueryWorkspace({
   }
 
   async function runExecute() {
-    if (!canRun) {
+    if (!canRun()) {
       return;
     }
 
@@ -668,7 +662,6 @@ function QueryWorkspace({
       return;
     }
     setStatus("stopping");
-    reportRuntime("cancelling", "none");
     setStopError(null);
     setStopPending(true);
     const acknowledgeCancellation = () => {
@@ -677,7 +670,6 @@ function QueryWorkspace({
       explainMutation.abort();
       activeOperationId = null;
       setStatus("idle");
-      reportRuntime("idle", "cancelled");
     };
     try {
       await queryService.cancel(operationId);
@@ -688,7 +680,6 @@ function QueryWorkspace({
         return;
       }
       setStopError(`${apiErrorMessage(error)} Try stopping again.`);
-      reportRuntime("cancelling", "failed", apiErrorMessage(error));
     } finally {
       setStopPending(false);
     }
@@ -756,10 +747,9 @@ function QueryWorkspace({
         </SidebarPortalContent>
       ) : null}
 
-      <QueryValidationToast
-        toast={isActive() ? validationToast() : null}
-        onDismiss={dismissValidationToast}
-      />
+      <div hidden={!isActive()} style={{ display: isActive() ? undefined : "none" }}>
+        <QueryValidationToast toast={validationToast()} onDismiss={dismissValidationToast} />
+      </div>
 
       <section
         class="cassie-query-page cassie-query-shell"
@@ -797,7 +787,8 @@ function QueryWorkspace({
                 tabId={tab.id}
                 database={tab.database}
                 active={isActive}
-                query={currentQuery()}
+                initialQuery={tab.sql}
+                query={currentQuery}
                 onQueryChange={handleQueryChange}
                 isRunning={isQueryBusy}
                 actionsEnabled={availability() === "available"}
@@ -854,11 +845,7 @@ function QueryWorkspace({
                   }
                 />
 
-                {hasQuery ? null : (
-                  <p class="cassie-query-run-note">
-                    Type SQL to enable run, validate, and explain actions.
-                  </p>
-                )}
+                <QueryRunNote query={currentQuery} />
               </>
             }
           />

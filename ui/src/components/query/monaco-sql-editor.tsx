@@ -42,6 +42,7 @@ interface MonacoEditorResource {
   systemThemeQuery: MediaQueryList | null;
   systemThemeListener: ((event: MediaQueryListEvent) => void) | null;
   layoutObserver: EditorLayoutObserver | null;
+  fallback: HTMLTextAreaElement | null;
 }
 
 const editorResources = new Map<string, MonacoEditorResource>();
@@ -56,11 +57,23 @@ function getEditorResource(modelUri: string) {
       systemThemeQuery: null,
       systemThemeListener: null,
       layoutObserver: null,
+      fallback: null,
     };
     editorResources.set(modelUri, resource);
   }
 
   return resource;
+}
+
+export function setMonacoSqlEditorValue(tabId: string, value: string) {
+  const modelUri = `inmemory://cassie/query/${encodeURIComponent(tabId)}.sql`;
+  const resource = editorResources.get(modelUri);
+  if (resource?.editor && resource.editor.getValue() !== value) {
+    resource.editor.setValue(value);
+  }
+  if (resource?.fallback && resource.fallback.value !== value) {
+    resource.fallback.value = value;
+  }
 }
 
 function emptyCompletionItems(): MonacoCompletionItem[] {
@@ -151,6 +164,9 @@ export function MonacoSqlEditor({
           aria-label="SQL query"
           class="cassie-query-editor-fallback"
           value={value}
+          ref={(node: unknown) => {
+            resource.fallback = node instanceof HTMLTextAreaElement ? node : null;
+          }}
           onInput={(event: InputEvent) => {
             const input =
               event.currentTarget instanceof HTMLTextAreaElement
@@ -268,6 +284,7 @@ export function MonacoSqlEditor({
     resource.changeDisposable = null;
     resource.layoutObserver?.disconnect();
     resource.layoutObserver = null;
+    resource.fallback = null;
     registry?.owners.delete(modelUri);
     if (registry?.activeUri === modelUri) {
       registry.activeUri = null;

@@ -35,10 +35,10 @@
     "@askrjs/cli": "0.0.23",
     "@axe-core/playwright": "4.12.1",
     "@playwright/test": "1.62.1",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "autoprefixer": "^10.5.4",
     "jsdom": "^30.0.1",
-    "postcss": "^8.5.25",
+    "postcss": "^8.5.26",
     "typescript": "^7.0.2",
     "vite": "8.2.1",
     "vite-plus": "^0.2.8"

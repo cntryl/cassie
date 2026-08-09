@@ -239,6 +239,7 @@ pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool
         Expr::Exists(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Param(_)
         | Expr::Column(_)

@@ -846,6 +846,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
             .is_none_or(|field| !matches!(field.data_type, DataType::Vector(_))),
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => true,
@@ -926,6 +927,7 @@ fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
         Expr::Exists(_) => true,
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => false,

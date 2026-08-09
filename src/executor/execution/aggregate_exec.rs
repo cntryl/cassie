@@ -327,6 +327,7 @@ fn expr_supports_parallel_aggregation(
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => true,
     }
 }
@@ -406,6 +407,7 @@ fn collect_aggregate_specs_from_expr(expr: &Expr, specs: &mut Vec<AggregateSpec>
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => {}
     }
 }
@@ -613,6 +615,7 @@ pub(super) fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
         | Expr::Null
         | Expr::BoolLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::StringLiteral(_) => expr.clone(),
     }
 }

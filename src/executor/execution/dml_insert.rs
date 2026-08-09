@@ -658,6 +658,7 @@ fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Valu
     match expr {
         Expr::StringLiteral(value) => Ok(serde_json::Value::String(value.clone())),
         Expr::NumberLiteral(value) => number_literal_to_json(*value),
+        Expr::IntegerLiteral(value) => Ok(serde_json::Value::Number((*value).into())),
         Expr::BoolLiteral(value) => Ok(serde_json::Value::Bool(*value)),
         Expr::Null => Ok(serde_json::Value::Null),
         Expr::Param(index) => params

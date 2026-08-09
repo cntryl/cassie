@@ -282,7 +282,7 @@ fn is_row_id_range_filter(expr: &Expr) -> bool {
                     other,
                     Expr::StringLiteral(_)
                         | Expr::BoolLiteral(_)
-                        | Expr::NumberLiteral(_)
+                        | Expr::NumberLiteral(_) | Expr::IntegerLiteral(_)
                         | Expr::Null
                         | Expr::Param(_)
                 )
@@ -347,6 +347,7 @@ fn is_id_point_lookup_filter(expr: &Expr) -> bool {
         Expr::StringLiteral(_)
             | Expr::BoolLiteral(_)
             | Expr::NumberLiteral(_)
+            | Expr::IntegerLiteral(_)
             | Expr::Null
             | Expr::Param(_)
     )

@@ -557,6 +557,7 @@ fn partition_literal(expr: &Expr, params: &[Value]) -> Option<String> {
     match expr {
         Expr::StringLiteral(value) => Some(value.clone()),
         Expr::NumberLiteral(value) => Some(value.to_string()),
+        Expr::IntegerLiteral(value) => Some(value.to_string()),
         Expr::BoolLiteral(value) => Some(value.to_string()),
         Expr::Null => Some("null".to_string()),
         Expr::Param(index) => value_text(params.get(*index)?),

@@ -381,18 +381,9 @@ pub(super) fn bind_create_rollup(
                 "rollup AGGREGATES supports aggregate functions only".into(),
             ));
         };
-        if !matches!(
-            function.name.to_ascii_lowercase().as_str(),
-            "count" | "sum" | "avg" | "min" | "max"
-        ) {
+        if !crate::sql::functions::is_aggregate_function(&function.name) {
             return Err(CassieError::Unsupported(format!(
                 "rollup aggregate '{}' is not supported",
-                function.name
-            )));
-        }
-        if !crate::sql::functions::is_aggregate_function(&function.name) {
-            return Err(CassieError::Planner(format!(
-                "'{}' is not an aggregate function",
                 function.name
             )));
         }

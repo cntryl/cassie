@@ -121,6 +121,7 @@ pub(super) fn expr_contains_exists(expr: &Expr) -> bool {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Function(_) => false,
@@ -159,6 +160,7 @@ fn expr_contains_not_exists_with_polarity(expr: &Expr, negated: bool) -> bool {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Function(_) => false,

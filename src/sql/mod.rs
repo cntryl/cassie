@@ -310,6 +310,7 @@ fn infer_parameter_type_oids_expr(
         | ast::Expr::Param(_)
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
+        | ast::Expr::IntegerLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => {}
     }
@@ -624,6 +625,7 @@ fn parameter_count_expr(expr: &ast::Expr) -> usize {
         ast::Expr::Column(_)
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)
+        | ast::Expr::IntegerLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => 0,
         ast::Expr::Param(index) => index + 1,

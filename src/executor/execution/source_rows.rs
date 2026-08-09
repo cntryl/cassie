@@ -454,6 +454,7 @@ pub(crate) fn expr_key(expr: &Expr) -> String {
         Expr::Null => "null".to_string(),
         Expr::BoolLiteral(value) => value.to_string(),
         Expr::NumberLiteral(value) => value.to_string(),
+        Expr::IntegerLiteral(value) => value.to_string(),
         Expr::StringLiteral(value) => format!("'{value}'"),
         Expr::Function(function) => aggregate_signature(function),
         Expr::Binary { left, op, right } => {

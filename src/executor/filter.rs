@@ -291,6 +291,7 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         Expr::Column(name) => Ok(eval_column_value(row, name, context.local_args)),
         Expr::StringLiteral(value) => Ok(ScalarValue::Str(value.clone())),
         Expr::NumberLiteral(value) => Ok(ScalarValue::Float(*value)),
+        Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
         Expr::Param(index) => Ok(context
@@ -339,11 +340,13 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             .ok_or_else(|| QueryError::General("cannot cast value to BIGINT".to_string())),
         DataType::Float => value
             .to_f64()
+            .filter(|value| value.is_finite())
             .map(ScalarValue::Float)
             .or_else(|| {
                 value
                     .as_str()
                     .and_then(|value| value.parse::<f64>().ok())
+                    .filter(|value| value.is_finite())
                     .map(ScalarValue::Float)
             })
             .ok_or_else(|| QueryError::General("cannot cast value to FLOAT".to_string())),

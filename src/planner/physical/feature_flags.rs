@@ -78,6 +78,7 @@ fn expr_uses_fulltext(expr: &Expr) -> bool {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Exists(_) => false,
@@ -114,6 +115,7 @@ fn expr_uses_vector(expr: &Expr) -> bool {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Exists(_) => false,

@@ -213,6 +213,52 @@ pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&
     None
 }
 
+pub(super) fn split_top_level_last<'a>(
+    input: &'a str,
+    keyword: &str,
+) -> Option<(&'a str, &'a str)> {
+    let lower = input.to_lowercase();
+    let chars = lower.char_indices().collect::<Vec<_>>();
+    let token = keyword.as_bytes();
+    let mut depth = 0i32;
+    let mut bracket_depth = 0i32;
+    let mut in_single = false;
+    let mut in_double = false;
+    let mut selected = None;
+
+    for &(idx, ch) in &chars {
+        match ch {
+            '\'' => {
+                if !in_double {
+                    in_single = !in_single;
+                }
+            }
+            '"' => {
+                if !in_single {
+                    in_double = !in_double;
+                }
+            }
+            '(' if !in_single && !in_double => depth += 1,
+            ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
+            '[' if !in_single && !in_double => bracket_depth += 1,
+            ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
+            _ => {}
+        }
+
+        if depth == 0
+            && bracket_depth == 0
+            && !in_single
+            && !in_double
+            && idx + token.len() <= input.len()
+            && &lower.as_bytes()[idx..idx + token.len()] == token
+        {
+            selected = Some((&input[..idx], &input[idx + token.len()..]));
+        }
+    }
+
+    selected
+}
+
 pub(super) fn strip_parentheses(raw: &str) -> Option<&str> {
     let trimmed = raw.trim();
     if !trimmed.starts_with('(') || !trimmed.ends_with(')') {

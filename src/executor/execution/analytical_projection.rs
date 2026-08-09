@@ -232,6 +232,7 @@ fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
         Expr::Exists(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null
         | Expr::Param(_) => {}

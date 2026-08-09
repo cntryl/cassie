@@ -528,6 +528,7 @@ pub(super) fn point_lookup_value_to_row_id(expr: &Expr, params: &[Value]) -> Opt
     match expr {
         Expr::StringLiteral(value) => Some(value.clone()),
         Expr::NumberLiteral(value) => row_id_from_number(*value),
+        Expr::IntegerLiteral(value) => Some(value.to_string()),
         Expr::BoolLiteral(value) => Some(value.to_string()),
         Expr::Param(index) => params.get(*index).and_then(row_id_from_value),
         _ => None,
@@ -846,6 +847,7 @@ fn column_batch_literal(expr: &Expr) -> Option<serde_json::Value> {
         Expr::NumberLiteral(value) => {
             serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
         }
+        Expr::IntegerLiteral(value) => Some(serde_json::Value::Number((*value).into())),
         Expr::Null => Some(serde_json::Value::Null),
         _ => None,
     }
@@ -868,6 +870,7 @@ fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) 
         Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => Some(()),
         Expr::Binary {

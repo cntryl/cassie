@@ -880,6 +880,7 @@ fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
         | Expr::Param(_)
         | Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }

@@ -1,5 +1,6 @@
 use cassie::app::Cassie;
 use cassie::catalog::canonical_relation_name;
+use cassie::types::Value;
 use std::fmt::Write as _;
 
 #[path = "support/sql.rs"]
@@ -104,6 +105,56 @@ fn should_use_deterministic_fallback_order_when_statistics_are_missing() {
         plan.contains("join_order=alpha>middle>zebra"),
         "plan={plan}"
     );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_keep_schema_qualified_relation_identity_during_join_reordering() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("memo_schema_qualified_identity");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    cassie.startup().expect("start Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(&session, "CREATE SCHEMA reporting", vec![])
+        .expect("create reporting schema");
+    for statement in [
+        "CREATE TABLE public.doc (doc_key INT)",
+        "CREATE TABLE reporting.link (pub_key INT, rep_key INT)",
+        "CREATE TABLE reporting.doc (doc_key INT)",
+        "INSERT INTO public.doc VALUES (1)",
+        "INSERT INTO reporting.link VALUES (1, 10), (2, 20)",
+        "INSERT INTO reporting.doc VALUES (10), (20), (30)",
+    ] {
+        cassie
+            .execute_sql(&session, statement, vec![])
+            .expect("prepare qualified join fixture");
+    }
+    for relation in ["public.doc", "reporting.link", "reporting.doc"] {
+        let canonical = canonical_relation_name(
+            "postgres",
+            relation.split('.').next().unwrap(),
+            relation.split('.').nth(1).unwrap(),
+        );
+        let stats = cassie
+            .midge
+            .rebuild_cardinality_stats_for_collection(&canonical)
+            .expect("rebuild relation statistics");
+        cassie.catalog.hydrate_cardinality_stats(&canonical, stats);
+    }
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT public.doc.doc_key FROM public.doc JOIN reporting.link ON public.doc.doc_key = reporting.link.pub_key JOIN reporting.doc ON reporting.link.rep_key = reporting.doc.doc_key",
+            vec![],
+        )
+        .expect("execute reordered qualified join");
+
+    // Assert
+    assert_eq!(result.rows, vec![vec![Value::Int64(1)]]);
     let _ = std::fs::remove_dir_all(path);
 }
 

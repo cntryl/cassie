@@ -153,6 +153,11 @@ fn execute_time_series_rows(
         batch_memory = replacement_memory;
     }
     let cloned_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
+    let projected_output_memory = super::reserve_projection_output_before_building(
+        context.controls,
+        &batches,
+        &context.plan.projection,
+    )?;
     let projected_batches = projection::project_batches(
         batches.clone(),
         &context.plan.projection,
@@ -161,11 +166,10 @@ fn execute_time_series_rows(
         context.user_functions,
         context.session,
     )?;
-    let replacement_memory = ensure_query_memory_budget(context.controls, &projected_batches)?;
     drop(cloned_input_memory);
     drop(batch_memory);
     batches = projected_batches;
-    batch_memory = replacement_memory;
+    batch_memory = projected_output_memory;
     if let Some((offset, limit)) = batch_window(context.plan) {
         let moved_input_memory = ensure_query_memory_budget(context.controls, &batches)?;
         let sliced_batches = batch::slice_batches(batches, offset, limit);
@@ -252,10 +256,8 @@ fn filter_time_series_batches(
         context.user_functions,
         context.session,
     )?;
-    let replacement_memory = ensure_query_memory_budget(context.controls, &filtered_batches)?;
-    drop(cloned_input_memory);
     drop(batch_memory);
-    Ok((filtered_batches, replacement_memory))
+    Ok((filtered_batches, cloned_input_memory))
 }
 
 fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> Vec<String> {

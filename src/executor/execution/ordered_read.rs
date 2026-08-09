@@ -1,15 +1,17 @@
 use super::{
-    batch, compare_query_values, scan, BatchRow, BinaryHeap, BinaryOp, Cassie, CassieSession,
-    CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, QuerySource, SelectItem,
-    SortDirection, Value,
+    batch, check_timeout, compare_query_values, scan, BatchRow, BinaryHeap, BinaryOp, Cassie,
+    CassieSession, CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, QuerySource,
+    SelectItem, SortDirection, Value,
 };
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
+use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 pub(super) fn execute_ordered_column_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     params: &[Value],
     plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let Some(rows) = execute_ordered_row_id_page(cassie, session, params, plan)? {
         return Ok(Some(rows));
@@ -20,55 +22,68 @@ pub(super) fn execute_ordered_column_top_k(
     };
 
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let documents = if let Some(session) = session {
-        cassie
-            .scan_documents_batched_for_session(
-                Some(session),
-                &spec.collection,
-                batch::DEFAULT_BATCH_SIZE,
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>()
-    } else {
-        cassie
-            .midge
-            .scan_rows_for_rebuild(
-                &spec.collection,
-                RowDecode::ProjectedHistorical(spec.projected_scan_fields()),
-            )
-            .map_err(|error| QueryError::General(error.to_string()))?
+    let Some(mut cursor) = cassie
+        .open_session_row_cursor(
+            session,
+            &spec.collection,
+            RowDecode::ProjectedHistorical(spec.projected_scan_fields()),
+            controls,
+        )
+        .map_err(QueryError::from)?
+    else {
+        return Err(QueryError::General(
+            "ordered top-k requires row storage".to_string(),
+        ));
     };
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
-    for document in documents {
-        let document_id = document.id.clone();
-        let order_value = if super::projected_read::is_row_id_column(&spec.order_column) {
-            Value::String(document_id.clone())
-        } else {
-            document
+    loop {
+        check_timeout(controls)?;
+        let accounted = cursor
+            .next_accounted_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, controls)
+            .map_err(QueryError::from)?;
+        if accounted.is_empty() {
+            break;
+        }
+        for document in accounted {
+            check_timeout(controls)?;
+            let candidate_bytes = document.accounted_bytes().saturating_mul(2).saturating_add(
+                spec.projection
+                    .iter()
+                    .map(|column| column.output_name.len())
+                    .sum(),
+            );
+            let candidate_memory = controls.reserve_query_memory(candidate_bytes)?;
+            let (document, document_memory) = document.into_parts();
+            let document_id = document.id.clone();
+            let order_value = document
                 .payload
                 .get(&spec.order_column)
-                .map_or(Value::Null, super::projected_read::json_to_query_value)
-        };
-        let values = ordered_projection_row(document, &spec.projection, schema.as_ref());
-        let candidate = OrderedColumnCandidate {
-            order_value,
-            id: document_id,
-            values: values.into_entries(),
-            direction: spec.direction.clone(),
-        };
-        push_ordered_column_top_k(&mut top, spec.top_needed(), candidate);
+                .map_or(Value::Null, super::projected_read::json_to_query_value);
+            let values = ordered_projection_row(document, &spec.projection, schema.as_ref());
+            let candidate = OrderedColumnCandidate {
+                order_value,
+                id: document_id,
+                values: values.into_entries(),
+                direction: spec.direction.clone(),
+                memory: candidate_memory,
+            };
+            drop(document_memory);
+            push_ordered_column_top_k(&mut top, spec.top_needed(), candidate);
+        }
     }
 
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_ordered_column_candidates);
+    let mut row_memory = Vec::with_capacity(ranked.len());
     let rows = ranked
         .into_iter()
         .skip(spec.offset)
         .take(spec.limit)
-        .map(|candidate| BatchRow::new(candidate.values))
+        .map(|candidate| {
+            row_memory.push(candidate.memory);
+            BatchRow::new(candidate.values)
+        })
         .collect::<Vec<_>>();
 
     cassie
@@ -397,12 +412,13 @@ fn ordered_row_id_range_bounds(
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct OrderedColumnCandidate {
     order_value: Value,
     id: String,
     values: Vec<(String, Value)>,
     direction: SortDirection,
+    memory: QueryMemoryReservation,
 }
 
 impl OrderedColumnCandidate {

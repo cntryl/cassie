@@ -6,6 +6,61 @@ use crate::midge::adapter::DocumentWriteOp;
 
 use super::{Cassie, CassieError};
 
+type ReplayPrepareBarriers = (
+    String,
+    std::sync::Arc<std::sync::Barrier>,
+    std::sync::Arc<std::sync::Barrier>,
+);
+
+static REPLAY_PREPARE_BARRIERS: std::sync::OnceLock<
+    std::sync::Mutex<Option<ReplayPrepareBarriers>>,
+> = std::sync::OnceLock::new();
+static PROJECTION_CONCURRENCY_TEST_GUARD: std::sync::OnceLock<parking_lot::Mutex<()>> =
+    std::sync::OnceLock::new();
+
+#[doc(hidden)]
+pub fn projection_concurrency_test_guard() -> parking_lot::MutexGuard<'static, ()> {
+    PROJECTION_CONCURRENCY_TEST_GUARD
+        .get_or_init(|| parking_lot::Mutex::new(()))
+        .lock()
+}
+
+#[doc(hidden)]
+pub fn set_projection_replay_prepare_barriers(
+    batch_id: Option<String>,
+    ready: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    *REPLAY_PREPARE_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("projection replay prepare barrier mutex") = batch_id
+        .zip(ready)
+        .zip(resume)
+        .map(|((batch_id, ready), resume)| (batch_id, ready, resume));
+}
+
+fn pause_projection_replay_after_prepare(batch_id: &str) {
+    let barriers = {
+        let mut installed = REPLAY_PREPARE_BARRIERS
+            .get_or_init(|| std::sync::Mutex::new(None))
+            .lock()
+            .expect("projection replay prepare barrier mutex");
+        if installed
+            .as_ref()
+            .is_some_and(|(target, _, _)| target == batch_id)
+        {
+            installed.take()
+        } else {
+            None
+        }
+    };
+    if let Some((_, ready, resume)) = barriers {
+        ready.wait();
+        resume.wait();
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectionReplayEvent {
     pub event_id: String,
@@ -53,10 +108,22 @@ impl Cassie {
         batch: ProjectionReplayBatch,
     ) -> Result<ProjectionReplayReport, CassieError> {
         Self::validate_replay_batch(&batch)?;
+        let gated_projection = batch.projection.clone();
+        self.midge
+            .with_collection_write_gates(std::slice::from_ref(&gated_projection), || {
+                self.replay_projection_batch_gated(batch)
+            })
+    }
+
+    fn replay_projection_batch_gated(
+        &self,
+        batch: ProjectionReplayBatch,
+    ) -> Result<ProjectionReplayReport, CassieError> {
         let metadata = self
             .load_projection_replay_metadata(&batch)
             .and_then(|metadata| self.ensure_replay_source_identity(metadata, &batch))?;
         let mut prepared = self.prepare_projection_replay(&metadata, &batch)?;
+        pause_projection_replay_after_prepare(&batch.batch_id);
         self.apply_projection_replay_writes(&metadata, &batch, &mut prepared)?;
         self.finalize_projection_replay(metadata, batch, prepared)
     }

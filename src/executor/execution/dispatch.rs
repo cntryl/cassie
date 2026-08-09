@@ -304,6 +304,7 @@ fn ordered_column_path(context: &mut AccessPathContext<'_>) -> AccessPathResult 
         context.env.session,
         context.env.params,
         context.plan,
+        context.env.controls,
     )
 }
 
@@ -658,6 +659,80 @@ pub(super) fn ensure_query_memory_budget(
     controls
         .reserve_query_memory(bytes)
         .map_err(QueryError::from)
+}
+
+pub(super) fn reserve_projection_output_before_building(
+    controls: &QueryExecutionControls,
+    batches: &[batch::Batch],
+    projection: &[SelectItem],
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    let row_count = batches.iter().map(Vec::len).sum::<usize>();
+    let baseline = estimate_batch_bytes(batches).max(row_count.saturating_mul(64));
+    let expansion = projection
+        .iter()
+        .map(select_item_expansion_weight)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    controls
+        .reserve_query_memory(baseline.saturating_mul(expansion))
+        .map_err(QueryError::from)
+}
+
+fn select_item_expansion_weight(item: &SelectItem) -> usize {
+    match item {
+        SelectItem::Wildcard | SelectItem::Column { .. } => 1,
+        SelectItem::Function { function, .. } => function
+            .args
+            .iter()
+            .map(expression_expansion_weight)
+            .sum::<usize>()
+            .max(1),
+        SelectItem::Expr { expr, .. } => expression_expansion_weight(expr),
+        SelectItem::WindowFunction { function, .. } => function
+            .args
+            .iter()
+            .chain(&function.partition_by)
+            .chain(function.order_by.iter().map(|order| &order.expr))
+            .map(expression_expansion_weight)
+            .sum::<usize>()
+            .max(1),
+    }
+}
+
+fn expression_expansion_weight(expr: &Expr) -> usize {
+    match expr {
+        Expr::Function(function) => function
+            .args
+            .iter()
+            .map(expression_expansion_weight)
+            .sum::<usize>()
+            .max(1),
+        Expr::Binary { left, right, .. } => {
+            expression_expansion_weight(left).saturating_add(expression_expansion_weight(right))
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            expression_expansion_weight(expr)
+        }
+        Expr::InList { expr, values, .. } => values
+            .iter()
+            .fold(expression_expansion_weight(expr), |weight, value| {
+                weight.saturating_add(expression_expansion_weight(value))
+            }),
+        Expr::Between {
+            expr, low, high, ..
+        } => expression_expansion_weight(expr)
+            .saturating_add(expression_expansion_weight(low))
+            .saturating_add(expression_expansion_weight(high)),
+        Expr::Column(_)
+        | Expr::Exists(_)
+        | Expr::Param(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => 1,
+    }
 }
 
 pub(super) fn ensure_query_memory_budget_for_rows(

@@ -53,10 +53,11 @@ impl PartialAggregateGroup {
         Ok(())
     }
 
-    pub(super) fn merge(&mut self, other: &Self) {
+    pub(super) fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
         for (left, right) in self.accumulators.iter_mut().zip(&other.accumulators) {
-            left.merge(right);
+            left.merge(right)?;
         }
+        Ok(())
     }
 }
 
@@ -118,9 +119,13 @@ impl AggregateAccumulator {
         Ok(())
     }
 
-    fn merge(&mut self, other: &Self) {
+    fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
         match (self, other) {
-            (Self::Count { count }, Self::Count { count: other }) => *count += other,
+            (Self::Count { count }, Self::Count { count: other }) => {
+                *count = count
+                    .checked_add(*other)
+                    .ok_or_else(|| QueryError::General("aggregate count overflow".to_string()))?;
+            }
             (
                 Self::Sum { sum, seen },
                 Self::Sum {
@@ -128,8 +133,7 @@ impl AggregateAccumulator {
                     seen: other_seen,
                 },
             ) => {
-                sum.merge(other_sum)
-                    .expect("numeric aggregate state should merge");
+                sum.merge(other_sum)?;
                 *seen = *seen || *other_seen;
             }
             (
@@ -163,6 +167,7 @@ impl AggregateAccumulator {
             }
             _ => {}
         }
+        Ok(())
     }
 
     pub(super) fn finish(self) -> Value {

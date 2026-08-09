@@ -728,9 +728,25 @@ fn replace_output_rows(
     schema: &Schema,
     rows: Vec<BatchRow>,
 ) -> Result<RootHashRecord, QueryError> {
+    crate::executor::pause_before_materialized_projection_replace();
+    let gated_collection = output_collection.to_string();
+    cassie
+        .midge
+        .with_collection_write_gates(std::slice::from_ref(&gated_collection), || {
+            replace_output_rows_gated(cassie, output_collection, schema, rows)
+        })
+}
+
+fn replace_output_rows_gated(
+    cassie: &Cassie,
+    output_collection: &str,
+    schema: &Schema,
+    rows: Vec<BatchRow>,
+) -> Result<RootHashRecord, QueryError> {
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
         cassie.catalog.unregister_collection(output_collection);
+        crate::executor::pause_after_materialized_projection_drop();
     }
     cassie
         .midge

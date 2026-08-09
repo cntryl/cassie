@@ -1,6 +1,4 @@
-use std::io::Read;
-
-use reqwest::blocking::Response;
+use reqwest::Response;
 use reqwest::StatusCode;
 
 use super::EmbeddingError;
@@ -11,8 +9,6 @@ const MAX_ERROR_EXCERPT_BYTES: usize = 1024;
 pub(crate) enum ResponseReadError {
     #[error(transparent)]
     Network(#[from] reqwest::Error),
-    #[error("provider response read failed: {0}")]
-    Io(#[from] std::io::Error),
     #[error("provider response exceeds {limit_bytes} bytes")]
     TooLarge { limit_bytes: usize },
 }
@@ -32,12 +28,12 @@ impl ResponseReadError {
                 provider: provider.to_string(),
                 limit_bytes,
             },
-            other => EmbeddingError::RequestError(other.to_string()),
+            network @ Self::Network(_) => EmbeddingError::RequestError(network.to_string()),
         }
     }
 }
 
-pub(crate) fn read_response(
+pub(crate) async fn read_response(
     mut response: Response,
     max_response_bytes: usize,
 ) -> Result<(StatusCode, String), ResponseReadError> {
@@ -52,9 +48,6 @@ pub(crate) fn read_response(
     }
 
     let status = response.status();
-    let read_limit = u64::try_from(max_response_bytes)
-        .unwrap_or(u64::MAX)
-        .saturating_add(1);
     let mut body = Vec::with_capacity(
         response
             .content_length()
@@ -62,11 +55,13 @@ pub(crate) fn read_response(
             .unwrap_or(0)
             .min(max_response_bytes),
     );
-    response.by_ref().take(read_limit).read_to_end(&mut body)?;
-    if body.len() > max_response_bytes {
-        return Err(ResponseReadError::TooLarge {
-            limit_bytes: max_response_bytes,
-        });
+    while let Some(chunk) = response.chunk().await? {
+        if body.len().saturating_add(chunk.len()) > max_response_bytes {
+            return Err(ResponseReadError::TooLarge {
+                limit_bytes: max_response_bytes,
+            });
+        }
+        body.extend_from_slice(&chunk);
     }
 
     let body = String::from_utf8_lossy(&body);
@@ -75,6 +70,20 @@ pub(crate) fn read_response(
     } else {
         Ok((status, sanitize_error_excerpt(&body)))
     }
+}
+
+pub(crate) fn validate_response_indices(
+    provider: &str,
+    indices: impl IntoIterator<Item = usize>,
+) -> Result<(), EmbeddingError> {
+    for (expected, actual) in indices.into_iter().enumerate() {
+        if actual != expected {
+            return Err(EmbeddingError::ParseError(format!(
+                "{provider} response index {actual} does not match expected index {expected}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn sanitize_error_excerpt(body: &str) -> String {

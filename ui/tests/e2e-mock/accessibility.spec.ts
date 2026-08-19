@@ -37,4 +37,23 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
   }
   await expect(page.getByRole("button", { name: /Query 1 Database1/ })).toBeVisible();
   await expectNoAccessibilityViolations(page);
+
+  const executionResponse = page.waitForResponse((response) =>
+    response.url().includes("/api/v1/admin/query-executions"),
+  );
+  await page.locator("[data-query-page]:visible").getByRole("button", { name: "Run" }).click();
+  expect((await executionResponse).status()).toBe(200);
+  await expect(page.getByLabel("Execution summary")).toContainText("SELECT");
+  await expectNoAccessibilityViolations(page);
+
+  await page.route("**/api/v1/admin/query-executions", async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "simulated query failure" }),
+    });
+  });
+  await page.locator("[data-query-page]:visible").getByRole("button", { name: "Run" }).click();
+  await expect(page.getByText("Query action failed")).toBeVisible();
+  await expectNoAccessibilityViolations(page);
 });

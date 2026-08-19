@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import { QueryResultJson } from "@/components/query/query-result-json";
 import { QueryResultTable } from "@/components/query/query-result-table";
@@ -22,6 +23,7 @@ async function mount(component: () => JSX.Element) {
   window.history.pushState({}, "", "/");
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([{ path: "/", handler: component }]),
   });
   await new Promise<void>((resolve) => queueMicrotask(resolve));

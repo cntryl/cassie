@@ -1,3 +1,5 @@
+import { state } from "@askrjs/askr";
+import { task } from "@askrjs/askr/resources";
 import { createDragResize } from "@/shared/drag-resize";
 
 export const SIDEBAR_WIDTH_MIN_PX = 224;
@@ -14,18 +16,22 @@ export function SidebarResizeHandle({
   onDragMove,
   onDragEnd,
 }: SidebarResizeHandleProps) {
-  const resize = createDragResize({
-    min: SIDEBAR_WIDTH_MIN_PX,
-    max: SIDEBAR_WIDTH_MAX_PX,
-    initialValue: initialPx,
-    smallStep: 16,
-    largeStep: 48,
-    decreaseKeys: ["ArrowLeft"],
-    increaseKeys: ["ArrowRight"],
-    computeNextValue: (event, start) => start.value + (event.clientX - start.clientX),
-    applyValue: onDragMove,
-    onCommit: onDragEnd,
-  });
+  const [resizeState] = state(
+    createDragResize({
+      min: SIDEBAR_WIDTH_MIN_PX,
+      max: SIDEBAR_WIDTH_MAX_PX,
+      initialValue: initialPx,
+      smallStep: 16,
+      largeStep: 48,
+      decreaseKeys: ["ArrowLeft"],
+      increaseKeys: ["ArrowRight"],
+      computeNextValue: (event, start) => start.value + (event.clientX - start.clientX),
+      applyValue: onDragMove,
+      onCommit: onDragEnd,
+    }),
+  );
+  const resize = resizeState();
+  task(() => () => resize.dispose());
 
   return (
     <div

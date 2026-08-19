@@ -1,13 +1,13 @@
 import { afterEach, beforeEach, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
 import QueryPage from "@/pages/app/query";
 import { type ColumnMeta, type QuerySchemaResponse } from "@/adapters";
-import { fetchMock, mockJsonResponse, resetFetchMock } from "./mock-fetch";
+import { fetchMock, mockJsonResponse, mockResponseHandler, resetFetchMock } from "./mock-fetch";
 import { saveQueryWorkspace } from "@/features/query/query-tabs";
-import { queryService } from "@/features/query/query-service";
 import { querySchemaResponse } from "../fixtures/query-schema";
 import { explainPlan } from "../fixtures/query-explain-plan";
 import { createTestRouteRegistry } from "./test-route-registry";
@@ -233,6 +233,7 @@ async function mountQueryRoute() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       {
         path: "/",
@@ -266,7 +267,6 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   mockQuerySchemaSuccess();
-  queryService.invalidateSchema("postgres");
   mockJsonResponse("/api/v1/admin/databases", [{ name: "postgres" }]);
   saveQueryWorkspace("anonymous", {
     version: 1,
@@ -296,6 +296,7 @@ export {
   mockExplainSuccess,
   mockJsonResponse,
   mockQuerySchemaWithColumnsSuccess,
+  mockResponseHandler,
   mockSchemaChangingCommandSuccess,
   mockValidateError,
   mockValidateSuccess,

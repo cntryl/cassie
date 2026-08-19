@@ -17,10 +17,10 @@ import {
   Text,
 } from "@askrjs/themes/components";
 
-import { apiv1 } from "@/adapters";
+import { createLoginMutation } from "@/features/auth-actions";
 import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import { setSession, signOut } from "@/shared/auth";
-import { apiErrorMessage, AppApiError, unwrapResponse } from "@/shared/errors/api";
+import { apiErrorMessage, AppApiError } from "@/shared/errors/api";
 
 function resolveNextTarget() {
   const next = currentRoute().query.get("next");
@@ -37,30 +37,24 @@ function loginErrorMessage(cause: unknown) {
 }
 
 export default function LoginPage() {
+  const loginMutation = createLoginMutation();
   const [username, setUsername] = state("root");
   const [password, setPassword] = state("");
   const [error, setError] = state("");
-  const [isSigningIn, setIsSigningIn] = state(false);
   const nextTarget = resolveNextTarget();
 
   async function handleSignIn(event?: { preventDefault?: () => void }) {
     event?.preventDefault?.();
-    if (isSigningIn()) {
+    if (loginMutation.pending) {
       return;
     }
 
     setError("");
-    setIsSigningIn(true);
     try {
-      const session = unwrapResponse(
-        await apiv1.loginRestSession({
-          body: {
-            username: username().trim(),
-            password: password(),
-          },
-        }),
-        "Unable to sign in",
-      );
+      const session = await loginMutation.execute({
+        username: username().trim(),
+        password: password(),
+      });
       setSession(session);
       setPassword("");
       navigate(nextTarget, {
@@ -69,8 +63,6 @@ export default function LoginPage() {
     } catch (caught) {
       signOut();
       setError(loginErrorMessage(caught));
-    } finally {
-      setIsSigningIn(false);
     }
   }
 
@@ -98,7 +90,7 @@ export default function LoginPage() {
                   autocomplete="username"
                   placeholder="root"
                   required
-                  disabled={isSigningIn()}
+                  disabled={loginMutation.pending}
                   value={username()}
                   onInput={(event: Event) => {
                     setUsername((event.target as HTMLInputElement).value);
@@ -113,7 +105,7 @@ export default function LoginPage() {
                   type="password"
                   autocomplete="current-password"
                   required
-                  disabled={isSigningIn()}
+                  disabled={loginMutation.pending}
                   value={password()}
                   onInput={(event: Event) => {
                     setPassword((event.target as HTMLInputElement).value);
@@ -131,10 +123,10 @@ export default function LoginPage() {
                 type="submit"
                 variant="primary"
                 width="full"
-                aria-busy={isSigningIn()}
-                disabled={isSigningIn()}
+                aria-busy={loginMutation.pending}
+                disabled={loginMutation.pending}
               >
-                {isSigningIn() ? "Signing in..." : "Sign in"}
+                {loginMutation.pending ? "Signing in..." : "Sign in"}
               </Button>
             </Block>
           </CardContent>

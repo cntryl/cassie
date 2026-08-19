@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import { createCassieRouteRegistry } from "@/pages/_routes";
 import { isSignedIn, signOut } from "@/shared/auth";
@@ -98,7 +99,11 @@ async function mountWorkflow() {
   }
 
   await import("@/pages/app/query");
-  await createSPA({ root, registry: createCassieRouteRegistry() });
+  await createSPA({
+    root,
+    registry: createCassieRouteRegistry(),
+    dataRuntime: createDataRuntime(),
+  });
   await flushUi();
   return root;
 }

@@ -6,6 +6,7 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   reporter: "line",
+  snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}{-projectName}{ext}",
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.001 } },
   use: {
     baseURL: "http://127.0.0.1:14174",

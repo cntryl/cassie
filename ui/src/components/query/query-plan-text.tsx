@@ -1,4 +1,5 @@
 import { For, Show } from "@askrjs/askr/control";
+import { Badge, Card, Progress } from "@askrjs/themes/components";
 import type {
   QueryExplainPlan,
   QueryPlanAnalyze,
@@ -64,7 +65,7 @@ function rawPlanBlock(rawText: string) {
 
 function QueryPlanNodeView({ node }: { node: QueryPlanNode }) {
   return (
-    <article
+    <Card
       class="cassie-query-plan-node"
       data-testid="query-plan-node"
       data-node-kind={node.kind}
@@ -79,7 +80,7 @@ function QueryPlanNodeView({ node }: { node: QueryPlanNode }) {
       <Show when={node.badges.length > 0}>
         <div class="cassie-query-plan-badges">
           <For each={node.badges} by={(badge) => badge}>
-            {(badge) => <span class="cassie-query-plan-badge">{badge}</span>}
+            {(badge) => <Badge class="cassie-query-plan-badge">{badge}</Badge>}
           </For>
         </div>
       </Show>
@@ -96,13 +97,13 @@ function QueryPlanNodeView({ node }: { node: QueryPlanNode }) {
           )}
         </For>
       </dl>
-    </article>
+    </Card>
   );
 }
 
 function QueryPlanFeatureView({ feature }: { feature: QueryPlanFeature }) {
   return (
-    <span
+    <Badge
       class="cassie-query-plan-feature"
       data-enabled={feature.enabled ? "true" : "false"}
       data-intent={feature.intent}
@@ -110,7 +111,7 @@ function QueryPlanFeatureView({ feature }: { feature: QueryPlanFeature }) {
       title={feature.detail}
     >
       {feature.label}
-    </span>
+    </Badge>
   );
 }
 
@@ -158,10 +159,10 @@ function QueryPlanVisual({ plan, rawText }: { plan: QueryExplainPlan; rawText: s
       <div class="cassie-query-plan-attributes" aria-label="Plan attributes">
         <For each={plan.attributes} by={(attribute) => attribute.label}>
           {(attribute) => (
-            <span class="cassie-query-plan-attribute" data-intent={attribute.intent}>
+            <Badge class="cassie-query-plan-attribute" data-intent={attribute.intent}>
               <strong>{attribute.label}</strong>
               <span>{attribute.value}</span>
-            </span>
+            </Badge>
           )}
         </For>
       </div>
@@ -180,12 +181,12 @@ function QueryPlanVisual({ plan, rawText }: { plan: QueryExplainPlan; rawText: s
                 <span>{estimate.label}</span>
                 <strong>{formatNumber(estimate.value)}</strong>
               </div>
-              <span class="cassie-query-plan-estimate-track" aria-hidden="true">
-                <span
-                  class="cassie-query-plan-estimate-bar"
-                  style={{ inlineSize: estimate.width }}
-                />
-              </span>
+              <Progress
+                class="cassie-query-plan-estimate-track"
+                value={Number.parseFloat(estimate.width)}
+                max={100}
+                getValueLabel={() => `${estimate.label}: ${formatNumber(estimate.value)}`}
+              />
             </div>
           )}
         </For>
@@ -206,10 +207,10 @@ function QueryPlanVisual({ plan, rawText }: { plan: QueryExplainPlan; rawText: s
       </section>
 
       <section class="cassie-query-plan-diagnostics" aria-label="Plan diagnostics">
-        <span>{plan.diagnostics.access_path_reason}</span>
-        <span>{plan.diagnostics.pagination_strategy}</span>
-        <span>{plan.diagnostics.early_stop}</span>
-        <span>{plan.diagnostics.projection_freshness}</span>
+        <Badge>{plan.diagnostics.access_path_reason}</Badge>
+        <Badge>{plan.diagnostics.pagination_strategy}</Badge>
+        <Badge>{plan.diagnostics.early_stop}</Badge>
+        <Badge>{plan.diagnostics.projection_freshness}</Badge>
       </section>
 
       {plan.analyze ? <QueryPlanAnalyzeView analyze={plan.analyze} /> : null}

@@ -1,6 +1,14 @@
 import { For } from "@askrjs/askr/control";
 import { state } from "@askrjs/askr";
-import { Button, Text } from "@askrjs/themes/components";
+import {
+  Button,
+  EmptyState,
+  Input,
+  InputGroup,
+  InputGroupText,
+  Spinner,
+  Text,
+} from "@askrjs/themes/components";
 import { PlusIcon, SearchIcon, XIcon } from "@askrjs/lucide";
 
 import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
@@ -131,9 +139,11 @@ export function QuerySchemaTree({
             </Button>
           ) : null}
         </div>
-        <div class="cassie-query-schema-search">
-          <SearchIcon class="cassie-query-schema-search-icon" size={13} aria-hidden="true" />
-          <input
+        <InputGroup class="cassie-query-schema-search" attached={false}>
+          <InputGroupText>
+            <SearchIcon size={13} aria-hidden="true" />
+          </InputGroupText>
+          <Input
             type="search"
             class="cassie-query-schema-search-input"
             placeholder="Filter tables, views, indexes…"
@@ -141,17 +151,19 @@ export function QuerySchemaTree({
             value={query()}
             onInput={handleQueryInput}
           />
-          <button
+          <Button
             type="button"
+            size="icon"
+            variant="ghost"
             class="cassie-query-schema-search-clear"
             aria-label="Clear filter"
             hidden={!isSearching()}
             style={{ display: isSearching() ? undefined : "none" }}
-            onClick={clearQuery}
+            onPress={clearQuery}
           >
             <XIcon size={12} />
-          </button>
-        </div>
+          </Button>
+        </InputGroup>
       </header>
       <div
         class="cassie-query-schema-tree-body"
@@ -178,7 +190,11 @@ export function QuerySchemaTree({
           </For>
         </div>
 
-        <p class="cassie-query-schema-empty-search">No matches for “{query()}”.</p>
+        <EmptyState
+          class="cassie-query-schema-empty-search"
+          title="No schema matches"
+          description={<>No matches for “{query()}”.</>}
+        />
 
         <Text
           class="cassie-query-schema-search-progress"
@@ -190,7 +206,8 @@ export function QuerySchemaTree({
             display: isSearching() && pendingCatalogCount() > 0 ? undefined : "none",
           }}
         >
-          Loading catalogs {settledCatalogCount()} of {getCatalogs().length}…
+          <Spinner size="sm" label="Loading catalogs" /> Loading catalogs {settledCatalogCount()} of
+          {getCatalogs().length}…
         </Text>
 
         <div

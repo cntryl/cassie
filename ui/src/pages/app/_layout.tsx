@@ -1,18 +1,26 @@
 import { state } from "@askrjs/askr";
+import { ErrorBoundary } from "@askrjs/askr/components";
+import { task } from "@askrjs/askr/resources";
 import { Link } from "@askrjs/askr/router";
 import { LogOutIcon, MenuIcon, MoonIcon, SunIcon } from "@askrjs/lucide";
 import {
-  Block,
   Brand,
   BrandLabel,
   BrandMark,
+  Alert,
   Button,
-  Grid,
+  EmptyState,
   Inline,
+  Shell,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarScope,
   Text,
 } from "@askrjs/themes/components";
-import { Sidebar } from "@askrjs/themes/components";
-import { ThemeToggle } from "@askrjs/themes/theme";
+import { ThemeScope, ThemeToggle } from "@askrjs/themes/theme";
 
 import { clamp } from "@/shared/drag-resize";
 import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
@@ -21,7 +29,7 @@ import {
   SIDEBAR_WIDTH_MIN_PX,
   SidebarResizeHandle,
 } from "@/components/shell/sidebar-resize-handle";
-import { SidebarPortalHost } from "@/components/shell/sidebar-portal-host";
+import { SidebarPortalHost, SidebarPortalProvider } from "@/components/shell/sidebar-portal-host";
 import { getSession } from "@/shared/auth";
 
 const SIDEBAR_WIDTH_STORAGE_KEY = "cassie-admin-sidebar-width";
@@ -57,52 +65,69 @@ function persistSidebarWidth(px: number) {
   }
 }
 
-export default function Layout({ children }: { children?: unknown }) {
+export default function Layout(props: { children?: unknown }) {
+  return (
+    <ErrorBoundary
+      fallback={(_error, reset) => (
+        <main id="main-content" tabindex={-1}>
+          <EmptyState
+            title="Admin workspace unavailable"
+            titleAs="h1"
+            description="The protected workspace encountered an unexpected problem. Your saved query drafts were not removed."
+            action={
+              <Button type="button" variant="primary" onPress={reset}>
+                Retry workspace
+              </Button>
+            }
+          >
+            <Alert
+              variant="danger"
+              title="Workspace error"
+              description="Retry the workspace or sign out and start a new session."
+            />
+          </EmptyState>
+        </main>
+      )}
+    >
+      <SidebarPortalProvider>
+        <ProtectedShell {...props} />
+      </SidebarPortalProvider>
+    </ErrorBoundary>
+  );
+}
+
+function ProtectedShell({ children }: { children?: unknown }) {
   const session = getSession();
   const [mobileNavOpen, setMobileNavOpen] = state(false);
   const [sidebarWidth, setSidebarWidth] = state(readPersistedSidebarWidth());
+  const [elements] = state<{
+    root: HTMLElement | null;
+    clearOverrideFrame: number | null;
+  }>({ root: null, clearOverrideFrame: null });
   const isMobileNavOpen = mobileNavOpen();
 
-  let rootEl: HTMLElement | null = null;
-  let clearOverrideFrame: number | null = null;
-
-  function setRootEl(node: unknown) {
-    rootEl = node instanceof HTMLElement ? node : null;
-  }
-
   function cancelPendingOverrideClear() {
-    if (clearOverrideFrame !== null) {
-      cancelAnimationFrame(clearOverrideFrame);
-      clearOverrideFrame = null;
+    const frame = elements().clearOverrideFrame;
+    if (frame !== null) {
+      cancelAnimationFrame(frame);
+      elements().clearOverrideFrame = null;
     }
   }
 
-  // During a live drag, mutate the CSS var directly (imperative, no state
-  // commit) so dragging doesn't force a re-render per pointermove. The
-  // element's `style` prop below (driven by sidebarWidth()) is what keeps
-  // the var correct the rest of the time — on first mount, after the drag
-  // commits, and on *any other* unrelated re-render (e.g. toggling the
-  // theme), which previously reset the sidebar because the imperative-only
-  // value had no declarative backing and got wiped on the next patch.
+  task(() => () => cancelPendingOverrideClear());
+
   function handleSidebarDragMove(px: number) {
-    // A new drag starting/continuing supersedes any previous drag's queued
-    // cleanup below — without this, a release-then-immediately-regrab within
-    // one frame lets the stale rAF fire mid-drag and wipe this drag's
-    // just-applied width back to the old committed value.
     cancelPendingOverrideClear();
-    rootEl?.style.setProperty("--cassie-sidebar-width", `${px}px`);
+    elements().root?.style.setProperty("--cassie-sidebar-width", `${px}px`);
   }
 
   function handleSidebarDragEnd(px: number) {
     setSidebarWidth(px);
     persistSidebarWidth(px);
-    // Clear the imperative override once the declarative style (from the
-    // committed sidebarWidth()) has taken over, so it doesn't keep masking
-    // future declarative updates via inline-style precedence.
     cancelPendingOverrideClear();
-    const node = rootEl;
-    clearOverrideFrame = requestAnimationFrame(() => {
-      clearOverrideFrame = null;
+    const node = elements().root;
+    elements().clearOverrideFrame = requestAnimationFrame(() => {
+      elements().clearOverrideFrame = null;
       node?.style.removeProperty("--cassie-sidebar-width");
     });
   }
@@ -112,57 +137,49 @@ export default function Layout({ children }: { children?: unknown }) {
   }
 
   return (
-    <Block
+    <Shell
       class="cassie-admin-root"
       data-testid="cassie-admin-shell"
       minHeight="screen"
       direction="column"
       style={{ "--cassie-sidebar-width": `${sidebarWidth()}px` }}
-      ref={setRootEl}
+      ref={(node: unknown) => {
+        elements().root = node instanceof HTMLElement ? node : null;
+      }}
     >
       <a class="skip-link" href="#main-content">
         Skip to main content
       </a>
 
-      <div class="cassie-admin-workspace">
-        <Grid
-          class="cassie-admin-layout"
-          columns={{
-            base: 1,
-            md: "var(--cassie-sidebar-width, 18rem) 0.25rem minmax(0, 1fr)",
-          }}
+      <SidebarScope class="cassie-admin-workspace cassie-admin-layout">
+        <Sidebar
+          class="cassie-admin-sidebar"
+          collapsible="none"
+          minHeight="auto"
+          padding="sm"
           gap="0"
-          align="stretch"
+          borderRight
+          shrink={false}
+          width="full"
+          data-mobile-open={isMobileNavOpen ? "true" : undefined}
+          aria-label="Schema browser"
         >
-          <Sidebar
-            class="cassie-admin-sidebar"
-            collapsible="none"
-            minHeight="auto"
-            padding="sm"
-            gap="0"
-            borderRight
-            shrink={false}
-            width="full"
-            data-mobile-open={isMobileNavOpen ? "true" : undefined}
-            aria-label="Schema browser"
-          >
-            <div class="cassie-admin-sidebar-brand">
-              <Brand asChild>
-                <Link href="/" aria-label="Cassie admin home">
-                  <BrandMark class="cassie-brand-mark" aria-hidden="true">
-                    <img
-                      data-testid="cassie-brand-logo"
-                      src={cassieLogoPath}
-                      {...cassieLogoImageProps}
-                      width="32"
-                      height="32"
-                      alt=""
-                    />
-                  </BrandMark>
-                  <BrandLabel>Cassie Admin</BrandLabel>
-                </Link>
-              </Brand>
-            </div>
+          <SidebarHeader class="cassie-admin-sidebar-brand">
+            <Brand asChild>
+              <Link href="/" aria-label="Cassie admin home">
+                <BrandMark class="cassie-brand-mark" aria-hidden="true">
+                  <img
+                    data-testid="cassie-brand-logo"
+                    src={cassieLogoPath}
+                    {...cassieLogoImageProps}
+                    width="32"
+                    height="32"
+                    alt=""
+                  />
+                </BrandMark>
+                <BrandLabel>Cassie Admin</BrandLabel>
+              </Link>
+            </Brand>
 
             <Button
               type="button"
@@ -176,21 +193,23 @@ export default function Layout({ children }: { children?: unknown }) {
               <MenuIcon size={16} />
               <span>Schema browser</span>
             </Button>
+          </SidebarHeader>
 
-            <div class="cassie-admin-sidebar-panel" id="cassie-admin-sidebar-panel">
-              <div class="cassie-admin-sidebar-extra" data-testid="cassie-admin-sidebar-extra">
-                <SidebarPortalHost />
-              </div>
+          <SidebarContent class="cassie-admin-sidebar-panel" id="cassie-admin-sidebar-panel">
+            <div class="cassie-admin-sidebar-extra" data-testid="cassie-admin-sidebar-extra">
+              <SidebarPortalHost />
             </div>
+          </SidebarContent>
 
-            <footer class="cassie-admin-sidebar-footer" data-testid="admin-sidebar-footer">
-              <Inline gap="sm" align="center" data-testid="admin-session-context">
-                {session?.user ? (
-                  <Text as="span" size="sm" title={session.user} class="cassie-user-name">
-                    {session.user}
-                  </Text>
-                ) : null}
-              </Inline>
+          <SidebarFooter class="cassie-admin-sidebar-footer" data-testid="admin-sidebar-footer">
+            <Inline gap="sm" align="center" data-testid="admin-session-context">
+              {session?.user ? (
+                <Text as="span" size="sm" title={session.user} class="cassie-user-name">
+                  {session.user}
+                </Text>
+              ) : null}
+            </Inline>
+            <ThemeScope defaultTheme="system" storageKey="cassie-admin-theme">
               <ThemeToggle
                 aria-label="Toggle color theme"
                 variant="ghost"
@@ -198,25 +217,27 @@ export default function Layout({ children }: { children?: unknown }) {
                 lightIcon={<SunIcon size={16} />}
                 darkIcon={<MoonIcon size={16} />}
               />
-              <Button asChild variant="ghost" size="icon">
-                <Link href="/logout" aria-label="Sign out">
-                  <LogOutIcon size={16} aria-hidden="true" />
-                </Link>
-              </Button>
-            </footer>
-          </Sidebar>
+            </ThemeScope>
+            <Button asChild variant="ghost" size="icon">
+              <Link href="/logout" aria-label="Sign out">
+                <LogOutIcon size={16} aria-hidden="true" />
+              </Link>
+            </Button>
+          </SidebarFooter>
+        </Sidebar>
 
-          <div role="navigation" aria-label="Sidebar resizing">
-            <SidebarResizeHandle
-              initialPx={sidebarWidth()}
-              onDragMove={handleSidebarDragMove}
-              onDragEnd={handleSidebarDragEnd}
-            />
-          </div>
+        <div role="navigation" aria-label="Sidebar resizing">
+          <SidebarResizeHandle
+            initialPx={sidebarWidth()}
+            onDragMove={handleSidebarDragMove}
+            onDragEnd={handleSidebarDragEnd}
+          />
+        </div>
 
-          <div class="cassie-admin-route-surface">{children}</div>
-        </Grid>
-      </div>
-    </Block>
+        <SidebarInset as="div" class="cassie-admin-route-surface">
+          {children as never}
+        </SidebarInset>
+      </SidebarScope>
+    </Shell>
   );
 }

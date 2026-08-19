@@ -16,15 +16,16 @@ import {
   Text,
 } from "@askrjs/themes/components";
 
-import { apiv1 } from "@/adapters";
+import { createLogoutMutation } from "@/features/auth-actions";
 import { clearQueryWorkspace } from "@/features/query/query-tabs";
 import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import { getSession, signOut } from "@/shared/auth";
-import { apiErrorMessage, ensureResponseOk } from "@/shared/errors/api";
+import { apiErrorMessage } from "@/shared/errors/api";
 
 type LogoutPhase = "pending" | "error";
 
 export default function LogoutPage() {
+  const logoutMutation = createLogoutMutation();
   const session = getSession();
   const [phase, setPhase] = state<LogoutPhase>("pending");
   const [error, setError] = state("");
@@ -33,25 +34,12 @@ export default function LogoutPage() {
 
   task(() => signOutAndRedirect());
 
-  async function performSignOut() {
-    const response = await apiv1.logoutRestSession();
-    if (response.ok) {
-      return;
-    }
-
-    if (response.status === 401) {
-      return;
-    }
-
-    ensureResponseOk(response, "Unable to sign out");
-  }
-
   async function signOutAndRedirect() {
     setPhase("pending");
     setError("");
 
     try {
-      await performSignOut();
+      await logoutMutation.execute();
       if (session?.user) {
         clearQueryWorkspace(session.user);
       }

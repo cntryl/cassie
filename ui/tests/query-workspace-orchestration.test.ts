@@ -62,19 +62,18 @@ describe("query workspace orchestration", () => {
     expect(result.activeTabId).toBe(firstTab.id);
   });
 
-  it("should_report_only_the_active_registered_workspace", () => {
+  it("should_unregister_only_the_matching_workspace_controller", () => {
     // Arrange
     const registry = new QueryWorkspaceRegistry();
-    const firstReporter = vi.fn();
-    const secondReporter = vi.fn();
-    registry.registerActiveReporter("query-1", firstReporter);
-    registry.registerActiveReporter("query-2", secondReporter);
+    const first = { isBusy: () => false, cancel: vi.fn(async () => undefined) };
+    const second = { isBusy: () => true, cancel: vi.fn(async () => undefined) };
+    const unregisterFirst = registry.registerController("query-1", first);
+    registry.registerController("query-1", second);
 
     // Act
-    registry.activate("query-2");
+    unregisterFirst();
 
     // Assert
-    expect(firstReporter).toHaveBeenCalledWith(false);
-    expect(secondReporter).toHaveBeenCalledWith(true);
+    expect(registry.controller("query-1")).toBe(second);
   });
 });

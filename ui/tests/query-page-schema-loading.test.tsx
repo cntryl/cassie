@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { queryService } from "@/features/query/query-service";
 import { saveQueryWorkspace } from "@/features/query/query-tabs";
 import {
   fetchMock,
@@ -33,8 +32,6 @@ describe("query page schema loading", () => {
     // Arrange
     saveQueryWorkspace("anonymous", { version: 1, activeTabId: null, tabs: [] });
     mockJsonResponse("/api/v1/admin/databases", [{ name: "Database1" }, { name: "Database2" }]);
-    queryService.invalidateSchema("Database1");
-    queryService.invalidateSchema("Database2");
 
     // Act
     const root = await mountQueryRoute();
@@ -53,8 +50,6 @@ describe("query page schema loading", () => {
   it("should_load_only_the_active_database_and_leave_siblings_collapsed", async () => {
     // Arrange
     mockJsonResponse("/api/v1/admin/databases", [{ name: "Database1" }, { name: "Database2" }]);
-    queryService.invalidateSchema("Database1");
-    queryService.invalidateSchema("Database2");
     saveQueryWorkspace("anonymous", {
       version: 1,
       activeTabId: "query-2",
@@ -98,8 +93,6 @@ describe("query page schema loading", () => {
   it("should_load_remaining_catalogs_when_schema_search_becomes_nonempty", async () => {
     // Arrange
     mockJsonResponse("/api/v1/admin/databases", [{ name: "Database1" }, { name: "Database2" }]);
-    queryService.invalidateSchema("Database1");
-    queryService.invalidateSchema("Database2");
     saveQueryWorkspace("anonymous", {
       version: 1,
       activeTabId: "query-1",

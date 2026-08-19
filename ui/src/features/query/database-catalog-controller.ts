@@ -34,17 +34,11 @@ export class DatabaseCatalogController {
   readonly #abortControllers = new Set<AbortController>();
   readonly #load: DatabaseCatalogLoader;
   readonly #notify: () => void;
-  readonly #invalidate: (database: string) => void;
   #disposed = false;
 
-  constructor(
-    load: DatabaseCatalogLoader,
-    notify: () => void = () => {},
-    invalidate: (database: string) => void = () => {},
-  ) {
+  constructor(load: DatabaseCatalogLoader, notify: () => void = () => {}) {
     this.#load = load;
     this.#notify = notify;
-    this.#invalidate = invalidate;
   }
 
   entries(): DatabaseCatalogEntry[] {
@@ -112,7 +106,6 @@ export class DatabaseCatalogController {
     this.insert(name);
     const entry = this.entry(name);
     if (!entry) return;
-    this.#invalidate(entry.name);
     this.#entries.set(entry.canonicalName, {
       canonicalName: entry.canonicalName,
       name: entry.name,

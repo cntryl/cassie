@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
 import { state } from "@askrjs/askr";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
 import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
@@ -80,6 +81,7 @@ async function mountSchemaTree() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       {
         path: "/",
@@ -124,6 +126,7 @@ async function mountDynamicSchemaTree() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([{ path: "/", handler: DynamicSchemaTree }]),
   });
   await flushUi();

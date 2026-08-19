@@ -493,7 +493,11 @@ describe("admin query page composition", () => {
     await flushUi();
 
     expect(editor.value).toBe(originalValue);
-    expect(item.getAttribute("aria-current")).toBe("true");
+    expect(
+      root
+        .querySelector('[data-item-id="table:postgres.public.documents"]')
+        ?.getAttribute("aria-current"),
+    ).toBe("true");
   });
 
   it("inserts a soft tab instead of moving focus when Tab is pressed in the SQL editor", async () => {
@@ -593,13 +597,9 @@ describe("admin query page composition", () => {
     }
 
     const menuItem = row.parentElement;
-    const columnsList = menuItem?.querySelector('[data-testid="query-schema-item-columns"]');
-    if (!(columnsList instanceof HTMLElement)) {
-      throw new Error("Missing columns list");
-    }
 
     expect(row.getAttribute("data-expandable")).toBe("true");
-    expect(columnsList.hidden).toBe(true);
+    expect(menuItem?.querySelector('[data-testid="query-schema-item-columns"]')).toBe(null);
 
     const toggle = row.querySelector('[data-testid="query-schema-item-toggle"]');
     if (!(toggle instanceof HTMLElement)) {
@@ -608,7 +608,10 @@ describe("admin query page composition", () => {
 
     toggle.click();
     await flushUi();
-    expect(columnsList.hidden).toBe(false);
+    const columnsList = menuItem?.querySelector('[data-testid="query-schema-item-columns"]');
+    if (!(columnsList instanceof HTMLElement)) {
+      throw new Error("Missing columns list");
+    }
 
     const columns = columnsList.querySelectorAll('[data-testid="query-schema-column"]');
     expect(columns.length).toBe(2);
@@ -618,7 +621,7 @@ describe("admin query page composition", () => {
 
     toggle.click();
     await flushUi();
-    expect(columnsList.hidden).toBe(true);
+    expect(menuItem?.querySelector('[data-testid="query-schema-item-columns"]')).toBe(null);
   });
 
   it("renders the explain plan as a visual plan with raw text, not JSON", async () => {

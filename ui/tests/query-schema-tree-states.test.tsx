@@ -1,4 +1,5 @@
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { QuerySchemaTree } from "@/components/query/query-schema-tree";
@@ -18,6 +19,7 @@ async function mountCatalog(catalog: DatabaseCatalogEntry, onRetry = () => {}) {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       {
         path: "/",

@@ -1,4 +1,4 @@
-import { Alert } from "@askrjs/themes/components";
+import { Alert, Spinner } from "@askrjs/themes/components";
 
 import type { QueryStatus } from "@/features/query/query-models";
 
@@ -40,5 +40,12 @@ export function QueryExecutionBanner({ status, isBusy, errorMessage }: QueryExec
     return null;
   }
 
-  return <Alert variant={banner.variant} title={banner.title} description={banner.description} />;
+  return (
+    <Alert
+      variant={banner.variant}
+      title={banner.title}
+      description={banner.description}
+      icon={isBusy ? <Spinner size="sm" label="Query action in progress" /> : undefined}
+    />
+  );
 }

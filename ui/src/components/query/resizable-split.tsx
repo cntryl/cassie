@@ -1,3 +1,6 @@
+import { state } from "@askrjs/askr";
+import { task } from "@askrjs/askr/resources";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@askrjs/themes/components";
 import { createDragResize } from "@/shared/drag-resize";
 
 interface ResizableSplitProps {
@@ -19,21 +22,21 @@ export function ResizableSplit({
   first,
   second,
 }: ResizableSplitProps) {
-  // Keep this behavior local while askrjs/askr-themes#62 remains open:
-  // the themed ResizablePanel exports are styling-only catalog stubs.
-  let container: HTMLElement | null = null;
-  let primaryPane: HTMLElement | null = null;
+  const [elements] = state<{
+    container: HTMLElement | null;
+    primaryPane: HTMLElement | null;
+  }>({ container: null, primaryPane: null });
 
   function setContainer(node: HTMLElement | null) {
-    container = node;
+    elements().container = node;
   }
 
   function setPrimaryPane(node: HTMLElement | null) {
-    primaryPane = node;
+    elements().primaryPane = node;
   }
 
   function percentFromPointer(clientX: number, clientY: number): number | null {
-    const root = container;
+    const root = elements().container;
     if (!root || !root.isConnected) {
       return null;
     }
@@ -45,6 +48,7 @@ export function ResizableSplit({
   }
 
   function applyPercent(nextPercent: number) {
+    const { container, primaryPane } = elements();
     if (!primaryPane || !container) {
       return;
     }
@@ -56,18 +60,22 @@ export function ResizableSplit({
     }
   }
 
-  const resize = createDragResize({
-    min,
-    max,
-    initialValue: initialSize,
-    smallStep: 2,
-    largeStep: 10,
-    decreaseKeys: orientation === "horizontal" ? ["ArrowLeft"] : ["ArrowUp"],
-    increaseKeys: orientation === "horizontal" ? ["ArrowRight"] : ["ArrowDown"],
-    computeNextValue: (event) => percentFromPointer(event.clientX, event.clientY),
-    applyValue: applyPercent,
-    onCommit: onResize,
-  });
+  const [resizeState] = state(
+    createDragResize({
+      min,
+      max,
+      initialValue: initialSize,
+      smallStep: 2,
+      largeStep: 10,
+      decreaseKeys: orientation === "horizontal" ? ["ArrowLeft"] : ["ArrowUp"],
+      increaseKeys: orientation === "horizontal" ? ["ArrowRight"] : ["ArrowDown"],
+      computeNextValue: (event) => percentFromPointer(event.clientX, event.clientY),
+      applyValue: applyPercent,
+      onCommit: onResize,
+    }),
+  );
+  const resize = resizeState();
+  task(() => () => resize.dispose());
 
   const split = resize.value();
   const isDragging = resize.dragging();
@@ -92,17 +100,17 @@ export function ResizableSplit({
   };
 
   return (
-    <div
+    <ResizablePanelGroup
       class={`cassie-resizable-split cassie-resizable-split-${orientation}`}
       ref={setContainer}
       style={containerStyle}
       data-dragging={isDragging ? "true" : undefined}
       data-testid={`query-resizable-split-${orientation}`}
     >
-      <div class="cassie-resizable-split-pane" ref={setPrimaryPane} style={primaryStyle}>
+      <ResizablePanel class="cassie-resizable-split-pane" ref={setPrimaryPane} style={primaryStyle}>
         {first}
-      </div>
-      <div
+      </ResizablePanel>
+      <ResizableHandle
         class="cassie-resizable-split-handle"
         ref={resize.setHandleEl}
         onPointerDown={resize.onPointerDown}
@@ -114,9 +122,9 @@ export function ResizableSplit({
         tabIndex={0}
         {...separatorAttributes}
       />
-      <div class="cassie-resizable-split-pane" style={secondaryStyle}>
+      <ResizablePanel class="cassie-resizable-split-pane" style={secondaryStyle}>
         {second}
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

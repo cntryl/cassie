@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import { createCassieRouteRegistry } from "@/pages/_routes";
 import { signIn, signOut } from "@/shared/auth";
@@ -45,7 +46,11 @@ async function mountAt(path: string) {
   // lazy()'s synchronous check on first render doesn't race the import.
   await import("@/pages/app/query");
 
-  await createSPA({ root, registry: createCassieRouteRegistry() });
+  await createSPA({
+    root,
+    registry: createCassieRouteRegistry(),
+    dataRuntime: createDataRuntime(),
+  });
   await flushUi();
   await flushUi();
   return root;

@@ -1,4 +1,5 @@
 import { For } from "@askrjs/askr/control";
+import { state } from "@askrjs/askr";
 import {
   Dialog,
   DialogClose,
@@ -13,6 +14,7 @@ import {
   Alert,
   Button,
   Field,
+  Form,
   Input,
   Label,
   Select,
@@ -27,7 +29,6 @@ import {
 } from "@askrjs/themes/components";
 
 interface NewQueryDialogProps {
-  draft: { name: string; database: string };
   databases: () => string[];
   loading: boolean;
   error: string | null;
@@ -37,7 +38,6 @@ interface NewQueryDialogProps {
 }
 
 export function NewQueryDialog({
-  draft,
   databases,
   loading,
   error,
@@ -45,7 +45,13 @@ export function NewQueryDialog({
   onClose,
   onCreate,
 }: NewQueryDialogProps) {
-  let createButton: HTMLButtonElement | null = null;
+  const [name, setName] = state("");
+  const [database, setDatabase] = state("");
+
+  function submit(event: Event) {
+    event.preventDefault();
+    if (database()) onCreate(database(), name());
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -54,77 +60,59 @@ export function NewQueryDialog({
         <DialogContent class="cassie-query-dialog">
           <DialogTitle>New Query</DialogTitle>
           <DialogDescription>Name the query and select the database it will use.</DialogDescription>
-          <Field>
-            <Label for="new-query-name">Query name</Label>
-            <Input
-              id="new-query-name"
-              placeholder={suggestedName}
-              onInput={(event) => {
-                draft.name = (event.target as HTMLInputElement).value;
-              }}
-            />
-          </Field>
-          {loading ? <p>Loading databases…</p> : null}
-          {error ? (
-            <Alert
-              title="Unable to load databases"
-              variant="danger"
-              description={error}
-              icon={<TriangleAlertIcon size={16} />}
-            />
-          ) : null}
-          <Field>
-            <Label for="new-query-database">Database</Label>
-            <Select
-              onValueChange={(value) => {
-                draft.database = value;
-                createButton?.setAttribute("aria-disabled", value ? "false" : "true");
-                if (value) createButton?.removeAttribute("data-disabled");
-                else createButton?.setAttribute("data-disabled", "true");
-              }}
-            >
-              <SelectTrigger id="new-query-database" aria-label="Database">
-                <SelectValue placeholder="Select a database" />
-              </SelectTrigger>
-              <SelectPortal>
-                <SelectContent sideOffset={4}>
-                  <SelectGroup>
-                    <SelectLabel>Database</SelectLabel>
-                    <For each={databases} by={(databaseName) => databaseName}>
-                      {(databaseName) => (
-                        <SelectItem value={databaseName}>
-                          <SelectItemText>{databaseName}</SelectItemText>
-                        </SelectItem>
-                      )}
-                    </For>
-                  </SelectGroup>
-                </SelectContent>
-              </SelectPortal>
-            </Select>
-          </Field>
-          <div class="cassie-query-dialog-actions">
-            <DialogClose asChild>
-              <Button type="button" variant="ghost" onPress={onClose}>
-                Cancel
+          <Form class="cassie-query-dialog-form" onSubmit={submit}>
+            <Field>
+              <Label for="new-query-name">Query name</Label>
+              <Input
+                id="new-query-name"
+                name="name"
+                placeholder={suggestedName}
+                value={name()}
+                onInput={(event) => setName((event.target as HTMLInputElement).value)}
+              />
+            </Field>
+            {loading ? <p>Loading databases…</p> : null}
+            {error ? (
+              <Alert
+                title="Unable to load databases"
+                variant="danger"
+                description={error}
+                icon={<TriangleAlertIcon size={16} />}
+              />
+            ) : null}
+            <Field>
+              <Label for="new-query-database">Database</Label>
+              <Select value={database()} onValueChange={setDatabase} disabled={loading}>
+                <SelectTrigger id="new-query-database" aria-label="Database">
+                  <SelectValue placeholder="Select a database" />
+                </SelectTrigger>
+                <SelectPortal>
+                  <SelectContent sideOffset={4}>
+                    <SelectGroup>
+                      <SelectLabel>Database</SelectLabel>
+                      <For each={databases} by={(databaseName) => databaseName}>
+                        {(databaseName) => (
+                          <SelectItem value={databaseName}>
+                            <SelectItemText>{databaseName}</SelectItemText>
+                          </SelectItem>
+                        )}
+                      </For>
+                    </SelectGroup>
+                  </SelectContent>
+                </SelectPortal>
+              </Select>
+            </Field>
+            <div class="cassie-query-dialog-actions">
+              <DialogClose asChild>
+                <Button type="button" variant="ghost" onPress={onClose}>
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" variant="primary" disabled={!database() || loading}>
+                Create
               </Button>
-            </DialogClose>
-            <Button
-              type="button"
-              variant="primary"
-              aria-disabled="true"
-              data-disabled="true"
-              ref={(node: HTMLButtonElement | null) => {
-                createButton = node;
-              }}
-              onPress={() => {
-                if (draft.database) {
-                  onCreate(draft.database, draft.name);
-                }
-              }}
-            >
-              Create
-            </Button>
-          </div>
+            </div>
+          </Form>
         </DialogContent>
       </DialogPortal>
     </Dialog>

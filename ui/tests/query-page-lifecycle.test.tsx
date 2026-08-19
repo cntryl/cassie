@@ -11,6 +11,7 @@ import {
   mockExecuteSuccess,
   mockExplainSuccess,
   mockJsonResponse,
+  mockResponseHandler,
   mockSchemaChangingCommandSuccess,
   mockValidateSuccess,
   mountQueryRoute,
@@ -19,6 +20,171 @@ import {
 } from "./support/query-page-harness";
 
 describe("admin query page lifecycle and actions", () => {
+  it("should_cancel_the_active_operation_id_and_abort_its_request_when_stopped", async () => {
+    // Arrange
+    let executeRequest: Request | undefined;
+    mockResponseHandler(
+      "/api/v1/admin/query-executions",
+      (request) => {
+        executeRequest = request;
+        return new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener("abort", () => reject(request.signal.reason), {
+            once: true,
+          });
+        });
+      },
+      { method: "POST" },
+    );
+    mockResponseHandler(
+      "/api/v1/admin/query-operations/active-operation",
+      () =>
+        new Response(JSON.stringify({ operation_id: "active-operation", cancelled: true }), {
+          headers: { "content-type": "application/json" },
+        }),
+      { method: "DELETE" },
+    );
+    const randomUuid = vi
+      .spyOn(crypto, "randomUUID")
+      .mockReturnValue("active-operation" as `${string}-${string}-${string}-${string}-${string}`);
+    const root = await mountQueryRoute();
+    expect(buttonByText(root, "Run").disabled).toBe(false);
+
+    // Act
+    buttonByText(root, "Run").click();
+    await flushUi();
+    expect(root.querySelector("[data-query-page]")?.getAttribute("data-operation-active")).toBe(
+      "true",
+    );
+    await waitForText(root, "Running query");
+    buttonByText(root, "Stop").click();
+    await waitForText(root, "Run");
+    await flushUi();
+
+    // Assert
+    const cancellation = fetchMock.mock.calls
+      .map(([request]) => request)
+      .find((request) => request.method === "DELETE");
+    expect(new URL(cancellation?.url ?? window.location.href).pathname).toBe(
+      "/api/v1/admin/query-operations/active-operation",
+    );
+    expect(executeRequest?.signal.aborted).toBe(true);
+    randomUuid.mockRestore();
+  });
+
+  it("should_cancel_a_running_query_before_removing_its_workspace", async () => {
+    // Arrange
+    mockResponseHandler(
+      "/api/v1/admin/query-executions",
+      (request) =>
+        new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener("abort", () => reject(request.signal.reason), {
+            once: true,
+          });
+        }),
+      { method: "POST" },
+    );
+    let workspacePresentWhenCancelled = false;
+    mockResponseHandler(
+      "/api/v1/admin/query-operations/close-operation",
+      () => {
+        workspacePresentWhenCancelled = root.querySelector("#saved-query-query-1") !== null;
+        return new Response(JSON.stringify({ operation_id: "close-operation", cancelled: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+      { method: "DELETE" },
+    );
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(
+      "close-operation" as `${string}-${string}-${string}-${string}-${string}`,
+    );
+    const root = await mountQueryRoute();
+    buttonByText(root, "Run").click();
+    await waitForText(root, "Running query");
+
+    // Act
+    const deleteButtons = document.querySelectorAll<HTMLButtonElement>(
+      'button[aria-label="Delete Query 1"]',
+    );
+    expect(deleteButtons).toHaveLength(1);
+    deleteButtons[deleteButtons.length - 1]?.click();
+    await waitForText(document.body, "running operation will be cancelled first");
+    buttonByText(document.body, "Delete query").click();
+    await waitForText(root, "Choose a database");
+
+    // Assert
+    expect(workspacePresentWhenCancelled).toBe(true);
+    expect(root.querySelector("#saved-query-query-1")).toBeNull();
+  });
+
+  it.each([404, 409])(
+    "should_acknowledge_a_%s_cancellation_response_as_completed",
+    async (status) => {
+      // Arrange
+      mockResponseHandler(
+        "/api/v1/admin/query-executions",
+        (request) =>
+          new Promise<Response>((_resolve, reject) => {
+            request.signal.addEventListener("abort", () => reject(request.signal.reason), {
+              once: true,
+            });
+          }),
+        { method: "POST" },
+      );
+      mockJsonResponse(
+        "/api/v1/admin/query-operations/acknowledged-operation",
+        { error: "operation already finished" },
+        { method: "DELETE", status },
+      );
+      vi.spyOn(crypto, "randomUUID").mockReturnValue(
+        "acknowledged-operation" as `${string}-${string}-${string}-${string}-${string}`,
+      );
+      const root = await mountQueryRoute();
+      buttonByText(root, "Run").click();
+      await waitForText(root, "Running query");
+
+      // Act
+      buttonByText(root, "Stop").click();
+      await waitForText(root, "Run");
+
+      // Assert
+      expect(root.textContent).not.toContain("Try stopping again");
+      expect(buttonByText(root, "Run").disabled).toBe(false);
+    },
+  );
+
+  it("should_keep_a_failed_cancellation_retryable", async () => {
+    // Arrange
+    mockResponseHandler(
+      "/api/v1/admin/query-executions",
+      (request) =>
+        new Promise<Response>((_resolve, reject) => {
+          request.signal.addEventListener("abort", () => reject(request.signal.reason), {
+            once: true,
+          });
+        }),
+      { method: "POST" },
+    );
+    mockJsonResponse(
+      "/api/v1/admin/query-operations/retry-operation",
+      { error: "cancellation unavailable" },
+      { method: "DELETE", status: 503 },
+    );
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(
+      "retry-operation" as `${string}-${string}-${string}-${string}-${string}`,
+    );
+    const root = await mountQueryRoute();
+    buttonByText(root, "Run").click();
+    await waitForText(root, "Running query");
+
+    // Act
+    buttonByText(root, "Stop").click();
+    await waitForText(root, "Try stopping again");
+
+    // Assert
+    expect(buttonByText(root, "Stop").disabled).toBe(false);
+    expect(root.textContent).toContain("Try stopping again");
+  });
+
   it("should_keep_the_editor_mounted_when_query_actions_update_state", async () => {
     // Arrange
     mockValidateSuccess();
@@ -156,6 +322,15 @@ describe("admin query page lifecycle and actions", () => {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     buttonByText(root.querySelector('[role="dialog"]') ?? root, "Create database").click();
     await waitForText(root, "Query 1");
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const databaseReads = fetchMock.mock.calls.filter(
+        ([candidate]) =>
+          candidate.method === "GET" &&
+          new URL(candidate.url).pathname === "/api/v1/admin/databases",
+      );
+      if (databaseReads.length >= 2) break;
+      await flushUi();
+    }
 
     // Assert
     const request = fetchMock.mock.calls
@@ -166,6 +341,13 @@ describe("admin query page lifecycle and actions", () => {
           new URL(candidate.url).pathname === "/api/v1/admin/databases",
       );
     expect(await request?.clone().json()).toEqual({ name: "analytics" });
+    expect(
+      fetchMock.mock.calls.filter(
+        ([candidate]) =>
+          candidate.method === "GET" &&
+          new URL(candidate.url).pathname === "/api/v1/admin/databases",
+      ),
+    ).toHaveLength(2);
   });
 
   it("should_keep_the_create_database_dialog_mounted_while_typing", async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import RootLayout from "@/pages/_layout";
 import AppLayout from "@/pages/app/_layout";
@@ -52,7 +53,7 @@ async function flushUi() {
   await new Promise<void>((resolve) => setTimeout(resolve, 0));
 }
 
-async function mountAdminShell() {
+async function mountAdminShell(children: unknown = <div>placeholder route content</div>) {
   cleanupApp("app");
   document.body.innerHTML = '<div id="app"></div>';
   window.history.pushState({}, "", "/");
@@ -64,20 +65,41 @@ async function mountAdminShell() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       {
         path: "/",
         handler: () => (
           <RootLayout>
-            <AppLayout>
-              <div>placeholder route content</div>
-            </AppLayout>
+            <AppLayout>{children as never}</AppLayout>
           </RootLayout>
         ),
       },
     ]),
   });
 
+  await flushUi();
+  return root;
+}
+
+async function mountPublicPage(children: unknown) {
+  cleanupApp("app");
+  document.body.innerHTML = '<div id="app"></div>';
+  window.history.pushState({}, "", "/");
+
+  const root = document.getElementById("app");
+  if (!root) throw new Error("Missing test app root");
+
+  await createSPA({
+    root,
+    dataRuntime: createDataRuntime(),
+    registry: createTestRouteRegistry([
+      {
+        path: "/",
+        handler: () => <RootLayout>{children as never}</RootLayout>,
+      },
+    ]),
+  });
   await flushUi();
   return root;
 }
@@ -102,6 +124,46 @@ function stubPointerCapture(el: HTMLElement) {
 }
 
 describe("admin shell sidebar resize", () => {
+  it("should_recover_a_failed_public_page_without_exposing_the_error", async () => {
+    // Arrange
+    let attempts = 0;
+    function FlakyPublicPage() {
+      attempts += 1;
+      if (attempts === 1) throw new Error("sensitive public failure");
+      return <div>Recovered public page</div>;
+    }
+
+    // Act
+    const root = await mountPublicPage(<FlakyPublicPage />);
+
+    // Assert
+    expect(root.textContent).toContain("Cassie Admin could not open");
+    expect(root.textContent).not.toContain("sensitive public failure");
+    root.querySelector<HTMLButtonElement>("button")?.click();
+    await flushUi();
+    expect(root.textContent).toContain("Recovered public page");
+  });
+
+  it("should_recover_a_failed_protected_workspace_without_exposing_the_error", async () => {
+    // Arrange
+    let attempts = 0;
+    function FlakyWorkspace() {
+      attempts += 1;
+      if (attempts === 1) throw new Error("sensitive workspace failure");
+      return <div>Recovered workspace</div>;
+    }
+
+    // Act
+    const root = await mountAdminShell(<FlakyWorkspace />);
+
+    // Assert
+    expect(root.textContent).toContain("Admin workspace unavailable");
+    expect(root.textContent).not.toContain("sensitive workspace failure");
+    root.querySelector<HTMLButtonElement>("button")?.click();
+    await flushUi();
+    expect(root.textContent).toContain("Recovered workspace");
+  });
+
   it("should_render_full_height_navigation_without_a_top_header", async () => {
     // Arrange
     const root = await mountAdminShell();

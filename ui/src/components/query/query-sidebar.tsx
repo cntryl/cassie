@@ -1,7 +1,15 @@
 import { state } from "@askrjs/askr";
 import { For, Show } from "@askrjs/askr/control";
 import { CheckIcon, FileTextIcon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from "@askrjs/lucide";
-import { Button, Input, Text } from "@askrjs/themes/components";
+import {
+  Button,
+  Input,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  Text,
+} from "@askrjs/themes/components";
 
 import type { DatabaseCatalogEntry } from "@/features/query/database-catalog-controller";
 import type { QuerySchemaItem } from "@/features/query/query-models";
@@ -41,17 +49,34 @@ export function QuerySidebar({
   onSearchCatalogs,
   onRetryDatabase,
 }: QuerySidebarProps) {
+  const [selectedItems, setSelectedItems] = state<Record<string, string | undefined>>({});
   const getQueries = () => (typeof queries === "function" ? queries() : queries);
   const getActiveQueryId = () =>
     typeof activeQueryId === "function" ? activeQueryId() : activeQueryId;
+  const getCurrentSelectedItemId = () => {
+    const externalSelectedItemId =
+      typeof selectedItemId === "function" ? selectedItemId() : selectedItemId;
+    const currentActiveQueryId = getActiveQueryId();
+    return (
+      externalSelectedItemId ??
+      (currentActiveQueryId ? selectedItems()[currentActiveQueryId] : undefined)
+    );
+  };
+  getCurrentSelectedItemId();
+
+  function selectSchemaItem(item: QuerySchemaItem) {
+    const queryId = getActiveQueryId();
+    if (queryId) setSelectedItems({ ...selectedItems(), [queryId]: item.id });
+    onSelectSchemaItem(item);
+  }
 
   return (
     <div class="cassie-query-sidebar">
       <QuerySchemaTree
         catalogs={catalogs}
         activeDatabase={activeDatabase}
-        selectedItemId={selectedItemId}
-        onSelectItem={onSelectSchemaItem}
+        selectedItemId={getCurrentSelectedItemId}
+        onSelectItem={selectSchemaItem}
         onCreateDatabase={onCreateDatabase}
         onSetDatabaseExpanded={onSetDatabaseExpanded}
         onSearchCatalogs={onSearchCatalogs}
@@ -83,7 +108,7 @@ export function QuerySidebar({
         >
           No saved queries yet.
         </Text>
-        <ul
+        <SidebarMenu
           class="cassie-query-list-items"
           hidden={getQueries().length === 0}
           style={{ display: getQueries().length === 0 ? "none" : undefined }}
@@ -92,14 +117,14 @@ export function QuerySidebar({
             {(query) => (
               <SavedQueryListItem
                 query={query}
-                active={getActiveQueryId() === query.id}
+                active={() => getActiveQueryId() === query.id}
                 onActivate={onActivateQuery}
                 onRename={onRenameQuery}
                 onRemove={onRemoveQuery}
               />
             )}
           </For>
-        </ul>
+        </SidebarMenu>
       </section>
     </div>
   );
@@ -113,7 +138,7 @@ function SavedQueryListItem({
   onRemove,
 }: {
   query: PersistedQueryTab;
-  active: boolean;
+  active: boolean | (() => boolean);
   onActivate: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onRemove: (query: PersistedQueryTab) => void;
@@ -132,34 +157,30 @@ function SavedQueryListItem({
   };
 
   return (
-    <li class="cassie-query-list-item" data-editing={editing() ? "true" : undefined}>
+    <SidebarMenuItem class="cassie-query-list-item" data-editing={editing() ? "true" : undefined}>
       <Show
         when={editing()}
         fallback={
           <>
             <QuerySelectButton query={query} active={active} onActivate={onActivate} />
-            <Button
+            <SidebarMenuAction
               type="button"
               class="cassie-query-list-action"
-              size="icon"
-              variant="ghost"
               aria-label={`Rename ${query.title}`}
               title={`Rename ${query.title}`}
-              onPress={() => setEditing(true)}
+              onClick={() => setEditing(true)}
             >
               <PencilIcon size={14} aria-hidden="true" />
-            </Button>
-            <Button
+            </SidebarMenuAction>
+            <SidebarMenuAction
               type="button"
               class="cassie-query-list-action"
-              size="icon"
-              variant="ghost"
               aria-label={`Delete ${query.title}`}
               title={`Delete ${query.title}`}
-              onPress={() => onRemove(query)}
+              onClick={() => onRemove(query)}
             >
               <Trash2Icon size={14} class="cassie-query-delete-icon" aria-hidden="true" />
-            </Button>
+            </SidebarMenuAction>
           </>
         }
       >
@@ -172,27 +193,19 @@ function SavedQueryListItem({
             if (event.key === "Escape") cancel();
           }}
         />
-        <Button
+        <SidebarMenuAction
           type="button"
-          size="icon"
-          variant="ghost"
           aria-label="Save query name"
           disabled={!draft().trim()}
-          onPress={save}
+          onClick={save}
         >
           <CheckIcon size={14} aria-hidden="true" />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          aria-label="Cancel renaming"
-          onPress={cancel}
-        >
+        </SidebarMenuAction>
+        <SidebarMenuAction type="button" aria-label="Cancel renaming" onClick={cancel}>
           <XIcon size={14} aria-hidden="true" />
-        </Button>
+        </SidebarMenuAction>
       </Show>
-    </li>
+    </SidebarMenuItem>
   );
 }
 
@@ -202,15 +215,16 @@ function QuerySelectButton({
   onActivate,
 }: {
   query: PersistedQueryTab;
-  active: boolean;
+  active: boolean | (() => boolean);
   onActivate: (id: string) => void;
 }) {
+  const isActive = typeof active === "function" ? active() : active;
   return (
-    <button
-      type="button"
+    <SidebarMenuButton
       id={`saved-query-${query.id}`}
       class="cassie-query-list-select"
-      aria-current={active ? "page" : undefined}
+      active={isActive}
+      aria-current={isActive ? "page" : undefined}
       onClick={() => onActivate(query.id)}
     >
       <FileTextIcon size={14} aria-hidden="true" />
@@ -218,6 +232,6 @@ function QuerySelectButton({
         <strong>{query.title}</strong>
         <small>{query.database}</small>
       </span>
-    </button>
+    </SidebarMenuButton>
   );
 }

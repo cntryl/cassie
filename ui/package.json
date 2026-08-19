@@ -21,18 +21,18 @@
     "fmt": "vp fmt . --ignore-path .oxfmtignore"
   },
   "dependencies": {
-    "@askrjs/askr": "0.0.91",
-    "@askrjs/auth": "0.0.9",
-    "@askrjs/fetch": "0.0.5",
-    "@askrjs/lucide": "0.0.9",
-    "@askrjs/monaco": "0.0.8",
-    "@askrjs/themes": "0.0.25",
-    "@askrjs/ui": "0.0.27",
-    "@askrjs/vite": "0.0.13",
+    "@askrjs/askr": "0.2.1",
+    "@askrjs/auth": "0.2.0",
+    "@askrjs/fetch": "0.2.0",
+    "@askrjs/lucide": "0.2.0",
+    "@askrjs/monaco": "0.2.0",
+    "@askrjs/themes": "0.2.1",
+    "@askrjs/ui": "0.2.0",
+    "@askrjs/vite": "0.2.0",
     "monaco-editor": "0.56.0"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.0.23",
+    "@askrjs/cli": "0.2.0",
     "@axe-core/playwright": "4.12.1",
     "@playwright/test": "1.62.1",
     "@types/node": "^26.2.0",
@@ -41,7 +41,7 @@
     "postcss": "^8.5.26",
     "typescript": "^7.0.2",
     "vite": "8.2.1",
-    "vite-plus": "^0.2.8"
+    "vite-plus": "^0.2.9"
   },
   "overrides": {
     "dompurify": "3.4.13"

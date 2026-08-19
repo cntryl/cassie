@@ -1,7 +1,8 @@
 import { state } from "@askrjs/askr";
+import { raf } from "@askrjs/askr/fx";
+import { on, task } from "@askrjs/askr/resources";
 
 import { MonacoEditor, type MonacoEditorInstance, type MonacoNamespace } from "@askrjs/monaco";
-import { theme } from "@askrjs/themes/theme";
 import { observeEditorLayout, type EditorLayoutObserver } from "@/shared/editor-resize-observer";
 
 export interface MonacoCompletionItem {
@@ -28,21 +29,15 @@ export interface MonacoSqlEditorProps {
   completionProvider?: (context: MonacoCompletionContext) => MonacoCompletionItem[];
 }
 
-interface MonacoProviderRegistry {
-  owners: Map<string, (context: MonacoCompletionContext) => MonacoCompletionItem[]>;
-  activeUri: string | null;
-  disposable: { dispose(): void };
-}
-
-const providerRegistries = new WeakMap<object, MonacoProviderRegistry>();
 interface MonacoEditorResource {
-  monaco: object | null;
+  monaco: MonacoNamespace | null;
   editor: MonacoEditorInstance | null;
   changeDisposable: { dispose(): void } | null;
-  systemThemeQuery: MediaQueryList | null;
-  systemThemeListener: ((event: MediaQueryListEvent) => void) | null;
+  completionDisposable: { dispose(): void } | null;
+  completionProvider: (context: MonacoCompletionContext) => MonacoCompletionItem[];
   layoutObserver: EditorLayoutObserver | null;
   fallback: HTMLTextAreaElement | null;
+  host: HTMLElement | null;
 }
 
 const editorResources = new Map<string, MonacoEditorResource>();
@@ -54,10 +49,11 @@ function getEditorResource(modelUri: string) {
       monaco: null,
       editor: null,
       changeDisposable: null,
-      systemThemeQuery: null,
-      systemThemeListener: null,
+      completionDisposable: null,
+      completionProvider: emptyCompletionItems,
       layoutObserver: null,
       fallback: null,
+      host: null,
     };
     editorResources.set(modelUri, resource);
   }
@@ -95,16 +91,37 @@ export function MonacoSqlEditor({
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
       : false,
   );
-  const themeScope = theme();
+  const [explicitTheme, setExplicitTheme] = state(
+    typeof document !== "undefined" ? document.documentElement.getAttribute("data-theme") : null,
+  );
   const modelUri = `inmemory://cassie/query/${encodeURIComponent(tabId)}.sql`;
   const resource = getEditorResource(modelUri);
-  const latestCompletionProvider = completionProvider ?? emptyCompletionItems;
+  resource.completionProvider = completionProvider ?? emptyCompletionItems;
   const isEditorUnavailable = editorUnavailable();
   const followsSystemDark = systemDark();
-  let editorHost: HTMLElement | null = null;
+  const systemThemeQuery =
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
+  on(
+    () => systemThemeQuery,
+    "change",
+    (event) => {
+      if ("matches" in event) setSystemDark(Boolean(event.matches));
+    },
+  );
+  task(() => {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") return;
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setExplicitTheme(root.getAttribute("data-theme"));
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
+  });
 
   function setEditorHost(node: unknown) {
-    editorHost = node instanceof HTMLElement ? node : null;
+    resource.host = node instanceof HTMLElement ? node : null;
   }
 
   function handleFallbackKeyDown(event: KeyboardEvent) {
@@ -135,23 +152,15 @@ export function MonacoSqlEditor({
 
     input.value = next;
     onChange(next);
-    requestAnimationFrame(() => {
+    raf(() => {
       input.selectionStart = cursor;
       input.selectionEnd = cursor;
-    });
+    })();
   }
 
   // jsdom can't run Monaco (no real Worker/Canvas/ResizeObserver support), so
   // tests always exercise this same plain-textarea contract instead — real
   // browsers only fall back here if Monaco itself fails to load (onError).
-  if (resource.monaco) {
-    const registry = providerRegistries.get(resource.monaco);
-    if (registry) {
-      registry.owners.set(modelUri, latestCompletionProvider);
-      if (active()) registry.activeUri = modelUri;
-    }
-  }
-
   if (isTestMode || typeof window === "undefined" || isEditorUnavailable) {
     return (
       <div
@@ -189,65 +198,48 @@ export function MonacoSqlEditor({
   }
 
   function handleBeforeMount(monaco: MonacoNamespace) {
-    resource.monaco = monaco as object;
-    let registry = providerRegistries.get(resource.monaco);
-    if (!registry) {
-      const owners = new Map<
-        string,
-        (context: MonacoCompletionContext) => MonacoCompletionItem[]
-      >();
-      registry = {
-        owners,
-        activeUri: null,
-        disposable: monaco.languages.registerCompletionItemProvider("sql", {
-          provideCompletionItems: (model, position) => {
-            const current = providerRegistries.get(monaco as object);
-            const uri = model.uri.toString();
-            if (!current || current.activeUri !== uri) return { suggestions: [] };
-            const word = model.getWordUntilPosition(position);
-            const range = {
-              startLineNumber: position.lineNumber,
-              endLineNumber: position.lineNumber,
-              startColumn: word.startColumn,
-              endColumn: word.endColumn,
-            };
+    resource.monaco = monaco;
+    resource.completionDisposable?.dispose();
+    resource.completionDisposable = monaco.languages.registerCompletionItemProvider("sql", {
+      provideCompletionItems: (model, position) => {
+        if (!active() || model.uri.toString() !== modelUri) return { suggestions: [] };
+        const word = model.getWordUntilPosition(position);
+        const range = {
+          startLineNumber: position.lineNumber,
+          endLineNumber: position.lineNumber,
+          startColumn: word.startColumn,
+          endColumn: word.endColumn,
+        };
 
-            const offset = model.getOffsetAt(position);
-            return {
-              suggestions: (
-                current.owners.get(uri)?.({ sql: model.getValue(), offset, word: word.word }) ?? []
-              ).map((item) => ({
-                label: item.label,
-                insertText: item.insertText,
-                filterText: item.filterText,
-                sortText: item.sortText,
-                detail: item.detail,
-                documentation: item.detail ?? "",
-                kind: monaco.languages.CompletionItemKind[
-                  item.kind === "keyword"
-                    ? "Keyword"
-                    : item.kind === "field"
-                      ? "Field"
-                      : item.kind === "function"
-                        ? "Function"
-                        : item.kind === "method"
-                          ? "Method"
-                          : item.kind === "reference"
-                            ? "Reference"
-                            : "Class"
-                ],
-                range,
-              })),
-            };
-          },
-        }),
-      };
-      providerRegistries.set(monaco as object, registry);
-    }
-    registry.owners.set(modelUri, latestCompletionProvider);
-    if (active()) {
-      registry.activeUri = modelUri;
-    }
+        const offset = model.getOffsetAt(position);
+        return {
+          suggestions: resource
+            .completionProvider({ sql: model.getValue(), offset, word: word.word })
+            .map((item) => ({
+              label: item.label,
+              insertText: item.insertText,
+              filterText: item.filterText,
+              sortText: item.sortText,
+              detail: item.detail,
+              documentation: item.detail ?? "",
+              kind: monaco.languages.CompletionItemKind[
+                item.kind === "keyword"
+                  ? "Keyword"
+                  : item.kind === "field"
+                    ? "Field"
+                    : item.kind === "function"
+                      ? "Function"
+                      : item.kind === "method"
+                        ? "Method"
+                        : item.kind === "reference"
+                          ? "Reference"
+                          : "Class"
+              ],
+              range,
+            })),
+        };
+      },
+    });
   }
 
   function handleMount(editor: MonacoEditorInstance) {
@@ -256,54 +248,30 @@ export function MonacoSqlEditor({
     resource.changeDisposable = editor.onDidChangeModelContent(() => {
       onChange(editor.getValue());
     });
-    const registry = resource.monaco ? providerRegistries.get(resource.monaco) : null;
-    if (active() && registry) {
-      registry.activeUri = modelUri;
-    }
-    if (typeof window.matchMedia === "function") {
-      resource.systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
-      resource.systemThemeListener = (event) => setSystemDark(event.matches);
-      resource.systemThemeQuery.addEventListener("change", resource.systemThemeListener);
-    }
-    if (editorHost && typeof ResizeObserver !== "undefined") {
+    const host = resource.host;
+    if (host && typeof ResizeObserver !== "undefined") {
       resource.layoutObserver?.disconnect();
-      resource.layoutObserver = observeEditorLayout(editorHost, () => resource.editor?.layout());
+      resource.layoutObserver = observeEditorLayout(host, () => resource.editor?.layout());
     }
   }
 
   function handleUnmount() {
-    const registry = resource.monaco ? providerRegistries.get(resource.monaco) : null;
-    resource.editor?.dispose();
     resource.editor = null;
-    if (resource.systemThemeQuery && resource.systemThemeListener) {
-      resource.systemThemeQuery.removeEventListener("change", resource.systemThemeListener);
-    }
-    resource.systemThemeQuery = null;
-    resource.systemThemeListener = null;
     resource.changeDisposable?.dispose();
     resource.changeDisposable = null;
+    resource.completionDisposable?.dispose();
+    resource.completionDisposable = null;
     resource.layoutObserver?.disconnect();
     resource.layoutObserver = null;
     resource.fallback = null;
-    registry?.owners.delete(modelUri);
-    if (registry?.activeUri === modelUri) {
-      registry.activeUri = null;
-    }
-    if (registry?.owners.size === 0) {
-      registry.disposable.dispose();
-      if (resource.monaco) {
-        providerRegistries.delete(resource.monaco);
-      }
-    }
+    resource.host = null;
     resource.monaco = null;
     editorResources.delete(modelUri);
   }
 
-  const selectedTheme = themeScope.theme();
+  const selectedTheme = explicitTheme();
   const monacoTheme =
-    selectedTheme === "dark" || (selectedTheme === "system" && followsSystemDark)
-      ? "vs-dark"
-      : "vs";
+    selectedTheme === "dark" || (!selectedTheme && followsSystemDark) ? "vs-dark" : "vs";
 
   function handleEditorKeyDown(event: KeyboardEvent) {
     if (!event.metaKey && !event.ctrlKey) return;

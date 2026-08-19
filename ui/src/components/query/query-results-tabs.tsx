@@ -1,4 +1,5 @@
 import type { IconProps } from "@askrjs/askr/foundations/icon";
+import { state } from "@askrjs/askr";
 import { rovingFocus } from "@askrjs/askr/foundations/interactions";
 import type { JSXElement } from "@askrjs/askr/jsx-runtime";
 import { For } from "@askrjs/askr/control";
@@ -34,10 +35,11 @@ export function QueryResultsTabs({
   listContent,
   planContent,
 }: QueryResultsTabsProps) {
-  let tabListEl: HTMLElement | null = null;
+  const [elements] = state<{ tabList: HTMLElement | null }>({ tabList: null });
+  const elementState = elements();
 
   function setTabListEl(node: HTMLElement | null) {
-    tabListEl = node;
+    elementState.tabList = node;
   }
 
   function navigateToTab(index: number) {
@@ -46,7 +48,7 @@ export function QueryResultsTabs({
       return;
     }
     onTabChange(nextTab.id);
-    const nextTrigger = tabListEl?.querySelector(`[data-tab="${nextTab.id}"]`);
+    const nextTrigger = elementState.tabList?.querySelector(`[data-tab="${nextTab.id}"]`);
     if (nextTrigger instanceof HTMLElement) {
       nextTrigger.focus();
     }

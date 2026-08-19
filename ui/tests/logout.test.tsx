@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import LogoutPage from "@/pages/logout";
 import { isSignedIn, signIn, signOut } from "@/shared/auth";
@@ -33,6 +34,7 @@ async function mountLogout() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       { path: "/logout", handler: () => <LogoutPage /> },
       { path: "/login", handler: () => <div>signed out</div> },

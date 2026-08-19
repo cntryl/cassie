@@ -1,4 +1,5 @@
 import type { QueryExecutionResult } from "@/features/query/query-models";
+import { Card, Stat, StatDescription, StatValue } from "@askrjs/themes/components";
 
 export interface QueryExecutionSummaryProps {
   result: QueryExecutionResult | null;
@@ -22,15 +23,20 @@ export function QueryExecutionSummary({ result }: QueryExecutionSummaryProps) {
   // command to show — an empty string collapses the line height, undoing
   // the point of reserving the space in the first place.
   return (
-    <section
+    <Card
       class="cassie-query-execution-summary"
       aria-label="Execution summary"
+      role="group"
       data-empty={result ? undefined : "true"}
     >
-      <p class="cassie-query-execution-summary-command">{result?.command ?? NBSP}</p>
-      <p class="cassie-query-execution-summary-meta">
-        {result ? `${rowText} · ${columnText}` : NBSP}
-      </p>
-    </section>
+      <Stat>
+        <StatValue class="cassie-query-execution-summary-command">
+          {result?.command ?? NBSP}
+        </StatValue>
+        <StatDescription class="cassie-query-execution-summary-meta">
+          {result ? `${rowText} · ${columnText}` : NBSP}
+        </StatDescription>
+      </Stat>
+    </Card>
   );
 }

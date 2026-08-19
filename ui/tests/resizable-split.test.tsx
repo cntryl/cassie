@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { cleanupApp, createSPA } from "@askrjs/askr/boot";
+import { createDataRuntime } from "@askrjs/askr/data";
 
 import { ResizableSplit } from "@/components/query/resizable-split";
 import { createTestRouteRegistry } from "./support/test-route-registry";
@@ -49,6 +50,7 @@ async function mountVerticalSplit() {
 
   await createSPA({
     root,
+    dataRuntime: createDataRuntime(),
     registry: createTestRouteRegistry([
       {
         path: "/",

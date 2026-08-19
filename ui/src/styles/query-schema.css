@@ -15,7 +15,7 @@
   display: grid;
   gap: var(--ak-space-2, 0.5rem);
   padding-block-start: var(--ak-space-3, 0.75rem);
-  border-top: 1px solid var(--cassie-border-subtle);
+  border-top: 1px solid var(--ak-color-border-subtle);
 }
 
 .cassie-query-list-header {
@@ -44,7 +44,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  border-radius: var(--cassie-row-radius);
+  border-radius: var(--ak-radius-sm);
 }
 
 .cassie-query-list-item[data-editing="true"] {
@@ -133,7 +133,7 @@
   flex-direction: column;
   gap: var(--ak-space-2, 0.5rem);
   padding-block-end: var(--ak-space-2, 0.5rem);
-  border-bottom: 1px solid var(--cassie-border-subtle);
+  border-bottom: 1px solid var(--ak-color-border-subtle);
 }
 
 .cassie-query-schema-tree-title-row {
@@ -156,16 +156,16 @@
 .cassie-query-schema-search-icon {
   position: absolute;
   inset-inline-start: 0.45rem;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   pointer-events: none;
 }
 
 .cassie-query-schema-search-input {
   width: 100%;
   padding: 0.3rem 1.6rem 0.3rem 1.55rem;
-  border: 1px solid var(--cassie-border);
-  border-radius: var(--cassie-row-radius);
-  background: var(--cassie-surface-muted);
+  border: 1px solid var(--ak-color-border);
+  border-radius: var(--ak-radius-sm);
+  background: var(--ak-color-surface-muted);
   color: inherit;
   font: inherit;
   font-size: var(--ak-font-size-xs);
@@ -177,7 +177,7 @@
 }
 
 .cassie-query-schema-search-input:focus-visible {
-  outline: 2px solid var(--cassie-focus-ring);
+  outline: 2px solid var(--ak-color-focus-ring);
   outline-offset: -1px;
 }
 
@@ -189,9 +189,9 @@
   justify-content: center;
   appearance: none;
   border: 0;
-  border-radius: var(--cassie-row-radius);
+  border-radius: var(--ak-radius-sm);
   background: transparent;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   padding: 0.15rem;
   cursor: pointer;
   transition:
@@ -200,8 +200,8 @@
 }
 
 .cassie-query-schema-search-clear:hover {
-  color: var(--cassie-text);
-  background: color-mix(in srgb, var(--cassie-text) 8%, transparent);
+  color: var(--ak-color-text);
+  background: color-mix(in srgb, var(--ak-color-text) 8%, transparent);
 }
 
 .cassie-query-schema-tree-body {
@@ -218,7 +218,7 @@
 
 .cassie-query-schema-empty-search {
   margin: var(--ak-space-3, 0.75rem) 0.3rem;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   font-size: var(--ak-font-size-xs);
 }
 
@@ -236,7 +236,7 @@
 
 .cassie-query-schema-search-group-label {
   padding: 0.2rem 0.3rem;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   font-size: var(--ak-font-size-xs);
   font-weight: var(--ak-font-weight-medium, 500);
   text-transform: uppercase;
@@ -260,7 +260,7 @@
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: var(--cassie-row-radius);
+  border-radius: var(--ak-radius-sm);
   color: inherit;
   text-align: start;
   transition:
@@ -271,13 +271,13 @@
 .cassie-query-schema-database-toggle:hover,
 .cassie-query-schema-namespace-toggle:hover,
 .cassie-query-schema-section-toggle:hover {
-  background: color-mix(in srgb, var(--cassie-text) 6%, transparent);
+  background: color-mix(in srgb, var(--ak-color-text) 6%, transparent);
 }
 
 .cassie-query-schema-database-toggle:focus-visible,
 .cassie-query-schema-namespace-toggle:focus-visible,
 .cassie-query-schema-section-toggle:focus-visible {
-  outline: 2px solid var(--cassie-focus-ring);
+  outline: 2px solid var(--ak-color-focus-ring);
   outline-offset: -2px;
 }
 
@@ -291,7 +291,7 @@
 .cassie-query-schema-section-chevron {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   transition: transform var(--ak-duration-fast, 160ms) var(--ak-ease-standard, ease);
 }
 
@@ -299,7 +299,7 @@
 .cassie-query-schema-namespace-icon {
   display: inline-flex;
   flex-shrink: 0;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
 }
 
 .cassie-query-schema-database-toggle[data-state="open"] .cassie-query-schema-database-chevron,
@@ -350,7 +350,7 @@
 
 .cassie-query-schema-section-count {
   margin-inline-start: auto;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   font-size: var(--ak-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -373,7 +373,7 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
 }
 
 .cassie-query-schema-item-name {
@@ -391,7 +391,7 @@
   flex: 0 1 auto;
   min-inline-size: 0;
   max-inline-size: 40%;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   font-size: var(--ak-font-size-xs);
 }
 
@@ -422,19 +422,19 @@
   cursor: pointer;
   background: transparent;
   border: 0;
-  border-radius: var(--cassie-row-radius);
-  color: var(--cassie-text-muted);
+  border-radius: var(--ak-radius-sm);
+  color: var(--ak-color-text-muted);
   transition:
     transform var(--ak-duration-fast, 160ms) var(--ak-ease-standard, ease),
     background var(--ak-duration-fast, 160ms) var(--ak-ease-standard, ease);
 }
 
 .cassie-query-schema-item-chevron:hover {
-  background: color-mix(in srgb, var(--cassie-text) 6%, transparent);
+  background: color-mix(in srgb, var(--ak-color-text) 6%, transparent);
 }
 
 .cassie-query-schema-item-chevron:focus-visible {
-  outline: 2px solid var(--cassie-focus-ring);
+  outline: 2px solid var(--ak-color-focus-ring);
   outline-offset: -2px;
 }
 
@@ -470,7 +470,7 @@
 }
 
 .cassie-query-schema-column[data-primary-key="true"] {
-  color: var(--cassie-text);
+  color: var(--ak-color-text);
 }
 
 .cassie-query-schema-column-icon {
@@ -492,6 +492,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 0 0 auto;
-  color: var(--cassie-text-muted);
+  color: var(--ak-color-text-muted);
   font-size: var(--ak-font-size-xs);
 }

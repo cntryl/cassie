@@ -192,3 +192,56 @@ fn should_score_single_field_term_stats_as_zero_for_empty_or_missing_text() {
     assert!(empty_score.abs() < f64::EPSILON);
     assert!(missing_score.abs() < f64::EPSILON);
 }
+
+#[test]
+fn should_return_unknown_for_incompatible_scalar_comparisons() {
+    // Arrange
+    let pairs = [
+        (ScalarValue::Int(1), ScalarValue::Str("1".to_string())),
+        (ScalarValue::Float(1.0), ScalarValue::Str("1".to_string())),
+        (
+            ScalarValue::Bool(true),
+            ScalarValue::Str("true".to_string()),
+        ),
+    ];
+
+    // Act
+    let results = pairs.map(|(left, right)| {
+        (
+            eq_value(&left, &right),
+            ordered_cmp(&left, &right, std::cmp::Ordering::is_lt),
+        )
+    });
+
+    // Assert
+    assert_eq!(results, [(None, None), (None, None), (None, None)]);
+}
+
+#[test]
+fn should_preserve_boolean_numeric_equality_coercions() {
+    // Arrange
+    let comparisons = [
+        (ScalarValue::Bool(true), ScalarValue::Int(1)),
+        (ScalarValue::Bool(false), ScalarValue::Int(0)),
+        (ScalarValue::Int(2), ScalarValue::Bool(true)),
+        (ScalarValue::Int(0), ScalarValue::Bool(true)),
+        (ScalarValue::Bool(true), ScalarValue::Float(0.5)),
+        (ScalarValue::Float(0.0), ScalarValue::Bool(false)),
+    ];
+
+    // Act
+    let results = comparisons.map(|(left, right)| eq_value(&left, &right));
+
+    // Assert
+    assert_eq!(
+        results,
+        [
+            Some(true),
+            Some(true),
+            Some(true),
+            Some(false),
+            Some(true),
+            Some(true),
+        ]
+    );
+}

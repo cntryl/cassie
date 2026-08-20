@@ -155,10 +155,7 @@ fn source_generations_match(
         cassie
             .midge
             .collection_generation(source)
-            .ok()
-            .is_some_and(|generation| {
-                projection.source_generations.get(source) == Some(&generation)
-            })
+            .is_ok_and(|generation| projection.source_generations.get(source) == Some(&generation))
     })
 }
 

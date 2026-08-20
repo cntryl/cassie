@@ -424,9 +424,7 @@ fn cast_bounded_text(
 ) -> Result<ScalarValue, QueryError> {
     let value = cast_to_text(value)
         .filter(|value| {
-            usize::try_from(max_length)
-                .ok()
-                .is_some_and(|max_length| value.chars().count() <= max_length)
+            usize::try_from(max_length).is_ok_and(|max_length| value.chars().count() <= max_length)
         })
         .ok_or_else(|| QueryError::General(format!("cannot cast value to {type_name}")))?;
     Ok(ScalarValue::Str(value))
@@ -440,8 +438,7 @@ fn cast_varchar_text(
         .filter(|value| {
             max_length.is_none_or(|max_length| {
                 usize::try_from(max_length)
-                    .ok()
-                    .is_some_and(|max_length| value.chars().count() <= max_length)
+                    .is_ok_and(|max_length| value.chars().count() <= max_length)
             })
         })
         .ok_or_else(|| QueryError::General("cannot cast value to VARCHAR".to_string()))?;

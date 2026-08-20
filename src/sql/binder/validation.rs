@@ -225,10 +225,7 @@ fn require_compatible_families(
 }
 
 fn string_literal_family(value: &str) -> OperandFamily {
-    if serde_json::from_str::<Vec<f32>>(value)
-        .ok()
-        .is_some_and(|values| !values.is_empty())
-    {
+    if serde_json::from_str::<Vec<f32>>(value).is_ok_and(|values| !values.is_empty()) {
         OperandFamily::Vector
     } else {
         OperandFamily::Text

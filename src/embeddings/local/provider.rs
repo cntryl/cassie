@@ -51,12 +51,11 @@ impl LocalProvider {
             hasher.update(counter.to_be_bytes());
             let digest = hasher.finalize();
 
-            for chunk in digest.chunks_exact(4) {
+            for chunk in digest.as_chunks::<4>().0 {
                 if values.len() == self.dimensions {
                     break;
                 }
-                let bytes: [u8; 4] = chunk.try_into().expect("sha256 digest chunk");
-                let raw = u32::from_be_bytes(bytes);
+                let raw = u32::from_be_bytes(*chunk);
                 let scaled = f32::from_bits(0x3F80_0000 | (raw >> 9)) - 1.0;
                 values.push((scaled * 2.0) - 1.0);
             }

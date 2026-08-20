@@ -330,8 +330,8 @@ fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
         return Err(invalid_data("vector"));
     }
     let mut values = Vec::with_capacity(dimensions);
-    for bytes in parameter[4..].chunks_exact(4) {
-        let value = f32::from_be_bytes(bytes.try_into().expect("four-byte vector chunk"));
+    for bytes in parameter[4..].as_chunks::<4>().0 {
+        let value = f32::from_be_bytes(*bytes);
         if !value.is_finite() {
             return Err(invalid_data("vector"));
         }
@@ -700,7 +700,7 @@ fn parse_date(value: &str) -> io::Result<Date> {
 }
 
 fn parse_time(value: &str) -> io::Result<Time> {
-    let (clock, fraction) = value.split_once('.').map_or((value, ""), |parts| parts);
+    let (clock, fraction) = value.split_once('.').unwrap_or((value, ""));
     let mut parts = clock.split(':');
     let hour = parts
         .next()

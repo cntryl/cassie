@@ -257,3 +257,55 @@ fn should_encode_time_series_bucket_bounds_as_ordered_integers() {
         .windows(b"1970-01-01".len())
         .any(|window| window == b"1970-01-01"));
 }
+
+#[test]
+fn should_round_trip_time_series_entry_string_components() {
+    // Arrange
+    let data_prefix = time_series_index_data_prefix(7, 9);
+    let cases = [
+        ("", ""),
+        ("", "event"),
+        ("tenant", ""),
+        ("tenant", "event"),
+        ("tenant\0west", "event\0id"),
+    ];
+
+    // Act
+    let decoded = cases
+        .iter()
+        .map(|(partition, id)| {
+            let key = time_series_index_entry_key(7, 9, partition, -7, 11, 13, id);
+            decode_time_series_entry_key(&key, &data_prefix)
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    let expected = cases
+        .iter()
+        .map(|(partition, id)| Some(((*partition).to_string(), -7, 11, 13, (*id).to_string())))
+        .collect::<Vec<_>>();
+    assert_eq!(decoded, expected);
+}
+
+#[test]
+fn should_round_trip_time_series_bucket_count_partitions() {
+    // Arrange
+    let count_prefix = time_series_index_bucket_count_prefix(7, 9);
+    let partitions = ["", "tenant", "tenant\0west"];
+
+    // Act
+    let decoded = partitions
+        .iter()
+        .map(|partition| {
+            let key = time_series_index_bucket_count_key(7, 9, partition, -7);
+            decode_time_series_bucket_count_key(&key, &count_prefix)
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    let expected = partitions
+        .iter()
+        .map(|partition| Some(((*partition).to_string(), -7)))
+        .collect::<Vec<_>>();
+    assert_eq!(decoded, expected);
+}

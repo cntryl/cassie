@@ -388,7 +388,7 @@ mod tests {
             expr: Expr::Binary {
                 left: Box::new(Expr::Column("n".to_string())),
                 op: BinaryOp::Add,
-                right: Box::new(Expr::NumberLiteral(1.0)),
+                right: Box::new(Expr::IntegerLiteral(1)),
             },
             alias: Some("n".to_string()),
         }];
@@ -405,7 +405,7 @@ mod tests {
         .expect("project expression");
 
         // Assert
-        assert_eq!(projected[0].get("n"), Some(&Value::Float64(2.0)));
+        assert_eq!(projected[0].get("n"), Some(&Value::Int64(2)));
     }
 
     #[test]

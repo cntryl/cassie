@@ -10,8 +10,8 @@ use crate::types::{DataType, FieldSchema, Schema, Value};
 
 use super::source::{aggregate_signature, expr_key, group_expr_name};
 use super::{
-    aggregate_exec, check_timeout, filter, projection, scan, sort, Cassie, FunctionMeta,
-    LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
+    aggregate_exec, check_timeout, filter, projection, reserve_projection_output_before_building,
+    scan, sort, Cassie, FunctionMeta, LogicalPlan, QueryError, QueryExecutionControls, QueryResult,
 };
 use crate::midge::adapter::check_rollup_maintenance_failure_point;
 
@@ -186,6 +186,8 @@ pub(super) fn try_execute_rollup_query(
         };
         batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
     }
+    let _projected_output_memory =
+        reserve_projection_output_before_building(controls, &batches, &plan.projection)?;
     batches = projection::project_batches(
         batches,
         &plan.projection,
@@ -527,6 +529,8 @@ fn materialize_rollup_batches(
             controls,
         },
     )?;
+    let _projected_output_memory =
+        reserve_projection_output_before_building(controls, &batches, &plan.projection)?;
     projection::project_batches(
         batches,
         &plan.projection,

@@ -6,8 +6,14 @@ use uuid::Uuid;
 use cntryl_midge::ConflictPolicy;
 
 use super::{
-    collect_scan, key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query,
-    RawStorageEntry, TransactionMode,
+    collect_scan,
+    database_catalog_rewrite::{
+        catalog_entry_belongs_to_database, catalog_name_belongs_to_database, key_components,
+        key_family, rewrite_catalog_value, rewrite_key_component, rewrite_string_list,
+        validate_database_catalog_entry,
+    },
+    key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query, RawStorageEntry,
+    TransactionMode,
 };
 
 /// The resolved physical owner of one logical database.
@@ -433,16 +439,11 @@ impl Midge {
         &self,
         staged: StagedDatabaseFamily,
         source_database: &str,
-        source_physical_family: &str,
         catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
     ) -> Result<(), CassieError> {
         let cleanup = staged.clone();
-        let result = self.commit_staged_database_family_inner(
-            staged,
-            source_database,
-            source_physical_family,
-            catalog_entries,
-        );
+        let result =
+            self.commit_staged_database_family_inner(staged, source_database, catalog_entries);
         if result.is_err() {
             let _ = self.abort_staged_database_family(&cleanup);
         }
@@ -453,7 +454,6 @@ impl Midge {
         &self,
         staged: StagedDatabaseFamily,
         source_database: &str,
-        source_physical_family: &str,
         catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
@@ -489,13 +489,8 @@ impl Midge {
                 _ => {}
             }
             let key = rewrite_key_component(&key, source_database, &staged.metadata.name);
-            let value = rewrite_json_value(
-                &value,
-                source_database,
-                &staged.metadata.name,
-                source_physical_family,
-                &staged.metadata.physical_family,
-            )?;
+            let value =
+                rewrite_catalog_value(family, &value, source_database, &staged.metadata.name)?;
             tx.put(key, value, None).map_err(CassieError::from)?;
         }
 
@@ -709,178 +704,6 @@ impl Midge {
         databases.sort_by_key(|database| database.name.to_ascii_lowercase());
         Ok(databases)
     }
-}
-
-fn key_components(key: &[u8]) -> impl Iterator<Item = &[u8]> {
-    key.split(|byte| *byte == cntryl_lexkey::LexKey::SEPARATOR)
-}
-
-const DATABASE_NAME_COMPONENT_INDEX: usize = 3;
-
-fn database_name_component(key: &[u8]) -> Option<&[u8]> {
-    key_components(key).nth(DATABASE_NAME_COMPONENT_INDEX)
-}
-
-fn key_family(key: &[u8]) -> Option<&str> {
-    key_components(key)
-        .nth(2)
-        .and_then(|component| std::str::from_utf8(component).ok())
-}
-
-fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], database: &str) -> bool {
-    let Some(family) = key_family(key) else {
-        return false;
-    };
-    if matches!(family, "collections" | "namespaces") {
-        return serde_json::from_slice::<Vec<String>>(value).is_ok_and(|values| {
-            values
-                .iter()
-                .any(|value| catalog_name_belongs_to_database(value, database))
-        });
-    }
-    is_database_scoped_catalog_family(family)
-        && database_name_component(key)
-            .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
-}
-
-pub(crate) fn validate_database_catalog_entry(
-    key: &[u8],
-    value: &[u8],
-    database: &str,
-) -> Result<(), CassieError> {
-    let family = key_family(key).ok_or_else(|| {
-        CassieError::Parse("database image contains an invalid catalog key".to_string())
-    })?;
-    if matches!(family, "collections" | "namespaces") {
-        let values: Vec<String> = serde_json::from_slice(value).map_err(|error| {
-            CassieError::Parse(format!("invalid database catalog list: {error}"))
-        })?;
-        if values
-            .iter()
-            .all(|value| catalog_name_belongs_to_database(value, database))
-        {
-            return Ok(());
-        }
-    } else if is_database_scoped_catalog_family(family)
-        && database_name_component(key)
-            .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
-    {
-        return Ok(());
-    }
-    Err(CassieError::Unsupported(format!(
-        "database image catalog family '{family}' is not scoped to database '{database}'"
-    )))
-}
-
-fn is_database_scoped_catalog_family(family: &str) -> bool {
-    matches!(
-        family,
-        "schema"
-            | "row-schema"
-            | "projection"
-            | "vector-index"
-            | "index"
-            | "view"
-            | "sequence"
-            | "constraints"
-            | "namespace"
-            | "cardinality"
-            | "collection-meta"
-            | "rollup"
-            | "retention"
-            | "collection-generation"
-            | "maintenance-debt"
-            | "graph"
-    )
-}
-
-fn catalog_name_belongs_to_database(name: &str, database: &str) -> bool {
-    let name = name.trim();
-    name.eq_ignore_ascii_case(database)
-        || name
-            .get(..database.len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(database))
-            && name.as_bytes().get(database.len()) == Some(&b'.')
-}
-
-fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> Vec<u8> {
-    let mut rewritten = Vec::with_capacity(key.len() + target.len().saturating_sub(source.len()));
-    for (index, component) in key_components(key).enumerate() {
-        if index > 0 {
-            rewritten.push(cntryl_lexkey::LexKey::SEPARATOR);
-        }
-        if index == DATABASE_NAME_COMPONENT_INDEX
-            && component.eq_ignore_ascii_case(source.as_bytes())
-        {
-            rewritten.extend_from_slice(target.as_bytes());
-        } else {
-            rewritten.extend_from_slice(component);
-        }
-    }
-    rewritten
-}
-
-fn rewrite_json_value(
-    raw: &[u8],
-    source: &str,
-    target: &str,
-    source_physical: &str,
-    target_physical: &str,
-) -> Result<Vec<u8>, CassieError> {
-    let mut value: serde_json::Value = serde_json::from_slice(raw).map_err(|error| {
-        CassieError::Parse(format!("invalid database catalog image value: {error}"))
-    })?;
-    rewrite_json_strings(&mut value, source, target, source_physical, target_physical);
-    serde_json::to_vec(&value).map_err(|error| CassieError::Parse(error.to_string()))
-}
-
-fn rewrite_json_strings(
-    value: &mut serde_json::Value,
-    source: &str,
-    target: &str,
-    source_physical: &str,
-    target_physical: &str,
-) {
-    match value {
-        serde_json::Value::String(text) => {
-            *text = text
-                .replace(source_physical, target_physical)
-                .replace(source, target);
-        }
-        serde_json::Value::Array(values) => {
-            for value in values {
-                rewrite_json_strings(value, source, target, source_physical, target_physical);
-            }
-        }
-        serde_json::Value::Object(values) => {
-            for value in values.values_mut() {
-                rewrite_json_strings(value, source, target, source_physical, target_physical);
-            }
-        }
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
-    }
-}
-
-fn rewrite_string_list(raw: &[u8], source: &str, target: &str) -> Result<Vec<String>, CassieError> {
-    let values: Vec<String> = serde_json::from_slice(raw)
-        .map_err(|error| CassieError::Parse(format!("invalid database catalog list: {error}")))?;
-    values
-        .into_iter()
-        .map(|value| {
-            if !catalog_name_belongs_to_database(&value, source) {
-                return Err(CassieError::Unsupported(format!(
-                    "database image catalog name '{value}' is outside source database '{source}'"
-                )));
-            }
-            Ok(rewrite_catalog_name(&value, source, target))
-        })
-        .collect()
-}
-
-fn rewrite_catalog_name(value: &str, source: &str, target: &str) -> String {
-    value
-        .get(source.len()..)
-        .map_or_else(|| target.to_string(), |suffix| format!("{target}{suffix}"))
 }
 
 fn merge_string_list(

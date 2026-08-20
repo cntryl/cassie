@@ -293,7 +293,6 @@ impl DatabaseRestoreSession {
         let result = self.cassie.midge.commit_staged_database_family(
             staged,
             &header.source_database,
-            &header.source_physical_family,
             std::mem::take(&mut self.catalog_entries),
         );
         self.phase = RestorePhase::Closed;

@@ -212,10 +212,12 @@ mod capacity;
 mod cardinality_stats;
 mod column_batches;
 mod column_store;
+mod database_catalog_rewrite;
 mod databases;
 pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequest};
+pub(crate) use database_catalog_rewrite::validate_database_catalog_entry;
 pub(super) use databases::DatabaseFamily;
-pub(crate) use databases::{validate_database_catalog_entry, StagedDatabaseFamily};
+pub(crate) use databases::StagedDatabaseFamily;
 pub(crate) mod documents;
 mod failure_points;
 pub(crate) use failure_points::{

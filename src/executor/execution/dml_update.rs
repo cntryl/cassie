@@ -4,7 +4,6 @@ use super::{
     BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
     HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
-use std::collections::BTreeSet;
 
 struct PreparedUpdateRow {
     row_id: String,
@@ -56,22 +55,6 @@ pub(in crate::executor::execution) fn execute_update(
     for row in &matched_rows {
         check_timeout(controls)?;
         let prepared = prepare_update_row(&prepare_context, row)?;
-        if let Some(session) = session.filter(|session| session.is_transaction_active()) {
-            let mut collections = BTreeSet::from([statement.table.clone()]);
-            dml_referential_actions::preflight_update_actions(
-                cassie,
-                session,
-                &statement.table,
-                &prepared.before_payload,
-                &prepared.payload,
-                &mut collections,
-                controls,
-            )?;
-            let collections = collections.into_iter().collect::<Vec<_>>();
-            session
-                .preflight_transaction_collections(&collections)
-                .map_err(QueryError::from)?;
-        }
         apply_update_row(
             cassie,
             session,
@@ -156,14 +139,6 @@ fn prepare_update_row(
             Some(&row_id),
         )
         .map_err(QueryError::from)?;
-    dml_referential_actions::assert_referenced_values_can_change(
-        context.cassie,
-        context.session,
-        &context.statement.table,
-        &current.payload,
-        &payload,
-        context.controls,
-    )?;
     Ok(PreparedUpdateRow {
         row_id,
         before_payload: current.payload,
@@ -205,15 +180,14 @@ fn apply_update_row(
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
     check_timeout(controls)?;
-    let before_payload = prepared.before_payload.clone();
     let row_id = prepared.row_id.clone();
-    let document = write_updated_row(cassie, session, &statement.table, prepared)?;
-    dml_referential_actions::apply_referenced_update_actions(
+    let document = dml_referential_actions::update_existing_row(
         cassie,
         session,
         &statement.table,
-        &before_payload,
-        &document.payload,
+        &prepared.row_id,
+        &prepared.before_payload,
+        prepared.payload,
         controls,
     )?;
     if !statement.returning.is_empty() {
@@ -224,29 +198,4 @@ fn apply_update_row(
         ));
     }
     Ok(())
-}
-
-fn write_updated_row(
-    cassie: &Cassie,
-    session: Option<&CassieSession>,
-    table: &str,
-    prepared: PreparedUpdateRow,
-) -> Result<crate::midge::adapter::DocumentRef, QueryError> {
-    cassie
-        .put_prepared_document_for_session(
-            session,
-            table,
-            prepared.row_id.clone(),
-            prepared.payload,
-        )
-        .map_err(QueryError::from)?;
-    cassie
-        .get_document_for_session(session, table, &prepared.row_id)
-        .map_err(QueryError::from)?
-        .ok_or_else(|| {
-            QueryError::General(format!(
-                "updated row '{}' was not found in '{}'",
-                prepared.row_id, table
-            ))
-        })
 }

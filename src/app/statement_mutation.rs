@@ -79,7 +79,7 @@ impl Cassie {
             Err(CassieError::UniqueViolation { .. })
                 if !staging.transaction_conflict_intents().is_empty() =>
             {
-                crate::executor::resolve_transaction_conflict_intents(self, staging)
+                crate::executor::resolve_transaction_conflict_intents(self, staging, controls)
                     .map_err(CassieError::from)?;
                 writes = transaction_write_batches(staging);
                 if writes.is_empty() {

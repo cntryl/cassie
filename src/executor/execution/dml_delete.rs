@@ -70,21 +70,20 @@ fn execute_delete_with_held_referential_gates(
                 statement.table
             )));
         };
-        dml_referential_actions::preflight_delete_actions(
-            cassie,
-            session,
-            &statement.table,
-            &current.payload,
-            controls,
-        )?;
-        dml_referential_actions::assert_no_referencing_rows(
+        let deleted = match dml_referential_actions::delete_existing_row(
             cassie,
             session,
             &statement.table,
             &row_id,
             &current.payload,
             controls,
-        )?;
+        )? {
+            dml_referential_actions::DeleteOutcome::Deleted(deleted) => deleted,
+            dml_referential_actions::DeleteOutcome::Restricted(error) => return Err(error),
+        };
+        if !deleted {
+            continue;
+        }
         if !statement.returning.is_empty() {
             returning_rows.push(inserted_row_to_batch_row(
                 &row_id,
@@ -92,10 +91,6 @@ fn execute_delete_with_held_referential_gates(
                 &current.payload,
             ));
         }
-        check_timeout(controls)?;
-        cassie
-            .delete_document_for_session(session, &statement.table, &row_id)
-            .map_err(QueryError::from)?;
         deleted_count += 1;
     }
 

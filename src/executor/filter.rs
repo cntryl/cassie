@@ -512,9 +512,9 @@ fn binary_scalar(
         BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
         BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
         BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())),
-        BinaryOp::Add => math_result(left, right, |a, b| a + b),
-        BinaryOp::Sub => math_result(left, right, |a, b| a - b),
-        BinaryOp::Mul => math_result(left, right, |a, b| a * b),
+        BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
+        BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
+        BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
         BinaryOp::Div => {
             if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
                 return Err(QueryError::General("division by zero".to_string()));
@@ -571,6 +571,20 @@ fn math_result(
     op: impl Fn(f64, f64) -> f64,
 ) -> ScalarValue {
     binary_math(left, right, op).map_or(ScalarValue::Null, ScalarValue::Float)
+}
+
+fn checked_math_result(
+    left: &ScalarValue,
+    right: &ScalarValue,
+    int_op: impl Fn(i64, i64) -> Option<i64>,
+    float_op: impl Fn(f64, f64) -> f64,
+) -> Result<ScalarValue, QueryError> {
+    if let (ScalarValue::Int(left), ScalarValue::Int(right)) = (left, right) {
+        return int_op(*left, *right)
+            .map(ScalarValue::Int)
+            .ok_or_else(|| QueryError::General("integer overflow".to_string()));
+    }
+    Ok(math_result(left, right, float_op))
 }
 
 fn ordered_cmp(

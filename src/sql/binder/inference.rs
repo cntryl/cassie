@@ -345,7 +345,7 @@ pub(crate) fn infer_expr_type(
             .copied()
             .and_then(data_type_for_parameter_oid)
             .or(Some(DataType::Null)),
-        Expr::Binary { op, .. } => match op {
+        Expr::Binary { left, op, right } => match op {
             BinaryOp::And
             | BinaryOp::Or
             | BinaryOp::Eq
@@ -355,12 +355,30 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => Some(DataType::Float),
+            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul => {
+                let left = infer_expr_type(left, source_schema, user_functions, parameter_types);
+                let right = infer_expr_type(right, source_schema, user_functions, parameter_types);
+                if left.as_ref().is_some_and(is_integer_type)
+                    && right.as_ref().is_some_and(is_integer_type)
+                {
+                    Some(DataType::BigInt)
+                } else {
+                    Some(DataType::Float)
+                }
+            }
+            BinaryOp::Div => Some(DataType::Float),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 Some(DataType::Float)
             }
         },
     }
+}
+
+fn is_integer_type(data_type: &DataType) -> bool {
+    matches!(
+        data_type,
+        DataType::SmallInt | DataType::Int | DataType::BigInt
+    )
 }
 
 fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {

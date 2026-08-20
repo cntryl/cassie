@@ -67,6 +67,64 @@ fn should_preserve_mixed_same_precedence_evaluation_order() {
 }
 
 #[test]
+fn should_preserve_bigint_scalar_arithmetic_precision() {
+    // Arrange
+    let (cassie, session, path) = cassie_for("bigint_scalar_arithmetic");
+
+    // Act
+    let exact = cassie
+        .execute_sql(
+            &session,
+            "SELECT 9007199254740993 + 9007199254740993 AS added, 9007199254740995 - 9007199254740993 AS subtracted, CAST(3002399751580331 AS BIGINT) * CAST(3 AS BIGINT) AS multiplied, 1 + 1.5 AS mixed",
+            vec![],
+        )
+        .expect("execute exact bigint arithmetic");
+    // Assert
+    assert_eq!(
+        exact.rows,
+        vec![vec![
+            Value::Int64(18_014_398_509_481_986),
+            Value::Int64(2),
+            Value::Int64(9_007_199_254_740_993),
+            Value::Float64(2.5),
+        ]]
+    );
+    assert_eq!(
+        exact
+            .columns
+            .iter()
+            .map(|column| column.type_oid)
+            .collect::<Vec<_>>(),
+        vec![20, 20, 20, 701]
+    );
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_reject_bigint_scalar_arithmetic_overflow() {
+    // Arrange
+    let (cassie, session, path) = cassie_for("bigint_scalar_overflow");
+
+    // Act
+    let overflow_errors = [
+        "SELECT 9223372036854775807 + 9007199254740993",
+        "SELECT -9223372036854775808 - 9007199254740993",
+        "SELECT 9007199254740993 * 9007199254740993",
+    ]
+    .map(|sql| {
+        cassie
+            .execute_sql(&session, sql, vec![])
+            .expect_err("reject bigint overflow")
+    });
+
+    // Assert
+    for error in overflow_errors {
+        assert!(error.to_string().contains("integer overflow"));
+    }
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_round_trip_bigint_literals_exactly() {
     // Arrange
     let (cassie, session, path) = cassie_for("bigint_literal_round_trip");

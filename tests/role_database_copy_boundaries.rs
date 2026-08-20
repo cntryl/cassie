@@ -29,6 +29,17 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
             vec![],
         )
         .expect("grant scoped database access");
+    cassie
+        .execute_sql(
+            &admin,
+            "GRANT CONNECT ON DATABASE denied_copy TO image_reader",
+            vec![],
+        )
+        .expect("grant target database access");
+    assert!(cassie
+        .catalog
+        .get_role("image_reader")
+        .is_some_and(|role| role.can_access_database("denied_copy")));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -70,7 +81,7 @@ fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
 }
 
 #[test]
-fn should_reject_read_only_role_database_backup() {
+fn should_reject_non_admin_database_backup_even_with_connect_grant() {
     // Arrange
     let sql = "BACKUP DATABASE denied_copy TO STDOUT";
 
@@ -84,7 +95,7 @@ fn should_reject_read_only_role_database_backup() {
 }
 
 #[test]
-fn should_reject_read_only_role_database_restore() {
+fn should_reject_non_admin_database_restore_even_with_connect_grant() {
     // Arrange
     let sql = "RESTORE DATABASE denied_copy FROM STDIN";
 
@@ -95,4 +106,22 @@ fn should_reject_read_only_role_database_restore() {
     assert!(fields
         .iter()
         .any(|(kind, value)| *kind == 'C' && value == "42501"));
+}
+
+#[test]
+fn should_document_admin_only_database_image_authorization() {
+    // Arrange
+    let contract = include_str!("../docs/postgres-compatibility.md");
+
+    // Act
+    let authorization = contract
+        .split_once("## Database Image Authorization")
+        .map(|(_, section)| section)
+        .expect("database-image authorization contract");
+
+    // Assert
+    assert!(authorization.contains("admin-only"));
+    assert!(authorization.contains("GRANT CONNECT"));
+    assert!(authorization.contains("defense-in-depth"));
+    assert!(authorization.contains("not a regression"));
 }

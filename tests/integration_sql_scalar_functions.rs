@@ -112,6 +112,76 @@ fn should_execute_numeric_scalar_function_query() {
 }
 
 #[test]
+fn should_reject_abs_overflow_for_bigint_minimum() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("abs_bigint_overflow");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let overflow = cassie.execute_sql(
+            &session,
+            "SELECT ABS(CAST('-9223372036854775808' AS BIGINT)) AS result",
+            vec![],
+        );
+
+        // Assert
+        assert!(overflow
+            .expect_err("reject an unrepresentable BIGINT magnitude")
+            .to_string()
+            .contains("integer overflow"));
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_preserve_abs_at_numeric_boundaries() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("abs_numeric_boundaries");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let adjacent = cassie
+            .execute_sql(
+                &session,
+                "SELECT ABS(CAST('-9223372036854775807' AS BIGINT)), ABS(CAST('9223372036854775807' AS BIGINT)), ABS(CAST('-1.5' AS FLOAT))",
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(
+            adjacent.rows,
+            vec![vec![
+                Value::Int64(i64::MAX),
+                Value::Int64(i64::MAX),
+                Value::Float64(1.5),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_filter_rows_with_cast_function_expression() {
     // Arrange
     use_local_storage();

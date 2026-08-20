@@ -715,6 +715,12 @@ fn key_components(key: &[u8]) -> impl Iterator<Item = &[u8]> {
     key.split(|byte| *byte == cntryl_lexkey::LexKey::SEPARATOR)
 }
 
+const DATABASE_NAME_COMPONENT_INDEX: usize = 3;
+
+fn database_name_component(key: &[u8]) -> Option<&[u8]> {
+    key_components(key).nth(DATABASE_NAME_COMPONENT_INDEX)
+}
+
 fn key_family(key: &[u8]) -> Option<&str> {
     key_components(key)
         .nth(2)
@@ -733,8 +739,7 @@ fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], database: &str) -
         });
     }
     is_database_scoped_catalog_family(family)
-        && key_components(key)
-            .nth(3)
+        && database_name_component(key)
             .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
 }
 
@@ -757,8 +762,7 @@ pub(crate) fn validate_database_catalog_entry(
             return Ok(());
         }
     } else if is_database_scoped_catalog_family(family)
-        && key_components(key)
-            .nth(3)
+        && database_name_component(key)
             .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
     {
         return Ok(());
@@ -805,7 +809,9 @@ fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> Vec<u8> {
         if index > 0 {
             rewritten.push(cntryl_lexkey::LexKey::SEPARATOR);
         }
-        if component.eq_ignore_ascii_case(source.as_bytes()) {
+        if index == DATABASE_NAME_COMPONENT_INDEX
+            && component.eq_ignore_ascii_case(source.as_bytes())
+        {
             rewritten.extend_from_slice(target.as_bytes());
         } else {
             rewritten.extend_from_slice(component);

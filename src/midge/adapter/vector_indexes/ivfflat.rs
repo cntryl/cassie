@@ -310,21 +310,11 @@ pub(super) fn load_ivfflat_manifest(
     relation_id: u64,
     field_id: u32,
     manifest: PersistedIvfManifest,
-) -> crate::embeddings::IvfFlatTrainingState {
+) -> Result<crate::embeddings::IvfFlatTrainingState, CassieError> {
     let prefix = super::super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
-    let mut assignments = std::collections::BTreeMap::new();
-    if let Ok(scan) = tx.scan(&Query::new().prefix(prefix.clone().into())) {
-        if let Ok(entries) = collect_scan(scan) {
-            for (key, _) in entries {
-                if let Some((list, id)) =
-                    super::super::key_encoding::decode_ivfflat_membership_suffix(&key, &prefix)
-                {
-                    assignments.insert(id, list);
-                }
-            }
-        }
-    }
-    crate::embeddings::IvfFlatTrainingState {
+    let scan = tx.scan(&Query::new().prefix(prefix.clone().into()));
+    let assignments = load_ivfflat_assignments(scan, &prefix)?;
+    Ok(crate::embeddings::IvfFlatTrainingState {
         version: manifest.version,
         source_fingerprint: manifest.source_fingerprint,
         trained: manifest.trained,
@@ -336,5 +326,62 @@ pub(super) fn load_ivfflat_manifest(
         centroids: manifest.centroids,
         assignments,
         list_sizes: manifest.list_sizes,
+    })
+}
+
+fn load_ivfflat_assignments(
+    scan: cntryl_midge::MidgeResult<cntryl_midge::ScanIterator<'_>>,
+    prefix: &[u8],
+) -> Result<BTreeMap<String, usize>, CassieError> {
+    decode_ivfflat_assignments(collect_scan(scan.map_err(CassieError::from)?)?, prefix)
+}
+
+fn decode_ivfflat_assignments(
+    entries: Vec<(Vec<u8>, Vec<u8>)>,
+    prefix: &[u8],
+) -> Result<BTreeMap<String, usize>, CassieError> {
+    entries
+        .into_iter()
+        .map(|(key, _)| {
+            super::super::key_encoding::decode_ivfflat_membership_suffix(&key, prefix)
+                .ok_or_else(|| CassieError::Parse("invalid IVFFlat membership key".to_string()))
+        })
+        .map(|entry| entry.map(|(list, id)| (id, list)))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_reject_undecodable_key_when_loading_ivfflat_assignments() {
+        // Arrange
+        let prefix = super::super::super::key_encoding::ivfflat_membership_prefix(17, 3);
+        let mut corrupt_key = prefix.clone();
+        corrupt_key.extend_from_slice(b"truncated");
+
+        // Act
+        let error = decode_ivfflat_assignments(vec![(corrupt_key, Vec::new())], &prefix)
+            .expect_err("undecodable key must fail the complete assignment load");
+
+        // Assert
+        assert!(error.to_string().contains("invalid IVFFlat membership key"));
+    }
+
+    #[test]
+    fn should_propagate_scan_failure_when_loading_ivfflat_assignments() {
+        // Arrange
+        let prefix = super::super::super::key_encoding::ivfflat_membership_prefix(17, 3);
+        let scan: cntryl_midge::MidgeResult<cntryl_midge::ScanIterator<'static>> = Err(
+            cntryl_midge::MidgeError::Corruption("injected IVFFlat scan failure".to_string()),
+        );
+
+        // Act
+        let error = load_ivfflat_assignments(scan, &prefix)
+            .expect_err("scan failure must fail the complete assignment load");
+
+        // Assert
+        assert!(error.to_string().contains("injected IVFFlat scan failure"));
     }
 }

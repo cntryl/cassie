@@ -263,3 +263,32 @@ fn should_rebuild_unsupported_ivfflat_training_version_on_restart() {
     assert_eq!(training.version, 1);
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_reject_corrupt_membership_key_when_hydrating_ivfflat_state() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("ivfflat_corrupt_membership_key");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let collection = "ivfflat_corrupt_membership_key";
+    seed_ivfflat(&cassie, collection);
+    let mut corrupt_key = cassie
+        .midge
+        .ivfflat_membership_prefix_for_diagnostics(collection, "embedding")
+        .expect("membership prefix");
+    corrupt_key.extend_from_slice(b"truncated");
+    cassie
+        .midge
+        .raw_put(StorageFamily::Data, &corrupt_key, &[])
+        .expect("inject corrupt membership key");
+
+    // Act
+    let error = cassie
+        .midge
+        .get_vector_index(collection, "embedding")
+        .expect_err("corrupt membership key must fail hydration");
+
+    // Assert
+    assert!(error.to_string().contains("invalid IVFFlat membership key"));
+    let _ = std::fs::remove_dir_all(path);
+}

@@ -87,6 +87,113 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
 }
 
 #[test]
+fn should_roundtrip_crb2_text_arrays_with_nulls_in_every_position() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "first".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "middle".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "last".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "consecutive".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Text)),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "first": [null, "alpha", "bravo"],
+        "middle": ["alpha", null, "bravo"],
+        "last": ["alpha", "bravo", null],
+        "consecutive": ["alpha", null, null, "bravo"],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(decoded, payload);
+}
+
+#[test]
+fn should_roundtrip_crb2_fixed_width_arrays_with_null_elements() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "ints".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Int)),
+                nullable: true,
+            },
+            FieldSchema {
+                name: "bools".to_string(),
+                data_type: DataType::Array(Box::new(DataType::Boolean)),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({
+        "ints": [1, null, 2],
+        "bools": [true, null, false],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(decoded, payload);
+}
+
+#[test]
+fn should_roundtrip_crb2_nested_arrays_with_null_elements() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "nested".to_string(),
+            data_type: DataType::Array(Box::new(DataType::Array(Box::new(DataType::Text)))),
+            nullable: true,
+        }],
+    });
+    let payload = serde_json::json!({
+        "nested": [["alpha", null, "bravo"], null, [null, "charlie"]],
+    });
+
+    // Act
+    let encoded = encode_row(&schema, &payload).unwrap();
+    let decoded = decode_row(&schema, &encoded).unwrap();
+
+    // Assert
+    assert_eq!(decoded, payload);
+}
+
+#[test]
+fn should_reject_crb2_array_null_with_nonzero_payload_length() {
+    // Arrange
+    let encoded_array = [2, TYPE_NULL, 1, 0xff, TYPE_STRING, 1, b'a'];
+    let mut cursor = Cursor::new(&encoded_array);
+
+    // Act
+    let result = decode_value(TYPE_ARRAY, &mut cursor);
+
+    // Assert
+    assert!(result.is_err());
+}
+
+#[test]
 fn should_not_visit_unrequested_field_payloads() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {

@@ -28,6 +28,18 @@ the same journal so startup can finish an interrupted drop or remove an
 orphaned create/restore family. A registry/family mismatch is a startup error.
 There is no online migration: directories from an older baseline must be recreated.
 
+## CRB2 array-null compatibility
+
+CRB2 array elements encode `NULL` as the null type tag followed by a zero-length
+varint. This differs from a top-level null field, which carries only the type tag.
+The array decoder must consume and validate that zero-length varint before reading
+the next element.
+
+This encoding remains the compatibility contract for CRB2. Rows written before
+the decoder fix do not require a format transition or rewrite: their bytes already
+follow this contract and become readable once decoded correctly. A nonzero payload
+length after a null array tag is invalid CRB2 and must fail closed as a parse error.
+
 ## Logical database images
 
 `Cassie::begin_database_backup` emits a bounded sequence of length-delimited

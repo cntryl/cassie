@@ -594,17 +594,7 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             let bytes = cursor.read_len_prefixed()?;
             Ok(serde_json::Value::String(encode_bytea(&bytes)))
         }
-        TYPE_ARRAY => {
-            let count = usize::try_from(cursor.read_varint()?).map_err(|_| {
-                CassieError::Parse("array length out of range in row blob".to_string())
-            })?;
-            let mut values = Vec::with_capacity(count);
-            for _ in 0..count {
-                let value_type = cursor.read_u8()?;
-                values.push(decode_value(value_type, cursor)?);
-            }
-            Ok(serde_json::Value::Array(values))
-        }
+        TYPE_ARRAY => decode_array(cursor),
         TYPE_VECTOR_F32 => {
             let bytes = cursor.read_len_prefixed()?;
             if bytes.len() < 4 {
@@ -638,6 +628,39 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             "unsupported row blob type tag {type_tag}"
         ))),
     }
+}
+
+fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
+    let count = usize::try_from(cursor.read_varint()?)
+        .map_err(|_| CassieError::Parse("array length out of range in row blob".to_string()))?;
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
+        let value_type = cursor.read_u8()?;
+        match value_type {
+            TYPE_NULL => {
+                let payload_len = cursor.read_varint()?;
+                if payload_len != 0 {
+                    return Err(CassieError::Parse(
+                        "null array element carries a nonzero payload length".to_string(),
+                    ));
+                }
+                values.push(serde_json::Value::Null);
+            }
+            TYPE_ARRAY => {
+                let payload = cursor.read_len_prefixed()?;
+                let mut nested = Cursor::new(&payload);
+                let value = decode_array(&mut nested)?;
+                if !nested.remaining().is_empty() {
+                    return Err(CassieError::Parse(
+                        "nested array element carries trailing bytes".to_string(),
+                    ));
+                }
+                values.push(value);
+            }
+            _ => values.push(decode_value(value_type, cursor)?),
+        }
+    }
+    Ok(serde_json::Value::Array(values))
 }
 
 fn write_varint(mut value: u64, out: &mut Vec<u8>) {

@@ -75,7 +75,7 @@ pub(crate) fn decode_time_series_bucket_count_key(
     let [partition, bucket] = components.as_slice() else {
         return None;
     };
-    Some(((*partition).to_string(), decode_sortable_i64_hex(bucket)?))
+    Some((partition.clone(), decode_sortable_i64_hex(bucket)?))
 }
 
 pub(crate) fn time_series_index_entry_key(
@@ -128,11 +128,11 @@ pub(crate) fn decode_time_series_entry_key(
         return None;
     };
     Some((
-        (*partition).to_string(),
+        partition.clone(),
         decode_sortable_i64_hex(bucket)?,
         decode_sortable_i64_hex(timestamp)?,
         u32::from_str_radix(nanos, 16).ok()?,
-        (*id).to_string(),
+        id.clone(),
     ))
 }
 
@@ -145,13 +145,26 @@ fn numeric_index_prefix(relation_id: u64, index_id: u64) -> Vec<u8> {
     )
 }
 
-fn decoded_components(suffix: &[u8]) -> Option<Vec<&str>> {
-    suffix
-        .split(|byte| *byte == LexKey::SEPARATOR)
-        .filter(|component| !component.is_empty())
-        .map(std::str::from_utf8)
-        .collect::<Result<Vec<_>, _>>()
-        .ok()
+fn decoded_components(suffix: &[u8]) -> Option<Vec<String>> {
+    let mut components = Vec::new();
+    let mut component = Vec::new();
+    let mut bytes = suffix.iter().copied().peekable();
+    while let Some(byte) = bytes.next() {
+        if byte != LexKey::SEPARATOR {
+            component.push(byte);
+            continue;
+        }
+        if bytes.peek() == Some(&LexKey::END_MARKER) {
+            bytes.next();
+            component.push(LexKey::SEPARATOR);
+            continue;
+        }
+        components.push(String::from_utf8(std::mem::take(&mut component)).ok()?);
+    }
+    if !component.is_empty() {
+        components.push(String::from_utf8(component).ok()?);
+    }
+    Some(components)
 }
 
 fn sortable_i64_hex(value: i64) -> String {

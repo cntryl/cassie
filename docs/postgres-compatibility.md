@@ -18,6 +18,12 @@ Cassie provides a PostgreSQL-like query interface for read-model workloads. It a
 - Connection admission is bounded and failures are reported using PostgreSQL-style error responses.
 - Database access can be managed by an administrator with `GRANT CONNECT ON DATABASE database TO role` and `REVOKE CONNECT ON DATABASE database FROM role`. Cassie supports one database and one role per statement; grant options, multiple grantees, ownership, and table privileges are outside this contract. Grants and revocations are idempotent, administrators retain implicit access, and active sessions revalidate access at each statement.
 
+## Database Image Authorization
+
+Pgwire `BACKUP DATABASE ... TO STDOUT` and `RESTORE DATABASE ... FROM STDIN` are admin-only operations. All authenticated non-admin roles are read-only, and `GRANT CONNECT` authorizes connection to a database but never authorizes database-image export or import. The target database access check in the pgwire image path is defense-in-depth under this binary role model; it does not represent a separately reachable database-scoped backup or restore permission.
+
+Cassie does not currently expose a named database-image capability or a non-admin, non-read-only network principal. That finer-grained capability is absent by product contract and its absence is not a regression. Adding one would require a separately specified role/session capability, authorization semantics for source and target databases, and a regression where the coarse role check and database-scoped permission deliberately disagree. The sessionless embedded database-image APIs are trusted host calls whose authorization remains the embedding application's responsibility.
+
 ## Session Model
 
 - `current_user`, `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` reflect session state.

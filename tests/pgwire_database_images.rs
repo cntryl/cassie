@@ -42,7 +42,7 @@ fn copy_done_frame() -> Vec<u8> {
 }
 
 #[test]
-fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
+fn should_preserve_collection_name_matching_source_database_through_pgwire_restore() {
     // Arrange
     support::use_local_storage();
     let path = data_dir("round_trip");
@@ -61,7 +61,7 @@ fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
         cassie
             .midge
             .create_collection(
-                &canonical_relation_name("analytics", "public", "docs"),
+                &canonical_relation_name("analytics", "public", "analytics"),
                 Schema {
                     fields: vec![FieldSchema {
                         name: "value".to_string(),
@@ -74,7 +74,7 @@ fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
         cassie
             .midge
             .put_document(
-                &canonical_relation_name("analytics", "public", "docs"),
+                &canonical_relation_name("analytics", "public", "analytics"),
                 Some("row-1".to_string()),
                 serde_json::json!({"value": "copy"}),
             )
@@ -138,7 +138,7 @@ fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
         let restored = cassie
             .midge
             .get_document(
-                &canonical_relation_name("restored", "public", "docs"),
+                &canonical_relation_name("restored", "public", "analytics"),
                 "row-1",
             )
             .expect("restored lookup")

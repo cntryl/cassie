@@ -316,7 +316,14 @@ impl SearchContext {
     fn document_frequency(&self, field: &str, term: &str) -> Option<usize> {
         self.doc_frequency
             .get(&field.to_lowercase())
-            .and_then(|terms| terms.get(&term.to_lowercase()).copied())
+            .and_then(|terms| terms.get(term).copied())
+    }
+
+    fn normalize_term(&self, field: &str, term: &str) -> Option<String> {
+        self.analyzer_for_field(field)
+            .analyze(term)
+            .into_iter()
+            .next()
     }
 
     fn field_boost(&self, field: &str) -> f64 {
@@ -385,6 +392,16 @@ impl SearchContext {
 
         let mut score = 0.0;
         for term in query_terms {
+            let normalized_term;
+            let term = if let Some(field) = field.as_deref() {
+                let Some(value) = self.normalize_term(field, term) else {
+                    continue;
+                };
+                normalized_term = value;
+                &normalized_term
+            } else {
+                term
+            };
             let tf = usize_to_f64(source_stats.term_counts.get(term).copied().unwrap_or(0));
             if tf == 0.0 {
                 continue;

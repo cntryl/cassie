@@ -10,6 +10,57 @@ mod support;
 use support::*;
 
 #[test]
+fn should_score_case_sensitive_terms_from_persisted_fulltext_index() {
+    // Arrange
+    use_local_storage();
+    std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+    let path = data_dir("persisted_case_sensitive_fulltext");
+    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE TABLE persisted_case_docs (body TEXT)",
+            vec![],
+        )
+        .expect("create case-sensitive search table");
+    for body in ["The Rust compiler is fast", "a rust tool"] {
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO persisted_case_docs (body) VALUES ($1)",
+                vec![Value::String(body.to_string())],
+            )
+            .expect("insert case-sensitive search row");
+    }
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX persisted_case_body_idx ON persisted_case_docs USING fulltext (body) WITH (case_folding = 'false')",
+            vec![],
+        )
+        .expect("create case-sensitive fulltext index");
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT body, search_score(body, 'Rust') AS score FROM persisted_case_docs WHERE search(body, 'Rust')",
+            vec![],
+        )
+        .expect("query exact-case persisted term");
+
+    // Assert
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(
+        result.rows[0][0],
+        Value::String("The Rust compiler is fast".to_string())
+    );
+    assert!(matches!(result.rows[0][1], Value::Float64(score) if score > 0.0));
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_read_persisted_postings_before_fetching_candidate_rows() {
     // Arrange
     use_local_storage();

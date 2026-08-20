@@ -71,6 +71,62 @@ fn should_build_search_context_from_term_stats_with_same_statistics_as_rows() {
 }
 
 #[test]
+fn should_share_analyzer_normalization_across_search_context_sources() {
+    // Arrange
+    for case_folding in [true, false] {
+        let analyzer = AnalyzerConfig {
+            case_folding,
+            ..AnalyzerConfig::default()
+        };
+        let field_analyzer = HashMap::from([("body".to_string(), analyzer.clone())]);
+        let row = BatchRow::new(vec![(
+            "body".to_string(),
+            Value::String("Rust compiler".to_string()),
+        )]);
+        let text_fields = vec!["body".to_string()];
+        let row_context = SearchContext::from_rows(
+            std::iter::once(&row),
+            &text_fields,
+            &HashMap::new(),
+            &HashMap::new(),
+            &HashMap::new(),
+            &field_analyzer,
+        );
+        let source_stats =
+            SearchTermStats::from_text_with_analyzer(Some("Rust compiler"), &analyzer);
+        let persisted_frequency = source_stats
+            .term_counts()
+            .keys()
+            .map(|term| (term.clone(), 1))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let numeric_options = HashMap::new();
+        let persisted_context = SearchContext::from_persisted_field_statistics(
+            "body",
+            &PersistedFieldStatistics {
+                total_documents: 1,
+                average_document_length: 2.0,
+                document_frequency: &persisted_frequency,
+                field_boost: &numeric_options,
+                field_k1: &numeric_options,
+                field_b: &numeric_options,
+                field_analyzer: &field_analyzer,
+            },
+        );
+        let query = if case_folding { "rust" } else { "Rust" };
+        let query_terms = prepare_query_terms_with_analyzer(query, &analyzer);
+
+        // Act
+        let row_score = row_context.score_term_stats(Some("body"), &source_stats, &query_terms);
+        let persisted_score =
+            persisted_context.score_term_stats(Some("body"), &source_stats, &query_terms);
+
+        // Assert
+        assert!(row_score > 0.0);
+        assert!((row_score - persisted_score).abs() < f64::EPSILON);
+    }
+}
+
+#[test]
 fn should_score_single_field_term_stats_same_as_generic_context_with_custom_options() {
     // Arrange
     let documents = [

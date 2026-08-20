@@ -99,6 +99,40 @@ fn should_apply_fulltext_analyzer_stop_words_during_search_score() {
 }
 
 #[test]
+fn should_keep_default_fulltext_case_folding_during_search_score() {
+    // Arrange
+    let cassie = cassie_temp("fulltext_default_case_folding");
+    let collection = "exec_fulltext_default_case_folding";
+    create_text_collection(&cassie, collection, &["id", "body"]);
+    put_document(
+        &cassie,
+        collection,
+        "d1",
+        serde_json::json!({"body": "The Rust compiler is fast"}),
+    );
+    let session = cassie.create_session("tester", None);
+    cassie
+        .execute_sql(
+            &session,
+            "CREATE INDEX idx_exec_fulltext_default_case ON exec_fulltext_default_case_folding USING fulltext (body)",
+            vec![],
+        )
+        .expect("create default fulltext index");
+
+    // Act
+    let result = cassie
+        .execute_sql(
+            &session,
+            "SELECT search_score(body, 'rust') AS score FROM exec_fulltext_default_case_folding WHERE id = 'd1'",
+            vec![],
+        )
+        .expect("score case-folded term");
+
+    // Assert
+    assert!(matches!(result.rows[0][0], Value::Float64(score) if score > 0.0));
+}
+
+#[test]
 fn should_reject_non_finite_fulltext_index_options_during_search_score() {
     // Arrange
     let cassie = cassie_temp("fulltext_non_finite");

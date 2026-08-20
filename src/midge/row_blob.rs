@@ -613,10 +613,8 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
             }
 
             let mut values = Vec::with_capacity(dimensions);
-            for chunk in bytes[4..].chunks_exact(4) {
-                let value = f32::from_be_bytes(chunk.try_into().map_err(|_| {
-                    CassieError::Parse("invalid vector value in row blob".to_string())
-                })?);
+            for chunk in bytes[4..].as_chunks::<4>().0 {
+                let value = f32::from_be_bytes(*chunk);
                 let number = serde_json::Number::from_f64(f64::from(value)).ok_or_else(|| {
                     CassieError::Parse("invalid vector numeric value in row blob".to_string())
                 })?;

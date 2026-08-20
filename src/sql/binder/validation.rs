@@ -156,6 +156,9 @@ fn expression_operand_family(
             let expression_family = expression_operand_family(expr, field_types)?;
             for value in values {
                 let value_family = expression_operand_family(value, field_types)?;
+                if validate_typed_string_comparison(expr, value, field_types)? {
+                    continue;
+                }
                 require_compatible_families(expression_family, value_family, "IN")?;
             }
             Ok(Some(OperandFamily::Boolean))
@@ -166,8 +169,12 @@ fn expression_operand_family(
             let expression_family = expression_operand_family(expr, field_types)?;
             let low_family = expression_operand_family(low, field_types)?;
             let high_family = expression_operand_family(high, field_types)?;
-            require_compatible_families(expression_family, low_family, "BETWEEN")?;
-            require_compatible_families(expression_family, high_family, "BETWEEN")?;
+            if !validate_typed_string_comparison(expr, low, field_types)? {
+                require_compatible_families(expression_family, low_family, "BETWEEN")?;
+            }
+            if !validate_typed_string_comparison(expr, high, field_types)? {
+                require_compatible_families(expression_family, high_family, "BETWEEN")?;
+            }
             Ok(Some(OperandFamily::Boolean))
         }
     }

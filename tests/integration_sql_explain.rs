@@ -65,7 +65,7 @@ fn should_explain_select_query_plan() {
             panic!("expected textual plan");
         };
         assert!(plan.contains("collection=sql_explain_select_plan"));
-        assert!(plan.contains("operators=Scan>Filter>Sort>Project>Offset>Limit"));
+        assert!(plan.contains("operators=Scan>Filter>Sort>Project>Limit"));
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -14,9 +14,6 @@ pub fn optimize_with_stats<S: BuildHasher>(
     mut plan: LogicalPlan,
     cardinality_stats: &HashMap<String, CollectionCardinalityStats, S>,
 ) -> LogicalPlan {
-    if plan.offset.is_none() {
-        plan.offset = Some(0);
-    }
     if let Some(terms) = InnerJoinTerms::from_source(&plan.source) {
         if terms.relations.len() >= 3 {
             let order = enumerate_join_order(&terms.relations, cardinality_stats);

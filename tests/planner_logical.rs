@@ -105,35 +105,37 @@ fn should_plan_select_collection_projection_filter_limit_offset() {
 }
 
 #[test]
-fn should_default_offset_to_zero_in_optimizer() {
+fn should_preserve_offset_shape_in_optimizer() {
     // Arrange
     let catalog = Catalog::new();
-    register_test_collection(&catalog, "planner_offset_default");
+    register_test_collection(&catalog, "planner_offset_shape");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("runtime");
 
     runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "SELECT title FROM planner_offset_default ORDER BY title ASC LIMIT 3",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let plans = [
+            "SELECT title FROM planner_offset_shape ORDER BY title ASC LIMIT 3",
+            "SELECT title FROM planner_offset_shape ORDER BY title ASC LIMIT 3 OFFSET 500",
+        ]
+        .map(|sql| {
+            let parsed = parser::parse_statement(sql).unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
+            logical::plan(&bound).unwrap()
+        });
 
         // Act
-        let optimized = optimizer::optimize(logical);
+        let [without_offset, with_offset] = plans.map(optimizer::optimize);
 
         // Assert
-        assert_eq!(optimized.offset, Some(0));
-        assert_eq!(optimized.limit, Some(3));
-        assert!(matches!(optimized.order[0].direction, SortDirection::Asc));
+        assert_eq!(without_offset.offset, None);
+        assert_eq!(with_offset.offset, Some(500));
     });
 }
 
 #[test]
-fn should_emit_offset_node_even_with_default_zero() {
+fn should_omit_offset_node_without_clause() {
     // Arrange
     let catalog = Catalog::new();
     register_test_collection(&catalog, "planner_default_offset_operator");
@@ -155,15 +157,12 @@ fn should_emit_offset_node_even_with_default_zero() {
         let physical_plan = physical::build(optimized);
 
         // Assert
-        assert_eq!(physical_plan.operators.len(), 5);
-        assert!(matches!(
-            physical_plan.operators.get(4),
-            Some(Operator::Limit)
-        ));
+        assert_eq!(physical_plan.operators.len(), 4);
         assert!(matches!(
             physical_plan.operators.get(3),
-            Some(Operator::Offset)
+            Some(Operator::Limit)
         ));
+        assert!(!physical_plan.operators.contains(&Operator::Offset));
     });
 }
 
@@ -443,8 +442,8 @@ fn should_be_deterministic_for_repeated_optimization_of_same_logical_plan() {
 
         // Assert
         assert_eq!(format!("{first:?}"), format!("{:?}", second));
-        assert_eq!(first.offset, Some(0));
-        assert_eq!(second.offset, Some(0));
+        assert_eq!(first.offset, None);
+        assert_eq!(second.offset, None);
     });
 }
 

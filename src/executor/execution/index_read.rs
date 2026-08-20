@@ -7,6 +7,7 @@ use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
 use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexPlanPath};
 use crate::types::semantic::compare_values;
+use crate::types::DataType;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
@@ -139,7 +140,7 @@ fn scalar_index_read_spec(
     };
 
     let index_fields = index.normalized_fields();
-    let constraints = if index.expressions.is_empty() {
+    let mut constraints = if index.expressions.is_empty() {
         concrete_constraints(plan.filter.as_ref(), params)
     } else if index_fields.is_empty() {
         Some(BTreeMap::new())
@@ -147,6 +148,7 @@ fn scalar_index_read_spec(
         concrete_constraints_for_expression_index(plan.filter.as_ref(), params)
     }
     .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
+    canonicalize_field_constraints(cassie, &projected.collection, &mut constraints);
     let fields = index_fields;
     let expression_equalities =
         if index.expressions.is_empty() || shape.equality_prefix_len <= fields.len() {
@@ -318,6 +320,40 @@ struct ConcreteConstraint {
 struct ConcreteBound {
     value: serde_json::Value,
     inclusive: bool,
+}
+
+fn canonicalize_field_constraints(
+    cassie: &Cassie,
+    collection: &str,
+    constraints: &mut BTreeMap<String, ConcreteConstraint>,
+) {
+    for (field, constraint) in constraints {
+        if !matches!(
+            cassie.catalog.field_type(collection, field),
+            Some(DataType::Float)
+        ) {
+            continue;
+        }
+        if let Some(value) = constraint.equality.as_mut() {
+            canonicalize_float_number(value);
+        }
+        if let Some(bound) = constraint.lower.as_mut() {
+            canonicalize_float_number(&mut bound.value);
+        }
+        if let Some(bound) = constraint.upper.as_mut() {
+            canonicalize_float_number(&mut bound.value);
+        }
+    }
+}
+
+fn canonicalize_float_number(value: &mut serde_json::Value) {
+    let serde_json::Value::Number(number) = value else {
+        return;
+    };
+    let Some(number) = number.as_f64().and_then(serde_json::Number::from_f64) else {
+        return;
+    };
+    *value = serde_json::Value::Number(number);
 }
 
 fn intersect_lower_bound(

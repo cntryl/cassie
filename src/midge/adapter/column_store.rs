@@ -112,6 +112,9 @@ impl Midge {
             Self::save_collections(&mut tx, &collections)?;
         }
 
+        super::schema_write_control::pause_before_schema_write_commit(
+            super::schema_write_control::SchemaWritePausePoint::CollectionCreate,
+        );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())

@@ -98,6 +98,9 @@ impl Midge {
             serde_json::to_vec(&metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
         tx.put(key_encoding::sequence_key(&stored_name), value, None)
             .map_err(CassieError::from)?;
+        super::schema_write_control::pause_before_schema_write_commit(
+            super::schema_write_control::SchemaWritePausePoint::SequenceNextValue,
+        );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(next)

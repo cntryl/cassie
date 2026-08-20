@@ -201,7 +201,9 @@ impl Midge {
     }
 
     pub(super) fn begin_schema_rw_tx(&self) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.schema_tx(TransactionMode::ReadWrite)
+        let mut tx = self.schema_tx(TransactionMode::ReadWrite)?;
+        tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
+        Ok(tx)
     }
 
     pub(super) fn begin_data_readonly_tx_for(

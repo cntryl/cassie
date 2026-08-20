@@ -3,6 +3,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use cntryl_midge::ConflictPolicy;
+
 use super::{
     collect_scan, key_encoding, CassieError, ColumnFamilyHandle, DatabaseMeta, Midge, Query,
     RawStorageEntry, TransactionMode,
@@ -255,9 +257,18 @@ impl Midge {
         let mut finalize = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
         Self::write_database_metadata(&mut finalize, &metadata)?;
         Self::delete_lifecycle_record(&mut finalize, &record.operation_id)?;
-        finalize
-            .commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        super::schema_write_control::pause_before_schema_write_commit(
+            super::schema_write_control::SchemaWritePausePoint::DatabaseCreateFinalize,
+        );
+        if let Err(error) = finalize.commit(self.write_options_sync()) {
+            let staged = StagedDatabaseFamily {
+                metadata: metadata.clone(),
+                handle,
+                operation_id: record.operation_id,
+            };
+            let _ = self.abort_staged_database_family(&staged);
+            return Err(CassieError::from(error));
+        }
         self.database_families.write().insert(
             metadata.name.to_ascii_lowercase(),
             DatabaseFamily { metadata, handle },
@@ -573,9 +584,14 @@ impl Midge {
         schema: &ColumnFamilyHandle,
         mode: TransactionMode,
     ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.engine
+        let mut tx = self
+            .engine
             .begin_tx(schema.id(), mode)
-            .map_err(CassieError::from)
+            .map_err(CassieError::from)?;
+        if mode == TransactionMode::ReadWrite {
+            tx.set_conflict_policy(ConflictPolicy::AbortOnWriteConflict);
+        }
+        Ok(tx)
     }
 
     fn load_database_without_layout(

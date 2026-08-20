@@ -186,6 +186,9 @@ fn rewrite_projection(value: &mut serde_json::Value, source: &str, target: &str)
             rewrite_fields(version, &["output_collection"], source, target);
         }
     }
+    if let Some(integrity) = object.get_mut("integrity") {
+        rewrite_fields(integrity, &["target"], source, target);
+    }
 }
 
 fn rewrite_constraints(value: &mut serde_json::Value, source: &str, target: &str) {
@@ -350,6 +353,10 @@ mod tests {
                 "output_collection": "analytics.public.__cassie_projection_summary_v1",
                 "last_error": "analytics"
             }],
+            "integrity": {
+                "target": "analytics.public.__cassie_projection_summary_v1",
+                "last_error": "analytics"
+            },
             "last_error": "analytics"
         });
 
@@ -369,6 +376,11 @@ mod tests {
         );
         assert_eq!(rewritten["materialized"]["options"]["note"], "analytics");
         assert_eq!(rewritten["versions"][0]["last_error"], "analytics");
+        assert_eq!(
+            rewritten["integrity"]["target"],
+            "restored.public.__cassie_projection_summary_v1"
+        );
+        assert_eq!(rewritten["integrity"]["last_error"], "analytics");
         assert_eq!(rewritten["last_error"], "analytics");
     }
 }

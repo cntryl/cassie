@@ -6,6 +6,8 @@ use super::{
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
 use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexPlanPath};
+use crate::types::semantic::compare_values;
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 pub(super) fn execute_scalar_index_read(
@@ -318,6 +320,58 @@ struct ConcreteBound {
     inclusive: bool,
 }
 
+fn intersect_lower_bound(
+    bound: &mut Option<ConcreteBound>,
+    value: serde_json::Value,
+    inclusive: bool,
+) {
+    intersect_bound(bound, ConcreteBound { value, inclusive }, Ordering::Greater);
+}
+
+fn intersect_upper_bound(
+    bound: &mut Option<ConcreteBound>,
+    value: serde_json::Value,
+    inclusive: bool,
+) {
+    intersect_bound(bound, ConcreteBound { value, inclusive }, Ordering::Less);
+}
+
+fn intersect_bound(
+    bound: &mut Option<ConcreteBound>,
+    candidate: ConcreteBound,
+    tighter_ordering: Ordering,
+) {
+    let replace = bound.as_ref().is_none_or(|current| {
+        let ordering = compare_values(
+            &concrete_bound_value(&candidate.value),
+            &concrete_bound_value(&current.value),
+        );
+        ordering == tighter_ordering
+            || ordering == Ordering::Equal && !candidate.inclusive && current.inclusive
+    });
+    if replace {
+        *bound = Some(candidate);
+    }
+}
+
+fn concrete_bound_value(value: &serde_json::Value) -> Value {
+    match value {
+        serde_json::Value::Null => Value::Null,
+        serde_json::Value::Bool(value) => Value::Bool(*value),
+        serde_json::Value::Number(value) => {
+            if let Some(value) = value.as_i64() {
+                Value::Int64(value)
+            } else if let Some(value) = value.as_f64() {
+                Value::Float64(value)
+            } else {
+                Value::Json(serde_json::Value::Number(value.clone()))
+            }
+        }
+        serde_json::Value::String(value) => Value::String(value.clone()),
+        value => Value::Json(value.clone()),
+    }
+}
+
 fn concrete_constraints(
     filter: Option<&Expr>,
     params: &[Value],
@@ -450,28 +504,16 @@ fn collect_concrete_expression_constraints(
             match op {
                 BinaryOp::Eq => entry.equality = Some(value),
                 BinaryOp::Gt => {
-                    entry.lower = Some(ConcreteBound {
-                        value,
-                        inclusive: false,
-                    });
+                    intersect_lower_bound(&mut entry.lower, value, false);
                 }
                 BinaryOp::Gte => {
-                    entry.lower = Some(ConcreteBound {
-                        value,
-                        inclusive: true,
-                    });
+                    intersect_lower_bound(&mut entry.lower, value, true);
                 }
                 BinaryOp::Lt => {
-                    entry.upper = Some(ConcreteBound {
-                        value,
-                        inclusive: false,
-                    });
+                    intersect_upper_bound(&mut entry.upper, value, false);
                 }
                 BinaryOp::Lte => {
-                    entry.upper = Some(ConcreteBound {
-                        value,
-                        inclusive: true,
-                    });
+                    intersect_upper_bound(&mut entry.upper, value, true);
                 }
                 _ => return None,
             }
@@ -490,14 +532,8 @@ fn collect_concrete_expression_constraints(
                     lower: None,
                     upper: None,
                 });
-            entry.lower = Some(ConcreteBound {
-                value: expr_to_json(low, params)?,
-                inclusive: true,
-            });
-            entry.upper = Some(ConcreteBound {
-                value: expr_to_json(high, params)?,
-                inclusive: true,
-            });
+            intersect_lower_bound(&mut entry.lower, expr_to_json(low, params)?, true);
+            intersect_upper_bound(&mut entry.upper, expr_to_json(high, params)?, true);
             Some(())
         }
         _ => None,
@@ -604,28 +640,16 @@ fn collect_concrete_constraints(
             match op {
                 BinaryOp::Eq => entry.equality = Some(value),
                 BinaryOp::Gt => {
-                    entry.lower = Some(ConcreteBound {
-                        value,
-                        inclusive: false,
-                    });
+                    intersect_lower_bound(&mut entry.lower, value, false);
                 }
                 BinaryOp::Gte => {
-                    entry.lower = Some(ConcreteBound {
-                        value,
-                        inclusive: true,
-                    });
+                    intersect_lower_bound(&mut entry.lower, value, true);
                 }
                 BinaryOp::Lt => {
-                    entry.upper = Some(ConcreteBound {
-                        value,
-                        inclusive: false,
-                    });
+                    intersect_upper_bound(&mut entry.upper, value, false);
                 }
                 BinaryOp::Lte => {
-                    entry.upper = Some(ConcreteBound {
-                        value,
-                        inclusive: true,
-                    });
+                    intersect_upper_bound(&mut entry.upper, value, true);
                 }
                 _ => return None,
             }
@@ -647,14 +671,8 @@ fn collect_concrete_constraints(
                     lower: None,
                     upper: None,
                 });
-            entry.lower = Some(ConcreteBound {
-                value: expr_to_json(low, params)?,
-                inclusive: true,
-            });
-            entry.upper = Some(ConcreteBound {
-                value: expr_to_json(high, params)?,
-                inclusive: true,
-            });
+            intersect_lower_bound(&mut entry.lower, expr_to_json(low, params)?, true);
+            intersect_upper_bound(&mut entry.upper, expr_to_json(high, params)?, true);
             Some(())
         }
         _ => None,

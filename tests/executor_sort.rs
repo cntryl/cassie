@@ -204,6 +204,58 @@ fn should_sort_by_projection_alias_with_different_case() {
 }
 
 #[test]
+fn should_sort_shadowing_alias_independently_of_source_nulls() {
+    // Arrange
+    let path = data_dir("order_alias_shadow");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        use_local_storage();
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE order_alias_shadow (a INT, b INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO order_alias_shadow (a, b) VALUES (5, 1), (NULL, 2), (3, 3)",
+                vec![],
+            )
+            .expect("seed table");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT b AS a FROM order_alias_shadow ORDER BY a",
+                vec![],
+            )
+            .expect("sort by shadowing alias");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::Int64(1)],
+                vec![Value::Int64(2)],
+                vec![Value::Int64(3)],
+            ]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_sort_by_unprojected_column_before_projection() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

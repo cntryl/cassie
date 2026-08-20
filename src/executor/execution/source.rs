@@ -789,7 +789,7 @@ fn finalize_plan_rows(
     if plan.set.is_some() && !plan.order.is_empty() {
         let eval = sort::EvalInput {
             order: &plan.order,
-            projection: &plan.projection,
+            projection: &[],
             params: env.params,
             search_context: env.search_context,
             user_functions: env.user_functions,

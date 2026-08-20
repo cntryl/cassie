@@ -143,6 +143,27 @@ fn enforce(
     let enforce_at = parse_timestamp(at)?;
     let duration = parse_duration(&metadata.retention_duration)?;
     let cutoff = enforce_at - duration;
+    let collections = cassie.referential_write_collections(&metadata.collection);
+    cassie.midge.with_collection_write_gates(&collections, || {
+        enforce_with_held_referential_gates(
+            cassie,
+            metadata,
+            cutoff,
+            enforce_at,
+            user_functions,
+            controls,
+        )
+    })
+}
+
+fn enforce_with_held_referential_gates(
+    cassie: &Cassie,
+    metadata: &crate::catalog::RetentionPolicyMeta,
+    cutoff: OffsetDateTime,
+    enforce_at: OffsetDateTime,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<(u64, u64, u64), QueryError> {
     let rows = batch::flatten_batches(scan::scan(cassie, None, &metadata.collection, controls)?);
     let mut deleted = 0u64;
     let mut skipped = 0u64;
@@ -161,11 +182,23 @@ fn enforce(
         if timestamp >= cutoff {
             continue;
         }
-        if cassie
-            .delete_document_for_session(None, &metadata.collection, &row_id)
-            .map_err(|error| QueryError::General(error.to_string()))?
-        {
-            deleted += 1;
+        let Some(current) = cassie
+            .get_document_for_session(None, &metadata.collection, &row_id)
+            .map_err(QueryError::from)?
+        else {
+            continue;
+        };
+        match super::dml_referential_actions::delete_existing_row(
+            cassie,
+            None,
+            &metadata.collection,
+            &row_id,
+            &current.payload,
+            controls,
+        )? {
+            super::dml_referential_actions::DeleteOutcome::Deleted(true) => deleted += 1,
+            super::dml_referential_actions::DeleteOutcome::Restricted(_) => skipped += 1,
+            super::dml_referential_actions::DeleteOutcome::Deleted(false) => {}
         }
     }
 

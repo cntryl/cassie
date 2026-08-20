@@ -2,7 +2,41 @@ use std::collections::BTreeSet;
 
 use super::{check_timeout, Cassie, CassieSession, QueryError, QueryExecutionControls};
 
-pub(super) fn preflight_delete_actions(
+pub(super) enum DeleteOutcome {
+    Deleted(bool),
+    Restricted(QueryError),
+}
+
+pub(super) fn delete_existing_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    controls: &QueryExecutionControls,
+) -> Result<DeleteOutcome, QueryError> {
+    preflight_delete_actions(cassie, session, table, payload, controls)?;
+    let mut visited = BTreeSet::new();
+    if let Some(error) = find_delete_restriction(
+        cassie,
+        session,
+        table,
+        row_id,
+        payload,
+        &mut visited,
+        controls,
+    )? {
+        return Ok(DeleteOutcome::Restricted(error));
+    }
+    assert_no_referencing_rows(cassie, session, table, row_id, payload, controls)?;
+    check_timeout(controls)?;
+    let deleted = cassie
+        .delete_document_for_session(session, table, row_id)
+        .map_err(QueryError::from)?;
+    Ok(DeleteOutcome::Deleted(deleted))
+}
+
+fn preflight_delete_actions(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
@@ -31,7 +65,7 @@ pub(super) fn preflight_delete_actions(
         .map_err(QueryError::from)
 }
 
-pub(super) fn preflight_update_actions(
+fn preflight_update_actions(
     cassie: &Cassie,
     session: &CassieSession,
     table: &str,
@@ -82,6 +116,77 @@ pub(super) fn preflight_update_actions(
     }
 
     Ok(())
+}
+
+fn find_delete_restriction(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    visited: &mut BTreeSet<(String, String)>,
+    controls: &QueryExecutionControls,
+) -> Result<Option<QueryError>, QueryError> {
+    check_timeout(controls)?;
+    if !visited.insert((table.to_string(), row_id.to_string())) {
+        return Ok(None);
+    }
+    let Some(object) = payload.as_object() else {
+        return Ok(None);
+    };
+
+    for (child_table, constraint) in referencing_constraints(cassie, table) {
+        check_timeout(controls)?;
+        let Some(reference_field) = constraint.references_field.as_deref() else {
+            continue;
+        };
+        let Some(parent_value) = object.get(reference_field) else {
+            continue;
+        };
+        if parent_value.is_null() {
+            continue;
+        }
+        let child_rows = referencing_child_rows(
+            cassie,
+            session,
+            &child_table,
+            &constraint.field,
+            parent_value,
+            controls,
+        )?;
+        if child_rows.is_empty() {
+            continue;
+        }
+
+        match foreign_key_action(constraint.foreign_key_on_delete.as_deref()) {
+            ForeignKeyAction::Cascade => {
+                for child in child_rows {
+                    if let Some(error) = find_delete_restriction(
+                        cassie,
+                        session,
+                        &child_table,
+                        &child.id,
+                        &child.payload,
+                        visited,
+                        controls,
+                    )? {
+                        return Ok(Some(error));
+                    }
+                }
+            }
+            ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {}
+            ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
+                return Ok(Some(referenced_row_error(
+                    &constraint.field,
+                    &child_table,
+                    table,
+                    reference_field,
+                )));
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 fn collect_delete_action_collections(
@@ -150,7 +255,7 @@ fn collect_delete_action_collections(
     Ok(())
 }
 
-pub(super) fn assert_no_referencing_rows(
+fn assert_no_referencing_rows(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
@@ -260,7 +365,7 @@ fn apply_delete_actions(
     Ok(())
 }
 
-pub(super) fn assert_referenced_values_can_change(
+fn assert_referenced_values_can_change(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
@@ -319,7 +424,7 @@ pub(super) fn assert_referenced_values_can_change(
     Ok(())
 }
 
-pub(super) fn apply_referenced_update_actions(
+fn apply_referenced_update_actions(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     table: &str,
@@ -395,6 +500,45 @@ pub(super) fn apply_referenced_update_actions(
     }
 
     Ok(())
+}
+
+pub(super) fn update_existing_row(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    row_id: &str,
+    before: &serde_json::Value,
+    after: serde_json::Value,
+    controls: &QueryExecutionControls,
+) -> Result<crate::midge::adapter::DocumentRef, QueryError> {
+    assert_referenced_values_can_change(cassie, session, table, before, &after, controls)?;
+    if let Some(session) = session.filter(|session| session.is_transaction_active()) {
+        let mut collections = BTreeSet::from([table.to_string()]);
+        preflight_update_actions(
+            cassie,
+            session,
+            table,
+            before,
+            &after,
+            &mut collections,
+            controls,
+        )?;
+        let collections = collections.into_iter().collect::<Vec<_>>();
+        session
+            .preflight_transaction_collections(&collections)
+            .map_err(QueryError::from)?;
+    }
+    cassie
+        .put_prepared_document_for_session(session, table, row_id.to_string(), after)
+        .map_err(QueryError::from)?;
+    let document = cassie
+        .get_document_for_session(session, table, row_id)
+        .map_err(QueryError::from)?
+        .ok_or_else(|| {
+            QueryError::General(format!("updated row '{row_id}' was not found in '{table}'"))
+        })?;
+    apply_referenced_update_actions(cassie, session, table, before, &document.payload, controls)?;
+    Ok(document)
 }
 
 fn referencing_constraints(

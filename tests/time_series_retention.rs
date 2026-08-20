@@ -1,4 +1,4 @@
-use cassie::app::Cassie;
+use cassie::app::{Cassie, CassieSession};
 use cassie::catalog::canonical_relation_name;
 use cassie::sql::ast::QueryStatement;
 use cassie::sql::parse_statement;
@@ -17,6 +17,28 @@ fn runtime() -> tokio::runtime::Runtime {
         .enable_all()
         .build()
         .expect("runtime")
+}
+
+fn create_retention_foreign_key_fixture(cassie: &Cassie, session: &CassieSession) {
+    for sql in [
+        "CREATE TABLE retention_fk_parents (id INT PRIMARY KEY, event_at TEXT)",
+        "CREATE TABLE retention_fk_restrict (parent_id INT REFERENCES retention_fk_parents(id), title TEXT)",
+        "CREATE TABLE retention_fk_cascade (parent_id INT, title TEXT, CONSTRAINT retention_fk_cascade_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE CASCADE)",
+        "CREATE TABLE retention_fk_null (parent_id INT, title TEXT, CONSTRAINT retention_fk_null_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE SET NULL)",
+        "CREATE TABLE retention_fk_default (parent_id INT DEFAULT 5, title TEXT, CONSTRAINT retention_fk_default_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE SET DEFAULT)",
+        "INSERT INTO retention_fk_parents VALUES (1, '2026-01-01T00:00:00Z')",
+        "INSERT INTO retention_fk_parents VALUES (2, '2026-01-01T00:00:00Z')",
+        "INSERT INTO retention_fk_parents VALUES (3, '2026-01-01T00:00:00Z')",
+        "INSERT INTO retention_fk_parents VALUES (4, '2026-01-01T00:00:00Z')",
+        "INSERT INTO retention_fk_parents VALUES (5, '2026-01-09T00:00:00Z')",
+        "INSERT INTO retention_fk_restrict VALUES (1, 'restrict')",
+        "INSERT INTO retention_fk_cascade VALUES (2, 'cascade')",
+        "INSERT INTO retention_fk_null VALUES (3, 'null')",
+        "INSERT INTO retention_fk_default (parent_id, title) VALUES (4, 'default')",
+        "CREATE RETENTION POLICY retention_fk_policy ON retention_fk_parents USING event_at RETAIN FOR '1 day'",
+    ] {
+        cassie.execute_sql(session, sql, vec![]).unwrap();
+    }
 }
 
 #[test]
@@ -231,6 +253,91 @@ fn should_enforce_retention_idempotently() {
             policies.rows,
             vec![vec![Value::Int64(0), Value::Int64(2)]]
         );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_enforce_foreign_key_actions_during_retention() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("retention_foreign_keys");
+
+    runtime().block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        create_retention_foreign_key_fixture(&cassie, &session);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "ENFORCE RETENTION POLICY retention_fk_policy AT '2026-01-10T00:00:00Z'",
+                vec![],
+            )
+            .unwrap();
+        let parents = cassie
+            .execute_sql(
+                &session,
+                "SELECT event_at FROM retention_fk_parents ORDER BY event_at",
+                vec![],
+            )
+            .unwrap();
+        let restrict = cassie
+            .execute_sql(
+                &session,
+                "SELECT parent_id FROM retention_fk_restrict",
+                vec![],
+            )
+            .unwrap();
+        let cascade = cassie
+            .execute_sql(
+                &session,
+                "SELECT parent_id FROM retention_fk_cascade",
+                vec![],
+            )
+            .unwrap();
+        let null = cassie
+            .execute_sql(
+                &session,
+                "SELECT parent_id FROM retention_fk_null",
+                vec![],
+            )
+            .unwrap();
+        let default = cassie
+            .execute_sql(
+                &session,
+                "SELECT parent_id FROM retention_fk_default",
+                vec![],
+            )
+            .unwrap();
+        let policy_name = canonical_name("retention_fk_policy");
+        let policy = cassie
+            .execute_sql(
+                &session,
+                &format!(
+                    "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                ),
+                vec![],
+            )
+            .unwrap();
+
+        // Assert
+        assert_eq!(result.command, "ENFORCE RETENTION 3");
+        assert_eq!(
+            parents.rows,
+            vec![
+                vec![Value::String("2026-01-01T00:00:00Z".to_string())],
+                vec![Value::String("2026-01-09T00:00:00Z".to_string())],
+            ]
+        );
+        assert_eq!(restrict.rows, vec![vec![Value::Int64(1)]]);
+        assert!(cascade.rows.is_empty());
+        assert_eq!(null.rows, vec![vec![Value::Null]]);
+        assert_eq!(default.rows, vec![vec![Value::Int64(5)]]);
+        assert_eq!(policy.rows, vec![vec![Value::Int64(3), Value::Int64(1)]]);
 
         let _ = std::fs::remove_dir_all(path);
     });

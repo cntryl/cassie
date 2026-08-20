@@ -1,9 +1,9 @@
 use super::{
-    build_dml_result, check_timeout, execute_plan, filter, inserted_row_to_batch_row,
-    integral_json_number, json_to_value, update_assignment_to_json, value_to_json, BatchRow,
-    Cassie, CassieSession, CollectionSchema, CteContext, DmlResultContext, Expr, FieldMeta,
-    FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError, QueryExecutionControls,
-    QueryResult, QuerySource, Value,
+    build_dml_result, check_timeout, dml_referential_actions, execute_plan, filter,
+    inserted_row_to_batch_row, integral_json_number, json_to_value, update_assignment_to_json,
+    value_to_json, BatchRow, Cassie, CassieSession, CollectionSchema, CteContext, DmlResultContext,
+    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
+    QueryExecutionControls, QueryResult, QuerySource, Value,
 };
 
 pub(in crate::executor::execution) fn execute_insert(
@@ -35,6 +35,7 @@ pub(in crate::executor::execution) fn execute_insert(
         params,
         user_functions,
         schema: &schema,
+        controls,
     };
     for source_row in source_rows {
         check_timeout(controls)?;
@@ -293,6 +294,7 @@ struct InsertExecutionContext<'a> {
     params: &'a [Value],
     user_functions: &'a HashMap<String, FunctionMeta>,
     schema: &'a CollectionSchema,
+    controls: &'a QueryExecutionControls,
 }
 
 fn execute_insert_source_row(
@@ -362,7 +364,14 @@ fn execute_insert_source_row(
 pub(crate) fn resolve_transaction_conflict_intents(
     cassie: &Cassie,
     session: &CassieSession,
+    controls: Option<&QueryExecutionControls>,
 ) -> Result<(), QueryError> {
+    let fallback_controls = controls
+        .is_none()
+        .then(|| cassie.runtime.query_controls(std::time::Instant::now()));
+    let controls = controls
+        .or(fallback_controls.as_ref())
+        .expect("fallback controls are present when caller controls are absent");
     for intent in session.transaction_conflict_intents() {
         session.remove_document_change(&intent.statement.table, &intent.provisional_id);
         let context = InsertExecutionContext {
@@ -372,6 +381,7 @@ pub(crate) fn resolve_transaction_conflict_intents(
             params: &intent.params,
             user_functions: &intent.user_functions,
             schema: &intent.schema,
+            controls,
         };
         let Some(conflict_id) =
             find_insert_conflict_row_id(cassie, Some(session), &intent.statement, &intent.payload)?
@@ -506,15 +516,15 @@ fn execute_insert_conflict_update(
             Some(conflict_id),
         )
         .map_err(QueryError::from)?;
-    context
-        .cassie
-        .put_prepared_document_for_session(
-            context.session,
-            &context.statement.table,
-            conflict_id.to_string(),
-            prepared,
-        )
-        .map_err(QueryError::from)?;
+    dml_referential_actions::update_existing_row(
+        context.cassie,
+        context.session,
+        &context.statement.table,
+        conflict_id,
+        &current.payload,
+        prepared,
+        context.controls,
+    )?;
     Ok(Some(conflict_id.to_string()))
 }
 

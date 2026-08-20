@@ -32,11 +32,12 @@ pub(crate) fn sort_rows_with_controls<R>(
 where
     R: RowAccess,
 {
+    let order = eval.resolved_order();
     let mut runs = Vec::with_capacity(rows.len());
     let mut key_memory = Vec::with_capacity(rows.len());
     for row in rows {
         check_query_controls(controls)?;
-        let key = eval.row_key(&row)?;
+        let key = eval.row_key(&row, &order)?;
         key_memory.push(controls.reserve_query_memory(row_key_bytes(&key))?);
         runs.push(VecDeque::from([(key, row)]));
     }
@@ -104,12 +105,13 @@ pub(crate) fn top_k_batches_with_controls(
     if eval.order.is_empty() || top_needed == 0 {
         return Ok(Vec::new());
     }
+    let order = eval.resolved_order();
     let mut top = BinaryHeap::with_capacity(top_needed.min(DEFAULT_BATCH_SIZE).saturating_add(1));
     let mut top_memory = controls.reserve_query_memory(0)?;
     for row in flatten_batches(batches) {
         check_query_controls(controls)?;
         let candidate = TopCandidate {
-            key: eval.row_key(&row)?,
+            key: eval.row_key(&row, &order)?,
             row,
         };
         push_top_candidate(&mut top, top_needed, candidate);
@@ -137,10 +139,11 @@ pub(crate) fn maintain_top_k_kernel(
     if eval.order.is_empty() || top_needed == 0 {
         return Ok(Vec::new());
     }
+    let order = eval.resolved_order();
     let mut top = BinaryHeap::with_capacity(top_needed.saturating_add(1));
     for row in rows {
         let candidate = TopCandidate {
-            key: eval.row_key(&row)?,
+            key: eval.row_key(&row, &order)?,
             row,
         };
         push_top_candidate(&mut top, top_needed, candidate);
@@ -169,6 +172,10 @@ fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
                 } if project_alias.to_ascii_lowercase() == alias_lower => {
                     Some(Expr::Function(function.clone()))
                 }
+                SelectItem::Expr {
+                    expr,
+                    alias: Some(project_alias),
+                } if project_alias.to_ascii_lowercase() == alias_lower => Some(expr.clone()),
                 _ => None,
             }
         }),
@@ -212,9 +219,24 @@ pub(crate) struct EvalInput<'a> {
 }
 
 impl EvalInput<'_> {
-    fn row_key<R: RowAccess>(&self, row: &R) -> Result<RowKey, crate::executor::QueryError> {
-        let parts = self
-            .order
+    fn resolved_order(&self) -> Vec<OrderExpr> {
+        self.order
+            .iter()
+            .map(|order| OrderExpr {
+                expr: alias_expr(&order.expr, self.projection)
+                    .unwrap_or_else(|| order.expr.clone()),
+                direction: order.direction.clone(),
+                nulls: order.nulls,
+            })
+            .collect()
+    }
+
+    fn row_key<R: RowAccess>(
+        &self,
+        row: &R,
+        order: &[OrderExpr],
+    ) -> Result<RowKey, crate::executor::QueryError> {
+        let parts = order
             .iter()
             .map(|order| {
                 self.value(row, &order.expr).map(|value| KeyPart {
@@ -235,25 +257,9 @@ impl EvalInput<'_> {
         row: &R,
         expr: &Expr,
     ) -> Result<Value, crate::executor::QueryError> {
-        let base = filter::evaluate_expr_value(
-            row,
-            expr,
-            self.params,
-            self.search_context,
-            self.user_functions,
-            self.session,
-            None,
-        )?;
-        if !matches!(base, Value::Null) {
-            return Ok(base);
-        }
-
-        let Some(alias_expr) = alias_expr(expr, self.projection) else {
-            return Ok(base);
-        };
         filter::evaluate_expr_value(
             row,
-            &alias_expr,
+            expr,
             self.params,
             self.search_context,
             self.user_functions,

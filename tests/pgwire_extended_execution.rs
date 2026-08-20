@@ -11,8 +11,8 @@ use cassie::config::CassieRuntimeConfig;
 use cassie::types::{DataType, FieldSchema, Schema};
 use pgwire_support::{
     bind_frame, data_dir, describe_statement_frame, execute_frame, parse_data_row, parse_frame,
-    parse_parameter_description, read_until_ready, read_wire_frame, startup_frame, sync_frame,
-    use_local_storage,
+    parse_frame_with_types, parse_parameter_description, read_until_ready, read_wire_frame,
+    startup_frame, sync_frame, use_local_storage,
 };
 
 type WireFrame = (u8, Vec<u8>);
@@ -72,6 +72,30 @@ fn seed_extended_query_collection(cassie: &Cassie) {
             &collection,
             Some("doc-1".to_string()),
             serde_json::json!({"title": "alpha"}),
+        )
+        .unwrap();
+}
+
+fn seed_incompatible_parameter_collection(cassie: &Cassie) {
+    let collection = canonical_relation_name("postgres", "public", "parameter_type_docs");
+    let schema = Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Int,
+            nullable: false,
+        }],
+    };
+    cassie
+        .midge
+        .create_collection(&collection, schema.clone())
+        .unwrap();
+    cassie.register_collection(&collection, schema);
+    cassie
+        .midge
+        .put_document(
+            &collection,
+            Some("doc-1".to_string()),
+            serde_json::json!({"score": 123}),
         )
         .unwrap();
 }
@@ -171,6 +195,34 @@ async fn read_ready_frames(reader: &mut PgwireReader<'_>) -> Vec<WireFrame> {
     }
 }
 
+async fn execute_text_parameter_query(
+    reader: &mut PgwireReader<'_>,
+    writer: &mut PgwireWriter<'_>,
+    name: &str,
+    sql: &str,
+) -> Vec<WireFrame> {
+    let portal = format!("portal_{name}");
+    tokio::io::AsyncWriteExt::write_all(writer, &parse_frame_with_types(name, sql, &[25]))
+        .await
+        .expect("write typed parse");
+    tokio::io::AsyncWriteExt::write_all(writer, &describe_statement_frame(name))
+        .await
+        .expect("write typed describe");
+    tokio::io::AsyncWriteExt::write_all(writer, &bind_frame(&portal, name, &["123"]))
+        .await
+        .expect("write text bind");
+    tokio::io::AsyncWriteExt::write_all(writer, &execute_frame(&portal))
+        .await
+        .expect("write typed execute");
+    tokio::io::AsyncWriteExt::write_all(writer, &sync_frame())
+        .await
+        .expect("write typed sync");
+    tokio::io::AsyncWriteExt::flush(writer)
+        .await
+        .expect("flush typed query");
+    read_ready_frames(reader).await
+}
+
 fn assert_extended_lifecycle_frames(frames: &[WireFrame]) {
     assert_eq!(
         frames.len(),
@@ -242,6 +294,85 @@ fn should_execute_binary_extended_query_lifecycle_return_backend_frames() {
 
         // Assert
         assert_extended_lifecycle_frames(&frames);
+
+        drop(socket);
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
+fn should_preserve_unknown_for_incompatible_text_parameters() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("incompatible-text-parameters");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        seed_incompatible_parameter_collection(&cassie);
+        let (addr, server) = spawn_pgwire_server(&cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        start_pgwire_session(&mut reader, &mut write_half).await;
+
+        // Act
+        let not_equal = execute_text_parameter_query(
+            &mut reader,
+            &mut write_half,
+            "incompatible_not_equal",
+            "SELECT score FROM parameter_type_docs WHERE score != $1",
+        )
+        .await;
+        let equal = execute_text_parameter_query(
+            &mut reader,
+            &mut write_half,
+            "incompatible_equal",
+            "SELECT score FROM parameter_type_docs WHERE score = $1",
+        )
+        .await;
+        let less_than = execute_text_parameter_query(
+            &mut reader,
+            &mut write_half,
+            "incompatible_less_than",
+            "SELECT score FROM parameter_type_docs WHERE score < $1",
+        )
+        .await;
+
+        // Assert
+        let parameter_description = not_equal
+            .iter()
+            .find(|frame| frame.0 == b't')
+            .expect("parameter description");
+        assert_eq!(
+            parse_parameter_description(&parameter_description.1),
+            vec![25]
+        );
+        for (operator, frames) in [
+            ("!=", not_equal.as_slice()),
+            ("=", equal.as_slice()),
+            ("<", less_than.as_slice()),
+        ] {
+            assert!(
+                frames.iter().all(|frame| frame.0 != b'E'),
+                "{operator} query should not return an error"
+            );
+            assert!(
+                frames.iter().any(|frame| frame.0 == b'C'),
+                "{operator} query should complete"
+            );
+        }
+        assert_eq!(not_equal.iter().filter(|frame| frame.0 == b'D').count(), 0);
+        assert_eq!(equal.iter().filter(|frame| frame.0 == b'D').count(), 0);
+        assert_eq!(less_than.iter().filter(|frame| frame.0 == b'D').count(), 0);
 
         drop(socket);
         server.abort();

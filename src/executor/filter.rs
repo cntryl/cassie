@@ -657,7 +657,7 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
         (ScalarValue::Float(left), ScalarValue::Bool(right)) => {
             Some((*left != 0.0 && *right) || (*left == 0.0 && !*right))
         }
-        _ => Some(false),
+        _ => None,
     }
 }
 

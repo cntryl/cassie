@@ -162,6 +162,54 @@ async fn read_wire_frame(
 }
 
 #[test]
+fn should_isolate_runtime_feedback_by_offset_shape() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("feedback_offset_shape");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "metrics_feedback_offset_shape";
+        register_feedback_collection(&cassie, collection);
+        let session = cassie.create_session("tester", None);
+        let without_offset_sql =
+            "SELECT title FROM metrics_feedback_offset_shape ORDER BY title LIMIT 1";
+        let with_offset_sql =
+            "SELECT title FROM metrics_feedback_offset_shape ORDER BY title LIMIT 1 OFFSET 500";
+        let without_offset_key = feedback_key(&cassie, &session, without_offset_sql, None);
+        let with_offset_key = feedback_key(&cassie, &session, with_offset_sql, None);
+
+        // Act
+        cassie
+            .execute_sql(&session, without_offset_sql, vec![])
+            .expect("execute query without OFFSET");
+        cassie
+            .execute_sql(&session, with_offset_sql, vec![])
+            .expect("execute query with OFFSET");
+        let without_offset_record = cassie
+            .feedback_record_for_diagnostics(&without_offset_key)
+            .expect("feedback without OFFSET");
+        let with_offset_record = cassie
+            .feedback_record_for_diagnostics(&with_offset_key)
+            .expect("feedback with OFFSET");
+
+        // Assert
+        assert_ne!(
+            without_offset_key.predicate_shape_hash,
+            with_offset_key.predicate_shape_hash
+        );
+        assert_eq!(without_offset_record.executions, 1);
+        assert_eq!(with_offset_record.executions, 1);
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_capture_runtime_feedback_for_normalized_select() {
     // Arrange
     use_local_storage();

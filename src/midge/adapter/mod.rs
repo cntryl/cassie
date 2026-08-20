@@ -255,6 +255,12 @@ pub(crate) use scalar_indexes::{ScalarIndexBound, ScalarIndexScanRequest};
 mod scan_types;
 mod schema_cleanup;
 mod schema_ops;
+mod schema_write_control;
+#[doc(hidden)]
+pub use schema_write_control::{
+    schema_write_conflict_test_guard, set_schema_write_commit_barriers,
+    SchemaWriteConflictTestGuard, SchemaWritePausePoint,
+};
 #[cfg(test)]
 #[path = "schema_ops_tests.rs"]
 mod schema_ops_tests;

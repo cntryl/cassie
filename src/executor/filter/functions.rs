@@ -772,7 +772,10 @@ fn evaluate_abs(name: &str, args: &[Value]) -> Result<Value, QueryError> {
     require_arg_count(name, args, 1)?;
     match &args[0] {
         Value::Null => Ok(Value::Null),
-        Value::Int64(v) => Ok(Value::Int64(v.checked_abs().unwrap_or(i64::MAX))),
+        Value::Int64(v) => v
+            .checked_abs()
+            .map(Value::Int64)
+            .ok_or_else(|| QueryError::General("integer overflow".to_string())),
         Value::Float64(v) => Ok(Value::Float64(v.abs())),
         _ => Err(QueryError::General(format!(
             "function '{name}' expects a numeric input"

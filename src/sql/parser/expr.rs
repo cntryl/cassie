@@ -379,8 +379,11 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.starts_with('"') && raw.ends_with('"') {
         return Ok(Expr::StringLiteral(raw.trim_matches('"').to_string()));
     }
-    if raw.starts_with('\'') && raw.ends_with('\'') {
-        return Ok(Expr::StringLiteral(raw.trim_matches('\'').to_string()));
+    if let Some(value) = raw
+        .strip_prefix('\'')
+        .and_then(|value| value.strip_suffix('\''))
+    {
+        return Ok(Expr::StringLiteral(value.replace("''", "'")));
     }
     if is_integer_literal(raw) {
         let value = raw

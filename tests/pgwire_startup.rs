@@ -84,6 +84,20 @@ async fn complete_password_authentication(
     (challenge, authenticated)
 }
 
+async fn read_startup_error(addr: std::net::SocketAddr, startup: &[u8]) -> Vec<(char, String)> {
+    let mut socket = tokio::net::TcpStream::connect(addr)
+        .await
+        .expect("connect pgwire");
+    let (read_half, mut write_half) = socket.split();
+    let mut reader = tokio::io::BufReader::new(read_half);
+    tokio::io::AsyncWriteExt::write_all(&mut write_half, startup)
+        .await
+        .expect("write startup");
+    let (tag, _, payload) = read_wire_frame(&mut reader).await;
+    assert_eq!(tag, b'E', "invalid startup should return an error frame");
+    parse_error_fields(&payload)
+}
+
 fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
     let tail = payload
         .get(*cursor..)
@@ -102,6 +116,83 @@ fn parse_parameter_status(payload: &[u8]) -> (String, String) {
     let key = read_cstring(payload, &mut cursor);
     let value = read_cstring(payload, &mut cursor);
     (key, value)
+}
+
+#[test]
+fn should_validate_every_startup_parameter_regardless_of_user_value() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("startup_parameter_validation");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let config = authenticated_config();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+        cassie.startup().unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind listener");
+        let addr = listener.local_addr().expect("listener address");
+        drop(listener);
+        let server = tokio::spawn(cassie::pgwire::server::run(
+            addr.to_string(),
+            std::sync::Arc::new(cassie.clone()),
+            config,
+        ));
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let cases = [
+            ("", "", vec![], "invalid startup option 'database'"),
+            (
+                "",
+                "postgres",
+                vec![("replication", "database")],
+                "unsupported startup option: replication",
+            ),
+            (
+                "",
+                "postgres",
+                vec![("client_encoding", "LATIN1")],
+                "invalid parameter value: invalid value for parameter \"client_encoding\": \"LATIN1\"",
+            ),
+            ("root", "", vec![], "invalid startup option 'database'"),
+            (
+                "root",
+                "postgres",
+                vec![("replication", "database")],
+                "unsupported startup option: replication",
+            ),
+            (
+                "root",
+                "postgres",
+                vec![("client_encoding", "LATIN1")],
+                "invalid parameter value: invalid value for parameter \"client_encoding\": \"LATIN1\"",
+            ),
+        ];
+
+        // Act
+        let mut observed = Vec::new();
+        for (user, database, params, expected) in cases {
+            let startup = startup_frame_with_params(user, database, &params);
+            let fields = read_startup_error(addr, &startup).await;
+            let message = fields
+                .iter()
+                .find(|(field, _)| *field == 'M')
+                .map(|(_, value)| value.clone());
+            observed.push((message, expected));
+        }
+
+        // Assert
+        for (actual, expected) in observed {
+            assert_eq!(actual.as_deref(), Some(expected));
+        }
+
+        server.abort();
+        let _ = server.await;
+        let _ = std::fs::remove_dir_all(path);
+    });
 }
 
 #[test]

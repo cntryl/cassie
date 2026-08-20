@@ -163,9 +163,12 @@ impl Midge {
         let state = VectorIndexState {
             built_generation: persisted.built_generation,
             hnsw_graph,
-            ivfflat_training: persisted.ivfflat_training.map(|manifest| {
-                ivfflat::load_ivfflat_manifest(&tx, relation_id, field_id, manifest)
-            }),
+            ivfflat_training: persisted
+                .ivfflat_training
+                .map(|manifest| {
+                    ivfflat::load_ivfflat_manifest(&tx, relation_id, field_id, manifest)
+                })
+                .transpose()?,
         };
         if state.built_generation != self.collection_generation(&collection)? {
             return Ok(None);

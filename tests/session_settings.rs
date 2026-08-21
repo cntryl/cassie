@@ -86,6 +86,20 @@ fn should_replay_exact_pgadmin_initialization_settings() {
 }
 
 #[test]
+fn should_accept_postgres_set_time_zone_syntax() {
+    // Arrange
+    let (cassie, session, path) = cassie_and_session("set_time_zone");
+
+    // Act
+    let result = cassie.execute_sql(&session, "SET TIME ZONE 'UTC'", vec![]);
+
+    // Assert
+    result.expect("set PostgreSQL time zone syntax");
+    assert_eq!(session.setting("timezone").unwrap(), "UTC");
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_reject_invalid_settings_with_22023() {
     // Arrange
     let (cassie, session, path) = cassie_and_session("invalid_values");

@@ -1,0 +1,11 @@
+[package]
+name = "cassie-diesel-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+diesel = { version = "=2.2.6", default-features = false, features = ["postgres"] }
+pq-sys = { version = "=0.6.3", features = ["bundled_without_openssl"] }

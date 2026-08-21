@@ -92,6 +92,7 @@ jobs:
         env:
           COMPATIBILITY_PROBE: ${{ inputs.probe }}
           CASSIE_RUN_SQLX_COMPAT: ${{ inputs.run_external && inputs.probe == 'sqlx' && '1' || '0' }}
+          CASSIE_RUN_DIESEL_COMPAT: ${{ inputs.run_external && inputs.probe == 'diesel' && '1' || '0' }}
           CASSIE_RUN_SQLALCHEMY_COMPAT: ${{ inputs.run_external && inputs.probe == 'sqlalchemy' && '1' || '0' }}
           CASSIE_RUN_PRISMA_COMPAT: ${{ inputs.run_external && inputs.probe == 'prisma' && '1' || '0' }}
           CASSIE_PSQL_BIN: ${{ runner.temp }}/psql-pinned
@@ -133,6 +134,22 @@ jobs:
                 exit 1
               fi
               ;;
+            diesel)
+              {
+                echo "client=diesel"
+                echo "client_version=${DIESEL_VERSION}"
+                echo "deployment_profile=loopback-memory"
+                echo "protocol=pgwire-extended-query"
+              } >> compatibility-artifacts/manifest.txt
+              if cargo test --locked --test compatibility_diesel \
+                should_validate_diesel_read_model_probe_when_enabled -- \
+                --ignored --nocapture; then
+                sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              else
+                sed -i 's/^status=unavailable$/status=failed/' compatibility-artifacts/manifest.txt
+                exit 1
+              fi
+              ;;
             prisma)
               cargo test --locked --test compatibility_matrix \
                 should_validate_prisma_introspection_probe_when_enabled -- \
@@ -151,7 +168,7 @@ jobs:
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
-            diesel|desktop|catalog)
+            desktop|catalog)
               echo "selected lane requires a separately provisioned client fixture or desktop runner"
               ;;
           esac

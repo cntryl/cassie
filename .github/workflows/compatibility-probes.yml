@@ -91,6 +91,7 @@ jobs:
         shell: bash
         env:
           COMPATIBILITY_PROBE: ${{ inputs.probe }}
+          CASSIE_RUN_SQLX_COMPAT: ${{ inputs.run_external && inputs.probe == 'sqlx' && '1' || '0' }}
           CASSIE_RUN_SQLALCHEMY_COMPAT: ${{ inputs.run_external && inputs.probe == 'sqlalchemy' && '1' || '0' }}
           CASSIE_RUN_PRISMA_COMPAT: ${{ inputs.run_external && inputs.probe == 'prisma' && '1' || '0' }}
           CASSIE_PSQL_BIN: ${{ runner.temp }}/psql-pinned
@@ -101,6 +102,7 @@ jobs:
           {
             echo "probe=${{ inputs.probe }}"
             echo "source_revision=${{ inputs.source_revision }}"
+            echo "rust_toolchain=$(rustc --version 2>/dev/null || echo unavailable)"
             echo "run_external=${{ inputs.run_external }}"
             echo "status=unavailable"
           } > compatibility-artifacts/manifest.txt
@@ -114,6 +116,22 @@ jobs:
             native)
               cargo test --locked --test compatibility_matrix
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              ;;
+            sqlx)
+              {
+                echo "client=sqlx"
+                echo "client_version=${SQLX_VERSION}"
+                echo "deployment_profile=loopback-memory"
+                echo "protocol=pgwire-extended-query"
+              } >> compatibility-artifacts/manifest.txt
+              if cargo test --locked --test compatibility_sqlx \
+                should_validate_sqlx_read_model_probe_when_enabled -- \
+                --ignored --nocapture; then
+                sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              else
+                sed -i 's/^status=unavailable$/status=failed/' compatibility-artifacts/manifest.txt
+                exit 1
+              fi
               ;;
             prisma)
               cargo test --locked --test compatibility_matrix \
@@ -133,7 +151,7 @@ jobs:
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
-            sqlx|diesel|desktop|catalog)
+            diesel|desktop|catalog)
               echo "selected lane requires a separately provisioned client fixture or desktop runner"
               ;;
           esac

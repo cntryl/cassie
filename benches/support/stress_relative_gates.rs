@@ -28,6 +28,9 @@ pub(super) fn validate_relative_p95_gates(
     for gate in gates {
         let candidate = summary_for_scenario(run, gate.candidate_scenario)?;
         let baseline = summary_for_scenario(run, gate.baseline_scenario)?;
+        if !candidate.is_gate() || !baseline.is_gate() {
+            continue;
+        }
         let candidate_p95 = p95_nanoseconds(candidate)?;
         let baseline_p95 = p95_nanoseconds(baseline)?;
         validate_ratio(

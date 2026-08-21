@@ -1088,7 +1088,7 @@ fn should_make_the_named_workstation_profile_disk_backed() {
     let harness = include_str!("../benches/support/stress.rs");
 
     // Act
-    let selects_disk = harness.contains("profile.storage_mode == \"midge_disk_apfs\"");
+    let selects_disk = harness.contains("\"midge_disk_apfs\" | \"midge_disk_native_linux\"");
     let configures_local_storage =
         harness.contains("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")");
 

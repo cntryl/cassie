@@ -272,8 +272,14 @@ impl CassieStressRunner {
             let profile = performance_benchmarks::deployment_profile_for_id(&profile_id)
                 .unwrap_or_else(|| panic!("unknown benchmark deployment profile '{profile_id}'"));
             runner.metadata("deployment_profile_id", profile.profile_id);
-            if profile.storage_mode == "midge_disk_apfs" {
-                std::env::set_var("CASSIE_STORAGE_MODE", "local");
+            match profile.storage_mode {
+                "midge_disk_apfs" | "midge_disk_native_linux" => {
+                    std::env::set_var("CASSIE_STORAGE_MODE", "local");
+                }
+                "in_memory_midge_fallback" => {
+                    std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+                }
+                _ => {}
             }
         }
         if let Some(run_id) = std::env::var("CASSIE_BENCH_RUN_ID")

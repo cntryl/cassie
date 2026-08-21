@@ -77,7 +77,9 @@ pub fn runtime() -> tokio::runtime::Runtime {
 }
 
 pub(super) fn configure_benchmark_environment() {
-    std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+    if std::env::var_os("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID").is_none() {
+        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+    }
     std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
 }
 
@@ -492,13 +494,9 @@ fn context_with_index_options_and_runtime(
     configure: impl FnOnce(&mut CassieRuntimeConfig),
 ) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
-    std::env::set_var(
-        "CASSIE_STORAGE_MODE",
-        match storage_mode {
-            BenchmarkStorageMode::Default => "memory",
-            BenchmarkStorageMode::Disk => "local",
-        },
-    );
+    if matches!(storage_mode, BenchmarkStorageMode::Disk) {
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+    }
     let dir = benchmark_data_dir_for_mode(label, storage_mode);
 
     let mut config = CassieRuntimeConfig::from_env()

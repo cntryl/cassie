@@ -1,7 +1,7 @@
 import "../styles/index.css";
 import { ErrorBoundary } from "@askrjs/askr/components";
 import { Alert, Button, EmptyState } from "@askrjs/themes/components";
-import { ThemeScope } from "@askrjs/themes/theme";
+import { theme, ThemeScope } from "@askrjs/themes/theme";
 
 export default function RootLayout({ children }: { children?: unknown }) {
   return (
@@ -40,7 +40,19 @@ export default function RootLayout({ children }: { children?: unknown }) {
 function ThemeCoordinator() {
   return (
     <ThemeScope defaultTheme="system" storageKey="cassie-admin-theme">
-      <span hidden aria-hidden="true" data-cassie-theme-coordinator="true" />
+      <ThemeCoordinatorState />
     </ThemeScope>
+  );
+}
+
+function ThemeCoordinatorState() {
+  const activeTheme = theme();
+  return (
+    <span
+      hidden
+      aria-hidden="true"
+      data-cassie-theme-coordinator="true"
+      data-resolved-theme={activeTheme.resolvedSystemTheme()}
+    />
   );
 }

@@ -25,6 +25,15 @@ async function openPopulatedWorkspace(page: Page) {
 }
 
 test("should_match_populated_admin_shell_visual_states", async ({ page }, testInfo) => {
+  // Arrange
+  const unusedStateWarnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "warning" && message.text().includes("Unused state variable")) {
+      unusedStateWarnings.push(message.text());
+    }
+  });
+
+  // Act
   await openPopulatedWorkspace(page);
 
   const mobile = testInfo.project.name === "pixel-7";
@@ -42,6 +51,9 @@ test("should_match_populated_admin_shell_visual_states", async ({ page }, testIn
       fullPage: true,
       maxDiffPixelRatio: 0.02,
     });
+
+    // Assert
+    expect(unusedStateWarnings).toEqual([]);
     return;
   }
 
@@ -57,4 +69,7 @@ test("should_match_populated_admin_shell_visual_states", async ({ page }, testIn
     fullPage: true,
     maxDiffPixelRatio: 0.02,
   });
+
+  // Assert
+  expect(unusedStateWarnings).toEqual([]);
 });

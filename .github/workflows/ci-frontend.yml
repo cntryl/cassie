@@ -76,3 +76,11 @@ jobs:
 
       - name: Mock browser tests
         run: npm run test:e2e:mock
+
+      - name: Retain mock browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-browser-failure-${{ github.run_attempt }}
+          path: ui/test-results
+          if-no-files-found: ignore

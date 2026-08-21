@@ -35,6 +35,8 @@ fn main() {
             workloads::column_codec_encode as fn() -> usize,
         ),
         ("column_codec_decode", workloads::column_codec_decode),
+        ("alp_codec_encode", workloads::alp_codec_encode),
+        ("alp_codec_decode", workloads::alp_codec_decode),
     ] {
         let case = stress::StressCase::new(operation, "micro").runtime_contract(
             stress::FixtureDeclaration::new(

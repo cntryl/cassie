@@ -38,6 +38,21 @@ static COLUMN_CODEC_BYTES: LazyLock<Vec<u8>> = LazyLock::new(|| {
     cassie::midge::adapter::encode_column_chunk_for_test("bigint", &COLUMN_CODEC_VALUES)
         .expect("encode Tier 1 column codec fixture")
 });
+static ALP_CODEC_VALUES: LazyLock<Vec<serde_json::Value>> = LazyLock::new(|| {
+    (0..1_024)
+        .map(|index| serde_json::json!((f64::from(index) - 512.0) / 100.0))
+        .collect()
+});
+static ALP_CODEC_BYTES: LazyLock<Vec<u8>> = LazyLock::new(|| {
+    let encoded = cassie::midge::adapter::encode_column_chunk_for_test("float", &ALP_CODEC_VALUES)
+        .expect("encode Tier 1 ALP codec fixture");
+    assert_eq!(
+        cassie::midge::adapter::column_chunk_codec_for_test(&encoded)
+            .expect("inspect Tier 1 ALP codec fixture"),
+        "alp"
+    );
+    encoded
+});
 
 type VectorPair = ([f32; 8], [f32; 8]);
 type Bm25Input = (f64, f64, f64, f64, f64);
@@ -92,6 +107,9 @@ pub fn prepare_hotpath(workload: &str) -> Result<(), &'static str> {
         "column_codec_decode" => {
             LazyLock::force(&COLUMN_CODEC_BYTES);
         }
+        "alp_codec_encode" | "alp_codec_decode" => {
+            LazyLock::force(&ALP_CODEC_BYTES);
+        }
         "key_encode_decode" => {
             LazyLock::force(&ROW_KEY_KERNEL);
         }
@@ -134,6 +152,18 @@ pub fn column_codec_encode() -> usize {
 pub fn column_codec_decode() -> usize {
     let decoded = cassie::midge::adapter::decode_column_chunk_for_test(&COLUMN_CODEC_BYTES)
         .expect("decode Tier 1 column chunk");
+    std::hint::black_box(decoded).len()
+}
+
+pub fn alp_codec_encode() -> usize {
+    let encoded = cassie::midge::adapter::encode_column_chunk_for_test("float", &ALP_CODEC_VALUES)
+        .expect("encode Tier 1 ALP column chunk");
+    std::hint::black_box(encoded).len()
+}
+
+pub fn alp_codec_decode() -> usize {
+    let decoded = cassie::midge::adapter::decode_column_chunk_for_test(&ALP_CODEC_BYTES)
+        .expect("decode Tier 1 ALP column chunk");
     std::hint::black_box(decoded).len()
 }
 

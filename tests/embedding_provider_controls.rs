@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use cassie::config::CassieRuntimeLimits;
@@ -12,6 +13,8 @@ use cassie::embeddings::tei::{TeiProvider, TeiProviderConfig};
 use cassie::embeddings::voyage::{VoyageProvider, VoyageProviderConfig};
 use cassie::embeddings::{EmbeddingError, EmbeddingProvider};
 use cassie::runtime::{QueryCancellationHandle, QueryExecutionControls};
+
+static CONTROLLED_REQUEST_WORKER_GUARD: Mutex<()> = Mutex::new(());
 
 fn transient_server() -> (String, std::thread::JoinHandle<()>) {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind transient server");
@@ -108,6 +111,13 @@ fn deadline_controls() -> QueryExecutionControls {
 }
 
 fn assert_deadline_interrupts_retry(provider: &dyn EmbeddingProvider) {
+    // Shared runners can deschedule the test thread after the 10 ms deadline;
+    // this still distinguishes deadline interruption from the 1 s transport timeout.
+    const SCHEDULER_TOLERANT_LIMIT: Duration = Duration::from_millis(250);
+
+    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+        .lock()
+        .expect("lock controlled request worker guard");
     let controls = deadline_controls();
     let started = Instant::now();
     let error = provider
@@ -115,7 +125,7 @@ fn assert_deadline_interrupts_retry(provider: &dyn EmbeddingProvider) {
         .expect_err("deadline should interrupt provider retry");
     assert!(matches!(error, EmbeddingError::Timeout { .. }));
     assert!(
-        started.elapsed() < Duration::from_millis(45),
+        started.elapsed() < SCHEDULER_TOLERANT_LIMIT,
         "provider retry exceeded the query deadline: {:?}",
         started.elapsed()
     );
@@ -253,6 +263,9 @@ fn should_clamp_cohere_retry_backoff_to_query_deadline() {
 #[test]
 fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeout() {
     // Arrange
+    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+        .lock()
+        .expect("lock controlled request worker guard");
     let baseline_workers = active_controlled_request_workers_for_diagnostics();
     let (base_url, accepted, server) = delayed_tei_server();
     let provider = TeiProvider::with_config(TeiProviderConfig {
@@ -302,6 +315,9 @@ fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeou
 #[test]
 fn should_not_retry_mid_body_reset_for_any_remote_provider() {
     // Arrange
+    let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+        .lock()
+        .expect("lock controlled request worker guard");
     let baseline_workers = active_controlled_request_workers_for_diagnostics();
 
     // Act

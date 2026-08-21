@@ -3,8 +3,7 @@ use cassie::executor::set_materialized_projection_maintenance_failure_point;
 use cassie::midge::adapter::set_rollup_maintenance_failure_point;
 use cassie::types::Value;
 
-static MATERIALIZED_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
-static ROLLUP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static TRANSACTION_MAINTENANCE_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[path = "support/sql.rs"]
 mod support;
@@ -21,7 +20,7 @@ fn runtime() -> tokio::runtime::Runtime {
 fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
     // Arrange
     use_local_storage();
-    let _failpoint_guard = MATERIALIZED_FAILPOINT_GUARD.lock().unwrap();
+    let _failpoint_guard = TRANSACTION_MAINTENANCE_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("transaction_commit_materialized_boundary");
 
     runtime().block_on(async {
@@ -106,7 +105,7 @@ fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
 fn should_replay_rollup_debt_after_durable_transaction_commit() {
     // Arrange
     use_local_storage();
-    let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+    let _failpoint_guard = TRANSACTION_MAINTENANCE_FAILPOINT_GUARD.lock().unwrap();
     let path = data_dir("transaction_commit_rollup_boundary");
 
     runtime().block_on(async {

@@ -46,7 +46,9 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Database and schema scope | Databases, schemas, persisted `search_path`, qualified names, and administrator-managed `CONNECT` grants with live-session revalidation | Stable |
 | Tables and constraints | Table DDL, name-idempotent `CREATE TABLE IF NOT EXISTS`, defaults, unique, check, foreign key | Experimental |
 | Scalar indexes | Primary, secondary, composite, unique, covering, partial, expression, and name-idempotent `CREATE INDEX IF NOT EXISTS` | Experimental |
-| Virtual catalogs | PostgreSQL-like and Cassie runtime catalog views | Experimental |
+| `information_schema.tables` | Stable named-client table/view discovery columns documented in the catalog support contract | Stable |
+| `information_schema.columns` | Stable named-client column discovery columns documented in the catalog support contract | Stable |
+| Remaining virtual catalogs | PostgreSQL-like and Cassie runtime views outside the stable named-client subset; no PostgreSQL-internal parity claim | Experimental |
 | Projection lifecycle | Checkpoints, replay, materialization, refresh, version activation | Experimental |
 | Verification and repair | Hashes, manifests, local repair planning and audit | Experimental |
 

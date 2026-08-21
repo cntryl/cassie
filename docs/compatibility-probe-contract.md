@@ -20,13 +20,25 @@ secret-free stdout/stderr and the generated manifest.
 
 | Probe | Pinned client/tool | Current repository status |
 | --- | --- | --- |
-| sqlx | sqlx `0.8.3`, PostgreSQL driver `0.8.3` | Planned; no claim until a dedicated sqlx fixture passes |
+| sqlx | sqlx `0.8.3`, PostgreSQL driver `0.8.3` | Dedicated opt-in fixture; support is limited to the workflow below and requires retained passing evidence |
 | Diesel | Diesel `2.2.6`, PostgreSQL backend `2.2.6` | Planned; no claim until a dedicated Diesel fixture passes |
 | Prisma | Prisma CLI `6.1.0` | Opt-in probe in `compatibility_matrix.rs` |
 | SQLAlchemy | SQLAlchemy `2.0.36`, psycopg `3.2.3` | Opt-in probe in `compatibility_sqlalchemy.rs` |
 | psql | `postgres:16.6-bookworm` image | Opt-in probe in `compatibility_matrix.rs` |
 | pgAdmin | pgAdmin `9.16`, JDBC `42.7.11` where applicable | External desktop gate; not certified here |
 | DBeaver | DBeaver `26.1.3`, JDBC `42.7.11` where applicable | External desktop gate; not certified here |
+
+## sqlx workflow
+
+The `sqlx` lane builds the isolated, locked fixture in `tests/fixtures/sqlx_probe` and connects
+over loopback pgwire. It verifies supported information-schema discovery, prepared positional
+parameters, a committed parameterized write, rollback visibility, and deterministic `23505`
+and `42P01` SQLSTATE mapping. The retained manifest records the requested Cassie revision and
+the exact `rustc` toolchain; it contains no connection URL or credentials.
+
+This probe does not certify sqlx migrations, compile-time query macros, COPY, LISTEN/NOTIFY,
+PostgreSQL extensions or internal catalogs, non-default isolation modes, replication, or full
+PostgreSQL compatibility. A client-version change requires a new retained probe run.
 
 ## Evidence
 
@@ -40,4 +52,3 @@ parameters, prepared queries, bounded transactions, cancellation where implement
 deterministic SQLSTATEs. Unsupported isolation modes, PostgreSQL-internal catalogs/extensions,
 GUI create/alter dialogs, migration parity, replication, and distributed behavior remain
 explicitly outside the claim.
-

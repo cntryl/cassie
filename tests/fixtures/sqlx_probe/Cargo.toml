@@ -1,0 +1,11 @@
+[package]
+name = "cassie-sqlx-probe"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+sqlx = { version = "=0.8.3", default-features = false, features = ["postgres", "runtime-tokio"] }
+tokio = { version = "=1.42.0", features = ["macros", "rt"] }

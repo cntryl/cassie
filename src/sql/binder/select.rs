@@ -106,6 +106,11 @@ pub(super) fn bind_select_with_lateral_fields(
     select.source = source;
     select.ctes = bound_ctes;
 
+    if let Some(filter) = select.filter.as_mut() {
+        let field_types = crate::sql::source_field_type_map(&select.source, catalog);
+        canonicalize_typed_predicate_literals(filter, &field_types)?;
+    }
+
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
     validate_select_operand_families(&select, catalog)?;
@@ -121,6 +126,86 @@ pub(super) fn bind_select_with_lateral_fields(
     validate_functions(&select, catalog)?;
 
     Ok(select)
+}
+
+fn canonicalize_typed_predicate_literals(
+    expr: &mut Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    match expr {
+        Expr::Binary { left, right, .. } => {
+            canonicalize_column_literal_pair(left, right, field_types)?;
+            canonicalize_typed_predicate_literals(left, field_types)?;
+            canonicalize_typed_predicate_literals(right, field_types)
+        }
+        Expr::InList { expr, values, .. } => {
+            for value in values.iter_mut() {
+                canonicalize_column_literal_pair(expr, value, field_types)?;
+                canonicalize_typed_predicate_literals(value, field_types)?;
+            }
+            canonicalize_typed_predicate_literals(expr, field_types)
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            canonicalize_column_literal_pair(expr, low, field_types)?;
+            canonicalize_column_literal_pair(expr, high, field_types)?;
+            canonicalize_typed_predicate_literals(expr, field_types)?;
+            canonicalize_typed_predicate_literals(low, field_types)?;
+            canonicalize_typed_predicate_literals(high, field_types)
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            canonicalize_typed_predicate_literals(expr, field_types)
+        }
+        Expr::Function(function) => {
+            for argument in &mut function.args {
+                canonicalize_typed_predicate_literals(argument, field_types)?;
+            }
+            Ok(())
+        }
+        Expr::Column(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_)
+        | Expr::Exists(_) => Ok(()),
+    }
+}
+
+fn canonicalize_column_literal_pair(
+    left: &mut Expr,
+    right: &mut Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<(), CassieError> {
+    let (
+        (Expr::Column(column), Expr::StringLiteral(literal))
+        | (Expr::StringLiteral(literal), Expr::Column(column)),
+    ) = ((left, right),)
+    else {
+        return Ok(());
+    };
+    match crate::sql::field_type_for_column(field_types, column) {
+        Some(DataType::Uuid) => {
+            *literal = uuid::Uuid::parse_str(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid UUID literal '{literal}'")))?
+                .to_string();
+        }
+        Some(DataType::Bytea) => {
+            let digits = literal.strip_prefix("\\x").ok_or_else(|| {
+                CassieError::Planner(format!("invalid BYTEA literal '{literal}'"))
+            })?;
+            if digits.len() % 2 != 0 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(CassieError::Planner(format!(
+                    "invalid BYTEA literal '{literal}'"
+                )));
+            }
+            *literal = format!("\\x{}", digits.to_ascii_lowercase());
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 fn validate_bound_select_references(

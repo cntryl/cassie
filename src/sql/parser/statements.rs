@@ -231,7 +231,10 @@ pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlE
     let mut variable = argument;
     let mut value = None;
 
-    if let Some((left, right)) = argument.split_once('=') {
+    if argument.to_ascii_lowercase().starts_with("time zone ") {
+        variable = "timezone";
+        value = Some(normalize_set_value(argument["time zone ".len()..].trim()));
+    } else if let Some((left, right)) = argument.split_once('=') {
         variable = left.trim();
         value = Some(normalize_set_value(right.trim()));
     } else if let Some(pos) = argument.to_lowercase().find(" to ") {

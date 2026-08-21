@@ -19,6 +19,11 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Persisted full-text SQL evidence covering posting reads, exact BM25 equivalence, snippets, structured prefilters, bounded candidate row fetches, transaction overlays, corruption fallback, cancellation, and memory limits.
 - Exact, HNSW, IVFFlat, and hybrid evidence covering bound parameters, persisted candidates, exact reranking, structured filters, deletion visibility, explicit fallback diagnostics, cancellation, hard memory limits, and at least 0.90 ANN recall on deterministic 10k and 100k disk-backed fixtures.
 - Deterministic local-server contracts for OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and local embeddings, including request shape, ordering, dimensions, retry deadlines, transport timeouts, and active cancellation.
+- Remote embedding-provider evidence is mock-provider evidence: it covers authentication headers,
+  HTTP 429 handling, bounded retry attempts, query-deadline clamping, response limits, and
+  deterministic failures. It does not establish hosted availability, provider quotas, model
+  availability, service latency, or account-specific authorization. Operators must monitor the
+  selected service and size retry counts and query deadlines to its published rate-limit policy.
 - Security-boundary coverage for constant-cost authentication failures, bounded login state, atomic REST session quotas, explicit external HTTPS attributes, bounded provider responses, streaming transport deadlines, parser complexity budgets, and live database-access revocation.
 - Health, metrics, EXPLAIN, projection diagnostics, capacity guidance, snapshot/restore guidance, and repair runbooks.
 - Container and supply-chain workflows for supported targets.

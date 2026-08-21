@@ -14,6 +14,10 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 - Locked build, full test, pedantic Clippy, and formatting gates.
 - Integration coverage across SQL, indexes, transactions, pgwire, REST, search, vector, analytics, projection lifecycle, and recovery adapters.
+- The stable named-client catalog subset is limited to the documented columns of
+  `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
+  passing sqlx 0.8.3 and Diesel 2.2.6 loopback pgwire manifests. Other virtual catalogs and
+  PostgreSQL-internal parity remain Experimental.
 - Restart and generation-fencing coverage for multiple persisted derived artifacts.
 - Tiered benchmark owners with environment-labelled local observations.
 - Persisted full-text SQL evidence covering posting reads, exact BM25 equivalence, snippets, structured prefilters, bounded candidate row fetches, transaction overlays, corruption fallback, cancellation, and memory limits.

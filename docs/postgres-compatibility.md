@@ -68,6 +68,11 @@ Portal `max_rows` controls one execute response; it does not reset Cassie's quer
 
 Cassie supplies the PostgreSQL-like virtual catalog rows needed by supported clients. These views describe Cassie objects; they are not byte-for-byte PostgreSQL catalogs. Applications must not depend on undocumented catalog columns, OIDs, server settings, extensions, or system functions.
 
+The stable named-client subset and its exact columns, lifecycle behavior, failure contract, and
+retained client evidence are defined in [Catalog Support](catalog-support.md). Only
+`information_schema.tables` and `information_schema.columns` are Stable; all other virtual catalogs
+remain Experimental.
+
 ## Client Evidence
 
 The planned versioned certification targets are pgAdmin 9.16 and DBeaver 26.1.3 using PostgreSQL JDBC 42.7.11. The target workflow covers password/TLS connection and reconnection; supported database, schema, table, view, column, index, constraint, role, function, and procedure navigation; supported object properties; and Query Tool SQL execution, results, transactions, cancellation, graphical plans, and safe primary-key-based grid edits. The targets are not certified by the current repository until the required traces and external workflows are published.

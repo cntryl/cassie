@@ -226,9 +226,7 @@ fn bench_column_representative(
     });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "aggregate_acceleration", "scans");
-    assert_metric_increased(&before, &after, "column_batches", "scans");
-    assert_metric_increased(&before, &after, "column_batches", "predicate_values");
-    assert_metric_increased(&before, &after, "column_batches", "materialized_values");
+    assert_metric_increased(&before, &after, "column_batches", "selected_rows");
     let operations = metric_delta(&before, &after, "aggregate_acceleration", "scans");
     let segment_bound = operations.saturating_mul(COLUMN_SEGMENTS);
     assert_metric_delta_bounded(

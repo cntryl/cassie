@@ -124,10 +124,14 @@ jobs:
                 echo "deployment_profile=loopback-memory"
                 echo "protocol=pgwire-extended-query"
               } >> compatibility-artifacts/manifest.txt
-              cargo test --locked --test compatibility_sqlx \
+              if cargo test --locked --test compatibility_sqlx \
                 should_validate_sqlx_read_model_probe_when_enabled -- \
-                --ignored --nocapture
-              sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+                --ignored --nocapture; then
+                sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
+              else
+                sed -i 's/^status=unavailable$/status=failed/' compatibility-artifacts/manifest.txt
+                exit 1
+              fi
               ;;
             prisma)
               cargo test --locked --test compatibility_matrix \

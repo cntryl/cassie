@@ -14,6 +14,22 @@ use cassie::types::Value;
 use serde_json::json;
 
 #[test]
+fn should_register_paired_fsst_codec_kernels() {
+    // Arrange
+    let scenarios = performance_benchmarks::benchmark_scenarios()
+        .map(|scenario| scenario.scenario_id)
+        .collect::<BTreeSet<_>>();
+
+    // Act
+    let has_encode = scenarios.contains("perf.kernel.fsst_codec_encode");
+    let has_decode = scenarios.contains("perf.kernel.fsst_codec_decode");
+
+    // Assert
+    assert!(has_encode);
+    assert!(has_decode);
+}
+
+#[test]
 fn should_register_paired_alp_codec_kernels() {
     // Arrange
     let scenarios = performance_benchmarks::benchmark_scenarios()

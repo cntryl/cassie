@@ -24,6 +24,12 @@ const APPLE_M5_PROFILE_NON_GOALS: &[&str] = &[
     "not_support_policy_evidence",
 ];
 
+const NATIVE_LINUX_PROFILE_NON_GOALS: &[&str] = &[
+    "not_sla_until_complete_evidence_is_retained",
+    "not_cross_architecture_evidence",
+    "not_support_policy_evidence_until_owner_approval",
+];
+
 pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
     DeploymentProfile {
         profile_id: "workstation-apple-m5-arm64-apfs",
@@ -37,6 +43,20 @@ pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
         cache_evidence: "plan_cache.entries",
         metrics_captured: STANDARD_METRICS_CAPTURED,
         known_non_goals: APPLE_M5_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
+    DeploymentProfile {
+        profile_id: "native-linux-amd64-disk",
+        host_shape: "GitHub-hosted Linux amd64 runner with recorded host and filesystem metadata",
+        storage_mode: "midge_disk_native_linux",
+        data_shape: "deterministic generated read-model fixture",
+        workload_mix: "Tier 1 through Tier 6 registered workloads",
+        fixture_scale: "10k+100k+250k",
+        benchmark_command:
+            "CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=native-linux-amd64-disk cargo bench --locked --bench <owner-benchmark>",
+        cache_evidence: "plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: NATIVE_LINUX_PROFILE_NON_GOALS,
         default_manual: true,
     },
     DeploymentProfile {

@@ -37,6 +37,8 @@ fn main() {
         ("column_codec_decode", workloads::column_codec_decode),
         ("alp_codec_encode", workloads::alp_codec_encode),
         ("alp_codec_decode", workloads::alp_codec_decode),
+        ("fsst_codec_encode", workloads::fsst_codec_encode),
+        ("fsst_codec_decode", workloads::fsst_codec_decode),
     ] {
         let case = stress::StressCase::new(operation, "micro").runtime_contract(
             stress::FixtureDeclaration::new(

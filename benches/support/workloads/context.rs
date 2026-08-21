@@ -36,6 +36,7 @@ pub struct BenchContext {
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
+const BENCH_DOCUMENT_WRITE_BATCH_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
@@ -701,15 +702,17 @@ fn create_bench_fulltext_index(
 }
 
 fn put_bench_documents(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
-    let documents = build_bench_documents(dataset_rows);
-    if documents.is_empty() {
-        return Ok(());
+    let mut documents = build_bench_documents(dataset_rows).into_iter();
+    loop {
+        let batch = documents
+            .by_ref()
+            .take(BENCH_DOCUMENT_WRITE_BATCH_ROWS)
+            .collect::<Vec<_>>();
+        if batch.is_empty() {
+            return Ok(());
+        }
+        ctx.cassie.midge.put_documents(&ctx.collection, batch)?;
     }
-
-    ctx.cassie
-        .midge
-        .put_documents(&ctx.collection, documents)
-        .map(|_| ())
 }
 
 pub(super) fn build_bench_documents(

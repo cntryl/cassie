@@ -126,6 +126,84 @@ fn should_list_columns_through_information_schema_after_restart() {
 }
 
 #[test]
+fn should_reflect_table_rename_drop_lifecycle_after_restart() {
+    // Arrange
+    use_local_storage();
+    let path = data_dir("stable_catalog_lifecycle");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+
+    runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE catalog_lifecycle_before (title TEXT)",
+                vec![],
+            )
+            .expect("create lifecycle table");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE catalog_lifecycle_before RENAME TO catalog_lifecycle_after",
+                vec![],
+            )
+            .expect("rename lifecycle table");
+        drop(cassie);
+
+        let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        restarted.startup().expect("restart Cassie");
+        let session = restarted.create_session("tester", None);
+
+        // Act
+        let renamed = restarted
+            .execute_sql(
+                &session,
+                "SELECT table_name FROM information_schema.tables WHERE table_name IN ('catalog_lifecycle_before', 'catalog_lifecycle_after') ORDER BY table_name",
+                vec![],
+            )
+            .expect("query renamed table metadata");
+        let columns = restarted
+            .execute_sql(
+                &session,
+                "SELECT table_name, column_name FROM information_schema.columns WHERE table_name = 'catalog_lifecycle_after' ORDER BY ordinal_position",
+                vec![],
+            )
+            .expect("query renamed column metadata");
+        restarted
+            .execute_sql(&session, "DROP TABLE catalog_lifecycle_after", vec![])
+            .expect("drop lifecycle table");
+        let dropped = restarted
+            .execute_sql(
+                &session,
+                "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_lifecycle_after'",
+                vec![],
+            )
+            .expect("query dropped table metadata");
+
+        // Assert
+        assert_eq!(
+            renamed.rows,
+            vec![vec![Value::String("catalog_lifecycle_after".to_string())]]
+        );
+        assert_eq!(
+            columns.rows,
+            vec![vec![
+                Value::String("catalog_lifecycle_after".to_string()),
+                Value::String("title".to_string()),
+            ]]
+        );
+        assert!(dropped.rows.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+}
+
+#[test]
 fn should_list_indexes_through_pg_catalog() {
     // Arrange
     use_local_storage();

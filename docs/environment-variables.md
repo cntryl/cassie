@@ -164,6 +164,14 @@ default. Minimum-bounded settings clamp smaller values to their minimum.
 An unknown provider fails startup. Settings for providers other than the
 selected provider have no effect.
 
+Remote providers retry transient connection failures and HTTP 429 or 5xx responses up to the
+selected provider's `*_MAX_RETRIES` value. Retry waits are bounded by the request timeout and the
+active query deadline; cancellation interrupts an active request. Cassie does not infer a hosted
+service's quota or override `Retry-After`, so operators should choose retry counts and query
+deadlines from that service's current rate-limit policy and monitor rejected requests. Authentication
+and rate-limit behavior is verified with deterministic mock providers; this is protocol evidence,
+not a hosted-availability or account-authorization guarantee.
+
 ### OpenAI
 
 | Variable | Allowed value | Default | Purpose |

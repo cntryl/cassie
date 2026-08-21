@@ -27,6 +27,12 @@ pub(super) fn execute_scalar_index_read(
     if spec.request.limit == Some(0) {
         return Ok(Some(Vec::new()));
     }
+    if matches!(
+        spec.predicate_resolution,
+        ScalarIndexPredicateResolution::Unsatisfiable
+    ) {
+        return Ok(Some(Vec::new()));
+    }
 
     let hits = cassie
         .midge
@@ -75,7 +81,10 @@ pub(super) fn execute_scalar_index_read(
             user_functions,
             params,
             controls,
-            apply_filter: false,
+            apply_filter: matches!(
+                spec.predicate_resolution,
+                ScalarIndexPredicateResolution::Residual
+            ),
             apply_sort: !spec.sort_applied,
             index_usage: Some(index_usage),
         },
@@ -93,6 +102,14 @@ struct ScalarIndexReadSpec {
     path: ScalarIndexPlanPath,
     covered: bool,
     sort_applied: bool,
+    predicate_resolution: ScalarIndexPredicateResolution,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ScalarIndexPredicateResolution {
+    Unsatisfiable,
+    Exact,
+    Residual,
 }
 
 fn scalar_index_read_spec(
@@ -139,34 +156,18 @@ fn scalar_index_read_spec(
         return Ok(None);
     };
 
-    let index_fields = index.normalized_fields();
-    let mut constraints = if index.expressions.is_empty() {
+    let extracted_constraints = if index.expressions.is_empty() {
         concrete_constraints(plan.filter.as_ref(), params)
-    } else if index_fields.is_empty() {
-        Some(BTreeMap::new())
+            .map(|constraints| (constraints, BTreeMap::new()))
     } else {
-        concrete_constraints_for_expression_index(plan.filter.as_ref(), params)
-    }
-    .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
-    canonicalize_field_constraints(cassie, &projected.collection, &mut constraints);
-    let fields = index_fields;
-    let expression_equalities =
-        if index.expressions.is_empty() || shape.equality_prefix_len <= fields.len() {
-            BTreeMap::new()
-        } else {
-            concrete_expression_equalities(plan.filter.as_ref(), params).ok_or_else(|| {
-                QueryError::General("unsupported scalar expression index filter".to_string())
-            })?
-        };
-    let expression_constraints = if index.expressions.is_empty() {
-        BTreeMap::new()
-    } else {
-        concrete_expression_constraints(plan.filter.as_ref(), params).ok_or_else(|| {
-            QueryError::General("unsupported scalar expression index filter".to_string())
-        })?
+        expression_index_constraints(plan.filter.as_ref(), params)
+            .map(|constraints| (constraints.fields, constraints.expressions))
     };
+    let (mut constraints, expression_constraints) = extracted_constraints
+        .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
+    canonicalize_field_constraints(cassie, &projected.collection, &mut constraints);
     let equality_prefix =
-        scalar_index_equality_prefix(&index, &shape, &constraints, &expression_equalities)?;
+        scalar_index_equality_prefix(&index, &shape, &constraints, &expression_constraints)?;
     let range_constraint =
         range_constraint_for_shape(&index, &shape, &constraints, &expression_constraints);
     let lower_bound = range_constraint
@@ -181,12 +182,25 @@ fn scalar_index_read_spec(
             value: bound.value,
             inclusive: bound.inclusive,
         });
+    let bounds_are_exact =
+        scalar_index_bounds_are_exact(&index, &shape, &constraints, &expression_constraints);
     let request = ScalarIndexScanRequest {
         equality_prefix,
         lower_bound,
         upper_bound,
         reverse: shape.reverse,
-        limit: storage_limit(plan, &shape),
+        limit: storage_limit(plan, &shape, bounds_are_exact),
+    };
+    let unsatisfiable = constraints
+        .values()
+        .chain(expression_constraints.values())
+        .any(|constraint| constraint.unsatisfiable);
+    let predicate_resolution = if unsatisfiable {
+        ScalarIndexPredicateResolution::Unsatisfiable
+    } else if bounds_are_exact {
+        ScalarIndexPredicateResolution::Exact
+    } else {
+        ScalarIndexPredicateResolution::Residual
     };
 
     Ok(Some(ScalarIndexReadSpec {
@@ -197,6 +211,7 @@ fn scalar_index_read_spec(
         path: shape.path,
         covered: covered_index,
         sort_applied: plan.order.is_empty() || shape.order_satisfied,
+        predicate_resolution,
     }))
 }
 
@@ -216,6 +231,37 @@ fn range_constraint_for_shape<'a>(
     let expressions = index.normalized_expressions();
     let expression = expressions.get(expression_index)?;
     expression_constraints.get(expression)
+}
+
+fn scalar_index_bounds_are_exact(
+    index: &IndexMeta,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+    field_constraints: &BTreeMap<String, ConcreteConstraint>,
+    expression_constraints: &BTreeMap<String, ConcreteConstraint>,
+) -> bool {
+    let fields = index.normalized_fields();
+    let expressions = index.normalized_expressions();
+    let fields_are_represented = field_constraints.keys().all(|constraint| {
+        fields
+            .iter()
+            .position(|field| field.eq_ignore_ascii_case(constraint))
+            .is_some_and(|position| constraint_position_is_represented(position, shape))
+    });
+    let expressions_are_represented = expression_constraints.keys().all(|constraint| {
+        expressions
+            .iter()
+            .position(|expression| expression == constraint)
+            .map(|position| fields.len() + position)
+            .is_some_and(|position| constraint_position_is_represented(position, shape))
+    });
+    fields_are_represented && expressions_are_represented
+}
+
+fn constraint_position_is_represented(
+    position: usize,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+) -> bool {
+    position < shape.equality_prefix_len || shape.range_field_index == Some(position)
 }
 
 fn expression_index_read_spec(
@@ -247,10 +293,13 @@ fn expression_index_read_spec(
         return None;
     }
 
-    let scan_fields = projection_columns
+    let mut scan_fields = projection_columns
         .into_iter()
         .filter(|column| !projected_read::is_row_id_column(column))
         .collect::<Vec<_>>();
+    if let Some(filter) = plan.filter.as_ref() {
+        collect_expression_columns(filter, &mut scan_fields);
+    }
     Some(projected_read::ProjectedFilteredReadSpec {
         collection: collection.clone(),
         scan_fields,
@@ -258,11 +307,55 @@ fn expression_index_read_spec(
     })
 }
 
+fn collect_expression_columns(expr: &Expr, fields: &mut Vec<String>) {
+    match expr {
+        Expr::Column(name) => {
+            if !projected_read::is_row_id_column(name)
+                && !fields.iter().any(|field| field.eq_ignore_ascii_case(name))
+            {
+                fields.push(name.clone());
+            }
+        }
+        Expr::Binary { left, right, .. } => {
+            collect_expression_columns(left, fields);
+            collect_expression_columns(right, fields);
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            collect_expression_columns(expr, fields);
+        }
+        Expr::InList { expr, values, .. } => {
+            collect_expression_columns(expr, fields);
+            for value in values {
+                collect_expression_columns(value, fields);
+            }
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            collect_expression_columns(expr, fields);
+            collect_expression_columns(low, fields);
+            collect_expression_columns(high, fields);
+        }
+        Expr::Function(function) => {
+            for argument in &function.args {
+                collect_expression_columns(argument, fields);
+            }
+        }
+        Expr::Exists(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => {}
+    }
+}
+
 fn scalar_index_equality_prefix(
     index: &IndexMeta,
     shape: &crate::planner::physical::ScalarIndexPlanShape,
     constraints: &BTreeMap<String, ConcreteConstraint>,
-    expression_equalities: &BTreeMap<String, serde_json::Value>,
+    expression_constraints: &BTreeMap<String, ConcreteConstraint>,
 ) -> Result<Vec<serde_json::Value>, QueryError> {
     let fields = index.normalized_fields();
     let expressions = index.normalized_expressions();
@@ -286,9 +379,9 @@ fn scalar_index_equality_prefix(
 
     let expression_prefix_len = shape.equality_prefix_len.saturating_sub(fields.len());
     for expression in expressions.iter().take(expression_prefix_len) {
-        let value = expression_equalities
+        let value = expression_constraints
             .get(expression)
-            .cloned()
+            .and_then(|constraint| constraint.equality.clone())
             .ok_or_else(|| QueryError::General("missing expression equality bound".to_string()))?;
         equality_prefix.push(value);
     }
@@ -299,8 +392,11 @@ fn scalar_index_equality_prefix(
 fn storage_limit(
     plan: &LogicalPlan,
     shape: &crate::planner::physical::ScalarIndexPlanShape,
+    bounds_are_exact: bool,
 ) -> Option<usize> {
-    if !plan.order.is_empty() && !shape.order_satisfied {
+    if (!plan.order.is_empty() && !shape.order_satisfied)
+        || (plan.filter.is_some() && !bounds_are_exact)
+    {
         return None;
     }
 
@@ -309,11 +405,12 @@ fn storage_limit(
     limit.checked_add(offset)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct ConcreteConstraint {
     equality: Option<serde_json::Value>,
     lower: Option<ConcreteBound>,
     upper: Option<ConcreteBound>,
+    unsatisfiable: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -343,6 +440,7 @@ fn canonicalize_field_constraints(
         if let Some(bound) = constraint.upper.as_mut() {
             canonicalize_float_number(&mut bound.value);
         }
+        refresh_constraint_satisfiability(constraint);
     }
 }
 
@@ -372,22 +470,80 @@ fn intersect_upper_bound(
     intersect_bound(bound, ConcreteBound { value, inclusive }, Ordering::Less);
 }
 
+fn intersect_constraint(
+    constraint: &mut ConcreteConstraint,
+    op: &BinaryOp,
+    value: serde_json::Value,
+) -> Option<()> {
+    match op {
+        BinaryOp::Eq => {
+            if constraint
+                .equality
+                .as_ref()
+                .is_some_and(|current| compare_json_values(current, &value) != Ordering::Equal)
+            {
+                constraint.unsatisfiable = true;
+            } else if constraint.equality.is_none() {
+                constraint.equality = Some(value);
+            }
+        }
+        BinaryOp::Gt => intersect_lower_bound(&mut constraint.lower, value, false),
+        BinaryOp::Gte => intersect_lower_bound(&mut constraint.lower, value, true),
+        BinaryOp::Lt => intersect_upper_bound(&mut constraint.upper, value, false),
+        BinaryOp::Lte => intersect_upper_bound(&mut constraint.upper, value, true),
+        _ => return None,
+    }
+    refresh_constraint_satisfiability(constraint);
+    Some(())
+}
+
+fn refresh_constraint_satisfiability(constraint: &mut ConcreteConstraint) {
+    constraint.unsatisfiable |= constraint
+        .equality
+        .as_ref()
+        .is_some_and(|equality| !equality_satisfies_bounds(equality, constraint));
+    constraint.unsatisfiable |= match (&constraint.lower, &constraint.upper) {
+        (Some(lower), Some(upper)) => match compare_json_values(&lower.value, &upper.value) {
+            Ordering::Greater => true,
+            Ordering::Equal => !lower.inclusive || !upper.inclusive,
+            Ordering::Less => false,
+        },
+        _ => false,
+    };
+}
+
+fn equality_satisfies_bounds(
+    equality: &serde_json::Value,
+    constraint: &ConcreteConstraint,
+) -> bool {
+    let satisfies_lower = constraint.lower.as_ref().is_none_or(|lower| {
+        let ordering = compare_json_values(equality, &lower.value);
+        ordering == Ordering::Greater || ordering == Ordering::Equal && lower.inclusive
+    });
+    let satisfies_upper = constraint.upper.as_ref().is_none_or(|upper| {
+        let ordering = compare_json_values(equality, &upper.value);
+        ordering == Ordering::Less || ordering == Ordering::Equal && upper.inclusive
+    });
+    satisfies_lower && satisfies_upper
+}
+
 fn intersect_bound(
     bound: &mut Option<ConcreteBound>,
     candidate: ConcreteBound,
     tighter_ordering: Ordering,
 ) {
     let replace = bound.as_ref().is_none_or(|current| {
-        let ordering = compare_values(
-            &concrete_bound_value(&candidate.value),
-            &concrete_bound_value(&current.value),
-        );
+        let ordering = compare_json_values(&candidate.value, &current.value);
         ordering == tighter_ordering
             || ordering == Ordering::Equal && !candidate.inclusive && current.inclusive
     });
     if replace {
         *bound = Some(candidate);
     }
+}
+
+fn compare_json_values(left: &serde_json::Value, right: &serde_json::Value) -> Ordering {
+    compare_values(&concrete_bound_value(left), &concrete_bound_value(right))
 }
 
 fn concrete_bound_value(value: &serde_json::Value) -> Value {
@@ -420,104 +576,28 @@ fn concrete_constraints(
     Some(constraints)
 }
 
-fn concrete_constraints_for_expression_index(
+#[derive(Default)]
+struct ExpressionIndexConstraints {
+    fields: BTreeMap<String, ConcreteConstraint>,
+    expressions: BTreeMap<String, ConcreteConstraint>,
+}
+
+fn expression_index_constraints(
     filter: Option<&Expr>,
     params: &[Value],
-) -> Option<BTreeMap<String, ConcreteConstraint>> {
-    let mut constraints = BTreeMap::new();
-    collect_expression_index_field_constraints(filter?, params, &mut constraints)?;
-    Some(constraints)
-}
-
-fn collect_expression_index_field_constraints(
-    expr: &Expr,
-    params: &[Value],
-    constraints: &mut BTreeMap<String, ConcreteConstraint>,
-) -> Option<()> {
-    match expr {
-        Expr::Binary {
-            left,
-            op: BinaryOp::And,
-            right,
-        } => {
-            collect_expression_index_field_constraints(left, params, constraints)?;
-            collect_expression_index_field_constraints(right, params, constraints)
-        }
-        Expr::Binary {
-            left,
-            op: BinaryOp::Eq,
-            right,
-        } if concrete_expression_equality(left, right, params).is_some() => Some(()),
-        Expr::Binary { left, op, right } => {
-            let (field, op, value) = concrete_constraint(left, op, right, params)?;
-            let entry = constraints
-                .entry(field)
-                .or_insert_with(|| ConcreteConstraint {
-                    equality: None,
-                    lower: None,
-                    upper: None,
-                });
-            match op {
-                BinaryOp::Eq => entry.equality = Some(value),
-                _ => return None,
-            }
-            Some(())
-        }
-        _ => None,
-    }
-}
-
-fn concrete_expression_equalities(
-    filter: Option<&Expr>,
-    params: &[Value],
-) -> Option<BTreeMap<String, serde_json::Value>> {
-    let mut equalities = BTreeMap::new();
-    collect_concrete_expression_equalities(filter?, params, &mut equalities)?;
-    Some(equalities)
-}
-
-fn collect_concrete_expression_equalities(
-    expr: &Expr,
-    params: &[Value],
-    equalities: &mut BTreeMap<String, serde_json::Value>,
-) -> Option<()> {
-    match expr {
-        Expr::Binary {
-            left,
-            op: BinaryOp::And,
-            right,
-        } => {
-            collect_concrete_expression_equalities(left, params, equalities)?;
-            collect_concrete_expression_equalities(right, params, equalities)
-        }
-        Expr::Binary {
-            left,
-            op: BinaryOp::Eq,
-            right,
-        } => {
-            collect_concrete_expression_equality(left, right, params, equalities);
-            Some(())
-        }
-        _ => None,
-    }
-}
-
-fn concrete_expression_constraints(
-    filter: Option<&Expr>,
-    params: &[Value],
-) -> Option<BTreeMap<String, ConcreteConstraint>> {
-    let mut constraints = BTreeMap::new();
+) -> Option<ExpressionIndexConstraints> {
+    let mut constraints = ExpressionIndexConstraints::default();
     let Some(filter) = filter else {
         return Some(constraints);
     };
-    collect_concrete_expression_constraints(filter, params, &mut constraints)?;
+    collect_expression_index_constraints(filter, params, &mut constraints)?;
     Some(constraints)
 }
 
-fn collect_concrete_expression_constraints(
+fn collect_expression_index_constraints(
     expr: &Expr,
     params: &[Value],
-    constraints: &mut BTreeMap<String, ConcreteConstraint>,
+    constraints: &mut ExpressionIndexConstraints,
 ) -> Option<()> {
     match expr {
         Expr::Binary {
@@ -525,35 +605,23 @@ fn collect_concrete_expression_constraints(
             op: BinaryOp::And,
             right,
         } => {
-            collect_concrete_expression_constraints(left, params, constraints)?;
-            collect_concrete_expression_constraints(right, params, constraints)
+            collect_expression_index_constraints(left, params, constraints)?;
+            collect_expression_index_constraints(right, params, constraints)
         }
         Expr::Binary { left, op, right } => {
-            let (expression, op, value) = concrete_expression_constraint(left, op, right, params)?;
-            let entry = constraints
-                .entry(expression)
-                .or_insert_with(|| ConcreteConstraint {
-                    equality: None,
-                    lower: None,
-                    upper: None,
-                });
-            match op {
-                BinaryOp::Eq => entry.equality = Some(value),
-                BinaryOp::Gt => {
-                    intersect_lower_bound(&mut entry.lower, value, false);
-                }
-                BinaryOp::Gte => {
-                    intersect_lower_bound(&mut entry.lower, value, true);
-                }
-                BinaryOp::Lt => {
-                    intersect_upper_bound(&mut entry.upper, value, false);
-                }
-                BinaryOp::Lte => {
-                    intersect_upper_bound(&mut entry.upper, value, true);
-                }
-                _ => return None,
+            if let Some((field, op, value)) = concrete_constraint(left, op, right, params) {
+                return intersect_constraint(
+                    constraints.fields.entry(field).or_default(),
+                    &op,
+                    value,
+                );
             }
-            Some(())
+            let (expression, op, value) = concrete_expression_constraint(left, op, right, params)?;
+            intersect_constraint(
+                constraints.expressions.entry(expression).or_default(),
+                &op,
+                value,
+            )
         }
         Expr::Between {
             expr,
@@ -561,16 +629,12 @@ fn collect_concrete_expression_constraints(
             high,
             negated: false,
         } if expr_has_column(expr) && !matches!(expr.as_ref(), Expr::Column(_)) => {
-            let entry = constraints
+            let constraint = constraints
+                .expressions
                 .entry(serde_json::to_string(expr.as_ref()).ok()?)
-                .or_insert_with(|| ConcreteConstraint {
-                    equality: None,
-                    lower: None,
-                    upper: None,
-                });
-            intersect_lower_bound(&mut entry.lower, expr_to_json(low, params)?, true);
-            intersect_upper_bound(&mut entry.upper, expr_to_json(high, params)?, true);
-            Some(())
+                .or_default();
+            intersect_constraint(constraint, &BinaryOp::Gte, expr_to_json(low, params)?)?;
+            intersect_constraint(constraint, &BinaryOp::Lte, expr_to_json(high, params)?)
         }
         _ => None,
     }
@@ -593,35 +657,6 @@ fn concrete_expression_constraint(
             reverse_binary_op(op)?,
             expr_to_json(value, params)?,
         )),
-        _ => None,
-    }
-}
-
-fn collect_concrete_expression_equality(
-    left: &Expr,
-    right: &Expr,
-    params: &[Value],
-    equalities: &mut BTreeMap<String, serde_json::Value>,
-) {
-    if let Some((expression, value)) = concrete_expression_equality(left, right, params) {
-        equalities.insert(expression, value);
-    }
-}
-
-fn concrete_expression_equality(
-    left: &Expr,
-    right: &Expr,
-    params: &[Value],
-) -> Option<(String, serde_json::Value)> {
-    match (left, right) {
-        (expr, value) if expr_has_column(expr) && !matches!(expr, Expr::Column(_)) => {
-            let value = expr_to_json(value, params)?;
-            Some((serde_json::to_string(expr).ok()?, value))
-        }
-        (value, expr) if expr_has_column(expr) && !matches!(expr, Expr::Column(_)) => {
-            let value = expr_to_json(value, params)?;
-            Some((serde_json::to_string(expr).ok()?, value))
-        }
         _ => None,
     }
 }
@@ -666,30 +701,8 @@ fn collect_concrete_constraints(
         }
         Expr::Binary { left, op, right } => {
             let (field, op, value) = concrete_constraint(left, op, right, params)?;
-            let entry = constraints
-                .entry(field)
-                .or_insert_with(|| ConcreteConstraint {
-                    equality: None,
-                    lower: None,
-                    upper: None,
-                });
-            match op {
-                BinaryOp::Eq => entry.equality = Some(value),
-                BinaryOp::Gt => {
-                    intersect_lower_bound(&mut entry.lower, value, false);
-                }
-                BinaryOp::Gte => {
-                    intersect_lower_bound(&mut entry.lower, value, true);
-                }
-                BinaryOp::Lt => {
-                    intersect_upper_bound(&mut entry.upper, value, false);
-                }
-                BinaryOp::Lte => {
-                    intersect_upper_bound(&mut entry.upper, value, true);
-                }
-                _ => return None,
-            }
-            Some(())
+            let entry = constraints.entry(field).or_default();
+            intersect_constraint(entry, &op, value)
         }
         Expr::Between {
             expr,
@@ -700,16 +713,9 @@ fn collect_concrete_constraints(
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
             };
-            let entry = constraints
-                .entry(field.to_ascii_lowercase())
-                .or_insert_with(|| ConcreteConstraint {
-                    equality: None,
-                    lower: None,
-                    upper: None,
-                });
-            intersect_lower_bound(&mut entry.lower, expr_to_json(low, params)?, true);
-            intersect_upper_bound(&mut entry.upper, expr_to_json(high, params)?, true);
-            Some(())
+            let entry = constraints.entry(field.to_ascii_lowercase()).or_default();
+            intersect_constraint(entry, &BinaryOp::Gte, expr_to_json(low, params)?)?;
+            intersect_constraint(entry, &BinaryOp::Lte, expr_to_json(high, params)?)
         }
         _ => None,
     }

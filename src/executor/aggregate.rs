@@ -124,7 +124,7 @@ fn function_return_type<S: BuildHasher>(
     }
 
     match name.to_ascii_lowercase().as_str() {
-        "count" => Some(DataType::Int),
+        "count" => Some(DataType::BigInt),
         "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score"
         | "cosine_distance" | "dot_product" | "hybrid_score" => Some(DataType::Float),
         "min"
@@ -173,4 +173,24 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
         .iter()
         .find(|field| field.name.eq_ignore_ascii_case(name))
         .map_or(DataType::Text, |field| field.data_type.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::function_return_type;
+    use crate::types::DataType;
+
+    #[test]
+    fn should_report_count_results_as_bigint() {
+        // Arrange
+        let functions = HashMap::new();
+
+        // Act
+        let data_type = function_return_type("count", &functions);
+
+        // Assert
+        assert_eq!(data_type, Some(DataType::BigInt));
+    }
 }

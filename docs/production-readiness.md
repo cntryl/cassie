@@ -18,6 +18,10 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
   `information_schema.tables` and `information_schema.columns`, with lifecycle tests plus retained
   passing sqlx 0.8.3 and Diesel 2.2.6 loopback pgwire manifests. Other virtual catalogs and
   PostgreSQL-internal parity remain Experimental.
+- The Stable limited-procedure subset is confined to one persisted Cassie SQL statement with
+  positional argument binding. Restart, deterministic unsupported-syntax, recursion,
+  transaction-control, and `tokio-postgres` create/call/read evidence are retained; PL/pgSQL,
+  triggers, dynamic SQL, and business-procedure workflows remain outside the product contract.
 - Restart and generation-fencing coverage for multiple persisted derived artifacts.
 - Tiered benchmark owners with environment-labelled local observations.
 - Persisted full-text SQL evidence covering posting reads, exact BM25 equivalence, snippets, structured prefilters, bounded candidate row fetches, transaction overlays, corruption fallback, cancellation, and memory limits.

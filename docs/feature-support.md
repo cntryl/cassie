@@ -84,6 +84,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Query controls | Deadline, cancellation, SQL complexity, transport write, result, candidate, worker, and memory bounds | Experimental |
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |
+| Limited procedures and `CALL` | One persisted Cassie SQL statement with positional arguments and pgwire command metadata; PL/pgSQL, triggers, dynamic SQL, transaction control, recursion, and business-procedure workflows are unsupported. See [Limited Procedures and CALL](procedure-support.md). | Stable |
 | REST | Secondary administrative and resource API | Experimental |
 | Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows. Native Askr shell, control, query/mutation, error-boundary, resizable-panel, and Monaco composition is covered by 116 repository tests, 20 desktop/mobile mock-browser cases, 2 real-Cassie production-browser cases, axe state coverage, and four committed visual baselines on Askr `0.2.1`, Askr UI `0.2.0`, `@askrjs/themes` `0.2.1`, and `@askrjs/monaco` `0.2.0`. Dynamic schema fan-out retains a narrow application controller pending [askrjs/askr#327](https://github.com/askrjs/askr/issues/327); it does not duplicate the Askr query cache. | Stable |
 

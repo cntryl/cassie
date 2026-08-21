@@ -8,6 +8,7 @@ use serde_json::json;
 use super::context::{
     benchmark_data_dir_for_mode, configure_benchmark_environment, prepare_collection, BenchContext,
     BenchIndexOptions, BenchmarkStorageMode, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
 
 const JOIN_USERS: &str = "bench_join_users";
@@ -29,6 +30,7 @@ fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchCont
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
     config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+    config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1_024;
     config.limits.operator_switch_join_row_threshold = dataset_rows.saturating_mul(2).max(1);
@@ -122,6 +124,10 @@ fn prepare_join_collections(
         .cassie
         .midge
         .put_fresh_documents(JOIN_ORDERS, orders)?;
+    execute_ddl(
+        context,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
+    )?;
     Ok(())
 }
 

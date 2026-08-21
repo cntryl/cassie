@@ -81,6 +81,8 @@ Certification requires normalized, secret-free traces and deterministic replay f
 
 PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards, maintenance, debugger, and backup tooling are explicitly unsupported. GUI create/alter dialogs are outside this contract; supported DDL remains available through query tools. Cassie does not claim full PostgreSQL, pgAdmin, or DBeaver parity.
 
+The Stable procedure subset is defined separately in [Limited Procedures and CALL](procedure-support.md). It covers one persisted Cassie SQL statement and a named `tokio-postgres` workflow, not PostgreSQL procedural languages or trigger behavior.
+
 The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. The psycopg 3, JDBC, trace-replay, pgAdmin, and DBeaver lanes remain Planned/unverified until version-pinned workflows and retained artifacts exist. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 
 The shared dispatch contract for these lanes is documented in [Compatibility Probe Contract](compatibility-probe-contract.md)

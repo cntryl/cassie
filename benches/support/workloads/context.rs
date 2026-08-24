@@ -22,6 +22,7 @@ use cassie::types::{DataType, FieldSchema, Schema, Value};
 use serde_json::json;
 use uuid::Uuid;
 
+use super::document_batches::bench_document_write_batch_ranges;
 use super::mock_tei::MockTeiEmbeddingServer;
 
 #[derive(Clone)]
@@ -36,8 +37,6 @@ pub struct BenchContext {
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
-pub const BENCH_DOCUMENT_WRITE_BATCH_ROWS: usize = 10_000;
-
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
     #[serde(rename = "parse_us")]
@@ -708,19 +707,6 @@ fn put_bench_documents(ctx: &BenchContext, dataset_rows: usize) -> Result<(), Ca
             .put_documents(&ctx.collection, build_bench_documents_range(range))?;
     }
     Ok(())
-}
-
-pub fn bench_document_write_batch_ranges(
-    dataset_rows: usize,
-) -> impl Iterator<Item = std::ops::Range<usize>> {
-    (0..dataset_rows)
-        .step_by(BENCH_DOCUMENT_WRITE_BATCH_ROWS)
-        .map(move |start| {
-            start
-                ..start
-                    .saturating_add(BENCH_DOCUMENT_WRITE_BATCH_ROWS)
-                    .min(dataset_rows)
-        })
 }
 
 pub(super) fn build_bench_documents(

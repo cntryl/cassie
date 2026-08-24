@@ -6,6 +6,8 @@ mod bound_sql;
 mod column_codec_context;
 #[path = "workloads/context.rs"]
 mod context;
+#[path = "workloads/document_batches.rs"]
+mod document_batches;
 #[path = "workloads/empty_context.rs"]
 mod empty_context;
 #[path = "workloads/hotpath.rs"]
@@ -43,14 +45,14 @@ pub use bound_sql::{
 };
 pub use column_codec_context::*;
 pub use context::{
-    bench_document_write_batch_ranges, column_batch_context, column_batch_context_with_limits,
-    context, disk_context_with_temp_budget, execution_result_cache_context, graph_context,
-    recursive_cte_context, replay_context, runtime, scalar_context, time_series_context,
-    time_series_disk_context_with_temp_budget, unindexed_context,
-    unindexed_disk_context_with_temp_budget, worker_scaling_context, BenchContext,
-    ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, BENCH_DOCUMENT_WRITE_BATCH_ROWS,
+    column_batch_context, column_batch_context_with_limits, context, disk_context_with_temp_budget,
+    execution_result_cache_context, graph_context, recursive_cte_context, replay_context, runtime,
+    scalar_context, time_series_context, time_series_disk_context_with_temp_budget,
+    unindexed_context, unindexed_disk_context_with_temp_budget, worker_scaling_context,
+    BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
     LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
+pub use document_batches::{bench_document_write_batch_ranges, BENCH_DOCUMENT_WRITE_BATCH_ROWS};
 pub use empty_context::{empty_context, empty_context_with_temp_budget};
 pub use hotpath::*;
 pub use http::*;

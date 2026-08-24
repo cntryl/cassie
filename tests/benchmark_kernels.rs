@@ -213,10 +213,8 @@ fn should_bound_durable_fixture_document_write_batches() {
 
     // Assert
     assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
-    assert!(batch_sizes.len() > 1);
-    assert!(batch_sizes
-        .iter()
-        .all(|size| *size <= workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS));
+    assert_eq!(batch_sizes.len(), 21);
+    assert!(batch_sizes.iter().all(|size| *size <= 5_000));
 }
 
 #[test]

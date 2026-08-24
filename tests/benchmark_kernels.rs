@@ -202,6 +202,24 @@ fn should_require_vector_execution_count_for_every_scaling_path() {
 }
 
 #[test]
+fn should_bound_durable_fixture_document_write_batches() {
+    // Arrange
+    let dataset_rows = 100_001;
+
+    // Act
+    let batch_sizes = workloads::bench_document_write_batch_ranges(dataset_rows)
+        .map(|range| range.len())
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
+    assert!(batch_sizes.len() > 1);
+    assert!(batch_sizes
+        .iter()
+        .all(|size| *size <= workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS));
+}
+
+#[test]
 fn should_record_projection_lifecycle_metrics_given_small_scaling_fixture() {
     // Arrange
     let runtime = tokio::runtime::Builder::new_current_thread()

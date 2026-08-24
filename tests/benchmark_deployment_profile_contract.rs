@@ -1,6 +1,18 @@
 const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
 #[test]
+fn should_allow_six_hours_for_the_complete_canonical_benchmark_suite() {
+    // Arrange
+    let workflow = include_str!("../.github/workflows/benchmarks.yml");
+
+    // Act
+    let allows_complete_suite = workflow.contains("timeout-minutes: 360");
+
+    // Assert
+    assert!(allows_complete_suite);
+}
+
+#[test]
 fn should_register_the_workflow_native_linux_profile() {
     // Arrange
     let workflow = include_str!("../.github/workflows/benchmarks.yml");

@@ -36,6 +36,7 @@ pub struct BenchContext {
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
+pub const BENCH_DOCUMENT_WRITE_BATCH_ROWS: usize = 10_000;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {
@@ -701,21 +702,37 @@ fn create_bench_fulltext_index(
 }
 
 fn put_bench_documents(ctx: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
-    let documents = build_bench_documents(dataset_rows);
-    if documents.is_empty() {
-        return Ok(());
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        ctx.cassie
+            .midge
+            .put_documents(&ctx.collection, build_bench_documents_range(range))?;
     }
+    Ok(())
+}
 
-    ctx.cassie
-        .midge
-        .put_documents(&ctx.collection, documents)
-        .map(|_| ())
+pub fn bench_document_write_batch_ranges(
+    dataset_rows: usize,
+) -> impl Iterator<Item = std::ops::Range<usize>> {
+    (0..dataset_rows)
+        .step_by(BENCH_DOCUMENT_WRITE_BATCH_ROWS)
+        .map(move |start| {
+            start
+                ..start
+                    .saturating_add(BENCH_DOCUMENT_WRITE_BATCH_ROWS)
+                    .min(dataset_rows)
+        })
 }
 
 pub(super) fn build_bench_documents(
     dataset_rows: usize,
 ) -> Vec<(Option<String>, serde_json::Value)> {
-    (0..dataset_rows)
+    build_bench_documents_range(0..dataset_rows)
+}
+
+fn build_bench_documents_range(
+    range: std::ops::Range<usize>,
+) -> Vec<(Option<String>, serde_json::Value)> {
+    range
         .map(|index| {
             let title = format!("title-{}", index % 16);
             let body = if index % 3 == 0 {

@@ -16,35 +16,50 @@ fn main() {
     if runner.is_enabled(&cosine_case) {
         let setup_started = Instant::now();
         workloads::prepare_hotpath("cosine_distance").expect("registered Tier 1 workload");
-        let cosine_case = cosine_case.metadata(
-            "setup_time_ns",
-            setup_started.elapsed().as_nanos().max(1).to_string(),
+        let cosine_case = batched_case(cosine_case, setup_started);
+        runner.measure_micro_batch(
+            cosine_case,
+            workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            workloads::cosine_distance_batch,
         );
-        runner.measure_micro(cosine_case, workloads::cosine_distance);
     }
 
     let dot_case = declared_case("dot_product");
     if runner.is_enabled(&dot_case) {
         let setup_started = Instant::now();
         workloads::prepare_hotpath("dot_product").expect("registered Tier 1 workload");
-        let dot_case = dot_case.metadata(
-            "setup_time_ns",
-            setup_started.elapsed().as_nanos().max(1).to_string(),
+        let dot_case = batched_case(dot_case, setup_started);
+        runner.measure_micro_batch(
+            dot_case,
+            workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            workloads::dot_product_batch,
         );
-        runner.measure_micro(dot_case, workloads::dot_product);
     }
 
     let l2_case = declared_case("l2_distance");
     if runner.is_enabled(&l2_case) {
         let setup_started = Instant::now();
         workloads::prepare_hotpath("l2_distance").expect("registered Tier 1 workload");
-        let l2_case = l2_case.metadata(
-            "setup_time_ns",
-            setup_started.elapsed().as_nanos().max(1).to_string(),
+        let l2_case = batched_case(l2_case, setup_started);
+        runner.measure_micro_batch(
+            l2_case,
+            workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            workloads::l2_distance_batch,
         );
-        runner.measure_micro(l2_case, workloads::l2_distance);
     }
     runner.finish();
+}
+
+fn batched_case(case: stress::StressCase, setup_started: Instant) -> stress::StressCase {
+    case.metadata(
+        "setup_time_ns",
+        setup_started.elapsed().as_nanos().max(1).to_string(),
+    )
+    .metadata("micro_validation", "varied_inputs_accumulated_output")
+    .parameter(
+        "vector_dimensions",
+        workloads::VECTOR_DISTANCE_DIMENSIONS.to_string(),
+    )
 }
 
 fn declared_case(workload: &str) -> stress::StressCase {

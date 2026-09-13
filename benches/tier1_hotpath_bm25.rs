@@ -23,11 +23,18 @@ fn main() {
     if runner.is_enabled(&case) {
         let setup_started = Instant::now();
         workloads::prepare_hotpath("bm25_scoring").expect("registered Tier 1 workload");
-        let case = case.metadata(
-            "setup_time_ns",
-            setup_started.elapsed().as_nanos().max(1).to_string(),
+        let case = case
+            .metadata(
+                "setup_time_ns",
+                setup_started.elapsed().as_nanos().max(1).to_string(),
+            )
+            .metadata("validated_micro", "true")
+            .metadata("micro_validation", "varied_inputs_accumulated_output");
+        runner.measure_micro_batch(
+            case,
+            workloads::BM25_BATCH_SIZE,
+            workloads::bm25_score_batch,
         );
-        runner.measure_micro(case, workloads::bm25_score);
     }
     runner.finish();
 }

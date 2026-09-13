@@ -2139,6 +2139,77 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_complete_every_logical_operation_in_fast_tier_one_batches() {
+        // Arrange
+        workloads::prepare_hotpath("tokenization").expect("prepare tokenization fixture");
+        workloads::prepare_hotpath("bm25_scoring").expect("prepare BM25 fixture");
+        workloads::prepare_hotpath("key_encode_decode").expect("prepare key fixture");
+        workloads::prepare_hotpath("batch_projection").expect("prepare projection fixture");
+        workloads::prepare_hotpath("value_comparison").expect("prepare comparison fixture");
+        workloads::prepare_hotpath("row_to_pgwire_encoding").expect("prepare pgwire fixture");
+        workloads::prepare_hotpath("predicate_evaluation").expect("prepare predicate fixture");
+        workloads::prepare_hotpath("top_k_heap_maintenance").expect("prepare top-k fixture");
+        workloads::prepare_hotpath("cosine_distance").expect("prepare cosine fixture");
+        workloads::prepare_hotpath("dot_product").expect("prepare dot-product fixture");
+        workloads::prepare_hotpath("l2_distance").expect("prepare L2 fixture");
+
+        // Act
+        let completed = [
+            (
+                workloads::row_encode_decode_batch(),
+                workloads::ROW_CODEC_BATCH_SIZE,
+            ),
+            (
+                workloads::key_encode_decode_batch(),
+                workloads::KEY_CODEC_BATCH_SIZE,
+            ),
+            (
+                workloads::batch_projection_batch(),
+                workloads::PROJECTION_BATCH_SIZE,
+            ),
+            (
+                workloads::value_comparison_batch(),
+                workloads::SCALAR_EVALUATION_BATCH_SIZE,
+            ),
+            (
+                workloads::row_to_pgwire_encoding_batch(),
+                workloads::PGWIRE_ROW_BATCH_SIZE,
+            ),
+            (
+                workloads::predicate_evaluation_batch(),
+                workloads::SCALAR_EVALUATION_BATCH_SIZE,
+            ),
+            (
+                workloads::top_k_update_batch().completed_operations(),
+                workloads::TOP_K_BATCH_SIZE,
+            ),
+            (
+                workloads::tokenization_batch(),
+                workloads::TOKENIZATION_BATCH_SIZE,
+            ),
+            (workloads::bm25_score_batch(), workloads::BM25_BATCH_SIZE),
+            (
+                workloads::cosine_distance_batch(),
+                workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            ),
+            (
+                workloads::dot_product_batch(),
+                workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            ),
+            (
+                workloads::l2_distance_batch(),
+                workloads::VECTOR_DISTANCE_BATCH_SIZE,
+            ),
+        ];
+
+        // Assert
+        assert_eq!(workloads::VECTOR_DISTANCE_DIMENSIONS, 384);
+        assert!(completed
+            .into_iter()
+            .all(|(actual, expected)| actual == expected));
+    }
+
+    #[test]
     fn should_reject_unregistered_hotpath_fixture_given_unknown_workload_name() {
         // Arrange
         let workload = "query_parameter_binding";
@@ -2264,17 +2335,26 @@ mod benchmark_kernels {
     }
 
     #[test]
-    fn should_report_candidates_separately_given_top_k_kernel_observation() {
+    fn should_report_candidates_separately_given_batched_top_k_kernel_observation() {
         // Arrange
         workloads::prepare_hotpath("top_k_heap_maintenance").expect("registered top-k workload");
 
         // Act
-        let observation = workloads::top_k_update();
+        let observation = workloads::top_k_update_batch();
 
         // Assert
-        assert_eq!(observation.completed_operations(), 1);
-        assert_eq!(observation.result_cardinality(), 3);
-        assert_eq!(observation.candidate_count(), Some(6));
+        assert_eq!(
+            observation.completed_operations(),
+            workloads::TOP_K_BATCH_SIZE
+        );
+        assert_eq!(
+            observation.result_cardinality(),
+            3 * workloads::TOP_K_BATCH_SIZE
+        );
+        assert_eq!(
+            observation.candidate_count(),
+            Some(6 * workloads::TOP_K_BATCH_SIZE)
+        );
     }
 
     #[test]

@@ -31,7 +31,11 @@ fn main() {
             "setup_time_ns",
             setup_started.elapsed().as_nanos().max(1).to_string(),
         );
-        runner.measure_micro(projection_case, workloads::batch_projection);
+        runner.measure_micro_batch(
+            projection_case,
+            workloads::PROJECTION_BATCH_SIZE,
+            workloads::batch_projection_batch,
+        );
     }
 
     let comparison_case = declared_case("value_comparison", stress::OperationUnit::Comparison);
@@ -42,7 +46,11 @@ fn main() {
             "setup_time_ns",
             setup_started.elapsed().as_nanos().max(1).to_string(),
         );
-        runner.measure_micro(comparison_case, workloads::value_comparison);
+        runner.measure_micro_batch(
+            comparison_case,
+            workloads::SCALAR_EVALUATION_BATCH_SIZE,
+            workloads::value_comparison_batch,
+        );
     }
     runner.finish();
 }

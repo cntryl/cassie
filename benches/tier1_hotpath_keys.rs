@@ -27,7 +27,11 @@ fn main() {
             "setup_time_ns",
             setup_started.elapsed().as_nanos().max(1).to_string(),
         );
-        runner.measure_micro(key_case, workloads::key_encode_decode);
+        runner.measure_micro_batch(
+            key_case,
+            workloads::KEY_CODEC_BATCH_SIZE,
+            workloads::key_encode_decode_batch,
+        );
     }
     runner.finish();
 }

@@ -35,6 +35,7 @@ pub const HTTP_ADMIN_QUERY: &str = "SELECT id, title FROM bench_documents ORDER 
 pub struct HttpBenchContext {
     base_url: String,
     collection: String,
+    database: String,
     client: reqwest::Client,
     session_cookie: String,
     shutdown: Arc<Notify>,
@@ -162,6 +163,7 @@ pub async fn http_transport_context(ctx: &BenchContext) -> Result<HttpBenchConte
     Ok(HttpBenchContext {
         base_url,
         collection: ctx.collection.clone(),
+        database: config.database,
         client,
         session_cookie,
         shutdown,
@@ -356,9 +358,7 @@ pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {
             ctx.client
                 .post(format!("{}/api/v1/admin/query/execute", ctx.base_url)),
         )
-        .json(&json!({
-            "sql": HTTP_ADMIN_QUERY
-        }))
+        .json(&http_admin_query_body(&ctx.database))
         .send()
         .await
         .expect("send HTTP query request")
@@ -373,6 +373,13 @@ pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {
         "HTTP query result cardinality"
     );
     std::hint::black_box(1)
+}
+
+pub fn http_admin_query_body(database: &str) -> serde_json::Value {
+    json!({
+        "database": database,
+        "sql": HTTP_ADMIN_QUERY,
+    })
 }
 
 pub async fn http_transport_large_result_set(ctx: &HttpBenchContext) -> usize {

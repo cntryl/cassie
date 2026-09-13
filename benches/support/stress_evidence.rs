@@ -67,6 +67,34 @@ enum RuntimeMetricsSource {
     Runtime(Arc<RuntimeState>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RuntimeEvidenceObservation {
+    result_cardinality: u64,
+    candidate_count: Option<u64>,
+    peak_query_memory_bytes: Option<u64>,
+    completed_operations: Option<u64>,
+}
+
+impl RuntimeEvidenceObservation {
+    pub const fn new(
+        result_cardinality: u64,
+        candidate_count: Option<u64>,
+        peak_query_memory_bytes: Option<u64>,
+    ) -> Self {
+        Self {
+            result_cardinality,
+            candidate_count,
+            peak_query_memory_bytes,
+            completed_operations: None,
+        }
+    }
+
+    pub const fn per_external_operation(mut self, completed_operations: u64) -> Self {
+        self.completed_operations = Some(completed_operations);
+        self
+    }
+}
+
 impl RuntimeEvidenceSource {
     pub fn new(cassie: Arc<Cassie>) -> Self {
         Self::from_source(RuntimeMetricsSource::Cassie(cassie))
@@ -89,22 +117,37 @@ impl RuntimeEvidenceSource {
         context: &mut StressContext,
         scenario: &PerformanceBenchmarkScenario,
         preflight: Option<&PreflightEvidence>,
-        result_cardinality: u64,
-        observed_candidate_count: Option<u64>,
-        observed_peak_query_memory_bytes: Option<u64>,
+        observation: RuntimeEvidenceObservation,
     ) {
         let current = self.source.snapshot();
         let mut previous = self.previous.lock().expect("benchmark evidence snapshot");
         let delta = numeric_delta(&current, &previous);
         *previous = current.clone();
 
-        let storage_reads = storage_reads(&delta);
-        let candidate_count = observed_candidate_count
-            .unwrap_or_else(|| scoped_candidate_count(&delta, scenario.access_family));
-        let peak_query_memory_bytes = observed_peak_query_memory_bytes
+        let storage_reads =
+            normalize_runtime_counter(storage_reads(&delta), observation.completed_operations);
+        let candidate_count = normalize_runtime_counter(
+            observation
+                .candidate_count
+                .unwrap_or_else(|| scoped_candidate_count(&delta, scenario.access_family)),
+            observation.completed_operations,
+        );
+        let peak_query_memory_bytes = observation
+            .peak_query_memory_bytes
             .unwrap_or_else(|| pointer_u64(&current, "/query/peak_accounted_memory_bytes"));
-        let execution_result_cache_hits = pointer_u64(&delta, "/execution_result_cache/hits");
+        let raw_execution_result_cache_hits = pointer_u64(&delta, "/execution_result_cache/hits");
+        assert!(
+            scenario.result_cache_policy == ResultCachePolicy::Measured
+                || raw_execution_result_cache_hits == 0,
+            "benchmark sample used the execution result cache despite a disabled cache contract"
+        );
+        let execution_result_cache_hits = normalize_runtime_counter(
+            raw_execution_result_cache_hits,
+            observation.completed_operations,
+        );
         let runtime_fallback = scoped_fallback_evidence(&delta, &current, scenario.access_family);
+        let fallback_count =
+            normalize_runtime_counter(runtime_fallback.count, observation.completed_operations);
         let (fallback_reason, fallback_evidence_source) = if runtime_fallback.count > 0 {
             (runtime_fallback.reason.as_str(), "runtime_metrics")
         } else if let Some(preflight) = preflight {
@@ -120,7 +163,7 @@ impl RuntimeEvidenceSource {
                 (evidence.selected_access_path(), "preflight")
             });
 
-        context.metadata("result_cardinality", result_cardinality);
+        context.metadata("result_cardinality", observation.result_cardinality);
         context.metadata("selected_access_path", selected_access_path);
         context.metadata("access_path_evidence_source", access_path_evidence_source);
         context.metadata("storage_reads", storage_reads);
@@ -143,7 +186,7 @@ impl RuntimeEvidenceSource {
                 "candidate_count": candidate_count,
                 "peak_query_memory_bytes": peak_query_memory_bytes,
                 "execution_result_cache_hits": execution_result_cache_hits,
-                "fallback_count": runtime_fallback.count,
+                "fallback_count": fallback_count,
                 "fallback_reason": fallback_reason,
                 "configured_worker_count": configured_worker_count,
                 "leaked_active_operator_workers": leaked_active_operator_workers,
@@ -154,6 +197,23 @@ impl RuntimeEvidenceSource {
             "benchmark sample leaked active operator workers"
         );
     }
+}
+
+/// Normalizes a cumulative runtime counter to one logical operation for externally timed samples.
+/// Fixed-operation samples retain the counter unchanged.
+///
+/// # Panics
+///
+/// Panics when external evidence reports zero completed operations.
+#[must_use]
+pub fn normalize_runtime_counter(value: u64, completed_operations: Option<u64>) -> u64 {
+    completed_operations.map_or(value, |operations| {
+        assert!(
+            operations > 0,
+            "external runtime evidence requires completed operations"
+        );
+        value / operations
+    })
 }
 
 impl RuntimeMetricsSource {
@@ -170,9 +230,7 @@ pub fn record_without_runtime(
     context: &mut StressContext,
     scenario: &PerformanceBenchmarkScenario,
     preflight: Option<&PreflightEvidence>,
-    result_cardinality: u64,
-    observed_candidate_count: Option<u64>,
-    observed_peak_query_memory_bytes: Option<u64>,
+    observation: RuntimeEvidenceObservation,
 ) {
     assert_eq!(
         scenario.result_cache_policy,
@@ -190,15 +248,15 @@ pub fn record_without_runtime(
             )
         },
     );
-    context.metadata("result_cardinality", result_cardinality);
+    context.metadata("result_cardinality", observation.result_cardinality);
     context.metadata("selected_access_path", selected_access_path);
     context.metadata("access_path_evidence_source", evidence_source);
     context.metadata("storage_reads", 0);
-    let candidate_count = observed_candidate_count.unwrap_or(0);
+    let candidate_count = observation.candidate_count.unwrap_or(0);
     context.metadata("candidate_count", candidate_count);
     context.metadata(
         "peak_query_memory_bytes",
-        observed_peak_query_memory_bytes.unwrap_or(0),
+        observation.peak_query_memory_bytes.unwrap_or(0),
     );
     context.metadata("execution_result_cache_hits", 0);
     context.metadata("worker_count", configured_worker_count);

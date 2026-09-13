@@ -5439,6 +5439,7 @@ mod query_promotion_evidence {
     #[test]
     fn should_compare_seeded_indexed_pages_with_overlay() {
         // Arrange
+        let _query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         let fixture = query_evidence::SeededQueryFixture::new(37);
 
         // Act
@@ -5980,6 +5981,7 @@ mod query_resource_controls {
 
     #[test]
     fn should_reject_expanding_projection_before_building_output() {
+        let _hook_guard = query_scan_control_test_guard();
         // Arrange
         let (cassie, path) = configured_cassie("expanding-projection-memory", 1_024);
         let session = cassie.create_session("tester", None);

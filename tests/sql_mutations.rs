@@ -5476,25 +5476,25 @@ mod integration_sql_upsert {
             .build()
             .expect("runtime");
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, "CREATE TABLE upsert_docs (id INT PRIMARY KEY, tenant TEXT, title TEXT, note TEXT)", vec![]).unwrap();
-        cassie.execute_sql(&session, "CREATE UNIQUE INDEX upsert_tenant_title ON upsert_docs (tenant, title)", vec![]).unwrap();
-        cassie.execute_sql(&session, "INSERT INTO upsert_docs (id, tenant, title, note) VALUES (1, 'a', 'one', 'keep')", vec![]).unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE upsert_docs (id INT PRIMARY KEY, tenant TEXT, title TEXT, note TEXT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "CREATE UNIQUE INDEX upsert_tenant_title ON upsert_docs (tenant, title)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO upsert_docs (id, tenant, title, note) VALUES (1, 'a', 'one', 'keep')", vec![]).unwrap();
 
-        // Act
-        let result = cassie.execute_sql(
-            &session,
-            "INSERT INTO upsert_docs (id, tenant, title) VALUES ($1, $2, $3) ON CONFLICT (tenant, title) DO UPDATE SET title = excluded.title WHERE upsert_docs.title = excluded.title RETURNING title, note",
-            vec![Value::Int64(1), Value::String("a".into()), Value::String("one".into())],
-        ).unwrap();
+            // Act
+            let result = cassie.execute_sql(
+                &session,
+                "INSERT INTO upsert_docs (id, tenant, title) VALUES ($1, $2, $3) ON CONFLICT (tenant, title) DO UPDATE SET title = excluded.title WHERE upsert_docs.title = excluded.title RETURNING title, note",
+                vec![Value::Int64(1), Value::String("a".into()), Value::String("one".into())],
+            ).unwrap();
 
-        // Assert
-        assert_eq!(result.command, "INSERT 0 1");
-        assert_eq!(result.rows, vec![vec![Value::String("one".into()), Value::String("keep".into())]]);
-        let _ = std::fs::remove_dir_all(path);
-    });
+            // Assert
+            assert_eq!(result.command, "INSERT 0 1");
+            assert_eq!(result.rows, vec![vec![Value::String("one".into()), Value::String("keep".into())]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -5507,25 +5507,25 @@ mod integration_sql_upsert {
             .build()
             .expect("runtime");
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, "CREATE TABLE upsert_bind (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
-        cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'alpha')", vec![]).unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE upsert_bind (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'alpha')", vec![]).unwrap();
 
-        // Act
-        let unknown = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.missing", vec![]);
-        let duplicate = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.title, title = 'again'", vec![]);
-        let non_unique = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (2, 'alpha') ON CONFLICT (title) DO UPDATE SET title = excluded.title", vec![]);
-        let rows = cassie.execute_sql(&session, "SELECT title FROM upsert_bind", vec![]).unwrap();
+            // Act
+            let unknown = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.missing", vec![]);
+            let duplicate = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.title, title = 'again'", vec![]);
+            let non_unique = cassie.execute_sql(&session, "INSERT INTO upsert_bind VALUES (2, 'alpha') ON CONFLICT (title) DO UPDATE SET title = excluded.title", vec![]);
+            let rows = cassie.execute_sql(&session, "SELECT title FROM upsert_bind", vec![]).unwrap();
 
-        // Assert
-        assert!(unknown.unwrap_err().to_string().contains("excluded.missing"));
-        assert!(duplicate.unwrap_err().to_string().contains("duplicated"));
-        assert!(non_unique.unwrap_err().to_string().contains("does not match"));
-        assert_eq!(rows.rows, vec![vec![Value::String("alpha".into())]]);
-        let _ = std::fs::remove_dir_all(path);
-    });
+            // Assert
+            assert!(unknown.unwrap_err().to_string().contains("excluded.missing"));
+            assert!(duplicate.unwrap_err().to_string().contains("duplicated"));
+            assert!(non_unique.unwrap_err().to_string().contains("does not match"));
+            assert_eq!(rows.rows, vec![vec![Value::String("alpha".into())]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -5538,32 +5538,251 @@ mod integration_sql_upsert {
             .build()
             .expect("runtime");
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie.execute_sql(&session, "CREATE TABLE upsert_tx (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
-        cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'alpha')", vec![]).unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE upsert_tx (id INT PRIMARY KEY, title TEXT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'alpha')", vec![]).unwrap();
 
-        // Act
-        cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
-        cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.title", vec![]).unwrap();
-        let during = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
-        cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
-        let rolled_back = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
-        cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
-        cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'gamma') ON CONFLICT (id) DO UPDATE SET title = excluded.title", vec![]).unwrap();
-        cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
-        let committed = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
+            // Act
+            cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'beta') ON CONFLICT (id) DO UPDATE SET title = excluded.title", vec![]).unwrap();
+            let during = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
+            cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
+            let rolled_back = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
+            cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO upsert_tx VALUES (1, 'gamma') ON CONFLICT (id) DO UPDATE SET title = excluded.title", vec![]).unwrap();
+            cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
+            let committed = cassie.execute_sql(&session, "SELECT title FROM upsert_tx", vec![]).unwrap();
 
-        // Assert
-        assert_eq!(during.rows, vec![vec![Value::String("beta".into())]]);
-        assert_eq!(rolled_back.rows, vec![vec![Value::String("alpha".into())]]);
-        assert_eq!(committed.rows, vec![vec![Value::String("gamma".into())]]);
-        let _ = std::fs::remove_dir_all(path);
-    });
+            // Assert
+            assert_eq!(during.rows, vec![vec![Value::String("beta".into())]]);
+            assert_eq!(rolled_back.rows, vec![vec![Value::String("alpha".into())]]);
+            assert_eq!(committed.rows, vec![vec![Value::String("gamma".into())]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_upsert_update_of_referenced_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign-key-restrict");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE upsert_restrict_parents (id INT PRIMARY KEY, title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE upsert_restrict_children (parent_id INT REFERENCES upsert_restrict_parents(id), title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO upsert_restrict_parents VALUES (1, 'alpha')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO upsert_restrict_children VALUES (1, 'child')",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            let result = cassie.execute_sql(
+                &session,
+                "INSERT INTO upsert_restrict_parents VALUES (1, 'alpha') ON CONFLICT (id) DO UPDATE SET id = 2",
+                vec![],
+            );
+            let parents = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT title FROM upsert_restrict_parents",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert!(result
+                .expect_err("referenced key update must be rejected")
+                .to_string()
+                .contains("still references"));
+            assert_eq!(
+                parents.rows,
+                vec![vec![Value::String("alpha".to_string())]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_cascade_upsert_update_of_referenced_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign-key-cascade");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE upsert_cascade_parents (id INT PRIMARY KEY, title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE upsert_cascade_children (parent_id INT, title TEXT, CONSTRAINT upsert_cascade_children_fkey FOREIGN KEY (parent_id) REFERENCES upsert_cascade_parents(id) ON UPDATE CASCADE)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO upsert_cascade_parents VALUES (1, 'alpha')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO upsert_cascade_children VALUES (1, 'child')",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO upsert_cascade_parents VALUES (1, 'alpha') ON CONFLICT (id) DO UPDATE SET id = 2",
+                    vec![],
+                )
+                .unwrap();
+            let children = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id FROM upsert_cascade_children",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(children.rows, vec![vec![Value::Int64(2)]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_transaction_conflict_resolution_of_referenced_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign-key-transaction-conflict");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let transaction_session = cassie.create_session("transaction", None);
+            let concurrent_session = cassie.create_session("concurrent", None);
+            cassie
+                .execute_sql(
+                    &transaction_session,
+                    "CREATE TABLE upsert_tx_fk_parents (id INT PRIMARY KEY, title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &transaction_session,
+                    "CREATE TABLE upsert_tx_fk_children (parent_id INT REFERENCES upsert_tx_fk_parents(id), title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(&transaction_session, "BEGIN", vec![])
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &transaction_session,
+                    "INSERT INTO upsert_tx_fk_parents VALUES (1, 'staged') ON CONFLICT (id) DO UPDATE SET id = 2",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &concurrent_session,
+                    "INSERT INTO upsert_tx_fk_parents VALUES (1, 'committed')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &concurrent_session,
+                    "INSERT INTO upsert_tx_fk_children VALUES (1, 'child')",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            let commit = cassie.execute_sql(&transaction_session, "COMMIT", vec![]);
+            let parents = cassie
+                .execute_sql(
+                    &concurrent_session,
+                    "SELECT title FROM upsert_tx_fk_parents",
+                    vec![],
+                )
+                .unwrap();
+            let children = cassie
+                .execute_sql(
+                    &concurrent_session,
+                    "SELECT parent_id FROM upsert_tx_fk_children",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert!(commit
+                .expect_err("commit-time upsert must preserve referential integrity")
+                .to_string()
+                .contains("still references"));
+            assert_eq!(
+                parents.rows,
+                vec![vec![Value::String("committed".to_string())]]
+            );
+            assert_eq!(children.rows, vec![vec![Value::Int64(1)]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
-
 // Formerly tests/integration_sql_upsert_concurrency.rs.
 mod integration_sql_upsert_concurrency {
     use std::sync::{Arc, Barrier};
@@ -6150,15 +6369,16 @@ mod migration_ddl_sequences {
 
 // Formerly tests/transaction_commit_boundary.rs.
 mod transaction_commit_boundary {
+    use super::support_sql as support;
+
     use cassie::app::Cassie;
     use cassie::executor::set_materialized_projection_maintenance_failure_point;
     use cassie::midge::adapter::set_rollup_maintenance_failure_point;
     use cassie::types::Value;
 
-    static MATERIALIZED_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    static ROLLUP_FAILPOINT_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    static TRANSACTION_MAINTENANCE_FAILPOINT_GUARD: std::sync::Mutex<()> =
+        std::sync::Mutex::new(());
 
-    use super::support_sql as support;
     use support::*;
 
     fn runtime() -> tokio::runtime::Runtime {
@@ -6172,198 +6392,197 @@ mod transaction_commit_boundary {
     fn should_not_retry_a_durable_commit_after_materialized_refresh_failure() {
         // Arrange
         use_local_storage();
-        let _failpoint_guard = MATERIALIZED_FAILPOINT_GUARD.lock().unwrap();
+        let _failpoint_guard = TRANSACTION_MAINTENANCE_FAILPOINT_GUARD.lock().unwrap();
         let path = data_dir("transaction_commit_materialized_boundary");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
-        cassie.startup().expect("startup");
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE transaction_materialized_source (tenant TEXT, amount INT)",
-                vec![],
-            )
-            .expect("create source");
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_materialized_source (tenant, amount) VALUES ('acme', 10)",
-                vec![],
-            )
-            .expect("seed source");
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE MATERIALIZED PROJECTION transaction_materialized WITH (analytical = true) AS SELECT tenant, amount FROM transaction_materialized_source",
-                vec![],
-            )
-            .expect("create projection");
-        cassie
-            .execute_sql(&session, "BEGIN", vec![])
-            .expect("begin transaction");
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_materialized_source (tenant, amount) VALUES ('acme', 20)",
-                vec![],
-            )
-            .expect("stage write");
-        set_materialized_projection_maintenance_failure_point(true);
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE transaction_materialized_source (tenant TEXT, amount INT)",
+                    vec![],
+                )
+                .expect("create source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO transaction_materialized_source (tenant, amount) VALUES ('acme', 10)",
+                    vec![],
+                )
+                .expect("seed source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE MATERIALIZED PROJECTION transaction_materialized WITH (analytical = true) AS SELECT tenant, amount FROM transaction_materialized_source",
+                    vec![],
+                )
+                .expect("create projection");
+            cassie
+                .execute_sql(&session, "BEGIN", vec![])
+                .expect("begin transaction");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO transaction_materialized_source (tenant, amount) VALUES ('acme', 20)",
+                    vec![],
+                )
+                .expect("stage write");
+            set_materialized_projection_maintenance_failure_point(true);
 
-        // Act
-        let commit = cassie
-            .execute_sql(&session, "COMMIT", vec![])
-            .expect("base commit remains successful");
-        let retry = cassie.execute_sql(&session, "COMMIT", vec![]);
-        let rollback = cassie
-            .execute_sql(&session, "ROLLBACK", vec![])
-            .expect("rollback after a durable commit remains harmless");
-        let rows = cassie
-            .execute_sql(
-                &session,
-                "SELECT amount FROM transaction_materialized_source ORDER BY amount",
-                vec![],
-            )
-            .expect("read committed source");
-        let debt = cassie
-            .execute_sql(
-                &session,
-                "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_materialized_source'",
-                vec![],
-            )
-            .expect("read maintenance debt");
+            // Act
+            let commit = cassie
+                .execute_sql(&session, "COMMIT", vec![])
+                .expect("base commit remains successful");
+            let retry = cassie.execute_sql(&session, "COMMIT", vec![]);
+            let rollback = cassie
+                .execute_sql(&session, "ROLLBACK", vec![])
+                .expect("rollback after a durable commit remains harmless");
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT amount FROM transaction_materialized_source ORDER BY amount",
+                    vec![],
+                )
+                .expect("read committed source");
+            let debt = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_materialized_source'",
+                    vec![],
+                )
+                .expect("read maintenance debt");
 
-        // Assert
-        assert_eq!(commit.command, "COMMIT");
-        assert!(retry.is_err(), "a durable COMMIT must not be retryable");
-        assert_eq!(rollback.command, "ROLLBACK");
-        assert_eq!(session.transaction_status(), "idle");
-        assert_eq!(
-            rows.rows,
-            vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
-        );
-        assert_eq!(
-            debt.rows,
-            vec![vec![Value::String("materialized_projection".to_string())]]
-        );
+            // Assert
+            assert_eq!(commit.command, "COMMIT");
+            assert!(retry.is_err(), "a durable COMMIT must not be retryable");
+            assert_eq!(rollback.command, "ROLLBACK");
+            assert_eq!(session.transaction_status(), "idle");
+            assert_eq!(
+                rows.rows,
+                vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
+            );
+            assert_eq!(
+                debt.rows,
+                vec![vec![Value::String("materialized_projection".to_string())]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
     fn should_replay_rollup_debt_after_durable_transaction_commit() {
         // Arrange
         use_local_storage();
-        let _failpoint_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let _failpoint_guard = TRANSACTION_MAINTENANCE_FAILPOINT_GUARD.lock().unwrap();
         let path = data_dir("transaction_commit_rollup_boundary");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
-        cassie.startup().expect("startup");
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE transaction_rollup_source (tenant TEXT, event_at TEXT, amount INT)",
-                vec![],
-            )
-            .expect("create source");
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_rollup_source (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:05:00Z', 10)",
-                vec![],
-            )
-            .expect("seed source");
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE ROLLUP transaction_rollup ON transaction_rollup_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
-                vec![],
-            )
-            .expect("create rollup");
-        cassie
-            .execute_sql(&session, "BEGIN", vec![])
-            .expect("begin transaction");
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO transaction_rollup_source (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:25:00Z', 20)",
-                vec![],
-            )
-            .expect("stage write");
-        set_rollup_maintenance_failure_point(true);
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE transaction_rollup_source (tenant TEXT, event_at TEXT, amount INT)",
+                    vec![],
+                )
+                .expect("create source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO transaction_rollup_source (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:05:00Z', 10)",
+                    vec![],
+                )
+                .expect("seed source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE ROLLUP transaction_rollup ON transaction_rollup_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+                    vec![],
+                )
+                .expect("create rollup");
+            cassie
+                .execute_sql(&session, "BEGIN", vec![])
+                .expect("begin transaction");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO transaction_rollup_source (tenant, event_at, amount) VALUES ('acme', '2026-01-01T00:25:00Z', 20)",
+                    vec![],
+                )
+                .expect("stage write");
+            set_rollup_maintenance_failure_point(true);
 
-        // Act
-        let commit = cassie
-            .execute_sql(&session, "COMMIT", vec![])
-            .expect("base commit remains successful");
-        let retry = cassie.execute_sql(&session, "COMMIT", vec![]);
-        let source_rows = cassie
-            .execute_sql(
-                &session,
-                "SELECT amount FROM transaction_rollup_source ORDER BY amount",
-                vec![],
-            )
-            .expect("read committed source");
-        let debt = cassie
-            .execute_sql(
-                &session,
-                "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_rollup_source'",
-                vec![],
-            )
-            .expect("read maintenance debt");
-        drop(cassie);
+            // Act
+            let commit = cassie
+                .execute_sql(&session, "COMMIT", vec![])
+                .expect("base commit remains successful");
+            let retry = cassie.execute_sql(&session, "COMMIT", vec![]);
+            let source_rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT amount FROM transaction_rollup_source ORDER BY amount",
+                    vec![],
+                )
+                .expect("read committed source");
+            let debt = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_rollup_source'",
+                    vec![],
+                )
+                .expect("read maintenance debt");
+            drop(cassie);
 
-        let restarted = Cassie::new_with_data_dir(&path).expect("restart cassie");
-        restarted.startup().expect("restart startup");
-        let restarted_session = restarted.create_session("tester", None);
-        let rollup_rows = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM transaction_rollup_source GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant",
-                vec![],
-            )
-            .expect("read recovered rollup");
-        let remaining_debt = restarted
-            .execute_sql(
-                &restarted_session,
-                "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_rollup_source'",
-                vec![],
-            )
-            .expect("read recovered maintenance debt");
+            let restarted = Cassie::new_with_data_dir(&path).expect("restart cassie");
+            restarted.startup().expect("restart startup");
+            let restarted_session = restarted.create_session("tester", None);
+            let rollup_rows = restarted
+                .execute_sql(
+                    &restarted_session,
+                    "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM transaction_rollup_source GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant",
+                    vec![],
+                )
+                .expect("read recovered rollup");
+            let remaining_debt = restarted
+                .execute_sql(
+                    &restarted_session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.transaction_rollup_source'",
+                    vec![],
+                )
+                .expect("read recovered maintenance debt");
 
-        // Assert
-        assert_eq!(commit.command, "COMMIT");
-        assert!(retry.is_err(), "a durable COMMIT must not be retryable");
-        assert_eq!(session.transaction_status(), "idle");
-        assert_eq!(
-            source_rows.rows,
-            vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
-        );
-        assert_eq!(
-            debt.rows,
-            vec![vec![Value::String("rollup".to_string())]]
-        );
-        assert_eq!(
-            rollup_rows.rows,
-            vec![vec![
-                Value::String("2026-01-01T00:00:00Z".to_string()),
-                Value::String("acme".to_string()),
-                Value::Int64(2),
-                Value::Int64(30),
-            ]]
-        );
-        assert!(remaining_debt.rows.is_empty());
+            // Assert
+            assert_eq!(commit.command, "COMMIT");
+            assert!(retry.is_err(), "a durable COMMIT must not be retryable");
+            assert_eq!(session.transaction_status(), "idle");
+            assert_eq!(
+                source_rows.rows,
+                vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
+            );
+            assert_eq!(
+                debt.rows,
+                vec![vec![Value::String("rollup".to_string())]]
+            );
+            assert_eq!(
+                rollup_rows.rows,
+                vec![vec![
+                    Value::String("2026-01-01T00:00:00Z".to_string()),
+                    Value::String("acme".to_string()),
+                    Value::Int64(2),
+                    Value::Int64(30),
+                ]]
+            );
+            assert!(remaining_debt.rows.is_empty());
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
-
 // Formerly tests/transaction_semantics.rs.
 mod transaction_semantics {
     use cassie::app::{Cassie, CassieError};

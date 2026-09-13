@@ -3510,6 +3510,8 @@ mod integration_sql_vector_query {
 
 // Formerly tests/ivfflat_completeness.rs.
 mod ivfflat_completeness {
+    use super::support_sql as support;
+
     use cassie::app::Cassie;
     use cassie::embeddings::{
         DistanceMetric, IvfFlatIndexOptions, VectorIndexMetadata, VectorIndexRecord,
@@ -3519,7 +3521,6 @@ mod ivfflat_completeness {
     use cassie::types::{DataType, FieldSchema, Schema, Value};
     use cntryl_midge::{TransactionMode, WriteOptions};
 
-    use super::support_sql as support;
     use support::{data_dir, use_local_storage};
 
     fn seed_ivfflat(cassie: &Cassie, collection: &str) {
@@ -3614,14 +3615,14 @@ mod ivfflat_completeness {
 
     fn execute_top_k(cassie: &Cassie, collection: &str) -> cassie::executor::QueryResult {
         cassie
-        .execute_sql(
-            &cassie.create_session("tester", None),
-            &format!(
-                "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"
-            ),
-            vec![],
-        )
-        .expect("execute exact fallback query")
+            .execute_sql(
+                &cassie.create_session("tester", None),
+                &format!(
+                    "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"
+                ),
+                vec![],
+            )
+            .expect("execute exact fallback query")
     }
 
     fn assert_exact_fallback(cassie: &Cassie, collection: &str, expected_reason: &str) {
@@ -3775,8 +3776,36 @@ mod ivfflat_completeness {
         assert_eq!(training.version, 1);
         let _ = std::fs::remove_dir_all(path);
     }
-}
 
+    #[test]
+    fn should_reject_corrupt_membership_key_when_hydrating_ivfflat_state() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("ivfflat_corrupt_membership_key");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let collection = "ivfflat_corrupt_membership_key";
+        seed_ivfflat(&cassie, collection);
+        let mut corrupt_key = cassie
+            .midge
+            .ivfflat_membership_prefix_for_diagnostics(collection, "embedding")
+            .expect("membership prefix");
+        corrupt_key.extend_from_slice(b"truncated");
+        cassie
+            .midge
+            .raw_put(StorageFamily::Data, &corrupt_key, &[])
+            .expect("inject corrupt membership key");
+
+        // Act
+        let error = cassie
+            .midge
+            .get_vector_index(collection, "embedding")
+            .expect_err("corrupt membership key must fail hydration");
+
+        // Assert
+        assert!(error.to_string().contains("invalid IVFFlat membership key"));
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
 // Formerly tests/ivfflat_indexes.rs.
 mod ivfflat_indexes {
     #![allow(unused_imports, dead_code)]
@@ -6355,5 +6384,54 @@ mod vector_state_generation {
         });
 
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// Formerly tests/embedding_support_contract.rs.
+mod embedding_support_contract {
+    use std::fs;
+
+    #[test]
+    fn should_publish_provider_specific_embedding_support_contracts() {
+        // Arrange
+        let feature_support = fs::read_to_string("docs/feature-support.md")
+            .expect("read feature support documentation");
+        let readiness = fs::read_to_string("docs/production-readiness.md")
+            .expect("read production readiness documentation");
+        let evidence = fs::read_to_string("docs/promotion-evidence-matrix.md")
+            .expect("read promotion evidence matrix");
+        let environment = fs::read_to_string("docs/environment-variables.md")
+            .expect("read environment-variable documentation");
+
+        // Act
+        let remote_providers = [
+            "OpenAI",
+            "OpenAI-compatible",
+            "TEI",
+            "Ollama",
+            "Voyage",
+            "Cohere",
+        ];
+
+        // Assert
+        for provider in remote_providers {
+            assert!(
+                feature_support.contains(&format!("| {provider} embeddings |")),
+                "missing provider-specific support row for {provider}"
+            );
+        }
+        assert!(feature_support.contains("| Local deterministic embeddings |"));
+        assert!(readiness.contains("HTTP 429"));
+        assert!(readiness.contains("mock-provider evidence"));
+        assert!(readiness.contains("does not establish hosted availability"));
+        assert!(evidence.contains("Provider-specific status contradiction resolved"));
+        assert!(evidence.contains("Mock-provider auth and HTTP 429 evidence retained"));
+        assert!(environment.contains("CASSIE_OPENAI_MAX_RETRIES"));
+        assert!(environment.contains("CASSIE_EMBEDDINGS_MAX_RETRIES"));
+        assert!(environment.contains("CASSIE_TEI_MAX_RETRIES"));
+        assert!(environment.contains("CASSIE_OLLAMA_MAX_RETRIES"));
+        assert!(environment.contains("CASSIE_VOYAGE_MAX_RETRIES"));
+        assert!(environment.contains("CASSIE_COHERE_MAX_RETRIES"));
+        assert!(environment.contains("does not infer a hosted"));
     }
 }

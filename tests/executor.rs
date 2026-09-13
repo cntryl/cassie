@@ -1271,9 +1271,10 @@ mod executor_commands {
 
 // Formerly tests/executor_fulltext_scoring.rs.
 mod executor_fulltext_scoring {
+    use super::support_executor as support;
+
     use cassie::types::Value;
 
-    use super::support_executor as support;
     use support::{cassie_temp, create_text_collection, put_document, put_fulltext_index};
 
     fn assert_f64_close(actual: f64, expected: f64) {
@@ -1304,21 +1305,21 @@ mod executor_fulltext_scoring {
 
         let session = cassie.create_session("tester", None);
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX idx_exec_fulltext_k1_b ON exec_fulltext_k1_b USING fulltext (body) WITH (k1 = 0, b = 0)",
-            vec![],
-        )
-        .unwrap();
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_k1_b ON exec_fulltext_k1_b USING fulltext (body) WITH (k1 = 0, b = 0)",
+                vec![],
+            )
+            .unwrap();
 
         // Act
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_k1_b WHERE id = 'd1'",
-            vec![],
-        )
-        .expect("query should execute");
+            .execute_sql(
+                &session,
+                "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_k1_b WHERE id = 'd1'",
+                vec![],
+            )
+            .expect("query should execute");
 
         // Assert
         let expected = cassie::search::bm25::bm25_score(3.0, 1.0, 2.0, 0.0, 0.0, 3.0, 2.0);
@@ -1347,12 +1348,12 @@ mod executor_fulltext_scoring {
 
         let session = cassie.create_session("tester", None);
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX idx_exec_fulltext_analyzer_stop_words ON exec_fulltext_analyzer_stop_words USING fulltext (body) WITH (analyzer = standard, stop_words = none)",
-            vec![],
-        )
-        .unwrap();
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_analyzer_stop_words ON exec_fulltext_analyzer_stop_words USING fulltext (body) WITH (analyzer = standard, stop_words = none)",
+                vec![],
+            )
+            .unwrap();
 
         // Act
         let result = cassie
@@ -1368,6 +1369,40 @@ mod executor_fulltext_scoring {
             Value::Float64(score) => assert!(*score > 0.0),
             _ => panic!("expected float score"),
         }
+    }
+
+    #[test]
+    fn should_keep_default_fulltext_case_folding_during_search_score() {
+        // Arrange
+        let cassie = cassie_temp("fulltext_default_case_folding");
+        let collection = "exec_fulltext_default_case_folding";
+        create_text_collection(&cassie, collection, &["id", "body"]);
+        put_document(
+            &cassie,
+            collection,
+            "d1",
+            serde_json::json!({"body": "The Rust compiler is fast"}),
+        );
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX idx_exec_fulltext_default_case ON exec_fulltext_default_case_folding USING fulltext (body)",
+                vec![],
+            )
+            .expect("create default fulltext index");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT search_score(body, 'rust') AS score FROM exec_fulltext_default_case_folding WHERE id = 'd1'",
+                vec![],
+            )
+            .expect("score case-folded term");
+
+        // Assert
+        assert!(matches!(result.rows[0][0], Value::Float64(score) if score > 0.0));
     }
 
     #[test]
@@ -1394,10 +1429,10 @@ mod executor_fulltext_scoring {
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie.execute_sql(
-        &session,
-        "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_non_finite WHERE id = 'd1'",
-        vec![],
-    );
+            &session,
+            "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_non_finite WHERE id = 'd1'",
+            vec![],
+        );
 
         // Assert
         assert!(result.is_err());
@@ -1434,10 +1469,10 @@ mod executor_fulltext_scoring {
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie.execute_sql(
-        &session,
-        "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_duplicate WHERE id = 'd1'",
-        vec![],
-    );
+            &session,
+            "SELECT search_score(body, 'alpha') AS score FROM exec_fulltext_duplicate WHERE id = 'd1'",
+            vec![],
+        );
 
         // Assert
         assert!(result.is_err());
@@ -1496,12 +1531,12 @@ mod executor_fulltext_scoring {
         // Act
         let session = cassie.create_session("tester", None);
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT snippet(body, 'query') AS excerpt FROM exec_snippet_output WHERE title = 'alpha'",
-            vec![],
-        )
-        .expect("snippet query should execute");
+            .execute_sql(
+                &session,
+                "SELECT snippet(body, 'query') AS excerpt FROM exec_snippet_output WHERE title = 'alpha'",
+                vec![],
+            )
+            .expect("snippet query should execute");
 
         // Assert
         assert_eq!(result.columns[0].name, "excerpt");
@@ -1515,7 +1550,6 @@ mod executor_fulltext_scoring {
         }
     }
 }
-
 // Formerly tests/executor_hybrid_scoring.rs.
 mod executor_hybrid_scoring {
     #![allow(unused_imports, dead_code)]
@@ -4127,6 +4161,8 @@ mod executor_query_sources {
 // Formerly tests/executor_sort.rs.
 mod executor_sort {
     #![allow(unused_imports, dead_code)]
+
+    use super::support_executor as support;
     use cassie::app::Cassie;
     use cassie::catalog::{IndexKind, IndexMeta};
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
@@ -4141,7 +4177,6 @@ mod executor_sort {
     use std::collections::BTreeMap;
     use uuid::Uuid;
 
-    use super::support_executor as support;
     use support::*;
 
     #[test]
@@ -4243,91 +4278,143 @@ mod executor_sort {
             .expect("runtime");
 
         runtime.block_on(async {
-        use_local_storage();
-        let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
-        let collection = "exec_hybrid_alias_case";
+            use_local_storage();
+            let cassie = Cassie::new_with_data_dir(data_dir("cassie_new")).unwrap();
+            let collection = "exec_hybrid_alias_case";
 
-        let schema = Schema {
-            fields: vec![
-                FieldSchema {
-                    name: "body".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                },
-                FieldSchema {
-                    name: "embedding".to_string(),
-                    data_type: DataType::Vector(2),
-                    nullable: true,
-                },
-            ],
-        };
+            let schema = Schema {
+                fields: vec![
+                    FieldSchema {
+                        name: "body".to_string(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    },
+                    FieldSchema {
+                        name: "embedding".to_string(),
+                        data_type: DataType::Vector(2),
+                        nullable: true,
+                    },
+                ],
+            };
 
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
+            cassie
+                .midge
+                .create_collection(collection, schema.clone())
 
-            .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
+                .unwrap();
+            cassie
+                .register_collection(
+                    collection,
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| (field.name.clone(), field.data_type.clone()))
+                        .collect(),
+                );
+
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some("z".to_string()),
+                    serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
+                )
+
+                .unwrap();
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some("a".to_string()),
+                    serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
+                )
+
+                .unwrap();
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some("m".to_string()),
+                    serde_json::json!({"body": "red", "embedding": [0.0, 1.0]}),
+                )
+
+                .unwrap();
+
+            // Act
+            let session = cassie.create_session("tester", None);
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS Score FROM exec_hybrid_alias_case ORDER BY SCORE DESC",
+                    vec![],
+                )
+
+    .expect("query should execute");
+
+            // Assert
+            assert_eq!(result.rows.len(), 3);
+            let ids = result
+                .rows
+                .into_iter()
+                .map(|row| match &row[0] {
+                    Value::String(value) => value.clone(),
+                    _ => panic!("expected id"),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(ids, vec!["a".to_string(), "m".to_string(), "z".to_string()]);
+        });
+    }
+
+    #[test]
+    fn should_sort_shadowing_alias_independently_of_source_nulls() {
+        // Arrange
+        let path = data_dir("order_alias_shadow");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            use_local_storage();
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE order_alias_shadow (a INT, b INT)",
+                    vec![],
+                )
+                .expect("create table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO order_alias_shadow (a, b) VALUES (5, 1), (NULL, 2), (3, 3)",
+                    vec![],
+                )
+                .expect("seed table");
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT b AS a FROM order_alias_shadow ORDER BY a",
+                    vec![],
+                )
+                .expect("sort by shadowing alias");
+
+            // Assert
+            assert_eq!(
+                result.rows,
+                vec![
+                    vec![Value::Int64(1)],
+                    vec![Value::Int64(2)],
+                    vec![Value::Int64(3)],
+                ]
             );
 
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("z".to_string()),
-                serde_json::json!({"body": "red", "embedding": [10.0, 0.0]}),
-            )
-
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("a".to_string()),
-                serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
-            )
-
-            .unwrap();
-        cassie
-            .midge
-            .put_document(
-                collection,
-                Some("m".to_string()),
-                serde_json::json!({"body": "red", "embedding": [0.0, 1.0]}),
-            )
-
-            .unwrap();
-
-        // Act
-        let session = cassie.create_session("tester", None);
-        let result = cassie
-            .execute_sql(
-                &session,
-                "SELECT id, hybrid_score(search_score(body, 'red'), vector_score(embedding, '[1,0]')) AS Score FROM exec_hybrid_alias_case ORDER BY SCORE DESC",
-                vec![],
-            )
-
-.expect("query should execute");
-
-        // Assert
-        assert_eq!(result.rows.len(), 3);
-        let ids = result
-            .rows
-            .into_iter()
-            .map(|row| match &row[0] {
-                Value::String(value) => value.clone(),
-                _ => panic!("expected id"),
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(ids, vec!["a".to_string(), "m".to_string(), "z".to_string()]);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -4497,7 +4584,6 @@ mod executor_sort {
         });
     }
 }
-
 // Formerly tests/executor_streaming.rs.
 mod executor_streaming {
     use super::support_executor as support;
@@ -5223,4 +5309,76 @@ mod executor_vector_scoring {
 
         let _ = std::fs::remove_dir_all(path);
     }
+}
+
+// Formerly tests/procedure_support_contract.rs.
+mod procedure_support_contract {
+    #[test]
+    fn should_publish_the_narrow_procedure_support_contract() {
+        // Arrange
+        let contract = include_str!("../docs/procedure-support.md");
+        let feature_support = include_str!("../docs/feature-support.md");
+
+        // Act
+        let required_boundaries = [
+            "single Cassie SQL statement",
+            "positional argument binding",
+            "restart hydration",
+            "tokio-postgres",
+            "PL/pgSQL",
+            "triggers",
+            "dynamic SQL",
+            "transaction control",
+            "recursion",
+            "business-logic platform",
+        ];
+        let missing = required_boundaries
+            .into_iter()
+            .filter(|boundary| !contract.contains(boundary))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            missing.is_empty(),
+            "missing procedure boundaries: {missing:?}"
+        );
+        assert!(feature_support.contains("| Limited procedures and `CALL`"));
+    }
+
+    #[test]
+    fn should_reject_unsupported_procedural_surfaces() {
+        // Arrange
+        let mut path = std::env::temp_dir();
+        path.push(format!("cassie-procedure-boundary-{}", Uuid::new_v4()));
+        let cassie = Cassie::new_with_data_dir_and_config(&path, CassieRuntimeConfig::default())
+            .expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        let unsupported = [
+            r"CREATE PROCEDURE procedural() LANGUAGE plpgsql AS 'BEGIN NULL; END'",
+            "CREATE TRIGGER procedure_trigger BEFORE INSERT ON target EXECUTE PROCEDURE procedural()",
+            r#"CREATE PROCEDURE dynamic_query() AS "EXECUTE 'SELECT 1'""#,
+        ];
+
+        // Act
+        let errors = unsupported
+            .into_iter()
+            .map(|sql| {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect_err("unsupported procedure surface must be rejected")
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(errors.iter().all(|error| !error.trim().is_empty()));
+        assert!(cassie.catalog.list_procedures().is_empty());
+
+        cassie.shutdown();
+        let _ = std::fs::remove_dir_all(path);
+    }
+    use cassie::app::Cassie;
+    use cassie::config::CassieRuntimeConfig;
+    use uuid::Uuid;
 }

@@ -916,13 +916,15 @@ mod pgwire_copy_recovery {
 
 // Formerly tests/pgwire_database_images.rs.
 mod pgwire_database_images {
-    use cassie::app::Cassie;
-    use cassie::catalog::canonical_relation_name;
-    use cassie::types::{DataType, FieldSchema, Schema};
-    use tokio::io::AsyncWriteExt;
-    use uuid::Uuid;
-
     use super::support_pgwire as support;
+
+    use cassie::app::Cassie;
+    use cassie::catalog::{
+        canonical_relation_name, CollectionMeta, FieldConstraint, IndexKind, IndexMeta,
+    };
+    use cassie::types::{DataType, FieldSchema, Schema};
+    use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+    use uuid::Uuid;
 
     fn data_dir(label: &str) -> String {
         let mut path = std::env::temp_dir();
@@ -958,8 +960,148 @@ mod pgwire_database_images {
         vec![b'c', 0, 0, 0, 4]
     }
 
+    fn seed_database_image_fixture(cassie: &Cassie) {
+        let collection = canonical_relation_name("analytics", "public", "analytics");
+        cassie
+            .midge
+            .create_database("analytics", None)
+            .expect("database");
+        cassie
+            .midge
+            .create_collection_with_meta(
+                &collection,
+                &Schema {
+                    fields: vec![FieldSchema {
+                        name: "value".to_string(),
+                        data_type: DataType::Text,
+                        nullable: false,
+                    }],
+                },
+                &CollectionMeta::new(
+                    &collection,
+                    Some("analytics text must remain analytics".to_string()),
+                ),
+            )
+            .expect("collection");
+        cassie
+            .midge
+            .save_constraints(
+                &collection,
+                &[FieldConstraint {
+                    default_value: Some(serde_json::json!("analytics")),
+                    ..FieldConstraint::new("value")
+                }],
+            )
+            .expect("constraints");
+        cassie
+            .midge
+            .put_index(&IndexMeta {
+                collection: collection.clone(),
+                name: "analytics".to_string(),
+                field: "value".to_string(),
+                fields: vec!["value".to_string()],
+                expressions: Vec::new(),
+                include_fields: Vec::new(),
+                predicate: None,
+                kind: IndexKind::Scalar,
+                unique: false,
+                options: std::collections::BTreeMap::new(),
+            })
+            .expect("index");
+        cassie
+            .midge
+            .put_document(
+                &collection,
+                Some("row-1".to_string()),
+                serde_json::json!({"value": "copy"}),
+            )
+            .expect("row");
+    }
+
+    async fn backup_database<R, W>(reader: &mut R, writer: &mut W) -> Vec<u8>
+    where
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        writer
+            .write_all(&query_frame("BACKUP DATABASE analytics TO STDOUT"))
+            .await
+            .expect("backup query");
+        writer.flush().await.expect("flush backup query");
+        assert_eq!(support::read_wire_frame(reader).await.0, b'H');
+        let mut image = Vec::new();
+        loop {
+            let frame = support::read_wire_frame(reader).await;
+            match frame.0 {
+                b'd' => image.extend_from_slice(&frame.1),
+                b'c' => break,
+                other => panic!("unexpected backup frame {other:?}"),
+            }
+        }
+        assert_eq!(support::read_wire_frame(reader).await.0, b'C');
+        assert_eq!(support::read_wire_frame(reader).await.0, b'Z');
+        image
+    }
+
+    async fn restore_database<R, W>(reader: &mut R, writer: &mut W, image: &[u8])
+    where
+        R: AsyncRead + Unpin,
+        W: AsyncWrite + Unpin,
+    {
+        writer
+            .write_all(&query_frame("RESTORE DATABASE restored FROM STDIN"))
+            .await
+            .expect("restore query");
+        writer.flush().await.expect("flush restore query");
+        assert_eq!(support::read_wire_frame(reader).await.0, b'G');
+        for chunk in image.chunks(3) {
+            writer
+                .write_all(&copy_data_frame(chunk))
+                .await
+                .expect("restore data");
+        }
+        writer
+            .write_all(&copy_done_frame())
+            .await
+            .expect("restore done");
+        writer.flush().await.expect("flush restore data");
+        assert_eq!(support::read_wire_frame(reader).await.0, b'C');
+        assert_eq!(support::read_wire_frame(reader).await.0, b'Z');
+    }
+
+    fn assert_restored_database(cassie: &Cassie) {
+        let collection = canonical_relation_name("restored", "public", "analytics");
+        let restored = cassie
+            .midge
+            .get_document(&collection, "row-1")
+            .expect("restored lookup")
+            .expect("restored row");
+        assert_eq!(restored.payload["value"], "copy");
+        let metadata = cassie
+            .midge
+            .collection_metadata(&collection)
+            .expect("restored collection metadata")
+            .expect("restored collection");
+        assert_eq!(
+            metadata.description.as_deref(),
+            Some("analytics text must remain analytics")
+        );
+        let constraints = cassie
+            .midge
+            .load_constraints(&collection)
+            .expect("restored constraints");
+        assert_eq!(
+            constraints[0].default_value,
+            Some(serde_json::json!("analytics"))
+        );
+        let indexes = cassie.catalog.list_indexes(&collection);
+        assert_eq!(indexes.len(), 1);
+        assert_eq!(indexes[0].name, "analytics");
+        assert_eq!(indexes[0].collection, collection);
+    }
+
     #[test]
-    fn should_stream_database_image_round_trip_through_pgwire_copy_messages() {
+    fn should_preserve_collection_name_matching_source_database_through_pgwire_restore() {
         // Arrange
         support::use_local_storage();
         let path = data_dir("round_trip");
@@ -971,104 +1113,40 @@ mod pgwire_database_images {
         runtime.block_on(async {
             let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
             cassie.startup().expect("startup");
-            cassie
-                .midge
-                .create_database("analytics", None)
-                .expect("database");
-            cassie
-                .midge
-                .create_collection(
-                    &canonical_relation_name("analytics", "public", "docs"),
-                    Schema {
-                        fields: vec![FieldSchema {
-                            name: "value".to_string(),
-                            data_type: DataType::Text,
-                            nullable: false,
-                        }],
-                    },
-                )
-                .expect("collection");
-            cassie
-                .midge
-                .put_document(
-                    &canonical_relation_name("analytics", "public", "docs"),
-                    Some("row-1".to_string()),
-                    serde_json::json!({"value": "copy"}),
-                )
-                .expect("row");
+            seed_database_image_fixture(&cassie);
 
+            // Act
             let server = support::spawn_server(cassie.clone()).await;
-            let mut socket = tokio::net::TcpStream::connect(server.addr)
-                .await
-                .expect("connect");
-            let (read_half, mut write_half) = socket.split();
-            let mut reader = tokio::io::BufReader::new(read_half);
-            support::complete_startup(&mut reader, &mut write_half).await;
-
-            // Act: CopyOut backup.
-            write_half
-                .write_all(&query_frame("BACKUP DATABASE analytics TO STDOUT"))
-                .await
-                .expect("backup query");
-            write_half.flush().await.expect("flush backup query");
-            let copy_out = support::read_wire_frame(&mut reader).await;
-            assert_eq!(copy_out.0, b'H');
-            let mut image = Vec::new();
-            loop {
-                let frame = support::read_wire_frame(&mut reader).await;
-                match frame.0 {
-                    b'd' => image.extend_from_slice(&frame.1),
-                    b'c' => break,
-                    other => panic!("unexpected backup frame {other:?}"),
-                }
-            }
-            let command = support::read_wire_frame(&mut reader).await;
-            assert_eq!(command.0, b'C');
-            let ready = support::read_wire_frame(&mut reader).await;
-            assert_eq!(ready.0, b'Z');
-
-            // Act: CopyIn restore, deliberately fragmented into small CopyData messages.
-            write_half
-                .write_all(&query_frame("RESTORE DATABASE restored FROM STDIN"))
-                .await
-                .expect("restore query");
-            write_half.flush().await.expect("flush restore query");
-            let copy_in = support::read_wire_frame(&mut reader).await;
-            assert_eq!(copy_in.0, b'G');
-            for chunk in image.chunks(3) {
-                write_half
-                    .write_all(&copy_data_frame(chunk))
+            {
+                let mut socket = tokio::net::TcpStream::connect(server.addr)
                     .await
-                    .expect("restore data");
+                    .expect("connect");
+                let (read_half, mut write_half) = socket.split();
+                let mut reader = tokio::io::BufReader::new(read_half);
+                support::complete_startup(&mut reader, &mut write_half).await;
+                let image = backup_database(&mut reader, &mut write_half).await;
+                restore_database(&mut reader, &mut write_half, &image).await;
+                write_half.shutdown().await.expect("close pgwire client");
             }
-            write_half
-                .write_all(&copy_done_frame())
-                .await
-                .expect("restore done");
-            write_half.flush().await.expect("flush restore data");
-            let command = support::read_wire_frame(&mut reader).await;
-            assert_eq!(command.0, b'C');
-            let ready = support::read_wire_frame(&mut reader).await;
-            assert_eq!(ready.0, b'Z');
+            cassie.hydrate_catalog().expect("hydrate restored catalog");
 
             // Assert
-            let restored = cassie
-                .midge
-                .get_document(
-                    &canonical_relation_name("restored", "public", "docs"),
-                    "row-1",
-                )
-                .expect("restored lookup")
-                .expect("restored row");
-            assert_eq!(restored.payload["value"], "copy");
-
-            write_half.shutdown().await.expect("close pgwire client");
+            assert_restored_database(&cassie);
             server.stop().await;
+            tokio::task::yield_now().await;
+
+            // Restart and assert persisted state.
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).expect("restarted cassie");
+            restarted.startup().expect("restarted startup");
+
+            // Assert
+            assert_restored_database(&restarted);
+            drop(restarted);
             let _ = std::fs::remove_dir_all(path);
         });
     }
 }
-
 // Formerly tests/pgwire_database_scope.rs.
 mod pgwire_database_scope {
     use super::support_pgwire as pgwire_support;
@@ -2706,11 +2784,11 @@ mod pgwire_simple_query {
 
 // Formerly tests/pgwire_startup.rs.
 mod pgwire_startup {
+    use super::support_pgwire as pgwire_support;
+
     use std::time::Duration;
 
     use cassie::app::Cassie;
-
-    use super::support_pgwire as pgwire_support;
 
     use pgwire_support::{
         data_dir, parse_error_fields, password_message, startup_frame, use_local_storage,
@@ -2791,6 +2869,20 @@ mod pgwire_startup {
         (challenge, authenticated)
     }
 
+    async fn read_startup_error(addr: std::net::SocketAddr, startup: &[u8]) -> Vec<(char, String)> {
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, startup)
+            .await
+            .expect("write startup");
+        let (tag, _, payload) = read_wire_frame(&mut reader).await;
+        assert_eq!(tag, b'E', "invalid startup should return an error frame");
+        parse_error_fields(&payload)
+    }
+
     fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
         let tail = payload
             .get(*cursor..)
@@ -2809,6 +2901,83 @@ mod pgwire_startup {
         let key = read_cstring(payload, &mut cursor);
         let value = read_cstring(payload, &mut cursor);
         (key, value)
+    }
+
+    #[test]
+    fn should_validate_every_startup_parameter_regardless_of_user_value() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("startup_parameter_validation");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let config = authenticated_config();
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            cassie.startup().unwrap();
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind listener");
+            let addr = listener.local_addr().expect("listener address");
+            drop(listener);
+            let server = tokio::spawn(cassie::pgwire::server::run(
+                addr.to_string(),
+                std::sync::Arc::new(cassie.clone()),
+                config,
+            ));
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let cases = [
+                ("", "", vec![], "invalid startup option 'database'"),
+                (
+                    "",
+                    "postgres",
+                    vec![("replication", "database")],
+                    "unsupported startup option: replication",
+                ),
+                (
+                    "",
+                    "postgres",
+                    vec![("client_encoding", "LATIN1")],
+                    "invalid parameter value: invalid value for parameter \"client_encoding\": \"LATIN1\"",
+                ),
+                ("root", "", vec![], "invalid startup option 'database'"),
+                (
+                    "root",
+                    "postgres",
+                    vec![("replication", "database")],
+                    "unsupported startup option: replication",
+                ),
+                (
+                    "root",
+                    "postgres",
+                    vec![("client_encoding", "LATIN1")],
+                    "invalid parameter value: invalid value for parameter \"client_encoding\": \"LATIN1\"",
+                ),
+            ];
+
+            // Act
+            let mut observed = Vec::new();
+            for (user, database, params, expected) in cases {
+                let startup = startup_frame_with_params(user, database, &params);
+                let fields = read_startup_error(addr, &startup).await;
+                let message = fields
+                    .iter()
+                    .find(|(field, _)| *field == 'M')
+                    .map(|(_, value)| value.clone());
+                observed.push((message, expected));
+            }
+
+            // Assert
+            for (actual, expected) in observed {
+                assert_eq!(actual.as_deref(), Some(expected));
+            }
+
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -3184,7 +3353,6 @@ mod pgwire_startup {
         });
     }
 }
-
 // Formerly tests/pgwire_tls.rs.
 mod pgwire_tls {
     use std::sync::Arc;

@@ -125,8 +125,8 @@ jobs:
                 echo "deployment_profile=loopback-memory"
                 echo "protocol=pgwire-extended-query"
               } >> compatibility-artifacts/manifest.txt
-              if cargo test --locked --test compatibility_sqlx \
-                should_validate_sqlx_read_model_probe_when_enabled -- \
+              if cargo test --locked --test compatibility \
+                compatibility_sqlx::should_validate_sqlx_read_model_probe_when_enabled -- \
                 --ignored --nocapture; then
                 sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               else
@@ -141,8 +141,8 @@ jobs:
                 echo "deployment_profile=loopback-memory"
                 echo "protocol=pgwire-extended-query"
               } >> compatibility-artifacts/manifest.txt
-              if cargo test --locked --test compatibility_diesel \
-                should_validate_diesel_read_model_probe_when_enabled -- \
+              if cargo test --locked --test compatibility \
+                compatibility_diesel::should_validate_diesel_read_model_probe_when_enabled -- \
                 --ignored --nocapture; then
                 sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               else

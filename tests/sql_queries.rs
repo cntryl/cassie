@@ -582,6 +582,8 @@ mod integration_sql_ctes {
 // Formerly tests/integration_sql_explain.rs.
 mod integration_sql_explain {
     #![allow(unused_imports, dead_code)]
+
+    use super::support_sql as support;
     use cassie::app::Cassie;
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
     use cassie::embeddings::{
@@ -592,7 +594,6 @@ mod integration_sql_explain {
     use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
     use cntryl_midge::{TransactionMode, WriteOptions};
 
-    use super::support_sql as support;
     use support::*;
 
     #[test]
@@ -606,51 +607,51 @@ mod integration_sql_explain {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let collection = "sql_explain_select_plan";
-        let schema = Schema {
-            fields: vec![FieldSchema {
-                name: "title".to_string(),
-                data_type: DataType::Text,
-                nullable: true,
-            }],
-        };
-        cassie
-            .midge
-            .create_collection(collection, schema.clone())
-            .unwrap();
-        cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
-        let session = cassie.create_session("tester", None);
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let collection = "sql_explain_select_plan";
+            let schema = Schema {
+                fields: vec![FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                }],
+            };
+            cassie
+                .midge
+                .create_collection(collection, schema.clone())
+                .unwrap();
+            cassie
+                .register_collection(
+                    collection,
+                    schema
+                        .fields
+                        .iter()
+                        .map(|field| (field.name.clone(), field.data_type.clone()))
+                        .collect(),
+                );
+            let session = cassie.create_session("tester", None);
 
-        // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT title FROM sql_explain_select_plan WHERE title = 'alpha' ORDER BY title LIMIT 1",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT title FROM sql_explain_select_plan WHERE title = 'alpha' ORDER BY title LIMIT 1",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(result.columns.len(), 1);
-        assert_eq!(result.columns[0].name, "QUERY PLAN");
-        assert_eq!(result.rows.len(), 1);
-        let Value::String(plan) = &result.rows[0][0] else {
-            panic!("expected textual plan");
-        };
-        assert!(plan.contains("collection=sql_explain_select_plan"));
-        assert!(plan.contains("operators=Scan>Filter>Sort>Project>Offset>Limit"));
+            // Assert
+            assert_eq!(result.columns.len(), 1);
+            assert_eq!(result.columns[0].name, "QUERY PLAN");
+            assert_eq!(result.rows.len(), 1);
+            let Value::String(plan) = &result.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(plan.contains("collection=sql_explain_select_plan"));
+            assert!(plan.contains("operators=Scan>Filter>Sort>Project>Limit"));
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -696,12 +697,12 @@ mod integration_sql_explain {
 
             // Act
             let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT title FROM sql_explain_predicate_pushdown WHERE title = 'alpha'",
-                vec![],
-            )
-            .unwrap();
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT title FROM sql_explain_predicate_pushdown WHERE title = 'alpha'",
+                    vec![],
+                )
+                .unwrap();
 
             // Assert
             let Value::String(plan) = &result.rows[0][0] else {
@@ -757,12 +758,12 @@ mod integration_sql_explain {
 
             // Act
             let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT id, title FROM sql_explain_read_path_metadata WHERE id = 'doc-1'",
-                vec![],
-            )
-            .unwrap();
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT id, title FROM sql_explain_read_path_metadata WHERE id = 'doc-1'",
+                    vec![],
+                )
+                .unwrap();
 
             // Assert
             let Value::String(plan) = &result.rows[0][0] else {
@@ -791,47 +792,47 @@ mod integration_sql_explain {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
 
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE sql_explain_projection_source (title TEXT, score INT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO sql_explain_projection_source (title, score) VALUES ('alpha', 1)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE MATERIALIZED PROJECTION sql_explain_projection_ready AS SELECT title, score FROM sql_explain_projection_source",
-                vec![],
-            )
-            .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_explain_projection_source (title TEXT, score INT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO sql_explain_projection_source (title, score) VALUES ('alpha', 1)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE MATERIALIZED PROJECTION sql_explain_projection_ready AS SELECT title, score FROM sql_explain_projection_source",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT title FROM sql_explain_projection_ready ORDER BY title",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT title FROM sql_explain_projection_ready ORDER BY title",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        let plan = explain_plan_text(&result);
-        assert_explain_contains(plan, "projection_freshness", "fresh");
+            // Assert
+            let plan = explain_plan_text(&result);
+            assert_explain_contains(plan, "projection_freshness", "fresh");
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1023,12 +1024,12 @@ mod integration_sql_explain {
 
             // Act
             let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT id, title FROM sql_explain_storage_top_k ORDER BY id ASC LIMIT 5",
-                vec![],
-            )
-            .unwrap();
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT id, title FROM sql_explain_storage_top_k ORDER BY id ASC LIMIT 5",
+                    vec![],
+                )
+                .unwrap();
 
             // Assert
             let plan = explain_plan_text(&result);
@@ -1052,35 +1053,35 @@ mod integration_sql_explain {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let session = cassie.create_session("tester", None);
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
 
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE sql_explain_keyset (title TEXT)",
-                vec![],
-            )
-            .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE sql_explain_keyset (title TEXT)",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN SELECT id, title FROM sql_explain_keyset WHERE id > 'doc-1' ORDER BY id ASC LIMIT 5",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT id, title FROM sql_explain_keyset WHERE id > 'doc-1' ORDER BY id ASC LIMIT 5",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        let plan = explain_plan_text(&result);
-        assert_explain_contains(plan, "access_path_reason", "row-key-keyset");
-        assert_explain_contains(plan, "pagination_strategy", "keyset");
-        assert_explain_contains(plan, "top_k_mode", "none");
-        assert_explain_contains(plan, "early_stop", "keyset");
+            // Assert
+            let plan = explain_plan_text(&result);
+            assert_explain_contains(plan, "access_path_reason", "row-key-keyset");
+            assert_explain_contains(plan, "pagination_strategy", "keyset");
+            assert_explain_contains(plan, "top_k_mode", "none");
+            assert_explain_contains(plan, "early_stop", "keyset");
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1114,12 +1115,12 @@ mod integration_sql_explain {
 
             // Act
             let result = cassie
-            .execute_sql(
-                &session,
-                "EXPLAIN ANALYZE SELECT title FROM sql_explain_analyze_docs WHERE title = 'alpha'",
-                vec![],
-            )
-            .unwrap();
+                .execute_sql(
+                    &session,
+                    "EXPLAIN ANALYZE SELECT title FROM sql_explain_analyze_docs WHERE title = 'alpha'",
+                    vec![],
+                )
+                .unwrap();
 
             // Assert
             let Value::String(plan) = &result.rows[0][0] else {
@@ -1134,7 +1135,6 @@ mod integration_sql_explain {
         });
     }
 }
-
 // Formerly tests/integration_sql_join_plans.rs.
 mod integration_sql_join_plans {
     #![allow(unused_imports, dead_code)]
@@ -5184,6 +5184,8 @@ mod integration_sql_read_path_depth {
 // Formerly tests/integration_sql_scalar_functions.rs.
 mod integration_sql_scalar_functions {
     #![allow(unused_imports, dead_code)]
+
+    use super::support_sql as support;
     use cassie::app::Cassie;
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
     use cassie::embeddings::{
@@ -5194,7 +5196,6 @@ mod integration_sql_scalar_functions {
     use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
     use cntryl_midge::{TransactionMode, WriteOptions};
 
-    use super::support_sql as support;
     use support::*;
 
     // should_execute_text_scalar_functions_query removed: strictly subsumed by
@@ -5213,41 +5214,41 @@ mod integration_sql_scalar_functions {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE scalar_coalesce_function (title TEXT, fallback TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO scalar_coalesce_function (title, fallback) VALUES (NULL, 'backup')",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE scalar_coalesce_function (title TEXT, fallback TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO scalar_coalesce_function (title, fallback) VALUES (NULL, 'backup')",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT coalesce(title, fallback, 'missing') AS value FROM scalar_coalesce_function",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT coalesce(title, fallback, 'missing') AS value FROM scalar_coalesce_function",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![Value::String("backup".to_string())]]
-        );
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![Value::String("backup".to_string())]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -5290,6 +5291,76 @@ mod integration_sql_scalar_functions {
 
             // Assert
             assert_eq!(selected.rows, vec![vec![Value::Int64(42)]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_abs_overflow_for_bigint_minimum() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("abs_bigint_overflow");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+
+            // Act
+            let overflow = cassie.execute_sql(
+                &session,
+                "SELECT ABS(CAST('-9223372036854775808' AS BIGINT)) AS result",
+                vec![],
+            );
+
+            // Assert
+            assert!(overflow
+                .expect_err("reject an unrepresentable BIGINT magnitude")
+                .to_string()
+                .contains("integer overflow"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_preserve_abs_at_numeric_boundaries() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("abs_numeric_boundaries");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+
+            // Act
+            let adjacent = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT ABS(CAST('-9223372036854775807' AS BIGINT)), ABS(CAST('9223372036854775807' AS BIGINT)), ABS(CAST('-1.5' AS FLOAT))",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(
+                adjacent.rows,
+                vec![vec![
+                    Value::Int64(i64::MAX),
+                    Value::Int64(i64::MAX),
+                    Value::Float64(1.5),
+                ]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5402,46 +5473,46 @@ mod integration_sql_scalar_functions {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE projection_cast_expressions (score INT, active BOOLEAN, flag TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO projection_cast_expressions (score, active, flag) VALUES (10, true, 't')",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE projection_cast_expressions (score INT, active BOOLEAN, flag TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO projection_cast_expressions (score, active, flag) VALUES (10, true, 't')",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT CAST(score AS TEXT) AS score_text, score::FLOAT AS score_float, CAST(active AS INT) AS active_int, CAST(flag AS BOOLEAN) AS flag_bool FROM projection_cast_expressions",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT CAST(score AS TEXT) AS score_text, score::FLOAT AS score_float, CAST(active AS INT) AS active_int, CAST(flag AS BOOLEAN) AS flag_bool FROM projection_cast_expressions",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![
-                Value::String("10".to_string()),
-                Value::Float64(10.0),
-                Value::Int64(1),
-                Value::Bool(true)
-            ]]
-        );
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![
+                    Value::String("10".to_string()),
+                    Value::Float64(10.0),
+                    Value::Int64(1),
+                    Value::Bool(true)
+                ]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -5491,7 +5562,6 @@ mod integration_sql_scalar_functions {
         });
     }
 }
-
 // Formerly tests/integration_sql_sets.rs.
 mod integration_sql_sets {
     #![allow(unused_imports, dead_code)]
@@ -7777,10 +7847,11 @@ mod scalar_functions {
 
 // Formerly tests/sql_semantic_regressions.rs.
 mod sql_semantic_regressions {
+    use super::support_sql as support;
+
     use cassie::app::Cassie;
     use cassie::types::Value;
 
-    use super::support_sql as support;
     use support::{data_dir, use_local_storage};
 
     fn cassie_for(label: &str) -> (Cassie, cassie::app::CassieSession, String) {
@@ -7841,6 +7912,64 @@ mod sql_semantic_regressions {
             result.rows,
             vec![vec![Value::Float64(9.0), Value::Float64(20.0)]]
         );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_preserve_bigint_scalar_arithmetic_precision() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("bigint_scalar_arithmetic");
+
+        // Act
+        let exact = cassie
+            .execute_sql(
+                &session,
+                "SELECT 9007199254740993 + 9007199254740993 AS added, 9007199254740995 - 9007199254740993 AS subtracted, CAST(3002399751580331 AS BIGINT) * CAST(3 AS BIGINT) AS multiplied, 1 + 1.5 AS mixed",
+                vec![],
+            )
+            .expect("execute exact bigint arithmetic");
+        // Assert
+        assert_eq!(
+            exact.rows,
+            vec![vec![
+                Value::Int64(18_014_398_509_481_986),
+                Value::Int64(2),
+                Value::Int64(9_007_199_254_740_993),
+                Value::Float64(2.5),
+            ]]
+        );
+        assert_eq!(
+            exact
+                .columns
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![20, 20, 20, 701]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_bigint_scalar_arithmetic_overflow() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("bigint_scalar_overflow");
+
+        // Act
+        let overflow_errors = [
+            "SELECT 9223372036854775807 + 9007199254740993",
+            "SELECT -9223372036854775808 - 9007199254740993",
+            "SELECT 9007199254740993 * 9007199254740993",
+        ]
+        .map(|sql| {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect_err("reject bigint overflow")
+        });
+
+        // Assert
+        for error in overflow_errors {
+            assert!(error.to_string().contains("integer overflow"));
+        }
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -8126,12 +8255,12 @@ mod sql_semantic_regressions {
 
         // Act
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT item_id FROM uuid_probe WHERE item_uuid = '550e8400-e29b-41d4-a716-446655440000'",
-            vec![],
-        )
-        .expect("compare uuid to text literal");
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM uuid_probe WHERE item_uuid = '550e8400-e29b-41d4-a716-446655440000'",
+                vec![],
+            )
+            .expect("compare uuid to text literal");
 
         // Assert
         assert_eq!(result.rows, vec![vec![Value::String("row-1".to_string())]]);
@@ -8223,7 +8352,6 @@ mod sql_semantic_regressions {
         let _ = std::fs::remove_dir_all(path);
     }
 }
-
 // Formerly tests/window_frames.rs.
 mod window_frames {
     use cassie::app::{Cassie, CassieError};
@@ -8673,5 +8801,354 @@ mod window_frames {
         server.stop().await;
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+}
+
+// Formerly tests/sql_typed_literal_predicates.rs.
+mod sql_typed_literal_predicates {
+    use super::support_sql as support;
+
+    use cassie::app::Cassie;
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn cassie_for(label: &str) -> (Cassie, cassie::app::CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        (cassie, session, path)
+    }
+
+    #[test]
+    fn should_match_uuid_in_typed_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("uuid_in_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE uuid_in_probe (item_id TEXT, item_uuid UUID)",
+                vec![],
+            )
+            .expect("create UUID probe");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO uuid_in_probe VALUES ('row-1', '550e8400-e29b-41d4-a716-446655440000'), ('row-2', '550e8400-e29b-41d4-a716-446655440001')",
+                vec![],
+            )
+            .expect("seed UUID probe");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM uuid_in_probe WHERE item_uuid IN ('550e8400-e29b-41d4-a716-446655440001', '550e8400-e29b-41d4-a716-446655440002')",
+                vec![],
+            )
+            .expect("execute UUID IN predicate");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("row-2".to_string())]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_malformed_uuid_in_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("malformed_uuid_in_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE malformed_uuid_in_probe (item_uuid UUID)",
+                vec![],
+            )
+            .expect("create UUID probe");
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_uuid FROM malformed_uuid_in_probe WHERE item_uuid IN ('not-a-uuid')",
+                vec![],
+            )
+            .expect_err("reject malformed UUID IN literal");
+
+        // Assert
+        assert!(error.to_string().contains("invalid UUID literal"));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_match_uuid_between_typed_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("uuid_between_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE uuid_between_probe (item_id TEXT, item_uuid UUID)",
+                vec![],
+            )
+            .expect("create UUID probe");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO uuid_between_probe VALUES ('before', '450e8400-e29b-41d4-a716-446655440000'), ('inside', '550e8400-e29b-41d4-a716-446655440001'), ('after', '650e8400-e29b-41d4-a716-446655440000')",
+                vec![],
+            )
+            .expect("seed UUID probe");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM uuid_between_probe WHERE item_uuid BETWEEN '550e8400-e29b-41d4-a716-446655440000' AND '550e8400-e29b-41d4-a716-446655440002'",
+                vec![],
+            )
+            .expect("execute UUID BETWEEN predicate");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("inside".to_string())]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_malformed_uuid_between_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("malformed_uuid_between_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE malformed_uuid_between_probe (item_uuid UUID)",
+                vec![],
+            )
+            .expect("create UUID probe");
+
+        // Act
+        let errors = [
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT item_uuid FROM malformed_uuid_between_probe WHERE item_uuid BETWEEN 'not-a-uuid' AND '550e8400-e29b-41d4-a716-446655440002'",
+                    vec![],
+                )
+                .expect_err("reject malformed UUID lower bound"),
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT item_uuid FROM malformed_uuid_between_probe WHERE item_uuid BETWEEN '550e8400-e29b-41d4-a716-446655440000' AND 'not-a-uuid'",
+                    vec![],
+                )
+                .expect_err("reject malformed UUID upper bound"),
+        ];
+
+        // Assert
+        assert!(errors
+            .iter()
+            .all(|error| error.to_string().contains("invalid UUID literal")));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_match_bytea_in_typed_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("bytea_in_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE bytea_in_probe (item_id TEXT, payload BYTEA)",
+                vec![],
+            )
+            .expect("create BYTEA probe");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO bytea_in_probe VALUES ('row-1', '\\x0102'), ('row-2', '\\x0304')",
+                vec![],
+            )
+            .expect("seed BYTEA probe");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM bytea_in_probe WHERE payload IN ('\\x0304', '\\x0506')",
+                vec![],
+            )
+            .expect("execute BYTEA IN predicate");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("row-2".to_string())]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_malformed_bytea_in_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("malformed_bytea_in_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE malformed_bytea_in_probe (payload BYTEA)",
+                vec![],
+            )
+            .expect("create BYTEA probe");
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "SELECT payload FROM malformed_bytea_in_probe WHERE payload IN ('\\xzz')",
+                vec![],
+            )
+            .expect_err("reject malformed BYTEA IN literal");
+
+        // Assert
+        assert!(error.to_string().contains("invalid BYTEA literal"));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_match_bytea_between_typed_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("bytea_between_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE bytea_between_probe (item_id TEXT, payload BYTEA)",
+                vec![],
+            )
+            .expect("create BYTEA probe");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO bytea_between_probe VALUES ('inside', '\\x0180'), ('after', '\\x0200')",
+                vec![],
+            )
+            .expect("seed BYTEA probe");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM bytea_between_probe WHERE payload BETWEEN '\\x0100' AND '\\x01ff'",
+                vec![],
+            )
+            .expect("execute BYTEA BETWEEN predicate");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("inside".to_string())]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_malformed_bytea_between_literals() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("malformed_bytea_between_literals");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE malformed_bytea_between_probe (payload BYTEA)",
+                vec![],
+            )
+            .expect("create BYTEA probe");
+
+        // Act
+        let errors = [
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT payload FROM malformed_bytea_between_probe WHERE payload BETWEEN '\\x0' AND '\\x01ff'",
+                    vec![],
+                )
+                .expect_err("reject malformed BYTEA lower bound"),
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT payload FROM malformed_bytea_between_probe WHERE payload BETWEEN '\\x0100' AND 'not-bytea'",
+                    vec![],
+                )
+                .expect_err("reject malformed BYTEA upper bound"),
+        ];
+
+        // Assert
+        assert!(errors
+            .iter()
+            .all(|error| error.to_string().contains("invalid BYTEA literal")));
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// Formerly tests/typed_literal_canonicalization.rs.
+mod typed_literal_canonicalization {
+    use super::support_sql as support;
+
+    use cassie::app::Cassie;
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    #[test]
+    fn should_canonicalize_typed_predicate_literals() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("canonical_typed_literals");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE canonical_typed_probe (item_id TEXT, item_uuid UUID, payload BYTEA)",
+                vec![],
+            )
+            .expect("create typed probe");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO canonical_typed_probe VALUES ('MixedCase', '550e8400-e29b-41d4-a716-446655440000', '\\x0a0b')",
+                vec![],
+            )
+            .expect("seed typed probe");
+
+        // Act
+        let predicates = [
+            "item_uuid = '550E8400E29B41D4A716446655440000'",
+            "'550E8400E29B41D4A716446655440000' = item_uuid",
+            "item_uuid IN ('550E8400E29B41D4A716446655440000')",
+            "item_uuid BETWEEN '550E8400E29B41D4A716446655440000' AND '550E8400E29B41D4A716446655440000'",
+            "payload = '\\x0A0B'",
+            "'\\x0A0B' = payload",
+            "payload IN ('\\x0A0B')",
+            "payload BETWEEN '\\x0A0B' AND '\\x0A0B'",
+        ];
+        let results = predicates.map(|predicate| {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!("SELECT item_id FROM canonical_typed_probe WHERE {predicate}"),
+                    vec![],
+                )
+                .expect("execute canonical typed predicate")
+        });
+        let text_control = cassie
+            .execute_sql(
+                &session,
+                "SELECT item_id FROM canonical_typed_probe WHERE item_id = 'mixedcase'",
+                vec![],
+            )
+            .expect("execute text control");
+
+        // Assert
+        for result in results {
+            assert_eq!(
+                result.rows,
+                vec![vec![Value::String("MixedCase".to_string())]]
+            );
+        }
+        assert!(text_control.rows.is_empty());
+        let _ = std::fs::remove_dir_all(path);
     }
 }

@@ -35,9 +35,8 @@ use transactions through the normal pgwire statement flow.
 
 ## Evidence
 
-- `tests/executor_commands.rs` covers argument substitution, execution after restart, transaction
-  control rejection, and recursive-call rejection.
-- `tests/compatibility_matrix.rs` covers the supported create/call/read workflow through
-  `tokio-postgres`.
-- `tests/procedure_support_contract.rs` keeps this published boundary explicit and verifies that
-  PL/pgSQL, triggers, and dynamic SQL remain unreachable.
+- `executor_commands` and `procedure_support_contract` in `tests/executor.rs` cover argument
+  substitution, execution after restart, transaction control rejection, recursive-call rejection,
+  and the published unsupported-language boundary.
+- `compatibility_matrix` in `tests/compatibility.rs` covers the supported create/call/read workflow
+  through `tokio-postgres`.

@@ -3411,69 +3411,71 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "SELECT title, body FROM planner_projection WHERE title = 'alpha' ORDER BY title DESC LIMIT 2 OFFSET 1",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
-        let plan = logical::plan(&bound).unwrap();
+            let parsed = parser::parse_statement(
+                "SELECT title, body FROM planner_projection WHERE title = 'alpha' ORDER BY title DESC LIMIT 2 OFFSET 1",
+            )
+            .unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
+            let plan = logical::plan(&bound).unwrap();
 
-        // Act
-        // assertions are direct on the logical plan shape
+            // Act
+            // assertions are direct on the logical plan shape
 
-        // Assert
-        assert_eq!(plan.collection, "planner_projection");
-        assert_eq!(plan.projection.len(), 2);
-        assert!(matches!(
-            &plan.projection[0],
-            SelectItem::Column { name, alias } if name == "title" && alias.is_none()
-        ));
-        assert!(matches!(
-            &plan.projection[1],
-            SelectItem::Column { name, alias } if name == "body" && alias.is_none()
-        ));
-        assert!(plan.filter.is_some());
-        assert_eq!(plan.order.len(), 1);
-        assert!(matches!(
-            &plan.order[0].expr,
-            Expr::Column(field) if field == "title"
-        ));
-        assert!(matches!(plan.order[0].direction, SortDirection::Desc));
-        assert_eq!(plan.limit, Some(2));
-        assert_eq!(plan.offset, Some(1));
-    });
+            // Assert
+            assert_eq!(plan.collection, "planner_projection");
+            assert_eq!(plan.projection.len(), 2);
+            assert!(matches!(
+                &plan.projection[0],
+                SelectItem::Column { name, alias } if name == "title" && alias.is_none()
+            ));
+            assert!(matches!(
+                &plan.projection[1],
+                SelectItem::Column { name, alias } if name == "body" && alias.is_none()
+            ));
+            assert!(plan.filter.is_some());
+            assert_eq!(plan.order.len(), 1);
+            assert!(matches!(
+                &plan.order[0].expr,
+                Expr::Column(field) if field == "title"
+            ));
+            assert!(matches!(plan.order[0].direction, SortDirection::Desc));
+            assert_eq!(plan.limit, Some(2));
+            assert_eq!(plan.offset, Some(1));
+        });
     }
 
     #[test]
-    fn should_default_offset_to_zero_in_optimizer() {
+    fn should_preserve_offset_shape_in_optimizer() {
         // Arrange
         let catalog = Catalog::new();
-        register_test_collection(&catalog, "planner_offset_default");
+        register_test_collection(&catalog, "planner_offset_shape");
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("runtime");
 
         runtime.block_on(async {
-            let parsed = parser::parse_statement(
-                "SELECT title FROM planner_offset_default ORDER BY title ASC LIMIT 3",
-            )
-            .unwrap();
-            let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let plans = [
+                "SELECT title FROM planner_offset_shape ORDER BY title ASC LIMIT 3",
+                "SELECT title FROM planner_offset_shape ORDER BY title ASC LIMIT 3 OFFSET 500",
+            ]
+            .map(|sql| {
+                let parsed = parser::parse_statement(sql).unwrap();
+                let bound = binder::bind(parsed, &catalog).unwrap();
+                logical::plan(&bound).unwrap()
+            });
 
             // Act
-            let optimized = optimizer::optimize(logical);
+            let [without_offset, with_offset] = plans.map(optimizer::optimize);
 
             // Assert
-            assert_eq!(optimized.offset, Some(0));
-            assert_eq!(optimized.limit, Some(3));
-            assert!(matches!(optimized.order[0].direction, SortDirection::Asc));
+            assert_eq!(without_offset.offset, None);
+            assert_eq!(with_offset.offset, Some(500));
         });
     }
 
     #[test]
-    fn should_emit_offset_node_even_with_default_zero() {
+    fn should_omit_offset_node_without_clause() {
         // Arrange
         let catalog = Catalog::new();
         register_test_collection(&catalog, "planner_default_offset_operator");
@@ -3495,15 +3497,12 @@ mod planner_logical {
             let physical_plan = physical::build(optimized);
 
             // Assert
-            assert_eq!(physical_plan.operators.len(), 5);
-            assert!(matches!(
-                physical_plan.operators.get(4),
-                Some(Operator::Limit)
-            ));
+            assert_eq!(physical_plan.operators.len(), 4);
             assert!(matches!(
                 physical_plan.operators.get(3),
-                Some(Operator::Offset)
+                Some(Operator::Limit)
             ));
+            assert!(!physical_plan.operators.contains(&Operator::Offset));
         });
     }
 
@@ -3517,23 +3516,23 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "CREATE TABLE planner_column_store_docs (id TEXT, title TEXT) WITH (storage = column_store)",
-        )
-        .expect("parse should succeed");
-        let bound = binder::bind(parsed, &catalog).expect("bind should succeed");
+            let parsed = parser::parse_statement(
+                "CREATE TABLE planner_column_store_docs (id TEXT, title TEXT) WITH (storage = column_store)",
+            )
+            .expect("parse should succeed");
+            let bound = binder::bind(parsed, &catalog).expect("bind should succeed");
 
-        // Act
-        let logical = logical::plan(&bound).expect("logical plan");
+            // Act
+            let logical = logical::plan(&bound).expect("logical plan");
 
-        // Assert
-        let Some(cassie::planner::logical::LogicalCommand::CreateTable(statement)) = logical.command
-        else {
-            panic!("expected create table logical command");
-        };
-        assert_eq!(statement.table, "planner_column_store_docs");
-        assert_eq!(statement.storage_mode, CollectionStorageMode::ColumnStore);
-    });
+            // Assert
+            let Some(cassie::planner::logical::LogicalCommand::CreateTable(statement)) = logical.command
+            else {
+                panic!("expected create table logical command");
+            };
+            assert_eq!(statement.table, "planner_column_store_docs");
+            assert_eq!(statement.storage_mode, CollectionStorageMode::ColumnStore);
+        });
     }
 
     #[test]
@@ -3547,37 +3546,37 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "SELECT * FROM planner_clauses WHERE body = 'hello' ORDER BY title ASC LIMIT 1 OFFSET 2",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
+            let parsed = parser::parse_statement(
+                "SELECT * FROM planner_clauses WHERE body = 'hello' ORDER BY title ASC LIMIT 1 OFFSET 2",
+            )
+            .unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
 
-        // Act
-        let logical = logical::plan(&bound).unwrap();
+            // Act
+            let logical = logical::plan(&bound).unwrap();
 
-        // Assert
-        assert_eq!(logical.collection, "planner_clauses");
-        assert!(matches!(&logical.projection[..], [SelectItem::Wildcard]));
-        assert_eq!(logical.limit, Some(1));
-        assert_eq!(logical.offset, Some(2));
-        assert_eq!(logical.order.len(), 1);
+            // Assert
+            assert_eq!(logical.collection, "planner_clauses");
+            assert!(matches!(&logical.projection[..], [SelectItem::Wildcard]));
+            assert_eq!(logical.limit, Some(1));
+            assert_eq!(logical.offset, Some(2));
+            assert_eq!(logical.order.len(), 1);
 
-        match logical.filter.as_ref().expect("filter should exist") {
-            Expr::Binary { left, right, op } => {
-                assert!(matches!(op, BinaryOp::Eq));
-                assert!(matches!(left.as_ref(), Expr::Column(name) if name == "body"));
-                assert!(matches!(right.as_ref(), Expr::StringLiteral(query) if query == "hello"));
+            match logical.filter.as_ref().expect("filter should exist") {
+                Expr::Binary { left, right, op } => {
+                    assert!(matches!(op, BinaryOp::Eq));
+                    assert!(matches!(left.as_ref(), Expr::Column(name) if name == "body"));
+                    assert!(matches!(right.as_ref(), Expr::StringLiteral(query) if query == "hello"));
+                }
+                _ => panic!("expected filter expression"),
             }
-            _ => panic!("expected filter expression"),
-        }
 
-        assert!(matches!(
-            &logical.order[0].expr,
-            Expr::Column(field) if field == "title"
-        ));
-        assert!(matches!(logical.order[0].direction, SortDirection::Asc));
-    });
+            assert!(matches!(
+                &logical.order[0].expr,
+                Expr::Column(field) if field == "title"
+            ));
+            assert!(matches!(logical.order[0].direction, SortDirection::Asc));
+        });
     }
 
     #[test]
@@ -3744,19 +3743,19 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "SELECT title FROM planner_repeat_logical WHERE title = 'gamma' ORDER BY title ASC LIMIT 3 OFFSET 1",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
+            let parsed = parser::parse_statement(
+                "SELECT title FROM planner_repeat_logical WHERE title = 'gamma' ORDER BY title ASC LIMIT 3 OFFSET 1",
+            )
+            .unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
 
-        // Act
-        let first = logical::plan(&bound).unwrap();
-        let second = logical::plan(&bound).unwrap();
+            // Act
+            let first = logical::plan(&bound).unwrap();
+            let second = logical::plan(&bound).unwrap();
 
-        // Assert
-        assert_eq!(format!("{first:?}"), format!("{:?}", second));
-    });
+            // Assert
+            assert_eq!(format!("{first:?}"), format!("{:?}", second));
+        });
     }
 
     #[test]
@@ -3770,22 +3769,22 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "SELECT title FROM planner_repeat_optimizer WHERE title = 'gamma' ORDER BY title ASC LIMIT 3",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical_plan = logical::plan(&bound).unwrap();
+            let parsed = parser::parse_statement(
+                "SELECT title FROM planner_repeat_optimizer WHERE title = 'gamma' ORDER BY title ASC LIMIT 3",
+            )
+            .unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
+            let logical_plan = logical::plan(&bound).unwrap();
 
-        // Act
-        let first = optimizer::optimize(logical_plan.clone());
-        let second = optimizer::optimize(logical_plan);
+            // Act
+            let first = optimizer::optimize(logical_plan.clone());
+            let second = optimizer::optimize(logical_plan);
 
-        // Assert
-        assert_eq!(format!("{first:?}"), format!("{:?}", second));
-        assert_eq!(first.offset, Some(0));
-        assert_eq!(second.offset, Some(0));
-    });
+            // Assert
+            assert_eq!(format!("{first:?}"), format!("{:?}", second));
+            assert_eq!(first.offset, None);
+            assert_eq!(second.offset, None);
+        });
     }
 
     #[test]
@@ -3800,9 +3799,9 @@ mod planner_logical {
 
         runtime.block_on(async {
             let parsed = parser::parse_statement(
-            "WITH docs_cte AS (SELECT title FROM planner_cte_source) SELECT title FROM docs_cte",
-        )
-        .unwrap();
+                "WITH docs_cte AS (SELECT title FROM planner_cte_source) SELECT title FROM docs_cte",
+            )
+            .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
 
             // Act
@@ -3827,28 +3826,27 @@ mod planner_logical {
             .expect("runtime");
 
         runtime.block_on(async {
-        let parsed = parser::parse_statement(
-            "WITH RECURSIVE seq(id) AS (SELECT id FROM planner_recursive_aliases UNION ALL SELECT id FROM seq) SELECT id FROM seq",
-        )
-        .unwrap();
-        let bound = binder::bind(parsed, &catalog).unwrap();
+            let parsed = parser::parse_statement(
+                "WITH RECURSIVE seq(id) AS (SELECT id FROM planner_recursive_aliases UNION ALL SELECT id FROM seq) SELECT id FROM seq",
+            )
+            .unwrap();
+            let bound = binder::bind(parsed, &catalog).unwrap();
 
-        // Act
-        let logical = logical::plan(&bound).unwrap();
+            // Act
+            let logical = logical::plan(&bound).unwrap();
 
-        // Assert
-        assert_eq!(logical.ctes.len(), 1);
-        assert_eq!(logical.ctes[0].aliases, vec!["id".to_string()]);
-        assert_eq!(logical.ctes[0].name, "seq");
-        let recursive = matches!(
-            logical.ctes[0].query,
-            cassie::sql::ast::CteQuery::Recursive { .. }
-        );
-        assert!(recursive);
-    });
+            // Assert
+            assert_eq!(logical.ctes.len(), 1);
+            assert_eq!(logical.ctes[0].aliases, vec!["id".to_string()]);
+            assert_eq!(logical.ctes[0].name, "seq");
+            let recursive = matches!(
+                logical.ctes[0].query,
+                cassie::sql::ast::CteQuery::Recursive { .. }
+            );
+            assert!(recursive);
+        });
     }
 }
-
 // Formerly tests/planner_physical.rs.
 mod planner_physical {
     #![allow(unused_imports, dead_code)]

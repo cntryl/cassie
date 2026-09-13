@@ -1020,6 +1020,38 @@ mod benchmark_harness_contract {
     use cassie::types::Value;
     use serde_json::json;
 
+    #[test]
+    fn should_register_paired_fsst_codec_kernels() {
+        // Arrange
+        let scenarios = performance_benchmarks::benchmark_scenarios()
+            .map(|scenario| scenario.scenario_id)
+            .collect::<BTreeSet<_>>();
+
+        // Act
+        let has_encode = scenarios.contains("perf.kernel.fsst_codec_encode");
+        let has_decode = scenarios.contains("perf.kernel.fsst_codec_decode");
+
+        // Assert
+        assert!(has_encode);
+        assert!(has_decode);
+    }
+
+    #[test]
+    fn should_register_paired_alp_codec_kernels() {
+        // Arrange
+        let scenarios = performance_benchmarks::benchmark_scenarios()
+            .map(|scenario| scenario.scenario_id)
+            .collect::<BTreeSet<_>>();
+
+        // Act
+        let has_encode = scenarios.contains("perf.kernel.alp_codec_encode");
+        let has_decode = scenarios.contains("perf.kernel.alp_codec_decode");
+
+        // Assert
+        assert!(has_encode);
+        assert!(has_decode);
+    }
+
     fn tier1_row_case(
         fixture_class: performance_benchmarks::FixtureClass,
         fixture_rows: usize,
@@ -1977,15 +2009,14 @@ mod benchmark_harness_contract {
         assert!(preflight_uses_shared_params);
     }
 }
-
 // Formerly tests/benchmark_kernels.rs.
 mod benchmark_kernels {
+    use super::workloads;
+
     use cassie::benchmark::{
         ExecutorKernel, PgwireParameterBindingKernel, RowCodecKernel, RowKeyKernel,
     };
     use cassie::types::Value;
-
-    use super::workloads;
 
     #[test]
     fn should_prepare_registered_hotpath_fixtures_given_closed_workload_names() {
@@ -2180,6 +2211,22 @@ mod benchmark_kernels {
 
         // Assert
         assert_eq!(required, [true, true, true]);
+    }
+
+    #[test]
+    fn should_bound_durable_fixture_document_write_batches() {
+        // Arrange
+        let dataset_rows = 100_001;
+
+        // Act
+        let batch_sizes = workloads::bench_document_write_batch_ranges(dataset_rows)
+            .map(|range| range.len())
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
+        assert_eq!(batch_sizes.len(), 21);
+        assert!(batch_sizes.iter().all(|size| *size <= 5_000));
     }
 
     #[test]
@@ -2442,9 +2489,9 @@ mod benchmark_kernels {
             "hybrid candidate count {candidates} exceeded {EXPECTED_CANDIDATE_BOUND}"
         );
         assert!(
-        candidate_row_fetches <= expected_candidate_bound,
-        "hybrid candidate row fetches {candidate_row_fetches} exceeded {EXPECTED_CANDIDATE_BOUND}"
-    );
+            candidate_row_fetches <= expected_candidate_bound,
+            "hybrid candidate row fetches {candidate_row_fetches} exceeded {EXPECTED_CANDIDATE_BOUND}"
+        );
         assert_eq!(
             after["hybrid"]["prefilter_fallback_count_total"].as_u64(),
             before["hybrid"]["prefilter_fallback_count_total"].as_u64()
@@ -2588,10 +2635,10 @@ mod benchmark_kernels {
 
         // Act
         let result = context.cassie.execute_sql(
-        &context.session,
-        "SELECT bench_join_users.name FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 1",
-        vec![],
-    );
+            &context.session,
+            "SELECT bench_join_users.name FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 1",
+            vec![],
+        );
 
         // Assert
         assert!(
@@ -2600,7 +2647,6 @@ mod benchmark_kernels {
         );
     }
 }
-
 // Formerly tests/operational_smoke.rs.
 mod operational_smoke {
     #![cfg(unix)]
@@ -3073,8 +3119,7 @@ mod operational_smoke {
     }
 }
 
-// Formerly tests/performance_benchmarks.rs. The `_tests` suffix avoids
-// colliding with the benchmark support module's crate-root contract.
+// Formerly tests/performance_benchmarks.rs.
 mod performance_benchmarks_tests {
     use super::performance_benchmarks;
 
@@ -3112,31 +3157,31 @@ mod performance_benchmarks_tests {
             metrics_evidence: "query.latency_ms_total",
         };
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v1",
-        "summaries": [{
-            "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k",
-            "primary_metric": "throughput",
-            "stats": {
-                "mean": 500000.0,
-                "p50": 490000.0,
-                "p95": 505000.0,
-                "p99": 510000.0
-            },
-            "ns_per_op": {
-                "mean": 2000.0,
-                "p50": 2000.0,
-                "p95": 3000.0,
-                "p99": 3000.0
-            },
-            "metadata": {
-                "scenario_id": "test.scenario",
-                "family": "core_read",
-                "benchmark": "tier3_system_query",
-                "workload": "mixed_order_scalar_query",
-                "fixture_scale": "100k"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v1",
+            "summaries": [{
+                "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k",
+                "primary_metric": "throughput",
+                "stats": {
+                    "mean": 500000.0,
+                    "p50": 490000.0,
+                    "p95": 505000.0,
+                    "p99": 510000.0
+                },
+                "ns_per_op": {
+                    "mean": 2000.0,
+                    "p50": 2000.0,
+                    "p95": 3000.0,
+                    "p99": 3000.0
+                },
+                "metadata": {
+                    "scenario_id": "test.scenario",
+                    "family": "core_read",
+                    "benchmark": "tier3_system_query",
+                    "workload": "mixed_order_scalar_query",
+                    "fixture_scale": "100k"
+                }
+            }]
+        }"#;
 
         // Act
         let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
@@ -3157,9 +3202,9 @@ mod performance_benchmarks_tests {
             benchmark_for_benchmark("tier3_system_query", "mixed_order_scalar_query", "100k")
                 .expect("query benchmark");
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v999",
-        "summaries": []
-    }"#;
+            "schema_version": "cntryl-stress.v999",
+            "summaries": []
+        }"#;
 
         // Act
         let error = summarize_stress_artifact(benchmark, artifact).expect_err("schema error");
@@ -3193,37 +3238,37 @@ mod performance_benchmarks_tests {
             metrics_evidence: "query.latency_ms_total",
         };
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v2",
-        "summaries": [{
-            "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k/mixed_order_scalar_query/100k",
-            "name": "mixed_order_scalar_query/100k",
-            "tier": 3,
-            "intent": "batch",
-            "primary_metric": "throughput",
-            "stats": {
-                "mean": 500000.0,
-                "p50": 490000.0,
-                "p95": 505000.0,
-                "p99": 510000.0
-            },
-            "ns_per_op": {
-                "mean": 2000.0,
-                "p50": 2000.0,
-                "p95": 3000.0,
-                "p99": 3000.0
-            },
-            "diagnostics": [],
-            "metadata": {
-                "scenario_id": "test.scenario",
-                "family": "core_read",
-                "benchmark": "tier3_system_query",
-                "workload": "mixed_order_scalar_query",
-                "fixture_scale": "100k",
-                "operation_unit": "query",
-                "logical_operations_per_iteration": "64"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v2",
+            "summaries": [{
+                "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k/mixed_order_scalar_query/100k",
+                "name": "mixed_order_scalar_query/100k",
+                "tier": 3,
+                "intent": "batch",
+                "primary_metric": "throughput",
+                "stats": {
+                    "mean": 500000.0,
+                    "p50": 490000.0,
+                    "p95": 505000.0,
+                    "p99": 510000.0
+                },
+                "ns_per_op": {
+                    "mean": 2000.0,
+                    "p50": 2000.0,
+                    "p95": 3000.0,
+                    "p99": 3000.0
+                },
+                "diagnostics": [],
+                "metadata": {
+                    "scenario_id": "test.scenario",
+                    "family": "core_read",
+                    "benchmark": "tier3_system_query",
+                    "workload": "mixed_order_scalar_query",
+                    "fixture_scale": "100k",
+                    "operation_unit": "query",
+                    "logical_operations_per_iteration": "64"
+                }
+            }]
+        }"#;
 
         // Act
         let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
@@ -3240,28 +3285,28 @@ mod performance_benchmarks_tests {
     fn should_normalize_nullable_stress_diagnostics() {
         // Arrange
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v2",
-        "diagnostics_summary": null,
-        "summaries": [{
-            "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
-            "name": "sql_parser/10k",
-            "tier": 2,
-            "intent": "batch",
-            "primary_metric": "throughput",
-            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "diagnostics": null,
-            "metadata": {
-                "scenario_id": "perf.sql.parser.10k",
-                "family": "core_read",
-                "benchmark": "tier2_subsystem_parser",
-                "workload": "sql_parser",
-                "fixture_scale": "10k",
-                "operation_unit": "sql_statement",
-                "logical_operations_per_iteration": "256"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v2",
+            "diagnostics_summary": null,
+            "summaries": [{
+                "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
+                "name": "sql_parser/10k",
+                "tier": 2,
+                "intent": "batch",
+                "primary_metric": "throughput",
+                "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "diagnostics": null,
+                "metadata": {
+                    "scenario_id": "perf.sql.parser.10k",
+                    "family": "core_read",
+                    "benchmark": "tier2_subsystem_parser",
+                    "workload": "sql_parser",
+                    "fixture_scale": "10k",
+                    "operation_unit": "sql_statement",
+                    "logical_operations_per_iteration": "256"
+                }
+            }]
+        }"#;
 
         // Act
         let rows = summarize_stress_artifact_rows(artifact).expect("stress rows");
@@ -3904,25 +3949,25 @@ mod performance_benchmarks_tests {
     fn should_reject_tier2_to_tier4_optimization_rows_without_required_metadata() {
         // Arrange
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v2",
-        "summaries": [{
-            "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
-            "name": "sql_parser/10k",
-            "tier": 2,
-            "intent": "batch",
-            "primary_metric": "throughput",
-            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "diagnostics": [],
-            "metadata": {
-                "scenario_id": "perf.sql.parser.10k",
-                "family": "core_read",
-                "benchmark": "tier2_subsystem_parser",
-                "workload": "sql_parser",
-                "fixture_scale": "10k"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v2",
+            "summaries": [{
+                "benchmark_id": "tier2_subsystem_parser/sql_parser/10k/sql_parser/10k",
+                "name": "sql_parser/10k",
+                "tier": 2,
+                "intent": "batch",
+                "primary_metric": "throughput",
+                "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "diagnostics": [],
+                "metadata": {
+                    "scenario_id": "perf.sql.parser.10k",
+                    "family": "core_read",
+                    "benchmark": "tier2_subsystem_parser",
+                    "workload": "sql_parser",
+                    "fixture_scale": "10k"
+                }
+            }]
+        }"#;
 
         // Act
         let error = validate_stress_artifact_signal_metadata(artifact).expect_err("metadata error");
@@ -3936,24 +3981,24 @@ mod performance_benchmarks_tests {
     fn should_exclude_informational_rows_from_optimization_metadata_requirements() {
         // Arrange
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v2",
-        "summaries": [{
-            "benchmark_id": "tier4_integration_pgwire/connection_churn/10k/connection_churn/10k",
-            "name": "connection_churn/10k",
-            "tier": 4,
-            "intent": "external",
-            "primary_metric": "throughput",
-            "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
-            "diagnostics": [{ "code": "high_variance", "severity": "warning" }],
-            "metadata": {
-                "benchmark": "tier4_integration_pgwire",
-                "workload": "connection_churn",
-                "fixture_scale": "10k",
-                "signal_role": "informational"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v2",
+            "summaries": [{
+                "benchmark_id": "tier4_integration_pgwire/connection_churn/10k/connection_churn/10k",
+                "name": "connection_churn/10k",
+                "tier": 4,
+                "intent": "external",
+                "primary_metric": "throughput",
+                "stats": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "ns_per_op": { "mean": 1000.0, "p50": 1000.0, "p95": 1000.0, "p99": 1000.0 },
+                "diagnostics": [{ "code": "high_variance", "severity": "warning" }],
+                "metadata": {
+                    "benchmark": "tier4_integration_pgwire",
+                    "workload": "connection_churn",
+                    "fixture_scale": "10k",
+                    "signal_role": "informational"
+                }
+            }]
+        }"#;
 
         // Act
         let rows = summarize_stress_artifact_rows(artifact).expect("stress rows");
@@ -3990,31 +4035,31 @@ mod performance_benchmarks_tests {
             metrics_evidence: "query.latency_ms_total",
         };
         let artifact = r#"{
-        "schema_version": "cntryl-stress.v1",
-        "summaries": [{
-            "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k",
-            "primary_metric": "throughput",
-            "stats": {
-                "mean": 500000.0,
-                "p50": 490000.0,
-                "p95": 505000.0,
-                "p99": 510000.0
-            },
-            "ns_per_op": {
-                "mean": 2000.0,
-                "p50": 2000.0,
-                "p95": 3000.0,
-                "p99": 3000.0
-            },
-            "metadata": {
-                "scenario_id": "test.scenario",
-                "family": "core_read",
-                "benchmark": "tier3_system_query",
-                "workload": "mixed_order_scalar_query",
-                "fixture_scale": "100k"
-            }
-        }]
-    }"#;
+            "schema_version": "cntryl-stress.v1",
+            "summaries": [{
+                "benchmark_id": "tier3_system_query/mixed_order_scalar_query/100k",
+                "primary_metric": "throughput",
+                "stats": {
+                    "mean": 500000.0,
+                    "p50": 490000.0,
+                    "p95": 505000.0,
+                    "p99": 510000.0
+                },
+                "ns_per_op": {
+                    "mean": 2000.0,
+                    "p50": 2000.0,
+                    "p95": 3000.0,
+                    "p99": 3000.0
+                },
+                "metadata": {
+                    "scenario_id": "test.scenario",
+                    "family": "core_read",
+                    "benchmark": "tier3_system_query",
+                    "workload": "mixed_order_scalar_query",
+                    "fixture_scale": "100k"
+                }
+            }]
+        }"#;
 
         // Act
         let summary = summarize_stress_artifact(&benchmark, artifact).expect("stress summary");
@@ -4166,7 +4211,7 @@ mod performance_benchmarks_tests {
         let harness = include_str!("../benches/support/stress.rs");
 
         // Act
-        let selects_disk = harness.contains("profile.storage_mode == \"midge_disk_apfs\"");
+        let selects_disk = harness.contains("\"midge_disk_apfs\" | \"midge_disk_native_linux\"");
         let configures_local_storage =
             harness.contains("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")");
 
@@ -4175,7 +4220,6 @@ mod performance_benchmarks_tests {
         assert!(configures_local_storage);
     }
 }
-
 // Formerly tests/poc_quickstart.rs.
 mod poc_quickstart {
     use cassie::app::Cassie;
@@ -4259,5 +4303,136 @@ mod poc_quickstart {
         );
 
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// Formerly tests/benchmark_column_metric_contract.rs.
+mod benchmark_column_metric_contract {
+    #[test]
+    fn should_validate_direct_aggregate_metrics_without_requiring_row_scan_counters() {
+        // Arrange
+        let source = include_str!("../benches/tier3_system_query.rs");
+        let start = source
+            .find("fn bench_column_representative")
+            .expect("column benchmark function");
+        let end = source[start..]
+            .find("fn bench_vector_exact_representative")
+            .map(|offset| start + offset)
+            .expect("next benchmark function");
+        let column_benchmark = &source[start..end];
+
+        // Act
+        let validates_direct_scan = column_benchmark.contains(
+            "assert_metric_increased(&before, &after, \"aggregate_acceleration\", \"scans\")",
+        );
+        let validates_selected_rows = column_benchmark.contains(
+            "assert_metric_increased(&before, &after, \"column_batches\", \"selected_rows\")",
+        );
+        let requires_projected_scan = [
+            "\"scans\"",
+            "\"predicate_values\"",
+            "\"materialized_values\"",
+        ]
+        .into_iter()
+        .any(|metric| {
+            column_benchmark.contains(&format!(
+                "assert_metric_increased(&before, &after, \"column_batches\", {metric})"
+            ))
+        });
+
+        // Assert
+        assert!(validates_direct_scan);
+        assert!(validates_selected_rows);
+        assert!(!requires_projected_scan);
+    }
+}
+
+// Formerly tests/benchmark_deployment_profile_contract.rs.
+mod benchmark_deployment_profile_contract {
+    const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
+
+    #[test]
+    fn should_register_the_workflow_native_linux_profile() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let documentation = include_str!("../docs/deployment-profiles.md");
+        let profiles = include_str!("../benches/support/performance_benchmark_profiles.rs");
+
+        // Act
+        let workflow_accepts_a_profile = workflow.contains("deployment_profile:");
+        let documented = documentation.contains(NATIVE_LINUX_PROFILE_ID);
+        let registered = profiles.contains(NATIVE_LINUX_PROFILE_ID);
+
+        // Assert
+        assert!(workflow_accepts_a_profile);
+        assert!(documented);
+        assert!(registered);
+        assert!(profiles.contains("storage_mode: \"midge_disk_native_linux\""));
+    }
+
+    #[test]
+    fn should_select_local_storage_for_native_linux_disk_evidence() {
+        // Arrange
+        let harness = include_str!("../benches/support/stress.rs");
+        let workload_context = include_str!("../benches/support/workloads/context.rs");
+
+        // Act
+        let recognizes_native_linux_disk = harness.contains("\"midge_disk_native_linux\"");
+        let configures_local_storage =
+            harness.contains("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")");
+        let preserves_profile_storage =
+            workload_context.contains("var_os(\"CASSIE_BENCH_DEPLOYMENT_PROFILE_ID\").is_none()");
+
+        // Assert
+        assert!(recognizes_native_linux_disk);
+        assert!(configures_local_storage);
+        assert!(preserves_profile_storage);
+    }
+}
+
+// Formerly tests/benchmark_tier3_join_contract.rs.
+mod benchmark_tier3_join_contract {
+    #[test]
+    fn should_bound_tier3_analytical_queries_beyond_the_product_default_deadline() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+
+        // Act
+        let uses_analytical_timeout = fixture.contains(
+            "config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;",
+        );
+
+        // Assert
+        assert!(uses_analytical_timeout);
+    }
+
+    #[test]
+    fn should_index_the_bounded_tier3_join_fixture() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+
+        // Act
+        let creates_join_index = fixture
+            .contains("CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)");
+
+        // Assert
+        assert!(creates_join_index);
+    }
+}
+
+// Formerly tests/benchmark_trust_contract.rs.
+mod benchmark_trust_contract {
+    #[test]
+    fn should_not_enforce_relative_thresholds_from_untrusted_rows() {
+        // Arrange
+        let gates = include_str!("../benches/support/stress_relative_gates.rs");
+
+        // Act
+        let checks_candidate_trust = gates.contains("!candidate.is_gate()");
+        let checks_baseline_trust = gates.contains("!baseline.is_gate()");
+
+        // Assert
+        assert!(checks_candidate_trust);
+        assert!(checks_baseline_trust);
     }
 }

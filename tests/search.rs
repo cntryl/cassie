@@ -670,6 +670,8 @@ mod fulltext_persisted_retrieval {
 
 // Formerly tests/fulltext_persisted_sql.rs.
 mod fulltext_persisted_sql {
+    use super::support_sql as support;
+
     use cassie::app::{Cassie, CassieError};
     use cassie::config::CassieRuntimeConfig;
     use cassie::runtime::QueryCancellationHandle;
@@ -677,8 +679,58 @@ mod fulltext_persisted_sql {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use super::support_sql as support;
     use support::*;
+
+    #[test]
+    fn should_score_case_sensitive_terms_from_persisted_fulltext_index() {
+        // Arrange
+        use_local_storage();
+        std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+        let path = data_dir("persisted_case_sensitive_fulltext");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE persisted_case_docs (body TEXT)",
+                vec![],
+            )
+            .expect("create case-sensitive search table");
+        for body in ["The Rust compiler is fast", "a rust tool"] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO persisted_case_docs (body) VALUES ($1)",
+                    vec![Value::String(body.to_string())],
+                )
+                .expect("insert case-sensitive search row");
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_case_body_idx ON persisted_case_docs USING fulltext (body) WITH (case_folding = 'false')",
+                vec![],
+            )
+            .expect("create case-sensitive fulltext index");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT body, search_score(body, 'Rust') AS score FROM persisted_case_docs WHERE search(body, 'Rust')",
+                vec![],
+            )
+            .expect("query exact-case persisted term");
+
+        // Assert
+        assert_eq!(result.rows.len(), 1);
+        assert_eq!(
+            result.rows[0][0],
+            Value::String("The Rust compiler is fast".to_string())
+        );
+        assert!(matches!(result.rows[0][1], Value::Float64(score) if score > 0.0));
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     #[test]
     fn should_read_persisted_postings_before_fetching_candidate_rows() {
@@ -712,22 +764,22 @@ mod fulltext_persisted_sql {
                 .expect("insert search row");
         }
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_search_body_idx ON persisted_search_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create fulltext index");
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_search_body_idx ON persisted_search_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create fulltext index");
         let before = cassie.metrics();
 
         // Act
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, title, snippet(body, $1) AS excerpt, search_score(body, $1) AS score FROM persisted_search_docs WHERE search(body, $1) LIMIT 1",
-            vec![Value::String("alpha".to_string())],
-        )
-        .expect("query persisted postings");
+            .execute_sql(
+                &session,
+                "SELECT id, title, snippet(body, $1) AS excerpt, search_score(body, $1) AS score FROM persisted_search_docs WHERE search(body, $1) LIMIT 1",
+                vec![Value::String("alpha".to_string())],
+            )
+            .expect("query persisted postings");
         let after = cassie.metrics();
 
         // Assert
@@ -787,12 +839,12 @@ mod fulltext_persisted_sql {
             .execute_sql(&session, sql, query_params())
             .expect("execute row baseline");
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_score_body_idx ON persisted_score_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create score index");
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_score_body_idx ON persisted_score_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create score index");
         let before = cassie.metrics();
 
         // Act
@@ -846,12 +898,12 @@ mod fulltext_persisted_sql {
                 .expect("insert filtered row");
         }
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_filter_body_idx ON persisted_filter_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create filtered index");
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_filter_body_idx ON persisted_filter_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create filtered index");
         cassie
             .execute_sql(
                 &session,
@@ -863,15 +915,15 @@ mod fulltext_persisted_sql {
 
         // Act
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, category, search_score(body, $1) AS score FROM persisted_filter_docs WHERE search(body, $1) AND category = $2",
-            vec![
-                Value::String("alpha".to_string()),
-                Value::String("keep".to_string()),
-            ],
-        )
-        .expect("query filtered postings");
+            .execute_sql(
+                &session,
+                "SELECT id, category, search_score(body, $1) AS score FROM persisted_filter_docs WHERE search(body, $1) AND category = $2",
+                vec![
+                    Value::String("alpha".to_string()),
+                    Value::String("keep".to_string()),
+                ],
+            )
+            .expect("query filtered postings");
         let after = cassie.metrics();
 
         // Assert
@@ -957,12 +1009,12 @@ mod fulltext_persisted_sql {
 
         // Act
         let result = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, title, search_score(body, $1) AS score FROM persisted_tx_docs WHERE search(body, $1)",
-            vec![Value::String("alpha".to_string())],
-        )
-        .expect("query transaction overlay");
+            .execute_sql(
+                &session,
+                "SELECT id, title, search_score(body, $1) AS score FROM persisted_tx_docs WHERE search(body, $1)",
+                vec![Value::String("alpha".to_string())],
+            )
+            .expect("query transaction overlay");
         let after = cassie.metrics();
 
         // Assert
@@ -1014,21 +1066,21 @@ mod fulltext_persisted_sql {
                 .expect("insert memory row");
         }
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_memory_body_idx ON persisted_memory_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create memory index");
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_memory_body_idx ON persisted_memory_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create memory index");
 
         // Act
         let error = cassie
-        .execute_sql(
-            &session,
-            "SELECT id, search_score(body, $1) AS score FROM persisted_memory_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 5",
-            vec![Value::String("alpha".to_string())],
-        )
-        .expect_err("candidate statistics should exceed memory budget");
+            .execute_sql(
+                &session,
+                "SELECT id, search_score(body, $1) AS score FROM persisted_memory_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 5",
+                vec![Value::String("alpha".to_string())],
+            )
+            .expect_err("candidate statistics should exceed memory budget");
 
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)));
@@ -1063,23 +1115,23 @@ mod fulltext_persisted_sql {
             .put_fresh_documents("persisted_cancel_docs", rows)
             .expect("seed cancellation rows");
         cassie
-        .execute_sql(
-            &session,
-            "CREATE INDEX persisted_cancel_body_idx ON persisted_cancel_docs USING fulltext (body)",
-            vec![],
-        )
-        .expect("create cancellation index");
+            .execute_sql(
+                &session,
+                "CREATE INDEX persisted_cancel_body_idx ON persisted_cancel_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create cancellation index");
         let cancellation = QueryCancellationHandle::new();
         let query_cancellation = cancellation.clone();
         let query_cassie = Arc::clone(&cassie);
         let query = std::thread::spawn(move || {
             let session = query_cassie.create_session("tester", None);
             query_cassie.execute_sql_with_cancellation(
-            &session,
-            "SELECT id, search_score(body, $1) AS score FROM persisted_cancel_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 20",
-            vec![Value::String("alpha beta".to_string())],
-            &query_cancellation,
-        )
+                &session,
+                "SELECT id, search_score(body, $1) AS score FROM persisted_cancel_docs WHERE search(body, $1) ORDER BY score DESC LIMIT 20",
+                vec![Value::String("alpha beta".to_string())],
+                &query_cancellation,
+            )
         });
         std::thread::sleep(Duration::from_millis(10));
 
@@ -1096,7 +1148,6 @@ mod fulltext_persisted_sql {
         let _ = std::fs::remove_dir_all(path);
     }
 }
-
 // Formerly tests/fulltext_publication_recovery.rs.
 mod fulltext_publication_recovery {
     use cassie::app::Cassie;

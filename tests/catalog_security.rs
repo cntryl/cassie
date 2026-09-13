@@ -624,41 +624,41 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(
-            &path,
-            cassie::config::CassieRuntimeConfig {
-                ..cassie::config::CassieRuntimeConfig::default()
-            },
-        )
-        .unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_tables_docs (title TEXT)",
-                vec![],
-            )
-
-.unwrap();
-
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_tables_docs'",
-                vec![],
+            let cassie = Cassie::new_with_data_dir_and_config(
+                &path,
+                cassie::config::CassieRuntimeConfig {
+                    ..cassie::config::CassieRuntimeConfig::default()
+                },
             )
             .unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_tables_docs (title TEXT)",
+                    vec![],
+                )
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![Value::String("catalog_tables_docs".to_string())]]
-        );
+    .unwrap();
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_tables_docs'",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![Value::String("catalog_tables_docs".to_string())]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -672,56 +672,134 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(
-            &path,
-            cassie::config::CassieRuntimeConfig {
-                ..cassie::config::CassieRuntimeConfig::default()
-            },
-        )
-        .unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_columns_docs (title TEXT, score INT)",
-                vec![],
+            let cassie = Cassie::new_with_data_dir_and_config(
+                &path,
+                cassie::config::CassieRuntimeConfig {
+                    ..cassie::config::CassieRuntimeConfig::default()
+                },
             )
+            .unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_columns_docs (title TEXT, score INT)",
+                    vec![],
+                )
 
-.unwrap();
-        drop(cassie);
+    .unwrap();
+            drop(cassie);
 
-        let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().unwrap();
-        let session = restarted.create_session("tester", None);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let session = restarted.create_session("tester", None);
 
-        // Act
-        let selected = restarted
-            .execute_sql(
-                &session,
-                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'catalog_columns_docs' ORDER BY ordinal_position",
-                vec![],
-            )
+            // Act
+            let selected = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'catalog_columns_docs' ORDER BY ordinal_position",
+                    vec![],
+                )
 
-.unwrap();
+    .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![
+            // Assert
+            assert_eq!(
+                selected.rows,
                 vec![
-                    Value::String("title".to_string()),
-                    Value::String("text".to_string())
-                ],
-                vec![
-                    Value::String("score".to_string()),
-                    Value::String("int".to_string())
+                    vec![
+                        Value::String("title".to_string()),
+                        Value::String("text".to_string())
+                    ],
+                    vec![
+                        Value::String("score".to_string()),
+                        Value::String("int".to_string())
+                    ]
                 ]
-            ]
-        );
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reflect_table_rename_drop_lifecycle_after_restart() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("stable_catalog_lifecycle");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_lifecycle_before (title TEXT)",
+                    vec![],
+                )
+                .expect("create lifecycle table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "ALTER TABLE catalog_lifecycle_before RENAME TO catalog_lifecycle_after",
+                    vec![],
+                )
+                .expect("rename lifecycle table");
+            drop(cassie);
+
+            let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+            restarted.startup().expect("restart Cassie");
+            let session = restarted.create_session("tester", None);
+
+            // Act
+            let renamed = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT table_name FROM information_schema.tables WHERE table_name IN ('catalog_lifecycle_before', 'catalog_lifecycle_after') ORDER BY table_name",
+                    vec![],
+                )
+                .expect("query renamed table metadata");
+            let columns = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT table_name, column_name FROM information_schema.columns WHERE table_name = 'catalog_lifecycle_after' ORDER BY ordinal_position",
+                    vec![],
+                )
+                .expect("query renamed column metadata");
+            restarted
+                .execute_sql(&session, "DROP TABLE catalog_lifecycle_after", vec![])
+                .expect("drop lifecycle table");
+            let dropped = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT table_name FROM information_schema.tables WHERE table_name = 'catalog_lifecycle_after'",
+                    vec![],
+                )
+                .expect("query dropped table metadata");
+
+            // Assert
+            assert_eq!(
+                renamed.rows,
+                vec![vec![Value::String("catalog_lifecycle_after".to_string())]]
+            );
+            assert_eq!(
+                columns.rows,
+                vec![vec![
+                    Value::String("catalog_lifecycle_after".to_string()),
+                    Value::String("title".to_string()),
+                ]]
+            );
+            assert!(dropped.rows.is_empty());
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -735,42 +813,42 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_index_docs (email TEXT)",
-                vec![],
-            )
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_index_docs (email TEXT)",
+                    vec![],
+                )
 
-.unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE UNIQUE INDEX catalog_email_idx ON catalog_index_docs USING btree (email)",
-                vec![],
-            )
-            .unwrap();
+    .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE UNIQUE INDEX catalog_email_idx ON catalog_index_docs USING btree (email)",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_index_docs'",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_index_docs'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![Value::String("catalog_email_idx".to_string())]]
-        );
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![Value::String("catalog_email_idx".to_string())]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -784,42 +862,42 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_primary_key_docs (id INT PRIMARY KEY, title TEXT)",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_primary_key_docs (id INT PRIMARY KEY, title TEXT)",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_primary_key_docs'",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_primary_key_docs'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(selected.rows.len(), 1);
-        assert_eq!(
-            selected.rows[0][0],
-            Value::String("catalog_primary_key_docs_pkey".to_string())
-        );
-        assert_eq!(
-            selected.rows[0][1],
-            Value::String(
-                "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON catalog_primary_key_docs (id)"
-                    .to_string()
-            )
-        );
+            // Assert
+            assert_eq!(selected.rows.len(), 1);
+            assert_eq!(
+                selected.rows[0][0],
+                Value::String("catalog_primary_key_docs_pkey".to_string())
+            );
+            assert_eq!(
+                selected.rows[0][1],
+                Value::String(
+                    "CREATE UNIQUE INDEX catalog_primary_key_docs_pkey ON catalog_primary_key_docs (id)"
+                        .to_string()
+                )
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -833,48 +911,48 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_composite_index_docs (title TEXT, score INT)",
-                vec![],
-            )
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_composite_index_docs (title TEXT, score INT)",
+                    vec![],
+                )
 
-.unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs USING btree (title, score)",
-                vec![],
-            )
-            .unwrap();
+    .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs USING btree (title, score)",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_composite_index_docs'",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT indexname, indexdef FROM pg_catalog.pg_indexes WHERE tablename = 'catalog_composite_index_docs'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![vec![
-                Value::String("catalog_title_score_idx".to_string()),
-                Value::String(
-                    "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs (title, score)"
-                        .to_string()
-                ),
-            ]]
-        );
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![
+                    Value::String("catalog_title_score_idx".to_string()),
+                    Value::String(
+                        "CREATE INDEX catalog_title_score_idx ON catalog_composite_index_docs (title, score)"
+                            .to_string()
+                    ),
+                ]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -888,68 +966,68 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let config = CassieRuntimeConfig {
-            ..CassieRuntimeConfig::default()
-        };
+            let config = CassieRuntimeConfig {
+                ..CassieRuntimeConfig::default()
+            };
 
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_column_store_docs (doc_id TEXT, title TEXT, score INT) WITH (storage = column_store)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO catalog_column_store_docs (doc_id, title, score) VALUES ('d1', 'alpha', 7)",
-                vec![],
-            )
-            .unwrap();
-        drop(cassie);
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_column_store_docs (doc_id TEXT, title TEXT, score INT) WITH (storage = column_store)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO catalog_column_store_docs (doc_id, title, score) VALUES ('d1', 'alpha', 7)",
+                    vec![],
+                )
+                .unwrap();
+            drop(cassie);
 
-        // Act
-        let restarted = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
-        restarted.startup().unwrap();
-        let session = restarted.create_session("tester", None);
-        let storage = restarted
-            .execute_sql(
-                &session,
-                "SELECT tablename, storage_mode, storage_version FROM pg_catalog.pg_table_storage WHERE tablename = 'catalog_column_store_docs'",
-                vec![],
-            )
-            .unwrap();
-        let selected = restarted
-            .execute_sql(
-                &session,
-                "SELECT doc_id, title, score FROM catalog_column_store_docs",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let restarted = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            restarted.startup().unwrap();
+            let session = restarted.create_session("tester", None);
+            let storage = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT tablename, storage_mode, storage_version FROM pg_catalog.pg_table_storage WHERE tablename = 'catalog_column_store_docs'",
+                    vec![],
+                )
+                .unwrap();
+            let selected = restarted
+                .execute_sql(
+                    &session,
+                    "SELECT doc_id, title, score FROM catalog_column_store_docs",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            storage.rows,
-            vec![vec![
-                Value::String("catalog_column_store_docs".to_string()),
-                Value::String("column-store".to_string()),
-                Value::Int64(1),
-            ]]
-        );
-        assert_eq!(
-            selected.rows,
-            vec![vec![
-                Value::String("d1".to_string()),
-                Value::String("alpha".to_string()),
-                Value::Int64(7),
-            ]]
-        );
+            // Assert
+            assert_eq!(
+                storage.rows,
+                vec![vec![
+                    Value::String("catalog_column_store_docs".to_string()),
+                    Value::String("column-store".to_string()),
+                    Value::Int64(1),
+                ]]
+            );
+            assert_eq!(
+                selected.rows,
+                vec![vec![
+                    Value::String("d1".to_string()),
+                    Value::String("alpha".to_string()),
+                    Value::Int64(7),
+                ]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1005,38 +1083,38 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_constraint_docs (email TEXT UNIQUE, score INT CHECK (score >= 0))",
-                vec![],
-            )
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_constraint_docs (email TEXT UNIQUE, score INT CHECK (score >= 0))",
+                    vec![],
+                )
 
-.unwrap();
+    .unwrap();
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_constraint_docs' ORDER BY constraint_type",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT constraint_type FROM information_schema.table_constraints WHERE table_name = 'catalog_constraint_docs' ORDER BY constraint_type",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![
-                vec![Value::String("CHECK".to_string())],
-                vec![Value::String("UNIQUE".to_string())]
-            ]
-        );
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![
+                    vec![Value::String("CHECK".to_string())],
+                    vec![Value::String("UNIQUE".to_string())]
+                ]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1077,89 +1155,89 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char(1)', 'varchar(8)', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
-                vec![],
-            )
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char(1)', 'varchar(8)', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
+                    vec![],
+                )
 
-.unwrap();
+    .unwrap();
 
-        // Assert
-        assert_eq!(
-            selected.rows,
-            vec![
+            // Assert
+            assert_eq!(
+                selected.rows,
                 vec![
-                    Value::String("bigint".to_string()),
-                    Value::Int64(DataType::BigInt.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("bytea".to_string()),
-                    Value::Int64(DataType::Bytea.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("bytea[]".to_string()),
-                    Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
-                    Value::Int64(DataType::Bytea.type_oid()),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("char(1)".to_string()),
-                    Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("int".to_string()),
-                    Value::Int64(DataType::Int.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("int[]".to_string()),
-                    Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
-                    Value::Int64(DataType::Int.type_oid()),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("smallint".to_string()),
-                    Value::Int64(DataType::SmallInt.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("text".to_string()),
-                    Value::Int64(DataType::Text.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("varchar(8)".to_string()),
-                    Value::Int64(DataType::Varchar { length: Some(8) }.type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-                vec![
-                    Value::String("vector(2)".to_string()),
-                    Value::Int64(DataType::Vector(2).type_oid()),
-                    Value::Int64(0),
-                    Value::String("pg_catalog".to_string())
-                ],
-            ]
-        );
+                    vec![
+                        Value::String("bigint".to_string()),
+                        Value::Int64(DataType::BigInt.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("bytea".to_string()),
+                        Value::Int64(DataType::Bytea.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("bytea[]".to_string()),
+                        Value::Int64(DataType::Array(Box::new(DataType::Bytea)).type_oid()),
+                        Value::Int64(DataType::Bytea.type_oid()),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("char(1)".to_string()),
+                        Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("int".to_string()),
+                        Value::Int64(DataType::Int.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("int[]".to_string()),
+                        Value::Int64(DataType::Array(Box::new(DataType::Int)).type_oid()),
+                        Value::Int64(DataType::Int.type_oid()),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("smallint".to_string()),
+                        Value::Int64(DataType::SmallInt.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("text".to_string()),
+                        Value::Int64(DataType::Text.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("varchar(8)".to_string()),
+                        Value::Int64(DataType::Varchar { length: Some(8) }.type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                    vec![
+                        Value::String("vector(2)".to_string()),
+                        Value::Int64(DataType::Vector(2).type_oid()),
+                        Value::Int64(0),
+                        Value::String("pg_catalog".to_string())
+                    ],
+                ]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1173,58 +1251,57 @@ mod catalog_introspection {
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE catalog_views_docs (title TEXT, score INT)",
-                vec![],
-            )
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE catalog_views_docs (title TEXT, score INT)",
+                    vec![],
+                )
 
-.unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE VIEW catalog_views_ready AS SELECT title, score FROM catalog_views_docs",
-                vec![],
-            )
-            .unwrap();
+    .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE VIEW catalog_views_ready AS SELECT title, score FROM catalog_views_docs",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let tables = cassie
-            .execute_sql(
-                &session,
-                "SELECT table_type FROM information_schema.tables WHERE table_name = 'catalog_views_ready'",
-                vec![],
-            )
-            .unwrap();
-        let views = cassie
-            .execute_sql(
-                &session,
-                "SELECT table_name FROM information_schema.views WHERE table_name = 'catalog_views_ready'",
-                vec![],
-            )
-            .unwrap();
-        let classes = cassie
-            .execute_sql(
-                &session,
-                "SELECT relkind FROM pg_catalog.pg_class WHERE relname = 'catalog_views_ready'",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let tables = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT table_type FROM information_schema.tables WHERE table_name = 'catalog_views_ready'",
+                    vec![],
+                )
+                .unwrap();
+            let views = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT table_name FROM information_schema.views WHERE table_name = 'catalog_views_ready'",
+                    vec![],
+                )
+                .unwrap();
+            let classes = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT relkind FROM pg_catalog.pg_class WHERE relname = 'catalog_views_ready'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(tables.rows, vec![vec![Value::String("VIEW".to_string())]]);
-        assert_eq!(views.rows, vec![vec![Value::String("catalog_views_ready".to_string())]]);
-        assert_eq!(classes.rows, vec![vec![Value::String("v".to_string())]]);
+            // Assert
+            assert_eq!(tables.rows, vec![vec![Value::String("VIEW".to_string())]]);
+            assert_eq!(views.rows, vec![vec![Value::String("catalog_views_ready".to_string())]]);
+            assert_eq!(classes.rows, vec![vec![Value::String("v".to_string())]]);
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
-
 // Formerly tests/catalog_introspection_foreign_keys.rs.
 mod catalog_introspection_foreign_keys {
     use cassie::app::{Cassie, CassieSession};
@@ -3488,10 +3565,10 @@ mod role_authorization {
 
 // Formerly tests/role_database_copy_boundaries.rs.
 mod role_database_copy_boundaries {
+    use super::support_pgwire as support;
+
     use cassie::app::Cassie;
     use tokio::io::AsyncWriteExt;
-
-    use super::support_pgwire as support;
 
     fn database_copy_error(test_name: &str, sql: &str) -> Vec<(char, String)> {
         support::use_local_storage();
@@ -3518,6 +3595,17 @@ mod role_database_copy_boundaries {
                 vec![],
             )
             .expect("grant scoped database access");
+        cassie
+            .execute_sql(
+                &admin,
+                "GRANT CONNECT ON DATABASE denied_copy TO image_reader",
+                vec![],
+            )
+            .expect("grant target database access");
+        assert!(cassie
+            .catalog
+            .get_role("image_reader")
+            .is_some_and(|role| role.can_access_database("denied_copy")));
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -3559,7 +3647,7 @@ mod role_database_copy_boundaries {
     }
 
     #[test]
-    fn should_reject_read_only_role_database_backup() {
+    fn should_reject_non_admin_database_backup_even_with_connect_grant() {
         // Arrange
         let sql = "BACKUP DATABASE denied_copy TO STDOUT";
 
@@ -3573,7 +3661,7 @@ mod role_database_copy_boundaries {
     }
 
     #[test]
-    fn should_reject_read_only_role_database_restore() {
+    fn should_reject_non_admin_database_restore_even_with_connect_grant() {
         // Arrange
         let sql = "RESTORE DATABASE denied_copy FROM STDIN";
 
@@ -3585,8 +3673,25 @@ mod role_database_copy_boundaries {
             .iter()
             .any(|(kind, value)| *kind == 'C' && value == "42501"));
     }
-}
 
+    #[test]
+    fn should_document_admin_only_database_image_authorization() {
+        // Arrange
+        let contract = include_str!("../docs/postgres-compatibility.md");
+
+        // Act
+        let authorization = contract
+            .split_once("## Database Image Authorization")
+            .map(|(_, section)| section)
+            .expect("database-image authorization contract");
+
+        // Assert
+        assert!(authorization.contains("admin-only"));
+        assert!(authorization.contains("GRANT CONNECT"));
+        assert!(authorization.contains("defense-in-depth"));
+        assert!(authorization.contains("not a regression"));
+    }
+}
 // Formerly tests/role_statement_boundaries.rs.
 mod role_statement_boundaries {
     use cassie::app::{Cassie, CassieError, CassieSession};
@@ -5220,10 +5325,11 @@ mod schema_scope_storage {
 
 // Formerly tests/session_settings.rs.
 mod session_settings {
+    use super::support_sql as support;
+
     use cassie::app::Cassie;
     use cassie::types::Value;
 
-    use super::support_sql as support;
     use support::*;
 
     fn cassie_and_session(label: &str) -> (Cassie, cassie::CassieSession, String) {
@@ -5287,10 +5393,10 @@ mod session_settings {
             .execute_sql(&session, "SET client_min_messages=notice", vec![])
             .expect("messages");
         let configured = cassie.execute_sql(
-        &session,
-        "SELECT set_config('bytea_output','hex',false) FROM pg_show_all_settings() WHERE name='bytea_output'",
-        vec![],
-    ).expect("bytea_output initialization");
+            &session,
+            "SELECT set_config('bytea_output','hex',false) FROM pg_show_all_settings() WHERE name='bytea_output'",
+            vec![],
+        ).expect("bytea_output initialization");
         cassie
             .execute_sql(&session, "SET client_encoding='UTF8'", vec![])
             .expect("encoding");
@@ -5303,6 +5409,20 @@ mod session_settings {
         assert_eq!(session.setting("datestyle").unwrap(), "ISO, MDY");
         assert_eq!(session.setting("client_min_messages").unwrap(), "notice");
         assert_eq!(session.setting("client_encoding").unwrap(), "UTF8");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_accept_postgres_set_time_zone_syntax() {
+        // Arrange
+        let (cassie, session, path) = cassie_and_session("set_time_zone");
+
+        // Act
+        let result = cassie.execute_sql(&session, "SET TIME ZONE 'UTC'", vec![]);
+
+        // Assert
+        result.expect("set PostgreSQL time zone syntax");
+        assert_eq!(session.setting("timezone").unwrap(), "UTC");
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -5349,7 +5469,6 @@ mod session_settings {
         let _ = std::fs::remove_dir_all(path);
     }
 }
-
 // Formerly tests/views.rs.
 mod views {
     use cassie::app::Cassie;
@@ -5600,5 +5719,287 @@ mod views {
 
             let _ = std::fs::remove_dir_all(path);
         });
+    }
+}
+
+// Formerly tests/catalog_support_contract.rs.
+mod catalog_support_contract {
+    #[test]
+    fn should_publish_the_stable_named_client_catalog_subset() {
+        // Arrange
+        let feature_support = include_str!("../docs/feature-support.md");
+        let catalog_contract = include_str!("../docs/catalog-support.md");
+        let readiness = include_str!("../docs/production-readiness.md");
+        let evidence = include_str!("../docs/promotion-evidence-matrix.md");
+
+        // Act
+        let named_clients = ["sqlx 0.8.3", "Diesel 2.2.6"];
+        let stable_views = ["information_schema.tables", "information_schema.columns"];
+
+        // Assert
+        for view in stable_views {
+            assert!(feature_support.contains(&format!("| `{view}` |")));
+            assert!(catalog_contract.contains(&format!("### `{view}`")));
+        }
+        for client in named_clients {
+            assert!(catalog_contract.contains(client));
+        }
+        assert!(catalog_contract.contains("explicit `ORDER BY`"));
+        assert!(catalog_contract.contains("SQLSTATE `42P01`"));
+        assert!(catalog_contract.contains("PostgreSQL-internal catalog parity is not claimed"));
+        assert!(readiness.contains("stable named-client catalog subset"));
+        assert!(evidence.contains("Named-client catalog subset promoted"));
+    }
+}
+
+// Formerly tests/schema_write_conflicts.rs.
+mod schema_write_conflicts {
+    use super::support_sql as support;
+
+    use std::sync::{Arc, Barrier};
+
+    use cassie::app::{Cassie, CassieError};
+    use cassie::midge::adapter::{
+        schema_write_conflict_test_guard, set_schema_write_commit_barriers, SchemaWritePausePoint,
+    };
+
+    #[test]
+    fn should_abort_one_conflicting_table_create_before_reusing_object_id() {
+        // Arrange
+        support::use_local_storage();
+        let _test_guard = schema_write_conflict_test_guard();
+        let path = support::data_dir("schema-write-conflicts");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+        cassie.startup().expect("start Cassie");
+        let ready = Arc::new(Barrier::new(3));
+        let resume = Arc::new(Barrier::new(3));
+        set_schema_write_commit_barriers(
+            Some(SchemaWritePausePoint::CollectionCreate),
+            Some(Arc::clone(&ready)),
+            Some(Arc::clone(&resume)),
+        );
+        let statements = [
+            (
+                "schema_conflict_alpha",
+                "CREATE TABLE schema_conflict_alpha (value TEXT)",
+            ),
+            (
+                "schema_conflict_beta",
+                "CREATE TABLE schema_conflict_beta (value TEXT)",
+            ),
+        ];
+        let workers = statements.map(|(table, sql)| {
+            let worker_cassie = Arc::clone(&cassie);
+            std::thread::spawn(move || {
+                let session = worker_cassie.create_session("tester", None);
+                (table, sql, worker_cassie.execute_sql(&session, sql, vec![]))
+            })
+        });
+        ready.wait();
+        set_schema_write_commit_barriers(None, None, None);
+
+        // Act
+        resume.wait();
+        let outcomes = workers.map(|worker| worker.join().expect("join schema worker"));
+        let mut successes = 0_usize;
+        let mut retryable_conflicts = 0_usize;
+        let mut losing_statement = None;
+        for (_, sql, result) in outcomes {
+            match result {
+                Ok(_) => successes += 1,
+                Err(CassieError::StorageRetryable(message))
+                    if message
+                        .to_ascii_lowercase()
+                        .starts_with("midge write conflict") =>
+                {
+                    retryable_conflicts += 1;
+                    losing_statement = Some(sql);
+                }
+                Err(error) => panic!("unexpected schema creation error: {error}"),
+            }
+        }
+        assert_eq!(successes, 1, "exactly one conflicting DDL should commit");
+        assert_eq!(
+            retryable_conflicts, 1,
+            "exactly one conflicting DDL should abort"
+        );
+        let retry_session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &retry_session,
+                losing_statement.expect("one losing schema statement"),
+                vec![],
+            )
+            .expect("retry conflicting schema statement");
+        let object_ids = statements.map(|(table, _)| {
+            cassie
+                .midge
+                .collection_metadata(table)
+                .expect("read collection metadata")
+                .expect("created collection metadata")
+                .storage_id
+        });
+
+        // Assert
+        assert!(object_ids.iter().all(|object_id| *object_id > 0));
+        assert_ne!(object_ids[0], object_ids[1]);
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_abort_one_conflicting_nextval_before_returning_a_duplicate_value() {
+        // Arrange
+        support::use_local_storage();
+        let _test_guard = schema_write_conflict_test_guard();
+        let path = support::data_dir("sequence-write-conflicts");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+        cassie.startup().expect("start Cassie");
+        let setup_session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &setup_session,
+                "CREATE SEQUENCE sequence_conflict_ids",
+                vec![],
+            )
+            .expect("create sequence");
+        let ready = Arc::new(Barrier::new(3));
+        let resume = Arc::new(Barrier::new(3));
+        set_schema_write_commit_barriers(
+            Some(SchemaWritePausePoint::SequenceNextValue),
+            Some(Arc::clone(&ready)),
+            Some(Arc::clone(&resume)),
+        );
+        let workers = [(), ()].map(|()| {
+            let worker_cassie = Arc::clone(&cassie);
+            std::thread::spawn(move || {
+                worker_cassie
+                    .midge
+                    .next_sequence_value("sequence_conflict_ids")
+            })
+        });
+        ready.wait();
+        set_schema_write_commit_barriers(None, None, None);
+
+        // Act
+        resume.wait();
+        let outcomes = workers.map(|worker| worker.join().expect("join sequence worker"));
+        let mut returned_ids = Vec::new();
+        let mut retryable_conflicts = 0_usize;
+        for result in outcomes {
+            match result {
+                Ok(value) => returned_ids.push(value),
+                Err(CassieError::StorageRetryable(message))
+                    if message
+                        .to_ascii_lowercase()
+                        .starts_with("midge write conflict") =>
+                {
+                    retryable_conflicts += 1;
+                }
+                Err(error) => panic!("unexpected sequence error: {error}"),
+            }
+        }
+        assert_eq!(returned_ids.len(), 1, "one nextval call should commit");
+        assert_eq!(retryable_conflicts, 1, "one nextval call should abort");
+        returned_ids.push(
+            cassie
+                .midge
+                .next_sequence_value("sequence_conflict_ids")
+                .expect("retry nextval"),
+        );
+
+        // Assert
+        returned_ids.sort_unstable();
+        assert_eq!(returned_ids, vec![1, 2]);
+        let stored = cassie
+            .midge
+            .get_sequence("sequence_conflict_ids")
+            .expect("read sequence")
+            .expect("stored sequence");
+        assert_eq!(stored.current_value, 2);
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_preserve_concurrent_database_creates_across_retry_restart() {
+        // Arrange
+        support::use_local_storage();
+        let _test_guard = schema_write_conflict_test_guard();
+        let path = support::data_dir("database-write-conflicts");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+        cassie.startup().expect("start Cassie");
+        let ready = Arc::new(Barrier::new(3));
+        let resume = Arc::new(Barrier::new(3));
+        set_schema_write_commit_barriers(
+            Some(SchemaWritePausePoint::DatabaseCreateFinalize),
+            Some(Arc::clone(&ready)),
+            Some(Arc::clone(&resume)),
+        );
+        let workers = ["database_conflict_alpha", "database_conflict_beta"].map(|database| {
+            let worker_cassie = Arc::clone(&cassie);
+            std::thread::spawn(move || {
+                (
+                    database,
+                    worker_cassie.midge.create_database(database, None),
+                )
+            })
+        });
+        ready.wait();
+        set_schema_write_commit_barriers(None, None, None);
+
+        // Act
+        resume.wait();
+        let outcomes = workers.map(|worker| worker.join().expect("join database worker"));
+        let mut successes = 0_usize;
+        let mut losing_database = None;
+        for (database, result) in outcomes {
+            match result {
+                Ok(()) => successes += 1,
+                Err(CassieError::StorageRetryable(message))
+                    if message
+                        .to_ascii_lowercase()
+                        .starts_with("midge write conflict") =>
+                {
+                    losing_database = Some(database);
+                }
+                Err(error) => panic!("unexpected database creation error: {error}"),
+            }
+        }
+        assert_eq!(successes, 1, "one database creation should commit");
+        cassie
+            .midge
+            .create_database(losing_database.expect("one losing database creation"), None)
+            .expect("retry database creation");
+        let names_before_restart = cassie
+            .midge
+            .list_databases()
+            .expect("list databases before restart")
+            .into_iter()
+            .map(|database| database.name)
+            .collect::<Vec<_>>();
+        assert!(names_before_restart.contains(&"database_conflict_alpha".to_string()));
+        assert!(names_before_restart.contains(&"database_conflict_beta".to_string()));
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        restarted.startup().expect("restart Cassie");
+
+        // Assert
+        let names_after_restart = restarted
+            .midge
+            .list_databases()
+            .expect("list databases after restart")
+            .into_iter()
+            .map(|database| database.name)
+            .collect::<Vec<_>>();
+        assert!(names_after_restart.contains(&"database_conflict_alpha".to_string()));
+        assert!(names_after_restart.contains(&"database_conflict_beta".to_string()));
+        assert!(restarted.catalog.database_exists("database_conflict_alpha"));
+        assert!(restarted.catalog.database_exists("database_conflict_beta"));
+
+        drop(restarted);
+        let _ = std::fs::remove_dir_all(path);
     }
 }

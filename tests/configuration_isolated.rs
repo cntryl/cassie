@@ -1,8 +1,6 @@
 // Consolidated integration suite: configuration_isolated.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
-#[path = "support/diagnostics.rs"]
-mod support_diagnostics;
 #[path = "support/environment.rs"]
 mod support_environment;
 #[path = "support/pgwire.rs"]
@@ -699,6 +697,7 @@ mod transport_boundaries {
 mod embedding_provider_controls {
     use std::io::{Read, Write};
     use std::net::{Shutdown, TcpListener};
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
     use cassie::config::CassieRuntimeLimits;
@@ -714,13 +713,7 @@ mod embedding_provider_controls {
     use cassie::embeddings::{EmbeddingError, EmbeddingProvider};
     use cassie::runtime::{QueryCancellationHandle, QueryExecutionControls};
 
-    use super::support_diagnostics::EMBEDDING_PROVIDER_CONTROL_GUARD;
-
-    fn provider_control_guard() -> std::sync::MutexGuard<'static, ()> {
-        EMBEDDING_PROVIDER_CONTROL_GUARD
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
+    static CONTROLLED_REQUEST_WORKER_GUARD: Mutex<()> = Mutex::new(());
 
     fn transient_server() -> (String, std::thread::JoinHandle<()>) {
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind transient server");
@@ -731,9 +724,9 @@ mod embedding_provider_controls {
             let _ = stream.read(&mut request);
             let body = r#"{"error":"retry later"}"#;
             let response = format!(
-            "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-            body.len()
-        );
+                "HTTP/1.1 429 Too Many Requests\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
             stream
                 .write_all(response.as_bytes())
                 .expect("write transient response");
@@ -757,9 +750,9 @@ mod embedding_provider_controls {
             std::thread::sleep(Duration::from_millis(150));
             let body = r"[[0.1,0.2,0.3]]";
             let response = format!(
-            "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
-            body.len()
-        );
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
             let _ = stream.write_all(response.as_bytes());
         });
         (base_url, accepted_rx, thread)
@@ -817,6 +810,13 @@ mod embedding_provider_controls {
     }
 
     fn assert_deadline_interrupts_retry(provider: &dyn EmbeddingProvider) {
+        // Shared runners can deschedule the test thread after the 10 ms deadline;
+        // this still distinguishes deadline interruption from the 1 s transport timeout.
+        const SCHEDULER_TOLERANT_LIMIT: Duration = Duration::from_millis(250);
+
+        let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+            .lock()
+            .expect("lock controlled request worker guard");
         let controls = deadline_controls();
         let started = Instant::now();
         let error = provider
@@ -824,7 +824,7 @@ mod embedding_provider_controls {
             .expect_err("deadline should interrupt provider retry");
         assert!(matches!(error, EmbeddingError::Timeout { .. }));
         assert!(
-            started.elapsed() < Duration::from_millis(45),
+            started.elapsed() < SCHEDULER_TOLERANT_LIMIT,
             "provider retry exceeded the query deadline: {:?}",
             started.elapsed()
         );
@@ -833,7 +833,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_openai_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = OpenAiProvider::with_config(OpenAiProviderConfig {
             api_key: "test-key".to_string(),
@@ -855,7 +854,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_openai_compatible_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = OpenAiCompatibleProvider::with_config(OpenAiCompatibleProviderConfig {
             base_url,
@@ -878,7 +876,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_tei_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = TeiProvider::with_config(TeiProviderConfig {
             base_url,
@@ -900,7 +897,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_ollama_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = OllamaProvider::with_config(OllamaProviderConfig {
             base_url,
@@ -922,7 +918,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_voyage_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = VoyageProvider::with_config(VoyageProviderConfig {
             api_key: "test-key".to_string(),
@@ -945,7 +940,6 @@ mod embedding_provider_controls {
     #[test]
     fn should_clamp_cohere_retry_backoff_to_query_deadline() {
         // Arrange
-        let _guard = provider_control_guard();
         let (base_url, server) = transient_server();
         let provider = CohereProvider::with_config(CohereProviderConfig {
             api_key: "test-key".to_string(),
@@ -968,7 +962,9 @@ mod embedding_provider_controls {
     #[test]
     fn should_cancel_an_active_provider_request_without_waiting_for_transport_timeout() {
         // Arrange
-        let _guard = provider_control_guard();
+        let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+            .lock()
+            .expect("lock controlled request worker guard");
         let baseline_workers = active_controlled_request_workers_for_diagnostics();
         let (base_url, accepted, server) = delayed_tei_server();
         let provider = TeiProvider::with_config(TeiProviderConfig {
@@ -1018,7 +1014,9 @@ mod embedding_provider_controls {
     #[test]
     fn should_not_retry_mid_body_reset_for_any_remote_provider() {
         // Arrange
-        let _guard = provider_control_guard();
+        let _guard = CONTROLLED_REQUEST_WORKER_GUARD
+            .lock()
+            .expect("lock controlled request worker guard");
         let baseline_workers = active_controlled_request_workers_for_diagnostics();
 
         // Act

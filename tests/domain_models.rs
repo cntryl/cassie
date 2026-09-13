@@ -2526,13 +2526,14 @@ mod time_series_indexes {
 
 // Formerly tests/time_series_retention.rs.
 mod time_series_retention {
-    use cassie::app::Cassie;
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
     use cassie::catalog::canonical_relation_name;
     use cassie::sql::ast::QueryStatement;
     use cassie::sql::parse_statement;
     use cassie::types::Value;
 
-    use super::support_sql as support;
     use support::*;
 
     fn canonical_name(name: &str) -> String {
@@ -2546,10 +2547,31 @@ mod time_series_retention {
             .expect("runtime")
     }
 
+    fn create_retention_foreign_key_fixture(cassie: &Cassie, session: &CassieSession) {
+        for sql in [
+            "CREATE TABLE retention_fk_parents (id INT PRIMARY KEY, event_at TEXT)",
+            "CREATE TABLE retention_fk_restrict (parent_id INT REFERENCES retention_fk_parents(id), title TEXT)",
+            "CREATE TABLE retention_fk_cascade (parent_id INT, title TEXT, CONSTRAINT retention_fk_cascade_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE CASCADE)",
+            "CREATE TABLE retention_fk_null (parent_id INT, title TEXT, CONSTRAINT retention_fk_null_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE SET NULL)",
+            "CREATE TABLE retention_fk_default (parent_id INT DEFAULT 5, title TEXT, CONSTRAINT retention_fk_default_fkey FOREIGN KEY (parent_id) REFERENCES retention_fk_parents(id) ON DELETE SET DEFAULT)",
+            "INSERT INTO retention_fk_parents VALUES (1, '2026-01-01T00:00:00Z')",
+            "INSERT INTO retention_fk_parents VALUES (2, '2026-01-01T00:00:00Z')",
+            "INSERT INTO retention_fk_parents VALUES (3, '2026-01-01T00:00:00Z')",
+            "INSERT INTO retention_fk_parents VALUES (4, '2026-01-01T00:00:00Z')",
+            "INSERT INTO retention_fk_parents VALUES (5, '2026-01-09T00:00:00Z')",
+            "INSERT INTO retention_fk_restrict VALUES (1, 'restrict')",
+            "INSERT INTO retention_fk_cascade VALUES (2, 'cascade')",
+            "INSERT INTO retention_fk_null VALUES (3, 'null')",
+            "INSERT INTO retention_fk_default (parent_id, title) VALUES (4, 'default')",
+            "CREATE RETENTION POLICY retention_fk_policy ON retention_fk_parents USING event_at RETAIN FOR '1 day'",
+        ] {
+            cassie.execute_sql(session, sql, vec![]).unwrap();
+        }
+    }
+
     #[test]
     fn should_parse_retention_policy_commands() {
         // Arrange
-        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         let create = "CREATE RETENTION POLICY IF NOT EXISTS events_retention ON events USING event_at RETAIN FOR '7 days'";
         let alter = "ALTER RETENTION POLICY events_retention RETAIN FOR '2 days'";
         let enforce = "ENFORCE RETENTION POLICY events_retention AT '2026-01-10T00:00:00Z'";
@@ -2583,332 +2605,412 @@ mod time_series_retention {
     #[test]
     fn should_lifecycle_retention_policy_metadata() {
         // Arrange
-        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
         let path = data_dir("retention_catalog");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE retention_catalog_events (event_at TEXT, kind TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE RETENTION POLICY retention_catalog_policy ON retention_catalog_events USING event_at RETAIN FOR '7 days'",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE retention_catalog_events (event_at TEXT, kind TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE RETENTION POLICY retention_catalog_policy ON retention_catalog_events USING event_at RETAIN FOR '7 days'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        cassie
-            .execute_sql(
-                &session,
-                "ALTER RETENTION POLICY retention_catalog_policy RETAIN FOR '2 days'",
-                vec![],
-            )
-            .unwrap();
-        drop(cassie);
-        let restarted = Cassie::new_with_data_dir(&path).unwrap();
-        restarted.startup().unwrap();
-        let restarted_session = restarted.create_session("tester", None);
-        let policy_name = canonical_name("retention_catalog_policy");
-        let policies = restarted
-            .execute_sql(
-                &restarted_session,
-                &format!(
-                    "SELECT policy_name, retention_duration, state FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
-                ),
-                vec![],
-            )
-            .unwrap();
-        restarted
-            .execute_sql(
-                &restarted_session,
-                "DROP RETENTION POLICY retention_catalog_policy",
-                vec![],
-            )
-            .unwrap();
-        let dropped = restarted
-            .execute_sql(
-                &restarted_session,
-                &format!(
-                    "SELECT policy_name FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
-                ),
-                vec![],
-            )
-            .unwrap();
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "ALTER RETENTION POLICY retention_catalog_policy RETAIN FOR '2 days'",
+                    vec![],
+                )
+                .unwrap();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let policy_name = canonical_name("retention_catalog_policy");
+            let policies = restarted
+                .execute_sql(
+                    &restarted_session,
+                    &format!(
+                        "SELECT policy_name, retention_duration, state FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+            restarted
+                .execute_sql(
+                    &restarted_session,
+                    "DROP RETENTION POLICY retention_catalog_policy",
+                    vec![],
+                )
+                .unwrap();
+            let dropped = restarted
+                .execute_sql(
+                    &restarted_session,
+                    &format!(
+                        "SELECT policy_name FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                    ),
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            policies.rows,
-            vec![vec![
-                Value::String(policy_name),
-                Value::String("2 days".to_string()),
-                Value::String("ready".to_string()),
-            ]]
-        );
-        assert!(dropped.rows.is_empty());
+            // Assert
+            assert_eq!(
+                policies.rows,
+                vec![vec![
+                    Value::String(policy_name),
+                    Value::String("2 days".to_string()),
+                    Value::String("ready".to_string()),
+                ]]
+            );
+            assert!(dropped.rows.is_empty());
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
     fn should_enforce_retention_idempotently() {
         // Arrange
-        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
         let path = data_dir("retention_enforce");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE retention_enforce_events (event_at TEXT, kind TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE INDEX retention_enforce_kind_idx ON retention_enforce_events (kind)",
-                vec![],
-            )
-            .unwrap();
-        for sql in [
-            "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('2026-01-01T00:00:00Z', 'old')",
-            "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('2026-01-02T12:00:00Z', 'fresh')",
-            "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('not-a-time', 'bad')",
-            "INSERT INTO retention_enforce_events (event_at, kind) VALUES (NULL, 'missing')",
-        ] {
-            cassie.execute_sql(&session, sql, vec![]).unwrap();
-        }
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE RETENTION POLICY retention_enforce_policy ON retention_enforce_events USING event_at RETAIN FOR '1 day'",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE retention_enforce_events (event_at TEXT, kind TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX retention_enforce_kind_idx ON retention_enforce_events (kind)",
+                    vec![],
+                )
+                .unwrap();
+            for sql in [
+                "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('2026-01-01T00:00:00Z', 'old')",
+                "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('2026-01-02T12:00:00Z', 'fresh')",
+                "INSERT INTO retention_enforce_events (event_at, kind) VALUES ('not-a-time', 'bad')",
+                "INSERT INTO retention_enforce_events (event_at, kind) VALUES (NULL, 'missing')",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).unwrap();
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE RETENTION POLICY retention_enforce_policy ON retention_enforce_events USING event_at RETAIN FOR '1 day'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        let first = cassie
-            .execute_sql(
-                &session,
-                "ENFORCE RETENTION POLICY retention_enforce_policy AT '2026-01-03T00:00:00Z'",
-                vec![],
-            )
-            .unwrap();
-        let second = cassie
-            .execute_sql(
-                &session,
-                "ENFORCE RETENTION POLICY retention_enforce_policy AT '2026-01-03T00:00:00Z'",
-                vec![],
-            )
-            .unwrap();
-        let rows = cassie
-            .execute_sql(
-                &session,
-                "SELECT kind FROM retention_enforce_events ORDER BY kind",
-                vec![],
-            )
-            .unwrap();
-        let indexed = cassie
-            .execute_sql(
-                &session,
-                "SELECT kind FROM retention_enforce_events WHERE kind = 'old'",
-                vec![],
-            )
-            .unwrap();
-        let metrics = cassie.metrics();
-        let policy_name = canonical_name("retention_enforce_policy");
-        let policies = cassie
-            .execute_sql(
-                &session,
-                &format!(
-                    "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
-                ),
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let first = cassie
+                .execute_sql(
+                    &session,
+                    "ENFORCE RETENTION POLICY retention_enforce_policy AT '2026-01-03T00:00:00Z'",
+                    vec![],
+                )
+                .unwrap();
+            let second = cassie
+                .execute_sql(
+                    &session,
+                    "ENFORCE RETENTION POLICY retention_enforce_policy AT '2026-01-03T00:00:00Z'",
+                    vec![],
+                )
+                .unwrap();
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT kind FROM retention_enforce_events ORDER BY kind",
+                    vec![],
+                )
+                .unwrap();
+            let indexed = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT kind FROM retention_enforce_events WHERE kind = 'old'",
+                    vec![],
+                )
+                .unwrap();
+            let metrics = cassie.metrics();
+            let policy_name = canonical_name("retention_enforce_policy");
+            let policies = cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                    ),
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(first.command, "ENFORCE RETENTION 1");
-        assert_eq!(second.command, "ENFORCE RETENTION 0");
-        assert_eq!(
-            rows.rows,
-            vec![
-                vec![Value::String("bad".to_string())],
-                vec![Value::String("fresh".to_string())],
-                vec![Value::String("missing".to_string())],
-            ]
-        );
-        assert!(indexed.rows.is_empty());
-        assert_eq!(metrics["retention"]["enforcements"].as_u64(), Some(2));
-        assert_eq!(metrics["retention"]["deleted_rows"].as_u64(), Some(1));
-        assert_eq!(metrics["retention"]["skipped_rows"].as_u64(), Some(4));
-        assert_eq!(
-            policies.rows,
-            vec![vec![Value::Int64(0), Value::Int64(2)]]
-        );
+            // Assert
+            assert_eq!(first.command, "ENFORCE RETENTION 1");
+            assert_eq!(second.command, "ENFORCE RETENTION 0");
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::String("bad".to_string())],
+                    vec![Value::String("fresh".to_string())],
+                    vec![Value::String("missing".to_string())],
+                ]
+            );
+            assert!(indexed.rows.is_empty());
+            assert_eq!(metrics["retention"]["enforcements"].as_u64(), Some(2));
+            assert_eq!(metrics["retention"]["deleted_rows"].as_u64(), Some(1));
+            assert_eq!(metrics["retention"]["skipped_rows"].as_u64(), Some(4));
+            assert_eq!(
+                policies.rows,
+                vec![vec![Value::Int64(0), Value::Int64(2)]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_enforce_foreign_key_actions_during_retention() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("retention_foreign_keys");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            create_retention_foreign_key_fixture(&cassie, &session);
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "ENFORCE RETENTION POLICY retention_fk_policy AT '2026-01-10T00:00:00Z'",
+                    vec![],
+                )
+                .unwrap();
+            let parents = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT event_at FROM retention_fk_parents ORDER BY event_at",
+                    vec![],
+                )
+                .unwrap();
+            let restrict = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id FROM retention_fk_restrict",
+                    vec![],
+                )
+                .unwrap();
+            let cascade = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id FROM retention_fk_cascade",
+                    vec![],
+                )
+                .unwrap();
+            let null = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id FROM retention_fk_null",
+                    vec![],
+                )
+                .unwrap();
+            let default = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id FROM retention_fk_default",
+                    vec![],
+                )
+                .unwrap();
+            let policy_name = canonical_name("retention_fk_policy");
+            let policy = cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "SELECT last_deleted_rows, last_skipped_rows FROM pg_catalog.pg_retention_policies WHERE policy_name = '{policy_name}'"
+                    ),
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(result.command, "ENFORCE RETENTION 3");
+            assert_eq!(
+                parents.rows,
+                vec![
+                    vec![Value::String("2026-01-01T00:00:00Z".to_string())],
+                    vec![Value::String("2026-01-09T00:00:00Z".to_string())],
+                ]
+            );
+            assert_eq!(restrict.rows, vec![vec![Value::Int64(1)]]);
+            assert!(cascade.rows.is_empty());
+            assert_eq!(null.rows, vec![vec![Value::Null]]);
+            assert_eq!(default.rows, vec![vec![Value::Int64(5)]]);
+            assert_eq!(policy.rows, vec![vec![Value::Int64(3), Value::Int64(1)]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
     fn should_mark_materialized_projection_stale_after_retention() {
         // Arrange
-        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
         let path = data_dir("retention_projection_stale");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE retention_projection_events (event_at TEXT, title TEXT)",
-                vec![],
-            )
-            .unwrap();
-        for sql in [
-            "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-01T00:00:00Z', 'old')",
-            "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-02T12:00:00Z', 'fresh')",
-        ] {
-            cassie.execute_sql(&session, sql, vec![]).unwrap();
-        }
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE MATERIALIZED PROJECTION retention_projection_view AS SELECT title FROM retention_projection_events",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE RETENTION POLICY retention_projection_policy ON retention_projection_events USING event_at RETAIN FOR '1 day'",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE retention_projection_events (event_at TEXT, title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            for sql in [
+                "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-01T00:00:00Z', 'old')",
+                "INSERT INTO retention_projection_events (event_at, title) VALUES ('2026-01-02T12:00:00Z', 'fresh')",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).unwrap();
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE MATERIALIZED PROJECTION retention_projection_view AS SELECT title FROM retention_projection_events",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE RETENTION POLICY retention_projection_policy ON retention_projection_events USING event_at RETAIN FOR '1 day'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        cassie
-            .execute_sql(
-                &session,
-                "ENFORCE RETENTION POLICY retention_projection_policy AT '2026-01-03T00:00:00Z'",
-                vec![],
-            )
-            .unwrap();
-        let projection_name = canonical_name("retention_projection_view");
-        let operations = cassie
-            .execute_sql(
-                &session,
-                &format!(
-                    "SELECT freshness, rebuild_state, verification_state FROM pg_catalog.pg_projection_operations WHERE projection_name = '{projection_name}'"
-                ),
-                vec![],
-            )
-            .unwrap();
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "ENFORCE RETENTION POLICY retention_projection_policy AT '2026-01-03T00:00:00Z'",
+                    vec![],
+                )
+                .unwrap();
+            let projection_name = canonical_name("retention_projection_view");
+            let operations = cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "SELECT freshness, rebuild_state, verification_state FROM pg_catalog.pg_projection_operations WHERE projection_name = '{projection_name}'"
+                    ),
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            operations.rows,
-            vec![vec![
-                Value::String("stale".to_string()),
-                Value::String("idle".to_string()),
-                Value::String("pending".to_string()),
-            ]]
-        );
+            // Assert
+            assert_eq!(
+                operations.rows,
+                vec![vec![
+                    Value::String("stale".to_string()),
+                    Value::String("idle".to_string()),
+                    Value::String("pending".to_string()),
+                ]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
     fn should_refresh_rollup_after_retention_enforcement() {
         // Arrange
-        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
         let path = data_dir("retention_rollup");
 
         runtime().block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE retention_rollup_events (tenant TEXT, event_at TEXT, amount INT)",
-                vec![],
-            )
-            .unwrap();
-        for sql in [
-            "INSERT INTO retention_rollup_events (tenant, event_at, amount) VALUES ('a', '2026-01-01T00:05:00Z', 7)",
-            "INSERT INTO retention_rollup_events (tenant, event_at, amount) VALUES ('a', '2026-01-02T12:00:00Z', 5)",
-        ] {
-            cassie.execute_sql(&session, sql, vec![]).unwrap();
-        }
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE ROLLUP retention_rollup_hourly ON retention_rollup_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE RETENTION POLICY retention_rollup_policy ON retention_rollup_events USING event_at RETAIN FOR '1 day'",
-                vec![],
-            )
-            .unwrap();
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE retention_rollup_events (tenant TEXT, event_at TEXT, amount INT)",
+                    vec![],
+                )
+                .unwrap();
+            for sql in [
+                "INSERT INTO retention_rollup_events (tenant, event_at, amount) VALUES ('a', '2026-01-01T00:05:00Z', 7)",
+                "INSERT INTO retention_rollup_events (tenant, event_at, amount) VALUES ('a', '2026-01-02T12:00:00Z', 5)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).unwrap();
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE ROLLUP retention_rollup_hourly ON retention_rollup_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE RETENTION POLICY retention_rollup_policy ON retention_rollup_events USING event_at RETAIN FOR '1 day'",
+                    vec![],
+                )
+                .unwrap();
 
-        // Act
-        cassie
-            .execute_sql(
-                &session,
-                "ENFORCE RETENTION POLICY retention_rollup_policy AT '2026-01-03T00:00:00Z'",
-                vec![],
-            )
-            .unwrap();
-        let rollup = cassie
-            .execute_sql(
-                &session,
-                "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM retention_rollup_events GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "ENFORCE RETENTION POLICY retention_rollup_policy AT '2026-01-03T00:00:00Z'",
+                    vec![],
+                )
+                .unwrap();
+            let rollup = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM retention_rollup_events GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant",
+                    vec![],
+                )
+                .unwrap();
 
-        // Assert
-        assert_eq!(
-            rollup.rows,
-            vec![vec![
-                Value::String("2026-01-02T12:00:00Z".to_string()),
-                Value::String("a".to_string()),
-                Value::Int64(1),
-                Value::Int64(5),
-            ]]
-        );
+            // Assert
+            assert_eq!(
+                rollup.rows,
+                vec![vec![
+                    Value::String("2026-01-02T12:00:00Z".to_string()),
+                    Value::String("a".to_string()),
+                    Value::Int64(1),
+                    Value::Int64(5),
+                ]]
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
-
 // Formerly tests/time_series_rollups.rs.
 mod time_series_rollups {
     use cassie::app::Cassie;

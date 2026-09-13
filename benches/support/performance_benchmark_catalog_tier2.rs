@@ -438,6 +438,38 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
+        "perf.column.alp_selective_scan.2k",
+        "column_analytics",
+        "column_scan",
+        "tier2_subsystem_column_scan",
+        "alp_selective_scan",
+        "2k",
+        2_048,
+        Tier2,
+        Counted,
+        Subsystem,
+        "result_row",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
+        "perf.column.alp_plain_scan_baseline.2k",
+        "column_analytics",
+        "column_scan_plain_baseline",
+        "tier2_subsystem_column_scan",
+        "alp_plain_scan_baseline",
+        "2k",
+        2_048,
+        Tier2,
+        Counted,
+        Subsystem,
+        "result_row",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
         "perf.projection.write_batch.2k",
         "replay",
         "projection_write",

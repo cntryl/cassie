@@ -30,6 +30,25 @@ pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieErr
 }
 
 pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Value>, CassieError> {
+    decode_f64(payload, count)?
+        .into_iter()
+        .map(|value| {
+            serde_json::Number::from_f64(value)
+                .map(serde_json::Value::Number)
+                .ok_or_else(|| invalid("invalid ALP decoded float"))
+        })
+        .collect()
+}
+
+pub(super) fn decode_f64(payload: &[u8], count: usize) -> Result<Vec<f64>, CassieError> {
+    let (scale, scaled) = decode_scaled(payload, count)?;
+    Ok(scaled
+        .into_iter()
+        .map(|value| scaled_to_f64(value, scale))
+        .collect())
+}
+
+pub(super) fn decode_scaled(payload: &[u8], count: usize) -> Result<(u8, Vec<i64>), CassieError> {
     let mut reader = Reader::new(payload);
     let scale = reader.read_u8()?;
     if scale > MAX_SCALE || reader.read_u8()? != 0 {
@@ -40,7 +59,6 @@ pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Val
     if block_count != expected_blocks {
         return Err(invalid("invalid ALP block count"));
     }
-    let factor = scale_factor(scale);
     let mut values = Vec::with_capacity(count);
     for block_index in 0..block_count {
         let block_len = usize::from(reader.read_u8()?);
@@ -55,23 +73,18 @@ pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Val
         }
         let base = reader.read_i64()?;
         let packed_len = reader.read_len(payload.len())?;
-        let deltas = bitpack::unpack(reader.read_exact(packed_len)?, block_len, width)?;
-        for delta in deltas {
+        bitpack::unpack_each(reader.read_exact(packed_len)?, block_len, width, |delta| {
             let scaled = i128::from(base)
                 .checked_add(i128::from(delta))
                 .ok_or_else(|| invalid("ALP scaled value overflow"))?;
-            let value = scaled
-                .to_string()
-                .parse::<f64>()
-                .map_err(|_| invalid("invalid ALP scaled float"))?
-                / factor;
-            let number = serde_json::Number::from_f64(value)
-                .ok_or_else(|| invalid("invalid ALP decoded float"))?;
-            values.push(serde_json::Value::Number(number));
-        }
+            let scaled =
+                i64::try_from(scaled).map_err(|_| invalid("ALP scaled value exceeds i64"))?;
+            values.push(scaled);
+            Ok(())
+        })?;
     }
     reader.finish()?;
-    Ok(values)
+    Ok((scale, values))
 }
 
 fn scale_value(value: &serde_json::Value, scale: u8) -> Option<i64> {
@@ -127,4 +140,67 @@ fn encode_scaled(values: &[i64], scale: u8) -> Result<Vec<u8>, CassieError> {
 
 fn scale_factor(scale: u8) -> f64 {
     10_f64.powi(i32::from(scale))
+}
+
+pub(crate) fn scale_value_at(value: &serde_json::Value, scale: u8) -> Option<i64> {
+    if scale > MAX_SCALE {
+        return None;
+    }
+    scale_value(value, scale)
+}
+
+pub(crate) fn scaled_to_f64(value: i64, scale: u8) -> f64 {
+    i64_to_f64(value) / scale_factor(scale)
+}
+
+fn i64_to_f64(value: i64) -> f64 {
+    const TWO_TO_32: f64 = 4_294_967_296.0;
+
+    let magnitude = value.unsigned_abs();
+    let high = u32::try_from(magnitude >> 32).expect("upper i64 bits should fit u32");
+    let low =
+        u32::try_from(magnitude & u64::from(u32::MAX)).expect("lower i64 bits should fit u32");
+    let converted = f64::from(high).mul_add(TWO_TO_32, f64::from(low));
+    if value.is_negative() {
+        -converted
+    } else {
+        converted
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_match_rust_integer_conversion_at_rounding_boundaries() {
+        // Arrange
+        let values = [
+            i64::MIN,
+            i64::MIN + 1,
+            -(1_i64 << 53) - 1,
+            -(1_i64 << 53),
+            -(1_i64 << 53) + 1,
+            -1,
+            0,
+            1,
+            (1_i64 << 53) - 1,
+            1_i64 << 53,
+            (1_i64 << 53) + 1,
+            i64::MAX - 1,
+            i64::MAX,
+        ];
+
+        // Act
+        let converted = values.map(i64_to_f64);
+        let expected = values.map(|value| {
+            value
+                .to_string()
+                .parse::<f64>()
+                .expect("every i64 should parse as f64")
+        });
+
+        // Assert
+        assert_eq!(converted.map(f64::to_bits), expected.map(f64::to_bits));
+    }
 }

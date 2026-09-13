@@ -420,7 +420,6 @@ impl CassieStressRunner {
             let sample = (f.borrow_mut())(sample_duration);
             let elapsed = external_elapsed(sample.elapsed, sample.completed_operations);
             ctx.record_external(&measurement_name, elapsed, sample.completed_operations);
-            ctx.metadata("measurement_time_ns", elapsed.as_nanos());
             ctx.metadata("failed_operations", 0);
             record_observed_evidence(
                 ctx,
@@ -446,9 +445,7 @@ impl CassieStressRunner {
         let scenario = self.scenario_for(&case);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
-            let started = Instant::now();
             let result = black_box(ctx.measure(&measurement_name, || (f.borrow_mut())()));
-            ctx.metadata("measurement_time_ns", started.elapsed().as_nanos());
             ctx.metadata("failed_operations", 0);
             record_observed_evidence(
                 ctx,
@@ -474,9 +471,7 @@ impl CassieStressRunner {
         let scenario = self.scenario_for(&case);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
-            let started = Instant::now();
             let result = ctx.measure(&measurement_name, || black_box((f.borrow_mut())()));
-            ctx.metadata("measurement_time_ns", started.elapsed().as_nanos());
             ctx.metadata("failed_operations", 0);
             record_observed_evidence(
                 ctx,
@@ -510,7 +505,6 @@ impl CassieStressRunner {
             let elapsed = started.elapsed();
             let completed = observation.completed_operations();
             ctx.record_external(&measurement_name, elapsed, completed);
-            ctx.metadata("measurement_time_ns", elapsed.as_nanos());
             ctx.metadata("failed_operations", 0);
             record_observed_evidence(
                 ctx,
@@ -547,7 +541,6 @@ impl CassieStressRunner {
             );
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
-            let started = Instant::now();
             let last_cardinality = std::cell::Cell::new(0_u64);
             let last_candidate_count = std::cell::Cell::new(None);
             let last_peak_query_memory_bytes = std::cell::Cell::new(None);
@@ -558,7 +551,6 @@ impl CassieStressRunner {
                 last_peak_query_memory_bytes.set(result.peak_query_memory_bytes());
                 black_box(result);
             });
-            ctx.metadata("measurement_time_ns", started.elapsed().as_nanos());
             ctx.metadata("failed_operations", 0);
             record_observed_evidence(
                 ctx,

@@ -6,8 +6,6 @@ Work is dependency-ordered. A later item does not begin while an earlier correct
 
 ## Future Column Codecs
 
-- ALP — Planned. Add an independently specified and promoted floating-point codec only after
-  its exactness, deterministic byte representation, fallback, and benchmark contracts exist.
 - FSST — Planned. Add an independently specified and promoted string codec only after its
   bounded dictionary format, corruption handling, cross-architecture fixtures, and query
   evidence exist.

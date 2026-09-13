@@ -137,6 +137,16 @@ pub(crate) struct DecodedChunk {
     pub(crate) decoded_len: usize,
 }
 
+pub(super) struct ChunkParts<'a> {
+    pub(super) logical_type: LogicalType,
+    pub(super) codec: Codec,
+    pub(super) value_count: usize,
+    pub(super) null_count: usize,
+    pub(super) validity: &'a [u8],
+    pub(super) payload: &'a [u8],
+    pub(super) decoded_len: usize,
+}
+
 pub(crate) fn encode(
     logical_type: LogicalType,
     values: &[serde_json::Value],
@@ -314,6 +324,60 @@ fn encoded_chunk(
 }
 
 pub(crate) fn decode(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
+    let parts = parse_chunk(bytes)?;
+    let non_null_count = parts.value_count - parts.null_count;
+    let non_null = match parts.codec {
+        Codec::Plain => decode_plain(parts.logical_type, parts.payload, non_null_count)?,
+        Codec::Constant => decode_constant(parts.logical_type, parts.payload, non_null_count)?,
+        Codec::Rle => decode_rle(parts.logical_type, parts.payload, non_null_count)?,
+        Codec::Dictionary => decode_dictionary(parts.logical_type, parts.payload, non_null_count)?,
+        Codec::FrameOfReference => {
+            if parts.logical_type != LogicalType::Int64 {
+                return Err(invalid("frame-of-reference requires integers"));
+            }
+            decode_frame_of_reference(parts.payload, non_null_count)?
+        }
+        Codec::Fsst => {
+            if parts.logical_type != LogicalType::Utf8 {
+                return Err(invalid("FSST requires text"));
+            }
+            super::fsst::decode(parts.payload, non_null_count)?
+        }
+        Codec::Alp => {
+            if parts.logical_type != LogicalType::Float64 {
+                return Err(invalid("ALP requires floats"));
+            }
+            super::alp::decode(parts.payload, non_null_count)?
+        }
+    };
+    if non_null.len() != non_null_count {
+        return Err(invalid("column-batch decoded count mismatch"));
+    }
+    let mut values = Vec::with_capacity(parts.value_count);
+    let mut next = non_null.into_iter();
+    for position in 0..parts.value_count {
+        if bit_is_set(parts.validity, position) {
+            values.push(
+                next.next()
+                    .ok_or_else(|| invalid("column-batch decoded value missing"))?,
+            );
+        } else {
+            values.push(serde_json::Value::Null);
+        }
+    }
+    if next.next().is_some() {
+        return Err(invalid("trailing decoded column-batch values"));
+    }
+    Ok(DecodedChunk {
+        values,
+        logical_type: parts.logical_type,
+        codec: parts.codec,
+        encoded_len: bytes.len(),
+        decoded_len: parts.decoded_len,
+    })
+}
+
+pub(super) fn parse_chunk(bytes: &[u8]) -> Result<ChunkParts<'_>, CassieError> {
     if bytes.len() > MAX_CHUNK_BYTES {
         return Err(invalid("column-batch chunk exceeds limit"));
     }
@@ -349,55 +413,13 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<DecodedChunk, CassieError> {
     validate_validity(validity, value_count, null_count)?;
     let payload = reader.read_exact(payload_len)?;
     reader.finish()?;
-
-    let non_null_count = value_count - null_count;
-    let non_null = match codec {
-        Codec::Plain => decode_plain(logical_type, payload, non_null_count)?,
-        Codec::Constant => decode_constant(logical_type, payload, non_null_count)?,
-        Codec::Rle => decode_rle(logical_type, payload, non_null_count)?,
-        Codec::Dictionary => decode_dictionary(logical_type, payload, non_null_count)?,
-        Codec::FrameOfReference => {
-            if logical_type != LogicalType::Int64 {
-                return Err(invalid("frame-of-reference requires integers"));
-            }
-            decode_frame_of_reference(payload, non_null_count)?
-        }
-        Codec::Fsst => {
-            if logical_type != LogicalType::Utf8 {
-                return Err(invalid("FSST requires text"));
-            }
-            super::fsst::decode(payload, non_null_count)?
-        }
-        Codec::Alp => {
-            if logical_type != LogicalType::Float64 {
-                return Err(invalid("ALP requires floats"));
-            }
-            super::alp::decode(payload, non_null_count)?
-        }
-    };
-    if non_null.len() != non_null_count {
-        return Err(invalid("column-batch decoded count mismatch"));
-    }
-    let mut values = Vec::with_capacity(value_count);
-    let mut next = non_null.into_iter();
-    for position in 0..value_count {
-        if bit_is_set(validity, position) {
-            values.push(
-                next.next()
-                    .ok_or_else(|| invalid("column-batch decoded value missing"))?,
-            );
-        } else {
-            values.push(serde_json::Value::Null);
-        }
-    }
-    if next.next().is_some() {
-        return Err(invalid("trailing decoded column-batch values"));
-    }
-    Ok(DecodedChunk {
-        values,
+    Ok(ChunkParts {
         logical_type,
         codec,
-        encoded_len: bytes.len(),
+        value_count,
+        null_count,
+        validity,
+        payload,
         decoded_len,
     })
 }

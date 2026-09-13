@@ -1414,6 +1414,7 @@ mod column_batch_format_v2 {
         encode_column_chunk_for_test, encode_plain_column_chunk_for_test,
         encode_row_id_chunk_for_test,
     };
+    use sha2::{Digest, Sha256};
 
     fn encode(logical_type: &str, values: &[serde_json::Value]) -> Vec<u8> {
         encode_column_chunk_for_test(logical_type, values).expect("encode column chunk")
@@ -1563,6 +1564,56 @@ mod column_batch_format_v2 {
                 expected.as_f64().expect("input float").to_bits()
             );
         }
+    }
+
+    #[test]
+    fn should_emit_cross_architecture_stable_alp_bytes() {
+        // Arrange
+        let values = (0..512)
+            .map(|position| serde_json::json!((f64::from(position) - 256.0) / 100.0))
+            .collect::<Vec<_>>();
+
+        // Act
+        let encoded = encode("float", &values);
+        let digest = Sha256::digest(&encoded);
+
+        // Assert
+        assert_eq!(
+            column_chunk_codec_for_test(&encoded).expect("float codec"),
+            "alp"
+        );
+        assert_eq!(
+            digest.as_slice(),
+            &[
+                99, 236, 191, 80, 179, 191, 107, 201, 32, 176, 222, 156, 136, 205, 95, 28, 201,
+                167, 50, 93, 24, 158, 174, 188, 125, 40, 169, 95, 148, 53, 152, 41,
+            ]
+        );
+        assert_eq!(encoded.len(), 608);
+    }
+
+    #[test]
+    fn should_reject_alp_values_reconstructed_outside_i64() {
+        // Arrange
+        let values = (0..128)
+            .map(|position| serde_json::json!(f64::from(position) / 100.0))
+            .collect::<Vec<_>>();
+        let mut encoded = encode("float", &values);
+        assert_eq!(
+            column_chunk_codec_for_test(&encoded).expect("float codec"),
+            "alp"
+        );
+        let validity_len =
+            u32::from_le_bytes(encoded[18..22].try_into().expect("validity length bytes"));
+        let payload_offset = 34 + usize::try_from(validity_len).expect("validity length");
+        let base_offset = payload_offset + 8;
+        encoded[base_offset..base_offset + 8].copy_from_slice(&i64::MAX.to_le_bytes());
+
+        // Act
+        let decoded = decode_column_chunk_for_test(&encoded);
+
+        // Assert
+        assert!(decoded.is_err());
     }
 
     #[test]
@@ -2473,20 +2524,20 @@ mod column_batch_resilience {
     }
 
     fn write_metadata(fixture: &AmountFixture, key: Vec<u8>, metadata: &ColumnBatchMetadata) {
-        write_raw_metadata(
+        write_raw_value(
             fixture,
             key,
             encode_column_batch_manifest_for_test(metadata).expect("encode metadata"),
         );
     }
 
-    fn write_raw_metadata(fixture: &AmountFixture, key: Vec<u8>, metadata: Vec<u8>) {
+    fn write_raw_value(fixture: &AmountFixture, key: Vec<u8>, value: Vec<u8>) {
         let mut tx = fixture
             .cassie
             .midge
             .data_tx(TransactionMode::ReadWrite)
             .expect("open data transaction");
-        tx.put(key, metadata, None).expect("write metadata");
+        tx.put(key, value, None).expect("write raw value");
         tx.commit(WriteOptions::sync())
             .expect("commit metadata mutation");
     }
@@ -2496,6 +2547,20 @@ mod column_batch_resilience {
         let checksum = Sha256::digest(raw.as_slice());
         raw.extend_from_slice(checksum.as_slice());
         raw
+    }
+
+    fn alp_codec_rows(fixture: &AmountFixture, predicate: &str) -> Vec<Vec<Value>> {
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                &format!(
+                    "SELECT amount FROM column_batch_alp_codec_version WHERE {predicate} ORDER BY amount"
+                ),
+                vec![],
+            )
+            .expect("query ALP codec-version fixture")
+            .rows
     }
 
     fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
@@ -2759,6 +2824,194 @@ mod column_batch_resilience {
     }
 
     #[test]
+    fn should_recover_from_truncated_or_unknown_version_alp_chunks() {
+        // Arrange
+        let values = (0..512)
+            .map(|position| {
+                if position % 73 == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!((f64::from(position) - 256.0) / 100.0)
+                }
+            })
+            .collect::<Vec<_>>();
+        let fixture = ordered_numeric_fixture(
+            "column_batch_alp_codec_version",
+            "column_batch_alp_codec_version",
+            "FLOAT",
+            &values,
+            512,
+        );
+        let (key, mut metadata) = metadata_entry(&fixture);
+        let chunk = metadata.segments[0]
+            .field_chunks
+            .get_mut("amount")
+            .expect("ALP amount chunk");
+        assert_eq!(chunk.codec_name, "alp");
+        assert_eq!(chunk.codec_version, 1);
+        chunk.codec_version = 2;
+        let (chunk_key, chunk_bytes) = fixture
+            .cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan ALP chunks")
+            .into_iter()
+            .find(|(_, value)| value.starts_with(b"CBC2"))
+            .expect("persisted ALP chunk");
+        let mut truncated = chunk_bytes.clone();
+        truncated.pop().expect("non-empty ALP chunk");
+
+        // Act
+        write_raw_value(&fixture, chunk_key.clone(), truncated);
+        let corrupt_fallback = alp_codec_rows(&fixture, "amount >= 2.50");
+        let corrupt_metrics = fixture.cassie.metrics();
+        write_raw_value(&fixture, chunk_key, chunk_bytes);
+        write_metadata(&fixture, key, &metadata);
+        let version_fallback = alp_codec_rows(&fixture, "amount >= 2.50");
+        let fallback_nulls = alp_codec_rows(&fixture, "amount IS NULL");
+        let fallback_metrics = fixture.cassie.metrics();
+        let restarted = restart_fixture(fixture);
+        let recovered = alp_codec_rows(&restarted, "amount >= 2.50");
+        let recovered_nulls = alp_codec_rows(&restarted, "amount IS NULL");
+        let repaired = restarted
+            .cassie
+            .midge
+            .get_column_batch_metadata(&restarted.collection, &restarted.index)
+            .expect("read repaired metadata")
+            .expect("repaired metadata");
+        let accelerated_non_exact = alp_codec_rows(&restarted, "amount > 0.333");
+        restarted
+            .cassie
+            .execute_sql(
+                &restarted.session,
+                "DROP INDEX column_batch_alp_codec_version_column_idx ON column_batch_alp_codec_version",
+                vec![],
+            )
+            .expect("drop rebuilt ALP index");
+        let exact_non_exact = alp_codec_rows(&restarted, "amount > 0.333");
+
+        // Assert
+        assert_eq!(corrupt_fallback, recovered);
+        assert_eq!(version_fallback, recovered);
+        assert_eq!(version_fallback.len(), 5);
+        assert_eq!(fallback_nulls, recovered_nulls);
+        assert_eq!(fallback_nulls, vec![vec![Value::Null]; 8]);
+        assert_eq!(accelerated_non_exact, exact_non_exact);
+        assert_eq!(corrupt_metrics["column_batches"]["scans"], 0);
+        assert_eq!(corrupt_metrics["column_batches"]["fallback_scans"], 1);
+        assert_eq!(
+            corrupt_metrics["column_batches"]["last_fallback_reason"],
+            "segment_checksum_mismatch"
+        );
+        assert_eq!(fallback_metrics["column_batches"]["scans"], 0);
+        assert_eq!(fallback_metrics["column_batches"]["fallback_scans"], 2);
+        assert_eq!(
+            fallback_metrics["column_batches"]["last_fallback_reason"],
+            "segment_codec_mismatch"
+        );
+        let repaired_chunk = repaired.segments[0]
+            .field_chunks
+            .get("amount")
+            .expect("repaired ALP amount chunk");
+        assert_eq!(repaired_chunk.codec_name, "alp");
+        assert_eq!(repaired_chunk.codec_version, 1);
+
+        let _ = std::fs::remove_dir_all(&restarted.path);
+    }
+
+    #[test]
+    fn should_preserve_alp_chunk_lifecycle_through_rename_drop() {
+        // Arrange
+        let values = (0..128)
+            .map(|position| serde_json::json!((f64::from(position) - 64.0) / 100.0))
+            .collect::<Vec<_>>();
+        let fixture = ordered_numeric_fixture(
+            "column_batch_alp_lifecycle",
+            "column_batch_alp_lifecycle_before",
+            "FLOAT",
+            &values,
+            128,
+        );
+        let artifact_count = |cassie: &Cassie| {
+            cassie
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, b"")
+                .expect("scan column-batch artifacts")
+                .into_iter()
+                .filter(|(_, value)| {
+                    value.starts_with(b"CBM2")
+                        || value.starts_with(b"CBR2")
+                        || value.starts_with(b"CBC2")
+                })
+                .count()
+        };
+        let original = fixture
+            .cassie
+            .midge
+            .get_column_batch_metadata(
+                "column_batch_alp_lifecycle_before",
+                "column_batch_alp_lifecycle_before_column_idx",
+            )
+            .expect("read original ALP metadata")
+            .expect("original ALP metadata");
+        assert_eq!(
+            original.segments[0].field_chunks["amount"].codec_name,
+            "alp"
+        );
+        let original_artifact_count = artifact_count(&fixture.cassie);
+
+        // Act
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "ALTER TABLE column_batch_alp_lifecycle_before RENAME TO column_batch_alp_lifecycle_after",
+                vec![],
+            )
+            .expect("rename table with ALP chunks");
+        let renamed = fixture
+            .cassie
+            .midge
+            .get_column_batch_metadata(
+                "column_batch_alp_lifecycle_after",
+                "column_batch_alp_lifecycle_before_column_idx",
+            )
+            .expect("read renamed ALP metadata")
+            .expect("renamed ALP metadata");
+        let selected = fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "SELECT amount FROM column_batch_alp_lifecycle_after WHERE amount >= 0.60 ORDER BY amount",
+                vec![],
+            )
+            .expect("query renamed ALP chunks");
+        let renamed_artifact_count = artifact_count(&fixture.cassie);
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "DROP TABLE column_batch_alp_lifecycle_after",
+                vec![],
+            )
+            .expect("drop table with ALP chunks");
+        let dropped_artifact_count = artifact_count(&fixture.cassie);
+
+        // Assert
+        assert_eq!(
+            renamed.collection,
+            "postgres.public.column_batch_alp_lifecycle_after"
+        );
+        assert_eq!(renamed.segments[0].field_chunks["amount"].codec_name, "alp");
+        assert_eq!(selected.rows.len(), 4);
+        assert_eq!(renamed_artifact_count, original_artifact_count);
+        assert!(original_artifact_count >= 3);
+        assert_eq!(dropped_artifact_count, 0);
+
+        let _ = std::fs::remove_dir_all(&fixture.path);
+    }
+
+    #[test]
     fn should_report_checked_integer_overflow_without_publishing_acceleration() {
         // Arrange
         let fixture = amount_fixture(
@@ -2940,7 +3193,7 @@ mod column_batch_resilience {
             &[Value::Int64(3), Value::Int64(7)],
         );
         let (key, _) = metadata_entry(&fixture);
-        write_raw_metadata(&fixture, key, b"CCB1-derived-v1".to_vec());
+        write_raw_value(&fixture, key, b"CCB1-derived-v1".to_vec());
 
         // Act
         let fallback = sum_amount(&fixture, "column_batch_metadata_format")
@@ -2979,7 +3232,7 @@ mod column_batch_resilience {
         let mut raw =
             encode_column_batch_manifest_for_test(&metadata).expect("encode current manifest");
         raw[6..8].copy_from_slice(&0_u16.to_le_bytes());
-        write_raw_metadata(&fixture, key, resign_manifest(raw));
+        write_raw_value(&fixture, key, resign_manifest(raw));
 
         // Act
         let old_format = sum_amount_as(&fixture, "column_batch_summary_recovery", "old_total")
@@ -2995,7 +3248,7 @@ mod column_batch_resilience {
         malformed.extend_from_slice(&2_u16.to_le_bytes());
         malformed.extend_from_slice(&[0_u8; 8]);
         malformed.extend_from_slice(Sha256::digest(malformed.as_slice()).as_slice());
-        write_raw_metadata(&repaired, key, malformed);
+        write_raw_value(&repaired, key, malformed);
         let malformed = sum_amount_as(
             &repaired,
             "column_batch_summary_recovery",

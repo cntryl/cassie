@@ -1,4 +1,5 @@
 mod alp;
+mod alp_chunk;
 mod binary;
 mod bitpack;
 mod chunk;
@@ -9,7 +10,10 @@ mod selected;
 
 use crate::app::CassieError;
 
-pub(crate) use chunk::{DecodedChunk, EncodedChunk, LogicalType};
+pub(crate) use alp_chunk::decode_scaled as decode_alp_scaled;
+pub(crate) use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
+
+pub(crate) use alp::{scale_value_at as scale_alp_value, scaled_to_f64 as alp_scaled_to_f64};
 
 pub(crate) fn encode_column_chunk(
     logical_type: LogicalType,

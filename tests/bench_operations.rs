@@ -89,6 +89,40 @@ mod benchmark_evidence_contract {
         )
     }
 
+    #[test]
+    fn should_accept_summary_wall_time_as_measurement_evidence() {
+        // Arrange
+        let mut value: serde_json::Value =
+            serde_json::from_str(&artifact("\"marker\": true")).expect("benchmark artifact");
+        value["summaries"][0]["metadata"]
+            .as_object_mut()
+            .expect("summary metadata")
+            .remove("measurement_time_ns");
+        value["summaries"][0]["total_wall_clock_ns"] = serde_json::json!(2_000_u64);
+
+        // Act
+        let validation = validate(&value.to_string());
+
+        // Assert
+        validation.expect("summary total wall time should be measurement evidence");
+    }
+
+    #[test]
+    fn should_reject_malformed_legacy_timing_even_with_summary_wall_time() {
+        // Arrange
+        let mut value: serde_json::Value =
+            serde_json::from_str(&artifact("\"marker\": true")).expect("benchmark artifact");
+        value["summaries"][0]["metadata"]["measurement_time_ns"] =
+            serde_json::json!("not-a-duration");
+        value["summaries"][0]["total_wall_clock_ns"] = serde_json::json!(2_000_u64);
+
+        // Act
+        let error = validate(&value.to_string()).expect_err("malformed legacy timing must fail");
+
+        // Assert
+        assert!(error.contains("numeric metadata.measurement_time_ns"));
+    }
+
     fn owner_manifest(
         tier: u32,
         scenarios: &[&str],
@@ -1050,6 +1084,23 @@ mod benchmark_harness_contract {
         // Assert
         assert!(has_encode);
         assert!(has_decode);
+    }
+
+    #[test]
+    fn should_keep_per_sample_measurement_time_out_of_invariant_metadata() {
+        // Arrange
+        let harness = include_str!("../benches/support/stress.rs");
+
+        // Act
+        let volatile_metadata_writes = harness
+            .matches("ctx.metadata(\"measurement_time_ns\"")
+            .count();
+
+        // Assert
+        assert_eq!(
+            volatile_metadata_writes, 0,
+            "cntryl-stress 0.4 requires measurement metadata to be invariant across samples"
+        );
     }
 
     fn tier1_row_case(
@@ -4137,9 +4188,73 @@ mod performance_benchmarks_tests {
         let verifies_incompressible_plain = fixture.contains("assert_plain_chunks");
 
         // Assert
-        assert_eq!(relative_gate_count, 2);
-        assert_eq!(forces_plain_baseline, 2);
+        assert_eq!(relative_gate_count, 3);
+        assert_eq!(forces_plain_baseline, 3);
         assert!(verifies_incompressible_plain);
+    }
+
+    #[test]
+    fn should_register_paired_alp_query_acceptance_scenarios() {
+        // Arrange
+        let scenarios = benchmark_scenarios()
+            .map(|scenario| (scenario.scenario_id, scenario))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let owner = include_str!("../benches/tier2_subsystem_column_scan.rs");
+        let fixture = include_str!("../benches/support/workloads/column_codec_context.rs");
+
+        // Act
+        let candidate = scenarios.get("perf.column.alp_selective_scan.2k");
+        let baseline = scenarios.get("perf.column.alp_plain_scan_baseline.2k");
+        let enforces_query_gate =
+            owner.contains("require_relative_p95(ALP_CANDIDATE, ALP_BASELINE, 1.05)");
+        let preserves_existing_sample_size = owner.contains("const QUERIES_PER_SAMPLE: usize = 8;");
+        let stabilizes_only_alp_samples =
+            owner.contains("const ALP_QUERIES_PER_SAMPLE: usize = 128;");
+        let verifies_alp_selection =
+            fixture.contains("assert_selected_codec") && fixture.contains("\"alp\"");
+        let verifies_alp_savings =
+            fixture.contains("assert_alp_storage_savings") && fixture.contains("saturating_mul(4)");
+
+        // Assert
+        assert_eq!(
+            candidate.map(|scenario| (scenario.benchmark, scenario.workload)),
+            Some(("tier2_subsystem_column_scan", "alp_selective_scan"))
+        );
+        assert_eq!(
+            baseline.map(|scenario| (scenario.benchmark, scenario.workload)),
+            Some(("tier2_subsystem_column_scan", "alp_plain_scan_baseline"))
+        );
+        assert!(enforces_query_gate);
+        assert!(preserves_existing_sample_size);
+        assert!(stabilizes_only_alp_samples);
+        assert!(verifies_alp_selection);
+        assert!(verifies_alp_savings);
+    }
+
+    #[test]
+    fn should_document_alp_as_a_promoted_codec_with_retained_evidence() {
+        // Arrange
+        let roadmap = include_str!("../docs/product-roadmap.md");
+        let support = include_str!("../docs/feature-support.md");
+        let readiness = include_str!("../docs/production-readiness.md");
+        let performance = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let remains_planned = roadmap.contains("- ALP — Planned");
+        let duplicated_codec_contract = performance
+            .matches("Codec selection is deterministic and automatic.")
+            .count();
+
+        // Assert
+        assert!(!remains_planned);
+        assert!(support.contains("ALP decimal-scaled float blocks"));
+        assert!(readiness.contains("should_emit_cross_architecture_stable_alp_bytes"));
+        assert!(readiness.contains("perf.column.alp_selective_scan.2k"));
+        assert!(readiness.contains("perf.column.alp_plain_scan_baseline.2k"));
+        assert_eq!(duplicated_codec_contract, 1);
+        assert!(performance.contains(
+            "`perf.column.alp_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`"
+        ));
     }
 
     // Merged from tests/performance_column_dml.rs to cut a separate test binary.

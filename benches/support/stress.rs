@@ -15,11 +15,11 @@ use crate::performance_benchmarks::{self, BenchmarkTier, BenchmarkTimingMode};
 
 #[path = "stress_evidence.rs"]
 mod stress_evidence;
-use stress_evidence::RuntimeEvidenceSource;
 pub use stress_evidence::{
-    scoped_candidate_count, scoped_fallback_evidence, validate_preflight_requirement,
-    PreflightEvidence,
+    normalize_runtime_counter, scoped_candidate_count, scoped_fallback_evidence,
+    validate_preflight_requirement, PreflightEvidence,
 };
+use stress_evidence::{RuntimeEvidenceObservation, RuntimeEvidenceSource};
 #[path = "stress_config.rs"]
 mod stress_config;
 use stress_config::{matches_filter, print_config, resolve_config};
@@ -410,7 +410,10 @@ impl CassieStressRunner {
         );
         let f = RefCell::new(f);
         let sample_duration = self.config.sample_duration;
-        let case = self.prepare_case(case, BenchmarkTimingMode::External);
+        let case = self.prepare_case(
+            case.metadata("runtime_evidence_unit", "logical_operation"),
+            BenchmarkTimingMode::External,
+        );
         let declared_cardinality = declared_result_cardinality(&case);
         let evidence = case.runtime_evidence.clone();
         let preflight = case.preflight_evidence.clone();
@@ -426,9 +429,12 @@ impl CassieStressRunner {
                 evidence.as_ref(),
                 scenario,
                 preflight.as_ref(),
-                declared_cardinality.unwrap_or(sample.completed_operations),
-                None,
-                None,
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or(sample.completed_operations),
+                    None,
+                    None,
+                )
+                .per_external_operation(sample.completed_operations),
             );
         });
     }
@@ -452,9 +458,11 @@ impl CassieStressRunner {
                 evidence.as_ref(),
                 scenario,
                 preflight.as_ref(),
-                declared_cardinality.unwrap_or_else(|| result.cardinality()),
-                result.candidate_count(),
-                result.peak_query_memory_bytes(),
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or_else(|| result.cardinality()),
+                    result.candidate_count(),
+                    result.peak_query_memory_bytes(),
+                ),
             );
         });
     }
@@ -478,9 +486,11 @@ impl CassieStressRunner {
                 evidence.as_ref(),
                 scenario,
                 preflight.as_ref(),
-                declared_cardinality.unwrap_or_else(|| result.cardinality()),
-                result.candidate_count(),
-                result.peak_query_memory_bytes(),
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or_else(|| result.cardinality()),
+                    result.candidate_count(),
+                    result.peak_query_memory_bytes(),
+                ),
             );
         });
     }
@@ -511,9 +521,11 @@ impl CassieStressRunner {
                 evidence.as_ref(),
                 scenario,
                 preflight.as_ref(),
-                declared_cardinality.unwrap_or_else(|| observation.result_cardinality()),
-                observation.candidate_count(),
-                observation.peak_query_memory_bytes(),
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or_else(|| observation.result_cardinality()),
+                    observation.candidate_count(),
+                    observation.peak_query_memory_bytes(),
+                ),
             );
             observation.finish_sample();
         });
@@ -557,9 +569,11 @@ impl CassieStressRunner {
                 evidence.as_ref(),
                 scenario,
                 preflight.as_ref(),
-                declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
-                last_candidate_count.get(),
-                last_peak_query_memory_bytes.get(),
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
+                    last_candidate_count.get(),
+                    last_peak_query_memory_bytes.get(),
+                ),
             );
         });
     }
@@ -906,28 +920,12 @@ fn record_observed_evidence(
     source: Option<&RuntimeEvidenceSource>,
     scenario: &performance_benchmarks::PerformanceBenchmarkScenario,
     preflight: Option<&PreflightEvidence>,
-    result_cardinality: u64,
-    candidate_count: Option<u64>,
-    peak_query_memory_bytes: Option<u64>,
+    observation: RuntimeEvidenceObservation,
 ) {
     if let Some(source) = source {
-        source.record(
-            context,
-            scenario,
-            preflight,
-            result_cardinality,
-            candidate_count,
-            peak_query_memory_bytes,
-        );
+        source.record(context, scenario, preflight, observation);
     } else {
-        stress_evidence::record_without_runtime(
-            context,
-            scenario,
-            preflight,
-            result_cardinality,
-            candidate_count,
-            peak_query_memory_bytes,
-        );
+        stress_evidence::record_without_runtime(context, scenario, preflight, observation);
     }
 }
 

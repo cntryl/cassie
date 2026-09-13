@@ -1333,6 +1333,31 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_normalize_external_runtime_counters_per_completed_operation() {
+        // Arrange
+        let first_candidate_count = 1_080;
+        let first_completed_operations = 54;
+        let second_candidate_count = 1_020;
+        let second_completed_operations = 51;
+
+        // Act
+        let first = stress::normalize_runtime_counter(
+            first_candidate_count,
+            Some(first_completed_operations),
+        );
+        let second = stress::normalize_runtime_counter(
+            second_candidate_count,
+            Some(second_completed_operations),
+        );
+        let fixed_operation = stress::normalize_runtime_counter(first_candidate_count, None);
+
+        // Assert
+        assert_eq!(first, 20);
+        assert_eq!(second, 20);
+        assert_eq!(fixed_operation, first_candidate_count);
+    }
+
+    #[test]
     fn should_default_soak_duration_to_one_hour() {
         // Arrange
         let environment = None;
@@ -1951,6 +1976,24 @@ mod benchmark_harness_contract {
         assert!(leaves_user_paths_unowned);
         assert!(generated_material_has_cleanup);
         assert!(every_caller_retains_and_cleans);
+    }
+
+    #[test]
+    fn should_scope_tier_four_http_query_to_fixture_database() {
+        // Arrange
+        let database = "benchmark_database";
+
+        // Act
+        let body = workloads::http_admin_query_body(database);
+
+        // Assert
+        assert_eq!(
+            body,
+            json!({
+                "database": database,
+                "sql": workloads::HTTP_ADMIN_QUERY,
+            })
+        );
     }
 
     #[test]

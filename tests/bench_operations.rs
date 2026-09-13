@@ -4352,6 +4352,41 @@ mod benchmark_deployment_profile_contract {
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
     #[test]
+    fn should_allow_six_hours_for_the_complete_canonical_benchmark_suite() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let complete_suite = workflow
+            .split_once("  complete-suite:\n")
+            .map(|(_, job)| job)
+            .expect("complete-suite benchmark job");
+
+        // Act
+        let configured_timeout = complete_suite
+            .lines()
+            .find(|line| line.trim_start().starts_with("timeout-minutes:"))
+            .map(str::trim);
+        let required_controls = [
+            "if: ${{ github.event_name == 'workflow_dispatch' }}",
+            "CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}",
+            "run: cargo bench --bench '*' --locked",
+            "benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest",
+            "path: target/stress/**/latest.json",
+            "if-no-files-found: error",
+        ];
+        let missing_controls = required_controls
+            .into_iter()
+            .filter(|control| !complete_suite.contains(control))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(configured_timeout, Some("timeout-minutes: 360"));
+        assert!(
+            missing_controls.is_empty(),
+            "missing complete-suite controls: {missing_controls:?}"
+        );
+    }
+
+    #[test]
     fn should_register_the_workflow_native_linux_profile() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

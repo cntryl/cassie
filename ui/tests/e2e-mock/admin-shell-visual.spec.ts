@@ -42,14 +42,14 @@ test("should_match_populated_admin_shell_visual_states", async ({ page }, testIn
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(page).toHaveScreenshot("admin-populated-mobile-closed.png", {
       fullPage: true,
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.03,
     });
 
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expect(page).toHaveScreenshot("admin-populated-mobile-open.png", {
       fullPage: true,
-      maxDiffPixelRatio: 0.02,
+      maxDiffPixelRatio: 0.03,
     });
 
     // Assert

@@ -230,11 +230,12 @@ cargo bench --locked --bench '*'
 
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
-The manually dispatched [Benchmark Evidence workflow](../.github/workflows/benchmarks.yml)
-executes this same complete unfiltered owner suite, validates `target/stress`, and retains the
-canonical `latest.json` owner artifacts. Dispatch it only on the commit being evidenced, with a
-unique run ID and a deployment profile matching the runner; a smoke duration remains diagnostic
-and cannot pass the complete-suite validator.
+The scheduled [Bench workflow](../.github/workflows/bench.yml) exercises Tiers 1-4 and retains its
+stress artifacts using the shared Fitz workflow topology. A manual dispatch executes the complete
+unfiltered owner suite, validates `target/stress`, and retains the canonical `latest.json` owner
+artifacts. Dispatch it only on the commit being evidenced, with a unique run ID and a deployment
+profile matching the runner; a smoke duration remains diagnostic and cannot pass the complete-suite
+validator.
 
 ## Benchmark Scope Boundary
 

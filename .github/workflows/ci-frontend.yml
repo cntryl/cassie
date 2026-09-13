@@ -6,11 +6,13 @@ on:
       - main
     paths:
       - .github/workflows/ci-frontend.yml
+      - Dockerfile
       - public/openapi.yml
       - ui/**
   pull_request:
     paths:
       - .github/workflows/ci-frontend.yml
+      - Dockerfile
       - public/openapi.yml
       - ui/**
   workflow_dispatch:
@@ -33,19 +35,15 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: lts/*
           cache: npm
           cache-dependency-path: ui/package-lock.json
 
       - name: Install UI dependencies
-        run: |
-          npm install --global npm@12.0.1
-          npm ci --strict-allow-scripts
+        run: npm ci
 
       - name: Verify current Askr packages
-        run: |
-          npx --no-install askr upgrade
-          git diff --exit-code -- package.json package-lock.json
+        run: npm outdated '@askrjs/*'
 
       - name: Askr analyzer
         run: npx --no-install askr analyze
@@ -68,8 +66,12 @@ jobs:
       - name: UI build
         run: npm run build
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Build-only container validation
+        working-directory: .
+        run: docker build --target ui-builder --tag cassie-ui-build .
+
+      - name: Install Playwright browser
+        run: npm run install:browsers
 
       - name: UI tests
         run: npm run test -- --run
@@ -77,10 +79,24 @@ jobs:
       - name: Mock browser tests
         run: npm run test:e2e:mock
 
-      - name: Retain mock browser failure evidence
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci-frontend-e2e"
+
+      - name: Build Cassie for production route tests
+        working-directory: .
+        run: cargo build --locked --bin cassie
+
+      - name: Production route suite
+        run: npm run test:e2e
+
+      - name: Upload Playwright failure artifacts
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: mock-browser-failure-${{ github.run_attempt }}
-          path: ui/test-results
+          name: cassie-ui-playwright-failures
+          path: |
+            ui/test-results/**
+            ui/playwright-report/**
           if-no-files-found: ignore

@@ -57,3 +57,42 @@ test("should_have_no_accessibility_violations_in_core_query_states", async ({ pa
   await expect(page.getByText("Query action failed")).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });
+
+test("should_have_no_accessibility_violations_on_the_not_found_page", async ({ page }) => {
+  // Arrange / Act
+  await page.goto("/missing-page");
+
+  // Assert
+  await expect(page.getByRole("main")).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Page not found", level: 1 })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Return to query workspace" })).toBeVisible();
+  await expectNoAccessibilityViolations(page);
+});
+
+test("should_have_no_accessibility_violations_while_signing_out", async ({ page }) => {
+  // Arrange
+  await page.goto("/login");
+  await page.getByLabel("Username").fill("root");
+  await page.getByLabel("Password").fill("pwd123");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  let releaseLogout!: () => void;
+  const logoutReleased = new Promise<void>((resolve) => {
+    releaseLogout = resolve;
+  });
+  await page.route("**/api/v1/auth/logout", async (route) => {
+    await logoutReleased;
+    await route.continue();
+  });
+
+  // Act
+  await page.goto("/logout");
+
+  // Assert
+  try {
+    await expect(page.getByRole("heading", { name: "Signing out", level: 1 })).toBeVisible();
+    await expectNoAccessibilityViolations(page);
+  } finally {
+    releaseLogout();
+  }
+  await expect(page).toHaveURL(/\/login$/);
+});

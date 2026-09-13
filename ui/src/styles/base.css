@@ -24,7 +24,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a {
+a:not([data-slot="button"]) {
   color: inherit;
 }
 

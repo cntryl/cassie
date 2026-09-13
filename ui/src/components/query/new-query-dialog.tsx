@@ -56,8 +56,8 @@ export function NewQueryDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogPortal>
-        <DialogOverlay class="cassie-query-dialog-overlay" />
-        <DialogContent class="cassie-query-dialog">
+        <DialogOverlay />
+        <DialogContent>
           <DialogTitle>New Query</DialogTitle>
           <DialogDescription>Name the query and select the database it will use.</DialogDescription>
           <Form class="cassie-query-dialog-form" onSubmit={submit}>

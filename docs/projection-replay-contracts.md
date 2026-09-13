@@ -58,5 +58,5 @@ Do not swap an active projection version after a failed replay solely because a 
 
 ## Evidence
 
-- `tests/projection_lifecycle.rs` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, and restart hydration of failed replay metadata.
+- `tests/analytics.rs` module `projection_lifecycle` covers idempotent duplicate skip, out-of-order failed freshness, duplicate event ids inside one batch, and restart hydration of failed replay metadata.
 - `docs/production-readiness.md` keeps projection lifecycle and replay experimental until production replay capacity evidence and deployment-profile thresholds exist.

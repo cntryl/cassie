@@ -78,7 +78,9 @@ describe("admin query page composition", () => {
     await waitForText(document.body, "Delete query?");
 
     // Assert
-    const dialog = document.querySelector(".cassie-delete-query-dialog");
+    const dialog = document
+      .querySelector(".cassie-delete-query-dialog-header")
+      ?.closest('[data-slot="dialog-content"]');
     expect(dialog?.textContent).toContain("Delete query?");
     expect(dialog?.textContent).toContain("“Query 1” will be permanently deleted");
     expect(buttonByText(dialog ?? root, "Cancel")).not.toBeNull();
@@ -90,7 +92,7 @@ describe("admin query page composition", () => {
     await flushUi();
 
     expect(root.querySelector("#saved-query-query-1")).toBeNull();
-    expect(document.querySelector(".cassie-delete-query-dialog")).toBeNull();
+    expect(document.querySelector(".cassie-delete-query-dialog-header")).toBeNull();
   });
 
   it("should_keep_the_database_tree_visible_without_an_open_query", async () => {

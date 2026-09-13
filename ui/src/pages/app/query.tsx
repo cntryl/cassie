@@ -283,8 +283,8 @@ export default function QueryPage() {
       {closeCandidate() ? (
         <AlertDialog open onOpenChange={(open) => !open && setCloseCandidate(null)}>
           <AlertDialogPortal>
-            <AlertDialogOverlay class="cassie-query-dialog-overlay" />
-            <AlertDialogContent class="cassie-query-dialog cassie-delete-query-dialog">
+            <AlertDialogOverlay />
+            <AlertDialogContent>
               <div class="cassie-delete-query-dialog-header">
                 <span class="cassie-delete-query-dialog-icon" aria-hidden="true">
                   <TriangleAlertIcon size={18} />

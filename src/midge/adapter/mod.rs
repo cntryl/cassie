@@ -2,7 +2,6 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::path::Path;
-use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 use cntryl_midge::{ColumnFamilyHandle, Engine, Query, TransactionMode, WriteOptions};
@@ -41,18 +40,17 @@ pub use column_batch_format_v2::{
 };
 pub use core::Midge;
 
-static COLUMN_BATCH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static PROJECTION_HASH_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static ROLLUP_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static COLLECTION_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static INDEX_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static COLLECTION_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static FIELD_ADD_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static FIELD_RENAME_FAILPOINT: AtomicBool = AtomicBool::new(false);
-static FIELD_DROP_FAILPOINT: AtomicBool = AtomicBool::new(false);
-
 thread_local! {
+    static COLUMN_BATCH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static PROJECTION_HASH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static ROLLUP_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static COLLECTION_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static INDEX_PUBLICATION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static INDEX_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static COLLECTION_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static FIELD_ADD_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static FIELD_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static FIELD_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
 }
 
 #[derive(Default)]
@@ -70,11 +68,11 @@ struct ColumnBatchOperationalMetrics {
 
 #[doc(hidden)]
 pub fn set_column_batch_maintenance_failure_point(enabled: bool) {
-    COLUMN_BATCH_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    COLUMN_BATCH_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_column_batch_maintenance_failure_point() -> Result<(), CassieError> {
-    if COLUMN_BATCH_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if COLUMN_BATCH_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during column batch maintenance".to_string(),
         ));
@@ -84,11 +82,11 @@ pub(crate) fn check_column_batch_maintenance_failure_point() -> Result<(), Cassi
 
 #[doc(hidden)]
 pub fn set_projection_hash_maintenance_failure_point(enabled: bool) {
-    PROJECTION_HASH_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    PROJECTION_HASH_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_projection_hash_maintenance_failure_point() -> Result<(), CassieError> {
-    if PROJECTION_HASH_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if PROJECTION_HASH_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during projection hash maintenance".to_string(),
         ));
@@ -98,11 +96,11 @@ pub(crate) fn check_projection_hash_maintenance_failure_point() -> Result<(), Ca
 
 #[doc(hidden)]
 pub fn set_rollup_maintenance_failure_point(enabled: bool) {
-    ROLLUP_MAINTENANCE_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    ROLLUP_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_rollup_maintenance_failure_point() -> Result<(), CassieError> {
-    if ROLLUP_MAINTENANCE_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if ROLLUP_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during rollup maintenance".to_string(),
         ));
@@ -112,11 +110,11 @@ pub(crate) fn check_rollup_maintenance_failure_point() -> Result<(), CassieError
 
 #[doc(hidden)]
 pub fn set_collection_drop_failure_point(enabled: bool) {
-    COLLECTION_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    COLLECTION_DROP_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_collection_drop_failure_point() -> Result<(), CassieError> {
-    if COLLECTION_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if COLLECTION_DROP_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after collection drop schema commit".to_string(),
         ));
@@ -140,11 +138,11 @@ pub(crate) fn check_index_publication_failure_point() -> Result<(), CassieError>
 
 #[doc(hidden)]
 pub fn set_index_drop_failure_point(enabled: bool) {
-    INDEX_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    INDEX_DROP_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_index_drop_failure_point() -> Result<(), CassieError> {
-    if INDEX_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if INDEX_DROP_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during index drop cleanup".to_string(),
         ));
@@ -154,11 +152,11 @@ pub(crate) fn check_index_drop_failure_point() -> Result<(), CassieError> {
 
 #[doc(hidden)]
 pub fn set_collection_rename_failure_point(enabled: bool) {
-    COLLECTION_RENAME_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    COLLECTION_RENAME_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_collection_rename_failure_point() -> Result<(), CassieError> {
-    if COLLECTION_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if COLLECTION_RENAME_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after collection rename schema commit".to_string(),
         ));
@@ -168,11 +166,11 @@ pub(crate) fn check_collection_rename_failure_point() -> Result<(), CassieError>
 
 #[doc(hidden)]
 pub fn set_field_add_failure_point(enabled: bool) {
-    FIELD_ADD_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    FIELD_ADD_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_field_add_failure_point() -> Result<(), CassieError> {
-    if FIELD_ADD_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if FIELD_ADD_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after field add schema commit".to_string(),
         ));
@@ -182,11 +180,11 @@ pub(crate) fn check_field_add_failure_point() -> Result<(), CassieError> {
 
 #[doc(hidden)]
 pub fn set_field_rename_failure_point(enabled: bool) {
-    FIELD_RENAME_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    FIELD_RENAME_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_field_rename_failure_point() -> Result<(), CassieError> {
-    if FIELD_RENAME_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if FIELD_RENAME_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after field rename schema commit".to_string(),
         ));
@@ -196,11 +194,11 @@ pub(crate) fn check_field_rename_failure_point() -> Result<(), CassieError> {
 
 #[doc(hidden)]
 pub fn set_field_drop_failure_point(enabled: bool) {
-    FIELD_DROP_FAILPOINT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    FIELD_DROP_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_field_drop_failure_point() -> Result<(), CassieError> {
-    if FIELD_DROP_FAILPOINT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+    if FIELD_DROP_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure after field drop schema commit".to_string(),
         ));

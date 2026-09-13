@@ -59,11 +59,12 @@ OID compatibility, or hosted PostgreSQL behavior.
 
 ## Lifecycle and failure evidence
 
-- `tests/catalog_introspection.rs` covers table discovery, complete column order after restart, and
-  rename/drop visibility after restart.
-- `tests/catalog_orm_metadata.rs` covers the complete supported column shape, defaults, nullability,
-  and type metadata.
-- `tests/compatibility_matrix.rs` verifies pgwire SQLSTATE `42P01` and relation metadata for an
-  unavailable relation. The same error contract applies to unavailable virtual catalogs.
+- `catalog_introspection` in `tests/catalog_security.rs` covers table discovery, complete column
+  order after restart, and rename/drop visibility after restart.
+- `catalog_orm_metadata` in `tests/catalog_security.rs` covers the complete supported column shape,
+  defaults, nullability, and type metadata.
+- `compatibility_matrix` in `tests/compatibility.rs` verifies pgwire SQLSTATE `42P01` and relation
+  metadata for an unavailable relation. The same error contract applies to unavailable virtual
+  catalogs.
 - Broader native pgAdmin-shaped queries remain deterministic repository tests, but pgAdmin and
   DBeaver certification remains separately tracked and is not promoted by this contract.

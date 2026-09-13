@@ -46,10 +46,12 @@ The Tier 1-6 ownership, timing, fixture, evidence, and full-suite acceptance rul
 
 ## Container
 
-The `Containers` workflow publishes `ghcr.io/cntryl/cassie` as a multi-architecture
-image. Every run receives its GitVersion SemVer tag and branch tag. A run from
-`main` also updates `latest`, so a main build publishes the same manifest under
-`:<semver>`, `:main`, and `:latest`.
+The `Publish` workflow releases `ghcr.io/cntryl/cassie` from `main`. Its called
+`Containers` workflow publishes the immutable GitVersion `:<semver>` manifest plus
+`:main` and `:latest`, then `Publish` creates the matching annotated `v<semver>` source
+tag only after the container succeeds. The standalone `Containers` workflow publishes
+prerelease SemVer images for branch builds without creating a repository release tag.
+See the [Release Checklist](docs/release-checklist.md).
 
 `compose.yml` expects REST TLS to terminate at a trusted reverse proxy or load balancer. It binds the published ports to host loopback, sets `CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1` for the private container hop, and requires a non-default `CASSIE_ROOT_PASSWORD` for the fixed `root` login. Do not publish that plaintext hop directly to an untrusted network.
 

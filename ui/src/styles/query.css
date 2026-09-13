@@ -681,7 +681,7 @@
   font-size: 0.85rem;
 }
 
-.cassie-query-dialog [data-slot="select-value"][data-placeholder] {
+[data-slot="dialog-content"] [data-slot="select-value"][data-placeholder] {
   color: var(--ak-color-text-muted);
 }
 
@@ -711,7 +711,7 @@
   gap: var(--ak-space-sm);
 }
 
-.cassie-delete-query-dialog {
+[data-slot="dialog-content"]:has(.cassie-delete-query-dialog-header) {
   gap: 1rem;
   width: min(28rem, calc(100vw - 2rem));
 }

@@ -2,8 +2,8 @@ use std::env;
 use std::path::Path;
 
 use cntryl_midge::{
-    AzureCredentialSource, CloudProviderConfig, GcsApiStyle, GcsCredentialSource, OpenOptions,
-    S3CredentialSource, WriteOptions,
+    AzureBlobConfig, AzureCredentialSource, CloudProviderConfig, CloudStorageLocation, GcsConfig,
+    GcsCredentialSource, OpenOptions, S3CompatibleConfig, S3CredentialSource, WriteOptions,
 };
 
 use crate::app::CassieError;
@@ -70,7 +70,7 @@ fn open_config_from(
             let prefix = env_non_empty(read_env, "CASSIE_STORAGE_PREFIX").unwrap_or_default();
             let write_policy = cloud_write_policy(read_env)?;
             (
-                OpenOptions::cloud(cache_path, provider, prefix),
+                OpenOptions::cloud(cache_path, CloudStorageLocation::new(provider, prefix)),
                 write_policy,
             )
         }
@@ -115,42 +115,50 @@ fn build_cloud_provider_config(
             DEFAULT_SQRZL_ACCESS_KEY,
             DEFAULT_SQRZL_SECRET_KEY,
         )),
-        "sqrzl-azure" => Ok(CloudProviderConfig::AzureBlob {
-            account: DEFAULT_SQRZL_ACCESS_KEY.to_string(),
-            container: env_non_empty(read_env, "CASSIE_STORAGE_CONTAINER")
+        "sqrzl-azure" => Ok(AzureBlobConfig::new(
+            DEFAULT_SQRZL_ACCESS_KEY,
+            env_non_empty(read_env, "CASSIE_STORAGE_CONTAINER")
                 .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
-            endpoint: Some(
+        )
+        .with_endpoint(
+            env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
+                .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
+        )
+        .with_credentials(AzureCredentialSource::shared_key(
+            DEFAULT_SQRZL_SECRET_KEY,
+        ))
+        .into()),
+        "sqrzl-gcs" => Ok(GcsConfig::new(
+            env_non_empty(read_env, "CASSIE_STORAGE_BUCKET")
+                .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
+        )
+        .with_project_id("sqrzl")
+        .with_endpoint(
                 env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
                     .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
-            ),
-            credential: AzureCredentialSource::shared_key(DEFAULT_SQRZL_SECRET_KEY),
-        }),
-        "sqrzl-gcs" => Ok(CloudProviderConfig::Gcs {
-            bucket: env_non_empty(read_env, "CASSIE_STORAGE_BUCKET")
-                .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
-            project_id: "sqrzl".to_string(),
-            endpoint: Some(
-                env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
-                    .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
-            ),
-            api: GcsApiStyle::Xml,
-            credential: GcsCredentialSource::hmac_key(
-                DEFAULT_SQRZL_ACCESS_KEY,
-                DEFAULT_SQRZL_SECRET_KEY,
-            ),
-        }),
+        )
+        .with_credentials(GcsCredentialSource::hmac_key(
+            DEFAULT_SQRZL_ACCESS_KEY,
+            DEFAULT_SQRZL_SECRET_KEY,
+        ))
+        .into()),
         "aws-s3" => Ok(CloudProviderConfig::aws_s3(
             required_env(read_env, "CASSIE_STORAGE_BUCKET")?,
             required_region(read_env)?,
         )),
-        "s3-compatible" => Ok(CloudProviderConfig::S3Compatible {
-            bucket: required_env(read_env, "CASSIE_STORAGE_BUCKET")?,
-            region: env_non_empty(read_env, "CASSIE_STORAGE_REGION")
+        "s3-compatible" => Ok(S3CompatibleConfig::new(
+            required_env(read_env, "CASSIE_STORAGE_BUCKET")?,
+            env_non_empty(read_env, "CASSIE_STORAGE_REGION")
                 .unwrap_or_else(|| "us-east-1".to_string()),
-            endpoint: required_env(read_env, "CASSIE_STORAGE_ENDPOINT")?,
-            path_style: env_bool(read_env, "CASSIE_STORAGE_FORCE_PATH_STYLE", true)?,
-            credentials: S3CredentialSource::environment(),
-        }),
+            required_env(read_env, "CASSIE_STORAGE_ENDPOINT")?,
+            S3CredentialSource::environment(),
+        )
+        .with_path_style(env_bool(
+            read_env,
+            "CASSIE_STORAGE_FORCE_PATH_STYLE",
+            true,
+        )?)
+        .into()),
         "minio" => Ok(CloudProviderConfig::s3_compatible_env(
             required_env(read_env, "CASSIE_STORAGE_BUCKET")?,
             required_env(read_env, "CASSIE_STORAGE_ENDPOINT")?,
@@ -160,13 +168,14 @@ fn build_cloud_provider_config(
             let region = required_env(read_env, "CASSIE_STORAGE_REGION")?;
             let endpoint = env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
                 .unwrap_or_else(|| format!("https://s3.{region}.wasabisys.com"));
-            Ok(CloudProviderConfig::S3Compatible {
+            Ok(S3CompatibleConfig::new(
                 bucket,
                 region,
                 endpoint,
-                path_style: true,
-                credentials: S3CredentialSource::environment(),
-            })
+                S3CredentialSource::environment(),
+            )
+            .with_path_style(true)
+            .into())
         }
         "oci-s3" => {
             let bucket = required_env(read_env, "CASSIE_STORAGE_BUCKET")?;
@@ -175,13 +184,18 @@ fn build_cloud_provider_config(
             let endpoint = env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT").unwrap_or_else(|| {
                 format!("https://{namespace}.compat.objectstorage.{region}.oraclecloud.com")
             });
-            Ok(CloudProviderConfig::S3Compatible {
+            Ok(S3CompatibleConfig::new(
                 bucket,
                 region,
                 endpoint,
-                path_style: env_bool(read_env, "CASSIE_STORAGE_FORCE_PATH_STYLE", false)?,
-                credentials: S3CredentialSource::environment(),
-            })
+                S3CredentialSource::environment(),
+            )
+            .with_path_style(env_bool(
+                read_env,
+                "CASSIE_STORAGE_FORCE_PATH_STYLE",
+                false,
+            )?)
+            .into())
         }
         "azure-blob" => build_azure_blob_provider(read_env),
         "gcs" => build_gcs_provider(read_env),
@@ -329,6 +343,7 @@ mod tests {
             ("CASSIE_STORAGE_PROVIDER", "aws-s3"),
             ("CASSIE_STORAGE_BUCKET", "cassie-production"),
             ("CASSIE_STORAGE_REGION", "us-east-1"),
+            ("CASSIE_STORAGE_PREFIX", "tenant/cassie"),
         ]);
 
         // Act
@@ -337,7 +352,12 @@ mod tests {
             .open_options;
 
         // Assert
-        assert!(matches!(options.storage(), Storage::Cloud { .. }));
+        let Storage::Cloud { topology, .. } = options.storage() else {
+            panic!("expected cloud storage");
+        };
+        assert_eq!(topology.wal().prefix(), "tenant/cassie");
+        assert_eq!(topology.sst().prefix(), "tenant/cassie");
+        assert_eq!(topology.control().prefix(), "tenant/cassie");
     }
 
     #[test]

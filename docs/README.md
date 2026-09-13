@@ -40,6 +40,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 ## Engineering
 
 - [Definition of Done](definition-of-done.md)
+- [Release Checklist](release-checklist.md)
 - [Tooling Contract](tooling-contract.md)
 - [Experimental Promotion Criteria](experimental-promotion-criteria.md)
 - [Promotion Evidence Matrix](promotion-evidence-matrix.md)

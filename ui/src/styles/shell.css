@@ -4,6 +4,10 @@
   overflow: hidden;
 }
 
+.cassie-admin-root[data-ak-layout="true"] {
+  --ak-flex-direction-base: column;
+}
+
 .cassie-brand-mark {
   border: 0;
   background: transparent;

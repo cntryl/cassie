@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::cell::Cell;
 
 use serde::{Deserialize, Serialize};
 
@@ -12,15 +12,17 @@ const PROJECTION_HASH_ARTIFACT: &str = "projection_hash";
 pub(crate) const ROLLUP_ARTIFACT: &str = "rollup";
 pub(crate) const MATERIALIZED_PROJECTION_ARTIFACT: &str = "materialized_projection";
 const FULLTEXT_ARTIFACT_PREFIX: &str = "fulltext:";
-static FULLTEXT_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    static FULLTEXT_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+}
 
 #[doc(hidden)]
 pub fn set_fulltext_maintenance_failure_point(enabled: bool) {
-    FULLTEXT_MAINTENANCE_FAILPOINT.store(enabled, Ordering::SeqCst);
+    FULLTEXT_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_fulltext_maintenance_failure_point() -> Result<(), CassieError> {
-    if FULLTEXT_MAINTENANCE_FAILPOINT.swap(false, Ordering::SeqCst) {
+    if FULLTEXT_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during fulltext maintenance".to_string(),
         ));

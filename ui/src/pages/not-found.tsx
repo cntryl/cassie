@@ -16,8 +16,8 @@ import {
 
 export default function NotFoundPage() {
   return (
-    <Page background="muted" center>
-      <Block as="main" align="center" justify="center" grow id="main-content" tabindex={-1}>
+    <Page background="muted" center id="main-content" tabindex={-1}>
+      <Block align="center" justify="center" grow>
         <Block width="full" maxWidth="sm">
           <Card variant="raised">
             <CardHeader>
@@ -27,7 +27,7 @@ export default function NotFoundPage() {
                 </BrandMark>
                 <BrandLabel>Cassie Admin</BrandLabel>
               </Brand>
-              <CardTitle>Page not found</CardTitle>
+              <CardTitle titleAs="h1">Page not found</CardTitle>
               <CardDescription>The requested admin page does not exist.</CardDescription>
             </CardHeader>
             <CardContent>

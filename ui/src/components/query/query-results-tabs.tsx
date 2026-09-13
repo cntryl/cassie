@@ -99,6 +99,7 @@ export function QueryResultsTabs({
           <TabsList
             ref={setTabListEl}
             class="cassie-query-tabs"
+            role="tablist"
             aria-label="Result tab group"
             onKeyDown={handleTabListKeyDown}
           >
@@ -133,6 +134,7 @@ export function QueryResultsTabs({
       <div class="cassie-query-tab-content" aria-live="polite" tabIndex={0}>
         <TabsContent
           class="cassie-query-tab-panel"
+          role="tabpanel"
           id={`query-${workspaceId}-result-panel-results`}
           aria-labelledby={`query-${workspaceId}-result-tab-results`}
           data-testid="query-tab-content"
@@ -144,6 +146,7 @@ export function QueryResultsTabs({
         </TabsContent>
         <TabsContent
           class="cassie-query-tab-panel"
+          role="tabpanel"
           id={`query-${workspaceId}-result-panel-list`}
           aria-labelledby={`query-${workspaceId}-result-tab-list`}
           data-testid="query-tab-content"
@@ -155,6 +158,7 @@ export function QueryResultsTabs({
         </TabsContent>
         <TabsContent
           class="cassie-query-tab-panel"
+          role="tabpanel"
           id={`query-${workspaceId}-result-panel-plan`}
           aria-labelledby={`query-${workspaceId}-result-tab-plan`}
           data-testid="query-tab-content"

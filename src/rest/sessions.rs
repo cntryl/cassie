@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use cntryl_midge::{ConflictPolicy, Query, TransactionMode};
-use rand_core::{OsRng, TryRngCore};
+use getrandom::fill;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -236,9 +236,7 @@ fn session_key(token: &str) -> Vec<u8> {
 
 fn random_token() -> String {
     let mut bytes = [0_u8; 32];
-    OsRng
-        .try_fill_bytes(&mut bytes)
-        .expect("operating system random source must be available");
+    fill(&mut bytes).expect("operating system random source must be available");
     encode_hex(&bytes)
 }
 

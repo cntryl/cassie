@@ -28,7 +28,7 @@ cargo fmt --all -- --check
 | `src/search/` | BM25 full-text search, inverted index |
 | `src/types/` | Value types, schema, row encoding |
 | `src/hybrid/` | Hybrid text+vector scoring |
-| `tests/` | Integration tests (one file per subsystem) |
+| `tests/` | 18 flat integration suites plus shared fixtures in `tests/support/` |
 | `benches/` | Tiered benchmarks: tier1 (micro), tier2 (subsystem), tier3 (system), tier4 (integration) |
 
 ## File Organization
@@ -36,9 +36,10 @@ cargo fmt --all -- --check
 Small, well-organized files are a core architecture requirement. Future feature work must keep modules focused so changes stay surgical.
 
 - Put new code in the smallest domain-specific module that fits the behavior.
-- Keep source and test files under 1,000 lines. If a legacy file is already over that limit, feature work in that area must extract a focused module or test file before adding behavior.
-- Do not add substantial feature work to files over 1,000 lines unless the same change extracts code out of that file.
+- Keep source, benchmark, and test-support files under 1,000 lines. Flat integration suite files under `tests/*.rs` may grow to 12,000 lines when their tests remain separated into focused named modules.
+- Do not add substantial feature work to files over their limit unless the same change extracts focused code or fixtures from that file.
 - Keep tests grouped by subsystem. Do not add new broad coverage to catch-all integration files when a subsystem-specific test file exists.
+- Put reusable fixtures, builders, mock servers, environment guards, failpoint locks, and shared assertions in focused `tests/support/*.rs` modules.
 - Prefer refactors that reduce oversized files before adding more behavior to them.
 - Use this audit when planning large work:
 
@@ -57,8 +58,8 @@ find src tests benches -type f -name '*.rs' -print0 | xargs -0 wc -l | sort -nr 
 
 ```sh
 # specific split integration tests
-cargo test --locked --test integration_sql_query -- --nocapture
-cargo test --locked --test executor_parallel -- --nocapture
+cargo test --locked --test sql_queries integration_sql_joins:: -- --nocapture
+cargo test --locked --test executor executor_parallel:: -- --nocapture
 
 # single unit test
 cargo test --locked should_reuse_cached_plan_arc
@@ -93,7 +94,7 @@ The administrative username is always `root`; set its password with `CASSIE_ROOT
 
 - **Midge** is the only storage layer. No second abstraction.
 - **PostgreSQL wire protocol** is the primary query interface. REST is secondary and administrative.
-- `cntryl-midge` is an external dependency via git: `https://github.com/cntryl/midge`.
+- `cntryl-midge` is an external dependency published on crates.io.
 
 ## Benchmarks
 

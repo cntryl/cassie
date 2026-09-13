@@ -7,11 +7,14 @@ mod workloads;
 
 const ROWS: usize = 2_048;
 const QUERIES_PER_SAMPLE: usize = 8;
+const ALP_QUERIES_PER_SAMPLE: usize = 128;
 const FIXTURE_ID: &str = "tier2_subsystem_column_scan/2k";
 const COMPRESSIBLE_CANDIDATE: &str = "perf.column.selective_encoded_scan.2k";
 const COMPRESSIBLE_BASELINE: &str = "perf.column.selective_plain_scan_baseline.2k";
 const INCOMPRESSIBLE_CANDIDATE: &str = "perf.column.incompressible_adaptive_scan.2k";
 const INCOMPRESSIBLE_BASELINE: &str = "perf.column.incompressible_plain_scan_baseline.2k";
+const ALP_CANDIDATE: &str = "perf.column.alp_selective_scan.2k";
+const ALP_BASELINE: &str = "perf.column.alp_plain_scan_baseline.2k";
 
 fn main() {
     let mut runner = stress::runner(
@@ -22,11 +25,15 @@ fn main() {
     let compressible_baseline = case("selective_plain_scan_baseline");
     let incompressible = case("incompressible_adaptive_scan");
     let incompressible_baseline = case("incompressible_plain_scan_baseline");
+    let alp = case("alp_selective_scan");
+    let alp_baseline = case("alp_plain_scan_baseline");
     let selections = [
         runner.is_enabled(&compressible),
         runner.is_enabled(&compressible_baseline),
         runner.is_enabled(&incompressible),
         runner.is_enabled(&incompressible_baseline),
+        runner.is_enabled(&alp),
+        runner.is_enabled(&alp_baseline),
     ];
     if selections.iter().any(|selected| *selected) {
         let setup_started = std::time::Instant::now();
@@ -43,6 +50,25 @@ fn main() {
             selections[0],
             workloads::COMPRESSIBLE_AUTO_SQL,
             &setup_time,
+            QUERIES_PER_SAMPLE,
+        );
+        measure_selected(
+            &mut runner,
+            &context,
+            alp,
+            selections[4],
+            workloads::ALP_AUTO_SQL,
+            &setup_time,
+            ALP_QUERIES_PER_SAMPLE,
+        );
+        measure_selected(
+            &mut runner,
+            &context,
+            alp_baseline,
+            selections[5],
+            workloads::ALP_PLAIN_SQL,
+            &setup_time,
+            ALP_QUERIES_PER_SAMPLE,
         );
         measure_selected(
             &mut runner,
@@ -51,6 +77,7 @@ fn main() {
             selections[1],
             workloads::COMPRESSIBLE_PLAIN_SQL,
             &setup_time,
+            QUERIES_PER_SAMPLE,
         );
         measure_selected(
             &mut runner,
@@ -59,6 +86,7 @@ fn main() {
             selections[2],
             workloads::INCOMPRESSIBLE_AUTO_SQL,
             &setup_time,
+            QUERIES_PER_SAMPLE,
         );
         measure_selected(
             &mut runner,
@@ -67,12 +95,16 @@ fn main() {
             selections[3],
             workloads::INCOMPRESSIBLE_PLAIN_SQL,
             &setup_time,
+            QUERIES_PER_SAMPLE,
         );
         if selections[0] && selections[1] {
             runner.require_relative_p95(COMPRESSIBLE_CANDIDATE, COMPRESSIBLE_BASELINE, 0.85);
         }
         if selections[2] && selections[3] {
             runner.require_relative_p95(INCOMPRESSIBLE_CANDIDATE, INCOMPRESSIBLE_BASELINE, 1.05);
+        }
+        if selections[4] && selections[5] {
+            runner.require_relative_p95(ALP_CANDIDATE, ALP_BASELINE, 1.05);
         }
     }
     runner.finish();
@@ -96,6 +128,7 @@ fn measure_selected(
     selected: bool,
     sql: &str,
     setup_time: &str,
+    queries_per_sample: usize,
 ) {
     if !selected {
         return;
@@ -103,7 +136,7 @@ fn measure_selected(
     let before = context.cassie.metrics();
     runner.measure_counted(case.metadata("setup_time_ns", setup_time), || {
         let mut completed_rows = 0usize;
-        for _ in 0..QUERIES_PER_SAMPLE {
+        for _ in 0..queries_per_sample {
             let result = context
                 .cassie
                 .execute_sql(&context.session, sql, vec![])

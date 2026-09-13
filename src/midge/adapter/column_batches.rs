@@ -29,6 +29,7 @@ use crate::types::Value;
 
 pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = MANIFEST_FORMAT_VERSION as u32;
 pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = MANIFEST_SUMMARY_VERSION as u32;
+pub(super) const CURRENT_COLUMN_BATCH_CODEC_VERSION: u32 = 1;
 
 struct ColumnBatchScanPlan {
     index: IndexMeta,

@@ -694,9 +694,19 @@ fn validate_query_evidence(
         "configured_worker_count",
         "leaked_active_operator_workers",
         "setup_time_ns",
-        "measurement_time_ns",
     ] {
         require_numeric_metadata(metadata, key)?;
+    }
+    if metadata.get("measurement_time_ns").is_some() {
+        require_numeric_metadata(metadata, "measurement_time_ns")?;
+    } else if summary["total_wall_clock_ns"]
+        .as_u64()
+        .is_none_or(|elapsed| elapsed == 0)
+    {
+        return Err(
+            "benchmark summary missing measurement timing evidence in total_wall_clock_ns"
+                .to_string(),
+        );
     }
     let result_cache_hits = require_numeric_metadata(metadata, "execution_result_cache_hits")?;
     if !allows_result_cache_hits && result_cache_hits != 0 {

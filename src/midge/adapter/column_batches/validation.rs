@@ -7,7 +7,7 @@ use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use super::{
     collect_scan, column_batch_summaries, column_index_segment_size, column_values,
     load_column_batch_segment, summary_checksum, CassieError, ColumnBatchScanFallbackReason, Midge,
-    Query, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
+    Query, CURRENT_COLUMN_BATCH_CODEC_VERSION, CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -511,6 +511,15 @@ fn normalized_fields(fields: &[String]) -> BTreeSet<String> {
 fn invalid_segment_manifest_reason(
     metadata: &ColumnBatchMetadata,
 ) -> Option<ColumnBatchScanFallbackReason> {
+    if metadata.segments.iter().any(|segment| {
+        segment.row_ids.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION
+            || segment
+                .field_chunks
+                .values()
+                .any(|chunk| chunk.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION)
+    }) {
+        return Some(ColumnBatchScanFallbackReason::SegmentCodecMismatch);
+    }
     let Some(manifest_row_count) = metadata.segments.iter().try_fold(0usize, |total, segment| {
         total.checked_add(segment.row_count)
     }) else {

@@ -1,9 +1,12 @@
+mod alp_scan;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     column_batch_summaries, column_values, summary::json_to_typed_value, CassieError,
     ColumnBatchChunkMeta, ColumnBatchRow, ColumnBatchScanFallbackReason, ColumnBatchScanFilter,
     ColumnBatchScanOp, ColumnBatchSegmentMeta, IndexMeta, Midge,
+    CURRENT_COLUMN_BATCH_CODEC_VERSION,
 };
 use crate::midge::adapter::column_batch_format_v2::{
     checksum_hex, decode_column_chunk, decode_row_ids, decode_selected_column_chunk,
@@ -11,8 +14,10 @@ use crate::midge::adapter::column_batch_format_v2::{
 };
 use crate::midge::row_blob::RowSchema;
 use crate::types::semantic::compare_values;
-
-const CODEC_VERSION: u32 = 1;
+use alp_scan::{
+    alp_selection_for_filter, load_alp_field_chunk, materialize_selected_alp_rows,
+    selected_alp_json_values, single_alp_predicate_field,
+};
 
 pub(super) struct EncodedSegment {
     pub(super) metadata: ColumnBatchSegmentMeta,
@@ -34,6 +39,16 @@ pub(super) struct LoadedSegment {
 pub(super) struct AggregateSegment {
     pub(super) values: BTreeMap<String, Vec<crate::types::Value>>,
     pub(super) selected_rows: usize,
+}
+
+#[derive(Default)]
+struct LoadedPredicateFields {
+    decoded: BTreeMap<String, Vec<serde_json::Value>>,
+    encoded_bytes: usize,
+    decoded_bytes: usize,
+    chunks_read: usize,
+    selection: Option<(Vec<bool>, usize)>,
+    alp_projection: Option<(String, u8, Vec<Option<i64>>)>,
 }
 
 /// Loads only field chunks for a filtered aggregate.  In particular, this deliberately does not
@@ -146,7 +161,7 @@ fn encode_segment_with_policy(
         logical_type: "row_id".to_string(),
         codec_id: 0,
         codec_name: "plain".to_string(),
-        codec_version: CODEC_VERSION,
+        codec_version: CURRENT_COLUMN_BATCH_CODEC_VERSION,
         decoded_len: row_ids.iter().map(String::len).sum(),
         encoded_len: encoded_row_ids.len(),
         value_count: row_ids.len(),
@@ -177,7 +192,7 @@ fn encode_segment_with_policy(
                 logical_type: encoded.logical_type.name().to_string(),
                 codec_id: encoded.codec as u8,
                 codec_name: encoded.codec.name().to_string(),
-                codec_version: CODEC_VERSION,
+                codec_version: CURRENT_COLUMN_BATCH_CODEC_VERSION,
                 decoded_len: encoded.decoded_len,
                 encoded_len: encoded.bytes.len(),
                 value_count: encoded.value_count,
@@ -249,6 +264,9 @@ pub(super) fn load_segment(
     wanted: &BTreeSet<String>,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {
     let (relation_id, index_id) = Midge::column_batch_storage_ids(index)?;
+    if segment.row_ids.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
+    }
     let Some(raw_row_ids) = tx
         .get(&Midge::column_batch_row_ids_key(
             relation_id,
@@ -295,6 +313,9 @@ pub(super) fn load_segment(
         else {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         };
+        if chunk_meta.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION {
+            return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
+        }
         let Some(raw) = tx
             .get(&Midge::column_batch_field_key(
                 relation_id,
@@ -350,38 +371,23 @@ pub(super) fn scan_segment(
     filter: Option<&ColumnBatchScanFilter>,
 ) -> Result<Result<LoadedSegment, ColumnBatchScanFallbackReason>, CassieError> {
     let (relation_id, index_id) = Midge::column_batch_storage_ids(index)?;
-    let mut decoded_fields = BTreeMap::<String, Vec<serde_json::Value>>::new();
-    let mut encoded_bytes = 0usize;
-    let mut decoded_bytes = 0usize;
-    let mut chunks_read = 0usize;
+    let loaded = match load_predicate_fields(tx, relation_id, index_id, segment, wanted, filter)? {
+        Ok(loaded) => loaded,
+        Err(reason) => return Ok(Err(reason)),
+    };
+    let mut decoded_fields = loaded.decoded;
+    let mut encoded_bytes = loaded.encoded_bytes;
+    let mut decoded_bytes = loaded.decoded_bytes;
+    let mut chunks_read = loaded.chunks_read;
+    let alp_projection = loaded.alp_projection;
 
-    if let Some(filter) = filter {
-        for predicate in &filter.predicates {
-            if decoded_fields
-                .keys()
-                .any(|field| field.eq_ignore_ascii_case(&predicate.field))
-            {
-                continue;
-            }
-            let Some((field, meta)) = find_field_chunk(segment, &predicate.field) else {
-                return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
-            };
-            let loaded = match load_field_chunk(tx, relation_id, index_id, segment, field, meta)? {
-                Ok(loaded) => loaded,
-                Err(reason) => return Ok(Err(reason)),
-            };
-            encoded_bytes = encoded_bytes.saturating_add(loaded.encoded_len);
-            decoded_bytes = decoded_bytes.saturating_add(loaded.decoded_len);
-            chunks_read = chunks_read.saturating_add(1);
-            decoded_fields.insert(field.clone(), loaded.values);
-        }
-    }
-
-    let (selection, predicate_values) =
-        match encoded_selection(segment.row_count, filter, &decoded_fields) {
+    let (selection, predicate_values) = match loaded.selection {
+        Some(selection) => selection,
+        None => match encoded_selection(segment.row_count, filter, &decoded_fields) {
             Ok(selection) => selection,
             Err(reason) => return Ok(Err(reason)),
-        };
+        },
+    };
     let selected_rows = selection.iter().filter(|selected| **selected).count();
     if selected_rows == 0 {
         return Ok(Ok(empty_loaded_segment(
@@ -393,17 +399,21 @@ pub(super) fn scan_segment(
         )));
     }
 
-    let (projection_encoded, projection_decoded, projection_chunks) = match load_projection_fields(
-        tx,
-        relation_id,
-        index_id,
-        segment,
-        wanted,
-        selection.as_slice(),
-        &mut decoded_fields,
-    )? {
-        Ok(accounting) => accounting,
-        Err(reason) => return Ok(Err(reason)),
+    let (projection_encoded, projection_decoded, projection_chunks) = if alp_projection.is_some() {
+        (0, 0, 0)
+    } else {
+        match load_projection_fields(
+            tx,
+            relation_id,
+            index_id,
+            segment,
+            wanted,
+            selection.as_slice(),
+            &mut decoded_fields,
+        )? {
+            Ok(accounting) => accounting,
+            Err(reason) => return Ok(Err(reason)),
+        }
     };
     encoded_bytes = encoded_bytes.saturating_add(projection_encoded);
     decoded_bytes = decoded_bytes.saturating_add(projection_decoded);
@@ -416,7 +426,14 @@ pub(super) fn scan_segment(
     encoded_bytes = encoded_bytes.saturating_add(segment.row_ids.encoded_len);
     decoded_bytes = decoded_bytes.saturating_add(segment.row_ids.decoded_len);
     chunks_read = chunks_read.saturating_add(1);
-    let rows = materialize_selected_rows(row_ids, selection, wanted, &decoded_fields);
+    let rows = if let Some((field, scale, values)) = alp_projection {
+        match materialize_selected_alp_rows(row_ids, selection, &field, &values, scale) {
+            Ok(rows) => rows,
+            Err(reason) => return Ok(Err(reason)),
+        }
+    } else {
+        materialize_selected_rows(row_ids, selection, wanted, &decoded_fields)
+    };
     let materialized_values = rows.len().saturating_mul(wanted.len());
     Ok(Ok(LoadedSegment {
         encoded_bytes,
@@ -428,6 +445,76 @@ pub(super) fn scan_segment(
         selected_rows,
         materialized_values,
     }))
+}
+
+fn load_predicate_fields(
+    tx: &cntryl_midge::Transaction,
+    relation_id: u64,
+    index_id: u64,
+    segment: &ColumnBatchSegmentMeta,
+    wanted: &BTreeSet<String>,
+    filter: Option<&ColumnBatchScanFilter>,
+) -> Result<Result<LoadedPredicateFields, ColumnBatchScanFallbackReason>, CassieError> {
+    let mut result = LoadedPredicateFields::default();
+    let Some(filter) = filter else {
+        return Ok(Ok(result));
+    };
+    if let Some((field, meta)) = single_alp_predicate_field(segment, filter) {
+        let loaded = match load_alp_field_chunk(tx, relation_id, index_id, segment, field, meta)? {
+            Ok(loaded) => loaded,
+            Err(reason) => return Ok(Err(reason)),
+        };
+        if let Some((selection, predicate_values)) =
+            alp_selection_for_filter(&loaded.values, loaded.scale, filter)
+        {
+            let projects_alp_field = wanted
+                .iter()
+                .any(|wanted_field| wanted_field.eq_ignore_ascii_case(field));
+            if wanted.len() == 1 && projects_alp_field {
+                result.alp_projection = Some((field.clone(), loaded.scale, loaded.values));
+            } else if projects_alp_field {
+                let values =
+                    match selected_alp_json_values(&loaded.values, loaded.scale, &selection) {
+                        Ok(values) => values,
+                        Err(reason) => return Ok(Err(reason)),
+                    };
+                result.decoded.insert(field.clone(), values);
+            }
+            result.selection = Some((selection, predicate_values));
+        } else {
+            let all_values = vec![true; loaded.values.len()];
+            let values = match selected_alp_json_values(&loaded.values, loaded.scale, &all_values) {
+                Ok(values) => values,
+                Err(reason) => return Ok(Err(reason)),
+            };
+            result.decoded.insert(field.clone(), values);
+        }
+        result.encoded_bytes = loaded.encoded_len;
+        result.decoded_bytes = loaded.decoded_len;
+        result.chunks_read = 1;
+        return Ok(Ok(result));
+    }
+    for predicate in &filter.predicates {
+        if result
+            .decoded
+            .keys()
+            .any(|field| field.eq_ignore_ascii_case(&predicate.field))
+        {
+            continue;
+        }
+        let Some((field, meta)) = find_field_chunk(segment, &predicate.field) else {
+            return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
+        };
+        let loaded = match load_field_chunk(tx, relation_id, index_id, segment, field, meta)? {
+            Ok(loaded) => loaded,
+            Err(reason) => return Ok(Err(reason)),
+        };
+        result.encoded_bytes = result.encoded_bytes.saturating_add(loaded.encoded_len);
+        result.decoded_bytes = result.decoded_bytes.saturating_add(loaded.decoded_len);
+        result.chunks_read = result.chunks_read.saturating_add(1);
+        result.decoded.insert(field.clone(), loaded.values);
+    }
+    Ok(Ok(result))
 }
 
 fn materialize_selected_rows(
@@ -640,6 +727,9 @@ fn load_field_chunk_with_selection(
     meta: &ColumnBatchChunkMeta,
     selection: Option<&[bool]>,
 ) -> Result<Result<LoadedField, ColumnBatchScanFallbackReason>, CassieError> {
+    if meta.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
+    }
     let Some(raw) = tx
         .get(&Midge::column_batch_field_key(
             relation_id,
@@ -684,6 +774,9 @@ fn load_row_ids(
     index_id: u64,
     segment: &ColumnBatchSegmentMeta,
 ) -> Result<Result<Vec<String>, ColumnBatchScanFallbackReason>, CassieError> {
+    if segment.row_ids.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION {
+        return Ok(Err(ColumnBatchScanFallbackReason::SegmentCodecMismatch));
+    }
     let Some(raw) = tx
         .get(&Midge::column_batch_row_ids_key(
             relation_id,

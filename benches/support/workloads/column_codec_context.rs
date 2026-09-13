@@ -2,6 +2,7 @@ use std::future::{ready, Ready};
 
 use cassie::app::CassieError;
 use cassie::catalog::canonical_relation_name;
+use cassie::types::DataType;
 
 use super::context::{bench_document_schema, unindexed_context, BenchContext};
 
@@ -13,6 +14,8 @@ pub const INCOMPRESSIBLE_AUTO_SQL: &str =
     "SELECT title, body FROM bench_documents_incompressible WHERE title >= '000000000000079c-'";
 pub const INCOMPRESSIBLE_PLAIN_SQL: &str =
     "SELECT title, body FROM bench_documents_incompressible_plain WHERE title >= '000000000000079c-'";
+pub const ALP_AUTO_SQL: &str = "SELECT score FROM bench_documents_alp WHERE score >= 9.24";
+pub const ALP_PLAIN_SQL: &str = "SELECT score FROM bench_documents_alp_plain WHERE score >= 9.24";
 
 pub fn column_codec_acceptance_context(rows: usize) -> Ready<Result<BenchContext, CassieError>> {
     ready(column_codec_acceptance_context_now(rows))
@@ -90,7 +93,64 @@ fn column_codec_acceptance_context_now(rows: usize) -> Result<BenchContext, Cass
             "bench_documents_incompressible_plain_column_idx",
         )?;
 
+    add_alp_acceptance_pair(&context, rows)?;
+
     Ok(context)
+}
+
+fn add_alp_acceptance_pair(context: &BenchContext, rows: usize) -> Result<(), CassieError> {
+    let mut alp_schema = bench_document_schema();
+    alp_schema
+        .fields
+        .iter_mut()
+        .find(|field| field.name == "score")
+        .ok_or_else(|| CassieError::Execution("missing benchmark score field".to_string()))?
+        .data_type = DataType::Float;
+    let alp = alp_documents(rows);
+    create_bench_collection_with_schema(context, "bench_documents_alp", &alp_schema, alp.clone())?;
+    create_column_index(
+        context,
+        "bench_documents_alp",
+        "bench_documents_alp_column_idx",
+        "score",
+    )?;
+    assert_selected_codec(
+        context,
+        "bench_documents_alp",
+        "bench_documents_alp_column_idx",
+        "score",
+        "alp",
+    )?;
+    assert_alp_storage_savings(
+        context,
+        "bench_documents_alp",
+        "bench_documents_alp_column_idx",
+        "score",
+    )?;
+
+    create_bench_collection_with_schema(context, "bench_documents_alp_plain", &alp_schema, alp)?;
+    create_column_index(
+        context,
+        "bench_documents_alp_plain",
+        "bench_documents_alp_plain_column_idx",
+        "score",
+    )?;
+    context
+        .cassie
+        .midge
+        .rebuild_column_batches_plain_for_benchmark(
+            "bench_documents_alp_plain",
+            "bench_documents_alp_plain_column_idx",
+        )?;
+    assert_selected_codec(
+        context,
+        "bench_documents_alp_plain",
+        "bench_documents_alp_plain_column_idx",
+        "score",
+        "plain",
+    )?;
+
+    Ok(())
 }
 
 fn create_bench_collection(
@@ -99,6 +159,15 @@ fn create_bench_collection(
     documents: Vec<(Option<String>, serde_json::Value)>,
 ) -> Result<(), CassieError> {
     let schema = bench_document_schema();
+    create_bench_collection_with_schema(context, collection, &schema, documents)
+}
+
+fn create_bench_collection_with_schema(
+    context: &BenchContext,
+    collection: &str,
+    schema: &cassie::types::Schema,
+    documents: Vec<(Option<String>, serde_json::Value)>,
+) -> Result<(), CassieError> {
     context
         .cassie
         .midge
@@ -112,6 +181,55 @@ fn create_bench_collection(
             .collect(),
     );
     context.cassie.midge.put_documents(collection, documents)?;
+    Ok(())
+}
+
+fn assert_selected_codec(
+    context: &BenchContext,
+    collection: &str,
+    index: &str,
+    field: &str,
+    codec: &str,
+) -> Result<(), CassieError> {
+    let metadata = context
+        .cassie
+        .midge
+        .get_column_batch_metadata(collection, index)?
+        .ok_or_else(|| CassieError::Execution("missing column benchmark metadata".to_string()))?;
+    if metadata.segments.iter().any(|segment| {
+        segment
+            .field_chunks
+            .get(field)
+            .is_none_or(|chunk| chunk.codec_name != codec)
+    }) {
+        return Err(CassieError::Execution(format!(
+            "benchmark field '{field}' did not select codec '{codec}'"
+        )));
+    }
+    Ok(())
+}
+
+fn assert_alp_storage_savings(
+    context: &BenchContext,
+    collection: &str,
+    index: &str,
+    field: &str,
+) -> Result<(), CassieError> {
+    let metadata = context
+        .cassie
+        .midge
+        .get_column_batch_metadata(collection, index)?
+        .ok_or_else(|| CassieError::Execution("missing ALP benchmark metadata".to_string()))?;
+    if metadata.segments.iter().any(|segment| {
+        segment
+            .field_chunks
+            .get(field)
+            .is_none_or(|chunk| chunk.encoded_len.saturating_mul(4) > chunk.decoded_len)
+    }) {
+        return Err(CassieError::Execution(
+            "ALP benchmark chunks did not reduce plain bytes by at least 75%".to_string(),
+        ));
+    }
     Ok(())
 }
 
@@ -214,6 +332,31 @@ fn compressible_documents(rows: usize) -> Vec<(Option<String>, serde_json::Value
                     "body": bodies[index % bodies.len()],
                     "score": i64::try_from(index % 100).expect("score should fit i64"),
                     "status": if index % 2 == 0 { "approved" } else { "pending" },
+                    "embedding": [1.0, 0.0, 0.0]
+                }),
+            )
+        })
+        .collect()
+}
+
+fn alp_documents(rows: usize) -> Vec<(Option<String>, serde_json::Value)> {
+    let midpoint = i64::try_from(rows / 2).expect("benchmark rows should fit i64");
+    (0..rows)
+        .map(|index| {
+            let permuted = index
+                .checked_mul(977)
+                .expect("benchmark permutation should fit usize")
+                % rows;
+            let position = i64::try_from(permuted).expect("benchmark row should fit i64");
+            let centered = i32::try_from(position - midpoint)
+                .expect("benchmark centered position should fit i32");
+            (
+                Some(format!("alp-{index:04}")),
+                serde_json::json!({
+                    "title": format!("alp-{index:04}"),
+                    "body": "alp benchmark row",
+                    "score": f64::from(centered) / 100.0,
+                    "status": "active",
                     "embedding": [1.0, 0.0, 0.0]
                 }),
             )

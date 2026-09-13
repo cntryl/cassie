@@ -8,6 +8,7 @@ mod workloads;
 const ROWS: usize = 2_048;
 const QUERIES_PER_SAMPLE: usize = 8;
 const ALP_QUERIES_PER_SAMPLE: usize = 128;
+const FSST_QUERIES_PER_SAMPLE: usize = 1_024;
 const FIXTURE_ID: &str = "tier2_subsystem_column_scan/2k";
 const COMPRESSIBLE_CANDIDATE: &str = "perf.column.selective_encoded_scan.2k";
 const COMPRESSIBLE_BASELINE: &str = "perf.column.selective_plain_scan_baseline.2k";
@@ -15,26 +16,85 @@ const INCOMPRESSIBLE_CANDIDATE: &str = "perf.column.incompressible_adaptive_scan
 const INCOMPRESSIBLE_BASELINE: &str = "perf.column.incompressible_plain_scan_baseline.2k";
 const ALP_CANDIDATE: &str = "perf.column.alp_selective_scan.2k";
 const ALP_BASELINE: &str = "perf.column.alp_plain_scan_baseline.2k";
+const FSST_CANDIDATE: &str = "perf.column.fsst_selective_scan.2k";
+const FSST_BASELINE: &str = "perf.column.fsst_plain_scan_baseline.2k";
+
+#[derive(Clone, Copy)]
+struct Scenario {
+    workload: &'static str,
+    sql: &'static str,
+    queries_per_sample: usize,
+    expected_rows: usize,
+}
+
+const SCENARIOS: [Scenario; 8] = [
+    Scenario {
+        workload: "selective_encoded_scan",
+        sql: workloads::COMPRESSIBLE_AUTO_SQL,
+        queries_per_sample: QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "selective_plain_scan_baseline",
+        sql: workloads::COMPRESSIBLE_PLAIN_SQL,
+        queries_per_sample: QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "incompressible_adaptive_scan",
+        sql: workloads::INCOMPRESSIBLE_AUTO_SQL,
+        queries_per_sample: QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "incompressible_plain_scan_baseline",
+        sql: workloads::INCOMPRESSIBLE_PLAIN_SQL,
+        queries_per_sample: QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "alp_selective_scan",
+        sql: workloads::ALP_AUTO_SQL,
+        queries_per_sample: ALP_QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "alp_plain_scan_baseline",
+        sql: workloads::ALP_PLAIN_SQL,
+        queries_per_sample: ALP_QUERIES_PER_SAMPLE,
+        expected_rows: 100,
+    },
+    Scenario {
+        workload: "fsst_selective_scan",
+        sql: workloads::FSST_AUTO_SQL,
+        queries_per_sample: FSST_QUERIES_PER_SAMPLE,
+        expected_rows: 8,
+    },
+    Scenario {
+        workload: "fsst_plain_scan_baseline",
+        sql: workloads::FSST_PLAIN_SQL,
+        queries_per_sample: FSST_QUERIES_PER_SAMPLE,
+        expected_rows: 8,
+    },
+];
 
 fn main() {
     let mut runner = stress::runner(
         performance_benchmarks::BenchmarkTier::Tier2,
         "tier2_subsystem_column_scan",
     );
-    let compressible = case("selective_encoded_scan");
-    let compressible_baseline = case("selective_plain_scan_baseline");
-    let incompressible = case("incompressible_adaptive_scan");
-    let incompressible_baseline = case("incompressible_plain_scan_baseline");
-    let alp = case("alp_selective_scan");
-    let alp_baseline = case("alp_plain_scan_baseline");
-    let selections = [
-        runner.is_enabled(&compressible),
-        runner.is_enabled(&compressible_baseline),
-        runner.is_enabled(&incompressible),
-        runner.is_enabled(&incompressible_baseline),
-        runner.is_enabled(&alp),
-        runner.is_enabled(&alp_baseline),
-    ];
+    let measurements = SCENARIOS
+        .into_iter()
+        .map(|scenario| {
+            let case = case(scenario.workload);
+            let selected = runner.is_enabled(&case);
+            (scenario, case, selected)
+        })
+        .collect::<Vec<_>>();
+    let selections = measurements
+        .iter()
+        .map(|(_, _, selected)| *selected)
+        .collect::<Vec<_>>();
     if selections.iter().any(|selected| *selected) {
         let setup_started = std::time::Instant::now();
         let runtime = workloads::runtime();
@@ -43,60 +103,9 @@ fn main() {
             .expect("prepare Tier 2 column codec acceptance fixture");
         let setup_time = setup_started.elapsed().as_nanos().max(1).to_string();
 
-        measure_selected(
-            &mut runner,
-            &context,
-            compressible,
-            selections[0],
-            workloads::COMPRESSIBLE_AUTO_SQL,
-            &setup_time,
-            QUERIES_PER_SAMPLE,
-        );
-        measure_selected(
-            &mut runner,
-            &context,
-            alp,
-            selections[4],
-            workloads::ALP_AUTO_SQL,
-            &setup_time,
-            ALP_QUERIES_PER_SAMPLE,
-        );
-        measure_selected(
-            &mut runner,
-            &context,
-            alp_baseline,
-            selections[5],
-            workloads::ALP_PLAIN_SQL,
-            &setup_time,
-            ALP_QUERIES_PER_SAMPLE,
-        );
-        measure_selected(
-            &mut runner,
-            &context,
-            compressible_baseline,
-            selections[1],
-            workloads::COMPRESSIBLE_PLAIN_SQL,
-            &setup_time,
-            QUERIES_PER_SAMPLE,
-        );
-        measure_selected(
-            &mut runner,
-            &context,
-            incompressible,
-            selections[2],
-            workloads::INCOMPRESSIBLE_AUTO_SQL,
-            &setup_time,
-            QUERIES_PER_SAMPLE,
-        );
-        measure_selected(
-            &mut runner,
-            &context,
-            incompressible_baseline,
-            selections[3],
-            workloads::INCOMPRESSIBLE_PLAIN_SQL,
-            &setup_time,
-            QUERIES_PER_SAMPLE,
-        );
+        for (scenario, case, selected) in measurements {
+            measure_selected(&mut runner, &context, case, selected, &setup_time, scenario);
+        }
         if selections[0] && selections[1] {
             runner.require_relative_p95(COMPRESSIBLE_CANDIDATE, COMPRESSIBLE_BASELINE, 0.85);
         }
@@ -105,6 +114,9 @@ fn main() {
         }
         if selections[4] && selections[5] {
             runner.require_relative_p95(ALP_CANDIDATE, ALP_BASELINE, 1.05);
+        }
+        if selections[6] && selections[7] {
+            runner.require_relative_p95(FSST_CANDIDATE, FSST_BASELINE, 0.85);
         }
     }
     runner.finish();
@@ -126,9 +138,8 @@ fn measure_selected(
     context: &workloads::BenchContext,
     case: stress::StressCase,
     selected: bool,
-    sql: &str,
     setup_time: &str,
-    queries_per_sample: usize,
+    scenario: Scenario,
 ) {
     if !selected {
         return;
@@ -136,12 +147,12 @@ fn measure_selected(
     let before = context.cassie.metrics();
     runner.measure_counted(case.metadata("setup_time_ns", setup_time), || {
         let mut completed_rows = 0usize;
-        for _ in 0..queries_per_sample {
+        for _ in 0..scenario.queries_per_sample {
             let result = context
                 .cassie
-                .execute_sql(&context.session, sql, vec![])
+                .execute_sql(&context.session, scenario.sql, vec![])
                 .expect("execute Tier 2 column scan");
-            assert_eq!(result.rows.len(), 100);
+            assert_eq!(result.rows.len(), scenario.expected_rows);
             completed_rows = completed_rows.saturating_add(result.rows.len());
         }
         u64::try_from(completed_rows).expect("result cardinality should fit u64")

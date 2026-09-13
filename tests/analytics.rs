@@ -1544,6 +1544,77 @@ mod column_batch_format_v2 {
     }
 
     #[test]
+    fn should_decode_only_selected_fsst_positions() {
+        // Arrange
+        let values = (0..512)
+            .map(|position| {
+                if position % 73 == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(format!(
+                        "tenant-{}/event-{position}-payload-{}",
+                        position % 32,
+                        position % 8
+                    ))
+                }
+            })
+            .collect::<Vec<_>>();
+        let encoded = encode("text", &values);
+        let selection = (0..values.len())
+            .map(|position| position % 64 == 0)
+            .collect::<Vec<_>>();
+
+        // Act
+        let decoded = decode_selected_column_chunk_for_test(&encoded, &selection)
+            .expect("decode selected FSST values");
+
+        // Assert
+        assert_eq!(
+            column_chunk_codec_for_test(&encoded).expect("text codec"),
+            "fsst"
+        );
+        for (position, value) in decoded.iter().enumerate() {
+            if selection[position] {
+                assert_eq!(value, &values[position]);
+            } else {
+                assert!(value.is_null());
+            }
+        }
+    }
+
+    #[test]
+    fn should_emit_cross_architecture_stable_fsst_bytes() {
+        // Arrange
+        let values = (0..512)
+            .map(|position| {
+                serde_json::json!(format!(
+                    "tenant-{}/event-{position}-payload-{}",
+                    position % 32,
+                    position % 8
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let encoded = encode("text", &values);
+        let digest = Sha256::digest(&encoded);
+
+        // Assert
+        assert_eq!(
+            column_chunk_codec_for_test(&encoded).expect("text codec"),
+            "fsst"
+        );
+        assert_eq!(
+            digest.as_slice(),
+            &[
+                144, 68, 146, 75, 138, 24, 186, 104, 129, 246, 235, 224, 195, 215, 30, 252, 161,
+                175, 54, 88, 35, 231, 182, 186, 109, 20, 158, 220, 150, 8, 238, 8,
+            ]
+        );
+        assert_eq!(encoded.len(), 15_193);
+    }
+
+    #[test]
     fn should_roundtrip_alp_finite_values_bit_exactly() {
         // Arrange
         let values = (0..512)
@@ -2563,6 +2634,18 @@ mod column_batch_resilience {
             .rows
     }
 
+    fn fsst_codec_rows(fixture: &AmountFixture, table: &str, predicate: &str) -> Vec<Vec<Value>> {
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                &format!("SELECT amount FROM {table} WHERE {predicate} ORDER BY amount"),
+                vec![],
+            )
+            .expect("query FSST fixture")
+            .rows
+    }
+
     fn sum_amount(fixture: &AmountFixture, table: &str) -> Result<Vec<Vec<Value>>, String> {
         sum_amount_as(fixture, table, "total")
     }
@@ -3004,6 +3087,183 @@ mod column_batch_resilience {
         );
         assert_eq!(renamed.segments[0].field_chunks["amount"].codec_name, "alp");
         assert_eq!(selected.rows.len(), 4);
+        assert_eq!(renamed_artifact_count, original_artifact_count);
+        assert!(original_artifact_count >= 3);
+        assert_eq!(dropped_artifact_count, 0);
+
+        let _ = std::fs::remove_dir_all(&fixture.path);
+    }
+
+    #[test]
+    fn should_rebuild_truncated_fsst_chunk_after_restart() {
+        // Arrange
+        let common = "account-lifecycle-event-payload/".repeat(6);
+        let values = (0..512)
+            .map(|position| {
+                if position % 73 == 0 {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::json!(format!("prefix-{position:04}-{common}"))
+                }
+            })
+            .collect::<Vec<_>>();
+        let fixture = ordered_numeric_fixture(
+            "column_batch_fsst_restart",
+            "column_batch_fsst_restart",
+            "TEXT",
+            &values,
+            512,
+        );
+        let metadata = fixture
+            .cassie
+            .midge
+            .get_column_batch_metadata(&fixture.collection, &fixture.index)
+            .expect("read FSST metadata")
+            .expect("FSST metadata");
+        assert_eq!(
+            metadata.segments[0].field_chunks["amount"].codec_name,
+            "fsst"
+        );
+        let (chunk_key, mut chunk_bytes) = fixture
+            .cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan FSST chunks")
+            .into_iter()
+            .find(|(_, value)| value.starts_with(b"CBC2"))
+            .expect("persisted FSST chunk");
+        chunk_bytes.pop().expect("non-empty FSST chunk");
+
+        // Act
+        write_raw_value(&fixture, chunk_key, chunk_bytes);
+        let fallback = fsst_codec_rows(
+            &fixture,
+            "column_batch_fsst_restart",
+            "amount >= 'prefix-0500-'",
+        );
+        let fallback_nulls =
+            fsst_codec_rows(&fixture, "column_batch_fsst_restart", "amount IS NULL");
+        let fallback_metrics = fixture.cassie.metrics();
+        let restarted = restart_fixture(fixture);
+        let recovered = fsst_codec_rows(
+            &restarted,
+            "column_batch_fsst_restart",
+            "amount >= 'prefix-0500-'",
+        );
+        let recovered_nulls =
+            fsst_codec_rows(&restarted, "column_batch_fsst_restart", "amount IS NULL");
+        let repaired = restarted
+            .cassie
+            .midge
+            .get_column_batch_metadata(&restarted.collection, &restarted.index)
+            .expect("read repaired FSST metadata")
+            .expect("repaired FSST metadata");
+
+        // Assert
+        assert_eq!(fallback, recovered);
+        assert_eq!(fallback.len(), 11);
+        assert_eq!(fallback_nulls, recovered_nulls);
+        assert_eq!(fallback_nulls, vec![vec![Value::Null]; 8]);
+        assert_eq!(fallback_metrics["column_batches"]["scans"], 0);
+        assert_eq!(fallback_metrics["column_batches"]["fallback_scans"], 2);
+        assert_eq!(
+            fallback_metrics["column_batches"]["last_fallback_reason"],
+            "segment_checksum_mismatch"
+        );
+        assert_eq!(
+            repaired.segments[0].field_chunks["amount"].codec_name,
+            "fsst"
+        );
+
+        let _ = std::fs::remove_dir_all(&restarted.path);
+    }
+
+    #[test]
+    fn should_preserve_fsst_chunk_lifecycle_through_rename_drop() {
+        // Arrange
+        let common = "account-lifecycle-event-payload/".repeat(6);
+        let values = (0..128)
+            .map(|position| serde_json::json!(format!("prefix-{position:04}-{common}")))
+            .collect::<Vec<_>>();
+        let fixture = ordered_numeric_fixture(
+            "column_batch_fsst_lifecycle",
+            "column_batch_fsst_lifecycle_before",
+            "TEXT",
+            &values,
+            128,
+        );
+        let artifact_count = |cassie: &Cassie| {
+            cassie
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, b"")
+                .expect("scan column-batch artifacts")
+                .into_iter()
+                .filter(|(_, value)| {
+                    value.starts_with(b"CBM2")
+                        || value.starts_with(b"CBR2")
+                        || value.starts_with(b"CBC2")
+                })
+                .count()
+        };
+        let original = fixture
+            .cassie
+            .midge
+            .get_column_batch_metadata(
+                "column_batch_fsst_lifecycle_before",
+                "column_batch_fsst_lifecycle_before_column_idx",
+            )
+            .expect("read original FSST metadata")
+            .expect("original FSST metadata");
+        assert_eq!(
+            original.segments[0].field_chunks["amount"].codec_name,
+            "fsst"
+        );
+        let original_artifact_count = artifact_count(&fixture.cassie);
+
+        // Act
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "ALTER TABLE column_batch_fsst_lifecycle_before RENAME TO column_batch_fsst_lifecycle_after",
+                vec![],
+            )
+            .expect("rename table with FSST chunks");
+        let renamed = fixture
+            .cassie
+            .midge
+            .get_column_batch_metadata(
+                "column_batch_fsst_lifecycle_after",
+                "column_batch_fsst_lifecycle_before_column_idx",
+            )
+            .expect("read renamed FSST metadata")
+            .expect("renamed FSST metadata");
+        let selected = fsst_codec_rows(
+            &fixture,
+            "column_batch_fsst_lifecycle_after",
+            "amount >= 'prefix-0120-'",
+        );
+        let renamed_artifact_count = artifact_count(&fixture.cassie);
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "DROP TABLE column_batch_fsst_lifecycle_after",
+                vec![],
+            )
+            .expect("drop table with FSST chunks");
+        let dropped_artifact_count = artifact_count(&fixture.cassie);
+
+        // Assert
+        assert_eq!(
+            renamed.collection,
+            "postgres.public.column_batch_fsst_lifecycle_after"
+        );
+        assert_eq!(
+            renamed.segments[0].field_chunks["amount"].codec_name,
+            "fsst"
+        );
+        assert_eq!(selected.len(), 8);
         assert_eq!(renamed_artifact_count, original_artifact_count);
         assert!(original_artifact_count >= 3);
         assert_eq!(dropped_artifact_count, 0);

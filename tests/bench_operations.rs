@@ -2203,6 +2203,7 @@ mod benchmark_kernels {
         ];
 
         // Assert
+        assert_eq!(workloads::BM25_TERMS_PER_SCORE, 8);
         assert_eq!(workloads::VECTOR_DISTANCE_DIMENSIONS, 384);
         assert!(completed
             .into_iter()

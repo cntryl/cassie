@@ -28,8 +28,11 @@ fn main() {
                 "setup_time_ns",
                 setup_started.elapsed().as_nanos().max(1).to_string(),
             )
-            .metadata("validated_micro", "true")
-            .metadata("micro_validation", "varied_inputs_accumulated_output");
+            .metadata("micro_validation", "varied_inputs_accumulated_output")
+            .parameter(
+                "terms_per_score",
+                workloads::BM25_TERMS_PER_SCORE.to_string(),
+            );
         runner.measure_micro_batch(
             case,
             workloads::BM25_BATCH_SIZE,

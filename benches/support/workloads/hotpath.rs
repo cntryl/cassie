@@ -90,7 +90,8 @@ pub const SCALAR_EVALUATION_BATCH_SIZE: u64 = 256;
 pub const PGWIRE_ROW_BATCH_SIZE: u64 = 64;
 pub const TOP_K_BATCH_SIZE: u64 = 32;
 pub const TOKENIZATION_BATCH_SIZE: u64 = 256;
-pub const BM25_BATCH_SIZE: u64 = 2_048;
+pub const BM25_BATCH_SIZE: u64 = 256;
+pub const BM25_TERMS_PER_SCORE: u64 = 8;
 pub const VECTOR_DISTANCE_BATCH_SIZE: u64 = 512;
 
 static TOKENIZATION_INPUTS: [&str; 8] = [
@@ -174,7 +175,14 @@ pub fn prepare_hotpath(workload: &str) -> Result<(), &'static str> {
         "dot_product" | "l2_distance" => {
             LazyLock::force(&DOT_L2_INPUTS);
         }
-        "tokenization" | "bm25_scoring" => {}
+        "tokenization" => {}
+        "bm25_scoring" => {
+            assert_eq!(
+                u64::try_from(BM25_INPUTS.len()).expect("BM25 term count should fit"),
+                BM25_TERMS_PER_SCORE,
+                "BM25 score term declaration must match the fixture"
+            );
+        }
         _ => return Err("unknown Tier 1 hot-path workload"),
     }
     Ok(())
@@ -301,13 +309,12 @@ pub fn tokenization_batch() -> u64 {
 
 pub fn bm25_score_batch() -> u64 {
     let mut accumulated_score = 0.0;
-    let rounds =
-        BM25_BATCH_SIZE / u64::try_from(BM25_INPUTS.len()).expect("BM25 input count should fit");
-    for _ in 0..rounds {
+    for _ in 0..BM25_BATCH_SIZE {
+        let mut score = 0.0;
         for &(term_frequency, document_frequency, document_count, document_len, average_len) in
             std::hint::black_box(&BM25_INPUTS)
         {
-            accumulated_score += bm25::bm25_score(
+            score += bm25::bm25_score(
                 std::hint::black_box(term_frequency),
                 std::hint::black_box(document_frequency),
                 std::hint::black_box(document_count),
@@ -317,9 +324,10 @@ pub fn bm25_score_batch() -> u64 {
                 std::hint::black_box(average_len),
             );
         }
+        accumulated_score += std::hint::black_box(score);
     }
     std::hint::black_box(accumulated_score);
-    rounds * u64::try_from(BM25_INPUTS.len()).expect("BM25 input count should fit")
+    BM25_BATCH_SIZE
 }
 
 pub fn cosine_distance_batch() -> u64 {

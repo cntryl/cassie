@@ -1,0 +1,24 @@
+[docs]
+required = [
+  "README.md",
+  "docs/README.md",
+  "docs/poc-quickstart.md",
+  "docs/environment-variables.md",
+  "docs/performance-contracts.md",
+  "docs/production-readiness.md",
+  "docs/release-checklist.md",
+]
+exclude_paths = ["ui"]
+
+[benchmarks]
+documentation = []
+workflow = ".github/workflows/bench.yml"
+
+[module_sizes]
+warn_lines = 900
+max_lines = 1000
+allowlist = []
+legacy_allowlist = [
+  "src/catalog/virtual_views.rs",
+  "src/midge/adapter/column_batches.rs",
+]

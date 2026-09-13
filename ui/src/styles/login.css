@@ -1,34 +1,50 @@
-.cassie-login-page {
+.cassie-auth-page {
+  position: relative;
   box-sizing: border-box;
   display: flex;
   min-block-size: 100svh;
   inline-size: 100%;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 1rem;
 }
 
-.cassie-login-panel {
+.cassie-auth-theme-toggle {
+  position: absolute;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+}
+
+.cassie-auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ak-space-4, 1rem);
   inline-size: 100%;
   max-inline-size: 24rem;
+  padding: var(--ak-space-2xl, 2.25rem);
+  border: 1px solid var(--ak-color-border);
+  border-radius: var(--ak-radius-xl, 12px);
 }
 
-.cassie-login-card {
+.cassie-auth-status-shell {
+  min-block-size: 0;
+}
+
+.cassie-auth-status-shell:empty {
+  display: none;
+}
+
+.cassie-auth-status-shell [data-slot="alert"] {
   inline-size: 100%;
-  gap: var(--ak-space-xl, 1.5rem);
-  padding-block: var(--ak-space-xl, 1.5rem);
-}
-
-.cassie-login-card :where([data-slot="card-header"], [data-slot="card-content"]) {
-  padding-inline: var(--ak-space-xl, 1.5rem);
-}
-
-.cassie-login-card [data-slot="brand"] {
-  margin-block-end: var(--ak-space-sm, 0.5rem);
 }
 
 @media (min-width: 48rem) {
-  .cassie-login-page {
-    padding: 2.5rem;
+  .cassie-auth-page {
+    padding: 1.5rem;
+  }
+
+  .cassie-auth-theme-toggle {
+    inset-block-start: 1.5rem;
+    inset-inline-end: 1.5rem;
   }
 }

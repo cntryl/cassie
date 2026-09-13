@@ -1,6 +1,8 @@
-name: Benchmark Evidence
+name: Bench
 
 on:
+  schedule:
+    - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
       run_id:
@@ -21,7 +23,53 @@ permissions:
   contents: read
 
 jobs:
+  bench:
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CASSIE_STORAGE_MODE: memory
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Install cntryl-tools
+        run: cargo install --locked --git https://github.com/cntryl/tools --rev 0cb0d0c8be5951753580a6f8a527f3e47d293466 cntryl-tools
+
+      - name: Validate benchmark contract
+        run: cntryl-tools validate-benchmarks
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "bench"
+
+      - name: Benchmark tier 1
+        run: cargo bench --bench 'tier1*' --locked --quiet
+
+      - name: Benchmark tier 2
+        run: cargo bench --bench 'tier2*' --locked --quiet
+
+      - name: Benchmark tier 3
+        run: cargo bench --bench 'tier3*' --locked --quiet
+
+      - name: Benchmark tier 4
+        run: cargo bench --bench 'tier4*' --locked --quiet
+
+      - name: Upload stress benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bench-stress-artifacts
+          path: target/stress
+          if-no-files-found: ignore
+
   complete-suite:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -31,13 +79,16 @@ jobs:
       - name: Update Rust toolchain
         run: rustup update stable
 
+      - name: Install cntryl-tools
+        run: cargo install --locked --git https://github.com/cntryl/tools --rev 0cb0d0c8be5951753580a6f8a527f3e47d293466 cntryl-tools
+
+      - name: Validate benchmark contract
+        run: cntryl-tools validate-benchmarks
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "benchmark-evidence"
-
-      - name: Install cntryl-tools
-        run: cargo install --git https://github.com/cntryl/tools --rev b2a06b1a635de752803f5860339fc3cecbc19742 --locked cntryl-tools
 
       - name: Run complete unfiltered owner suite
         env:
@@ -46,13 +97,13 @@ jobs:
           CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
-        run: cargo bench --locked --bench '*'
+        run: cargo bench --bench '*' --locked
 
       - name: Validate complete retained manifest
         run: cargo test --locked --test bench_operations benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest -- --ignored --nocapture
 
       - name: Upload canonical owner artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cassie-benchmark-${{ inputs.run_id }}
           path: target/stress/**/latest.json

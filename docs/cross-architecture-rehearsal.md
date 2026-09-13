@@ -11,9 +11,10 @@ Record the release commit, image digest, Cassie and Midge revisions, architectur
 kernel, filesystem, deployment profile, fixture size, operator, UTC start/end times, and the
 exact commands. Do not combine amd64 and arm64 results into one artifact.
 
-The existing [Containers workflow](../.github/workflows/containers.yml) builds both release
-architectures. Run this rehearsal only after resolving the immutable image digest from that
-workflow and recording the digest in the evidence bundle.
+The [Publish workflow](../.github/workflows/publish.yml) calls the reusable
+[Containers workflow](../.github/workflows/containers.yml) to build both release architectures.
+Run this rehearsal only after resolving the immutable image digest from that workflow and recording
+the digest in the evidence bundle. Standalone prerelease container runs do not create release tags.
 
 ## Rehearsal sequence
 

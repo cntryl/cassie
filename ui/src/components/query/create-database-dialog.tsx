@@ -45,8 +45,8 @@ export function CreateDatabaseDialog({ onClose, onCreated }: CreateDatabaseDialo
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogPortal>
-        <DialogOverlay class="cassie-query-dialog-overlay" />
-        <DialogContent class="cassie-query-dialog">
+        <DialogOverlay />
+        <DialogContent>
           <DialogTitle>Create database</DialogTitle>
           <DialogDescription>Create a database and open its first query tab.</DialogDescription>
           <Form class="cassie-query-dialog-form" onSubmit={handleSubmit}>

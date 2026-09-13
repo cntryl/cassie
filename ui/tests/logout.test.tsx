@@ -63,7 +63,7 @@ afterEach(() => {
 });
 
 describe("logout page", () => {
-  it("should_match_the_login_page_card_layout", async () => {
+  it("should_match_the_login_page_auth_panel_layout", async () => {
     // Arrange
     signIn("admin", "password");
 
@@ -71,10 +71,11 @@ describe("logout page", () => {
     const root = await mountLogout();
 
     // Assert
-    expect(root.querySelector("main.cassie-login-page")).not.toBeNull();
-    expect(root.querySelector(".cassie-login-panel")).not.toBeNull();
-    expect(root.querySelector(".cassie-login-card")).not.toBeNull();
-    expect(root.querySelector(".cassie-brand-mark img")).not.toBeNull();
+    expect(root.querySelector("main.cassie-auth-page")).not.toBeNull();
+    expect(root.querySelector(".cassie-auth-panel")).not.toBeNull();
+    expect(root.querySelector('[data-slot="card"]')).toBeNull();
+    expect(root.querySelector(".cassie-brand-logo")).not.toBeNull();
+    expect(root.querySelector('[aria-label="Toggle color theme"]')).not.toBeNull();
     expect(root.textContent).toContain("Signing out");
   });
 

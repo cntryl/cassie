@@ -4436,3 +4436,143 @@ mod benchmark_trust_contract {
         assert!(checks_baseline_trust);
     }
 }
+
+// Shared GitHub Actions topology mirrored from the Fitz repository.
+mod workflow_setup_contract {
+    use std::fs;
+
+    fn workflow(name: &str) -> String {
+        fs::read_to_string(format!(".github/workflows/{name}.yml"))
+            .unwrap_or_else(|error| panic!("read {name} workflow: {error}"))
+    }
+
+    #[test]
+    fn should_match_the_shared_backend_ci_setup() {
+        // Arrange
+        let backend = workflow("ci-backend");
+
+        // Act
+        let shared_controls = [
+            "paths-ignore:\n      - \"ui/**\"",
+            "group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+            "timeout-minutes: 20",
+            "RUSTFLAGS: \"-C link-arg=-fuse-ld=lld\"",
+            "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12",
+            "0cb0d0c8be5951753580a6f8a527f3e47d293466",
+            "cntryl-tools validate-docs --config .cntryl/repository.toml",
+            "cntryl-tools validate-benchmarks --config .cntryl/repository.toml",
+            "cntryl-tools check-module-sizes --config .cntryl/repository.toml",
+            "cargo clippy --locked --workspace --all-targets --all-features",
+            "cargo test --locked --workspace",
+        ];
+        let missing = shared_controls
+            .into_iter()
+            .filter(|control| !backend.contains(control))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(missing.is_empty(), "missing backend controls: {missing:?}");
+    }
+
+    #[test]
+    fn should_match_the_shared_frontend_ci_setup() {
+        // Arrange
+        let frontend = workflow("ci-frontend");
+
+        // Act
+        let shared_controls = [
+            "- Dockerfile",
+            "node-version: lts/*",
+            "run: npm ci",
+            "run: npm outdated '@askrjs/*'",
+            "docker build --target ui-builder --tag cassie-ui-build .",
+            "run: npm run install:browsers",
+            "run: npm run test -- --run",
+            "run: npm run test:e2e:mock",
+            "run: npm run test:e2e",
+            "uses: actions/upload-artifact@v7",
+        ];
+        let missing = shared_controls
+            .into_iter()
+            .filter(|control| !frontend.contains(control))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(missing.is_empty(), "missing frontend controls: {missing:?}");
+    }
+
+    #[test]
+    fn should_match_the_shared_benchmark_workflow_setup() {
+        // Arrange
+        let bench = workflow("bench");
+
+        // Act
+        let shared_controls = [
+            "name: Bench",
+            "cron: \"0 5 * * *\"",
+            "0cb0d0c8be5951753580a6f8a527f3e47d293466",
+            "cntryl-tools validate-benchmarks",
+            "cargo bench --bench 'tier1*' --locked --quiet",
+            "cargo bench --bench 'tier2*' --locked --quiet",
+            "cargo bench --bench 'tier3*' --locked --quiet",
+            "cargo bench --bench 'tier4*' --locked --quiet",
+            "uses: actions/upload-artifact@v7",
+        ];
+        let missing = shared_controls
+            .into_iter()
+            .filter(|control| !bench.contains(control))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            missing.is_empty(),
+            "missing benchmark controls: {missing:?}"
+        );
+    }
+
+    #[test]
+    fn should_publish_versioned_containers_through_the_shared_release_topology() {
+        // Arrange
+        let containers = workflow("containers");
+        let publish = workflow("publish");
+        let version = workflow("version");
+
+        // Act
+        let reusable_container_controls = [
+            "workflow_call:",
+            "release:",
+            "value: ${{ jobs.version.outputs.semver }}",
+            "name: Validate publish request",
+            "Refusing to publish existing repository tag",
+            "Refusing to replace immutable SemVer tag",
+            "tags+=(-t \"${image}:main\" -t \"${image}:latest\")",
+        ];
+        let publish_controls = [
+            "uses: ./.github/workflows/containers.yml",
+            "release: true",
+            "needs.containers.outputs.semver",
+            "git tag --annotate",
+        ];
+        let missing_container_controls = reusable_container_controls
+            .into_iter()
+            .filter(|control| !containers.contains(control))
+            .collect::<Vec<_>>();
+        let missing_publish_controls = publish_controls
+            .into_iter()
+            .filter(|control| !publish.contains(control))
+            .collect::<Vec<_>>();
+        let exposes_obsolete_outputs =
+            version.contains("fullSemVer:") || version.contains("branch:");
+
+        // Assert
+        assert!(
+            missing_container_controls.is_empty(),
+            "missing container controls: {missing_container_controls:?}"
+        );
+        assert!(
+            missing_publish_controls.is_empty(),
+            "missing publish controls: {missing_publish_controls:?}"
+        );
+        assert!(!exposes_obsolete_outputs);
+    }
+}

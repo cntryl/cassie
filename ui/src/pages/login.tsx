@@ -1,24 +1,10 @@
 import { state } from "@askrjs/askr";
 import { currentRoute, navigate } from "@askrjs/askr/router";
-import {
-  Block,
-  Brand,
-  BrandLabel,
-  BrandMark,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Field,
-  Input,
-  Label,
-  Text,
-} from "@askrjs/themes/components";
+import { Alert, Block, Button, Field, Input, Label, PageHeader } from "@askrjs/themes/components";
 
+import { AuthBrand } from "@/components/auth/auth-brand";
+import { AuthPage } from "@/components/auth/auth-page";
 import { createLoginMutation } from "@/features/auth-actions";
-import { cassieLogoImageProps, cassieLogoPath } from "@/shared/cassie-brand-assets";
 import { setSession, signOut } from "@/shared/auth";
 import { apiErrorMessage, AppApiError } from "@/shared/errors/api";
 
@@ -67,71 +53,65 @@ export default function LoginPage() {
   }
 
   return (
-    <Block as="main" class="cassie-login-page" background="canvas">
-      <Block class="cassie-login-panel" width="full" gap="lg">
-        <Card class="cassie-login-card" variant="raised">
-          <CardHeader>
-            <Brand>
-              <BrandMark class="cassie-brand-mark" aria-hidden="true">
-                <img src={cassieLogoPath} {...cassieLogoImageProps} width="32" height="32" alt="" />
-              </BrandMark>
-              <BrandLabel>Cassie Admin</BrandLabel>
-            </Brand>
-            <CardTitle titleAs="h1">Sign in to Cassie Admin</CardTitle>
-            <CardDescription>Sign in as root with the configured root password.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
-              <Field>
-                <Label for="login-username">Username</Label>
-                <Input
-                  id="login-username"
-                  name="username"
-                  autocomplete="username"
-                  placeholder="root"
-                  required
-                  disabled={loginMutation.pending}
-                  value={username()}
-                  onInput={(event: Event) => {
-                    setUsername((event.target as HTMLInputElement).value);
-                  }}
-                />
-              </Field>
-              <Field>
-                <Label for="login-password">Password</Label>
-                <Input
-                  id="login-password"
-                  name="password"
-                  type="password"
-                  autocomplete="current-password"
-                  required
-                  disabled={loginMutation.pending}
-                  value={password()}
-                  onInput={(event: Event) => {
-                    setPassword((event.target as HTMLInputElement).value);
-                  }}
-                />
-              </Field>
-              <div aria-live="assertive" aria-atomic="true">
-                {error() ? (
-                  <Text tone="danger" size="sm">
-                    {error()}
-                  </Text>
-                ) : null}
-              </div>
-              <Button
-                type="submit"
-                variant="primary"
-                width="full"
-                aria-busy={loginMutation.pending}
-                disabled={loginMutation.pending}
-              >
-                {loginMutation.pending ? "Signing in..." : "Sign in"}
-              </Button>
-            </Block>
-          </CardContent>
-        </Card>
+    <AuthPage>
+      <Block direction="column" gap="xl">
+        <Block direction="column" gap="md">
+          <AuthBrand />
+          <PageHeader
+            title="Sign in to Cassie Admin"
+            description="Sign in as root with the configured root password."
+          />
+        </Block>
+
+        <Block as="form" direction="column" gap="xl" onSubmit={handleSignIn}>
+          <Field>
+            <Label for="login-username">Username</Label>
+            <Input
+              id="login-username"
+              name="username"
+              autocomplete="username"
+              placeholder="root"
+              required
+              disabled={loginMutation.pending}
+              value={username()}
+              onInput={(event: Event) => {
+                setUsername((event.target as HTMLInputElement).value);
+              }}
+            />
+          </Field>
+          <Field>
+            <Label for="login-password">Password</Label>
+            <Input
+              id="login-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Enter your password"
+              required
+              disabled={loginMutation.pending}
+              value={password()}
+              onInput={(event: Event) => {
+                setPassword((event.target as HTMLInputElement).value);
+              }}
+            />
+          </Field>
+          <Button
+            type="submit"
+            variant="primary"
+            width="full"
+            aria-busy={loginMutation.pending}
+            disabled={loginMutation.pending}
+          >
+            {loginMutation.pending ? "Signing in..." : "Sign in"}
+          </Button>
+
+          <div class="cassie-auth-status-shell" aria-live="assertive" aria-atomic="true">
+            {error() ? (
+              <Alert variant="danger" title="Sign in failed" description={error()} />
+            ) : null}
+          </div>
+        </Block>
       </Block>
-    </Block>
+    </AuthPage>
   );
 }

@@ -141,7 +141,6 @@ function ProtectedShell({ children }: { children?: unknown }) {
       class="cassie-admin-root"
       data-testid="cassie-admin-shell"
       minHeight="screen"
-      direction="column"
       style={{ "--cassie-sidebar-width": `${sidebarWidth()}px` }}
       ref={(node: unknown) => {
         elements().root = node instanceof HTMLElement ? node : null;

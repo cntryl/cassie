@@ -10,6 +10,7 @@
     "test": "vp test",
     "test:e2e": "playwright test",
     "test:e2e:mock": "playwright test --config playwright.mock.config.ts",
+    "install:browsers": "playwright install chromium",
     "gen": "npm run gen:adapters && npm run fmt",
     "gen:adapters": "askr generate ../public/openapi.yml --output ./src/adapters/generated",
     "gen:adapters:check": "askr generate ../public/openapi.yml --output ./src/adapters/generated --check",

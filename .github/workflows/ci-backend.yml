@@ -2,13 +2,15 @@ name: CI Backend
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths-ignore:
+      - "ui/**"
   push:
     branches:
       - main
-  pull_request:
 
 concurrency:
-  group: ci-backend-${{ github.event.pull_request.head.ref || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,41 +19,56 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 20
     env:
-      CARGO_BUILD_JOBS: "1"
+      # Cassie links 18 consolidated integration-test binaries against a heavy
+      # dependency tree. lld keeps those links fast without changing local
+      # development toolchains or runtime behavior.
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Lint GitHub Actions workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
       - name: Update Rust toolchain
         run: rustup update stable
 
-      - name: Install Rust components
-        run: rustup component add rustfmt clippy
+      - name: Install lld linker
+        run: |
+          # The hosted image may have a stale Google Chrome index while its
+          # release metadata is being refreshed. It is unrelated to this job;
+          # remove only that optional source so Ubuntu package installation is
+          # deterministic.
+          sudo grep -RIl 'dl.google.com/linux/chrome' /etc/apt/sources.list.d \
+            | xargs -r sudo rm -f
+          sudo apt-get update
+          sudo apt-get install -y lld
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "ci"
 
+      - name: Install Rust components
+        run: rustup component add rustfmt clippy
+
       - name: Cargo fmt check
         run: cargo fmt --all -- --check
 
       - name: Install cntryl-tools
-        run: cargo install --git https://github.com/cntryl/tools --rev b2a06b1a635de752803f5860339fc3cecbc19742 --locked cntryl-tools
+        run: cargo install --locked --git https://github.com/cntryl/tools --rev 0cb0d0c8be5951753580a6f8a527f3e47d293466 cntryl-tools
 
-      - name: Validate tests
-        run: cntryl-tools validate-tests
-
-      - name: Validate docs
-        run: cntryl-tools validate-docs --root docs
-
-      - name: Cargo build
-        run: cargo build --locked
+      - name: Validate repository policy
+        run: |
+          cntryl-tools validate-tests
+          cntryl-tools validate-docs --config .cntryl/repository.toml
+          cntryl-tools validate-benchmarks --config .cntryl/repository.toml
+          cntryl-tools check-module-sizes --config .cntryl/repository.toml
 
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 
       - name: Run tests
-        run: cargo test --locked
+        run: cargo test --locked --workspace

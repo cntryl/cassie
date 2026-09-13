@@ -64,7 +64,7 @@ test("should_match_populated_admin_shell_visual_states", async ({ page }, testIn
   await page.getByRole("button", { name: "Toggle color theme" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.getByLabel("Execution summary")).toContainText("SELECT");
-  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByRole("grid")).toBeVisible();
   await expect(page).toHaveScreenshot("admin-populated-desktop-dark.png", {
     fullPage: true,
     maxDiffPixelRatio: 0.02,

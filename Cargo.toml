@@ -16,21 +16,20 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 parking_lot = "0.12"
 thiserror = "2.0"
-uuid = { version = "1.24", features = ["v4", "serde"] }
-cntryl-midge = { package = "cntryl-midge", git = "https://github.com/cntryl/midge", rev = "bf25edccc703ceaa0874935fc8027d37b411971a" }
-cntryl-lexkey = { package = "cntryl-lexkey", git = "https://github.com/cntryl/lexkey-rs", rev = "40cb5e21cbafba763b7931a04f6c6ae2fc5a67a3" }
+uuid = { version = "1.26", features = ["v4", "serde"] }
+cntryl-midge = "0.1.1"
+cntryl_lexkey = { package = "cntryl-lexkey", version = "0.1.0" }
 hyper = { version = "1.11", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "blocking", "json"] }
-argon2 = "0.5"
-rand_core = { version = "0.9", features = ["os_rng"] }
-rand_core_06 = { package = "rand_core", version = "0.6", features = ["getrandom"] }
+argon2 = "0.6"
+getrandom = "0.4"
 sha2 = "0.11"
 time = { version = "0.3", features = ["formatting", "parsing"] }
 
 [dev-dependencies]
-cntryl-stress = { git = "https://github.com/cntryl/stress", rev = "17b6d6907edd7eddcdb98255bd44dc6aeab5d5f6" }
+cntryl-stress = "0.4.0"
 rcgen = "0.14"
 tokio-postgres = "0.7"
 

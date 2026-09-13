@@ -67,8 +67,9 @@ see [Operational Scale](operational-scale.md).
 
 ## Evidence Boundary
 
-`tests/rest_metrics.rs`, `tests/metrics_capacity.rs`, `tests/metrics_runtime.rs`,
-`tests/operational_smoke.rs`, and `tests/operational_ownership.rs` provide local request,
+The `rest_metrics`, `metrics_capacity`, `metrics_runtime`, `operational_smoke`, and
+`operational_ownership` modules in `tests/rest.rs`, `tests/metrics.rs`,
+`tests/bench_operations.rs`, and `tests/storage_indexes.rs` provide local request,
 capacity, runtime, restart, and assignment evidence. These tests establish field shape and local
 behavior only. Production thresholds, sustained capacity, and availability claims require
 retained deployment-profile evidence as described in [Capacity Management](capacity-management.md)

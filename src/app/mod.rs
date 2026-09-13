@@ -9,8 +9,7 @@ use parking_lot::Mutex;
 use serde::Serialize;
 use uuid::Uuid;
 
-use argon2::{password_hash::SaltString, Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use rand_core_06::OsRng;
+use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 
 use crate::catalog::{
     normalize_role_name, Catalog, CollectionSchema, ConstraintCheck, ConstraintOperator,

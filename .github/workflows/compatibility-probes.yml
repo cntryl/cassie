@@ -115,7 +115,7 @@ jobs:
 
           case "${{ inputs.probe }}" in
             native)
-              cargo test --locked --test compatibility_matrix
+              cargo test --locked --test compatibility compatibility_matrix::
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
             sqlx)
@@ -151,20 +151,20 @@ jobs:
               fi
               ;;
             prisma)
-              cargo test --locked --test compatibility_matrix \
-                should_validate_prisma_introspection_probe_when_enabled -- \
+              cargo test --locked --test compatibility \
+                compatibility_matrix::should_validate_prisma_introspection_probe_when_enabled -- \
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
             sqlalchemy)
-              cargo test --locked --test compatibility_sqlalchemy \
-                should_validate_sqlalchemy_read_model_probe_when_enabled -- \
+              cargo test --locked --test compatibility \
+                compatibility_sqlalchemy::should_validate_sqlalchemy_read_model_probe_when_enabled -- \
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
             psql)
-              cargo test --locked --test compatibility_matrix \
-                should_validate_psql_read_model_probe_when_enabled -- \
+              cargo test --locked --test compatibility \
+                compatibility_matrix::should_validate_psql_read_model_probe_when_enabled -- \
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;

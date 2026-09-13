@@ -8,10 +8,10 @@ import {
   BrandLabel,
   BrandMark,
   Alert,
+  Block,
   Button,
+  Cluster,
   EmptyState,
-  Inline,
-  Shell,
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -137,7 +137,7 @@ function ProtectedShell({ children }: { children?: unknown }) {
   }
 
   return (
-    <Shell
+    <Block
       class="cassie-admin-root"
       data-testid="cassie-admin-shell"
       minHeight="screen"
@@ -202,13 +202,13 @@ function ProtectedShell({ children }: { children?: unknown }) {
           </SidebarContent>
 
           <SidebarFooter class="cassie-admin-sidebar-footer" data-testid="admin-sidebar-footer">
-            <Inline gap="sm" align="center" data-testid="admin-session-context">
+            <Cluster gap="sm" align="center" data-testid="admin-session-context">
               {session?.user ? (
                 <Text as="span" size="sm" title={session.user} class="cassie-user-name">
                   {session.user}
                 </Text>
               ) : null}
-            </Inline>
+            </Cluster>
             <ThemeScope defaultTheme="system" storageKey="cassie-admin-theme">
               <ThemeToggle
                 aria-label="Toggle color theme"
@@ -238,6 +238,6 @@ function ProtectedShell({ children }: { children?: unknown }) {
           {children as never}
         </SidebarInset>
       </SidebarScope>
-    </Shell>
+    </Block>
   );
 }

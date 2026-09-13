@@ -1,5 +1,3 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 pub mod aggregate;
 pub mod batch;
 mod execution;
@@ -84,16 +82,19 @@ pub(crate) use execution::{
     sync_derived_maintenance_debt_external,
 };
 
-static MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT: AtomicBool = AtomicBool::new(false);
+thread_local! {
+    static MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT: std::cell::Cell<bool> =
+        const { std::cell::Cell::new(false) };
+}
 
 #[doc(hidden)]
 pub fn set_materialized_projection_maintenance_failure_point(enabled: bool) {
-    MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.store(enabled, Ordering::SeqCst);
+    MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_materialized_projection_maintenance_failure_point(
 ) -> Result<(), crate::app::CassieError> {
-    if MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.swap(false, Ordering::SeqCst) {
+    if MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(crate::app::CassieError::Execution(
             "injected test failure during materialized projection maintenance".to_string(),
         ));

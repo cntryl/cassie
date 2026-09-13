@@ -111,6 +111,8 @@ describe("route-level auth guard", () => {
     // Assert
     expect(window.location.pathname).toBe("/missing-page");
     expect(root.textContent).toContain("Page not found");
+    expect(root.querySelectorAll("main")).toHaveLength(1);
+    expect(root.querySelector("h1")?.textContent).toBe("Page not found");
     expect(root.querySelector('a[href="/"]')).toBeTruthy();
   });
 });

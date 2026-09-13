@@ -1,6 +1,6 @@
 use super::{
-    normalize_role_name, Arc, Argon2, Cassie, CassieError, CassieSession, Mutex, OsRng,
-    PasswordHash, PasswordHasher, PasswordVerifier, RoleMeta, SaltString,
+    normalize_role_name, Arc, Argon2, Cassie, CassieError, CassieSession, Mutex, PasswordHash,
+    PasswordHasher, PasswordVerifier, RoleMeta,
 };
 use std::net::{IpAddr, SocketAddr};
 use std::sync::OnceLock;
@@ -24,9 +24,8 @@ pub(crate) struct AuthenticatedPrincipal {
 pub(super) fn hash_password(password: &str) -> Result<String, CassieError> {
     #[cfg(test)]
     PASSWORD_HASH_GENERATION_COUNT.with(|count| count.set(count.get().saturating_add(1)));
-    let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
+        .hash_password(password.as_bytes())
         .map(|hash| hash.to_string())
         .map_err(|error| CassieError::Execution(format!("failed to hash role password: {error}")))
 }

@@ -155,14 +155,18 @@ test("should_keep_the_database_tree_visible_and_create_a_database", async ({ pag
     await Promise.all(element.getAnimations().map((animation) => animation.finished));
   });
   const viewport = page.viewportSize();
-  const dialogBounds = await dialog.boundingBox();
   expect(viewport).not.toBeNull();
-  expect(dialogBounds).not.toBeNull();
-  if (viewport && dialogBounds) {
-    expect(Math.abs(dialogBounds.x + dialogBounds.width / 2 - viewport.width / 2)).toBeLessThan(2);
-    expect(Math.abs(dialogBounds.y + dialogBounds.height / 2 - viewport.height / 2)).toBeLessThan(
-      2,
-    );
+  if (viewport) {
+    await expect
+      .poll(async () => {
+        const bounds = await dialog.boundingBox();
+        if (!bounds) return null;
+        return Math.max(
+          Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2),
+          Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2),
+        );
+      })
+      .toBeLessThan(2);
   }
   await page.getByLabel("Database name").fill(databaseName);
   const response = page.waitForResponse(

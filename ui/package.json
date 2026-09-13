@@ -21,30 +21,31 @@
     "fmt": "vp fmt . --ignore-path .oxfmtignore"
   },
   "dependencies": {
-    "@askrjs/askr": "0.2.2",
-    "@askrjs/auth": "0.2.0",
-    "@askrjs/fetch": "0.2.0",
-    "@askrjs/lucide": "0.2.0",
-    "@askrjs/monaco": "0.2.0",
-    "@askrjs/themes": "0.2.1",
-    "@askrjs/ui": "0.2.0",
-    "@askrjs/vite": "0.2.0",
+    "@askrjs/askr": "0.3.1",
+    "@askrjs/auth": "0.3.0",
+    "@askrjs/fetch": "0.3.0",
+    "@askrjs/lucide": "0.3.0",
+    "@askrjs/monaco": "0.3.0",
+    "@askrjs/themes": "0.3.0",
+    "@askrjs/ui": "0.3.0",
+    "@askrjs/vite": "0.3.0",
     "monaco-editor": "0.56.0"
   },
   "devDependencies": {
-    "@askrjs/cli": "0.2.0",
-    "@axe-core/playwright": "4.12.1",
-    "@playwright/test": "1.62.1",
-    "@types/node": "^26.2.0",
-    "autoprefixer": "^10.5.4",
+    "@askrjs/cli": "0.3.0",
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "^26.5.1",
+    "autoprefixer": "^10.6.0",
     "jsdom": "^30.0.1",
-    "postcss": "^8.5.26",
+    "postcss": "^8.5.28",
     "typescript": "^7.0.2",
-    "vite": "8.2.2",
-    "vite-plus": "^0.2.9"
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
+    "vite-plus": "0.3.1"
   },
   "overrides": {
-    "dompurify": "3.4.13"
+    "dompurify": "3.4.13",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -53,6 +54,6 @@
   "allowScripts": {
     "fsevents@2.3.3": true,
     "fsevents@2.3.2": true,
-    "esbuild@0.28.1": true
+    "esbuild@0.28.2": true
   }
 }

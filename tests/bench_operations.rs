@@ -4188,8 +4188,8 @@ mod performance_benchmarks_tests {
         let verifies_incompressible_plain = fixture.contains("assert_plain_chunks");
 
         // Assert
-        assert_eq!(relative_gate_count, 3);
-        assert_eq!(forces_plain_baseline, 3);
+        assert_eq!(relative_gate_count, 4);
+        assert_eq!(forces_plain_baseline, 4);
         assert!(verifies_incompressible_plain);
     }
 
@@ -4232,6 +4232,43 @@ mod performance_benchmarks_tests {
     }
 
     #[test]
+    fn should_register_paired_fsst_query_acceptance_scenarios() {
+        // Arrange
+        let scenarios = benchmark_scenarios()
+            .map(|scenario| (scenario.scenario_id, scenario))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let owner = include_str!("../benches/tier2_subsystem_column_scan.rs");
+        let fixture = include_str!("../benches/support/workloads/column_codec_context.rs");
+
+        // Act
+        let candidate = scenarios.get("perf.column.fsst_selective_scan.2k");
+        let baseline = scenarios.get("perf.column.fsst_plain_scan_baseline.2k");
+        let enforces_query_gate =
+            owner.contains("require_relative_p95(FSST_CANDIDATE, FSST_BASELINE, 0.85)");
+        let stabilizes_fsst_samples =
+            owner.contains("const FSST_QUERIES_PER_SAMPLE: usize = 1_024;");
+        let verifies_fsst_selection =
+            fixture.contains("assert_selected_codec") && fixture.contains("\"fsst\"");
+        let verifies_fsst_savings = fixture.contains("assert_fsst_storage_savings")
+            && fixture.contains("saturating_mul(4)")
+            && fixture.contains("saturating_mul(3)");
+
+        // Assert
+        assert_eq!(
+            candidate.map(|scenario| (scenario.benchmark, scenario.workload)),
+            Some(("tier2_subsystem_column_scan", "fsst_selective_scan"))
+        );
+        assert_eq!(
+            baseline.map(|scenario| (scenario.benchmark, scenario.workload)),
+            Some(("tier2_subsystem_column_scan", "fsst_plain_scan_baseline"))
+        );
+        assert!(enforces_query_gate);
+        assert!(stabilizes_fsst_samples);
+        assert!(verifies_fsst_selection);
+        assert!(verifies_fsst_savings);
+    }
+
+    #[test]
     fn should_document_alp_as_a_promoted_codec_with_retained_evidence() {
         // Arrange
         let roadmap = include_str!("../docs/product-roadmap.md");
@@ -4254,6 +4291,28 @@ mod performance_benchmarks_tests {
         assert_eq!(duplicated_codec_contract, 1);
         assert!(performance.contains(
             "`perf.column.alp_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`"
+        ));
+    }
+
+    #[test]
+    fn should_document_fsst_as_a_promoted_codec_with_retained_evidence() {
+        // Arrange
+        let roadmap = include_str!("../docs/product-roadmap.md");
+        let support = include_str!("../docs/feature-support.md");
+        let readiness = include_str!("../docs/production-readiness.md");
+        let performance = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let remains_planned = roadmap.contains("- FSST — Planned");
+
+        // Assert
+        assert!(!remains_planned);
+        assert!(support.contains("FSST UTF-8 symbol streams"));
+        assert!(readiness.contains("should_emit_cross_architecture_stable_fsst_bytes"));
+        assert!(readiness.contains("perf.column.fsst_selective_scan.2k"));
+        assert!(readiness.contains("perf.column.fsst_plain_scan_baseline.2k"));
+        assert!(performance.contains(
+            "`perf.column.fsst_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `0.85`"
         ));
     }
 

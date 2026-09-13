@@ -72,7 +72,50 @@ pub(super) fn encode(values: &[&serde_json::Value]) -> Result<Vec<u8>, CassieErr
 }
 
 pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Value>, CassieError> {
+    decode_with_selection(payload, count, None)
+}
+
+pub(super) fn decode_selected(
+    payload: &[u8],
+    count: usize,
+    selection: &[bool],
+) -> Result<Vec<serde_json::Value>, CassieError> {
+    if selection.len() != count {
+        return Err(invalid("FSST selection length mismatch"));
+    }
+    decode_with_selection(payload, count, Some(selection))
+}
+
+fn decode_with_selection(
+    payload: &[u8],
+    count: usize,
+    selection: Option<&[bool]>,
+) -> Result<Vec<serde_json::Value>, CassieError> {
     let mut reader = Reader::new(payload);
+    let symbols = decode_symbol_table(&mut reader)?;
+    let value_count =
+        usize::try_from(reader.read_u32()?).map_err(|_| invalid("FSST value count overflow"))?;
+    if value_count != count {
+        return Err(invalid("FSST value count mismatch"));
+    }
+    let mut values = Vec::with_capacity(count);
+    let mut decoded = Vec::new();
+    for position in 0..count {
+        let encoded = reader.read_bounded_bytes(MAX_SCALAR_BYTES)?;
+        if selection.is_none_or(|selection| selection[position]) {
+            decode_value(encoded, &symbols, Some(&mut decoded))?;
+            let value = std::str::from_utf8(&decoded).map_err(|_| invalid("invalid FSST UTF-8"))?;
+            values.push(serde_json::Value::String(value.to_owned()));
+        } else {
+            decode_value(encoded, &symbols, None)?;
+            values.push(serde_json::Value::Null);
+        }
+    }
+    reader.finish()?;
+    Ok(values)
+}
+
+fn decode_symbol_table<'a>(reader: &mut Reader<'a>) -> Result<Vec<&'a [u8]>, CassieError> {
     let symbol_count = usize::from(reader.read_u16()?);
     if symbol_count > MAX_SYMBOLS {
         return Err(invalid("invalid FSST symbol count"));
@@ -85,39 +128,109 @@ pub(super) fn decode(payload: &[u8], count: usize) -> Result<Vec<serde_json::Val
         if table_bytes > 64 * 1024 || symbol.is_empty() || std::str::from_utf8(symbol).is_err() {
             return Err(invalid("invalid FSST symbol table"));
         }
-        symbols.push(symbol.to_vec());
+        symbols.push(symbol);
     }
-    let value_count =
-        usize::try_from(reader.read_u32()?).map_err(|_| invalid("FSST value count overflow"))?;
-    if value_count != count {
-        return Err(invalid("FSST value count mismatch"));
+    Ok(symbols)
+}
+
+fn decode_value(
+    encoded: &[u8],
+    symbols: &[&[u8]],
+    mut decoded: Option<&mut Vec<u8>>,
+) -> Result<(), CassieError> {
+    if let Some(decoded) = decoded.as_deref_mut() {
+        decoded.clear();
     }
-    let mut values = Vec::with_capacity(count);
-    for _ in 0..count {
-        let encoded = reader.read_bounded_bytes(MAX_SCALAR_BYTES)?;
-        let mut value = Vec::new();
-        let mut stream = Reader::new(encoded);
-        while stream.remaining() > 0 {
-            let token = stream.read_u16()?;
-            if token == ESCAPE {
-                let literal = stream.read_bounded_bytes(MAX_SCALAR_BYTES)?;
-                value.extend_from_slice(literal);
-            } else {
-                let symbol = symbols
+    let mut stream = Reader::new(encoded);
+    let mut utf8 = Utf8Validator::default();
+    let mut decoded_len = 0usize;
+    while stream.remaining() > 0 {
+        let token = stream.read_u16()?;
+        let (bytes, known_utf8) = if token == ESCAPE {
+            (stream.read_bounded_bytes(MAX_SCALAR_BYTES)?, false)
+        } else {
+            (
+                symbols
                     .get(usize::from(token))
-                    .ok_or_else(|| invalid("FSST symbol index out of range"))?;
-                value.extend_from_slice(symbol);
-            }
-            if value.len() > MAX_SCALAR_BYTES {
-                return Err(invalid("FSST value exceeds limit"));
-            }
+                    .copied()
+                    .ok_or_else(|| invalid("FSST symbol index out of range"))?,
+                true,
+            )
+        };
+        decoded_len = decoded_len
+            .checked_add(bytes.len())
+            .ok_or_else(|| invalid("FSST value length overflow"))?;
+        if decoded_len > MAX_SCALAR_BYTES {
+            return Err(invalid("FSST value exceeds limit"));
         }
-        stream.finish()?;
-        let value = String::from_utf8(value).map_err(|_| invalid("invalid FSST UTF-8"))?;
-        values.push(serde_json::Value::String(value));
+        if known_utf8 {
+            utf8.push_known_valid()?;
+        } else {
+            utf8.push(bytes)?;
+        }
+        if let Some(decoded) = decoded.as_deref_mut() {
+            decoded.extend_from_slice(bytes);
+        }
     }
-    reader.finish()?;
-    Ok(values)
+    stream.finish()?;
+    utf8.finish()
+}
+
+#[derive(Default)]
+struct Utf8Validator {
+    remaining: u8,
+    next_minimum: u8,
+    next_maximum: u8,
+}
+
+impl Utf8Validator {
+    fn push(&mut self, bytes: &[u8]) -> Result<(), CassieError> {
+        for byte in bytes {
+            if self.remaining == 0 {
+                match *byte {
+                    0x00..=0x7f => {}
+                    0xc2..=0xdf => self.begin(1, 0x80, 0xbf),
+                    0xe0 => self.begin(2, 0xa0, 0xbf),
+                    0xe1..=0xec | 0xee..=0xef => self.begin(2, 0x80, 0xbf),
+                    0xed => self.begin(2, 0x80, 0x9f),
+                    0xf0 => self.begin(3, 0x90, 0xbf),
+                    0xf1..=0xf3 => self.begin(3, 0x80, 0xbf),
+                    0xf4 => self.begin(3, 0x80, 0x8f),
+                    _ => return Err(invalid("invalid FSST UTF-8")),
+                }
+                continue;
+            }
+            if *byte < self.next_minimum || *byte > self.next_maximum {
+                return Err(invalid("invalid FSST UTF-8"));
+            }
+            self.remaining -= 1;
+            self.next_minimum = 0x80;
+            self.next_maximum = 0xbf;
+        }
+        Ok(())
+    }
+
+    const fn begin(&mut self, remaining: u8, next_minimum: u8, next_maximum: u8) {
+        self.remaining = remaining;
+        self.next_minimum = next_minimum;
+        self.next_maximum = next_maximum;
+    }
+
+    fn push_known_valid(&self) -> Result<(), CassieError> {
+        if self.remaining == 0 {
+            Ok(())
+        } else {
+            Err(invalid("invalid FSST UTF-8"))
+        }
+    }
+
+    fn finish(self) -> Result<(), CassieError> {
+        if self.remaining == 0 {
+            Ok(())
+        } else {
+            Err(invalid("invalid FSST UTF-8"))
+        }
+    }
 }
 
 fn encode_value(value: &[u8], symbols: &[Vec<u8>], lookup: &BTreeMap<&[u8], u16>) -> Vec<u8> {
@@ -165,7 +278,126 @@ mod tests {
 
     use sha2::{Digest, Sha256};
 
-    use super::{decode, encode};
+    use super::{decode, decode_selected, encode, ESCAPE};
+
+    #[test]
+    fn should_materialize_only_selected_fsst_values() {
+        // Arrange
+        let values = [
+            serde_json::json!("tenant-a/event-created"),
+            serde_json::json!("tenant-b/event-updated"),
+            serde_json::json!("tenant-c/event-deleted"),
+        ];
+        let references = values.iter().collect::<Vec<_>>();
+        let encoded = encode(&references).expect("encode FSST values");
+
+        // Act
+        let decoded = decode_selected(&encoded, values.len(), &[true, false, true])
+            .expect("decode selected FSST values");
+
+        // Assert
+        assert_eq!(
+            decoded,
+            vec![
+                values[0].clone(),
+                serde_json::Value::Null,
+                values[2].clone()
+            ]
+        );
+    }
+
+    #[test]
+    fn should_reject_corrupt_unselected_fsst_value() {
+        // Arrange
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&1_u16.to_le_bytes());
+        payload.extend_from_slice(&5_u32.to_le_bytes());
+        payload.extend_from_slice(b"hello");
+        payload.extend_from_slice(&2_u32.to_le_bytes());
+        payload.extend_from_slice(&2_u32.to_le_bytes());
+        payload.extend_from_slice(&0_u16.to_le_bytes());
+        payload.extend_from_slice(&2_u32.to_le_bytes());
+        payload.extend_from_slice(&1_u16.to_le_bytes());
+
+        // Act
+        let decoded = decode_selected(&payload, 2, &[true, false]);
+
+        // Assert
+        assert!(decoded.is_err());
+    }
+
+    #[test]
+    fn should_reject_invalid_utf8_in_unselected_fsst_value() {
+        // Arrange
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&0_u16.to_le_bytes());
+        payload.extend_from_slice(&2_u32.to_le_bytes());
+        for byte in [b'a', 0xff] {
+            payload.extend_from_slice(&7_u32.to_le_bytes());
+            payload.extend_from_slice(&ESCAPE.to_le_bytes());
+            payload.extend_from_slice(&1_u32.to_le_bytes());
+            payload.push(byte);
+        }
+
+        // Act
+        let decoded = decode_selected(&payload, 2, &[true, false]);
+
+        // Assert
+        assert!(decoded.is_err());
+    }
+
+    #[test]
+    fn should_decode_utf8_split_across_fsst_literals() {
+        // Arrange
+        let mut encoded_value = Vec::new();
+        for byte in [0xc2, 0xa2] {
+            encoded_value.extend_from_slice(&ESCAPE.to_le_bytes());
+            encoded_value.extend_from_slice(&1_u32.to_le_bytes());
+            encoded_value.push(byte);
+        }
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&0_u16.to_le_bytes());
+        payload.extend_from_slice(&1_u32.to_le_bytes());
+        payload.extend_from_slice(
+            &u32::try_from(encoded_value.len())
+                .expect("encoded value length")
+                .to_le_bytes(),
+        );
+        payload.extend_from_slice(&encoded_value);
+
+        // Act
+        let decoded = decode_selected(&payload, 1, &[true]).expect("decode split UTF-8");
+
+        // Assert
+        assert_eq!(decoded, vec![serde_json::json!("¢")]);
+    }
+
+    #[test]
+    fn should_reject_incomplete_utf8_before_fsst_symbol() {
+        // Arrange
+        let mut encoded_value = Vec::new();
+        encoded_value.extend_from_slice(&ESCAPE.to_le_bytes());
+        encoded_value.extend_from_slice(&1_u32.to_le_bytes());
+        encoded_value.push(0xc2);
+        encoded_value.extend_from_slice(&0_u16.to_le_bytes());
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&1_u16.to_le_bytes());
+        payload.extend_from_slice(&1_u32.to_le_bytes());
+        payload.push(b'a');
+        payload.extend_from_slice(&1_u32.to_le_bytes());
+        payload.extend_from_slice(
+            &u32::try_from(encoded_value.len())
+                .expect("encoded value length")
+                .to_le_bytes(),
+        );
+        payload.extend_from_slice(&encoded_value);
+
+        // Act
+        let decoded = decode_selected(&payload, 1, &[false]);
+
+        // Assert
+        assert!(decoded.is_err());
+    }
 
     #[test]
     fn should_roundtrip_deterministic_golden_payload() {

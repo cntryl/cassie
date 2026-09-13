@@ -4,16 +4,6 @@ This document contains future work only. Current behavior and status live in [Fe
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
-## Future Column Codecs
-
-- FSST — Planned. Add an independently specified and promoted string codec only after its
-  bounded dictionary format, corruption handling, cross-architecture fixtures, and query
-  evidence exist.
-
-CBM2 codec selection is automatic and is not a SQL or configuration surface. Cassie does not
-add LZ4 or Zstd above Midge's generic storage compression; any future codec must remain a
-Cassie-owned derived format with authoritative-row fallback.
-
 ## Production Evidence
 
 - define named disk-backed deployment profiles;

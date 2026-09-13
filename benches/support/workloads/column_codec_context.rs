@@ -16,6 +16,8 @@ pub const INCOMPRESSIBLE_PLAIN_SQL: &str =
     "SELECT title, body FROM bench_documents_incompressible_plain WHERE title >= '000000000000079c-'";
 pub const ALP_AUTO_SQL: &str = "SELECT score FROM bench_documents_alp WHERE score >= 9.24";
 pub const ALP_PLAIN_SQL: &str = "SELECT score FROM bench_documents_alp_plain WHERE score >= 9.24";
+pub const FSST_AUTO_SQL: &str = "SELECT body FROM bench_documents_fsst WHERE score = 1";
+pub const FSST_PLAIN_SQL: &str = "SELECT body FROM bench_documents_fsst_plain WHERE score = 1";
 
 pub fn column_codec_acceptance_context(rows: usize) -> Ready<Result<BenchContext, CassieError>> {
     ready(column_codec_acceptance_context_now(rows))
@@ -94,8 +96,57 @@ fn column_codec_acceptance_context_now(rows: usize) -> Result<BenchContext, Cass
         )?;
 
     add_alp_acceptance_pair(&context, rows)?;
+    add_fsst_acceptance_pair(&context, rows)?;
 
     Ok(context)
+}
+
+fn add_fsst_acceptance_pair(context: &BenchContext, rows: usize) -> Result<(), CassieError> {
+    let fsst = fsst_documents(rows);
+    create_bench_collection(context, "bench_documents_fsst", fsst.clone())?;
+    create_column_index(
+        context,
+        "bench_documents_fsst",
+        "bench_documents_fsst_column_idx",
+        "body, score",
+    )?;
+    assert_selected_codec(
+        context,
+        "bench_documents_fsst",
+        "bench_documents_fsst_column_idx",
+        "body",
+        "fsst",
+    )?;
+    assert_fsst_storage_savings(
+        context,
+        "bench_documents_fsst",
+        "bench_documents_fsst_column_idx",
+        "body",
+    )?;
+
+    create_bench_collection(context, "bench_documents_fsst_plain", fsst)?;
+    create_column_index(
+        context,
+        "bench_documents_fsst_plain",
+        "bench_documents_fsst_plain_column_idx",
+        "body, score",
+    )?;
+    context
+        .cassie
+        .midge
+        .rebuild_column_batches_plain_for_benchmark(
+            "bench_documents_fsst_plain",
+            "bench_documents_fsst_plain_column_idx",
+        )?;
+    assert_selected_codec(
+        context,
+        "bench_documents_fsst_plain",
+        "bench_documents_fsst_plain_column_idx",
+        "body",
+        "plain",
+    )?;
+
+    Ok(())
 }
 
 fn add_alp_acceptance_pair(context: &BenchContext, rows: usize) -> Result<(), CassieError> {
@@ -233,6 +284,29 @@ fn assert_alp_storage_savings(
     Ok(())
 }
 
+fn assert_fsst_storage_savings(
+    context: &BenchContext,
+    collection: &str,
+    index: &str,
+    field: &str,
+) -> Result<(), CassieError> {
+    let metadata = context
+        .cassie
+        .midge
+        .get_column_batch_metadata(collection, index)?
+        .ok_or_else(|| CassieError::Execution("missing FSST benchmark metadata".to_string()))?;
+    if metadata.segments.iter().any(|segment| {
+        segment.field_chunks.get(field).is_none_or(|chunk| {
+            chunk.encoded_len.saturating_mul(4) > chunk.decoded_len.saturating_mul(3)
+        })
+    }) {
+        return Err(CassieError::Execution(
+            "FSST benchmark chunks did not reduce plain bytes by at least 25%".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn create_column_index(
     context: &BenchContext,
     collection: &str,
@@ -357,6 +431,29 @@ fn alp_documents(rows: usize) -> Vec<(Option<String>, serde_json::Value)> {
                     "body": "alp benchmark row",
                     "score": f64::from(centered) / 100.0,
                     "status": "active",
+                    "embedding": [1.0, 0.0, 0.0]
+                }),
+            )
+        })
+        .collect()
+}
+
+fn fsst_documents(rows: usize) -> Vec<(Option<String>, serde_json::Value)> {
+    let common = "account-lifecycle-event-payload/approved/".repeat(8);
+    (0..rows)
+        .map(|index| {
+            let score = usize::from(index.is_multiple_of(256));
+            (
+                Some(format!("fsst-{index:04}")),
+                serde_json::json!({
+                    "title": format!("tenant-{:02}-event-{index:04}", index % 64),
+                    "body": format!(
+                        "tenant-{:02}/event-{index:04}/{common}trace-{:016x}",
+                        index % 64,
+                        mix(u64::try_from(index).expect("benchmark row should fit u64"))
+                    ),
+                    "score": i64::try_from(score).expect("benchmark score should fit i64"),
+                    "status": "approved",
                     "embedding": [1.0, 0.0, 0.0]
                 }),
             )

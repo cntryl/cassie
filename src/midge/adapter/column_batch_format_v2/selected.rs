@@ -45,6 +45,19 @@ pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, C
     validate_validity(validity, value_count, null_count)?;
     let payload = reader.read_exact(payload_len)?;
     reader.finish()?;
+    let non_null_count = value_count - null_count;
+
+    if codec == Codec::Fsst {
+        let values =
+            decode_selected_fsst_values(logical_type, value_count, validity, payload, selection)?;
+        return Ok(DecodedChunk {
+            values,
+            logical_type,
+            codec,
+            encoded_len: bytes.len(),
+            decoded_len,
+        });
+    }
 
     if codec != Codec::Dictionary {
         let mut decoded = chunk::decode(bytes)?;
@@ -56,7 +69,6 @@ pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, C
         return Ok(decoded);
     }
 
-    let non_null_count = value_count - null_count;
     let (dictionary, indices) = decode_dictionary_parts(logical_type, payload, non_null_count)?;
     let mut values = Vec::with_capacity(value_count);
     let mut non_null_position = 0usize;
@@ -89,6 +101,50 @@ pub(super) fn decode(bytes: &[u8], selection: &[bool]) -> Result<DecodedChunk, C
         encoded_len: bytes.len(),
         decoded_len,
     })
+}
+
+fn decode_selected_fsst_values(
+    logical_type: LogicalType,
+    value_count: usize,
+    validity: &[u8],
+    payload: &[u8],
+    selection: &[bool],
+) -> Result<Vec<serde_json::Value>, CassieError> {
+    if logical_type != LogicalType::Utf8 {
+        return Err(invalid("FSST requires text"));
+    }
+    let non_null_selection = selection
+        .iter()
+        .copied()
+        .enumerate()
+        .filter_map(|(position, selected)| bit_is_set(validity, position).then_some(selected))
+        .collect::<Vec<_>>();
+    let non_null =
+        super::fsst::decode_selected(payload, non_null_selection.len(), &non_null_selection)?;
+    restore_validity(value_count, validity, non_null)
+}
+
+fn restore_validity(
+    value_count: usize,
+    validity: &[u8],
+    non_null: Vec<serde_json::Value>,
+) -> Result<Vec<serde_json::Value>, CassieError> {
+    let mut values = Vec::with_capacity(value_count);
+    let mut next = non_null.into_iter();
+    for position in 0..value_count {
+        if bit_is_set(validity, position) {
+            values.push(
+                next.next()
+                    .ok_or_else(|| invalid("column-batch decoded value missing"))?,
+            );
+        } else {
+            values.push(serde_json::Value::Null);
+        }
+    }
+    if next.next().is_some() {
+        return Err(invalid("trailing decoded column-batch values"));
+    }
+    Ok(values)
 }
 
 fn decode_dictionary_parts(

@@ -114,6 +114,7 @@ mod vector_metrics;
 
 use cache_state::ExecutionResultCacheState;
 pub use controls::{QueryCancellationHandle, QueryExecutionControls, QueryMemoryReservation};
+pub(crate) use feedback::RuntimeFeedbackMutation;
 pub(crate) use feedback::{
     normalized_feedback_key, observation_is_outlier, recompute_feedback_confidence,
     OperatorFeedbackEstimate, RuntimeFeedbackLookup, RuntimeFeedbackLookupState,
@@ -140,6 +141,7 @@ pub use snapshots::*;
 struct RuntimeFeedbackState {
     entries: HashMap<RuntimeFeedbackKey, RuntimeFeedbackRecord>,
     order: VecDeque<RuntimeFeedbackKey>,
+    pending_deletes: Vec<RuntimeFeedbackKey>,
 }
 
 #[derive(Debug, Default)]

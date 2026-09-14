@@ -258,7 +258,6 @@ pub(super) fn prune_feedback_by_age(
     }
 
     let ttl_ms = ttl_seconds.saturating_mul(1_000);
-    let mut evictions = 0;
     let expired = feedback
         .entries
         .iter()
@@ -266,16 +265,17 @@ pub(super) fn prune_feedback_by_age(
         .map(|(key, _)| key.clone())
         .collect::<Vec<_>>();
 
-    for key in expired {
-        if feedback.entries.remove(&key).is_some() {
-            evictions += 1;
-        }
-        if let Some(position) = feedback.order.iter().position(|entry| entry == &key) {
+    for key in &expired {
+        feedback.entries.remove(key);
+        if let Some(position) = feedback.order.iter().position(|entry| entry == key) {
             feedback.order.remove(position);
+        }
+        if !feedback.pending_deletes.contains(key) {
+            feedback.pending_deletes.push(key.clone());
         }
     }
 
-    evictions
+    u64::try_from(expired.len()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

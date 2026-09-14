@@ -51,6 +51,7 @@ thread_local! {
     static FIELD_ADD_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static OPERATOR_FEEDBACK_PERSISTENCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
 }
 
 #[derive(Default)]
@@ -103,6 +104,20 @@ pub(crate) fn check_rollup_maintenance_failure_point() -> Result<(), CassieError
     if ROLLUP_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(CassieError::Execution(
             "injected test failure during rollup maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_operator_feedback_persistence_failure_point(enabled: bool) {
+    OPERATOR_FEEDBACK_PERSISTENCE_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_operator_feedback_persistence_failure_point() -> Result<(), CassieError> {
+    if OPERATOR_FEEDBACK_PERSISTENCE_FAILPOINT.replace(false) {
+        return Err(CassieError::Storage(
+            "injected test failure during operator feedback persistence".to_string(),
         ));
     }
     Ok(())

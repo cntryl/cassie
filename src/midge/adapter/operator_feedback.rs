@@ -1,4 +1,4 @@
-use super::{CassieError, Midge, StorageFamily};
+use super::{check_operator_feedback_persistence_failure_point, CassieError, Midge, StorageFamily};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +32,34 @@ impl Midge {
         }
         out.sort_by_key(|entry| entry.1.last_seen_ms);
         Ok(out)
+    }
+
+    pub(crate) fn apply_runtime_feedback_mutation(
+        &self,
+        mutation: &crate::runtime::RuntimeFeedbackMutation,
+    ) -> Result<(), CassieError> {
+        check_operator_feedback_persistence_failure_point()?;
+        if mutation.upserts.is_empty() && mutation.deletes.is_empty() {
+            return Ok(());
+        }
+
+        let mut tx = self.begin_schema_rw_tx()?;
+        for key in &mutation.deletes {
+            tx.delete(Self::runtime_feedback_key(key))
+                .map_err(CassieError::from)?;
+        }
+        for (key, record) in &mutation.upserts {
+            let stored = StoredRuntimeFeedbackRecord {
+                key: key.clone(),
+                record: record.clone(),
+            };
+            let value = serde_json::to_vec(&stored)
+                .map_err(|error| CassieError::Parse(error.to_string()))?;
+            tx.put(Self::runtime_feedback_key(key), value, None)
+                .map_err(CassieError::from)?;
+        }
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
     }
 
     /// # Errors

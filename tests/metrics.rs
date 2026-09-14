@@ -1059,7 +1059,8 @@ mod metrics_feedback {
 
     use cassie::app::{Cassie, CassieSession};
     use cassie::catalog::{IndexKind, IndexMeta};
-    use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
+    use cassie::midge::adapter::set_operator_feedback_persistence_failure_point;
+    use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
     use cassie::types::{DataType, FieldSchema, Schema};
     use pgwire_support::{data_dir, describe_statement_frame, startup_frame, use_local_storage};
     use std::collections::BTreeMap;
@@ -1491,6 +1492,129 @@ mod metrics_feedback {
     }
 
     #[test]
+    fn should_persist_runtime_feedback_delta_without_replacing_unrelated_records() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("feedback_delta_persistence");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let collection = "metrics_feedback_delta_persistence";
+            register_feedback_collection(&cassie, collection);
+            let session = cassie.create_session("tester", None);
+            let sql = "SELECT title FROM metrics_feedback_delta_persistence WHERE title = $1";
+            let key = feedback_key(&cassie, &session, sql, None);
+            cassie
+                .execute_sql(
+                    &session,
+                    sql,
+                    vec![cassie::types::Value::String("alpha".to_string())],
+                )
+                .unwrap();
+            let current = cassie
+                .feedback_record_for_diagnostics(&key)
+                .expect("current feedback record");
+            let unrelated_key = RuntimeFeedbackKey {
+                collection: "unrelated_persisted_feedback".to_string(),
+                predicate_shape_hash: key.predicate_shape_hash.wrapping_add(1),
+                ..key.clone()
+            };
+            let unrelated_record = RuntimeFeedbackRecord {
+                executions: 17,
+                first_seen_ms: 1,
+                last_seen_ms: 2,
+                ..RuntimeFeedbackRecord::default()
+            };
+            cassie
+                .midge
+                .replace_runtime_feedback_records(&[
+                    (key.clone(), current),
+                    (unrelated_key.clone(), unrelated_record),
+                ])
+                .expect("seed persisted feedback records");
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    sql,
+                    vec![cassie::types::Value::String("beta".to_string())],
+                )
+                .unwrap();
+            let persisted = cassie.midge.list_runtime_feedback_records().unwrap();
+
+            // Assert
+            let unrelated = persisted
+                .iter()
+                .find(|(persisted_key, _)| persisted_key == &unrelated_key)
+                .map(|(_, record)| record)
+                .expect("unrelated persisted feedback must remain untouched");
+            assert_eq!(unrelated.executions, 17);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reconcile_runtime_feedback_after_delta_persistence_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("feedback_delta_retry");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let collection = "metrics_feedback_delta_retry";
+            register_feedback_collection(&cassie, collection);
+            let session = cassie.create_session("tester", None);
+            let first_sql = "SELECT title FROM metrics_feedback_delta_retry";
+            let second_sql = "SELECT body FROM metrics_feedback_delta_retry";
+            let first_key = feedback_key(&cassie, &session, first_sql, None);
+            let second_key = feedback_key(&cassie, &session, second_sql, None);
+            let before_errors = cassie.metrics()["storage"]["schema"]["errors"]
+                .as_u64()
+                .unwrap_or_default();
+            set_operator_feedback_persistence_failure_point(true);
+
+            // Act
+            cassie.execute_sql(&session, first_sql, vec![]).unwrap();
+            let after_failure = cassie.midge.list_runtime_feedback_records().unwrap();
+            cassie.execute_sql(&session, second_sql, vec![]).unwrap();
+            let after_reconciliation = cassie.midge.list_runtime_feedback_records().unwrap();
+            let after_errors = cassie.metrics()["storage"]["schema"]["errors"]
+                .as_u64()
+                .unwrap_or_default();
+
+            // Assert
+            assert!(cassie.feedback_record_for_diagnostics(&first_key).is_some());
+            assert!(
+                after_failure
+                    .iter()
+                    .all(|(persisted_key, _)| persisted_key != &first_key),
+                "failed delta must not partially commit: {after_failure:?}"
+            );
+            assert_eq!(after_errors, before_errors.saturating_add(1));
+            assert!(
+                [&first_key, &second_key].iter().all(|expected| {
+                    after_reconciliation
+                        .iter()
+                        .any(|(persisted_key, _)| persisted_key == *expected)
+                }),
+                "reconciled={after_reconciliation:?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_partition_runtime_feedback_by_schema_epoch() {
         // Arrange
         use_local_storage();
@@ -1535,10 +1659,61 @@ mod metrics_feedback {
             let second = cassie
                 .feedback_record_for_diagnostics(&second_key)
                 .expect("second schema epoch feedback");
+            let persisted = cassie.midge.list_runtime_feedback_records().unwrap();
 
             // Assert
             assert!(first, "schema changes should invalidate older feedback");
             assert_eq!(second.executions, 1);
+            assert!(
+                persisted
+                    .iter()
+                    .all(|(key, _)| key.schema_epoch == second_key.schema_epoch),
+                "persisted feedback must not retain an invalid schema epoch: {persisted:?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_feedback_record_from_stale_schema_epoch() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("feedback_stale_schema_epoch");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let collection = "metrics_feedback_stale_schema_epoch";
+            register_feedback_collection(&cassie, collection);
+            let session = cassie.create_session("tester", None);
+            let sql = "SELECT title FROM metrics_feedback_stale_schema_epoch";
+            let stale_key = feedback_key(&cassie, &session, sql, None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE feedback_new_schema_epoch (id INT)",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            cassie
+                .seed_feedback_for_diagnostics(&stale_key, &confident_feedback(5, 1))
+                .expect("discard stale-epoch feedback");
+            let persisted = cassie.midge.list_runtime_feedback_records().unwrap();
+
+            // Assert
+            assert!(cassie.feedback_record_for_diagnostics(&stale_key).is_none());
+            assert!(
+                persisted
+                    .iter()
+                    .all(|(persisted_key, _)| persisted_key != &stale_key),
+                "persisted={persisted:?}"
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1569,10 +1744,13 @@ mod metrics_feedback {
             cassie.execute_sql(&session, first_sql, vec![]).unwrap();
             cassie.execute_sql(&session, second_sql, vec![]).unwrap();
             let metrics = cassie.metrics();
+            let persisted = cassie.midge.list_runtime_feedback_records().unwrap();
 
             // Assert
             assert!(cassie.feedback_record_for_diagnostics(&first_key).is_none());
             assert_eq!(metrics["feedback"]["entries"].as_u64(), Some(1));
+            assert_eq!(persisted.len(), 1, "persisted={persisted:?}");
+            assert_ne!(persisted[0].0, first_key);
             assert!(
                 metrics["feedback"]["evictions"]
                     .as_u64()

@@ -108,6 +108,44 @@ pub struct RuntimeFeedbackObservation {
     pub memory_pressure: bool,
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct RuntimeFeedbackMutation {
+    pub(crate) upserts: Vec<(RuntimeFeedbackKey, RuntimeFeedbackRecord)>,
+    pub(crate) deletes: Vec<RuntimeFeedbackKey>,
+}
+
+impl RuntimeFeedbackMutation {
+    pub(crate) fn upsert(&mut self, key: RuntimeFeedbackKey, record: RuntimeFeedbackRecord) {
+        self.deletes.retain(|deleted| deleted != &key);
+        if let Some((_, existing)) = self
+            .upserts
+            .iter_mut()
+            .find(|(existing_key, _)| existing_key == &key)
+        {
+            *existing = record;
+        } else {
+            self.upserts.push((key, record));
+        }
+    }
+
+    pub(crate) fn delete(&mut self, key: RuntimeFeedbackKey) {
+        self.upserts
+            .retain(|(existing_key, _)| existing_key != &key);
+        if !self.deletes.contains(&key) {
+            self.deletes.push(key);
+        }
+    }
+
+    pub(crate) fn merge(&mut self, other: Self) {
+        for key in other.deletes {
+            self.delete(key);
+        }
+        for (key, record) in other.upserts {
+            self.upsert(key, record);
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RuntimeFeedbackLookupState {
     Hit,

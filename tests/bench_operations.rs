@@ -3328,7 +3328,7 @@ mod benchmark_kernels {
         workloads::configure_tier3_environment();
         let runtime = workloads::runtime();
         let context = runtime
-            .block_on(workloads::empty_context_with_temp_budget(
+            .block_on(workloads::empty_tier3_query_context(
                 "tier3-batched-query-domains-test",
                 TIER3_DOMAIN_TEST_ROWS,
             ))

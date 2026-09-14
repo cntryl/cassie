@@ -25,6 +25,22 @@ pub fn tier3_query_context(
 }
 
 fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    let context = empty_tier3_query_context_now(label, dataset_rows)?;
+    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
+    Ok(context)
+}
+
+pub fn empty_tier3_query_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(empty_tier3_query_context_now(label, dataset_rows))
+}
+
+fn empty_tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let data_dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
@@ -49,7 +65,6 @@ fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchCont
         data_dir,
         _embedding_server: None,
     };
-    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
     Ok(context)
 }
 

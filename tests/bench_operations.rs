@@ -5721,6 +5721,28 @@ mod benchmark_tier3_join_contract {
         // Assert
         assert!(creates_join_index);
     }
+
+    #[test]
+    fn should_create_tier3_join_index_before_batched_fixture_loading() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+        let join_fixture = fixture
+            .split_once("fn prepare_join_collections(")
+            .and_then(|(_, source)| source.split_once("fn prepare_graph("))
+            .map(|(source, _)| source)
+            .expect("Tier 3 join fixture source");
+
+        // Act
+        let index_position = join_fixture
+            .find("CREATE INDEX bench_join_users_key_idx")
+            .expect("join index creation");
+        let user_load_position = join_fixture
+            .find("for_each_tier3_domain_batch(dataset_rows, \"join users\"")
+            .expect("batched join user loading");
+
+        // Assert
+        assert!(index_position < user_load_position);
+    }
 }
 
 // Formerly tests/benchmark_trust_contract.rs.

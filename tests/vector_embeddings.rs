@@ -1172,11 +1172,97 @@ mod hnsw_indexes {
     use cassie::embeddings::{
         DistanceMetric, HnswIndexOptions, VectorIndexMetadata, VectorIndexRecord, VectorIndexType,
     };
-    use cassie::midge::adapter::StorageFamily;
+    use cassie::midge::adapter::{
+        document_write_failure_point_test_guard, set_document_write_failure_point,
+        DocumentWriteFailurePoint, StorageFamily,
+    };
     use cassie::types::{DataType, FieldSchema, Schema, Value};
 
     use super::support_sql as support;
     use support::*;
+
+    #[test]
+    fn should_bound_initial_vector_index_sidecar_write_transactions() {
+        // Arrange
+        let item_count = 10_001;
+
+        // Act
+        let batch_lengths =
+            cassie::midge::adapter::vector_index_build_batch_lengths_for_diagnostics(item_count);
+
+        // Assert
+        assert_eq!(batch_lengths, vec![5_000, 5_000, 1]);
+    }
+
+    #[test]
+    fn should_leave_failed_batched_hnsw_build_unpublished_until_successful_retry() {
+        // Arrange
+        let _failpoint_guard = document_write_failure_point_test_guard();
+        use_local_storage();
+        let path = data_dir("hnsw_batched_build_retry");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "hnsw_batched_build_retry";
+        register_hnsw_collection(&cassie, collection);
+        let canonical_collection = canonical_hnsw_collection(collection);
+        let documents = (0..5_001)
+            .map(|index| {
+                let ordinate = f64::from(u32::try_from(index % 97).expect("small ordinate")) + 1.0;
+                (
+                    Some(format!("document-{index:05}")),
+                    serde_json::json!({
+                        "content": format!("document-{index:05}"),
+                        "embedding": [1.0, ordinate, 0.5]
+                    }),
+                )
+            })
+            .collect();
+        cassie
+            .midge
+            .put_documents(&canonical_collection, documents)
+            .expect("seed documents");
+        let record = hnsw_index_record(collection, 2);
+
+        // Act
+        set_document_write_failure_point(Some(DocumentWriteFailurePoint::VectorState));
+        let failed = cassie.midge.put_vector_index(record.clone());
+        let unpublished = cassie
+            .midge
+            .get_vector_index(&canonical_collection, "embedding")
+            .expect("read unpublished index");
+        let staged_nodes = cassie
+            .midge
+            .raw_scan_prefix(
+                StorageFamily::Data,
+                &cassie
+                    .midge
+                    .hnsw_node_prefix_for_diagnostics(&canonical_collection, "embedding")
+                    .expect("node prefix"),
+            )
+            .expect("scan staged nodes");
+        set_document_write_failure_point(None);
+        cassie
+            .midge
+            .put_vector_index(record)
+            .expect("retry index build");
+        let published = stored_hnsw_index(&cassie, collection);
+
+        // Assert
+        let failed = failed.expect_err("manifest publication should fail");
+        assert!(failed.to_string().contains("injected test failure"));
+        assert!(unpublished.is_none());
+        assert_eq!(staged_nodes.len(), 5_001);
+        assert_eq!(
+            published
+                .metadata
+                .hnsw_graph
+                .expect("published graph")
+                .row_count,
+            5_001
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     fn canonical_hnsw_collection(collection: &str) -> String {
         canonical_relation_name("postgres", "public", collection)

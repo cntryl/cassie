@@ -20,15 +20,34 @@ fn main() {
     if filter_enabled || projection_enabled || top_k_enabled {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::SubsystemExecutorKernel::with_rows(2_048);
+        let fixture_invocations = workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE;
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
         if filter_enabled {
-            runner.measure_counted(with_setup(filter, &setup_time_ns), || fixture.filter());
+            runner.measure_counted(
+                with_setup(filter, &setup_time_ns).parameter(
+                    "fixture_invocations_per_sample",
+                    fixture_invocations.to_string(),
+                ),
+                || workloads::executor_filter_batch(&fixture, fixture_invocations),
+            );
         }
         if projection_enabled {
-            runner.measure_counted(with_setup(projection, &setup_time_ns), || fixture.project());
+            runner.measure_counted(
+                with_setup(projection, &setup_time_ns).parameter(
+                    "fixture_invocations_per_sample",
+                    fixture_invocations.to_string(),
+                ),
+                || workloads::executor_projection_batch(&fixture, fixture_invocations),
+            );
         }
         if top_k_enabled {
-            runner.measure_counted(with_setup(top_k, &setup_time_ns), || fixture.top_k());
+            runner.measure_counted(
+                with_setup(top_k, &setup_time_ns).parameter(
+                    "fixture_invocations_per_sample",
+                    fixture_invocations.to_string(),
+                ),
+                || workloads::executor_top_k_batch(&fixture, fixture_invocations),
+            );
         }
     }
     runner.finish();

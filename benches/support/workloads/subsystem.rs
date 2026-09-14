@@ -27,6 +27,7 @@ const PLANNING_SQL: &str =
 const VECTOR_DIMENSIONS: usize = 3;
 const IVFFLAT_LISTS: usize = 16;
 pub const PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 256;
+pub const EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 8;
 pub const CACHE_HIT_LOOKUPS_PER_SAMPLE: usize = 8_192;
 pub const HYBRID_FUSION_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const PARSER_INVOCATIONS_PER_SAMPLE: usize = 64;
@@ -37,6 +38,76 @@ pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
 pub const VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE: usize = 512;
 pub const VECTOR_HNSW_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE: usize = 4_096;
+
+#[must_use]
+pub fn executor_filter_batch(
+    fixture: &SubsystemExecutorKernel,
+    invocations: usize,
+) -> cassie::benchmark::KernelObservation {
+    executor_batch(fixture, invocations, SubsystemExecutorKernel::filter)
+}
+
+#[must_use]
+pub fn executor_projection_batch(
+    fixture: &SubsystemExecutorKernel,
+    invocations: usize,
+) -> cassie::benchmark::KernelObservation {
+    executor_batch(fixture, invocations, SubsystemExecutorKernel::project)
+}
+
+#[must_use]
+pub fn executor_top_k_batch(
+    fixture: &SubsystemExecutorKernel,
+    invocations: usize,
+) -> cassie::benchmark::KernelObservation {
+    executor_batch(fixture, invocations, SubsystemExecutorKernel::top_k)
+}
+
+fn executor_batch(
+    fixture: &SubsystemExecutorKernel,
+    invocations: usize,
+    mut operation: impl FnMut(&SubsystemExecutorKernel) -> cassie::benchmark::KernelObservation,
+) -> cassie::benchmark::KernelObservation {
+    assert!(invocations > 0, "executor batch must not be empty");
+    let mut completed_operations = 0_u64;
+    let mut result_cardinality = 0_u64;
+    let mut candidate_count = None;
+    let mut peak_query_memory_bytes = None;
+
+    for _ in 0..invocations {
+        let observation = operation(fixture);
+        completed_operations = completed_operations
+            .checked_add(observation.completed_operations())
+            .expect("executor batch operation count should fit u64");
+        result_cardinality = result_cardinality
+            .checked_add(observation.result_cardinality())
+            .expect("executor batch result cardinality should fit u64");
+        if let Some(observed_candidates) = observation.candidate_count() {
+            candidate_count = Some(
+                candidate_count
+                    .unwrap_or(0_u64)
+                    .checked_add(observed_candidates)
+                    .expect("executor batch candidate count should fit u64"),
+            );
+        }
+        if let Some(observed_peak) = observation.peak_query_memory_bytes() {
+            peak_query_memory_bytes = Some(
+                peak_query_memory_bytes.map_or(observed_peak, |peak: u64| peak.max(observed_peak)),
+            );
+        }
+        observation.finish_sample();
+    }
+
+    let mut batch =
+        cassie::benchmark::KernelObservation::new(completed_operations, result_cardinality);
+    if let Some(candidates) = candidate_count {
+        batch = batch.with_candidate_count(candidates);
+    }
+    if let Some(peak) = peak_query_memory_bytes {
+        batch = batch.with_peak_query_memory_bytes(peak);
+    }
+    batch
+}
 
 /// Fixed SQL inputs for the parser-only owner.
 pub struct ParserFixture {

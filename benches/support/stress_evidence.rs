@@ -337,6 +337,12 @@ pub fn scoped_storage_read_observation(
             unit: "time_series_bucket",
         };
     }
+    if selected_access_path == "range_scan" {
+        return StorageReadObservation {
+            count: 1,
+            unit: "relational_index_probe",
+        };
+    }
 
     let retrieval_reads = [
         "/cardinality/reads",

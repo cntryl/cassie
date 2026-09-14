@@ -1794,6 +1794,37 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_declare_tier3_mixed_workload_measurement_shape() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_mixed_load.rs");
+        let workload = include_str!("../benches/support/workloads/tier3.rs");
+
+        // Act
+        let has_logical_unit = owner.contains(".parameter(\"logical_unit\", \"operation\")");
+        let has_normalization =
+            owner.contains(".parameter(\"operations_per_logical_operation\", \"1\")");
+        let has_fixed_workload =
+            owner.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
+        let uses_duration_batch = owner.contains("runner.measure_batch(case, 1, ||");
+        let preserves_workflow = [
+            "Tier 3 mixed relational query",
+            "Tier 3 mixed ingest",
+            "Tier 3 mixed point retrieval",
+            "Tier 3 mixed full-text retrieval",
+            "Tier 3 mixed cleanup count",
+        ]
+        .into_iter()
+        .all(|step| workload.contains(step));
+
+        // Assert
+        assert!(has_logical_unit);
+        assert!(has_normalization);
+        assert!(has_fixed_workload);
+        assert!(uses_duration_batch);
+        assert!(preserves_workflow);
+    }
+
+    #[test]
     fn should_require_ordered_bounded_cleanup_evidence_from_tier4_portals() {
         // Arrange
         let source = include_str!("../benches/support/workloads/pgwire.rs");
@@ -2620,6 +2651,77 @@ mod benchmark_kernels {
         assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
         assert_eq!(batch_sizes.len(), 21);
         assert!(batch_sizes.iter().all(|size| *size <= 5_000));
+    }
+
+    #[test]
+    fn should_build_fulltext_index_once_after_bounded_document_loading() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark fixture test runtime");
+        cassie::midge::adapter::set_fulltext_maintenance_failure_point(true);
+
+        // Act
+        let context = runtime.block_on(workloads::context("fulltext-build-once", 16));
+        cassie::midge::adapter::set_fulltext_maintenance_failure_point(false);
+        let context = context.expect("full-index benchmark fixture");
+        let fulltext_state = context
+            .cassie
+            .midge
+            .get_persisted_fulltext_index_state(&context.collection, "bench_documents_body_idx")
+            .expect("read benchmark full-text index")
+            .expect("benchmark full-text index state");
+        let fulltext_rows = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT id FROM bench_documents WHERE search(body, 'alpha') ORDER BY id",
+                vec![],
+            )
+            .expect("query benchmark full-text index");
+        let mut index_names = context
+            .cassie
+            .midge
+            .list_indexes()
+            .expect("list benchmark indexes")
+            .into_iter()
+            .filter(|index| {
+                index.collection
+                    == cassie::catalog::canonical_relation_name(
+                        "postgres",
+                        "public",
+                        &context.collection,
+                    )
+            })
+            .map(|index| index.name)
+            .collect::<Vec<_>>();
+        index_names.sort();
+
+        // Assert
+        assert!(!context
+            .cassie
+            .midge
+            .has_fulltext_maintenance_debt(&context.collection, "bench_documents_body_idx",)
+            .expect("read benchmark full-text maintenance debt"));
+        assert_eq!(fulltext_state.total_documents, 16);
+        assert_eq!(fulltext_state.documents_with_text, 16);
+        assert_eq!(fulltext_rows.rows.len(), 6);
+        assert_eq!(
+            index_names,
+            [
+                "bench_documents_body_idx",
+                "bench_documents_lower_title_idx",
+                "bench_documents_score_idx",
+                "bench_documents_status_score_idx",
+                "bench_documents_title_idx",
+            ]
+            .map(|name| cassie::catalog::canonical_relation_name("postgres", "public", name))
+        );
+        workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-15");
+        let data_dir = context.data_dir.clone();
+        drop(context);
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 
     #[test]

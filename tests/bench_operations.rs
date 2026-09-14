@@ -5183,6 +5183,46 @@ mod performance_benchmarks_tests {
     }
 
     #[test]
+    fn should_batch_tier2_executor_samples_with_exact_observation_evidence() {
+        // Arrange
+        let fixture = super::workloads::SubsystemExecutorKernel::with_rows(2_048);
+        let owner = include_str!("../benches/tier2_subsystem_executor.rs");
+        let invocations = super::workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE;
+
+        // Act
+        let filter = super::workloads::executor_filter_batch(&fixture, invocations);
+        let projection = super::workloads::executor_projection_batch(&fixture, invocations);
+        let top_k = super::workloads::executor_top_k_batch(&fixture, invocations);
+
+        // Assert
+        assert_eq!(invocations, 8);
+        assert_eq!(filter.completed_operations(), 16_384);
+        assert_eq!(filter.result_cardinality(), 8_000);
+        assert_eq!(filter.candidate_count(), Some(16_384));
+        assert_eq!(projection.completed_operations(), 16_384);
+        assert_eq!(projection.result_cardinality(), 16_384);
+        assert_eq!(projection.candidate_count(), Some(16_384));
+        assert_eq!(top_k.completed_operations(), 16_384);
+        assert_eq!(top_k.result_cardinality(), 160);
+        assert_eq!(top_k.candidate_count(), Some(16_384));
+        assert!(top_k.peak_query_memory_bytes().is_some_and(|peak| peak > 0));
+        assert_eq!(owner.matches("runner.measure_counted(").count(), 3);
+        assert_eq!(
+            owner
+                .matches("workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE")
+                .count(),
+            1
+        );
+        assert_eq!(
+            owner.matches("\"fixture_invocations_per_sample\"").count(),
+            3
+        );
+        assert!(owner.contains("workloads::executor_filter_batch"));
+        assert!(owner.contains("workloads::executor_projection_batch"));
+        assert!(owner.contains("workloads::executor_top_k_batch"));
+    }
+
+    #[test]
     fn should_render_manual_benchmark_report_line() {
         // Arrange
         let benchmark = PerformanceBenchmarkScenario {

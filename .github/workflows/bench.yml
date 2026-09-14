@@ -68,10 +68,10 @@ jobs:
           path: target/stress
           if-no-files-found: ignore
 
-  complete-suite:
+  complete-contract:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -85,19 +85,83 @@ jobs:
       - name: Validate benchmark contract
         run: cntryl-tools validate-benchmarks
 
+  complete-shard:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: complete-contract
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        include:
+          - tier: tier1
+            command: "cargo bench --bench 'tier1_*' --locked"
+          - tier: tier2
+            command: "cargo bench --bench 'tier2_*' --locked"
+          - tier: tier3
+            command: "cargo bench --bench 'tier3_*' --locked"
+          - tier: tier4
+            command: "cargo bench --bench 'tier4_*' --locked"
+          - tier: tier5
+            command: "cargo bench --bench 'tier5_*' --locked"
+          - tier: tier6-mixed
+            command: "cargo bench --bench 'tier6_soak_mixed' --locked"
+          - tier: tier6-transport
+            command: "cargo bench --bench 'tier6_soak_transport' --locked"
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "benchmark-evidence"
+          shared-key: "benchmark-evidence-${{ matrix.tier }}"
 
-      - name: Run complete unfiltered owner suite
+      - name: Run unfiltered owner shard
         env:
           CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}
           CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ inputs.deployment_profile }}
           CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
-        run: cargo bench --bench '*' --locked
+        run: ${{ matrix.command }}
+
+      - name: Upload canonical shard artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}
+          path: target/stress/**/latest.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  complete-manifest:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    needs: complete-shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "benchmark-evidence-manifest"
+
+      - name: Download canonical shard artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: cassie-benchmark-shard-${{ inputs.run_id }}-*
+          path: target/stress
+          merge-multiple: true
 
       - name: Validate complete retained manifest
         run: cargo test --locked --test bench_operations benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest -- --ignored --nocapture

@@ -266,11 +266,15 @@ cargo bench --locked --bench '*'
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
 The scheduled [Bench workflow](../.github/workflows/bench.yml) exercises Tiers 1-4 and retains its
-stress artifacts using the shared Fitz workflow topology. A manual dispatch executes the complete
-unfiltered owner suite, validates `target/stress`, and retains the canonical `latest.json` owner
-artifacts. Dispatch it only on the commit being evidenced, with a unique run ID and a deployment
-profile matching the runner; a smoke duration remains diagnostic and cannot pass the complete-suite
-validator.
+stress artifacts using the shared Fitz workflow topology. A manual dispatch executes seven
+independent unfiltered shards for Tiers 1-5 and the two Tier 6 soak owners. Shards use one run ID,
+commit, toolchain channel, profile, and evidence contract; `fail-fast: false` lets every independent
+shard report its result when another shard fails, and each retains the established six-hour timeout
+ceiling so parallelism does not narrow the evidence envelope. A downstream job downloads the successful shard
+artifacts into one `target/stress` tree, applies the unchanged complete-suite validator, and retains
+the canonical `latest.json` owner artifacts only when the entire manifest passes. Dispatch it only
+on the commit being evidenced, with a unique run ID and a deployment profile matching the runner;
+a smoke duration remains diagnostic and cannot pass the complete-suite validator.
 
 ## Benchmark Scope Boundary
 

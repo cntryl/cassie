@@ -4186,6 +4186,36 @@ mod performance_benchmarks_tests {
     }
 
     #[test]
+    fn should_batch_tier2_planning_samples_with_normalized_operation_counts() {
+        // Arrange
+        let owners = [
+            include_str!("../benches/tier2_subsystem_binder.rs"),
+            include_str!("../benches/tier2_subsystem_sql_planning.rs"),
+        ];
+        let harness = include_str!("../benches/support/stress.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+        let invocations = super::workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE;
+        let mut observed_invocations = 0_usize;
+
+        // Act
+        let completed = super::stress::repeat_counted_batch(invocations, || {
+            observed_invocations = observed_invocations.saturating_add(1);
+            128
+        });
+
+        // Assert
+        assert_eq!(invocations, 256);
+        assert_eq!(observed_invocations, invocations);
+        assert_eq!(completed, 32_768);
+        for owner in owners {
+            assert_eq!(owner.matches("measure_counted_batch").count(), 4);
+            assert!(owner.contains("workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE"));
+        }
+        assert!(harness.contains("\"fixture_invocations_per_sample\""));
+        assert!(contract.contains("record `fixture_invocations_per_sample=256`"));
+    }
+
+    #[test]
     fn should_render_manual_benchmark_report_line() {
         // Arrange
         let benchmark = PerformanceBenchmarkScenario {

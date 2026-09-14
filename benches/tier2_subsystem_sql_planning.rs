@@ -23,29 +23,41 @@ fn main() {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::ParserFixture::new(128);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
-        runner.measure_counted(with_setup(parsing, &setup_time_ns), || fixture.parse());
+        runner.measure_counted_batch(
+            with_setup(parsing, &setup_time_ns),
+            workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE,
+            || fixture.parse(),
+        );
     }
     if binding_enabled {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::BindingFixture::new(128);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
-        runner.measure_counted(with_setup(binding, &setup_time_ns), || fixture.bind());
+        runner.measure_counted_batch(
+            with_setup(binding, &setup_time_ns),
+            workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE,
+            || fixture.bind(),
+        );
     }
     if logical_enabled {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::LogicalPlanningFixture::new(128);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
-        runner.measure_counted(with_setup(logical, &setup_time_ns), || {
-            fixture.logical_plan()
-        });
+        runner.measure_counted_batch(
+            with_setup(logical, &setup_time_ns),
+            workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE,
+            || fixture.logical_plan(),
+        );
     }
     if physical_enabled {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::PhysicalPlanningFixture::new(128);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
-        runner.measure_counted(with_setup(physical, &setup_time_ns), || {
-            fixture.physical_plan()
-        });
+        runner.measure_counted_batch(
+            with_setup(physical, &setup_time_ns),
+            workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE,
+            || fixture.physical_plan(),
+        );
     }
     runner.finish();
 }

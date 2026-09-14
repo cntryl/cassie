@@ -26,6 +26,7 @@ const PLANNING_SQL: &str =
     "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY id LIMIT 20";
 const VECTOR_DIMENSIONS: usize = 3;
 const IVFFLAT_LISTS: usize = 16;
+pub const PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 256;
 
 /// Fixed SQL inputs for the parser-only owner.
 pub struct ParserFixture {

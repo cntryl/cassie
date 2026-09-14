@@ -34,6 +34,8 @@ pub const PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE: usize = 1_024;
 pub const PROTOCOL_PGWIRE_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE: usize = 1_024;
 pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
+pub const VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE: usize = 512;
+pub const VECTOR_HNSW_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE: usize = 4_096;
 
 /// Fixed SQL inputs for the parser-only owner.
@@ -421,6 +423,14 @@ impl VectorCandidateFixture {
     }
 
     #[must_use]
+    pub fn brute_force_batch(
+        &self,
+        fixture_invocations: usize,
+    ) -> cassie::benchmark::KernelObservation {
+        repeated_vector_observation(fixture_invocations, "brute-force", || self.brute_force())
+    }
+
+    #[must_use]
     pub fn hnsw(&self) -> cassie::benchmark::KernelObservation {
         let selected = cassie::vector::hnsw::search_graph(
             &self.hnsw_graph,
@@ -439,6 +449,11 @@ impl VectorCandidateFixture {
             fixture_count(result_cardinality),
         )
         .with_candidate_count(fixture_count(candidate_count))
+    }
+
+    #[must_use]
+    pub fn hnsw_batch(&self, fixture_invocations: usize) -> cassie::benchmark::KernelObservation {
+        repeated_vector_observation(fixture_invocations, "HNSW", || self.hnsw())
     }
 
     #[must_use]
@@ -479,6 +494,40 @@ impl VectorCandidateFixture {
         std::hint::black_box(probes);
         fixture_count(count)
     }
+}
+
+fn repeated_vector_observation(
+    fixture_invocations: usize,
+    operation: &str,
+    mut observe: impl FnMut() -> cassie::benchmark::KernelObservation,
+) -> cassie::benchmark::KernelObservation {
+    assert!(
+        fixture_invocations > 0,
+        "{operation} batch requires at least one fixture invocation"
+    );
+    let (completed, cardinality, candidates) = (0..fixture_invocations).fold(
+        (0_u64, 0_u64, 0_u64),
+        |(completed, cardinality, candidates), _| {
+            let observation = observe();
+            let next_completed = completed
+                .checked_add(observation.completed_operations())
+                .unwrap_or_else(|| panic!("{operation} batch completed count should fit u64"));
+            let next_cardinality = cardinality
+                .checked_add(observation.result_cardinality())
+                .unwrap_or_else(|| panic!("{operation} batch result cardinality should fit u64"));
+            let next_candidates = candidates
+                .checked_add(
+                    observation
+                        .candidate_count()
+                        .unwrap_or_else(|| panic!("{operation} batch requires candidate evidence")),
+                )
+                .unwrap_or_else(|| panic!("{operation} batch candidate count should fit u64"));
+            observation.finish_sample();
+            (next_completed, next_cardinality, next_candidates)
+        },
+    );
+    cassie::benchmark::KernelObservation::new(completed, cardinality)
+        .with_candidate_count(candidates)
 }
 
 /// Real hybrid scoring fusion over a bounded candidate set.

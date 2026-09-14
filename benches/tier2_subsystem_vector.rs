@@ -25,12 +25,22 @@ fn main() {
         let fixture = workloads::VectorCandidateFixture::new(1_024);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
         if brute_force_enabled {
-            runner.measure_counted(with_setup(brute_force, &setup_time_ns), || {
-                fixture.brute_force()
+            let case = with_setup(brute_force, &setup_time_ns).parameter(
+                "fixture_invocations_per_sample",
+                workloads::VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE.to_string(),
+            );
+            runner.measure_counted(case, || {
+                fixture.brute_force_batch(workloads::VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE)
             });
         }
         if hnsw_enabled {
-            runner.measure_counted(with_setup(hnsw, &setup_time_ns), || fixture.hnsw());
+            let case = with_setup(hnsw, &setup_time_ns).parameter(
+                "fixture_invocations_per_sample",
+                workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE.to_string(),
+            );
+            runner.measure_counted(case, || {
+                fixture.hnsw_batch(workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE)
+            });
         }
         if ivfflat_enabled {
             let case = with_setup(ivfflat, &setup_time_ns).parameter(

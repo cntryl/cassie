@@ -1195,7 +1195,7 @@ mod hnsw_indexes {
     }
 
     #[test]
-    fn should_leave_failed_batched_hnsw_build_unpublished_until_successful_retry() {
+    fn should_clean_batched_hnsw_sidecars_after_failed_publication_retry() {
         // Arrange
         let _failpoint_guard = document_write_failure_point_test_guard();
         use_local_storage();
@@ -1222,6 +1222,14 @@ mod hnsw_indexes {
             .put_documents(&canonical_collection, documents)
             .expect("seed documents");
         let record = hnsw_index_record(collection, 2);
+        let normalized_prefix = cassie
+            .midge
+            .normalized_vector_prefix_for_diagnostics(&canonical_collection, "embedding")
+            .expect("normalized-vector prefix");
+        let node_prefix = cassie
+            .midge
+            .hnsw_node_prefix_for_diagnostics(&canonical_collection, "embedding")
+            .expect("node prefix");
 
         // Act
         set_document_write_failure_point(Some(DocumentWriteFailurePoint::VectorState));
@@ -1232,13 +1240,7 @@ mod hnsw_indexes {
             .expect("read unpublished index");
         let staged_nodes = cassie
             .midge
-            .raw_scan_prefix(
-                StorageFamily::Data,
-                &cassie
-                    .midge
-                    .hnsw_node_prefix_for_diagnostics(&canonical_collection, "embedding")
-                    .expect("node prefix"),
-            )
+            .raw_scan_prefix(StorageFamily::Data, &node_prefix)
             .expect("scan staged nodes");
         set_document_write_failure_point(None);
         cassie
@@ -1246,6 +1248,18 @@ mod hnsw_indexes {
             .put_vector_index(record)
             .expect("retry index build");
         let published = stored_hnsw_index(&cassie, collection);
+        cassie
+            .midge
+            .delete_vector_index(&canonical_collection, "embedding")
+            .expect("delete batched vector sidecars");
+        let remaining_normalized = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &normalized_prefix)
+            .expect("scan remaining normalized vectors");
+        let remaining_nodes = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &node_prefix)
+            .expect("scan remaining HNSW nodes");
 
         // Assert
         let failed = failed.expect_err("manifest publication should fail");
@@ -1260,6 +1274,8 @@ mod hnsw_indexes {
                 .row_count,
             5_001
         );
+        assert!(remaining_normalized.is_empty());
+        assert!(remaining_nodes.is_empty());
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -1989,6 +2005,38 @@ mod hnsw_indexes {
         }));
 
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_batch_vector_index_drop_sidecar_transactions() {
+        // Arrange
+        let metadata = include_str!("../src/midge/adapter/metadata.rs");
+        let vector_indexes = include_str!("../src/midge/adapter/vector_indexes.rs");
+        let drop_start = metadata
+            .find("pub fn delete_vector_index")
+            .expect("vector index delete implementation");
+        let drop_end = metadata[drop_start..]
+            .find("pub fn put_projection_comparison_report")
+            .map(|offset| drop_start + offset)
+            .expect("next metadata function");
+        let drop_implementation = &metadata[drop_start..drop_end];
+
+        // Act
+        let delegates_sidecars = drop_implementation
+            .contains("delete_vector_sidecars_in_batches(collection, &prefixes)");
+        let batches_deletes =
+            vector_indexes.contains("for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)");
+        let pages_sidecars = vector_indexes.contains("raw_scan_prefix_page_for_collection(");
+        let manifest_is_deleted_after_sidecars = drop_implementation
+            .find("delete_vector_sidecars_in_batches")
+            .zip(drop_implementation.find("vector_index_state_key"))
+            .is_some_and(|(sidecars, manifest)| sidecars < manifest);
+
+        // Assert
+        assert!(delegates_sidecars);
+        assert!(batches_deletes);
+        assert!(pages_sidecars);
+        assert!(manifest_is_deleted_after_sidecars);
     }
 }
 

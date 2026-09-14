@@ -293,7 +293,7 @@ impl Midge {
         let membership_prefix =
             super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
 
-        self.delete_initial_vector_sidecars_in_batches(
+        self.delete_vector_sidecars_in_batches(
             &index.collection,
             &[normalized_prefix, node_prefix, membership_prefix],
         )?;
@@ -360,24 +360,33 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    fn delete_initial_vector_sidecars_in_batches(
+    pub(super) fn delete_vector_sidecars_in_batches(
         &self,
         collection: &str,
         prefixes: &[Vec<u8>],
     ) -> Result<(), CassieError> {
         for prefix in prefixes {
-            let keys = self
-                .raw_scan_prefix_for_collection(collection, prefix)?
-                .into_iter()
-                .map(|(key, _)| key)
-                .collect::<Vec<_>>();
-            for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
-                let mut tx = self.begin_data_rw_tx_for(collection)?;
-                for key in keys {
-                    tx.delete(key.clone()).map_err(CassieError::from)?;
+            loop {
+                let keys = self
+                    .raw_scan_prefix_page_for_collection(
+                        collection,
+                        prefix,
+                        VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE,
+                    )?
+                    .into_iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<_>>();
+                if keys.is_empty() {
+                    break;
                 }
-                tx.commit(self.write_options_sync())
-                    .map_err(CassieError::from)?;
+                for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+                    let mut tx = self.begin_data_rw_tx_for(collection)?;
+                    for key in keys {
+                        tx.delete(key.clone()).map_err(CassieError::from)?;
+                    }
+                    tx.commit(self.write_options_sync())
+                        .map_err(CassieError::from)?;
+                }
             }
         }
         Ok(())

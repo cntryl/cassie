@@ -1852,6 +1852,22 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_apply_runtime_logical_units_to_every_batch_measurement() {
+        // Arrange
+        let adapter = include_str!("../benches/support/stress.rs");
+
+        // Act
+        let shared_preparations = adapter
+            .matches("prepare_batch_case(case, logical_operations)")
+            .count();
+        let records_runtime_unit = adapter.contains(".parameter(\"logical_unit\", logical_unit)");
+
+        // Assert
+        assert_eq!(shared_preparations, 2);
+        assert!(records_runtime_unit);
+    }
+
+    #[test]
     fn should_declare_tier3_mixed_workload_measurement_shape() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_mixed_load.rs");

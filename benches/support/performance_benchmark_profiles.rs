@@ -60,6 +60,20 @@ pub const DEPLOYMENT_PROFILES: &[DeploymentProfile] = &[
         default_manual: true,
     },
     DeploymentProfile {
+        profile_id: "native-linux-arm64-disk",
+        host_shape: "GitHub-hosted Linux arm64 runner with recorded host and filesystem metadata",
+        storage_mode: "midge_disk_native_linux",
+        data_shape: "deterministic generated read-model fixture",
+        workload_mix: "Tier 1 through Tier 6 registered workloads",
+        fixture_scale: "10k+100k+250k",
+        benchmark_command:
+            "CASSIE_BENCH_DEPLOYMENT_PROFILE_ID=native-linux-arm64-disk cargo bench --locked --bench <owner-benchmark>",
+        cache_evidence: "plan_cache.entries",
+        metrics_captured: STANDARD_METRICS_CAPTURED,
+        known_non_goals: NATIVE_LINUX_PROFILE_NON_GOALS,
+        default_manual: true,
+    },
+    DeploymentProfile {
         profile_id: "local-dev-fallback-2k",
         host_shape: "local developer workstation",
         storage_mode: "in_memory_midge_fallback",

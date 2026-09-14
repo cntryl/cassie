@@ -1,0 +1,146 @@
+name: Operational readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Unique evidence run identifier
+        required: true
+        type: string
+      image_digest:
+        description: Immutable multi-architecture image digest including sha256 prefix
+        required: true
+        type: string
+      shape_only:
+        description: Run fast architecture and recovery shape checks without scale or soak owners
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate immutable evidence identity
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if [[ ! "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "image_digest must be an immutable sha256 digest" >&2
+            exit 1
+          fi
+          if [[ ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "run_id must be a bounded artifact-safe identifier" >&2
+            exit 1
+          fi
+
+  rehearse:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v7
+
+      - name: Record architecture and storage identity
+        run: |
+          mkdir -p operational-evidence
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "run_id=${{ inputs.run_id }}"
+            echo "platform=${{ matrix.platform }}"
+            echo "profile=${{ matrix.profile }}"
+            echo "image_digest=${{ inputs.image_digest }}"
+            uname -a
+            df -T .
+            rustc --version --verbose
+          } | tee operational-evidence/identity.txt
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Exercise container startup, readiness, and restart
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}
+        run: |
+          mkdir -p operational-evidence/container-data
+          chmod 0777 operational-evidence/container-data
+          docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
+          docker run --detach --name cassie-rehearsal \
+            --platform '${{ matrix.platform }}' \
+            --publish 127.0.0.1:18080:8080 \
+            --env CASSIE_ROOT_PASSWORD=operational-rehearsal-secret \
+            --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
+            --volume "${PWD}/operational-evidence/container-data:/data" \
+            "${IMAGE}"
+          trap 'docker logs cassie-rehearsal > operational-evidence/container.log 2>&1 || true; docker rm --force cassie-rehearsal >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-initial.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          docker restart cassie-rehearsal
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-restarted.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Exercise snapshot, restore, repair, and failure cleanup contracts
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          cargo test --locked --test storage_indexes snapshot_restore -- --nocapture 2>&1 | tee operational-evidence/snapshot-restore.log
+          cargo test --locked --test analytics projection_repair -- --nocapture 2>&1 | tee operational-evidence/projection-repair.log
+          cargo test --locked --test storage_indexes should_remove_partial_restore_after_copy_error -- --nocapture 2>&1 | tee operational-evidence/failure-injection.log
+
+      - name: Exercise scale and endurance owners
+        if: ${{ !inputs.shape_only }}
+        env:
+          CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}-${{ matrix.platform }}
+          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}
+          CASSIE_BENCH_SOAK_DURATION_SECONDS: "3600"
+          STRESS_PROFILE: release
+          STRESS_OUTPUT_DIR: target/stress
+        run: |
+          cargo bench --locked --bench 'tier5_scaling_lifecycle'
+          cargo bench --locked --bench 'tier6_soak_mixed'
+
+      - name: Retain operational evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cassie-operational-${{ inputs.run_id }}-${{ matrix.platform }}
+          path: |
+            operational-evidence
+            target/stress/**/latest.json
+          if-no-files-found: error
+          retention-days: 90

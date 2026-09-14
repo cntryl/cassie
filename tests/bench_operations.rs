@@ -2250,12 +2250,12 @@ mod benchmark_harness_contract {
             });
 
         // Assert
-        assert_eq!(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, 1_024);
+        assert_eq!(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, 8_192);
         assert_eq!(
             observed_lookups,
             workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE
         );
-        assert_eq!(completed, 1_024);
+        assert_eq!(completed, 8_192);
         assert_eq!(
             scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted
@@ -2443,11 +2443,11 @@ mod benchmark_harness_contract {
             });
 
         // Assert
-        assert_eq!(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, 256);
+        assert_eq!(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, 8_192);
         assert_eq!(plan_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
         assert_eq!(result_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
-        assert_eq!(completed_plan_lookups, 256);
-        assert_eq!(completed_result_lookups, 256);
+        assert_eq!(completed_plan_lookups, 8_192);
+        assert_eq!(completed_result_lookups, 8_192);
         assert_eq!(
             plan_scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted

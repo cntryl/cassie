@@ -16,14 +16,18 @@ mod workloads;
 
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier3, BENCHMARK);
-    let case = stress::StressCase::new("mixed_query_ingest_retrieval", "100k").runtime_contract(
-        stress::FixtureDeclaration::new(
-            performance_benchmarks::FixtureClass::Representative,
-            FIXTURE_ROWS,
-            "tier3_system_mixed_load/100k",
-        ),
-        stress::OperationUnit::Operation,
-    );
+    let case = stress::StressCase::new("mixed_query_ingest_retrieval", "100k")
+        .runtime_contract(
+            stress::FixtureDeclaration::new(
+                performance_benchmarks::FixtureClass::Representative,
+                FIXTURE_ROWS,
+                "tier3_system_mixed_load/100k",
+            ),
+            stress::OperationUnit::Operation,
+        )
+        .parameter("logical_unit", "operation")
+        .parameter("operations_per_logical_operation", "1")
+        .metadata("measurement_shape", "fixed_workload");
     if !runner.is_enabled(&case) {
         runner.finish();
         return;

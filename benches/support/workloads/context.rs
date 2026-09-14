@@ -619,8 +619,8 @@ pub(super) fn prepare_collection(
 
     let schema = bench_document_schema();
     create_and_register_bench_collection(ctx, &schema)?;
-    create_bench_fulltext_index(ctx, index_options)?;
     put_bench_documents(ctx, dataset_rows)?;
+    create_bench_fulltext_index(ctx, index_options)?;
     create_bench_scalar_indexes(ctx, index_options)?;
     Ok(())
 }

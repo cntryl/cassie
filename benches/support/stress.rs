@@ -339,6 +339,26 @@ impl CassieStressRunner {
         self.run_micro(case, f);
     }
 
+    /// Measures a Tier 1 production kernel batch and normalizes it to one logical operation.
+    ///
+    /// # Panics
+    ///
+    /// Panics when called by another tier, when the batch is empty, or when the case violates the
+    /// registry contract.
+    pub fn measure_micro_batch<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
+    where
+        F: FnMut() -> R,
+        R: BenchmarkObservation,
+    {
+        self.require_tier(BenchmarkTier::Tier1, "measure_micro_batch");
+        assert!(
+            logical_operations != 0,
+            "measure_micro_batch requires logical_operations > 0"
+        );
+        let case = self.prepare_case(case, BenchmarkTimingMode::Micro);
+        self.run_micro_batch(case, logical_operations, f);
+    }
+
     /// Measures one Tier 2 subsystem operation.
     ///
     /// # Panics
@@ -462,6 +482,44 @@ impl CassieStressRunner {
                     declared_cardinality.unwrap_or_else(|| result.cardinality()),
                     result.candidate_count(),
                     result.peak_query_memory_bytes(),
+                ),
+            );
+        });
+    }
+
+    fn run_micro_batch<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
+    where
+        F: FnMut() -> R,
+        R: BenchmarkObservation,
+    {
+        let f = RefCell::new(f);
+        let declared_cardinality = declared_result_cardinality(&case);
+        let evidence = case.runtime_evidence.clone();
+        let preflight = case.preflight_evidence.clone();
+        let scenario = self.scenario_for(&case);
+        let case = prepare_micro_batch_case(case, logical_operations);
+        let measurement_name = case.measurement_name();
+        self.run_case(case, move |ctx| {
+            let last_cardinality = std::cell::Cell::new(0_u64);
+            let last_candidate_count = std::cell::Cell::new(None);
+            let last_peak_query_memory_bytes = std::cell::Cell::new(None);
+            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
+                let result = (f.borrow_mut())();
+                last_cardinality.set(result.cardinality());
+                last_candidate_count.set(result.candidate_count());
+                last_peak_query_memory_bytes.set(result.peak_query_memory_bytes());
+                black_box(result);
+            });
+            ctx.metadata("failed_operations", 0);
+            record_observed_evidence(
+                ctx,
+                evidence.as_ref(),
+                scenario,
+                preflight.as_ref(),
+                RuntimeEvidenceObservation::new(
+                    declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
+                    last_candidate_count.get(),
+                    last_peak_query_memory_bytes.get(),
                 ),
             );
         });
@@ -933,6 +991,25 @@ fn declared_result_cardinality(case: &StressCase) -> Option<u64> {
     case.metadata
         .get("result_cardinality")
         .and_then(|value| value.parse().ok())
+}
+
+fn prepare_micro_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
+    let logical_unit = case
+        .runtime_declaration
+        .as_ref()
+        .expect("validated runtime declaration")
+        .operation_unit()
+        .as_str();
+    case.intent(MeasurementIntent::Batch)
+        .parameter("logical_unit", logical_unit)
+        .parameter(
+            "logical_operations_per_iteration",
+            logical_operations.to_string(),
+        )
+        .metadata(
+            "logical_operations_per_iteration",
+            logical_operations.to_string(),
+        )
 }
 
 fn timing_mode_for_case(case: &StressCase, tier: BenchmarkTier) -> BenchmarkTimingMode {

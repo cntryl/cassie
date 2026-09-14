@@ -119,7 +119,7 @@ The scenario registry declares the tier, operation unit, evidence role, and fixt
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
 
-Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. Timing noise diagnostics, such as unstable variance or a sample too small for a useful percentile, are reported but remain non-fatal when correctness and evidence are intact.
+Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 
 ## Fixtures, Setup, Cache, and SQL
 

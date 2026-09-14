@@ -27,7 +27,11 @@ fn main() {
             "setup_time_ns",
             setup_started.elapsed().as_nanos().max(1).to_string(),
         );
-        runner.measure_micro(pgwire_case, workloads::row_to_pgwire_encoding);
+        runner.measure_micro_batch(
+            pgwire_case,
+            workloads::PGWIRE_ROW_BATCH_SIZE,
+            workloads::row_to_pgwire_encoding_batch,
+        );
     }
     runner.finish();
 }

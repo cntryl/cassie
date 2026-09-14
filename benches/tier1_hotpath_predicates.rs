@@ -27,7 +27,11 @@ fn main() {
             "setup_time_ns",
             setup_started.elapsed().as_nanos().max(1).to_string(),
         );
-        runner.measure_micro(predicate_case, workloads::predicate_evaluation);
+        runner.measure_micro_batch(
+            predicate_case,
+            workloads::SCALAR_EVALUATION_BATCH_SIZE,
+            workloads::predicate_evaluation_batch,
+        );
     }
     runner.finish();
 }

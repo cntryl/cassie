@@ -127,25 +127,17 @@ enum RestBodyReadError {
     Invalid(String),
 }
 
-async fn read_request_body(
-    request: Request<Incoming>,
+async fn read_request_body<B>(
+    request: Request<B>,
     cassie: &Arc<Cassie>,
     method: &Method,
     path: &str,
     started_at: Instant,
-) -> Result<RestBytes, (StatusCode, String)> {
-    if request
-        .body()
-        .size_hint()
-        .upper()
-        .is_some_and(|length| length > MAX_REST_BODY_BYTES as u64)
-    {
-        return Err((
-            StatusCode::PAYLOAD_TOO_LARGE,
-            format!("request body exceeds {MAX_REST_BODY_BYTES} bytes"),
-        ));
-    }
-
+) -> Result<RestBytes, (StatusCode, String)>
+where
+    B: Body<Data = Bytes> + Unpin,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
+{
     let body = tokio::time::timeout(
         REST_REQUEST_TIMEOUT,
         collect_request_body(request.into_body(), REST_BODY_IDLE_TIMEOUT),
@@ -183,23 +175,31 @@ where
     B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     let mut body = Limited::new(body, MAX_REST_BODY_BYTES);
-    let mut bytes = BytesMut::new();
+    let mut bytes = Some(BytesMut::new());
     loop {
         let frame = tokio::time::timeout(idle_timeout, body.frame())
             .await
             .map_err(|_| RestBodyReadError::TimedOut)?;
         let Some(frame) = frame else {
-            return Ok(bytes.freeze());
+            return match bytes {
+                Some(bytes) => Ok(bytes.freeze()),
+                None => Err(RestBodyReadError::TooLarge),
+            };
         };
-        let frame = frame.map_err(|error| {
-            if error.downcast_ref::<LengthLimitError>().is_some() {
-                RestBodyReadError::TooLarge
-            } else {
-                RestBodyReadError::Invalid(error.to_string())
+        let frame = match frame {
+            Ok(frame) => frame,
+            Err(error) if error.downcast_ref::<LengthLimitError>().is_some() => {
+                bytes = None;
+                continue;
             }
-        })?;
+            Err(error) => {
+                return Err(RestBodyReadError::Invalid(error.to_string()));
+            }
+        };
         if let Ok(data) = frame.into_data() {
-            bytes.extend_from_slice(&data);
+            if let Some(bytes) = &mut bytes {
+                bytes.extend_from_slice(&data);
+            }
         }
     }
 }

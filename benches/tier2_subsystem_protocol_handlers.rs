@@ -32,9 +32,11 @@ fn main() {
             });
         }
         if json_enabled {
-            runner.measure_counted(with_setup(json, &setup_time_ns), || {
-                fixture.json_serialization()
-            });
+            runner.measure_counted_batch(
+                with_setup(json, &setup_time_ns),
+                workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE,
+                || fixture.json_serialization(),
+            );
         }
     }
     runner.finish();

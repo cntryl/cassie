@@ -2120,6 +2120,40 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_json_serialization_with_exact_row_normalization() {
+        // Arrange
+        let fixture = workloads::ProtocolCodecFixture::new(512);
+        let owner = include_str!("../benches/tier2_subsystem_protocol_handlers.rs");
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.protocol.json_rows.512")
+                .expect("registered JSON serialization scenario");
+        let mut observed_invocations = 0_usize;
+
+        // Act
+        let completed =
+            stress::repeat_counted_batch(workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE, || {
+                observed_invocations = observed_invocations.saturating_add(1);
+                fixture.json_serialization()
+            });
+
+        // Assert
+        assert_eq!(workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE, 16);
+        assert_eq!(
+            observed_invocations,
+            workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE
+        );
+        assert_eq!(completed, 8_192);
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "row");
+        assert!(owner.contains("runner.measure_counted_batch("));
+        assert!(owner.contains("workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE,"));
+        assert!(owner.contains("fixture.json_serialization()"));
+    }
+
+    #[test]
     fn should_bind_dynamic_plan_cache_values_given_closed_alias_selection() {
         // Arrange
         let nonce = 17;

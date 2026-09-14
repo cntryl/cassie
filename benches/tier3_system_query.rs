@@ -54,9 +54,10 @@ fn main() {
     let runtime = workloads::runtime();
     let fixture_setup_started = Instant::now();
     let context = runtime
-        .block_on(workloads::tier3_query_context(
+        .block_on(workloads::tier3_query_context_with_indexes(
             "tier3-query-100k",
             FIXTURE_ROWS,
+            core_cases.fixture_indexes(),
         ))
         .expect("Tier 3 shared query fixture");
     workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-99999");
@@ -128,6 +129,13 @@ impl CoreCases {
             || self.vector_hnsw.is_some()
             || self.vector_ivf.is_some()
             || self.hybrid.is_some()
+    }
+
+    fn fixture_indexes(&self) -> workloads::Tier3QueryIndexes {
+        workloads::Tier3QueryIndexes {
+            scalar: self.relational.is_some(),
+            fulltext: self.fulltext.is_some() || self.hybrid.is_some(),
+        }
     }
 }
 

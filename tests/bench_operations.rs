@@ -1773,8 +1773,9 @@ mod benchmark_harness_contract {
         let source = include_str!("../benches/tier3_system_query.rs");
 
         // Act
-        let shared_fixture_constructions =
-            source.matches("workloads::tier3_query_context(").count();
+        let shared_fixture_constructions = source
+            .matches("workloads::tier3_query_context_with_indexes(")
+            .count();
         let obsolete_fixture_constructors = [
             "workloads::context(",
             "workloads::vectorized_join_context(",
@@ -1789,6 +1790,28 @@ mod benchmark_harness_contract {
         assert_eq!(shared_fixture_constructions, 1);
         assert!(obsolete_fixture_constructors.is_empty());
         assert!(source.contains("prepare_tier3_query_domains"));
+    }
+
+    #[test]
+    fn should_build_only_selected_tier3_core_indexes() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+
+        // Act
+        let derives_fixture_indexes = owner.contains("core_cases.fixture_indexes()");
+        let uses_selected_fixture = owner.contains("tier3_query_context_with_indexes(");
+        let preserves_complete_default = fixture.contains(
+            "tier3_query_context_with_indexes(label, dataset_rows, Tier3QueryIndexes::full())",
+        );
+        let prepares_selected_indexes =
+            fixture.contains("BenchIndexOptions::selected(indexes.scalar, indexes.fulltext)");
+
+        // Assert
+        assert!(derives_fixture_indexes);
+        assert!(uses_selected_fixture);
+        assert!(preserves_complete_default);
+        assert!(prepares_selected_indexes);
     }
 
     #[test]
@@ -3046,6 +3069,48 @@ mod benchmark_kernels {
         let data_dir = context.data_dir.clone();
         drop(context);
         let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
+    fn should_omit_unselected_indexes_from_tier3_fixture() {
+        // Arrange
+        workloads::configure_tier3_environment();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark fixture test runtime");
+
+        // Act
+        let context = runtime
+            .block_on(workloads::tier3_query_context_with_indexes(
+                "tier3-selected-indexes",
+                16,
+                workloads::Tier3QueryIndexes {
+                    scalar: false,
+                    fulltext: false,
+                },
+            ))
+            .expect("selective Tier 3 benchmark fixture");
+        let indexes = context
+            .cassie
+            .midge
+            .list_indexes()
+            .expect("list selective benchmark indexes");
+
+        // Assert
+        assert!(indexes.iter().all(|index| {
+            index.collection
+                != cassie::catalog::canonical_relation_name(
+                    "postgres",
+                    "public",
+                    &context.collection,
+                )
+        }));
+        workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-15");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean selective benchmark fixture");
     }
 
     #[test]

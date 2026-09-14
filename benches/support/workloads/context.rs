@@ -443,6 +443,13 @@ impl BenchIndexOptions {
         }
     }
 
+    pub(super) fn selected(include_scalar_indexes: bool, include_fulltext_index: bool) -> Self {
+        Self {
+            include_scalar_indexes,
+            include_fulltext_index,
+        }
+    }
+
     fn none() -> Self {
         Self {
             include_scalar_indexes: false,

@@ -1,6 +1,118 @@
 use super::*;
 use http_body_util::Full;
 
+struct OversizedBody {
+    declared_length: bool,
+    next_frame: u8,
+    polls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Body for OversizedBody {
+    type Data = Bytes;
+    type Error = Infallible;
+
+    fn poll_frame(
+        self: std::pin::Pin<&mut Self>,
+        _context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Result<hyper::body::Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        this.polls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let frame = match this.next_frame {
+            0 => Some(Ok(hyper::body::Frame::data(Bytes::from(vec![
+                0;
+                MAX_REST_BODY_BYTES
+            ])))),
+            1 => Some(Ok(hyper::body::Frame::data(Bytes::from_static(b"x")))),
+            _ => None,
+        };
+        this.next_frame = this.next_frame.saturating_add(1);
+        std::task::Poll::Ready(frame)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.next_frame > 1
+    }
+
+    fn size_hint(&self) -> hyper::body::SizeHint {
+        if self.declared_length {
+            let remaining = match self.next_frame {
+                0 => MAX_REST_BODY_BYTES + 1,
+                1 => 1,
+                _ => 0,
+            };
+            hyper::body::SizeHint::with_exact(u64::try_from(remaining).expect("body fits u64"))
+        } else {
+            hyper::body::SizeHint::default()
+        }
+    }
+}
+
+#[test]
+fn should_drain_declared_oversized_body_before_rejecting_with_413() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let data_dir = std::env::temp_dir().join(format!(
+        "cassie-router-declared-oversized-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let cassie = Arc::new(
+        Cassie::new_with_data_dir_and_config(
+            &data_dir,
+            crate::config::CassieRuntimeConfig::default(),
+        )
+        .expect("cassie"),
+    );
+    let polls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let request = Request::post("/api/v1/auth/login")
+        .body(OversizedBody {
+            declared_length: true,
+            next_frame: 0,
+            polls: Arc::clone(&polls),
+        })
+        .expect("request");
+
+    // Act
+    let result = runtime.block_on(read_request_body(
+        request,
+        &cassie,
+        &Method::POST,
+        "/api/v1/auth/login",
+        Instant::now(),
+    ));
+
+    // Assert
+    assert!(matches!(result, Err((StatusCode::PAYLOAD_TOO_LARGE, _))));
+    assert_eq!(polls.load(std::sync::atomic::Ordering::Relaxed), 3);
+    drop(cassie);
+    let _ = std::fs::remove_dir_all(data_dir);
+}
+
+#[test]
+fn should_drain_streamed_oversized_body_before_rejecting() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let polls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let body = OversizedBody {
+        declared_length: false,
+        next_frame: 0,
+        polls: Arc::clone(&polls),
+    };
+
+    // Act
+    let result = runtime.block_on(collect_request_body(body, Duration::from_secs(1)));
+
+    // Assert
+    assert!(matches!(result, Err(RestBodyReadError::TooLarge)));
+    assert_eq!(polls.load(std::sync::atomic::Ordering::Relaxed), 3);
+}
+
 #[test]
 fn should_collect_rest_body_with_an_idle_deadline() {
     // Arrange

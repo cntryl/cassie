@@ -2117,6 +2117,47 @@ mod rest_admin_ui_static {
         let _ = server.await;
     }
 
+    async fn read_raw_http_response(stream: &mut tokio::net::TcpStream) -> Vec<u8> {
+        const MAX_RESPONSE_HEADER_BYTES: usize = 64 * 1024;
+
+        let mut response = Vec::new();
+        let mut chunk = [0_u8; 1024];
+        let headers_end = loop {
+            let read = stream.read(&mut chunk).await.expect("read HTTP response");
+            assert!(read > 0, "HTTP response closed before headers completed");
+            response.extend_from_slice(&chunk[..read]);
+            assert!(
+                response.len() <= MAX_RESPONSE_HEADER_BYTES,
+                "HTTP response headers exceed test bound"
+            );
+            if let Some(index) = response.windows(4).position(|window| window == b"\r\n\r\n") {
+                break index + 4;
+            }
+        };
+        let headers = std::str::from_utf8(&response[..headers_end]).expect("HTTP response headers");
+        let content_length = headers
+            .lines()
+            .filter_map(|line| line.split_once(':'))
+            .find_map(|(name, value)| {
+                name.eq_ignore_ascii_case("content-length")
+                    .then(|| value.trim().parse::<usize>().expect("HTTP content length"))
+            })
+            .expect("HTTP response content length");
+        let response_end = headers_end
+            .checked_add(content_length)
+            .expect("HTTP response length should fit usize");
+        while response.len() < response_end {
+            let read = stream
+                .read(&mut chunk)
+                .await
+                .expect("read HTTP response body");
+            assert!(read > 0, "HTTP response closed before body completed");
+            response.extend_from_slice(&chunk[..read]);
+        }
+        response.truncate(response_end);
+        response
+    }
+
     async fn spawn_tls_rest_server(
         cassie: Cassie,
     ) -> (
@@ -2508,6 +2549,145 @@ mod rest_admin_ui_static {
 
             // Assert
             assert_eq!(response.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
+            stop_rest_server(shutdown, server).await;
+            let _ = std::fs::remove_dir_all(data_dir);
+            let _ = std::fs::remove_dir_all(dist);
+        });
+    }
+
+    #[test]
+    fn should_drain_declared_oversized_body_before_returning_reusable_413() {
+        // Arrange
+        let data_dir = data_dir("in-flight-oversized-body");
+        let dist = write_dist_fixture("in-flight-oversized-body");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir_and_config(
+                &data_dir,
+                CassieRuntimeConfig::default(),
+            )
+            .expect("cassie");
+            let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+            let address = base_url.strip_prefix("http://").expect("REST address");
+            let mut stream = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect raw REST client");
+            let limit = 8 * 1024 * 1024;
+            let declared_length = limit + 2;
+            let headers = format!(
+                "POST /api/v1/auth/login HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nContent-Length: {declared_length}\r\nConnection: keep-alive\r\n\r\n"
+            );
+            stream
+                .write_all(headers.as_bytes())
+                .await
+                .expect("write oversized request headers");
+
+            // Act
+            let header_only_response = tokio::time::timeout(
+                std::time::Duration::from_millis(200),
+                stream.read_u8(),
+            )
+            .await;
+            stream
+                .write_all(&vec![b'x'; limit + 1])
+                .await
+                .expect("write body through first excess byte");
+            let mut peeked = [0_u8; 1];
+            let before_body_complete = tokio::time::timeout(
+                std::time::Duration::from_millis(200),
+                stream.peek(&mut peeked),
+            )
+            .await;
+            stream
+                .write_all(b"x")
+                .await
+                .expect("write final declared request byte");
+            let rejection = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                read_raw_http_response(&mut stream),
+            )
+            .await
+            .expect("oversized rejection deadline");
+            let health_request = format!(
+                "GET /health HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+            );
+            stream
+                .write_all(health_request.as_bytes())
+                .await
+                .expect("reuse rejected request connection");
+            let health = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                read_raw_http_response(&mut stream),
+            )
+            .await
+            .expect("health response deadline");
+
+            // Assert
+            assert!(header_only_response.is_err());
+            assert!(
+                before_body_complete.is_err(),
+                "server must drain the declared request before responding"
+            );
+            assert!(rejection.starts_with(b"HTTP/1.1 413"));
+            assert!(health.starts_with(b"HTTP/1.1 200"));
+            stop_rest_server(shutdown, server).await;
+            let _ = std::fs::remove_dir_all(data_dir);
+            let _ = std::fs::remove_dir_all(dist);
+        });
+    }
+
+    #[test]
+    fn should_reject_chunked_oversized_body_at_the_http_wire_limit() {
+        // Arrange
+        let data_dir = data_dir("chunked-oversized-body");
+        let dist = write_dist_fixture("chunked-oversized-body");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir_and_config(
+                &data_dir,
+                CassieRuntimeConfig::default(),
+            )
+            .expect("cassie");
+            let (base_url, shutdown, server) = spawn_rest_server(cassie, dist.clone()).await;
+            let address = base_url.strip_prefix("http://").expect("REST address");
+            let mut stream = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect raw REST client");
+            let limit = 8 * 1024 * 1024;
+            let headers = format!(
+                "POST /api/v1/auth/login HTTP/1.1\r\nHost: {address}\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n{limit:X}\r\n"
+            );
+
+            // Act
+            stream
+                .write_all(headers.as_bytes())
+                .await
+                .expect("write chunked request headers");
+            stream
+                .write_all(&vec![b'x'; limit])
+                .await
+                .expect("write bounded chunk");
+            stream
+                .write_all(b"\r\n1\r\nx\r\n0\r\n\r\n")
+                .await
+                .expect("write first excess chunk");
+            let rejection = tokio::time::timeout(
+                std::time::Duration::from_secs(2),
+                read_raw_http_response(&mut stream),
+            )
+            .await
+            .expect("chunked oversized rejection deadline");
+
+            // Assert
+            assert!(rejection.starts_with(b"HTTP/1.1 413"));
             stop_rest_server(shutdown, server).await;
             let _ = std::fs::remove_dir_all(data_dir);
             let _ = std::fs::remove_dir_all(dist);

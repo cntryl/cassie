@@ -390,6 +390,33 @@ impl CassieStressRunner {
         self.run_counted(case, f);
     }
 
+    /// Measures a bounded batch of Tier 2 counted subsystem operations.
+    ///
+    /// The recorded elapsed time covers the whole batch while the completed-operation count keeps
+    /// throughput normalized to the case's declared logical operation unit.
+    ///
+    /// # Panics
+    ///
+    /// Panics when called by another tier, when the batch is empty, when the completed count
+    /// overflows `u64`, or when the case violates the registry contract.
+    pub fn measure_counted_batch<F>(
+        &mut self,
+        case: StressCase,
+        fixture_invocations: usize,
+        mut f: F,
+    ) where
+        F: FnMut() -> u64,
+    {
+        self.require_tier(BenchmarkTier::Tier2, "measure_counted_batch");
+        let case = case.parameter(
+            "fixture_invocations_per_sample",
+            fixture_invocations.to_string(),
+        );
+        self.measure_counted(case, move || {
+            repeat_counted_batch(fixture_invocations, &mut f)
+        });
+    }
+
     /// Measures a fixed-duration Tier 3-6 batch.
     ///
     /// # Panics
@@ -1010,6 +1037,21 @@ fn prepare_micro_batch_case(case: StressCase, logical_operations: u64) -> Stress
             "logical_operations_per_iteration",
             logical_operations.to_string(),
         )
+}
+
+pub(crate) fn repeat_counted_batch<F>(fixture_invocations: usize, mut f: F) -> u64
+where
+    F: FnMut() -> u64,
+{
+    assert!(
+        fixture_invocations > 0,
+        "counted batch requires at least one fixture invocation"
+    );
+    (0..fixture_invocations).fold(0_u64, |completed, _| {
+        completed
+            .checked_add(f())
+            .expect("counted batch completed-operation count should fit u64")
+    })
 }
 
 fn timing_mode_for_case(case: &StressCase, tier: BenchmarkTier) -> BenchmarkTimingMode {

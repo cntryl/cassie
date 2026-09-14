@@ -109,7 +109,7 @@ Every benchmark declares a typed `BenchmarkTier`; generic tier constructors are 
 | Declared tier | Allowed runner | Timing model |
 | --- | --- | --- |
 | `BenchmarkTier::Tier1` | `measure_micro` | Production-kernel micro measurement |
-| `BenchmarkTier::Tier2` | `measure` or `measure_counted` | One subsystem operation, optionally with an explicit operation count |
+| `BenchmarkTier::Tier2` | `measure`, `measure_counted`, or `measure_counted_batch` | One subsystem operation, optionally repeated in a bounded batch with explicit normalized operation counts |
 | `BenchmarkTier::Tier3` | `measure_batch` | Fixed-duration embedded batches |
 | `BenchmarkTier::Tier4` | `measure_batch`; `record_external` only for genuinely external harnesses | Fixed-duration boundary work |
 | `BenchmarkTier::Tier5` | `measure_batch` | Fixed-duration scale or saturation batches |
@@ -118,6 +118,11 @@ Every benchmark declares a typed `BenchmarkTier`; generic tier constructors are 
 The scenario registry declares the tier, operation unit, evidence role, and fixture class for every scenario. Before any measurement, the harness rejects a mismatch between the declared tier and owner prefix, runner or timing mode, fixture class, or fixture size.
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
+
+The two 128-item binder and planning owners batch 256 fixture invocations per measured sample and
+record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the
+completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
+rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
 
 Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 

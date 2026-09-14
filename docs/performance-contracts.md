@@ -141,6 +141,8 @@ Filtering happens before setup. Fixture construction is lazy, one fixture is reu
 
 Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter. Other embedded paths report `runtime_storage_read`; storage reads, candidate counts, peak query memory, result-cache hits, and fallback counts are per-sample scalar observations because cache and duration-batch completion can legitimately vary. The complete-manifest validator uses each observation's worst-case maximum and continues to accept legacy invariant metadata. Setup must not warm a timed query to hide cold-versus-cached behavior.
 
+Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. The Tier 3 time-series representative executes two unchanged queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. This batching changes only measurement shape; its SQL, fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
+
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
 Initial vector-index publication and vector-index removal page normalized vectors, HNSW nodes, and

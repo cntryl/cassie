@@ -24,8 +24,10 @@ const EXPECTED_COLUMN_ROW: [Value; 5] = [
     Value::Int64(98),
 ];
 const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
+const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
 const COLUMN_QUERIES_PER_BATCH: u64 = 8;
+const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;
 const GRAPH_READ_BOUND: u64 = 8;
 
 #[path = "support/performance_benchmarks.rs"]
@@ -521,14 +523,14 @@ fn bench_time_series_representative(
     let preflight =
         workloads::assert_time_series_preflight(context, TIME_SERIES_SQL, time_series_params());
     let case = evidenced(
-        case,
+        case.parameter("queries_per_logical_operation", "1"),
         context,
         fixture_setup + case_setup.elapsed(),
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
-        workloads::execute_expected_query(context, TIME_SERIES_SQL, time_series_params(), 512)
+    runner.measure_batch(case, TIME_SERIES_QUERIES_PER_BATCH, || {
+        execute_time_series_evidence(context)
     });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "time_series", "bucket_native_hits");
@@ -588,6 +590,22 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
         result_rows += result.rows.len();
     }
     std::hint::black_box(result_rows)
+}
+
+fn execute_time_series_evidence(context: &workloads::BenchContext) -> usize {
+    for _ in 0..TIME_SERIES_QUERIES_PER_BATCH {
+        let result_rows = workloads::execute_expected_query(
+            context,
+            TIME_SERIES_SQL,
+            time_series_params(),
+            TIME_SERIES_EXPECTED_ROWS,
+        );
+        assert_eq!(
+            result_rows, TIME_SERIES_EXPECTED_ROWS,
+            "Tier 3 time-series result cardinality"
+        );
+    }
+    std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)
 }
 
 fn execute_vector_evidence(

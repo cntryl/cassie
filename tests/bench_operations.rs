@@ -1932,6 +1932,58 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_tier3_time_series_queries_with_per_query_evidence() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let harness = include_str!("../benches/support/stress.rs");
+        let time_series_case = owner
+            .split_once("fn bench_time_series_representative")
+            .expect("time-series representative")
+            .1
+            .split_once("fn selected_case")
+            .expect("end of time-series representative")
+            .0;
+        let time_series_execution = owner
+            .split_once("fn execute_time_series_evidence")
+            .expect("time-series execution")
+            .1
+            .split_once("fn execute_vector_evidence")
+            .expect("end of time-series execution")
+            .0;
+        let run_batch = harness
+            .split_once("fn run_batch<F, R>")
+            .expect("batch runner")
+            .1
+            .split_once("pub fn is_enabled")
+            .expect("end of batch runner")
+            .0;
+
+        // Act
+        let has_batch_size = owner.contains("const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;");
+        let has_normalization =
+            time_series_case.contains(".parameter(\"queries_per_logical_operation\", \"1\")");
+        let measures_complete_batch = time_series_case
+            .contains("runner.measure_batch(case, TIME_SERIES_QUERIES_PER_BATCH, ||");
+        let uses_batched_execution = time_series_case.contains("execute_time_series_evidence");
+        let executes_complete_batch =
+            time_series_execution.contains("for _ in 0..TIME_SERIES_QUERIES_PER_BATCH");
+        let reports_per_query_cardinality =
+            time_series_execution.contains("std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)");
+        let uses_actual_completed_count = run_batch.contains("let completed = ctx.measure_batch(");
+        let normalizes_runtime_evidence = run_batch.contains(".per_external_operation(completed)");
+
+        // Assert
+        assert!(has_batch_size);
+        assert!(has_normalization);
+        assert!(measures_complete_batch);
+        assert!(uses_batched_execution);
+        assert!(executes_complete_batch);
+        assert!(reports_per_query_cardinality);
+        assert!(uses_actual_completed_count);
+        assert!(normalizes_runtime_evidence);
+    }
+
+    #[test]
     fn should_declare_tier3_mixed_workload_measurement_shape() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_mixed_load.rs");

@@ -5512,6 +5512,31 @@ mod benchmark_deployment_profile_contract {
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
     #[test]
+    fn should_reject_unknown_complete_suite_profile_before_compilation() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let profiles = include_str!("../benches/support/performance_benchmark_profiles.rs");
+        let complete_suite = workflow
+            .split_once("  complete-suite:\n")
+            .map(|(_, job)| job)
+            .expect("complete-suite benchmark job");
+
+        // Act
+        let validation_position = complete_suite
+            .find("name: Validate deployment profile")
+            .expect("deployment profile preflight");
+        let toolchain_position = complete_suite
+            .find("name: Update Rust toolchain")
+            .expect("complete-suite toolchain preparation");
+
+        // Assert
+        assert!(validation_position < toolchain_position);
+        assert!(complete_suite.contains("unsupported benchmark deployment profile"));
+        assert!(complete_suite.contains(NATIVE_LINUX_PROFILE_ID));
+        assert!(profiles.contains(&format!("profile_id: \"{NATIVE_LINUX_PROFILE_ID}\"")));
+    }
+
+    #[test]
     fn should_allow_six_hours_for_the_complete_canonical_benchmark_suite() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

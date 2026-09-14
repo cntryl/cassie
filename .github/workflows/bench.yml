@@ -76,6 +76,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Validate deployment profile
+        env:
+          DEPLOYMENT_PROFILE: ${{ inputs.deployment_profile }}
+        run: |
+          case "${DEPLOYMENT_PROFILE}" in
+            native-linux-amd64-disk) ;;
+            *)
+              echo "unsupported benchmark deployment profile '${DEPLOYMENT_PROFILE}'" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Update Rust toolchain
         run: rustup update stable
 

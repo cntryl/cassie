@@ -3413,6 +3413,41 @@ mod benchmark_kernels {
         std::fs::remove_dir_all(data_dir).expect("clean up batched Tier 3 query fixture");
     }
 
+    #[test]
+    fn should_attribute_tier3_domain_batch_errors_to_exact_range() {
+        // Arrange
+        let mut attempted = Vec::new();
+
+        // Act
+        let result = workloads::for_each_tier3_domain_batch(
+            TIER3_DOMAIN_TEST_ROWS,
+            "time-series events",
+            |range| {
+                attempted.push(range.clone());
+                if range.start == workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS {
+                    Err(cassie::app::CassieError::Storage(
+                        "simulated storage deadline".to_string(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+
+        // Assert
+        assert_eq!(
+            attempted,
+            [
+                0..workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS,
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS..TIER3_DOMAIN_TEST_ROWS,
+            ]
+        );
+        assert_eq!(
+            result.expect_err("second fixture batch should fail").to_string(),
+            "storage error: prepare Tier 3 time-series events rows 5000..5002: storage error: simulated storage deadline"
+        );
+    }
+
     fn assert_tier3_domain_generations_and_rows(context: &workloads::BenchContext) {
         for collection in [
             "bench_join_users",

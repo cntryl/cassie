@@ -493,7 +493,7 @@ fn validate_registered_summary_contract(
     }
     validate_query_evidence(summary, measured_result_cache, Some(scenario))?;
     if measured_result_cache
-        && require_numeric_metadata(metadata, "execution_result_cache_hits")? == 0
+        && require_numeric_evidence(summary, "execution_result_cache_hits")? == 0
     {
         return Err(format!(
             "benchmark scenario {scenario_id} measured result-cache policy observed zero hits"
@@ -687,15 +687,20 @@ fn validate_query_evidence(
     }
     for key in [
         "result_cardinality",
-        "storage_reads",
-        "candidate_count",
-        "peak_query_memory_bytes",
         "worker_count",
         "configured_worker_count",
         "leaked_active_operator_workers",
         "setup_time_ns",
     ] {
         require_numeric_metadata(metadata, key)?;
+    }
+    for key in [
+        "storage_reads",
+        "candidate_count",
+        "peak_query_memory_bytes",
+        "execution_result_cache_hits",
+    ] {
+        require_numeric_evidence(summary, key)?;
     }
     if metadata.get("measurement_time_ns").is_some() {
         require_numeric_metadata(metadata, "measurement_time_ns")?;
@@ -708,7 +713,7 @@ fn validate_query_evidence(
                 .to_string(),
         );
     }
-    let result_cache_hits = require_numeric_metadata(metadata, "execution_result_cache_hits")?;
+    let result_cache_hits = require_numeric_evidence(summary, "execution_result_cache_hits")?;
     if !allows_result_cache_hits && result_cache_hits != 0 {
         return Err("execution result cache warmed a timed benchmark query".to_string());
     }
@@ -775,6 +780,32 @@ fn require_numeric_metadata(metadata: &serde_json::Value, key: &str) -> Result<u
         .as_u64()
         .or_else(|| metadata[key].as_str().and_then(|value| value.parse().ok()))
         .ok_or_else(|| format!("benchmark summary missing numeric metadata.{key}"))
+}
+
+fn require_numeric_evidence(summary: &serde_json::Value, key: &str) -> Result<u64, String> {
+    const MAX_EXACT_F64_INTEGER: f64 = 9_007_199_254_740_992.0;
+    let metadata = &summary["metadata"];
+    if metadata.get(key).is_some() {
+        return require_numeric_metadata(metadata, key);
+    }
+    let maximum = summary["observations"]
+        .as_array()
+        .and_then(|observations| {
+            observations
+                .iter()
+                .find(|observation| observation["name"].as_str() == Some(key))
+        })
+        .and_then(|observation| observation["stats"]["max"].as_f64())
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .ok_or_else(|| format!("benchmark summary missing numeric evidence.{key}"))?;
+    if maximum > MAX_EXACT_F64_INTEGER || maximum.fract() != 0.0 {
+        return Err(format!(
+            "benchmark summary numeric evidence.{key} is not an exact non-negative integer"
+        ));
+    }
+    format!("{maximum:.0}")
+        .parse()
+        .map_err(|_| format!("benchmark summary numeric evidence.{key} does not fit u64"))
 }
 
 fn require_f64_metadata(metadata: &serde_json::Value, key: &str) -> Result<f64, String> {

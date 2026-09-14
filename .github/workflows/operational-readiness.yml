@@ -114,6 +114,55 @@ jobs:
             fi
             sleep 1
           done
+
+          login() {
+            jq --null-input --compact-output \
+              --arg password "${CASSIE_ROOT_PASSWORD}" \
+              '{username: "root", password: $password}' \
+              | curl --fail --silent --show-error \
+                  --cookie-jar operational-evidence/cookies.txt \
+                  --header 'content-type: application/json' \
+                  --data-binary @- \
+                  http://127.0.0.1:18080/api/v1/auth/login
+          }
+          execute_query() {
+            local sql="$1"
+            local output="$2"
+            jq --null-input --compact-output --arg sql "${sql}" \
+              '{database: "postgres", sql: $sql}' \
+              | curl --fail --silent --show-error \
+                  --cookie operational-evidence/cookies.txt \
+                  --header 'content-type: application/json' \
+                  --data-binary @- \
+                  http://127.0.0.1:18080/api/v1/admin/query/execute \
+                  > "${output}"
+          }
+
+          login > operational-evidence/login-initial.json
+          execute_query \
+            'CREATE TABLE operational_rehearsal (id INT, value TEXT)' \
+            operational-evidence/create-table.json
+          execute_query \
+            "INSERT INTO operational_rehearsal (id, value) VALUES (1, 'persisted')" \
+            operational-evidence/insert-row.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-initial.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-initial.json
+          jq --null-input --compact-output \
+            --arg sql "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            '{database: "postgres", sql: $sql}' \
+            | curl --fail --silent --show-error \
+                --cookie operational-evidence/cookies.txt \
+                --header 'content-type: application/json' \
+                --data-binary @- \
+                http://127.0.0.1:18080/api/v1/admin/query/explain \
+                > operational-evidence/explain.json
+          curl --fail --silent --show-error \
+            --cookie operational-evidence/cookies.txt \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-initial.json
+
           docker restart cassie-rehearsal
           for attempt in {1..60}; do
             if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-restarted.json; then
@@ -124,6 +173,15 @@ jobs:
             fi
             sleep 1
           done
+          login > operational-evidence/login-restarted.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-restarted.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-restarted.json
+          curl --fail --silent --show-error \
+            --cookie operational-evidence/cookies.txt \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-restarted.json
           finished_ns="$(date +%s%N)"
           echo "$((finished_ns - started_ns))" > operational-evidence/container.elapsed_ns
 

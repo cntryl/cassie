@@ -21,11 +21,12 @@ fn main() {
     if runner.is_enabled(&case) {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::ParserFixture::new(128);
-        runner.measure_counted(
+        runner.measure_counted_batch(
             case.metadata(
                 "setup_time_ns",
                 setup_started.elapsed().as_nanos().to_string(),
             ),
+            workloads::PARSER_INVOCATIONS_PER_SAMPLE,
             || fixture.parse(),
         );
     }

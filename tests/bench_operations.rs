@@ -2187,6 +2187,41 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_sql_parser_with_exact_statement_normalization() {
+        // Arrange
+        let fixture = workloads::ParserFixture::new(128);
+        let owner = include_str!("../benches/tier2_subsystem_parser.rs");
+        let scenario = performance_benchmarks::benchmark_for_scenario("perf.sql.parser.128")
+            .expect("registered SQL parser scenario");
+        let mut observed_invocations = 0_usize;
+
+        // Act
+        let completed =
+            stress::repeat_counted_batch(workloads::PARSER_INVOCATIONS_PER_SAMPLE, || {
+                observed_invocations = observed_invocations.saturating_add(1);
+                let completed_statements = fixture.parse();
+                assert_eq!(completed_statements, 128);
+                completed_statements
+            });
+
+        // Assert
+        assert_eq!(workloads::PARSER_INVOCATIONS_PER_SAMPLE, 64);
+        assert_eq!(
+            observed_invocations,
+            workloads::PARSER_INVOCATIONS_PER_SAMPLE
+        );
+        assert_eq!(completed, 8_192);
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "statement");
+        assert!(owner.contains("runner.measure_counted_batch("));
+        assert!(owner.contains("workloads::PARSER_INVOCATIONS_PER_SAMPLE,"));
+        assert!(owner.contains("fixture.parse()"));
+    }
+
+    #[test]
     fn should_batch_cache_hits_with_exact_lookup_normalization() {
         // Arrange
         let fixture = workloads::CacheFixture::new(1_024, true);

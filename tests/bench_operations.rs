@@ -2566,6 +2566,10 @@ mod benchmark_kernels {
     };
     use cassie::types::Value;
 
+    const TIER3_DOMAIN_TEST_ROWS: usize = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS + 2;
+    const TIER3_GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
+    const TIER3_TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
+
     #[test]
     fn should_prepare_registered_hotpath_fixtures_given_closed_workload_names() {
         // Arrange
@@ -3316,6 +3320,216 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up shared Tier 3 test fixture");
+    }
+
+    #[test]
+    fn should_batch_every_tier3_query_domain_without_losing_boundary_semantics() {
+        // Arrange
+        workloads::configure_tier3_environment();
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::empty_context_with_temp_budget(
+                "tier3-batched-query-domains-test",
+                TIER3_DOMAIN_TEST_ROWS,
+            ))
+            .expect("shared Tier 3 query fixture");
+
+        // Act
+        workloads::prepare_tier3_query_domains(
+            &context,
+            TIER3_DOMAIN_TEST_ROWS,
+            workloads::Tier3QueryDomains {
+                join: true,
+                graph: true,
+                time_series: true,
+            },
+        )
+        .expect("prepare every Tier 3 query domain in bounded transactions");
+
+        // Assert
+        assert_tier3_domain_generations_and_rows(&context);
+        assert_tier3_domain_boundaries(&context);
+        assert_tier3_join_boundary_semantics(&context);
+        assert_tier3_graph_boundary_semantics(&context);
+        assert_tier3_time_series_semantics(&context);
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up batched Tier 3 query fixture");
+    }
+
+    fn assert_tier3_domain_generations_and_rows(context: &workloads::BenchContext) {
+        for collection in [
+            "bench_join_users",
+            "bench_join_orders",
+            "bench_graph_nodes",
+            "bench_graph_edges",
+            "bench_time_series_events",
+        ] {
+            assert_eq!(
+                context
+                    .cassie
+                    .midge
+                    .collection_generation(collection)
+                    .expect("read Tier 3 domain collection generation"),
+                2,
+                "{collection} must be loaded through exactly two fixture transactions"
+            );
+        }
+        for (collection, expected_rows) in [
+            ("bench_join_users", TIER3_DOMAIN_TEST_ROWS),
+            ("bench_join_orders", TIER3_DOMAIN_TEST_ROWS),
+            ("bench_graph_nodes", TIER3_DOMAIN_TEST_ROWS),
+            ("bench_graph_edges", TIER3_DOMAIN_TEST_ROWS - 1),
+            ("bench_time_series_events", TIER3_DOMAIN_TEST_ROWS),
+        ] {
+            assert_eq!(
+                context
+                    .cassie
+                    .midge
+                    .scan_documents(collection)
+                    .expect("scan Tier 3 domain fixture")
+                    .len(),
+                expected_rows,
+                "{collection} row count"
+            );
+        }
+    }
+
+    fn assert_tier3_domain_boundaries(context: &workloads::BenchContext) {
+        for (collection, ids) in [
+            (
+                "bench_join_users",
+                &["user-0", "user-4999", "user-5000", "user-5001"][..],
+            ),
+            (
+                "bench_join_orders",
+                &["order-0", "order-4999", "order-5000", "order-5001"][..],
+            ),
+            (
+                "bench_graph_nodes",
+                &["node-0", "node-4999", "node-5000", "node-5001"][..],
+            ),
+            (
+                "bench_graph_edges",
+                &["edge-0", "edge-4999", "edge-5000"][..],
+            ),
+            (
+                "bench_time_series_events",
+                &["ts-doc-0", "ts-doc-4999", "ts-doc-5000", "ts-doc-5001"][..],
+            ),
+        ] {
+            for &id in ids {
+                assert!(
+                    context
+                        .cassie
+                        .midge
+                        .get_document(collection, id)
+                        .expect("read Tier 3 domain fixture boundary")
+                        .is_some(),
+                    "{collection} must retain boundary document {id}"
+                );
+            }
+        }
+    }
+
+    fn assert_tier3_join_boundary_semantics(context: &workloads::BenchContext) {
+        let join_rows = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key WHERE bench_join_users.user_key = 5000 LIMIT 1",
+                vec![],
+            )
+            .expect("query join row across fixture batch boundary")
+            .rows;
+        assert!(
+            context
+                .cassie
+                .catalog
+                .get_index("bench_join_users", "bench_join_users_key_idx")
+                .is_some(),
+            "join index must remain registered after batched loading"
+        );
+        assert_eq!(
+            join_rows,
+            vec![vec![
+                Value::String("user-5000".to_string()),
+                Value::Int64(0)
+            ]]
+        );
+    }
+
+    fn assert_tier3_graph_boundary_semantics(context: &workloads::BenchContext) {
+        let graph_before = context.cassie.metrics();
+        let graph_rows = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                TIER3_GRAPH_SQL,
+                vec![
+                    Value::String("bench_graph".to_string()),
+                    Value::String("doc".to_string()),
+                    Value::String("node-4998".to_string()),
+                    Value::Int64(3),
+                    Value::String("out".to_string()),
+                    Value::String("links".to_string()),
+                    Value::Int64(64),
+                ],
+            )
+            .expect("expand graph across fixture batch boundary")
+            .rows;
+        let graph_after = context.cassie.metrics();
+        assert_eq!(
+            graph_rows,
+            ["node-4999", "node-5000", "node-5001"]
+                .into_iter()
+                .map(|node| vec![Value::String(node.to_string())])
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            graph_after["graph"]["last_fallback_reason"],
+            graph_before["graph"]["last_fallback_reason"],
+            "batched graph fixture must retain native adjacency"
+        );
+    }
+
+    fn assert_tier3_time_series_semantics(context: &workloads::BenchContext) {
+        let time_series_params = || {
+            vec![
+                Value::String("2026-01-10T00:00:00Z".to_string()),
+                Value::String("2026-01-12T00:00:00Z".to_string()),
+            ]
+        };
+        workloads::assert_explain_contains(
+            context,
+            TIER3_TIME_SERIES_SQL,
+            time_series_params(),
+            "time_series_storage=bucket-native-v1",
+        );
+        let time_series_before = context.cassie.metrics();
+        let time_series_rows = workloads::execute_expected_query(
+            context,
+            TIER3_TIME_SERIES_SQL,
+            time_series_params(),
+            512,
+        );
+        let time_series_after = context.cassie.metrics();
+        assert_eq!(time_series_rows, 512);
+        assert!(
+            time_series_after["time_series"]["bucket_native_hits"]
+                .as_u64()
+                .unwrap_or_default()
+                > time_series_before["time_series"]["bucket_native_hits"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            "time-series fixture must retain bucket-native reads"
+        );
+        assert_eq!(
+            time_series_after["time_series"]["fallback_scans"].as_u64(),
+            time_series_before["time_series"]["fallback_scans"].as_u64(),
+            "batched time-series fixture must not fall back to row-backed reads"
+        );
     }
 
     // Merged from tests/benchmark_join_fixture.rs to cut a separate test binary.

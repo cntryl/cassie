@@ -190,7 +190,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "1k",
         1_024,
         Tier2,
-        Measure,
+        Counted,
         Subsystem,
         "lookup",
         Disabled,

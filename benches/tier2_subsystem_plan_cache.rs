@@ -34,7 +34,14 @@ fn main() {
         if plan_miss_enabled {
             let case = with_setup(plan_miss, &setup_time_ns)
                 .runtime_state_evidence(fixture.plan_runtime());
-            runner.measure(case, || fixture.plan_miss());
+            runner.measure_counted_batch(
+                case,
+                workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE,
+                || {
+                    u64::try_from(fixture.plan_miss())
+                        .expect("completed lookup count should fit u64")
+                },
+            );
         }
     }
     runner.finish();

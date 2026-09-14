@@ -17,7 +17,7 @@ use crate::performance_benchmarks::{self, BenchmarkTier, BenchmarkTimingMode};
 mod stress_evidence;
 pub use stress_evidence::{
     normalize_runtime_counter, scoped_candidate_count, scoped_fallback_evidence,
-    validate_preflight_requirement, PreflightEvidence,
+    scoped_storage_read_observation, validate_preflight_requirement, PreflightEvidence,
 };
 use stress_evidence::{RuntimeEvidenceObservation, RuntimeEvidenceSource};
 #[path = "stress_config.rs"]

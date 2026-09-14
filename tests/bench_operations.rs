@@ -1678,6 +1678,48 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_scope_time_series_storage_reads_to_logical_buckets() {
+        // Arrange
+        let cold = json!({
+            "storage": { "data": { "reads": 1 } },
+            "time_series": { "buckets_scanned": 8 }
+        });
+        let cached = json!({
+            "storage": { "data": { "reads": 0 } },
+            "time_series": { "buckets_scanned": 8 }
+        });
+
+        // Act
+        let cold = stress::scoped_storage_read_observation(&cold, "time_series_bucket_native");
+        let cached = stress::scoped_storage_read_observation(&cached, "time_series_bucket_native");
+
+        // Assert
+        assert_eq!(cold, cached);
+        assert_eq!(cold.count, 8);
+        assert_eq!(cold.unit, "time_series_bucket");
+    }
+
+    #[test]
+    fn should_preserve_runtime_storage_reads_for_other_access_paths() {
+        // Arrange
+        let delta = json!({
+            "graph": { "reads": 3 },
+            "storage": {
+                "data": { "reads": 5 },
+                "schema": { "reads": 2 }
+            },
+            "time_series": { "buckets_scanned": 99 }
+        });
+
+        // Act
+        let observed = stress::scoped_storage_read_observation(&delta, "collection_scan");
+
+        // Assert
+        assert_eq!(observed.count, 10);
+        assert_eq!(observed.unit, "runtime_storage_read");
+    }
+
+    #[test]
     fn should_accumulate_retrieval_setup_only_in_explicit_setup_sections() {
         // Arrange
         let source = include_str!("../benches/tier5_scaling_retrieval.rs");
@@ -3288,12 +3330,7 @@ mod benchmark_kernels {
                 Value::String("2026-01-10T00:00:00Z".to_string()),
             ]
         };
-        workloads::assert_explain_contains(
-            &context,
-            SQL,
-            params(),
-            "time_series_storage=bucket-native-v1",
-        );
+        let preflight = workloads::assert_time_series_preflight(&context, SQL, params());
         let before = context.cassie.metrics();
 
         // Act
@@ -3302,6 +3339,8 @@ mod benchmark_kernels {
 
         // Assert
         assert_eq!(rows, 16);
+        assert_eq!(preflight.selected_access_path, "time_series_bucket_native");
+        assert_eq!(preflight.fallback_reason, "none");
         assert!(
             after["time_series"]["bucket_native_hits"]
                 .as_u64()

@@ -75,6 +75,12 @@ pub struct RuntimeEvidenceObservation {
     completed_operations: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StorageReadObservation {
+    pub count: u64,
+    pub unit: &'static str,
+}
+
 impl RuntimeEvidenceObservation {
     pub const fn new(
         result_cardinality: u64,
@@ -124,8 +130,16 @@ impl RuntimeEvidenceSource {
         let delta = numeric_delta(&current, &previous);
         *previous = current.clone();
 
-        let storage_reads =
-            normalize_runtime_counter(storage_reads(&delta), observation.completed_operations);
+        let (selected_access_path, access_path_evidence_source) = preflight
+            .map_or(("not_applicable", "not_applicable"), |evidence| {
+                (evidence.selected_access_path(), "preflight")
+            });
+        let storage_read_observation =
+            scoped_storage_read_observation(&delta, selected_access_path);
+        let storage_reads = normalize_runtime_counter(
+            storage_read_observation.count,
+            observation.completed_operations,
+        );
         let candidate_count = normalize_runtime_counter(
             observation
                 .candidate_count
@@ -158,15 +172,11 @@ impl RuntimeEvidenceSource {
         let leaked_active_operator_workers =
             pointer_u64(&current, "/runtime/active_operator_workers");
         let configured_worker_count = scenario.worker_count.map_or(0, u16::from);
-        let (selected_access_path, access_path_evidence_source) = preflight
-            .map_or(("not_applicable", "not_applicable"), |evidence| {
-                (evidence.selected_access_path(), "preflight")
-            });
-
         context.metadata("result_cardinality", observation.result_cardinality);
         context.metadata("selected_access_path", selected_access_path);
         context.metadata("access_path_evidence_source", access_path_evidence_source);
         context.metadata("storage_reads", storage_reads);
+        context.metadata("storage_read_unit", storage_read_observation.unit);
         context.metadata("candidate_count", candidate_count);
         context.metadata("peak_query_memory_bytes", peak_query_memory_bytes);
         context.metadata("execution_result_cache_hits", execution_result_cache_hits);
@@ -252,6 +262,7 @@ pub fn record_without_runtime(
     context.metadata("selected_access_path", selected_access_path);
     context.metadata("access_path_evidence_source", evidence_source);
     context.metadata("storage_reads", 0);
+    context.metadata("storage_read_unit", "not_applicable");
     let candidate_count = observation.candidate_count.unwrap_or(0);
     context.metadata("candidate_count", candidate_count);
     context.metadata(
@@ -315,7 +326,18 @@ fn numeric_delta(current: &serde_json::Value, previous: &serde_json::Value) -> s
     }
 }
 
-fn storage_reads(delta: &serde_json::Value) -> u64 {
+#[must_use]
+pub fn scoped_storage_read_observation(
+    delta: &serde_json::Value,
+    selected_access_path: &str,
+) -> StorageReadObservation {
+    if selected_access_path == "time_series_bucket_native" {
+        return StorageReadObservation {
+            count: pointer_u64(delta, "/time_series/buckets_scanned"),
+            unit: "time_series_bucket",
+        };
+    }
+
     let retrieval_reads = [
         "/cardinality/reads",
         "/search/posting_reads_total",
@@ -332,7 +354,10 @@ fn storage_reads(delta: &serde_json::Value) -> u64 {
     .into_iter()
     .map(|pointer| pointer_u64(delta, pointer))
     .sum::<u64>();
-    retrieval_reads.saturating_add(storage_family_reads(&delta["storage"]))
+    StorageReadObservation {
+        count: retrieval_reads.saturating_add(storage_family_reads(&delta["storage"])),
+        unit: "runtime_storage_read",
+    }
 }
 
 fn storage_family_reads(value: &serde_json::Value) -> u64 {

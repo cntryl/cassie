@@ -96,6 +96,11 @@ impl Midge {
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
         let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
+        let prior_edge_count = graph
+            .as_ref()
+            .map(|graph| Self::fresh_graph_edge_count_in_tx(&tx, graph, generation.wrapping_sub(1)))
+            .transpose()?;
         let mut ids = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
@@ -117,14 +122,21 @@ impl Midge {
         }
 
         let row_delta = i64::try_from(ids.len()).unwrap_or(i64::MAX);
-        let generation = Self::increment_collection_generation_in_tx(&mut tx, collection)?;
         if let Some(graph) = graph.as_ref() {
-            Self::write_graph_manifest_in_tx(
-                &mut tx,
-                graph.storage_id,
-                generation,
-                u64::try_from(ids.len()).unwrap_or(u64::MAX),
-            )?;
+            let batch_edge_count = u64::try_from(ids.len()).map_err(|_| {
+                CassieError::ResourceLimit("fresh graph edge count overflow".to_string())
+            })?;
+            let prior_edge_count = prior_edge_count.ok_or_else(|| {
+                CassieError::Execution(
+                    "fresh graph edge batch is missing its prior manifest count".to_string(),
+                )
+            })?;
+            let edge_count = prior_edge_count
+                .checked_add(batch_edge_count)
+                .ok_or_else(|| {
+                    CassieError::ResourceLimit("fresh graph edge count overflow".to_string())
+                })?;
+            Self::write_graph_manifest_in_tx(&mut tx, graph.storage_id, generation, edge_count)?;
         }
         Self::record_column_batch_maintenance_debt_in_tx(&mut tx, collection, generation)?;
         Self::record_projection_hash_maintenance_debt_in_tx(&mut tx, collection, generation)?;
@@ -134,6 +146,35 @@ impl Midge {
         let _ = self.complete_column_batch_maintenance(collection, generation, None);
         let _ = self.complete_projection_hash_maintenance(collection, generation, row_delta);
         Ok(ids)
+    }
+
+    fn fresh_graph_edge_count_in_tx(
+        tx: &cntryl_midge::Transaction,
+        graph: &crate::catalog::GraphMeta,
+        expected_generation: u64,
+    ) -> Result<u64, CassieError> {
+        let key = super::key_encoding::graph_manifest_key(graph.storage_id);
+        let raw = tx.get(&key).map_err(CassieError::from)?.ok_or_else(|| {
+            CassieError::Parse(format!(
+                "graph '{}' has no adjacency manifest before fresh batch",
+                graph.name
+            ))
+        })?;
+        let manifest = serde_json::from_slice::<GraphAdjacencyManifest>(&raw).map_err(|error| {
+            CassieError::Parse(format!(
+                "graph '{}' has an invalid adjacency manifest before fresh batch: {error}",
+                graph.name
+            ))
+        })?;
+        if manifest.format_version != GRAPH_ADJACENCY_FORMAT_VERSION
+            || manifest.source_generation != expected_generation
+        {
+            return Err(CassieError::Parse(format!(
+                "graph '{}' adjacency manifest is stale before fresh batch",
+                graph.name
+            )));
+        }
+        Ok(manifest.edge_count)
     }
 
     pub(crate) fn graph_for_edge_collection(
@@ -353,4 +394,91 @@ fn graph_weight(payload: &serde_json::Value, field: &str) -> Result<f64, CassieE
         ));
     }
     Ok(weight)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GraphAdjacencyManifest, Midge, GRAPH_ADJACENCY_FORMAT_VERSION};
+    use crate::catalog::GraphMeta;
+    use crate::types::{FieldSchema, Schema};
+    use serde_json::json;
+
+    #[test]
+    fn should_accumulate_graph_manifest_across_fresh_load_batches() {
+        // Arrange
+        let path = std::env::temp_dir().join(format!(
+            "cassie_fresh_graph_batches_{}",
+            uuid::Uuid::new_v4()
+        ));
+        let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+        let graph = GraphMeta::new("batched_graph");
+        let edge_schema = Schema {
+            fields: graph
+                .edge_builtin_fields()
+                .into_iter()
+                .map(|(name, data_type)| FieldSchema {
+                    name,
+                    data_type,
+                    nullable: true,
+                })
+                .collect(),
+        };
+        midge
+            .create_collection(&graph.edge_collection, edge_schema)
+            .expect("create graph edge collection");
+        midge.put_graph(&graph).expect("persist graph metadata");
+        let edge = |index: usize| {
+            (
+                Some(format!("edge-{index}")),
+                json!({
+                    "edge_id": format!("edge-{index}"),
+                    "source_type": "doc",
+                    "source_id": format!("node-{index}"),
+                    "target_type": "doc",
+                    "target_id": format!("node-{}", index + 1),
+                    "edge_type": "links",
+                    "weight": 1,
+                }),
+            )
+        };
+
+        // Act
+        midge
+            .put_fresh_graph_documents(&graph.edge_collection, vec![edge(0), edge(1)])
+            .expect("write first fresh graph batch");
+        midge
+            .put_fresh_graph_documents(&graph.edge_collection, vec![edge(2)])
+            .expect("write second fresh graph batch");
+        let persisted_graph = midge
+            .list_graphs()
+            .expect("list graphs")
+            .into_iter()
+            .find(|candidate| candidate.name == graph.name)
+            .expect("persisted graph");
+        let collection = midge.canonical_collection_name(&graph.edge_collection);
+        let tx = midge
+            .begin_data_readonly_tx_for(&collection)
+            .expect("read graph data family");
+        let raw = tx
+            .get(&super::super::key_encoding::graph_manifest_key(
+                persisted_graph.storage_id,
+            ))
+            .expect("read graph manifest")
+            .expect("graph manifest must exist");
+        let manifest =
+            serde_json::from_slice::<GraphAdjacencyManifest>(&raw).expect("decode graph manifest");
+
+        // Assert
+        assert_eq!(
+            manifest,
+            GraphAdjacencyManifest {
+                format_version: GRAPH_ADJACENCY_FORMAT_VERSION,
+                source_generation: 2,
+                edge_count: 3,
+            }
+        );
+        drop(tx);
+        drop(midge);
+        std::fs::remove_dir_all(path).expect("clean up fresh graph batch fixture");
+    }
 }

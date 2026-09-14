@@ -135,6 +135,8 @@ Filtering happens before setup. Fixture construction is lazy, one fixture is reu
 
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
+Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
+
 Fixture classes are part of scenario ownership: Tier 2 is capped at 2,048 rows; Tier 3 uses one representative 100k case per access-path family; Tier 4 normally reuses 10k rows; Tier 5 owns the 10k/100k/250k curves; and Tier 6 uses the two declared 100k and 10k fixtures. A join fixture must be visible to the actual integration harness before its timed query is eligible to run.
 
 Every network benchmark listener uses a non-empty credential backed by a Cassie role. Passwordless bootstrap is embedded-only and cannot be used to make a listener benchmark pass.

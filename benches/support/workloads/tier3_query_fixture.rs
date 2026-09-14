@@ -10,6 +10,7 @@ use super::context::{
     BenchIndexOptions, BenchmarkStorageMode, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
     LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
+use super::document_batches::bench_document_write_batch_ranges;
 
 const JOIN_USERS: &str = "bench_join_users";
 const JOIN_ORDERS: &str = "bench_join_orders";
@@ -24,6 +25,22 @@ pub fn tier3_query_context(
 }
 
 fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+    let context = empty_tier3_query_context_now(label, dataset_rows)?;
+    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
+    Ok(context)
+}
+
+pub fn empty_tier3_query_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(empty_tier3_query_context_now(label, dataset_rows))
+}
+
+fn empty_tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let data_dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
@@ -48,7 +65,6 @@ fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchCont
         data_dir,
         _embedding_server: None,
     };
-    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
     Ok(context)
 }
 
@@ -93,37 +109,41 @@ fn prepare_join_collections(
         "CREATE TABLE bench_join_orders (order_user_key INT, total INT)",
     )?;
 
-    let users = (0..dataset_rows)
-        .map(|index| {
-            let key = index_as_i64(index);
-            (
-                Some(format!("user-{index}")),
-                json!({
-                    "user_key": key,
-                    "name": format!("user-{index}"),
-                }),
-            )
-        })
-        .collect::<Vec<_>>();
-    let orders = (0..dataset_rows)
-        .map(|index| {
-            (
-                Some(format!("order-{index}")),
-                json!({
-                    "order_user_key": index_as_i64(index),
-                    "total": index_as_i64(index % 100),
-                }),
-            )
-        })
-        .collect::<Vec<_>>();
-    context
-        .cassie
-        .midge
-        .put_fresh_documents(JOIN_USERS, users)?;
-    context
-        .cassie
-        .midge
-        .put_fresh_documents(JOIN_ORDERS, orders)?;
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let users = range
+            .map(|index| {
+                let key = index_as_i64(index);
+                (
+                    Some(format!("user-{index}")),
+                    json!({
+                        "user_key": key,
+                        "name": format!("user-{index}"),
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_documents(JOIN_USERS, users)?;
+    }
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let orders = range
+            .map(|index| {
+                (
+                    Some(format!("order-{index}")),
+                    json!({
+                        "order_user_key": index_as_i64(index),
+                        "total": index_as_i64(index % 100),
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_documents(JOIN_ORDERS, orders)?;
+    }
     execute_ddl(
         context,
         "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
@@ -140,44 +160,48 @@ fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), Cass
         context,
         "CREATE GRAPH bench_graph (NODES (label TEXT), EDGES (source TEXT))",
     )?;
-    let nodes = (0..dataset_rows)
-        .map(|index| {
-            (
-                Some(format!("node-{index}")),
-                json!({
-                    "node_type": "doc",
-                    "node_id": format!("node-{index}"),
-                    "label": format!("Node {index}"),
-                }),
-            )
-        })
-        .collect::<Vec<_>>();
-    context
-        .cassie
-        .midge
-        .put_fresh_graph_documents("bench_graph_nodes", nodes)?;
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let nodes = range
+            .map(|index| {
+                (
+                    Some(format!("node-{index}")),
+                    json!({
+                        "node_type": "doc",
+                        "node_id": format!("node-{index}"),
+                        "label": format!("Node {index}"),
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_graph_documents("bench_graph_nodes", nodes)?;
+    }
 
-    let edges = (0..dataset_rows.saturating_sub(1))
-        .map(|index| {
-            (
-                Some(format!("edge-{index}")),
-                json!({
-                    "edge_id": format!("edge-{index}"),
-                    "source_type": "doc",
-                    "source_id": format!("node-{index}"),
-                    "target_type": "doc",
-                    "target_id": format!("node-{}", index + 1),
-                    "edge_type": "links",
-                    "weight": 1,
-                    "source": "bench",
-                }),
-            )
-        })
-        .collect::<Vec<_>>();
-    context
-        .cassie
-        .midge
-        .put_fresh_graph_documents("bench_graph_edges", edges)?;
+    for range in bench_document_write_batch_ranges(dataset_rows.saturating_sub(1)) {
+        let edges = range
+            .map(|index| {
+                (
+                    Some(format!("edge-{index}")),
+                    json!({
+                        "edge_id": format!("edge-{index}"),
+                        "source_type": "doc",
+                        "source_id": format!("node-{index}"),
+                        "target_type": "doc",
+                        "target_id": format!("node-{}", index + 1),
+                        "edge_type": "links",
+                        "weight": 1,
+                        "source": "bench",
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_graph_documents("bench_graph_edges", edges)?;
+    }
     Ok(())
 }
 
@@ -190,34 +214,33 @@ fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<()
         context,
         "CREATE TABLE bench_time_series_events (tenant TEXT, event_at TIMESTAMP, amount INT, status TEXT)",
     )?;
-    for statement in [
+    execute_ddl(
+        context,
         "CREATE INDEX bench_time_series_time_idx ON bench_time_series_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
-        "CREATE ROLLUP bench_time_series_hourly ON bench_time_series_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
-        "CREATE RETENTION POLICY bench_time_series_retention ON bench_time_series_events USING event_at RETAIN FOR '2 days'",
-    ] {
-        execute_ddl(context, statement)?;
-    }
+    )?;
 
     let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
-    let documents = (0..dataset_rows)
-        .map(|index| {
-            let day = 9 + ((index / 24) % 7);
-            let hour = index % 24;
-            (
-                Some(format!("ts-doc-{index}")),
-                json!({
-                    "tenant": tenants[index % tenants.len()],
-                    "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
-                    "amount": index_as_i64(index % 100),
-                    "status": if index % 2 == 0 { "open" } else { "closed" },
-                }),
-            )
-        })
-        .collect::<Vec<_>>();
-    context
-        .cassie
-        .midge
-        .put_fresh_time_series_documents(TIME_SERIES, documents)?;
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let documents = range
+            .map(|index| {
+                let day = 9 + ((index / 24) % 7);
+                let hour = index % 24;
+                (
+                    Some(format!("ts-doc-{index}")),
+                    json!({
+                        "tenant": tenants[index % tenants.len()],
+                        "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
+                        "amount": index_as_i64(index % 100),
+                        "status": if index % 2 == 0 { "open" } else { "closed" },
+                    }),
+                )
+            })
+            .collect::<Vec<_>>();
+        context
+            .cassie
+            .midge
+            .put_fresh_time_series_documents(TIME_SERIES, documents)?;
+    }
     Ok(())
 }
 

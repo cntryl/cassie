@@ -49,9 +49,11 @@ jobs:
           - platform: linux/amd64
             runner: ubuntu-latest
             profile: native-linux-amd64-disk
+            artifact_suffix: linux-amd64
           - platform: linux/arm64
             runner: ubuntu-24.04-arm
             profile: native-linux-arm64-disk
+            artifact_suffix: linux-arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     steps:
@@ -80,16 +82,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Exercise container startup, readiness, and restart
+        id: container
         env:
           IMAGE: ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}
+          CASSIE_ROOT_PASSWORD: operational-${{ github.run_id }}-${{ matrix.artifact_suffix }}
         run: |
+          started_ns="$(date +%s%N)"
           mkdir -p operational-evidence/container-data
           chmod 0777 operational-evidence/container-data
           docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
           docker run --detach --name cassie-rehearsal \
             --platform '${{ matrix.platform }}' \
             --publish 127.0.0.1:18080:8080 \
-            --env CASSIE_ROOT_PASSWORD=operational-rehearsal-secret \
+            --env CASSIE_ROOT_PASSWORD \
             --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
             --volume "${PWD}/operational-evidence/container-data:/data" \
             "${IMAGE}"
@@ -113,19 +118,53 @@ jobs:
             fi
             sleep 1
           done
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/container.elapsed_ns
 
       - name: Exercise snapshot, restore, repair, and failure cleanup contracts
+        id: snapshot_restore
+        if: always()
         env:
           CASSIE_STORAGE_MODE: local
         run: |
-          cargo test --locked --test storage_indexes snapshot_restore -- --nocapture 2>&1 | tee operational-evidence/snapshot-restore.log
-          cargo test --locked --test analytics projection_repair -- --nocapture 2>&1 | tee operational-evidence/projection-repair.log
-          cargo test --locked --test storage_indexes should_remove_partial_restore_after_copy_error -- --nocapture 2>&1 | tee operational-evidence/failure-injection.log
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test storage_indexes snapshot_restore -- --nocapture 2>&1 | tee operational-evidence/snapshot-restore.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/snapshot-restore.elapsed_ns
+          exit "${status}"
+
+      - name: Exercise projection repair contracts
+        id: projection_repair
+        if: always()
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test analytics projection_repair -- --nocapture 2>&1 | tee operational-evidence/projection-repair.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/projection-repair.elapsed_ns
+          exit "${status}"
+
+      - name: Exercise failed restore cleanup seam
+        id: failure_injection
+        if: always()
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test storage_indexes should_remove_partial_restore_after_copy_error -- --nocapture 2>&1 | tee operational-evidence/failure-injection.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/failure-injection.elapsed_ns
+          exit "${status}"
 
       - name: Exercise scale and endurance owners
-        if: ${{ !inputs.shape_only }}
+        id: long_evidence
+        if: ${{ always() && !inputs.shape_only }}
         env:
-          CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}-${{ matrix.platform }}
+          CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}-${{ matrix.artifact_suffix }}
           CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}
           CASSIE_BENCH_SOAK_DURATION_SECONDS: "3600"
           STRESS_PROFILE: release
@@ -134,11 +173,69 @@ jobs:
           cargo bench --locked --bench 'tier5_scaling_lifecycle'
           cargo bench --locked --bench 'tier6_soak_mixed'
 
+      - name: Build operational evidence manifest
+        if: always()
+        env:
+          CONTAINER_OUTCOME: ${{ steps.container.outcome }}
+          SNAPSHOT_RESTORE_OUTCOME: ${{ steps.snapshot_restore.outcome }}
+          PROJECTION_REPAIR_OUTCOME: ${{ steps.projection_repair.outcome }}
+          FAILURE_INJECTION_OUTCOME: ${{ steps.failure_injection.outcome }}
+          LONG_EVIDENCE_OUTCOME: ${{ steps.long_evidence.outcome }}
+        run: |
+          jq --null-input \
+            --arg schema_version "cassie-operational-evidence.v1" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg run_id '${{ inputs.run_id }}' \
+            --arg platform '${{ matrix.platform }}' \
+            --arg profile '${{ matrix.profile }}' \
+            --arg image_digest '${{ inputs.image_digest }}' \
+            --argjson shape_only '${{ inputs.shape_only }}' \
+            --arg container_outcome "${CONTAINER_OUTCOME}" \
+            --arg snapshot_restore_outcome "${SNAPSHOT_RESTORE_OUTCOME}" \
+            --arg projection_repair_outcome "${PROJECTION_REPAIR_OUTCOME}" \
+            --arg failure_injection_outcome "${FAILURE_INJECTION_OUTCOME}" \
+            --arg long_evidence_outcome "${LONG_EVIDENCE_OUTCOME}" \
+            '{
+              schema_version: $schema_version,
+              commit: $commit,
+              run_id: $run_id,
+              platform: $platform,
+              deployment_profile: $profile,
+              image_digest: $image_digest,
+              shape_only: $shape_only,
+              steps: {
+                container: {outcome: $container_outcome},
+                snapshot_restore: {outcome: $snapshot_restore_outcome},
+                projection_repair: {outcome: $projection_repair_outcome},
+                failure_injection: {outcome: $failure_injection_outcome},
+                long_evidence: {outcome: $long_evidence_outcome}
+              },
+              elapsed_ns: {
+                container: null,
+                snapshot_restore: null,
+                projection_repair: null,
+                failure_injection: null
+              }
+            }' > operational-evidence/operational-manifest.json
+
+          for step in container snapshot-restore projection-repair failure-injection; do
+            file="operational-evidence/${step}.elapsed_ns"
+            if [[ -f "${file}" ]]; then
+              key="${step//-/_}"
+              value="$(<"${file}")"
+              jq --arg key "${key}" --argjson value "${value}" \
+                '.elapsed_ns[$key] = $value' \
+                operational-evidence/operational-manifest.json \
+                > operational-evidence/operational-manifest.next.json
+              mv operational-evidence/operational-manifest.next.json operational-evidence/operational-manifest.json
+            fi
+          done
+
       - name: Retain operational evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: cassie-operational-${{ inputs.run_id }}-${{ matrix.platform }}
+          name: cassie-operational-${{ inputs.run_id }}-${{ matrix.artifact_suffix }}
           path: |
             operational-evidence
             target/stress/**/latest.json

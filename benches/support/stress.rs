@@ -464,7 +464,7 @@ impl CassieStressRunner {
         let evidence = case.runtime_evidence.clone();
         let preflight = case.preflight_evidence.clone();
         let scenario = self.scenario_for(&case);
-        let case = prepare_micro_batch_case(case, logical_operations);
+        let case = prepare_batch_case(case, logical_operations);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let last_cardinality = std::cell::Cell::new(0_u64);
@@ -566,16 +566,7 @@ impl CassieStressRunner {
         let evidence = case.runtime_evidence.clone();
         let preflight = case.preflight_evidence.clone();
         let scenario = self.scenario_for(&case);
-        let case = case
-            .intent(MeasurementIntent::Batch)
-            .parameter(
-                "logical_operations_per_iteration",
-                logical_operations.to_string(),
-            )
-            .metadata(
-                "logical_operations_per_iteration",
-                logical_operations.to_string(),
-            );
+        let case = prepare_batch_case(case, logical_operations);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let last_cardinality = std::cell::Cell::new(0_u64);
@@ -960,7 +951,7 @@ fn declared_result_cardinality(case: &StressCase) -> Option<u64> {
         .and_then(|value| value.parse().ok())
 }
 
-fn prepare_micro_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
+fn prepare_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
     let logical_unit = case
         .runtime_declaration
         .as_ref()

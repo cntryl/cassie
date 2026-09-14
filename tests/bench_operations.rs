@@ -6497,6 +6497,25 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_keep_sensitive_operational_state_out_of_retained_artifacts() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let uses_ephemeral_cookie_jar =
+            workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-cookies.txt");
+        let uses_ephemeral_data_dir = workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-data");
+        let retains_cookie_jar = workflow.contains("operational-evidence/cookies.txt");
+        let retains_data_dir = workflow.contains("operational-evidence/container-data");
+
+        // Assert
+        assert!(uses_ephemeral_cookie_jar);
+        assert!(uses_ephemeral_data_dir);
+        assert!(!retains_cookie_jar);
+        assert!(!retains_data_dir);
+    }
+
+    #[test]
     fn should_reject_unknown_complete_profile_before_compilation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

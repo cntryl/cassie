@@ -79,6 +79,19 @@ pub fn assert_explain_contains(
     query_preflight_evidence(plan)
 }
 
+pub fn assert_time_series_preflight(
+    context: &BenchContext,
+    sql: &str,
+    params: Vec<Value>,
+) -> QueryPreflightEvidence {
+    let _preflight =
+        assert_explain_contains(context, sql, params, "time_series_storage=bucket-native-v1");
+    QueryPreflightEvidence {
+        selected_access_path: "time_series_bucket_native".to_string(),
+        fallback_reason: "none".to_string(),
+    }
+}
+
 pub fn assert_vector_preflight(
     context: &BenchContext,
     sql: &str,

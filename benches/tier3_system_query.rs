@@ -510,12 +510,8 @@ fn bench_time_series_representative(
         "ts-doc-0",
         "ts-doc-99999",
     );
-    let preflight = workloads::assert_explain_contains(
-        context,
-        TIME_SERIES_SQL,
-        time_series_params(),
-        "time_series=bucket_width:1 hour",
-    );
+    let preflight =
+        workloads::assert_time_series_preflight(context, TIME_SERIES_SQL, time_series_params());
     let case = evidenced(
         case,
         context,

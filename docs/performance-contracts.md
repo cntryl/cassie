@@ -133,6 +133,8 @@ Correctness, evidence, setup, and configured resource-bound failures are hard ga
 
 Filtering happens before setup. Fixture construction is lazy, one fixture is reused per owner and scale, and fixture construction plus preflight remain outside measured closures. Preflight may validate fixture counts and plans, but it must not execute or warm the timed statement. Artifacts record setup time separately from measurement time.
 
+Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter so identical cold and cached invocations retain invariant evidence; other embedded paths report `runtime_storage_read`. Cache-dependent physical reads must not masquerade as invariant logical work, and setup must not warm the timed query to hide that distinction.
+
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
 Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.

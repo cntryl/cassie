@@ -78,3 +78,19 @@ The retained bundle must contain:
 
 Missing evidence keeps that architecture/profile rehearsal incomplete. A successful local test,
 single-architecture container build, or image manifest inspection does not satisfy this runbook.
+
+## Automated workflow
+
+The manual `Operational readiness` workflow accepts an immutable multi-architecture image digest
+and runs the same source revision natively on `linux/amd64` and `linux/arm64`. Its default
+`shape_only=true` mode is the fast feedback gate: it validates identity, starts and restarts the
+container, checks readiness, and exercises the repository's snapshot/restore, projection-repair,
+and failed-restore cleanup contracts. Those artifacts prove workflow and contract shape only;
+they are not representative-scale or endurance evidence.
+
+Set `shape_only=false` only after the candidate implementation and review are complete. That mode
+also runs the disk-backed Tier 5 lifecycle owner and one-hour Tier 6 mixed owner under the matching
+native Linux deployment profile. Both architecture bundles are retained for 90 days. A run is
+still incomplete if either matrix job fails, if its image digest does not belong to the recorded
+release commit, or if any required manual database-image, repair diagnostic, rollback, or
+failure-injection evidence listed above is absent.

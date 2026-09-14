@@ -6490,6 +6490,42 @@ mod benchmark_column_metric_contract {
 // Formerly tests/benchmark_deployment_profile_contract.rs.
 mod benchmark_deployment_profile_contract {
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
+    const NATIVE_LINUX_ARM64_PROFILE_ID: &str = "native-linux-arm64-disk";
+
+    #[test]
+    fn should_separate_fast_operational_shape_from_retained_long_evidence() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let required_controls = [
+            "shape_only:",
+            "default: true",
+            "platform: linux/amd64",
+            "runner: ubuntu-latest",
+            "platform: linux/arm64",
+            "runner: ubuntu-24.04-arm",
+            "ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}",
+            "docker restart cassie-rehearsal",
+            "curl --fail --silent --show-error http://127.0.0.1:18080/readyz",
+            "cargo test --locked --test storage_indexes snapshot_restore -- --nocapture",
+            "cargo test --locked --test analytics projection_repair -- --nocapture",
+            "if: ${{ !inputs.shape_only }}",
+            "cargo bench --locked --bench 'tier5_scaling_lifecycle'",
+            "cargo bench --locked --bench 'tier6_soak_mixed'",
+            "retention-days: 90",
+        ];
+        let missing_controls = required_controls
+            .into_iter()
+            .filter(|control| !workflow.contains(control))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            missing_controls.is_empty(),
+            "missing operational evidence controls: {missing_controls:?}"
+        );
+    }
 
     #[test]
     fn should_reject_unknown_complete_profile_before_compilation() {
@@ -6577,11 +6613,15 @@ mod benchmark_deployment_profile_contract {
         let workflow_accepts_a_profile = workflow.contains("deployment_profile:");
         let documented = documentation.contains(NATIVE_LINUX_PROFILE_ID);
         let registered = profiles.contains(NATIVE_LINUX_PROFILE_ID);
+        let arm64_documented = documentation.contains(NATIVE_LINUX_ARM64_PROFILE_ID);
+        let arm64_registered = profiles.contains(NATIVE_LINUX_ARM64_PROFILE_ID);
 
         // Assert
         assert!(workflow_accepts_a_profile);
         assert!(documented);
         assert!(registered);
+        assert!(arm64_documented);
+        assert!(arm64_registered);
         assert!(profiles.contains("storage_mode: \"midge_disk_native_linux\""));
     }
 

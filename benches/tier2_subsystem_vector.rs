@@ -33,7 +33,13 @@ fn main() {
             runner.measure_counted(with_setup(hnsw, &setup_time_ns), || fixture.hnsw());
         }
         if ivfflat_enabled {
-            runner.measure_counted(with_setup(ivfflat, &setup_time_ns), || fixture.ivfflat());
+            let case = with_setup(ivfflat, &setup_time_ns).parameter(
+                "fixture_invocations_per_sample",
+                workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE.to_string(),
+            );
+            runner.measure_counted(case, || {
+                fixture.ivfflat_batch(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE)
+            });
         }
     }
     runner.finish();

@@ -27,8 +27,10 @@ const PLANNING_SQL: &str =
 const VECTOR_DIMENSIONS: usize = 3;
 const IVFFLAT_LISTS: usize = 16;
 pub const PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 256;
+pub const CACHE_HIT_LOOKUPS_PER_SAMPLE: usize = 256;
 pub const PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE: usize = 1_024;
 pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
+pub const VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE: usize = 4_096;
 
 /// Fixed SQL inputs for the parser-only owner.
 pub struct ParserFixture {
@@ -437,12 +439,41 @@ impl VectorCandidateFixture {
 
     #[must_use]
     pub fn ivfflat(&self) -> cassie::benchmark::KernelObservation {
+        let count = self.ivfflat_probe_count();
+        cassie::benchmark::KernelObservation::new(count, count).with_candidate_count(count)
+    }
+
+    #[must_use]
+    pub fn ivfflat_batch(
+        &self,
+        fixture_invocations: usize,
+    ) -> cassie::benchmark::KernelObservation {
+        assert!(
+            fixture_invocations > 0,
+            "IVFFlat batch requires at least one fixture invocation"
+        );
+        let completed = (0..fixture_invocations).fold(0_u64, |completed, _| {
+            completed
+                .checked_add(self.ivfflat_probe_count())
+                .expect("IVFFlat batch probe count should fit u64")
+        });
+        cassie::benchmark::KernelObservation::new(completed, completed)
+            .with_candidate_count(completed)
+    }
+
+    fn ivfflat_probe_count(&self) -> u64 {
         let probes = cassie::vector::ivfflat::probe_lists(&self.query, &self.ivfflat_training);
         let count = probes.len();
         assert!(count > 0);
+        assert_eq!(
+            count,
+            self.ivfflat_training
+                .probes
+                .max(1)
+                .min(self.ivfflat_training.centroids.len())
+        );
         std::hint::black_box(probes);
-        cassie::benchmark::KernelObservation::new(fixture_count(count), fixture_count(count))
-            .with_candidate_count(fixture_count(count))
+        fixture_count(count)
     }
 }
 

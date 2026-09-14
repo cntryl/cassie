@@ -29,9 +29,11 @@ fn main() {
             );
         }
         if prepared_enabled {
-            runner.measure_counted(with_setup(prepared, &setup_time_ns), || {
-                fixture.prepared_loop()
-            });
+            runner.measure_counted_batch(
+                with_setup(prepared, &setup_time_ns),
+                workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE,
+                || fixture.prepared_loop(),
+            );
         }
         if json_enabled {
             runner.measure_counted_batch(

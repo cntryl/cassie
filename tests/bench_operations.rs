@@ -2258,6 +2258,44 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_prepared_statement_loop_with_exact_message_normalization() {
+        // Arrange
+        let fixture = workloads::ProtocolCodecFixture::new(512);
+        let owner = include_str!("../benches/tier2_subsystem_protocol_handlers.rs");
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.protocol.prepared_loop.512")
+                .expect("registered prepared-statement scenario");
+        let mut observed_invocations = 0_usize;
+
+        // Act
+        let completed = stress::repeat_counted_batch(
+            workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE,
+            || {
+                observed_invocations = observed_invocations.saturating_add(1);
+                let completed_messages = fixture.prepared_loop();
+                assert_eq!(completed_messages, 512);
+                completed_messages
+            },
+        );
+
+        // Assert
+        assert_eq!(workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE, 1_024);
+        assert_eq!(
+            observed_invocations,
+            workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE
+        );
+        assert_eq!(completed, 524_288);
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "message");
+        assert!(owner.contains("runner.measure_counted_batch("));
+        assert!(owner.contains("workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE,"));
+        assert!(owner.contains("fixture.prepared_loop()"));
+    }
+
+    #[test]
     fn should_batch_cache_hits_with_exact_lookup_normalization() {
         // Arrange
         let fixture = workloads::CacheFixture::new(1_024, true);

@@ -28,6 +28,7 @@ const VECTOR_DIMENSIONS: usize = 3;
 const IVFFLAT_LISTS: usize = 16;
 pub const PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const CACHE_HIT_LOOKUPS_PER_SAMPLE: usize = 256;
+pub const HYBRID_FUSION_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE: usize = 1_024;
 pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
 pub const VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE: usize = 4_096;
@@ -498,14 +499,33 @@ impl HybridFusionFixture {
 
     #[must_use]
     pub fn fuse(&self) -> cassie::benchmark::KernelObservation {
+        let rows = self.fuse_candidate_count();
+        cassie::benchmark::KernelObservation::new(rows, rows).with_candidate_count(rows)
+    }
+
+    #[must_use]
+    pub fn fuse_batch(&self, fixture_invocations: usize) -> cassie::benchmark::KernelObservation {
+        assert!(
+            fixture_invocations > 0,
+            "hybrid-fusion batch requires at least one fixture invocation"
+        );
+        let completed = (0..fixture_invocations).fold(0_u64, |completed, _| {
+            completed
+                .checked_add(self.fuse_candidate_count())
+                .expect("hybrid-fusion batch candidate count should fit u64")
+        });
+        cassie::benchmark::KernelObservation::new(completed, completed)
+            .with_candidate_count(completed)
+    }
+
+    fn fuse_candidate_count(&self) -> u64 {
         let total = self
             .scores
             .iter()
             .map(|(search, vector)| cassie::hybrid::hybrid_score(*search, *vector, None))
             .sum::<f64>();
         std::hint::black_box(total);
-        let rows = fixture_count(self.scores.len());
-        cassie::benchmark::KernelObservation::new(rows, rows).with_candidate_count(rows)
+        fixture_count(self.scores.len())
     }
 }
 

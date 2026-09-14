@@ -21,12 +21,16 @@ fn main() {
     if runner.is_enabled(&case) {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::HybridFusionFixture::new(2_048);
+        let case = case.parameter(
+            "fixture_invocations_per_sample",
+            workloads::HYBRID_FUSION_INVOCATIONS_PER_SAMPLE.to_string(),
+        );
         runner.measure_counted(
             case.metadata(
                 "setup_time_ns",
                 setup_started.elapsed().as_nanos().to_string(),
             ),
-            || fixture.fuse(),
+            || fixture.fuse_batch(workloads::HYBRID_FUSION_INVOCATIONS_PER_SAMPLE),
         );
     }
     runner.finish();

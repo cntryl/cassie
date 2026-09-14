@@ -2274,6 +2274,33 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_hybrid_fusion_with_exact_candidate_normalization() {
+        // Arrange
+        let fixture = workloads::HybridFusionFixture::new(2_048);
+        let owner = include_str!("../benches/tier2_subsystem_hybrid.rs");
+        let scenario = performance_benchmarks::benchmark_for_scenario("perf.hybrid.fusion.2k")
+            .expect("registered hybrid-fusion scenario");
+
+        // Act
+        let observation = fixture.fuse_batch(workloads::HYBRID_FUSION_INVOCATIONS_PER_SAMPLE);
+
+        // Assert
+        assert_eq!(workloads::HYBRID_FUSION_INVOCATIONS_PER_SAMPLE, 256);
+        assert_eq!(observation.completed_operations(), 524_288);
+        assert_eq!(observation.result_cardinality(), 524_288);
+        assert_eq!(observation.candidate_count(), Some(524_288));
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "candidate");
+        assert!(owner.contains("\"fixture_invocations_per_sample\""));
+        assert!(owner.contains("workloads::HYBRID_FUSION_INVOCATIONS_PER_SAMPLE"));
+        assert!(owner.contains("fixture.fuse_batch("));
+        observation.finish_sample();
+    }
+
+    #[test]
     fn should_bind_dynamic_plan_cache_values_given_closed_alias_selection() {
         // Arrange
         let nonce = 17;

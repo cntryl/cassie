@@ -123,6 +123,9 @@ The two 128-item binder and planning owners batch 256 fixture invocations per me
 record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the
 completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
 rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
+The 2,048-candidate hybrid-fusion owner applies the same 256-invocation bounded window and records
+the exact aggregate result-cardinality and candidate counts, while retaining `candidate` as its
+logical operation unit.
 
 Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 

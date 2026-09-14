@@ -5784,37 +5784,42 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
-    fn should_allow_six_hours_for_the_complete_canonical_benchmark_suite() {
+    fn should_parallelize_canonical_benchmark_shards_before_manifest_validation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");
-        let complete_suite = workflow
-            .split_once("  complete-suite:\n")
-            .map(|(_, job)| job)
-            .expect("complete-suite benchmark job");
 
         // Act
-        let configured_timeout = complete_suite
-            .lines()
-            .find(|line| line.trim_start().starts_with("timeout-minutes:"))
-            .map(str::trim);
         let required_controls = [
-            "if: ${{ github.event_name == 'workflow_dispatch' }}",
+            "  complete-shard:\n",
+            "fail-fast: false",
+            "command: \"cargo bench --bench 'tier1_*' --locked\"",
+            "command: \"cargo bench --bench 'tier2_*' --locked\"",
+            "command: \"cargo bench --bench 'tier3_*' --locked\"",
+            "command: \"cargo bench --bench 'tier4_*' --locked\"",
+            "command: \"cargo bench --bench 'tier5_*' --locked\"",
+            "command: \"cargo bench --bench 'tier6_soak_mixed' --locked\"",
+            "command: \"cargo bench --bench 'tier6_soak_transport' --locked\"",
+            "timeout-minutes: 360",
             "CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}",
-            "run: cargo bench --bench '*' --locked",
+            "run: ${{ matrix.command }}",
+            "name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}",
+            "  complete-manifest:\n",
+            "needs: complete-shard",
+            "pattern: cassie-benchmark-shard-${{ inputs.run_id }}-*",
+            "merge-multiple: true",
             "benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest",
             "path: target/stress/**/latest.json",
             "if-no-files-found: error",
         ];
         let missing_controls = required_controls
             .into_iter()
-            .filter(|control| !complete_suite.contains(control))
+            .filter(|control| !workflow.contains(control))
             .collect::<Vec<_>>();
 
         // Assert
-        assert_eq!(configured_timeout, Some("timeout-minutes: 360"));
         assert!(
             missing_controls.is_empty(),
-            "missing complete-suite controls: {missing_controls:?}"
+            "missing parallel complete-suite controls: {missing_controls:?}"
         );
     }
 

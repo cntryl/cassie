@@ -1700,6 +1700,22 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_scope_range_scan_storage_reads_to_logical_index_probes() {
+        // Arrange
+        let cold = json!({ "storage": { "data": { "reads": 1 } } });
+        let cached = json!({ "storage": { "data": { "reads": 0 } } });
+
+        // Act
+        let cold = stress::scoped_storage_read_observation(&cold, "range_scan");
+        let cached = stress::scoped_storage_read_observation(&cached, "range_scan");
+
+        // Assert
+        assert_eq!(cold, cached);
+        assert_eq!(cold.count, 1);
+        assert_eq!(cold.unit, "relational_index_probe");
+    }
+
+    #[test]
     fn should_preserve_runtime_storage_reads_for_other_access_paths() {
         // Arrange
         let delta = json!({
@@ -5190,7 +5206,7 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(compressible_queries, 256);
-        assert_eq!(fast_pair_queries, 1_024);
+        assert_eq!(fast_pair_queries, 4_096);
         assert_eq!(fsst_queries, 512);
         assert!(records_query_window);
     }

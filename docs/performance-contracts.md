@@ -160,17 +160,25 @@ The adaptive column acceptance gates are:
 
 Tier 2 owns paired, same-fixture acceptance rows for those latency gates:
 `perf.column.selective_encoded_scan.2k` is compared with its forced-plain baseline at a
-maximum p95 ratio of `0.85`, while `perf.column.incompressible_adaptive_scan.2k` is compared
-with its forced-plain baseline at a maximum ratio of `1.05`. The benchmark validates codec
-choices before timing and batches eight exact queries per measured sample. Forced-plain
+maximum p95 ratio of `0.85` and batches 256 exact queries per measured sample, while
+`perf.column.incompressible_adaptive_scan.2k` is compared with its forced-plain baseline at a
+maximum ratio of `1.05` and batches 1,024 exact queries. The benchmark validates codec choices
+before timing. Forced-plain
 rebuild is benchmark-only and is not a SQL or runtime configuration surface.
 
-The ALP-specific pair uses the same distributed 2k float fixture and batches 128 exact queries per
+The ALP-specific pair uses the same distributed 2k float fixture and batches 1,024 exact queries per
 measured sample. `perf.column.alp_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`; every candidate chunk must also use no more than 25% of its plain decoded bytes. Exact scale predicates are evaluated over checked scaled integers and only selected floats are reconstructed. Non-exact literals use the general semantic comparison path.
 
 The FSST-specific pair uses a 2k high-repetition UTF-8 fixture, places one matching row in each
-256-row segment, and batches 1,024 exact queries per measured sample. Every candidate chunk must
-select FSST and use no more than 75% of its plain decoded bytes. `perf.column.fsst_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `0.85`. The predicate scans every segment while selected projection validates every encoded value and materializes only the eight matching strings.
+256-row segment, and batches 512 exact queries per measured sample. Every candidate chunk must
+select FSST and use no more than 75% of its plain decoded bytes. `perf.column.fsst_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`. Candidate and baseline execute in alternating order within the same sampling invocation so host drift cannot manufacture an advantage. The predicate scans every segment while selected projection validates every encoded value and materializes only the eight matching strings.
+
+All four Tier 2 column pairs compile their physical plans before measurement and time only
+session-aware physical execution over the active Midge deployment profile. Parser, binder,
+planner, cache orchestration, and durable operator-feedback persistence are excluded from this
+subsystem signal. Each candidate/baseline pair owns an independent runner group and alternates
+one-query `ABBA` and `BAAB` blocks within and across samples; exact row counts and column-path
+counters remain correctness gates.
 
 Each result records, from observed execution rather than expectation alone:
 

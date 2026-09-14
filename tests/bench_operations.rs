@@ -2156,6 +2156,93 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_cache_hits_with_exact_lookup_normalization() {
+        // Arrange
+        let fixture = workloads::CacheFixture::new(1_024, true);
+        let owner = include_str!("../benches/tier2_subsystem_plan_cache.rs");
+        let plan_scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.cache.plan_hit.1k")
+                .expect("registered plan-cache hit scenario");
+        let result_scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.cache.result_hit.1k")
+                .expect("registered result-cache hit scenario");
+        let mut plan_lookups = 0_usize;
+        let mut result_lookups = 0_usize;
+
+        // Act
+        let completed_plan_lookups =
+            stress::repeat_counted_batch(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, || {
+                plan_lookups = plan_lookups.saturating_add(1);
+                let completed =
+                    u64::try_from(fixture.plan_hit()).expect("plan-hit count should fit u64");
+                assert_eq!(completed, 1);
+                completed
+            });
+        let completed_result_lookups =
+            stress::repeat_counted_batch(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, || {
+                result_lookups = result_lookups.saturating_add(1);
+                let completed =
+                    u64::try_from(fixture.result_hit()).expect("result-hit count should fit u64");
+                assert_eq!(completed, 1);
+                completed
+            });
+
+        // Assert
+        assert_eq!(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, 256);
+        assert_eq!(plan_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
+        assert_eq!(result_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
+        assert_eq!(completed_plan_lookups, 256);
+        assert_eq!(completed_result_lookups, 256);
+        assert_eq!(
+            plan_scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(
+            result_scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(plan_scenario.operation_unit, "lookup");
+        assert_eq!(result_scenario.operation_unit, "lookup");
+        assert_eq!(owner.matches("runner.measure_counted_batch(").count(), 3);
+        assert_eq!(
+            owner
+                .matches("workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE,")
+                .count(),
+            2
+        );
+        assert!(owner.contains("fixture.plan_hit()"));
+        assert!(owner.contains("fixture.result_hit()"));
+    }
+
+    #[test]
+    fn should_batch_ivfflat_probes_with_exact_observation_evidence() {
+        // Arrange
+        let fixture = workloads::VectorCandidateFixture::new(1_024);
+        let owner = include_str!("../benches/tier2_subsystem_vector.rs");
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_probes.1k")
+                .expect("registered IVFFlat probe scenario");
+
+        // Act
+        let observation = fixture.ivfflat_batch(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE);
+
+        // Assert
+        assert_eq!(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE, 4_096);
+        assert_eq!(observation.completed_operations(), 16_384);
+        assert_eq!(observation.result_cardinality(), 16_384);
+        assert_eq!(observation.candidate_count(), Some(16_384));
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "probe");
+        assert!(owner.contains("\"fixture_invocations_per_sample\""));
+        assert!(owner.contains("workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE"));
+        assert!(owner.contains("fixture.ivfflat_batch("));
+        observation.finish_sample();
+    }
+
+    #[test]
     fn should_bind_dynamic_plan_cache_values_given_closed_alias_selection() {
         // Arrange
         let nonce = 17;

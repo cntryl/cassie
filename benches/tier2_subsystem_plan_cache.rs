@@ -24,12 +24,16 @@ fn main() {
         if plan_hit_enabled {
             let case =
                 with_setup(plan_hit, &setup_time_ns).runtime_state_evidence(fixture.plan_runtime());
-            runner.measure(case, || fixture.plan_hit());
+            runner.measure_counted_batch(case, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, || {
+                u64::try_from(fixture.plan_hit()).expect("completed lookup count should fit u64")
+            });
         }
         if result_hit_enabled {
             let case = with_setup(result_hit, &setup_time_ns)
                 .runtime_state_evidence(fixture.result_runtime());
-            runner.measure(case, || fixture.result_hit());
+            runner.measure_counted_batch(case, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, || {
+                u64::try_from(fixture.result_hit()).expect("completed lookup count should fit u64")
+            });
         }
         if plan_miss_enabled {
             let case = with_setup(plan_miss, &setup_time_ns)

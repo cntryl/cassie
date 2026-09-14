@@ -22,14 +22,18 @@ fn main() {
         let fixture = workloads::ProtocolCodecFixture::new(512);
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
         if pgwire_enabled {
-            runner.measure_counted(with_setup(pgwire, &setup_time_ns), || {
-                fixture.pgwire_codec()
-            });
+            runner.measure_counted_batch(
+                with_setup(pgwire, &setup_time_ns),
+                workloads::PROTOCOL_PGWIRE_INVOCATIONS_PER_SAMPLE,
+                || fixture.pgwire_codec(),
+            );
         }
         if prepared_enabled {
-            runner.measure_counted(with_setup(prepared, &setup_time_ns), || {
-                fixture.prepared_loop()
-            });
+            runner.measure_counted_batch(
+                with_setup(prepared, &setup_time_ns),
+                workloads::PROTOCOL_PREPARED_INVOCATIONS_PER_SAMPLE,
+                || fixture.prepared_loop(),
+            );
         }
         if json_enabled {
             runner.measure_counted_batch(

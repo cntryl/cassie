@@ -6,6 +6,15 @@ use cassie::types::DataType;
 
 use super::context::{bench_document_schema, unindexed_context, BenchContext};
 
+/// Queries executed in each slower compressible column-codec acceptance sample.
+pub const COMPRESSIBLE_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 256;
+
+/// Queries executed in each fast column-codec acceptance sample.
+pub const FAST_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 1_024;
+
+/// Queries executed in each low-cardinality FSST acceptance sample.
+pub const FSST_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 512;
+
 pub const COMPRESSIBLE_AUTO_SQL: &str =
     "SELECT title, body FROM bench_documents WHERE status = 'approved' AND score >= 90";
 pub const COMPRESSIBLE_PLAIN_SQL: &str =

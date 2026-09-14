@@ -28,6 +28,7 @@ const VECTOR_DIMENSIONS: usize = 3;
 const IVFFLAT_LISTS: usize = 16;
 pub const PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE: usize = 1_024;
+pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
 
 /// Fixed SQL inputs for the parser-only owner.
 pub struct ParserFixture {

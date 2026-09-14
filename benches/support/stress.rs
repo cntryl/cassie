@@ -970,6 +970,7 @@ fn prepare_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
             "logical_operations_per_iteration",
             logical_operations.to_string(),
         )
+        .metadata("measurement_shape", "fixed_workload")
 }
 
 pub(crate) fn repeat_counted_batch<F>(fixture_invocations: usize, mut f: F) -> u64

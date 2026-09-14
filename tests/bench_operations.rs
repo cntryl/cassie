@@ -3438,7 +3438,7 @@ mod benchmark_kernels {
             .cassie
             .execute_sql(
                 &context.session,
-                "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key WHERE bench_join_users.user_key = 5000 LIMIT 1",
+                "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key WHERE bench_join_users.user_key = 5000 AND bench_join_orders.order_user_key = 5000 LIMIT 1",
                 vec![],
             )
             .expect("query join row across fixture batch boundary")

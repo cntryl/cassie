@@ -241,12 +241,6 @@ fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<()
             .midge
             .put_fresh_time_series_documents(TIME_SERIES, documents)?;
     }
-    for statement in [
-        "CREATE ROLLUP bench_time_series_hourly ON bench_time_series_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
-        "CREATE RETENTION POLICY bench_time_series_retention ON bench_time_series_events USING event_at RETAIN FOR '2 days'",
-    ] {
-        execute_ddl(context, statement)?;
-    }
     Ok(())
 }
 

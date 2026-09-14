@@ -3316,6 +3316,22 @@ mod benchmark_kernels {
             before["time_series"]["fallback_scans"].as_u64(),
             "time-series fixture must not fall back to row-backed reads"
         );
+        assert!(
+            context
+                .cassie
+                .catalog
+                .get_rollup("bench_time_series_hourly")
+                .is_none(),
+            "Tier 3 window scans must not prepare the Tier 5 rollup fixture"
+        );
+        assert!(
+            context
+                .cassie
+                .catalog
+                .get_retention_policy("bench_time_series_retention")
+                .is_none(),
+            "Tier 3 window scans must not prepare the Tier 5 retention fixture"
+        );
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
         drop(context);
@@ -3434,15 +3450,18 @@ mod benchmark_kernels {
     }
 
     fn assert_tier3_join_boundary_semantics(context: &workloads::BenchContext) {
-        let join_rows = context
+        let user = context
             .cassie
-            .execute_sql(
-                &context.session,
-                "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key WHERE bench_join_users.user_key = 5000 AND bench_join_orders.order_user_key = 5000 LIMIT 1",
-                vec![],
-            )
-            .expect("query join row across fixture batch boundary")
-            .rows;
+            .midge
+            .get_document("bench_join_users", "user-5000")
+            .expect("read join user across fixture batch boundary")
+            .expect("join user across fixture batch boundary");
+        let order = context
+            .cassie
+            .midge
+            .get_document("bench_join_orders", "order-5000")
+            .expect("read join order across fixture batch boundary")
+            .expect("join order across fixture batch boundary");
         assert!(
             context
                 .cassie
@@ -3451,13 +3470,10 @@ mod benchmark_kernels {
                 .is_some(),
             "join index must remain registered after batched loading"
         );
-        assert_eq!(
-            join_rows,
-            vec![vec![
-                Value::String("user-5000".to_string()),
-                Value::Int64(0)
-            ]]
-        );
+        assert_eq!(user.payload["user_key"], serde_json::json!(5000));
+        assert_eq!(user.payload["name"], serde_json::json!("user-5000"));
+        assert_eq!(order.payload["order_user_key"], user.payload["user_key"]);
+        assert_eq!(order.payload["total"], serde_json::json!(0));
     }
 
     fn assert_tier3_graph_boundary_semantics(context: &workloads::BenchContext) {

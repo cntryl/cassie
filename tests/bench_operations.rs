@@ -2383,6 +2383,75 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_brute_force_candidates_with_exact_observation_evidence() {
+        // Arrange
+        let fixture = workloads::VectorCandidateFixture::new(1_024);
+        let owner = include_str!("../benches/tier2_subsystem_vector.rs");
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.bruteforce_candidates.1k")
+                .expect("registered brute-force candidate scenario");
+
+        // Act
+        let observation =
+            fixture.brute_force_batch(workloads::VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE);
+
+        // Assert
+        assert_eq!(workloads::VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE, 512);
+        assert_eq!(observation.completed_operations(), 524_288);
+        assert_eq!(observation.result_cardinality(), 10_240);
+        assert_eq!(observation.candidate_count(), Some(524_288));
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "candidate");
+        assert!(owner.contains("\"fixture_invocations_per_sample\""));
+        assert!(owner.contains("workloads::VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE"));
+        assert!(owner.contains("fixture.brute_force_batch("));
+        observation.finish_sample();
+    }
+
+    #[test]
+    fn should_batch_hnsw_candidates_with_exact_observation_evidence() {
+        // Arrange
+        let fixture = workloads::VectorCandidateFixture::new(1_024);
+        let owner = include_str!("../benches/tier2_subsystem_vector.rs");
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_candidates.1k")
+                .expect("registered HNSW candidate scenario");
+        let single = fixture.hnsw();
+        let fixture_invocations = u64::try_from(workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE)
+            .expect("batched HNSW invocation count should fit u64");
+        let expected_completed = single
+            .completed_operations()
+            .checked_mul(fixture_invocations)
+            .expect("batched HNSW completed count should fit u64");
+        let expected_cardinality = single
+            .result_cardinality()
+            .checked_mul(fixture_invocations)
+            .expect("batched HNSW result cardinality should fit u64");
+        single.finish_sample();
+
+        // Act
+        let observation = fixture.hnsw_batch(workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE);
+
+        // Assert
+        assert_eq!(workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE, 256);
+        assert_eq!(observation.completed_operations(), expected_completed);
+        assert_eq!(observation.result_cardinality(), expected_cardinality);
+        assert_eq!(observation.candidate_count(), Some(expected_completed));
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert_eq!(scenario.operation_unit, "candidate");
+        assert!(owner.contains("\"fixture_invocations_per_sample\""));
+        assert!(owner.contains("workloads::VECTOR_HNSW_INVOCATIONS_PER_SAMPLE"));
+        assert!(owner.contains("fixture.hnsw_batch("));
+        observation.finish_sample();
+    }
+
+    #[test]
     fn should_batch_hybrid_fusion_with_exact_candidate_normalization() {
         // Arrange
         let fixture = workloads::HybridFusionFixture::new(2_048);

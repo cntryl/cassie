@@ -2088,6 +2088,38 @@ mod benchmark_harness_contract {
     // Merged from tests/benchmark_sql_contract.rs to cut a separate test binary.
 
     #[test]
+    fn should_batch_declared_plan_cache_misses_per_timing_sample() {
+        // Arrange
+        let fixture = workloads::CacheFixture::new(1_024, false);
+        let owner = include_str!("../benches/tier2_subsystem_plan_cache.rs");
+        let scenario = performance_benchmarks::benchmark_for_scenario("perf.cache.plan_miss.1k")
+            .expect("registered plan-cache miss scenario");
+        let mut observed_lookups = 0_usize;
+
+        // Act
+        let completed =
+            stress::repeat_counted_batch(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, || {
+                observed_lookups = observed_lookups.saturating_add(1);
+                u64::try_from(fixture.plan_miss()).expect("completed lookup count should fit u64")
+            });
+
+        // Assert
+        assert_eq!(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, 1_024);
+        assert_eq!(
+            observed_lookups,
+            workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE
+        );
+        assert_eq!(completed, 1_024);
+        assert_eq!(
+            scenario.timing_mode,
+            performance_benchmarks::BenchmarkTimingMode::Counted
+        );
+        assert!(owner.contains("runner.measure_counted_batch("));
+        assert!(owner.contains("workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE,"));
+        assert!(owner.contains("fixture.plan_miss()"));
+    }
+
+    #[test]
     fn should_bind_dynamic_plan_cache_values_given_closed_alias_selection() {
         // Arrange
         let nonce = 17;

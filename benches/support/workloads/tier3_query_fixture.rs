@@ -109,7 +109,10 @@ fn prepare_join_collections(
         context,
         "CREATE TABLE bench_join_orders (order_user_key INT, total INT)",
     )?;
-
+    execute_ddl(
+        context,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
+    )?;
     for_each_tier3_domain_batch(dataset_rows, "join users", |range| {
         let users = range
             .map(|index| {
@@ -126,7 +129,7 @@ fn prepare_join_collections(
         context
             .cassie
             .midge
-            .put_fresh_documents(JOIN_USERS, users)
+            .put_documents(JOIN_USERS, users)
             .map(|_| ())
     })?;
     for_each_tier3_domain_batch(dataset_rows, "join orders", |range| {
@@ -147,10 +150,6 @@ fn prepare_join_collections(
             .put_fresh_documents(JOIN_ORDERS, orders)
             .map(|_| ())
     })?;
-    execute_ddl(
-        context,
-        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
-    )?;
     Ok(())
 }
 

@@ -470,7 +470,7 @@ impl CassieStressRunner {
             let last_cardinality = std::cell::Cell::new(0_u64);
             let last_candidate_count = std::cell::Cell::new(None);
             let last_peak_query_memory_bytes = std::cell::Cell::new(None);
-            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
+            let completed = ctx.measure_batch(&measurement_name, logical_operations, || {
                 let result = (f.borrow_mut())();
                 last_cardinality.set(result.cardinality());
                 last_candidate_count.set(result.candidate_count());
@@ -487,7 +487,8 @@ impl CassieStressRunner {
                     declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
                     last_candidate_count.get(),
                     last_peak_query_memory_bytes.get(),
-                ),
+                )
+                .per_external_operation(completed),
             );
         });
     }
@@ -572,7 +573,7 @@ impl CassieStressRunner {
             let last_cardinality = std::cell::Cell::new(0_u64);
             let last_candidate_count = std::cell::Cell::new(None);
             let last_peak_query_memory_bytes = std::cell::Cell::new(None);
-            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
+            let completed = ctx.measure_batch(&measurement_name, logical_operations, || {
                 let result = (f.borrow_mut())();
                 last_cardinality.set(result.cardinality());
                 last_candidate_count.set(result.candidate_count());
@@ -589,7 +590,8 @@ impl CassieStressRunner {
                     declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
                     last_candidate_count.get(),
                     last_peak_query_memory_bytes.get(),
-                ),
+                )
+                .per_external_operation(completed),
             );
         });
     }

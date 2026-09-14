@@ -136,10 +136,14 @@ impl RuntimeEvidenceSource {
             });
         let storage_read_observation =
             scoped_storage_read_observation(&delta, selected_access_path);
-        let storage_reads = normalize_runtime_counter(
-            storage_read_observation.count,
-            observation.completed_operations,
-        );
+        let storage_reads = if storage_read_observation.unit == "relational_index_probe" {
+            storage_read_observation.count
+        } else {
+            normalize_runtime_counter(
+                storage_read_observation.count,
+                observation.completed_operations,
+            )
+        };
         let candidate_count = normalize_runtime_counter(
             observation
                 .candidate_count

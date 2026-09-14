@@ -1868,6 +1868,30 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_normalize_duration_batch_evidence_by_completed_operations() {
+        // Arrange
+        let adapter = include_str!("../benches/support/stress.rs");
+        let first_candidate_count = 18_768;
+        let first_completed_queries = 48;
+        let second_candidate_count = 15_640;
+        let second_completed_queries = 40;
+
+        // Act
+        let first =
+            stress::normalize_runtime_counter(first_candidate_count, Some(first_completed_queries));
+        let second = stress::normalize_runtime_counter(
+            second_candidate_count,
+            Some(second_completed_queries),
+        );
+
+        // Assert
+        assert_eq!(first, 391);
+        assert_eq!(first, second);
+        assert!(adapter.contains("let completed = ctx.measure_batch"));
+        assert!(adapter.contains(".per_external_operation(completed)"));
+    }
+
+    #[test]
     fn should_declare_tier3_mixed_workload_measurement_shape() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_mixed_load.rs");

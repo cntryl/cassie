@@ -8,6 +8,8 @@ pub mod performance_benchmarks;
 mod stress;
 #[path = "support/data_dir.rs"]
 mod support_data_dir;
+#[path = "support/operational_evidence.rs"]
+mod support_operational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
 #[path = "../benches/support/workloads.rs"]
@@ -6489,13 +6491,86 @@ mod benchmark_column_metric_contract {
 
 // Formerly tests/benchmark_deployment_profile_contract.rs.
 mod benchmark_deployment_profile_contract {
+    use super::support_operational_evidence::validate_operational_evidence_manifest;
+
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
     const NATIVE_LINUX_ARM64_PROFILE_ID: &str = "native-linux-arm64-disk";
+
+    fn operational_manifest(shape_only: bool, repair_outcome: &str) -> String {
+        format!(
+            r#"{{
+                "schema_version": "cassie-operational-evidence.v1",
+                "commit": "expected-commit",
+                "run_id": "release-rehearsal-1",
+                "platform": "linux/amd64",
+                "deployment_profile": "native-linux-amd64-disk",
+                "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "image_revision": "expected-commit",
+                "shape_only": {shape_only},
+                "steps": {{
+                    "container": {{"outcome": "success"}},
+                    "snapshot_restore": {{"outcome": "success"}},
+                    "projection_repair": {{"outcome": "{repair_outcome}"}},
+                    "failure_injection": {{"outcome": "success"}},
+                    "long_evidence": {{"outcome": "success"}}
+                }},
+                "elapsed_ns": {{
+                    "container": 10,
+                    "snapshot_restore": 20,
+                    "projection_repair": 30,
+                    "failure_injection": 40
+                }}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn should_accept_complete_operational_shape_manifest() {
+        // Arrange
+        let manifest = operational_manifest(true, "success");
+
+        // Act
+        let result = validate_operational_evidence_manifest(&manifest, "expected-commit");
+
+        // Assert
+        result.expect("complete operational shape manifest");
+    }
+
+    #[test]
+    fn should_reject_failed_operational_repair_evidence() {
+        // Arrange
+        let manifest = operational_manifest(true, "failure");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("failed repair evidence must be rejected");
+
+        // Assert
+        assert!(error.contains("projection_repair"));
+    }
+
+    #[test]
+    #[ignore = "validates a retained workflow artifact selected by environment"]
+    fn should_validate_retained_operational_evidence_manifest() {
+        // Arrange
+        let manifest_path = std::env::var("CASSIE_OPERATIONAL_EVIDENCE_MANIFEST")
+            .expect("CASSIE_OPERATIONAL_EVIDENCE_MANIFEST");
+        let expected_commit =
+            std::env::var("CASSIE_OPERATIONAL_EVIDENCE_COMMIT").expect("expected commit");
+        let manifest = std::fs::read_to_string(manifest_path).expect("read operational manifest");
+
+        // Act
+        let result = validate_operational_evidence_manifest(&manifest, &expected_commit);
+
+        // Assert
+        result.expect("valid retained operational evidence manifest");
+    }
 
     #[test]
     fn should_separate_fast_operational_shape_from_retained_long_evidence() {
         // Arrange
         let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+        let containers = include_str!("../.github/workflows/containers.yml");
 
         // Act
         let required_controls = [
@@ -6508,6 +6583,8 @@ mod benchmark_deployment_profile_contract {
             "artifact_suffix: linux-amd64",
             "artifact_suffix: linux-arm64",
             "ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}",
+            "org.opencontainers.image.revision",
+            "docker image inspect",
             "docker restart cassie-rehearsal",
             "curl --fail --silent --show-error http://127.0.0.1:18080/readyz",
             "cargo test --locked --test storage_indexes snapshot_restore -- --nocapture",
@@ -6526,11 +6603,17 @@ mod benchmark_deployment_profile_contract {
             .into_iter()
             .filter(|control| !workflow.contains(control))
             .collect::<Vec<_>>();
+        let container_records_revision =
+            containers.contains("org.opencontainers.image.revision=${{ github.sha }}");
 
         // Assert
         assert!(
             missing_controls.is_empty(),
             "missing operational evidence controls: {missing_controls:?}"
+        );
+        assert!(
+            container_records_revision,
+            "container image omits source revision label"
         );
     }
 

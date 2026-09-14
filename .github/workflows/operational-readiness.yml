@@ -91,6 +91,12 @@ jobs:
           mkdir -p operational-evidence/container-data
           chmod 0777 operational-evidence/container-data
           docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
+          image_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")"
+          if [[ "${image_revision}" != "${GITHUB_SHA}" ]]; then
+            echo "image revision ${image_revision} does not match workflow commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          echo "${image_revision}" > operational-evidence/image-revision.txt
           docker run --detach --name cassie-rehearsal \
             --platform '${{ matrix.platform }}' \
             --publish 127.0.0.1:18080:8080 \
@@ -182,6 +188,10 @@ jobs:
           FAILURE_INJECTION_OUTCOME: ${{ steps.failure_injection.outcome }}
           LONG_EVIDENCE_OUTCOME: ${{ steps.long_evidence.outcome }}
         run: |
+          image_revision=""
+          if [[ -f operational-evidence/image-revision.txt ]]; then
+            image_revision="$(< operational-evidence/image-revision.txt)"
+          fi
           jq --null-input \
             --arg schema_version "cassie-operational-evidence.v1" \
             --arg commit "${GITHUB_SHA}" \
@@ -189,6 +199,7 @@ jobs:
             --arg platform '${{ matrix.platform }}' \
             --arg profile '${{ matrix.profile }}' \
             --arg image_digest '${{ inputs.image_digest }}' \
+            --arg image_revision "${image_revision}" \
             --argjson shape_only '${{ inputs.shape_only }}' \
             --arg container_outcome "${CONTAINER_OUTCOME}" \
             --arg snapshot_restore_outcome "${SNAPSHOT_RESTORE_OUTCOME}" \
@@ -202,6 +213,7 @@ jobs:
               platform: $platform,
               deployment_profile: $profile,
               image_digest: $image_digest,
+              image_revision: $image_revision,
               shape_only: $shape_only,
               steps: {
                 container: {outcome: $container_outcome},
@@ -230,6 +242,13 @@ jobs:
               mv operational-evidence/operational-manifest.next.json operational-evidence/operational-manifest.json
             fi
           done
+
+      - name: Validate operational evidence manifest
+        if: always()
+        env:
+          CASSIE_OPERATIONAL_EVIDENCE_MANIFEST: operational-evidence/operational-manifest.json
+          CASSIE_OPERATIONAL_EVIDENCE_COMMIT: ${{ github.sha }}
+        run: cargo test --locked --test bench_operations benchmark_deployment_profile_contract::should_validate_retained_operational_evidence_manifest -- --ignored --nocapture
 
       - name: Retain operational evidence
         if: always()

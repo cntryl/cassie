@@ -284,6 +284,8 @@ mod streaming_scans;
 pub(crate) use streaming_scans::{AccountedDocument, MidgeRowCursor};
 pub(crate) mod time_series_indexes;
 mod vector_indexes;
+#[doc(hidden)]
+pub use vector_indexes::vector_index_build_batch_lengths_for_diagnostics;
 pub(crate) use vector_indexes::PersistedIvfFlatTrainingSnapshot;
 mod verification;
 #[cfg(test)]

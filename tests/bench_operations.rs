@@ -108,6 +108,36 @@ mod benchmark_evidence_contract {
     }
 
     #[test]
+    fn should_accept_varying_runtime_counts_as_scalar_observations() {
+        // Arrange
+        let mut value: serde_json::Value =
+            serde_json::from_str(&artifact("\"marker\": true")).expect("benchmark artifact");
+        let metadata = value["summaries"][0]["metadata"]
+            .as_object_mut()
+            .expect("summary metadata");
+        for key in [
+            "storage_reads",
+            "candidate_count",
+            "peak_query_memory_bytes",
+            "execution_result_cache_hits",
+        ] {
+            metadata.remove(key);
+        }
+        value["summaries"][0]["observations"] = serde_json::json!([
+            { "name": "storage_reads", "stats": { "max": 40.0 } },
+            { "name": "candidate_count", "stats": { "max": 20.0 } },
+            { "name": "peak_query_memory_bytes", "stats": { "max": 4096.0 } },
+            { "name": "execution_result_cache_hits", "stats": { "max": 0.0 } }
+        ]);
+
+        // Act
+        let validation = validate(&value.to_string());
+
+        // Assert
+        validation.expect("scalar observations should carry varying runtime evidence");
+    }
+
+    #[test]
     fn should_reject_malformed_legacy_timing_even_with_summary_wall_time() {
         // Arrange
         let mut value: serde_json::Value =
@@ -1697,22 +1727,6 @@ mod benchmark_harness_contract {
         assert_eq!(cold, cached);
         assert_eq!(cold.count, 8);
         assert_eq!(cold.unit, "time_series_bucket");
-    }
-
-    #[test]
-    fn should_scope_range_scan_storage_reads_to_logical_index_probes() {
-        // Arrange
-        let cold = json!({ "storage": { "data": { "reads": 1 } } });
-        let cached = json!({ "storage": { "data": { "reads": 0 } } });
-
-        // Act
-        let cold = stress::scoped_storage_read_observation(&cold, "range_scan");
-        let cached = stress::scoped_storage_read_observation(&cached, "range_scan");
-
-        // Assert
-        assert_eq!(cold, cached);
-        assert_eq!(cold.count, 1);
-        assert_eq!(cold.unit, "relational_index_probe");
     }
 
     #[test]

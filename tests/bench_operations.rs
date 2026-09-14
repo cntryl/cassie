@@ -2133,7 +2133,9 @@ mod benchmark_harness_contract {
         let completed =
             stress::repeat_counted_batch(workloads::PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE, || {
                 observed_invocations = observed_invocations.saturating_add(1);
-                fixture.json_serialization()
+                let completed_rows = fixture.json_serialization();
+                assert_eq!(completed_rows, 512);
+                completed_rows
             });
 
         // Assert

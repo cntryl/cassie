@@ -1861,10 +1861,13 @@ mod benchmark_harness_contract {
             .matches("prepare_batch_case(case, logical_operations)")
             .count();
         let records_runtime_unit = adapter.contains(".parameter(\"logical_unit\", logical_unit)");
+        let declares_fixed_workload =
+            adapter.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
 
         // Assert
         assert_eq!(shared_preparations, 2);
         assert!(records_runtime_unit);
+        assert!(declares_fixed_workload);
     }
 
     #[test]

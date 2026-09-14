@@ -22,12 +22,43 @@ pub fn tier3_query_context(
     label: &str,
     dataset_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    ready(tier3_query_context_now(label, dataset_rows))
+    tier3_query_context_with_indexes(label, dataset_rows, Tier3QueryIndexes::full())
 }
 
-fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+#[derive(Debug, Clone, Copy)]
+pub struct Tier3QueryIndexes {
+    pub scalar: bool,
+    pub fulltext: bool,
+}
+
+impl Tier3QueryIndexes {
+    const fn full() -> Self {
+        Self {
+            scalar: true,
+            fulltext: true,
+        }
+    }
+}
+
+pub fn tier3_query_context_with_indexes(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(tier3_query_context_now(label, dataset_rows, indexes))
+}
+
+fn tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Result<BenchContext, CassieError> {
     let context = empty_tier3_query_context_now(label, dataset_rows)?;
-    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
+    prepare_collection(
+        &context,
+        dataset_rows,
+        BenchIndexOptions::selected(indexes.scalar, indexes.fulltext),
+    )?;
     Ok(context)
 }
 

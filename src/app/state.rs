@@ -19,6 +19,8 @@ pub struct Cassie {
     pub catalog: Catalog,
     pub embedding_provider: Arc<dyn EmbeddingProvider>,
     pub(crate) runtime: Arc<RuntimeState>,
+    pub(super) feedback_persistence_lock: Arc<Mutex<()>>,
+    pub(super) feedback_reconciliation_required: Arc<AtomicBool>,
     pub(super) normalized_vector_cache:
         Arc<Mutex<BTreeMap<NormalizedVectorCacheKey, Arc<NormalizedVectorCacheEntry>>>>,
     pub(super) query_embedding_cache: Arc<Mutex<BTreeMap<QueryEmbeddingCacheKey, Arc<Vec<f32>>>>>,

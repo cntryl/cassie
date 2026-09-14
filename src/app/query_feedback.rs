@@ -2,6 +2,7 @@ use super::{
     binder, parser, Arc, Cassie, CassieError, CassieSession, QueryExecutionControls,
     RuntimeFeedbackKey, RuntimeFeedbackObservation,
 };
+use crate::runtime::RuntimeFeedbackMutation;
 
 impl Cassie {
     fn binding_context_for_session(
@@ -90,8 +91,32 @@ impl Cassie {
     pub(crate) fn persist_runtime_feedback(&self) {
         let records = self.runtime.feedback_records_for_persistence();
         let persisted = self.midge.replace_runtime_feedback_records(&records);
+        self.feedback_reconciliation_required
+            .store(persisted.is_err(), std::sync::atomic::Ordering::SeqCst);
         self.runtime
             .record_storage_access("schema", true, persisted.is_ok());
+    }
+
+    fn persist_runtime_feedback_mutation(
+        &self,
+        mutation: &RuntimeFeedbackMutation,
+    ) -> Result<(), CassieError> {
+        let reconcile = self
+            .feedback_reconciliation_required
+            .swap(false, std::sync::atomic::Ordering::SeqCst);
+        let persisted = if reconcile {
+            let records = self.runtime.feedback_records_for_persistence();
+            self.midge.replace_runtime_feedback_records(&records)
+        } else {
+            self.midge.apply_runtime_feedback_mutation(mutation)
+        };
+        if persisted.is_err() {
+            self.feedback_reconciliation_required
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        self.runtime
+            .record_storage_access("schema", true, persisted.is_ok());
+        persisted
     }
 
     pub(crate) fn record_feedback_for_keys(
@@ -99,10 +124,12 @@ impl Cassie {
         keys: Vec<RuntimeFeedbackKey>,
         observation: &RuntimeFeedbackObservation,
     ) {
+        let _persistence = self.feedback_persistence_lock.lock();
+        let mut mutation = RuntimeFeedbackMutation::default();
         for key in keys {
-            self.runtime.record_feedback(&key, observation);
+            mutation.merge(self.runtime.record_feedback_mutation(&key, observation));
         }
-        self.persist_runtime_feedback();
+        let _ = self.persist_runtime_feedback_mutation(&mutation);
     }
 
     fn feedback_planned_candidate(
@@ -332,18 +359,20 @@ impl Cassie {
         key: &RuntimeFeedbackKey,
         observation: &RuntimeFeedbackObservation,
     ) -> Result<(), CassieError> {
-        self.runtime.record_feedback(key, observation);
-        self.persist_runtime_feedback();
-        Ok(())
+        let _persistence = self.feedback_persistence_lock.lock();
+        let mutation = self.runtime.record_feedback_mutation(key, observation);
+        self.persist_runtime_feedback_mutation(&mutation)
     }
 
     #[doc(hidden)]
     pub fn clear_feedback_for_diagnostics(&self) {
+        let _persistence = self.feedback_persistence_lock.lock();
         self.runtime.clear_feedback();
     }
 
     #[doc(hidden)]
     pub fn reload_feedback_from_storage_for_diagnostics(&self) -> Result<(), CassieError> {
+        let _persistence = self.feedback_persistence_lock.lock();
         self.hydrate_runtime_feedback()
     }
 }

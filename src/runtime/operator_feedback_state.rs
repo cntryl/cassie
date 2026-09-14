@@ -35,6 +35,9 @@ impl RuntimeState {
                 if let Some(position) = feedback.order.iter().position(|entry| entry == key) {
                     feedback.order.remove(position);
                 }
+                if !feedback.pending_deletes.contains(key) {
+                    feedback.pending_deletes.push(key.clone());
+                }
                 evictions = 1;
                 RuntimeFeedbackLookup {
                     state: RuntimeFeedbackLookupState::Stale,
@@ -82,6 +85,20 @@ impl RuntimeState {
         key: &RuntimeFeedbackKey,
         observation: &RuntimeFeedbackObservation,
     ) {
+        let _ = self.record_feedback_mutation(key, observation);
+    }
+
+    pub(crate) fn record_feedback_mutation(
+        &self,
+        key: &RuntimeFeedbackKey,
+        observation: &RuntimeFeedbackObservation,
+    ) -> super::RuntimeFeedbackMutation {
+        if key.schema_epoch != self.schema_epoch() {
+            let mut mutation = super::RuntimeFeedbackMutation::default();
+            mutation.delete(key.clone());
+            return mutation;
+        }
+
         let planner_feedback = self.limits.operator_feedback_enabled
             && matches!(key.operator_family.as_str(), "row_scan" | "index_read");
         let now_ms = current_time_millis();
@@ -104,7 +121,10 @@ impl RuntimeState {
                     break;
                 };
                 if feedback.entries.remove(&oldest).is_some() {
-                    evictions += 1;
+                    evictions = evictions.saturating_add(1);
+                    if !feedback.pending_deletes.contains(&oldest) {
+                        feedback.pending_deletes.push(oldest);
+                    }
                 }
             }
 
@@ -117,11 +137,17 @@ impl RuntimeState {
             feedback.entries.insert(key.clone(), record);
             feedback.order.push_back(key.clone());
         }
+        let updated = feedback
+            .entries
+            .get(key)
+            .cloned()
+            .expect("recorded runtime feedback");
         let outlier_after = feedback
             .entries
             .get(key)
             .map(|record| record.outlier_samples)
             .unwrap_or_default();
+        let pending_deletes = std::mem::take(&mut feedback.pending_deletes);
         drop(feedback);
 
         if planner_feedback {
@@ -132,6 +158,12 @@ impl RuntimeState {
         if outlier_after > outlier_before {
             self.record_feedback_outlier();
         }
+        let mut mutation = super::RuntimeFeedbackMutation::default();
+        for deleted_key in pending_deletes {
+            mutation.delete(deleted_key);
+        }
+        mutation.upsert(key.clone(), updated);
+        mutation
     }
 
     /// # Panics
@@ -236,6 +268,7 @@ impl RuntimeState {
         let mut feedback = self.feedback.lock().expect("runtime feedback");
         feedback.entries.clear();
         feedback.order.clear();
+        feedback.pending_deletes.clear();
         for (key, record) in records {
             feedback.order.push_back(key.clone());
             feedback.entries.insert(key, record);
@@ -263,6 +296,7 @@ impl RuntimeState {
         let mut feedback = self.feedback.lock().expect("runtime feedback");
         feedback.entries.clear();
         feedback.order.clear();
+        feedback.pending_deletes.clear();
     }
 
     /// # Panics

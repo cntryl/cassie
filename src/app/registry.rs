@@ -24,6 +24,7 @@ impl Cassie {
     }
 
     pub(crate) fn bump_schema_epoch_and_invalidate_query_cache(&self) -> Result<(), CassieError> {
+        let feedback_persistence = self.feedback_persistence_lock.lock();
         let schema_epoch = self
             .midge
             .bump_schema_epoch()
@@ -35,6 +36,7 @@ impl Cassie {
         self.runtime.record_storage_access("schema", true, true);
         self.runtime.set_schema_epoch(schema_epoch);
         self.runtime.invalidate_plan_cache();
+        drop(feedback_persistence);
         self.run_deferred_schema_cleanup()?;
         Ok(())
     }

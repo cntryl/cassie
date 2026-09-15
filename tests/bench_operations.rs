@@ -4529,6 +4529,7 @@ mod benchmark_kernels {
             .enable_all()
             .build()
             .expect("test runtime");
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
 
         let context = runtime
             .block_on(workloads::recursive_cte_context(
@@ -4542,6 +4543,7 @@ mod benchmark_kernels {
 
         // Assert
         assert_eq!(rows, 111_111);
+        assert!(owner.contains("workloads::recursive_cte_context("));
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
         drop(context);
@@ -6133,7 +6135,7 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(compressible_queries, 256);
-        assert_eq!(fast_pair_queries, 4_096);
+        assert_eq!(fast_pair_queries, 8_192);
         assert_eq!(fsst_queries, 512);
         assert!(records_query_window);
     }

@@ -70,7 +70,7 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
-Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 5,000 rows. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
+Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 256 rows, matching the integrity range-segment boundary. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
 
 Golden fixtures own ordering and round-trip behavior for rows, scalar indexes, full-text postings, vectors, time-series entries, graph adjacency, and column batches. The baseline fixture must show at least a 25% reduction in total query-hot key/value bytes from the fixed pre-change fixture.
 
@@ -198,11 +198,11 @@ Tier 2 owns paired, same-fixture acceptance rows for those latency gates:
 `perf.column.selective_encoded_scan.2k` is compared with its forced-plain baseline at a
 maximum p95 ratio of `0.85` and batches 256 exact queries per measured sample, while
 `perf.column.incompressible_adaptive_scan.2k` is compared with its forced-plain baseline at a
-maximum ratio of `1.05` and batches 1,024 exact queries. The benchmark validates codec choices
+maximum ratio of `1.05` and batches 8,192 exact queries. The benchmark validates codec choices
 before timing. Forced-plain
 rebuild is benchmark-only and is not a SQL or runtime configuration surface.
 
-The ALP-specific pair uses the same distributed 2k float fixture and batches 1,024 exact queries per
+The ALP-specific pair uses the same distributed 2k float fixture and batches 8,192 exact queries per
 measured sample. `perf.column.alp_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`; every candidate chunk must also use no more than 25% of its plain decoded bytes. Exact scale predicates are evaluated over checked scaled integers and only selected floats are reconstructed. Non-exact literals use the general semantic comparison path.
 
 The FSST-specific pair uses a 2k high-repetition UTF-8 fixture, places one matching row in each

@@ -182,6 +182,22 @@ impl ScaleCases {
             && self.window_frame.is_none()
             && self.legacy_joins.is_empty()
     }
+
+    fn only_recursive_cte_enabled(&self) -> bool {
+        self.recursive_cte.is_some()
+            && self.relational.is_none()
+            && self.join.is_none()
+            && self.column.is_none()
+            && self.column_dml.is_none()
+            && self.worker_one.is_none()
+            && self.simple.is_none()
+            && self.mixed_direction.is_none()
+            && self.expression.is_none()
+            && self.expression_range.is_none()
+            && self.expression_order.is_none()
+            && self.window_frame.is_none()
+            && self.legacy_joins.is_empty()
+    }
 }
 
 fn measure_scale(
@@ -200,6 +216,15 @@ fn measure_scale(
         [(None, 2), (None, 4)]
     };
     if !cases.any_enabled() && worker_reopens.iter().all(|(case, _)| case.is_none()) {
+        return;
+    }
+    if cases.only_recursive_cte_enabled() {
+        measure_isolated_recursive_cte(
+            runtime,
+            runner,
+            Duration::ZERO,
+            cases.recursive_cte.clone(),
+        );
         return;
     }
 
@@ -234,9 +259,6 @@ fn measure_scale(
             ))
             .expect("query scaling fixture")
     };
-    if cases.recursive_cte.is_some() {
-        workloads::prepare_recursive_cte_scaling(&context);
-    }
     for (_, workload, _, _) in &cases.legacy_joins {
         workloads::prepare_legacy_scaling_join_collection(&context, rows, workload)
             .expect("prepare legacy join collection in shared scaling fixture");
@@ -252,6 +274,7 @@ fn measure_scale(
         rows,
         &cases,
     );
+    measure_isolated_recursive_cte(runtime, runner, fixture_setup, cases.recursive_cte.clone());
     if scale == "100k" {
         let fixture = workloads::QueryScalingFixture::close(context, rows);
         measure_dense_join_reopen(
@@ -391,13 +414,6 @@ fn measure_primary_cases(
     }
     cleanup_isolated_column_context(isolated_column_context);
     measure_legacy_scalar_cases(runner, context, fixture_setup, cases);
-    measure_recursive_cte(
-        runtime,
-        runner,
-        context,
-        fixture_setup,
-        cases.recursive_cte.clone(),
-    );
     measure_window_frame(
         runtime,
         runner,
@@ -620,6 +636,37 @@ fn measure_dense_join_reopen(
     });
     context.cassie.shutdown();
     drop(context);
+}
+
+fn measure_isolated_recursive_cte(
+    runtime: &tokio::runtime::Runtime,
+    runner: &mut stress::CassieStressRunner,
+    shared_fixture_setup: Duration,
+    case: Option<stress::StressCase>,
+) {
+    const UPPER_BOUND: usize = 6;
+    if case.is_none() {
+        return;
+    }
+
+    let setup_started = Instant::now();
+    let context = runtime
+        .block_on(workloads::recursive_cte_context(
+            "tier5-query-recursive-cte-100k",
+            UPPER_BOUND,
+        ))
+        .expect("isolated recursive CTE scaling fixture");
+    measure_recursive_cte(
+        runtime,
+        runner,
+        &context,
+        shared_fixture_setup + setup_started.elapsed(),
+        case,
+    );
+    let data_dir = context.data_dir.clone();
+    context.cassie.shutdown();
+    drop(context);
+    std::fs::remove_dir_all(data_dir).expect("clean recursive CTE scaling fixture");
 }
 
 fn measure_recursive_cte(

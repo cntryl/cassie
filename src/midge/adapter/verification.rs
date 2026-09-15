@@ -11,7 +11,7 @@ const RANGE_HASH_VERSION: u16 = 1;
 const ROOT_HASH_VERSION: u16 = 1;
 const RANGE_SEGMENT_SIZE: usize = 256;
 const EAGER_HASH_REBUILD_ROW_LIMIT: u64 = 512;
-const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = 1_000;
+const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = RANGE_SEGMENT_SIZE;
 
 fn projection_output_write_ranges(
     row_count: usize,
@@ -1037,7 +1037,11 @@ mod tests {
         // Assert
         assert_eq!(
             batches,
-            vec![1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1_000, 1]
+            vec![
+                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+                256, 256, 256, 256, 256, 256, 256, 17,
+            ]
         );
     }
 }

@@ -13,7 +13,7 @@ pub const COMPRESSIBLE_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 256;
 ///
 /// These sub-millisecond query paths need a multi-second paired window so shared-runner
 /// scheduling noise does not invalidate candidate and baseline together.
-pub const FAST_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 4_096;
+pub const FAST_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 8_192;
 
 /// Queries executed in each low-cardinality FSST acceptance sample.
 pub const FSST_COLUMN_CODEC_QUERIES_PER_SAMPLE: usize = 512;

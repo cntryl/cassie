@@ -65,6 +65,8 @@ fn main() {
         )
         .metadata("execution_result_cache_hits", "0")
         .metadata("failed_operations", "0")
+        .metadata("trust_class", "diagnostic")
+        .metadata("measurement_shape", "non_stationary_transport_churn")
         .metadata("max_active_sessions", "4")
         .metadata(
             "configured_max_result_rows",

@@ -2183,6 +2183,26 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_classify_non_stationary_transport_soak_throughput_as_diagnostic() {
+        // Arrange
+        let owner = include_str!("../benches/tier6_soak_transport.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let owner_declares_diagnostic_throughput = owner
+            .contains(".metadata(\"trust_class\", \"diagnostic\")")
+            && owner.contains("non_stationary_transport_churn");
+        let contract_preserves_hard_endurance_gates = contract
+            .contains("Transport-soak throughput is retained as diagnostic evidence")
+            && contract
+                .contains("result, resource, cleanup, and duration requirements remain hard gates");
+
+        // Assert
+        assert!(owner_declares_diagnostic_throughput);
+        assert!(contract_preserves_hard_endurance_gates);
+    }
+
+    #[test]
     fn should_own_only_generated_tls_material_given_http_benchmark_configuration() {
         // Arrange
         let tls_source = include_str!("../benches/support/workloads/http.rs");

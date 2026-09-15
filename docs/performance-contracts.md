@@ -240,6 +240,8 @@ Durations below 3,600 seconds are rejected outside the smoke profile. The comple
 
 Both Tier 6 scenarios enforce exact result and state checks, configured memory/cache/result bounds, shared worker permits, connection and task cleanup, and zero failed operations. A complete default Tier 6 run therefore measures at least two hours: one hour for each declared scenario.
 
+Transport-soak throughput is retained as diagnostic evidence because its sustained create/get/delete lifecycle intentionally changes the disk-backed store throughout the run. Completed-operation variance across equal wall-clock windows therefore describes non-stationary transport churn rather than a stable optimization baseline. Its result, resource, cleanup, and duration requirements remain hard gates, and the artifact retains every sample so degradation remains visible.
+
 ## Complete Artifact Manifest
 
 A complete-suite artifact contains one run ID, commit, toolchain, profile, and unfiltered result set for the full declared owner registry. The validator rejects missing or extra owners, mixed run metadata, stale results, filtered artifacts, and fixture or evidence mismatches.

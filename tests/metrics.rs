@@ -1,6 +1,8 @@
 // Consolidated integration suite: metrics.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "support/adaptive_evidence.rs"]
+mod support_adaptive_evidence;
 #[path = "support/metrics.rs"]
 mod support_metrics;
 #[path = "support/pgwire.rs"]
@@ -12,12 +14,15 @@ mod support_sql;
 mod metrics_adaptive {
     #![allow(unused_imports, dead_code)]
 
+    use super::support_adaptive_evidence::AdaptiveProfileEvidence;
     use super::support_pgwire as pgwire_support;
 
     use cassie::app::{Cassie, CassieSession};
     use cassie::catalog::{IndexKind, IndexMeta};
     use cassie::config::OperatorSwitchingEnabled;
-    use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
+    use cassie::runtime::{
+        QueryCancellationHandle, RuntimeFeedbackKey, RuntimeFeedbackObservation,
+    };
     use cassie::sql::parser;
     use cassie::types::{DataType, FieldSchema, Schema};
     use pgwire_support::{data_dir, describe_statement_frame, startup_frame, use_local_storage};
@@ -182,6 +187,42 @@ mod metrics_adaptive {
                 vec![],
             )
             .unwrap();
+    }
+
+    fn create_persisted_adaptive_fixture(
+        cassie: &Cassie,
+        session: &CassieSession,
+        collection: &str,
+        base_index: &str,
+        preferred_index: &str,
+    ) {
+        cassie
+            .execute_sql(
+                session,
+                &format!("CREATE TABLE {collection} (title TEXT, body TEXT)"),
+                vec![],
+            )
+            .unwrap();
+        let rows = std::iter::repeat_n("('alpha', 'one')", 8)
+            .chain(std::iter::once("('beta', 'two')"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        cassie
+            .execute_sql(
+                session,
+                &format!("INSERT INTO {collection} (title, body) VALUES {rows}"),
+                vec![],
+            )
+            .unwrap();
+        for (index, field) in [(base_index, "body"), (preferred_index, "title")] {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("CREATE INDEX {index} ON {collection} USING btree ({field})"),
+                    vec![],
+                )
+                .unwrap();
+        }
     }
 
     fn adaptive_candidate_config(min: usize, max: usize) -> cassie::config::CassieRuntimeConfig {
@@ -403,6 +444,18 @@ mod metrics_adaptive {
     }
 
     #[test]
+    fn should_preserve_the_selected_adaptive_read_surface_across_profiles() {
+        // Arrange
+        let evidence = AdaptiveProfileEvidence::collect();
+
+        // Act
+        evidence.write_requested_artifact();
+
+        // Assert
+        evidence.assert_equivalent();
+    }
+
+    #[test]
     fn should_select_adaptive_read_operator_alternative() {
         // Arrange
         use_local_storage();
@@ -558,6 +611,118 @@ mod metrics_adaptive {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_restore_fixed_plan_after_restart_without_deleting_persisted_feedback() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("adaptive_profile_rollback");
+        let mut evaluation = adaptive_execution_confidence_config(true, 500, 900);
+        evaluation.limits.operator_switching_enabled = OperatorSwitchingEnabled::enabled();
+        evaluation.limits.operator_switch_join_row_threshold = 4_096;
+        let collection = "metrics_adaptive_profile_rollback";
+        let base_index = "metrics_adaptive_profile_rollback_body_idx_a";
+        let preferred_index = "metrics_adaptive_profile_rollback_title_idx_b";
+        let shape_sql = "SELECT title FROM metrics_adaptive_profile_rollback WHERE title = 'alpha' AND body = 'one'";
+        let explain_sql = "EXPLAIN SELECT title FROM metrics_adaptive_profile_rollback WHERE title = 'alpha' AND body = 'one'";
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir_and_config(&path, evaluation).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            create_persisted_adaptive_fixture(
+                &cassie,
+                &session,
+                collection,
+                base_index,
+                preferred_index,
+            );
+            let base_key = feedback_key(&cassie, &session, shape_sql, Some(base_index));
+            let preferred_key = feedback_key(&cassie, &session, shape_sql, Some(preferred_index));
+            for _ in 0..4 {
+                cassie
+                    .seed_feedback_for_diagnostics(&base_key, &confident_feedback(90, 24))
+                    .expect("seed base feedback");
+                cassie
+                    .seed_feedback_for_diagnostics(&preferred_key, &confident_feedback(5, 1))
+                    .expect("seed preferred feedback");
+            }
+            let evaluation_plan = cassie
+                .execute_sql(&session, explain_sql, vec![])
+                .unwrap()
+                .rows[0][0]
+                .as_str()
+                .unwrap()
+                .to_string();
+            let persisted_before = cassie
+                .midge
+                .list_runtime_feedback_records()
+                .unwrap()
+                .into_iter()
+                .map(|(key, record)| (key, record.executions, record.stable_samples))
+                .collect::<Vec<_>>();
+            drop(session);
+            drop(cassie);
+
+            let mut disabled = cassie::config::CassieRuntimeConfig::from_env().unwrap();
+            disabled.limits.operator_feedback_enabled = false;
+            disabled.limits.adaptive_execution_enabled = false;
+            disabled.limits.operator_switching_enabled = OperatorSwitchingEnabled::disabled();
+            let cassie = Cassie::new_with_data_dir_and_config(&path, disabled).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+
+            // Act
+            let selected = cassie.execute_sql(&session, shape_sql, vec![]).unwrap();
+            let disabled_plan = cassie
+                .execute_sql(&session, explain_sql, vec![])
+                .unwrap()
+                .rows[0][0]
+                .as_str()
+                .unwrap()
+                .to_string();
+            let persisted_after = cassie
+                .midge
+                .list_runtime_feedback_records()
+                .unwrap()
+                .into_iter()
+                .map(|(key, record)| (key, record.executions, record.stable_samples))
+                .collect::<Vec<_>>();
+
+            // Assert
+            assert!(
+                evaluation_plan.contains(&format!(
+                    "adaptive_selected_alternative=index:postgres.public.{preferred_index}"
+                )),
+                "plan={evaluation_plan}"
+            );
+            assert_eq!(selected.rows.len(), 8);
+            assert!(selected
+                .rows
+                .iter()
+                .all(|row| { row == &vec![cassie::types::Value::String("alpha".into())] }));
+            assert!(disabled_plan.contains("operator_feedback_reason=disabled"));
+            assert!(disabled_plan.contains("adaptive_plan_enabled=false"));
+            assert!(disabled_plan.contains(&format!(
+                "adaptive_selected_alternative=index:postgres.public.{base_index}"
+            )));
+            assert_eq!(persisted_after.len(), persisted_before.len());
+            for (key, executions, stable_samples) in &persisted_before {
+                let (_, after_executions, after_stable_samples) = persisted_after
+                    .iter()
+                    .find(|(after_key, _, _)| after_key == key)
+                    .expect("rollback must preserve every persisted feedback key");
+                assert!(*after_executions >= *executions);
+                assert!(*after_stable_samples >= *stable_samples);
+            }
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -733,6 +898,115 @@ mod metrics_adaptive {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_report_operator_switch_failure_without_claiming_success() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("operator_switch_failure");
+        let mut config = operator_switch_config(true, 0);
+        config.limits.query_memory_budget_bytes = 1_200;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_switch_join_tables(
+            &cassie,
+            &session,
+            "metrics_switch_failure_users",
+            "metrics_switch_failure_orders",
+        );
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT metrics_switch_failure_users.name, metrics_switch_failure_orders.total FROM metrics_switch_failure_users JOIN metrics_switch_failure_orders ON metrics_switch_failure_users.user_key = metrics_switch_failure_orders.order_user_key",
+            vec![],
+        );
+        let after = cassie.metrics();
+
+        // Assert
+        assert!(result.is_err(), "the replacement operator must exhaust the fixture budget");
+        assert_eq!(
+            snapshot_delta(
+                &after,
+                &before,
+                &["adaptive_candidates", "operator_switch_successes"]
+            ),
+            0
+        );
+        assert_eq!(
+            snapshot_delta(
+                &after,
+                &before,
+                &["adaptive_candidates", "operator_switch_fallbacks"]
+            ),
+            1
+        );
+        assert_eq!(
+            after["adaptive_candidates"]["last_operator_switch_reason"],
+            "replacement_failed"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    });
+    }
+
+    #[test]
+    fn should_cancel_before_operator_switch_without_leaking_resources_or_success() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("operator_switch_cancellation");
+        let mut config = operator_switch_config(true, 0);
+        config.limits.max_query_workers = 1;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let session = cassie.create_session("tester", None);
+            create_switch_join_tables(
+                &cassie,
+                &session,
+                "metrics_switch_cancel_users",
+                "metrics_switch_cancel_orders",
+            );
+            let cancellation = QueryCancellationHandle::new();
+            cancellation.cancel();
+            let before = cassie.metrics();
+
+            // Act
+            let result = cassie.execute_sql_with_cancellation(
+                &session,
+                "SELECT metrics_switch_cancel_users.name, metrics_switch_cancel_orders.total FROM metrics_switch_cancel_users JOIN metrics_switch_cancel_orders ON metrics_switch_cancel_users.user_key = metrics_switch_cancel_orders.order_user_key",
+                vec![],
+                &cancellation,
+            );
+            let after = cassie.metrics();
+
+            // Assert
+            assert!(matches!(result, Err(cassie::CassieError::QueryCancelled)));
+            assert_eq!(
+                snapshot_delta(
+                    &after,
+                    &before,
+                    &["adaptive_candidates", "operator_switch_successes"]
+                ),
+                0
+            );
+            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(after["runtime"]["active_operator_workers"], 0);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -1060,6 +1334,7 @@ mod metrics_feedback {
     use cassie::app::{Cassie, CassieSession};
     use cassie::catalog::{IndexKind, IndexMeta};
     use cassie::midge::adapter::set_operator_feedback_persistence_failure_point;
+    use cassie::midge::StorageFamily;
     use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation, RuntimeFeedbackRecord};
     use cassie::types::{DataType, FieldSchema, Schema};
     use pgwire_support::{data_dir, describe_statement_frame, startup_frame, use_local_storage};
@@ -1608,6 +1883,89 @@ mod metrics_feedback {
                         .any(|(persisted_key, _)| persisted_key == *expected)
                 }),
                 "reconciled={after_reconciliation:?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_ignore_malformed_persisted_feedback_after_restart() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("feedback_malformed_restart");
+        let config = operator_feedback_config(true);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE metrics_feedback_malformed_restart (title TEXT)",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO metrics_feedback_malformed_restart (title) VALUES ('alpha')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT title FROM metrics_feedback_malformed_restart WHERE title = 'alpha'",
+                    vec![],
+                )
+                .unwrap();
+            let feedback_storage_key = cassie
+                .midge
+                .raw_scan_prefix(StorageFamily::Schema, b"")
+                .unwrap()
+                .into_iter()
+                .find_map(|(key, value)| {
+                    serde_json::from_slice::<serde_json::Value>(&value)
+                        .ok()
+                        .filter(|record| record.get("record").is_some() && record.get("key").is_some())
+                        .map(|_| key)
+                })
+                .expect("persisted runtime feedback entry");
+            cassie
+                .midge
+                .raw_put(StorageFamily::Schema, &feedback_storage_key, b"malformed-feedback")
+                .unwrap();
+            drop(session);
+            drop(cassie);
+
+            // Act
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            let plan = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT title FROM metrics_feedback_malformed_restart WHERE title = 'alpha'",
+                    vec![],
+                )
+                .unwrap()
+                .rows[0][0]
+                .as_str()
+                .unwrap()
+                .to_string();
+
+            // Assert
+            assert!(cassie.midge.list_runtime_feedback_records().unwrap().is_empty());
+            assert!(plan.contains("operator_feedback=ignored"), "plan={plan}");
+            assert!(
+                plan.contains("operator_feedback_reason=missing"),
+                "plan={plan}"
             );
 
             let _ = std::fs::remove_dir_all(path);

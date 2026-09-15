@@ -368,7 +368,7 @@ pub(super) fn projected_filtered_read_spec(
         scan_fields.push(column);
     }
 
-    let scan_limit = if plan.filter.is_none() {
+    let scan_limit = if plan.filter.is_none() && plan.order.is_empty() {
         projected_scan_limit(plan.limit, plan.offset)
     } else {
         None

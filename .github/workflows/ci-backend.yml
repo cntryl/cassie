@@ -72,3 +72,17 @@ jobs:
 
       - name: Run tests
         run: cargo test --locked --workspace
+
+      - name: Generate deterministic adaptive profile evidence
+        env:
+          CASSIE_ADAPTIVE_EVIDENCE_PATH: adaptive-evidence/adaptive-profile.json
+          CASSIE_EVIDENCE_COMMIT: ${{ github.sha }}
+        run: cargo test --locked --test metrics metrics_adaptive::should_preserve_the_selected_adaptive_read_surface_across_profiles -- --nocapture
+
+      - name: Retain adaptive profile evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: cassie-adaptive-profile-${{ github.sha }}
+          path: adaptive-evidence/adaptive-profile.json
+          if-no-files-found: error
+          retention-days: 90

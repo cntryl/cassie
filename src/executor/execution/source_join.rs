@@ -86,56 +86,75 @@ pub(super) fn execute_join_source<'a>(
     let left_lookup_columns = row_lookup_columns(&left_rows);
     let right_lookup_columns = row_lookup_columns(&right_rows);
 
-    let joined = match merge_join_keys(spec.on, &left_lookup_columns, &right_lookup_columns)
-        .filter(|_| !matches!(spec.kind, JoinKind::Cross))
-    {
-        Some(keys) => execute_vectorized_join(
-            env,
-            VectorizedJoinSpec {
-                kind: spec.kind,
-                keys: &keys,
-                left_rows: &left_rows,
-                right_rows: &right_rows,
-                right_columns: &right_columns,
-                row_budget: spec.row_budget,
-            },
-        )?
-        .map_or_else(
-            || {
-                merge::execute_merge_join(
-                    env,
-                    &keys,
-                    JoinRowsSpec {
-                        kind: spec.kind,
-                        on: spec.on,
-                        left_rows: &left_rows,
-                        right_rows: &right_rows,
-                        left_columns: &left_columns,
-                        right_columns: &right_columns,
-                        row_budget: spec.row_budget,
-                    },
-                )
-            },
-            Ok,
-        )?,
-        None => execute_nested_loop_join(
-            env,
-            JoinRowsSpec {
-                kind: spec.kind,
-                on: spec.on,
-                left_rows: &left_rows,
-                right_rows: &right_rows,
-                left_columns: &left_columns,
-                right_columns: &right_columns,
-                row_budget: spec.row_budget,
-            },
-        )?,
-    };
+    let joined = execute_loaded_join(
+        env,
+        JoinRowsSpec {
+            kind: spec.kind,
+            on: spec.on,
+            left_rows: &left_rows,
+            right_rows: &right_rows,
+            left_columns: &left_columns,
+            right_columns: &right_columns,
+            row_budget: spec.row_budget,
+        },
+        &left_lookup_columns,
+        &right_lookup_columns,
+    )?;
     let _output_memory = env
         .controls
         .reserve_query_memory(batch_rows_bytes(&joined))?;
 
     Ok(finish_join(joined))
+}
+
+fn execute_loaded_join(
+    env: &SourceExecutionEnv<'_>,
+    spec: JoinRowsSpec<'_>,
+    left_lookup_columns: &[String],
+    right_lookup_columns: &[String],
+) -> Result<Vec<BatchRow>, QueryError> {
+    let joined = match merge_join_keys(spec.on, left_lookup_columns, right_lookup_columns)
+        .filter(|_| !matches!(spec.kind, JoinKind::Cross))
+    {
+        Some(keys) => {
+            match execute_vectorized_join(
+                env,
+                VectorizedJoinSpec {
+                    kind: spec.kind,
+                    keys: &keys,
+                    left_rows: spec.left_rows,
+                    right_rows: spec.right_rows,
+                    right_columns: spec.right_columns,
+                    row_budget: spec.row_budget,
+                },
+            )? {
+                VectorizedJoinOutcome::Executed(rows) => rows,
+                VectorizedJoinOutcome::Fallback => merge::execute_merge_join(env, &keys, spec)?,
+                VectorizedJoinOutcome::SwitchToMerge(state) => {
+                    match merge::execute_merge_join(env, &keys, spec) {
+                        Ok(rows) => {
+                            env.cassie.runtime.record_runtime_operator_switch(
+                                VECTOR_TO_MERGE_SWITCH_PAIR,
+                                "row_threshold_exceeded",
+                                &state,
+                            );
+                            rows
+                        }
+                        Err(error) => {
+                            env.cassie.runtime.record_runtime_operator_switch_fallback(
+                                VECTOR_TO_MERGE_SWITCH_PAIR,
+                                "replacement_failed",
+                                &state,
+                            );
+                            return Err(error);
+                        }
+                    }
+                }
+            }
+        }
+        None => execute_nested_loop_join(env, spec)?,
+    };
+    Ok(joined)
 }
 
 fn execute_lateral_join<'a>(
@@ -346,21 +365,36 @@ struct VectorizedJoinSpec<'a> {
     row_budget: Option<usize>,
 }
 
+enum VectorizedJoinOutcome {
+    Executed(Vec<BatchRow>),
+    Fallback,
+    SwitchToMerge(String),
+}
+
+enum VectorizedJoinSelection {
+    Execute(usize),
+    Fallback,
+    SwitchToMerge(String),
+}
+
 fn execute_vectorized_join(
     env: &SourceExecutionEnv<'_>,
     spec: VectorizedJoinSpec<'_>,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(batch_size) =
-        vectorized_join_batch_size(env, spec.kind, spec.left_rows, spec.right_rows)?
-    else {
-        return Ok(None);
-    };
+) -> Result<VectorizedJoinOutcome, QueryError> {
+    let batch_size =
+        match vectorized_join_selection(env, spec.kind, spec.left_rows, spec.right_rows)? {
+            VectorizedJoinSelection::Execute(batch_size) => batch_size,
+            VectorizedJoinSelection::Fallback => return Ok(VectorizedJoinOutcome::Fallback),
+            VectorizedJoinSelection::SwitchToMerge(state) => {
+                return Ok(VectorizedJoinOutcome::SwitchToMerge(state));
+            }
+        };
     let output_budget = spec.row_budget.unwrap_or(usize::MAX);
     if output_budget == 0 {
         env.cassie
             .runtime
             .record_vectorized_join_execution(0, 0, 0, 0, batch_size, 0);
-        return Ok(Some(Vec::new()));
+        return Ok(VectorizedJoinOutcome::Executed(Vec::new()));
     }
 
     let mut build = std::collections::HashMap::<SemanticKey, Vec<&BatchRow>>::new();
@@ -427,7 +461,7 @@ fn execute_vectorized_join(
         batch_size,
         batches,
     );
-    Ok(Some(joined))
+    Ok(VectorizedJoinOutcome::Executed(joined))
 }
 
 fn row_join_key(row: &BatchRow, key_column: &str) -> Option<SemanticKey> {
@@ -517,16 +551,16 @@ fn finish_join(joined: Vec<BatchRow>) -> (Vec<Batch>, Vec<String>) {
     (batches, text_fields)
 }
 
-fn vectorized_join_batch_size(
+fn vectorized_join_selection(
     env: &SourceExecutionEnv<'_>,
     kind: JoinKind,
     left_rows: &[BatchRow],
     right_rows: &[BatchRow],
-) -> Result<Option<usize>, QueryError> {
+) -> Result<VectorizedJoinSelection, QueryError> {
     let limits = env.cassie.runtime.limits();
     let batch_size = limits.vectorized_join_batch_size.max(1);
     if !limits.vectorized_joins_enabled {
-        return Ok(None);
+        return Ok(VectorizedJoinSelection::Fallback);
     }
     if !matches!(kind, JoinKind::Inner | JoinKind::Left) {
         if limits.operator_switching_enabled.is_enabled() {
@@ -541,7 +575,7 @@ fn vectorized_join_batch_size(
             batch_size,
             false,
         );
-        return Ok(None);
+        return Ok(VectorizedJoinSelection::Fallback);
     }
 
     let observed_rows = left_rows.len().saturating_add(right_rows.len());
@@ -554,12 +588,7 @@ fn vectorized_join_batch_size(
             left_rows.len(),
             right_rows.len()
         );
-        env.cassie.runtime.record_runtime_operator_switch(
-            VECTOR_TO_MERGE_SWITCH_PAIR,
-            "row_threshold_exceeded",
-            &state,
-        );
-        return Ok(None);
+        return Ok(VectorizedJoinSelection::SwitchToMerge(state));
     }
 
     let estimated_bytes = estimate_vectorized_join_bytes(left_rows.len(), right_rows.len());
@@ -576,10 +605,10 @@ fn vectorized_join_batch_size(
             batch_size,
             true,
         );
-        return Ok(None);
+        return Ok(VectorizedJoinSelection::Fallback);
     }
 
-    Ok(Some(batch_size))
+    Ok(VectorizedJoinSelection::Execute(batch_size))
 }
 
 #[cfg(test)]

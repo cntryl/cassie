@@ -79,7 +79,8 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Plan cache | Session-safe reusable parsed and physical plans | Experimental |
 | Execution-result cache | Context-isolated, epoch-invalidated, byte-bounded query results | Experimental |
 | Cost planning | Relational join enumeration, deterministic statistics fallbacks, physical properties, and access-path selection | Experimental |
-| Adaptive planning | Feedback-informed selection and checkpointed operator switching | Experimental |
+| Adaptive scalar reads and join switching | Opt-in feedback-informed scalar read selection and vectorized-to-merge inner/left equi-join switching under the named profiles | Stable |
+| Broader adaptive planning | Candidate expansion, other operator pairs, automatic profile selection, and default enablement | Experimental |
 | Pull execution | Bounded batch streams and early termination | Experimental |
 | Query controls | Deadline, cancellation, SQL complexity, transport write, result, candidate, worker, and memory bounds | Experimental |
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |

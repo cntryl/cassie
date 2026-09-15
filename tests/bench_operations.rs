@@ -3485,6 +3485,33 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_measure_protocol_comparison_as_fixed_query_batches() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_protocol_compare.rs");
+        let pgwire =
+            benchmark_for_benchmark("tier4_integration_protocol_compare", "pgwire_query", "10k")
+                .expect("registered pgwire comparison");
+        let http =
+            benchmark_for_benchmark("tier4_integration_protocol_compare", "http_query", "10k")
+                .expect("registered HTTP comparison");
+
+        // Act
+        let measures_each_protocol_as_fixed_query_batches = owner
+            .contains("const QUERIES_PER_SAMPLE: u64 = 64;")
+            && owner.matches("runner.measure_batch(").count() == 2
+            && owner
+                .matches("transport_external::sample_until_deadline")
+                .count()
+                == 0;
+        let registers_both_rows_as_batches = pgwire.timing_mode == BenchmarkTimingMode::Batch
+            && http.timing_mode == BenchmarkTimingMode::Batch;
+
+        // Assert
+        assert!(measures_each_protocol_as_fixed_query_batches);
+        assert!(registers_both_rows_as_batches);
+    }
+
+    #[test]
     fn should_amortize_vector_distance_timer_jitter() {
         // Arrange
         let minimum_batch_operations = 4_096;

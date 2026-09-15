@@ -1,13 +1,12 @@
 const BENCHMARK: &str = "tier4_integration_protocol_compare";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const QUERIES_PER_SAMPLE: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
-#[path = "support/transport_external.rs"]
-mod transport_external;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -61,7 +60,7 @@ fn main() {
 
     if pgwire_enabled {
         let context = pgwire.as_ref().expect("enabled pgwire context");
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(
                 pgwire_case,
                 &setup_time_ns,
@@ -69,21 +68,22 @@ fn main() {
                 &fixture,
                 pgwire_preflight.expect("enabled comparison pgwire preflight"),
             ),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            QUERIES_PER_SAMPLE,
+            || {
+                for _ in 0..QUERIES_PER_SAMPLE {
                     let rows = runtime.block_on(workloads::pgwire_transport_simple_query(
                         context,
                         workloads::PGWIRE_SIMPLE_QUERY,
                     ));
                     assert_eq!(rows, 20, "comparison pgwire result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }
     if http_enabled {
         let context = http.as_ref().expect("enabled HTTP context");
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(
                 http_case,
                 &setup_time_ns,
@@ -91,11 +91,13 @@ fn main() {
                 &fixture,
                 http_preflight.expect("enabled comparison HTTP preflight"),
             ),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(runtime.block_on(workloads::http_transport_query(context)))
-                        .expect("comparison HTTP query count should fit u64")
-                })
+            QUERIES_PER_SAMPLE,
+            || {
+                for _ in 0..QUERIES_PER_SAMPLE {
+                    let completed = runtime.block_on(workloads::http_transport_query(context));
+                    assert_eq!(completed, 1, "comparison HTTP operation count");
+                }
+                20_u64
             },
         );
     }

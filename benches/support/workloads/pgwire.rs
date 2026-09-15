@@ -33,12 +33,12 @@ use super::context::{BenchContext, QueryBreakdownMicros, ANALYTICAL_BENCHMARK_QU
 pub const PGWIRE_SIMPLE_QUERY: &str =
     "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 20";
 pub const PGWIRE_EXTENDED_QUERY: &str =
-    "SELECT id, title FROM bench_documents WHERE title = $1 ORDER BY id ASC LIMIT 20";
+    "SELECT id, title FROM bench_documents WHERE title = $1 LIMIT 20";
 pub const PGWIRE_MULTI_STATEMENT_COMPONENT_QUERY: &str =
     "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10";
 const PGWIRE_MULTI_STATEMENT_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10; SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10";
 pub const PGWIRE_BINARY_QUERY: &str =
-    "SELECT score, title FROM bench_documents WHERE score = $1 ORDER BY score ASC LIMIT 20";
+    "SELECT score, title FROM bench_documents WHERE score = $1 LIMIT 20";
 const PGWIRE_FIXTURE_ROWS: u64 = 10_000;
 const PGWIRE_RESULT_ROWS: u64 = 20;
 

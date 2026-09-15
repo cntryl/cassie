@@ -37,8 +37,10 @@ fn main() {
     let setup_started = std::time::Instant::now();
     let runtime = workloads::runtime();
     let fixture = runtime
-        .block_on(workloads::unindexed_context_with_query_timeout(
+        .block_on(workloads::scalar_context_with_query_timeout(
             "tier4-pgwire-10k",
+            FIXTURE_ROWS,
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
             FIXTURE_ROWS,
             workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
         ))
@@ -313,7 +315,7 @@ impl PgwireQueryPreflights {
                     fixture,
                     workloads::PGWIRE_EXTENDED_QUERY,
                     vec![cassie::types::Value::String("title-1".to_string())],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
             multi_statement: enabled[4].then(|| {
@@ -329,7 +331,7 @@ impl PgwireQueryPreflights {
                     fixture,
                     workloads::PGWIRE_BINARY_QUERY,
                     vec![cassie::types::Value::Int64(1)],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
         }

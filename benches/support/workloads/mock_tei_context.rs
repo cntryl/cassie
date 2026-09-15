@@ -9,6 +9,7 @@ use cassie::config::{
 use super::context::{
     benchmark_data_dir, configure_benchmark_environment, prepare_collection, BenchContext,
     BenchIndexOptions, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
 use super::mock_tei::MockTeiEmbeddingServer;
 
@@ -42,6 +43,7 @@ fn context_with_mock_tei_embeddings_now(
         max_retries: 1,
     });
     config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+    config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     config.limits.max_result_rows = max_result_rows;
     let dir = benchmark_data_dir(label);
     let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir.clone(), config)?);

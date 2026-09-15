@@ -47,7 +47,8 @@ pub use column_codec_context::*;
 pub use context::{
     column_batch_context, column_batch_context_with_limits, context, disk_context_with_temp_budget,
     execution_result_cache_context, graph_context, lifecycle_disk_context_with_temp_budget,
-    recursive_cte_context, replay_context, runtime, scalar_context, time_series_context,
+    recursive_cte_context, replay_context, runtime, scalar_context,
+    scalar_context_with_query_timeout, time_series_context,
     time_series_disk_context_with_temp_budget, unindexed_context,
     unindexed_context_with_query_timeout, unindexed_disk_context_with_temp_budget,
     worker_scaling_context, BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,

@@ -695,15 +695,11 @@ fn selected_case(
             ),
             operation_unit,
         )
-        .metadata("query_memory_budget_bytes", query_memory_budget.to_string());
-    let case = if rows > 100_000 {
-        case.metadata(
+        .metadata("query_memory_budget_bytes", query_memory_budget.to_string())
+        .metadata(
             "query_timeout_ms",
             workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS.to_string(),
-        )
-    } else {
-        case
-    };
+        );
     let case = if dense_stream_selection {
         case.metadata("benchmark_resource_profile", "dense_stream_selection_4k")
     } else {

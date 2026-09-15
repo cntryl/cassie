@@ -3480,10 +3480,10 @@ mod benchmark_kernels {
 
         // Act
         let context_accepts_an_explicit_deadline = context
-            .contains("pub fn unindexed_context_with_query_timeout(")
+            .contains("pub fn scalar_context_with_query_timeout(")
             && context.contains("config.limits.query_timeout_ms = query_timeout_ms;");
         let owner_uses_analytical_deadline = owner
-            .contains("workloads::unindexed_context_with_query_timeout(")
+            .contains("workloads::scalar_context_with_query_timeout(")
             && owner.contains("workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS");
 
         // Assert
@@ -6244,6 +6244,115 @@ mod benchmark_tier3_join_contract {
 
         // Assert
         assert!(index_position < user_load_position);
+    }
+}
+
+// Regression coverage for analytical scaling workloads whose first measured query can
+// legitimately exceed Cassie's operator-facing 30 second default on shared runners.
+mod benchmark_scaling_query_deadline_contract {
+    #[test]
+    fn should_give_all_scaling_queries_the_analytical_deadline() {
+        // Arrange
+        let query_context = include_str!("../benches/support/workloads/context.rs");
+        let retrieval_context = include_str!("../benches/support/workloads/mock_tei_context.rs");
+        let analytical_deadline =
+            "config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;";
+
+        // Act
+        let query_runtime = query_context
+            .split_once("fn configure_scaling_query_runtime(")
+            .and_then(|(_, source)| source.split_once("pub fn worker_scaling_context("))
+            .map(|(source, _)| source)
+            .expect("scaling query runtime source");
+        let query_context_is_bounded = query_runtime
+            .find(analytical_deadline)
+            .zip(query_runtime.find("if dataset_rows > 100_000"))
+            .is_some_and(|(deadline, large_scale_branch)| deadline < large_scale_branch);
+        let retrieval_context_is_bounded = retrieval_context.contains(analytical_deadline);
+
+        // Assert
+        assert!(query_context_is_bounded);
+        assert!(retrieval_context_is_bounded);
+    }
+
+    #[test]
+    fn should_prepare_ann_state_before_measuring_hybrid_scaling() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_retrieval.rs");
+        let text_measurement = owner
+            .split_once("fn measure_text_retrieval(")
+            .and_then(|(_, source)| source.split_once("fn measure_vector_retrieval("))
+            .map(|(source, _)| source)
+            .expect("text retrieval measurement source");
+
+        // Act
+        let ann_setup_precedes_hybrid = text_measurement
+            .find("workloads::create_hnsw_index(context)")
+            .zip(text_measurement.find("workloads::hybrid_query(context)"))
+            .is_some_and(|(setup, query)| setup < query);
+
+        // Assert
+        assert!(ann_setup_precedes_hybrid);
+    }
+
+    #[test]
+    fn should_treat_hybrid_limit_as_an_upper_bound() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/scaling.rs");
+        let hybrid = workloads
+            .split_once("pub fn hybrid_query(")
+            .and_then(|(_, source)| source.split_once("pub fn assert_scaling_resource_bounds("))
+            .map(|(source, _)| source)
+            .expect("hybrid scaling workload source");
+
+        // Act
+        let accepts_approximate_ann_cardinality = hybrid.contains("query_up_to(")
+            && hybrid.contains("HYBRID_SCALING_SQL")
+            && workloads.contains("(1..=maximum_rows).contains(&result.rows.len())");
+
+        // Assert
+        assert!(accepts_approximate_ann_cardinality);
+    }
+
+    #[test]
+    fn should_exclude_fulltext_maintenance_from_transport_scaling() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_transport.rs");
+        let fixture = owner
+            .split_once("fn prepare_transport_fixture(")
+            .and_then(|(_, source)| source.split_once("fn measure_pgwire_query("))
+            .map(|(source, _)| source)
+            .expect("transport fixture source");
+
+        // Act
+        let uses_scalar_only_fixture = fixture.contains("workloads::scalar_context(")
+            && !fixture.contains("workloads::context(");
+
+        // Assert
+        assert!(uses_scalar_only_fixture);
+    }
+
+    #[test]
+    fn should_keep_pgwire_protocol_samples_free_of_full_fixture_sorts() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/pgwire.rs");
+        let extended = workloads
+            .split_once("pub const PGWIRE_EXTENDED_QUERY")
+            .and_then(|(_, source)| source.split_once("pub const PGWIRE_MULTI_STATEMENT"))
+            .map(|(source, _)| source)
+            .expect("extended pgwire query source");
+        let binary = workloads
+            .split_once("pub const PGWIRE_BINARY_QUERY")
+            .and_then(|(_, source)| source.split_once("const PGWIRE_FIXTURE_ROWS"))
+            .map(|(source, _)| source)
+            .expect("binary pgwire query source");
+
+        // Act
+        let protocol_queries_are_bounded_without_sorting =
+            !extended.contains("ORDER BY") && !binary.contains("ORDER BY");
+
+        // Assert
+        assert!(protocol_queries_are_bounded_without_sorting);
     }
 }
 

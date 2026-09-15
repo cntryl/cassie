@@ -195,6 +195,10 @@ fn measure_text_retrieval(
         );
     }
     if enabled[1] {
+        accumulate_setup(setup_time, || {
+            workloads::drop_vector_index(context);
+            workloads::create_hnsw_index(context);
+        });
         let preflight = accumulate_setup(setup_time, || {
             workloads::assert_explain_contains(
                 context,
@@ -262,14 +266,19 @@ fn measure_vector_retrieval(
 }
 
 fn declared_case(workload: &str, scale: &str, rows: usize) -> stress::StressCase {
-    stress::StressCase::new(workload, scale).runtime_contract(
-        stress::FixtureDeclaration::new(
-            performance_benchmarks::FixtureClass::Scaling,
-            rows,
-            format!("{OWNER}/{scale}"),
-        ),
-        stress::OperationUnit::Query,
-    )
+    stress::StressCase::new(workload, scale)
+        .runtime_contract(
+            stress::FixtureDeclaration::new(
+                performance_benchmarks::FixtureClass::Scaling,
+                rows,
+                format!("{OWNER}/{scale}"),
+            ),
+            stress::OperationUnit::Query,
+        )
+        .metadata(
+            "query_timeout_ms",
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS.to_string(),
+        )
 }
 
 fn evidenced(

@@ -291,7 +291,7 @@ pub fn vector_execution_count_is_required(index_kind: Option<&str>) -> bool {
 
 pub fn hybrid_query(ctx: &BenchContext) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let rows = query(
+    let rows = query_up_to(
         ctx,
         HYBRID_SCALING_SQL,
         vec![
@@ -514,6 +514,30 @@ fn query(ctx: &BenchContext, sql: &str, params: Vec<Value>, expected_rows: usize
     assert_eq!(
         result.rows.len(),
         expected_rows,
+        "benchmark query result cardinality"
+    );
+    let after = ctx.cassie.metrics();
+    assert_eq!(
+        after["execution_result_cache"]["hits"], before["execution_result_cache"]["hits"],
+        "benchmark query used the execution-result cache"
+    );
+    assert_scaling_resource_bounds(ctx);
+    ready(std::hint::black_box(result.rows.len()))
+}
+
+fn query_up_to(
+    ctx: &BenchContext,
+    sql: &str,
+    params: Vec<Value>,
+    maximum_rows: usize,
+) -> Ready<usize> {
+    let before = ctx.cassie.metrics();
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, sql, params)
+        .expect("benchmark query");
+    assert!(
+        (1..=maximum_rows).contains(&result.rows.len()),
         "benchmark query result cardinality"
     );
     let after = ctx.cassie.metrics();

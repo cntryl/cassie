@@ -97,6 +97,38 @@ pub fn scalar_context(
     query_memory_budget_bytes: usize,
     max_result_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
+    scalar_context_with_runtime(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+        max_result_rows,
+        None,
+    )
+}
+
+pub fn scalar_context_with_query_timeout(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    max_result_rows: usize,
+    query_timeout_ms: u64,
+) -> Ready<Result<BenchContext, CassieError>> {
+    scalar_context_with_runtime(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+        max_result_rows,
+        Some(query_timeout_ms),
+    )
+}
+
+fn scalar_context_with_runtime(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    max_result_rows: usize,
+    query_timeout_ms: Option<u64>,
+) -> Ready<Result<BenchContext, CassieError>> {
     ready(context_with_index_options_and_runtime(
         label,
         dataset_rows,
@@ -105,6 +137,9 @@ pub fn scalar_context(
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
             config.limits.max_result_rows = max_result_rows;
+            if let Some(query_timeout_ms) = query_timeout_ms {
+                config.limits.query_timeout_ms = query_timeout_ms;
+            }
         },
     ))
 }
@@ -186,14 +221,12 @@ fn configure_scaling_query_runtime(
     dataset_rows: usize,
     aggregation_workers: usize,
 ) {
+    config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     config.limits.query_memory_budget_bytes = if dataset_rows > 100_000 {
         LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     } else {
         ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     };
-    if dataset_rows > 100_000 {
-        config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
-    }
     config.limits.max_result_rows = dataset_rows.max(111_111);
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1_024;

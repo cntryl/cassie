@@ -3468,6 +3468,19 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_batch_fsst_encoding_for_stable_release_evidence() {
+        // Arrange
+        let owner = include_str!("../benches/tier1_hotpath_row_codec.rs");
+
+        // Act
+        let uses_fsst_encode_batch = owner.contains("FSST_CODEC_ENCODE_BATCH_SIZE")
+            && owner.contains("workloads::fsst_codec_encode_batch");
+
+        // Assert
+        assert!(uses_fsst_encode_batch);
+    }
+
+    #[test]
     fn should_build_fulltext_index_once_after_bounded_document_loading() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()

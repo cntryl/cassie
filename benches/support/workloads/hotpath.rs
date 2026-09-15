@@ -93,6 +93,7 @@ pub const TOKENIZATION_BATCH_SIZE: u64 = 256;
 pub const BM25_BATCH_SIZE: u64 = 256;
 pub const BM25_TERMS_PER_SCORE: u64 = 8;
 pub const VECTOR_DISTANCE_BATCH_SIZE: u64 = 4_096;
+pub const FSST_CODEC_ENCODE_BATCH_SIZE: u64 = 4;
 
 static TOKENIZATION_INPUTS: [&str; 8] = [
     "Alpha beta, gamma and delta",
@@ -228,6 +229,14 @@ pub fn fsst_codec_encode() -> usize {
     let encoded = cassie::midge::adapter::encode_column_chunk_for_test("text", &FSST_CODEC_VALUES)
         .expect("encode Tier 1 FSST column chunk");
     std::hint::black_box(encoded).len()
+}
+
+pub fn fsst_codec_encode_batch() -> usize {
+    let mut encoded_bytes = 0_usize;
+    for _ in 0..FSST_CODEC_ENCODE_BATCH_SIZE {
+        encoded_bytes = encoded_bytes.saturating_add(fsst_codec_encode());
+    }
+    std::hint::black_box(encoded_bytes)
 }
 
 pub fn fsst_codec_decode() -> usize {

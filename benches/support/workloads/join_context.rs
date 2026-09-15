@@ -10,6 +10,7 @@ use super::context::{
     benchmark_data_dir, configure_benchmark_environment, usize_mod_i64, usize_to_i64, BenchContext,
     ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
 };
+use super::document_batches::bench_document_write_batch_ranges;
 
 pub fn vectorized_join_context(
     label: &str,
@@ -263,18 +264,15 @@ fn prepare_vectorized_join_collections(
         vec![],
     )?;
 
-    let users = join_user_documents(shape, dataset_rows);
-    let orders = join_order_documents(shape);
-    if !users.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_documents("bench_join_users", users)?;
-    }
-    if !orders.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_documents("bench_join_orders", orders)?;
-    }
+    put_join_documents_in_batches(
+        ctx,
+        "bench_join_users",
+        shape.user_rows(dataset_rows),
+        |range| join_user_documents(shape, range),
+    )?;
+    put_join_documents_in_batches(ctx, "bench_join_orders", shape.order_rows(), |range| {
+        join_order_documents(shape, range)
+    })?;
     hydrate_join_row_count(ctx, "bench_join_users", shape.user_rows(dataset_rows));
     hydrate_join_row_count(ctx, "bench_join_orders", shape.order_rows());
 
@@ -437,27 +435,45 @@ fn prepare_named_join_collections(
         &format!("CREATE TABLE {orders_collection} (order_user_key INT, total INT)"),
         vec![],
     )?;
-    let users = join_user_documents(shape, dataset_rows);
-    let orders = join_order_documents(shape);
-    if !users.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_documents(users_collection, users)?;
-    }
-    if !orders.is_empty() {
-        ctx.cassie
-            .midge
-            .put_fresh_documents(orders_collection, orders)?;
-    }
+    put_join_documents_in_batches(
+        ctx,
+        users_collection,
+        shape.user_rows(dataset_rows),
+        |range| join_user_documents(shape, range),
+    )?;
+    put_join_documents_in_batches(ctx, orders_collection, shape.order_rows(), |range| {
+        join_order_documents(shape, range)
+    })?;
     hydrate_join_row_count(ctx, users_collection, shape.user_rows(dataset_rows));
     hydrate_join_row_count(ctx, orders_collection, shape.order_rows());
     Ok(())
 }
 
-fn join_user_documents(shape: JoinLoadShape, dataset_rows: usize) -> JoinDocuments {
-    let user_rows = shape.user_rows(dataset_rows);
-    let mut users = Vec::with_capacity(user_rows);
-    for index in 0..user_rows {
+fn put_join_documents_in_batches(
+    ctx: &BenchContext,
+    collection: &str,
+    row_count: usize,
+    build: impl Fn(std::ops::Range<usize>) -> JoinDocuments,
+) -> Result<(), CassieError> {
+    for range in bench_document_write_batch_ranges(row_count) {
+        let start = range.start;
+        let end = range.end;
+        let documents = build(range);
+        ctx.cassie
+            .midge
+            .put_fresh_documents(collection, documents)
+            .map_err(|error| {
+                CassieError::Execution(format!(
+                    "seed scaling join relation {collection} rows {start}..{end}: {error}"
+                ))
+            })?;
+    }
+    Ok(())
+}
+
+fn join_user_documents(shape: JoinLoadShape, range: std::ops::Range<usize>) -> JoinDocuments {
+    let mut users = Vec::with_capacity(range.len());
+    for index in range {
         users.push((
             Some(format!("user-{index}")),
             json!({
@@ -469,10 +485,10 @@ fn join_user_documents(shape: JoinLoadShape, dataset_rows: usize) -> JoinDocumen
     users
 }
 
-fn join_order_documents(shape: JoinLoadShape) -> JoinDocuments {
+fn join_order_documents(shape: JoinLoadShape, range: std::ops::Range<usize>) -> JoinDocuments {
     let order_rows = shape.order_rows();
-    let mut orders = Vec::with_capacity(order_rows);
-    for index in 0..order_rows {
+    let mut orders = Vec::with_capacity(range.len());
+    for index in range {
         orders.push((
             Some(format!("order-{index}")),
             json!({

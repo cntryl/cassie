@@ -2166,6 +2166,27 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_seed_scaling_join_relations_in_bounded_batches() {
+        // Arrange
+        let setup_source = include_str!("../benches/support/workloads/join_context.rs");
+
+        // Act
+        let uses_bounded_ranges = setup_source
+            .matches("bench_document_write_batch_ranges(")
+            .count();
+        let writes_each_batch = setup_source
+            .matches("put_fresh_documents(collection, documents)")
+            .count();
+        let reports_batch_range = setup_source
+            .contains("seed scaling join relation {collection} rows {start}..{end}: {error}");
+
+        // Assert
+        assert!(uses_bounded_ranges >= 1);
+        assert_eq!(writes_each_batch, 1);
+        assert!(reports_batch_range);
+    }
+
+    #[test]
     fn should_prepare_projection_replay_inputs_before_measurement() {
         // Arrange
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");

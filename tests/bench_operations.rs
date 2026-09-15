@@ -1889,6 +1889,29 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_tier3_exact_vector_queries_with_explicit_normalization() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let exact_vector = owner
+            .split_once("fn bench_vector_exact_representative")
+            .expect("Tier 3 exact-vector benchmark")
+            .1
+            .split_once("fn bench_indexed_vector_representatives")
+            .expect("end of Tier 3 exact-vector benchmark")
+            .0;
+
+        // Act
+        let batches_queries =
+            exact_vector.contains("runner.measure_batch(case, VECTOR_EXACT_QUERIES_PER_BATCH");
+        let declares_query_unit =
+            exact_vector.contains("parameter(\"queries_per_logical_operation\", \"1\")");
+
+        // Assert
+        assert!(batches_queries);
+        assert!(declares_query_unit);
+    }
+
+    #[test]
     fn should_apply_runtime_logical_units_to_every_batch_measurement() {
         // Arrange
         let adapter = include_str!("../benches/support/stress.rs");

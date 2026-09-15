@@ -27,6 +27,7 @@ const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"]
 const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
 const COLUMN_QUERIES_PER_BATCH: u64 = 8;
+const VECTOR_EXACT_QUERIES_PER_BATCH: u64 = 2;
 const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;
 const GRAPH_READ_BOUND: u64 = 8;
 
@@ -277,14 +278,16 @@ fn bench_vector_exact_representative(
         workloads::VectorAccessPath::Exact,
     );
     let case = evidenced(
-        case,
+        case.parameter("queries_per_logical_operation", "1"),
         context,
         fixture_setup + case_setup.elapsed(),
         preflight,
     );
     let before = context.cassie.metrics();
     let expected_rows = RefCell::new(None);
-    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
+    runner.measure_batch(case, VECTOR_EXACT_QUERIES_PER_BATCH, || {
+        execute_vector_evidence(context, &expected_rows)
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", "count");
     assert_metric_unchanged(&before, &after, "vector", "hnsw_executions");

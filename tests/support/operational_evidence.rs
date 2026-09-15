@@ -85,6 +85,7 @@ pub fn validate_operational_evidence_manifest(
         "snapshot_restore",
         "projection_repair",
         "failure_injection",
+        "container_snapshot_restore",
     ] {
         let value = elapsed
             .get(step)

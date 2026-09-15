@@ -5760,7 +5760,8 @@ mod schema_write_conflicts {
 
     use cassie::app::{Cassie, CassieError};
     use cassie::midge::adapter::{
-        schema_write_conflict_test_guard, set_schema_write_commit_barriers, SchemaWritePausePoint,
+        schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
+        set_schema_write_commit_barriers, SchemaWritePausePoint,
     };
 
     #[test]
@@ -5791,6 +5792,7 @@ mod schema_write_conflicts {
         let workers = statements.map(|(table, sql)| {
             let worker_cassie = Arc::clone(&cassie);
             std::thread::spawn(move || {
+                let _worker_guard = schema_write_conflict_worker_guard();
                 let session = worker_cassie.create_session("tester", None);
                 (table, sql, worker_cassie.execute_sql(&session, sql, vec![]))
             })
@@ -5874,6 +5876,7 @@ mod schema_write_conflicts {
         let workers = [(), ()].map(|()| {
             let worker_cassie = Arc::clone(&cassie);
             std::thread::spawn(move || {
+                let _worker_guard = schema_write_conflict_worker_guard();
                 worker_cassie
                     .midge
                     .next_sequence_value("sequence_conflict_ids")
@@ -5941,6 +5944,7 @@ mod schema_write_conflicts {
         let workers = ["database_conflict_alpha", "database_conflict_beta"].map(|database| {
             let worker_cassie = Arc::clone(&cassie);
             std::thread::spawn(move || {
+                let _worker_guard = schema_write_conflict_worker_guard();
                 (
                     database,
                     worker_cassie.midge.create_database(database, None),

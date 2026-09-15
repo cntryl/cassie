@@ -70,6 +70,8 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
+Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 256 rows, matching the integrity range-segment boundary. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
+
 Golden fixtures own ordering and round-trip behavior for rows, scalar indexes, full-text postings, vectors, time-series entries, graph adjacency, and column batches. The baseline fixture must show at least a 25% reduction in total query-hot key/value bytes from the fixed pre-change fixture.
 
 Mutation benchmarks report logical mutations, Midge writes, bytes, index maintenance, and derived-state publication. Duplicate replay and no-op updates must not rewrite unchanged hot records. Amplification limits are contract assertions tied to workload shape, not elapsed time.
@@ -98,7 +100,9 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
 | 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |
 | 5 - Scaling/saturation | Curves and limits | Query, retrieval, lifecycle, and transport owners over 10k, 100k, and 250k fixture classes, including column decode curves and one-row column DML amplification; clients at 1/2/4/8/16; and workers at 1/2/4. Large SQL, join, search, vector, hybrid, replay, rebuild, and concurrency cases belong here. |
-| 6 - Soak/endurance | Long-lived stability | Exactly two default scenarios: mixed query/ingest/retrieval over 100k rows, and pgwire/HTTP lifecycle over 10k rows. Each scenario runs for one hour by default and proves correctness, resource bounds, permit accounting, cleanup, and zero failed operations. |
+| 6 - Soak/endurance | Long-lived stability | Exactly two default scenarios: mixed query/ingest/retrieval over a 100k-row indexed query fixture with a dedicated transient mutation collection, and pgwire/HTTP lifecycle over 10k rows. Each scenario runs for one hour by default and proves correctness, resource bounds, permit accounting, cleanup, and zero failed operations. |
+
+Tier 2 projection-replay samples use one shared Cassie runtime but consume separate, prebuilt empty projection lanes. Each timed batch therefore exercises the same 2,048-event production replay path from an equivalent source position without including fixture setup or accumulating prior samples' event history. Runtime evidence remains scoped to the shared runtime, and the gate continues to report one logical event per applied event.
 
 When a scenario changes owners without changing behavior, it keeps its existing scenario ID. When a Tier 3 representative case is intentionally repeated as part of a Tier 5 curve, the scale case uses a distinct `perf.scale.*` ID.
 
@@ -108,7 +112,7 @@ Every benchmark declares a typed `BenchmarkTier`; generic tier constructors are 
 
 | Declared tier | Allowed runner | Timing model |
 | --- | --- | --- |
-| `BenchmarkTier::Tier1` | `measure_micro` | Production-kernel micro measurement |
+| `BenchmarkTier::Tier1` | `measure_micro` or `measure_micro_batch` | Production-kernel micro measurement, optionally repeated in a bounded batch with explicit normalized operation counts |
 | `BenchmarkTier::Tier2` | `measure`, `measure_counted`, or `measure_counted_batch` | One subsystem operation, optionally repeated in a bounded batch with explicit normalized operation counts |
 | `BenchmarkTier::Tier3` | `measure_batch` | Fixed-duration embedded batches |
 | `BenchmarkTier::Tier4` | `measure_batch`; `record_external` only for genuinely external harnesses | Fixed-duration boundary work |
@@ -119,27 +123,50 @@ The scenario registry declares the tier, operation unit, evidence role, and fixt
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
 
+Simple query, extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches. Simple query, extended query, portal, multi-statement, and binary extended-query use 64 transport invocations; cancellation uses eight because every operation waits for the bounded cancellation handshake. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while the remaining calls retain one logical operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps.
+
+The Tier 1 FSST encoding kernel batches four complete 1,024-value encodes and normalizes the elapsed time back to one encode operation. The codec work and fixture are unchanged; the batch raises each measured interval above host-scheduling jitter while retaining per-operation evidence.
+
 The two 128-item binder and planning owners batch 256 fixture invocations per measured sample and
-record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the
+record `fixture_invocations_per_sample=256`; parameter binding batches 8,192 fixture invocations
+because its kernel is materially shorter. The elapsed interval covers the full batch, while the
 completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
 rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
+The 2,048-candidate posting-merge owner batches 512 complete production merges per measured sample
+and retains `candidate` normalization, lifting the fixed-operation window above scheduler noise.
 The 2,048-candidate hybrid-fusion owner applies the same 256-invocation bounded window and records
 the exact aggregate result-cardinality and candidate counts, while retaining `candidate` as its
 logical operation unit.
 
 Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 
+`document_create_get/10k` is retained as diagnostic mutation evidence rather than an intended release regression gate. Creating documents against the fully indexed 10k fixture triggers non-stationary index maintenance, so shared-runner timing variance is evidence about the mutation environment, not a stable transport regression signal. The Tier 4 HTTP query and vector-search rows remain the trustworthy release gates and run first against the pristine shared fixture; each HTTP query sample executes a fixed batch of 128 requests, preserving one request as the logical operation while lifting the measured sample above transport scheduling noise. Tier 4 pgwire simple-query samples likewise execute fixed batches of 64 complete queries, avoiding a duration-loop shape whose intentionally serial throughput can be mistaken for capped capacity. The document row runs last so its state changes cannot contaminate either stable gate, while still enforcing request completion, response correctness, runtime evidence, and artifact retention. Tier 4 and Tier 5 time exactly the named create and get requests, while the Tier 6 soak uses an explicit create/get/delete cycle to keep its hour-long fixture bounded.
+
 ## Fixtures, Setup, Cache, and SQL
 
 Filtering happens before setup. Fixture construction is lazy, one fixture is reused per owner and scale, and fixture construction plus preflight remain outside measured closures. Preflight may validate fixture counts and plans, but it must not execute or warm the timed statement. Artifacts record setup time separately from measurement time.
 
-Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter so identical cold and cached invocations retain invariant evidence; other embedded paths report `runtime_storage_read`. Cache-dependent physical reads must not masquerade as invariant logical work, and setup must not warm the timed query to hide that distinction.
+Runtime evidence records an explicit `storage_read_unit`. Bucket-native time-series queries report logical `time_series_bucket` reads from the access-path counter. Other embedded paths report `runtime_storage_read`; storage reads, candidate counts, peak query memory, result-cache hits, and fallback counts are per-sample scalar observations because cache and duration-batch completion can legitimately vary. The complete-manifest validator uses each observation's worst-case maximum and continues to accept legacy invariant metadata. Setup must not warm a timed query to hide cold-versus-cached behavior.
+
+Duration-based batches record their actual completed logical-operation count and normalize cumulative storage-read, candidate, result-cache, and fallback counters to one operation. The Tier 3 time-series representative executes two unchanged queries per measured closure, declares `query` as its logical unit, and reports the exact 512-row cardinality of one query rather than the summed batch cardinality. This batching changes only measurement shape; its SQL, fixture, setup boundary, path and fallback proofs, sampling, thresholds, and trust policy remain unchanged.
 
 Full-index representative and scale fixtures load source documents in bounded batches of at most 5,000 rows before creating full-text and scalar indexes. This produces the final full-text artifact once after source loading instead of repeatedly rebuilding the growing whole-index state inside each untimed document batch.
 
-Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
+Initial vector-index publication and vector-index removal page normalized vectors, HNSW nodes, and
+IVFFlat memberships through data transactions of at most 5,000 sidecars. The vector manifest is
+published after initial batches and removed after cleanup batches, so a failed attempt remains
+retryable without exposing partial indexed state.
+Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
+the owning database family after every four committed batches and after the final partial interval.
+This bounds encoded index-key memtable accumulation without forcing an L0 flush after every
+transaction, while publication metadata remains hidden until every bounded index batch is durable.
+
+Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. The Tier 5 lifecycle fixture uses the same ceiling while seeding its rollup and retention source rows. Rollup and retention structures belong to that lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
 
 Fixture classes are part of scenario ownership: Tier 2 is capped at 2,048 rows; Tier 3 uses one representative 100k case per access-path family; Tier 4 normally reuses 10k rows; Tier 5 owns the 10k/100k/250k curves; and Tier 6 uses the two declared 100k and 10k fixtures. A join fixture must be visible to the actual integration harness before its timed query is eligible to run.
+The Tier 5 join curve builds its scalar probe index outside the measurement boundary and requires
+observed index seeks as well as vectorized execution, keeping the limited query bounded at every
+declared scale without widening its hard analytical deadline.
 
 Every network benchmark listener uses a non-empty credential backed by a Cassie role. Passwordless bootstrap is embedded-only and cannot be used to make a listener benchmark pass.
 
@@ -171,11 +198,11 @@ Tier 2 owns paired, same-fixture acceptance rows for those latency gates:
 `perf.column.selective_encoded_scan.2k` is compared with its forced-plain baseline at a
 maximum p95 ratio of `0.85` and batches 256 exact queries per measured sample, while
 `perf.column.incompressible_adaptive_scan.2k` is compared with its forced-plain baseline at a
-maximum ratio of `1.05` and batches 1,024 exact queries. The benchmark validates codec choices
+maximum ratio of `1.05` and batches 8,192 exact queries. The benchmark validates codec choices
 before timing. Forced-plain
 rebuild is benchmark-only and is not a SQL or runtime configuration surface.
 
-The ALP-specific pair uses the same distributed 2k float fixture and batches 1,024 exact queries per
+The ALP-specific pair uses the same distributed 2k float fixture and batches 8,192 exact queries per
 measured sample. `perf.column.alp_selective_scan.2k` is compared with its forced-plain baseline at a maximum p95 ratio of `1.05`; every candidate chunk must also use no more than 25% of its plain decoded bytes. Exact scale predicates are evaluated over checked scaled integers and only selected floats are reconstructed. Non-exact literals use the general semantic comparison path.
 
 The FSST-specific pair uses a 2k high-repetition UTF-8 fixture, places one matching row in each
@@ -233,6 +260,14 @@ Durations below 3,600 seconds are rejected outside the smoke profile. The comple
 
 Both Tier 6 scenarios enforce exact result and state checks, configured memory/cache/result bounds, shared worker permits, connection and task cleanup, and zero failed operations. A complete default Tier 6 run therefore measures at least two hours: one hour for each declared scenario.
 
+Transport-soak throughput is retained as diagnostic evidence because its sustained create/get/delete lifecycle intentionally changes the disk-backed store throughout the run. Completed-operation variance across equal wall-clock windows therefore describes non-stationary transport churn rather than a stable optimization baseline. Its result, resource, cleanup, and duration requirements remain hard gates, and the artifact retains every sample so degradation remains visible.
+
+A release-profile owner containing only explicitly diagnostic rows may accept the stress harness's
+`QualityFailed` result solely when no comparison baseline is present and every retained summary has
+diagnostic trust. Cassie's adapter still rejects empty or mixed-trust runs and every correctness,
+budget, regression, strict-diagnostic, and artifact failure. This exception lets the transport soak
+retain honest non-stationary throughput evidence without weakening its endurance invariants.
+
 ## Complete Artifact Manifest
 
 A complete-suite artifact contains one run ID, commit, toolchain, profile, and unfiltered result set for the full declared owner registry. The validator rejects missing or extra owners, mixed run metadata, stale results, filtered artifacts, and fixture or evidence mismatches.
@@ -261,11 +296,16 @@ cargo bench --locked --bench '*'
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
 The scheduled [Bench workflow](../.github/workflows/bench.yml) exercises Tiers 1-4 and retains its
-stress artifacts using the shared Fitz workflow topology. A manual dispatch executes the complete
-unfiltered owner suite, validates `target/stress`, and retains the canonical `latest.json` owner
-artifacts. Dispatch it only on the commit being evidenced, with a unique run ID and a deployment
-profile matching the runner; a smoke duration remains diagnostic and cannot pass the complete-suite
-validator.
+stress artifacts using the shared Fitz workflow topology. A manual dispatch executes ten
+independent unfiltered shards: one each for Tiers 1-4, four for Tier 5, and two Tier 6 soak owners.
+Shards use one run ID, commit, toolchain channel, profile, and evidence contract; `fail-fast: false`
+lets every independent shard report its result when another shard fails, and each retains the
+established six-hour timeout ceiling so parallelism does not narrow the evidence envelope. A
+downstream job downloads the successful shard artifacts into one `target/stress` tree, applies the
+unchanged complete-suite validator, and retains the canonical `latest.json` owner artifacts only
+when the entire manifest passes. Dispatch it only on the commit being evidenced, with a unique run
+ID and a deployment profile matching the runner; a smoke duration remains diagnostic and cannot
+pass the complete-suite validator.
 
 ## Benchmark Scope Boundary
 

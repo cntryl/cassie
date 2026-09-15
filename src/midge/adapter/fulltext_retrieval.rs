@@ -13,6 +13,18 @@ mod codec;
 mod controlled;
 
 const STATE_VERSION: u32 = 2;
+const FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
+
+fn fulltext_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
+    (0..item_count)
+        .step_by(FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE)
+        .map(move |start| {
+            start
+                ..start
+                    .saturating_add(FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE)
+                    .min(item_count)
+        })
+}
 
 impl Midge {
     #[doc(hidden)]
@@ -338,6 +350,129 @@ impl Midge {
         self.rebuild_fulltext_index_in_tx(&mut tx, &collection, index, generation)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
+    }
+
+    pub(super) fn rebuild_prepared_fulltext_index_for_index(
+        &self,
+        index: &IndexMeta,
+    ) -> Result<(), CassieError> {
+        if self.get_index(&index.collection, &index.name)?.is_some() {
+            return self.rebuild_fulltext_index_for_index(index);
+        }
+
+        let collection = self.canonical_collection_name(&index.collection);
+        let generation = self.collection_generation(&collection)?;
+        let row_schema = self.row_schema(&collection)?;
+        let tx = self.begin_data_readonly_tx_for(&collection)?;
+        let documents = self.load_documents_from_tx(&tx, &collection, &row_schema)?;
+        drop(tx);
+        let state = build_state(index, generation, documents)?;
+        let (relation_id, index_id) = Self::fulltext_storage_ids(index)?;
+        let prefix = Self::fulltext_index_artifact_prefix(relation_id, index_id);
+        self.delete_prepared_fulltext_artifacts_in_batches(&collection, &prefix)?;
+
+        let posting_blocks = state
+            .postings
+            .iter()
+            .map(|(term, postings)| {
+                codec::encode_posting_blocks(postings).map(|blocks| (term.clone(), blocks))
+            })
+            .collect::<Result<BTreeMap<_, _>, CassieError>>()?;
+        let mut artifacts = Vec::new();
+        for (term, blocks) in &posting_blocks {
+            for (block, encoded) in blocks.iter().enumerate() {
+                artifacts.push((
+                    Self::fulltext_term_postings_block_key(relation_id, index_id, term, block),
+                    encoded.clone(),
+                ));
+            }
+        }
+        for (document_id, stats) in &state.document_stats {
+            artifacts.push((
+                Self::fulltext_document_stats_key(relation_id, index_id, document_id),
+                codec::encode_document_stats(stats),
+            ));
+        }
+        for range in fulltext_build_ranges(artifacts.len()) {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            for (key, value) in &artifacts[range] {
+                tx.put(key.clone(), value.clone(), None)
+                    .map_err(CassieError::from)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+        }
+
+        let metadata = FulltextIndexMetadata {
+            version: STATE_VERSION,
+            built_generation: state.built_generation,
+            total_documents: state.total_documents,
+            documents_with_text: state.documents_with_text,
+            average_document_length: state.average_document_length,
+            analyzer: state.analyzer,
+        };
+        let terms = posting_blocks
+            .iter()
+            .map(|(term, blocks)| {
+                (
+                    term.clone(),
+                    FulltextTermIntegrity {
+                        block_count: blocks.len(),
+                        posting_count: state.postings.get(term).map_or(0, Vec::len),
+                    },
+                )
+            })
+            .collect();
+        let manifest = FulltextManifest {
+            version: STATE_VERSION,
+            built_generation: state.built_generation,
+            total_documents: state.total_documents,
+            posting_terms: state.postings.len(),
+            document_count: state.document_stats.len(),
+            terms,
+        };
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        tx.put(
+            Self::fulltext_index_key(relation_id, index_id),
+            codec::encode_metadata(&metadata),
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.put(
+            Self::fulltext_index_manifest_key(relation_id, index_id, state.built_generation),
+            codec::encode_manifest(&manifest),
+            None,
+        )
+        .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    fn delete_prepared_fulltext_artifacts_in_batches(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+    ) -> Result<(), CassieError> {
+        loop {
+            let keys = self
+                .raw_scan_prefix_page_for_collection(
+                    collection,
+                    prefix,
+                    FULLTEXT_INDEX_BUILD_WRITE_BATCH_SIZE,
+                )?
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>();
+            if keys.is_empty() {
+                return Ok(());
+            }
+            let mut tx = self.begin_data_rw_tx_for(collection)?;
+            for key in keys {
+                tx.delete(key).map_err(CassieError::from)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+        }
     }
 
     pub(crate) fn rebuild_fulltext_index_in_tx(
@@ -790,4 +925,23 @@ fn build_state(
 
 fn usize_to_f64(value: usize) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_bound_prepared_fulltext_index_publication_batches() {
+        // Arrange
+        let artifact_count = 10_001;
+
+        // Act
+        let batches = fulltext_build_ranges(artifact_count)
+            .map(|range| range.len())
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(batches, vec![5_000, 5_000, 1]);
+    }
 }

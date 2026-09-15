@@ -97,6 +97,38 @@ pub fn scalar_context(
     query_memory_budget_bytes: usize,
     max_result_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
+    scalar_context_with_runtime(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+        max_result_rows,
+        None,
+    )
+}
+
+pub fn scalar_context_with_query_timeout(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    max_result_rows: usize,
+    query_timeout_ms: u64,
+) -> Ready<Result<BenchContext, CassieError>> {
+    scalar_context_with_runtime(
+        label,
+        dataset_rows,
+        query_memory_budget_bytes,
+        max_result_rows,
+        Some(query_timeout_ms),
+    )
+}
+
+fn scalar_context_with_runtime(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+    max_result_rows: usize,
+    query_timeout_ms: Option<u64>,
+) -> Ready<Result<BenchContext, CassieError>> {
     ready(context_with_index_options_and_runtime(
         label,
         dataset_rows,
@@ -105,6 +137,9 @@ pub fn scalar_context(
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
             config.limits.max_result_rows = max_result_rows;
+            if let Some(query_timeout_ms) = query_timeout_ms {
+                config.limits.query_timeout_ms = query_timeout_ms;
+            }
         },
     ))
 }
@@ -186,14 +221,12 @@ fn configure_scaling_query_runtime(
     dataset_rows: usize,
     aggregation_workers: usize,
 ) {
+    config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     config.limits.query_memory_budget_bytes = if dataset_rows > 100_000 {
         LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     } else {
         ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     };
-    if dataset_rows > 100_000 {
-        config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
-    }
     config.limits.max_result_rows = dataset_rows.max(111_111);
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1_024;
@@ -281,6 +314,22 @@ pub fn unindexed_context(
     ))
 }
 
+pub fn unindexed_context_with_query_timeout(
+    label: &str,
+    dataset_rows: usize,
+    query_timeout_ms: u64,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.query_timeout_ms = query_timeout_ms;
+        },
+    ))
+}
+
 pub fn unindexed_disk_context_with_temp_budget(
     label: &str,
     dataset_rows: usize,
@@ -309,6 +358,23 @@ pub fn disk_context_with_temp_budget(
         BenchmarkStorageMode::Disk,
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+        },
+    ))
+}
+
+pub fn lifecycle_disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::full(),
+        BenchmarkStorageMode::Disk,
+        |config| {
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+            config.limits.query_timeout_ms = 0;
         },
     ))
 }
@@ -443,6 +509,13 @@ impl BenchIndexOptions {
         }
     }
 
+    pub(super) fn selected(include_scalar_indexes: bool, include_fulltext_index: bool) -> Self {
+        Self {
+            include_scalar_indexes,
+            include_fulltext_index,
+        }
+    }
+
     fn none() -> Self {
         Self {
             include_scalar_indexes: false,
@@ -529,6 +602,11 @@ fn recursive_cte_context_now(
     recursion_depth: usize,
 ) -> Result<BenchContext, CassieError> {
     let expected_rows = recursive_cte_expected_rows(recursion_depth);
+    let query_memory_budget_bytes = if expected_rows > 100_000 {
+        LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    } else {
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    };
     let context = context_with_index_options_and_runtime(
         label,
         0,
@@ -538,7 +616,7 @@ fn recursive_cte_context_now(
             config.limits.query_timeout_ms = 0;
             config.limits.cte_recursion_depth = recursion_depth;
             config.limits.max_result_rows = expected_rows;
-            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
         },
     )?;
     context.cassie.execute_sql(

@@ -11,6 +11,20 @@ const RANGE_HASH_VERSION: u16 = 1;
 const ROOT_HASH_VERSION: u16 = 1;
 const RANGE_SEGMENT_SIZE: usize = 256;
 const EAGER_HASH_REBUILD_ROW_LIMIT: u64 = 512;
+const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = RANGE_SEGMENT_SIZE;
+
+fn projection_output_write_ranges(
+    row_count: usize,
+) -> impl Iterator<Item = std::ops::Range<usize>> {
+    (0..row_count)
+        .step_by(PROJECTION_OUTPUT_WRITE_BATCH_SIZE)
+        .map(move |start| {
+            start
+                ..start
+                    .saturating_add(PROJECTION_OUTPUT_WRITE_BATCH_SIZE)
+                    .min(row_count)
+        })
+}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -280,32 +294,48 @@ impl Midge {
         collection: &str,
         documents: Vec<(String, serde_json::Value)>,
     ) -> Result<(super::documents::DocumentWriteBatchReport, RootHashRecord), CassieError> {
-        let row_schema = self.row_schema(collection)?;
-        let generation = self.collection_generation(collection)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
+        let collection = self.canonical_collection_name(collection);
+        let row_schema = self.row_schema(&collection)?;
+        let generation = self.collection_generation(&collection)?;
         let mut report = super::documents::DocumentWriteBatchReport::default();
         let mut records = Vec::with_capacity(documents.len());
+        let mut encoded_rows = Vec::with_capacity(documents.len());
 
         for (id, payload) in documents {
             let row_blob = encode_row(&row_schema, &payload)?;
-            tx.put(Self::row_key(row_schema.relation_id, &id), row_blob, None)
-                .map_err(CassieError::from)?;
             let record =
-                compute_row_hash_record(collection, collection, None, &row_schema, &id, &payload);
-            write_row_hash_record_to_tx(&mut tx, &record)?;
+                compute_row_hash_record(&collection, &collection, None, &row_schema, &id, &payload);
 
-            report.ids.push(id);
+            report.ids.push(id.clone());
             report.row_delta = report.row_delta.saturating_add(1);
             report.stats.row_puts = report.stats.row_puts.saturating_add(1);
             report.stats.metadata_puts = report.stats.metadata_puts.saturating_add(1);
+            encoded_rows.push((id, row_blob));
             records.push(record);
+        }
+
+        for range in projection_output_write_ranges(encoded_rows.len()) {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            for index in range {
+                let (id, row_blob) = &encoded_rows[index];
+                tx.put(
+                    Self::row_key(row_schema.relation_id, id),
+                    row_blob.clone(),
+                    None,
+                )
+                .map_err(CassieError::from)?;
+                write_row_hash_record_to_tx(&mut tx, &records[index])?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+            report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
         }
 
         records.sort_by_key(|record| record.row_id.clone());
         let ranges =
-            build_range_hash_records(collection, None, row_schema.schema_version, &records);
+            build_range_hash_records(&collection, None, row_schema.schema_version, &records);
         let root = build_root_hash_record(
-            collection,
+            &collection,
             None,
             row_schema.schema_version,
             generation,
@@ -313,6 +343,7 @@ impl Midge {
             &ranges,
         );
 
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         for record in &ranges {
             write_range_hash_record_to_tx(&mut tx, record)?;
         }
@@ -321,7 +352,7 @@ impl Midge {
             .map_err(CassieError::from)?;
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
-        self.update_projection_hash_metadata(collection, &records, &ranges, &root)?;
+        self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
         Ok((report, root))
     }
 
@@ -987,4 +1018,30 @@ fn now_ms() -> u64 {
 
 fn duration_ms(duration: std::time::Duration) -> u64 {
     duration.as_millis().try_into().unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_bound_fresh_projection_output_write_batches() {
+        // Arrange
+        let row_count = 10_001;
+
+        // Act
+        let batches = projection_output_write_ranges(row_count)
+            .map(|range| range.len())
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(
+            batches,
+            vec![
+                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+                256, 256, 256, 256, 256, 256, 256, 17,
+            ]
+        );
+    }
 }

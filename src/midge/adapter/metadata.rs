@@ -316,39 +316,14 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
 
-        let mut data_tx = self.begin_data_rw_tx_for(collection)?;
-        Self::delete_normalized_vector_keys_with_prefix(
-            &mut data_tx,
+        let prefixes = [
             Self::normalized_vector_prefix(relation_id, field_id),
-        )?;
-        let node_keys = collect_scan(
-            data_tx
-                .scan(
-                    &Query::new()
-                        .prefix(key_encoding::hnsw_graph_node_prefix(relation_id, field_id).into()),
-                )
-                .map_err(CassieError::from)?,
-        )?
-        .into_iter()
-        .map(|(key, _)| key)
-        .collect::<Vec<_>>();
-        for key in node_keys {
-            data_tx.delete(key).map_err(CassieError::from)?;
-        }
-        let membership_keys =
-            collect_scan(
-                data_tx
-                    .scan(&Query::new().prefix(
-                        key_encoding::ivfflat_membership_prefix(relation_id, field_id).into(),
-                    ))
-                    .map_err(CassieError::from)?,
-            )?
-            .into_iter()
-            .map(|(key, _)| key)
-            .collect::<Vec<_>>();
-        for key in membership_keys {
-            data_tx.delete(key).map_err(CassieError::from)?;
-        }
+            key_encoding::hnsw_graph_node_prefix(relation_id, field_id),
+            key_encoding::ivfflat_membership_prefix(relation_id, field_id),
+        ];
+        self.delete_vector_sidecars_in_batches(collection, &prefixes)?;
+
+        let mut data_tx = self.begin_data_rw_tx_for(collection)?;
         data_tx
             .delete(Self::vector_index_state_key(relation_id, field_id))
             .map_err(CassieError::from)?;

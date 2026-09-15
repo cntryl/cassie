@@ -5,6 +5,8 @@ pub mod stress;
 #[path = "support/workloads.rs"]
 mod workloads;
 
+const POSTING_MERGE_INVOCATIONS_PER_SAMPLE: usize = 512;
+
 fn main() {
     let mut runner = stress::runner(
         performance_benchmarks::BenchmarkTier::Tier2,
@@ -21,12 +23,16 @@ fn main() {
     if runner.is_enabled(&case) {
         let setup_started = std::time::Instant::now();
         let fixture = workloads::PostingMergeFixture::new(2_048);
+        let case = case.parameter(
+            "fixture_invocations_per_sample",
+            POSTING_MERGE_INVOCATIONS_PER_SAMPLE.to_string(),
+        );
         runner.measure_counted(
             case.metadata(
                 "setup_time_ns",
                 setup_started.elapsed().as_nanos().to_string(),
             ),
-            || fixture.merge(),
+            || fixture.merge_batch(POSTING_MERGE_INVOCATIONS_PER_SAMPLE),
         );
     }
     runner.finish();

@@ -1,4 +1,5 @@
 use std::future::{ready, Ready};
+use std::ops::Range;
 use std::sync::Arc;
 
 use cassie::app::{Cassie, CassieError};
@@ -21,12 +22,43 @@ pub fn tier3_query_context(
     label: &str,
     dataset_rows: usize,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    ready(tier3_query_context_now(label, dataset_rows))
+    tier3_query_context_with_indexes(label, dataset_rows, Tier3QueryIndexes::full())
 }
 
-fn tier3_query_context_now(label: &str, dataset_rows: usize) -> Result<BenchContext, CassieError> {
+#[derive(Debug, Clone, Copy)]
+pub struct Tier3QueryIndexes {
+    pub scalar: bool,
+    pub fulltext: bool,
+}
+
+impl Tier3QueryIndexes {
+    const fn full() -> Self {
+        Self {
+            scalar: true,
+            fulltext: true,
+        }
+    }
+}
+
+pub fn tier3_query_context_with_indexes(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(tier3_query_context_now(label, dataset_rows, indexes))
+}
+
+fn tier3_query_context_now(
+    label: &str,
+    dataset_rows: usize,
+    indexes: Tier3QueryIndexes,
+) -> Result<BenchContext, CassieError> {
     let context = empty_tier3_query_context_now(label, dataset_rows)?;
-    prepare_collection(&context, dataset_rows, BenchIndexOptions::full())?;
+    prepare_collection(
+        &context,
+        dataset_rows,
+        BenchIndexOptions::selected(indexes.scalar, indexes.fulltext),
+    )?;
     Ok(context)
 }
 
@@ -108,8 +140,11 @@ fn prepare_join_collections(
         context,
         "CREATE TABLE bench_join_orders (order_user_key INT, total INT)",
     )?;
-
-    for range in bench_document_write_batch_ranges(dataset_rows) {
+    execute_ddl(
+        context,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
+    )?;
+    for_each_tier3_domain_batch(dataset_rows, "join users", |range| {
         let users = range
             .map(|index| {
                 let key = index_as_i64(index);
@@ -125,9 +160,10 @@ fn prepare_join_collections(
         context
             .cassie
             .midge
-            .put_fresh_documents(JOIN_USERS, users)?;
-    }
-    for range in bench_document_write_batch_ranges(dataset_rows) {
+            .put_documents(JOIN_USERS, users)
+            .map(|_| ())
+    })?;
+    for_each_tier3_domain_batch(dataset_rows, "join orders", |range| {
         let orders = range
             .map(|index| {
                 (
@@ -142,12 +178,9 @@ fn prepare_join_collections(
         context
             .cassie
             .midge
-            .put_fresh_documents(JOIN_ORDERS, orders)?;
-    }
-    execute_ddl(
-        context,
-        "CREATE INDEX bench_join_users_key_idx ON bench_join_users (user_key)",
-    )?;
+            .put_fresh_documents(JOIN_ORDERS, orders)
+            .map(|_| ())
+    })?;
     Ok(())
 }
 
@@ -160,7 +193,7 @@ fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), Cass
         context,
         "CREATE GRAPH bench_graph (NODES (label TEXT), EDGES (source TEXT))",
     )?;
-    for range in bench_document_write_batch_ranges(dataset_rows) {
+    for_each_tier3_domain_batch(dataset_rows, "graph nodes", |range| {
         let nodes = range
             .map(|index| {
                 (
@@ -176,10 +209,11 @@ fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), Cass
         context
             .cassie
             .midge
-            .put_fresh_graph_documents("bench_graph_nodes", nodes)?;
-    }
+            .put_fresh_graph_documents("bench_graph_nodes", nodes)
+            .map(|_| ())
+    })?;
 
-    for range in bench_document_write_batch_ranges(dataset_rows.saturating_sub(1)) {
+    for_each_tier3_domain_batch(dataset_rows.saturating_sub(1), "graph edges", |range| {
         let edges = range
             .map(|index| {
                 (
@@ -200,8 +234,9 @@ fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), Cass
         context
             .cassie
             .midge
-            .put_fresh_graph_documents("bench_graph_edges", edges)?;
-    }
+            .put_fresh_graph_documents("bench_graph_edges", edges)
+            .map(|_| ())
+    })?;
     Ok(())
 }
 
@@ -220,7 +255,7 @@ fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<()
     )?;
 
     let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
-    for range in bench_document_write_batch_ranges(dataset_rows) {
+    for_each_tier3_domain_batch(dataset_rows, "time-series events", |range| {
         let documents = range
             .map(|index| {
                 let day = 9 + ((index / 24) % 7);
@@ -239,7 +274,28 @@ fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<()
         context
             .cassie
             .midge
-            .put_fresh_time_series_documents(TIME_SERIES, documents)?;
+            .put_fresh_time_series_documents(TIME_SERIES, documents)
+            .map(|_| ())
+    })?;
+    Ok(())
+}
+
+pub fn for_each_tier3_domain_batch<F>(
+    dataset_rows: usize,
+    domain: &str,
+    mut write: F,
+) -> Result<(), CassieError>
+where
+    F: FnMut(Range<usize>) -> Result<(), CassieError>,
+{
+    for range in bench_document_write_batch_ranges(dataset_rows) {
+        let start = range.start;
+        let end = range.end;
+        write(range).map_err(|error| {
+            CassieError::Storage(format!(
+                "prepare Tier 3 {domain} rows {start}..{end}: {error}"
+            ))
+        })?;
     }
     Ok(())
 }

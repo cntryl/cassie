@@ -7,6 +7,7 @@ use cassie::types::Value;
 use super::context::{
     reopen_scaling_query_context_now, scaling_query_disk_context_now, BenchContext,
 };
+use super::document_batches::bench_document_write_batch_ranges;
 use super::scaling::assert_scaling_resource_bounds;
 
 pub const SIMPLE_SCALING_SQL: &str = "SELECT id, title FROM bench_documents WHERE id = $1";
@@ -38,11 +39,6 @@ pub fn query_scaling_disk_context(
             if prepare_joins {
                 super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
             }
-            context.cassie.execute_sql(
-                &context.session,
-                "CREATE INDEX bench_documents_column_idx ON bench_documents USING column (title, body, status, score) WITH (segment_size = 256)",
-                vec![],
-            )?;
             Ok(context)
         });
     ready(context)
@@ -329,26 +325,32 @@ pub fn prepare_time_series_lifecycle_context(
                 .expect("prepare scaling time-series metadata");
         }
         let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];
-        let documents = (0..dataset_rows)
-            .map(|index| {
-                let day = 9 + ((index / 24) % 7);
-                let hour = index % 24;
-                (
-                    Some(format!("ts-doc-{index}")),
-                    serde_json::json!({
-                        "tenant": tenants[index % tenants.len()],
-                        "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
-                        "amount": i64::try_from(index % 100).expect("amount should fit i64"),
-                        "status": if index % 2 == 0 { "open" } else { "closed" },
-                    }),
-                )
-            })
-            .collect::<Vec<_>>();
-        context
-            .cassie
-            .midge
-            .put_fresh_time_series_documents(COLLECTION, documents)
-            .expect("seed scaling time-series collection");
+        for range in bench_document_write_batch_ranges(dataset_rows) {
+            let start = range.start;
+            let end = range.end;
+            let documents = range
+                .map(|index| {
+                    let day = 9 + ((index / 24) % 7);
+                    let hour = index % 24;
+                    (
+                        Some(format!("ts-doc-{index}")),
+                        serde_json::json!({
+                            "tenant": tenants[index % tenants.len()],
+                            "event_at": format!("2026-01-{day:02}T{hour:02}:00:00Z"),
+                            "amount": i64::try_from(index % 100).expect("amount should fit i64"),
+                            "status": if index % 2 == 0 { "open" } else { "closed" },
+                        }),
+                    )
+                })
+                .collect::<Vec<_>>();
+            context
+                .cassie
+                .midge
+                .put_fresh_time_series_documents(COLLECTION, documents)
+                .unwrap_or_else(|error| {
+                    panic!("seed scaling time-series rows {start}..{end}: {error}")
+                });
+        }
         context
             .cassie
             .midge

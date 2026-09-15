@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use cassie::app::Cassie;
 use cassie::runtime::RuntimeState;
-use cntryl_stress::StressContext;
+use cntryl_stress::{ObservationDirection, ObservationUnit, StressContext};
 
 use crate::performance_benchmarks::{PerformanceBenchmarkScenario, ResultCachePolicy};
 
@@ -175,11 +175,31 @@ impl RuntimeEvidenceSource {
         context.metadata("result_cardinality", observation.result_cardinality);
         context.metadata("selected_access_path", selected_access_path);
         context.metadata("access_path_evidence_source", access_path_evidence_source);
-        context.metadata("storage_reads", storage_reads);
         context.metadata("storage_read_unit", storage_read_observation.unit);
-        context.metadata("candidate_count", candidate_count);
-        context.metadata("peak_query_memory_bytes", peak_query_memory_bytes);
-        context.metadata("execution_result_cache_hits", execution_result_cache_hits);
+        context.record_observation(
+            "storage_reads",
+            exact_u64_observation(storage_reads),
+            ObservationUnit::Count,
+            ObservationDirection::LowerIsBetter,
+        );
+        context.record_observation(
+            "candidate_count",
+            exact_u64_observation(candidate_count),
+            ObservationUnit::Count,
+            ObservationDirection::LowerIsBetter,
+        );
+        context.record_observation(
+            "peak_query_memory_bytes",
+            exact_u64_observation(peak_query_memory_bytes),
+            ObservationUnit::Bytes,
+            ObservationDirection::LowerIsBetter,
+        );
+        context.record_observation(
+            "execution_result_cache_hits",
+            exact_u64_observation(execution_result_cache_hits),
+            ObservationUnit::Count,
+            ObservationDirection::Informational,
+        );
         context.metadata("worker_count", configured_worker_count);
         context.metadata("configured_worker_count", configured_worker_count);
         context.metadata(
@@ -189,24 +209,29 @@ impl RuntimeEvidenceSource {
         context.metadata("worker_leak_evidence_source", "runtime_metrics");
         context.metadata("fallback_reason", fallback_reason);
         context.metadata("fallback_evidence_source", fallback_evidence_source);
-        context.metadata(
-            "runtime_metrics_delta",
-            serde_json::json!({
-                "storage_reads": storage_reads,
-                "candidate_count": candidate_count,
-                "peak_query_memory_bytes": peak_query_memory_bytes,
-                "execution_result_cache_hits": execution_result_cache_hits,
-                "fallback_count": fallback_count,
-                "fallback_reason": fallback_reason,
-                "configured_worker_count": configured_worker_count,
-                "leaked_active_operator_workers": leaked_active_operator_workers,
-            }),
+        context.record_observation(
+            "fallback_count",
+            exact_u64_observation(fallback_count),
+            ObservationUnit::Count,
+            ObservationDirection::LowerIsBetter,
         );
         assert_eq!(
             leaked_active_operator_workers, 0,
             "benchmark sample leaked active operator workers"
         );
     }
+}
+
+fn exact_u64_observation(value: u64) -> f64 {
+    const MAX_EXACT_F64_INTEGER: u64 = 1_u64 << f64::MANTISSA_DIGITS;
+    assert!(
+        value <= MAX_EXACT_F64_INTEGER,
+        "benchmark scalar observation exceeds exact f64 integer range"
+    );
+    value
+        .to_string()
+        .parse()
+        .expect("bounded u64 observation should convert exactly to f64")
 }
 
 /// Normalizes a cumulative runtime counter to one logical operation for externally timed samples.
@@ -337,7 +362,6 @@ pub fn scoped_storage_read_observation(
             unit: "time_series_bucket",
         };
     }
-
     let retrieval_reads = [
         "/cardinality/reads",
         "/search/posting_reads_total",

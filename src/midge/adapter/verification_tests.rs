@@ -5,6 +5,71 @@ use std::time::Duration;
 use super::{FieldSchema, Midge, Schema};
 
 #[test]
+fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!(
+        "cassie_projection_batched_output_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+    midge
+        .create_collection(
+            "projection_batched_output",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: false,
+                }],
+            },
+        )
+        .expect("create projection output collection");
+    let rows = (0..5_001)
+        .map(|index| {
+            (
+                format!("row-{index:05}"),
+                serde_json::json!({"value": format!("value-{index:05}")}),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    // Act
+    let (report, root) = midge
+        .write_fresh_projection_output_rows("projection_batched_output", rows)
+        .expect("write batched projection output");
+    let first = midge
+        .get_document("projection_batched_output", "row-00000")
+        .expect("read first output row");
+    let last = midge
+        .get_document("projection_batched_output", "row-05000")
+        .expect("read last output row");
+
+    // Assert
+    assert_eq!(report.stats.row_puts, 5_001);
+    assert_eq!(report.stats.batch_flushes, 21);
+    assert_eq!(root.row_count, 5_001);
+    assert_eq!(root.range_count, 20);
+    assert_eq!(
+        first.expect("first output row").payload["value"],
+        "value-00000"
+    );
+    assert_eq!(
+        last.expect("last output row").payload["value"],
+        "value-05000"
+    );
+    assert_eq!(
+        midge
+            .list_row_hashes("projection_batched_output")
+            .expect("list output row hashes")
+            .len(),
+        5_001
+    );
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
 fn should_serialize_projection_hash_repair_with_collection_writes() {
     // Arrange
     let path = std::env::temp_dir().join(format!(

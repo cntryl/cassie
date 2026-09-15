@@ -6267,6 +6267,29 @@ mod recursive_cte_semantics {
     }
 
     #[test]
+    fn should_explain_recursive_cte_identity() {
+        // Arrange
+        let (cassie, path) = seeded_integer_collection("recursive_explain", &[1]);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "EXPLAIN WITH RECURSIVE seq(n) AS (SELECT n FROM recursive_explain_seed UNION ALL SELECT n + 1 FROM seq WHERE n < 2) SELECT n FROM seq",
+                vec![],
+            )
+            .expect("explain recursive CTE");
+
+        // Assert
+        let Some(Value::String(plan)) = result.rows.first().and_then(|row| row.first()) else {
+            panic!("expected textual plan");
+        };
+        assert!(plan.contains("recursive_cte=seq"), "plan={plan}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_recursive_anchor_self_reference() {
         // Arrange
         let (cassie, path) = seeded_integer_collection("recursive_anchor_self", &[1]);

@@ -1,4 +1,4 @@
-pub const BENCH_DOCUMENT_WRITE_BATCH_ROWS: usize = 5_000;
+pub const BENCH_DOCUMENT_WRITE_BATCH_ROWS: usize = 1_000;
 
 pub fn bench_document_write_batch_ranges(
     dataset_rows: usize,

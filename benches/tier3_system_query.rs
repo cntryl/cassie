@@ -24,8 +24,13 @@ const EXPECTED_COLUMN_ROW: [Value; 5] = [
     Value::Int64(98),
 ];
 const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
+const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
-const COLUMN_QUERIES_PER_BATCH: u64 = 8;
+const COLUMN_QUERIES_PER_BATCH: u64 = 32;
+const VECTOR_EXACT_QUERIES_PER_BATCH: u64 = 2;
+const INDEXED_VECTOR_QUERIES_PER_BATCH: u64 = 4;
+const JOIN_QUERIES_PER_BATCH: u64 = 4;
+const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;
 const GRAPH_READ_BOUND: u64 = 8;
 
 #[path = "support/performance_benchmarks.rs"]
@@ -54,9 +59,10 @@ fn main() {
     let runtime = workloads::runtime();
     let fixture_setup_started = Instant::now();
     let context = runtime
-        .block_on(workloads::tier3_query_context(
+        .block_on(workloads::tier3_query_context_with_indexes(
             "tier3-query-100k",
             FIXTURE_ROWS,
+            core_cases.fixture_indexes(),
         ))
         .expect("Tier 3 shared query fixture");
     workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-99999");
@@ -128,6 +134,13 @@ impl CoreCases {
             || self.vector_hnsw.is_some()
             || self.vector_ivf.is_some()
             || self.hybrid.is_some()
+    }
+
+    fn fixture_indexes(&self) -> workloads::Tier3QueryIndexes {
+        workloads::Tier3QueryIndexes {
+            scalar: self.relational.is_some(),
+            fulltext: self.fulltext.is_some() || self.hybrid.is_some(),
+        }
     }
 }
 
@@ -267,14 +280,16 @@ fn bench_vector_exact_representative(
         workloads::VectorAccessPath::Exact,
     );
     let case = evidenced(
-        case,
+        case.parameter("queries_per_logical_operation", "1"),
         context,
         fixture_setup + case_setup.elapsed(),
         preflight,
     );
     let before = context.cassie.metrics();
     let expected_rows = RefCell::new(None);
-    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
+    runner.measure_batch(case, VECTOR_EXACT_QUERIES_PER_BATCH, || {
+        execute_vector_evidence(context, &expected_rows)
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", "count");
     assert_metric_unchanged(&before, &after, "vector", "hnsw_executions");
@@ -384,7 +399,9 @@ fn bench_ann_case(
     );
     let before = context.cassie.metrics();
     let expected_rows = RefCell::new(None);
-    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
+    runner.measure_batch(case, INDEXED_VECTOR_QUERIES_PER_BATCH, || {
+        execute_vector_evidence(context, &expected_rows)
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", execution_metric);
     assert_metric_unchanged(&before, &after, "vector", fallback_metric);
@@ -440,7 +457,7 @@ fn bench_join_representative(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
+    runner.measure_batch(case, JOIN_QUERIES_PER_BATCH, || {
         workloads::execute_expected_query(context, JOIN_SQL, vec![], 50)
     });
     let after = context.cassie.metrics();
@@ -513,14 +530,14 @@ fn bench_time_series_representative(
     let preflight =
         workloads::assert_time_series_preflight(context, TIME_SERIES_SQL, time_series_params());
     let case = evidenced(
-        case,
+        case.parameter("queries_per_logical_operation", "1"),
         context,
         fixture_setup + case_setup.elapsed(),
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
-        workloads::execute_expected_query(context, TIME_SERIES_SQL, time_series_params(), 512)
+    runner.measure_batch(case, TIME_SERIES_QUERIES_PER_BATCH, || {
+        execute_time_series_evidence(context)
     });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "time_series", "bucket_native_hits");
@@ -580,6 +597,22 @@ fn execute_column_evidence(context: &workloads::BenchContext) -> usize {
         result_rows += result.rows.len();
     }
     std::hint::black_box(result_rows)
+}
+
+fn execute_time_series_evidence(context: &workloads::BenchContext) -> usize {
+    for _ in 0..TIME_SERIES_QUERIES_PER_BATCH {
+        let result_rows = workloads::execute_expected_query(
+            context,
+            TIME_SERIES_SQL,
+            time_series_params(),
+            TIME_SERIES_EXPECTED_ROWS,
+        );
+        assert_eq!(
+            result_rows, TIME_SERIES_EXPECTED_ROWS,
+            "Tier 3 time-series result cardinality"
+        );
+    }
+    std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)
 }
 
 fn execute_vector_evidence(

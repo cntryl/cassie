@@ -122,6 +122,24 @@ impl Midge {
         values
     }
 
+    pub(crate) fn raw_scan_prefix_page_for_collection(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+        limit: usize,
+    ) -> Result<Vec<RawStorageEntry>, CassieError> {
+        let tx = self.database_tx_for_collection(collection, TransactionMode::ReadOnly)?;
+        let values = collect_scan(
+            tx.scan(
+                &Query::new()
+                    .prefix(prefix.to_vec().into())
+                    .limit(limit.max(1)),
+            )
+            .map_err(CassieError::from)?,
+        );
+        values
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

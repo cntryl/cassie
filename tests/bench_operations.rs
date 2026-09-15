@@ -108,6 +108,36 @@ mod benchmark_evidence_contract {
     }
 
     #[test]
+    fn should_accept_varying_runtime_counts_as_scalar_observations() {
+        // Arrange
+        let mut value: serde_json::Value =
+            serde_json::from_str(&artifact("\"marker\": true")).expect("benchmark artifact");
+        let metadata = value["summaries"][0]["metadata"]
+            .as_object_mut()
+            .expect("summary metadata");
+        for key in [
+            "storage_reads",
+            "candidate_count",
+            "peak_query_memory_bytes",
+            "execution_result_cache_hits",
+        ] {
+            metadata.remove(key);
+        }
+        value["summaries"][0]["observations"] = serde_json::json!([
+            { "name": "storage_reads", "stats": { "max": 40.0 } },
+            { "name": "candidate_count", "stats": { "max": 20.0 } },
+            { "name": "peak_query_memory_bytes", "stats": { "max": 4096.0 } },
+            { "name": "execution_result_cache_hits", "stats": { "max": 0.0 } }
+        ]);
+
+        // Act
+        let validation = validate(&value.to_string());
+
+        // Assert
+        validation.expect("scalar observations should carry varying runtime evidence");
+    }
+
+    #[test]
     fn should_reject_malformed_legacy_timing_even_with_summary_wall_time() {
         // Arrange
         let mut value: serde_json::Value =
@@ -1743,8 +1773,9 @@ mod benchmark_harness_contract {
         let source = include_str!("../benches/tier3_system_query.rs");
 
         // Act
-        let shared_fixture_constructions =
-            source.matches("workloads::tier3_query_context(").count();
+        let shared_fixture_constructions = source
+            .matches("workloads::tier3_query_context_with_indexes(")
+            .count();
         let obsolete_fixture_constructors = [
             "workloads::context(",
             "workloads::vectorized_join_context(",
@@ -1759,6 +1790,28 @@ mod benchmark_harness_contract {
         assert_eq!(shared_fixture_constructions, 1);
         assert!(obsolete_fixture_constructors.is_empty());
         assert!(source.contains("prepare_tier3_query_domains"));
+    }
+
+    #[test]
+    fn should_build_only_selected_tier3_core_indexes() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+
+        // Act
+        let derives_fixture_indexes = owner.contains("core_cases.fixture_indexes()");
+        let uses_selected_fixture = owner.contains("tier3_query_context_with_indexes(");
+        let preserves_complete_default = fixture.contains(
+            "tier3_query_context_with_indexes(label, dataset_rows, Tier3QueryIndexes::full())",
+        );
+        let prepares_selected_indexes =
+            fixture.contains("BenchIndexOptions::selected(indexes.scalar, indexes.fulltext)");
+
+        // Assert
+        assert!(derives_fixture_indexes);
+        assert!(uses_selected_fixture);
+        assert!(preserves_complete_default);
+        assert!(prepares_selected_indexes);
     }
 
     #[test]
@@ -1819,7 +1872,7 @@ mod benchmark_harness_contract {
         let source = include_str!("../benches/tier3_system_query.rs");
 
         // Act
-        let has_batch_size = source.contains("const COLUMN_QUERIES_PER_BATCH: u64 = 8;");
+        let has_batch_size = source.contains("const COLUMN_QUERIES_PER_BATCH: u64 = 32;");
         let has_query_unit = source.contains(".parameter(\"logical_unit\", \"query\")");
         let has_normalization =
             source.contains(".parameter(\"queries_per_logical_operation\", \"1\")");
@@ -1833,6 +1886,154 @@ mod benchmark_harness_contract {
         assert!(has_normalization);
         assert!(measures_complete_batch);
         assert!(executes_complete_batch);
+    }
+
+    #[test]
+    fn should_batch_tier3_exact_vector_queries_with_explicit_normalization() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let exact_vector = owner
+            .split_once("fn bench_vector_exact_representative")
+            .expect("Tier 3 exact-vector benchmark")
+            .1
+            .split_once("fn bench_indexed_vector_representatives")
+            .expect("end of Tier 3 exact-vector benchmark")
+            .0;
+
+        // Act
+        let batches_queries =
+            exact_vector.contains("runner.measure_batch(case, VECTOR_EXACT_QUERIES_PER_BATCH");
+        let declares_query_unit =
+            exact_vector.contains("parameter(\"queries_per_logical_operation\", \"1\")");
+
+        // Assert
+        assert!(batches_queries);
+        assert!(declares_query_unit);
+    }
+
+    #[test]
+    fn should_batch_tier3_indexed_vector_queries() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+
+        // Act
+        let indexed_vector_uses = owner
+            .matches("runner.measure_batch(case, INDEXED_VECTOR_QUERIES_PER_BATCH")
+            .count();
+
+        // Assert
+        assert!(owner.contains("const INDEXED_VECTOR_QUERIES_PER_BATCH: u64 = 4;"));
+        assert_eq!(indexed_vector_uses, 1);
+    }
+
+    #[test]
+    fn should_batch_tier3_join_queries() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+
+        // Act
+        let join_uses = owner
+            .matches("runner.measure_batch(case, JOIN_QUERIES_PER_BATCH")
+            .count();
+
+        // Assert
+        assert!(owner.contains("const JOIN_QUERIES_PER_BATCH: u64 = 4;"));
+        assert_eq!(join_uses, 1);
+    }
+
+    #[test]
+    fn should_apply_runtime_logical_units_to_every_batch_measurement() {
+        // Arrange
+        let adapter = include_str!("../benches/support/stress.rs");
+
+        // Act
+        let shared_preparations = adapter
+            .matches("prepare_batch_case(case, logical_operations)")
+            .count();
+        let records_runtime_unit = adapter.contains(".parameter(\"logical_unit\", logical_unit)");
+        let declares_fixed_workload =
+            adapter.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
+
+        // Assert
+        assert_eq!(shared_preparations, 2);
+        assert!(records_runtime_unit);
+        assert!(declares_fixed_workload);
+    }
+
+    #[test]
+    fn should_normalize_duration_batch_evidence_by_completed_operations() {
+        // Arrange
+        let adapter = include_str!("../benches/support/stress.rs");
+        let first_candidate_count = 18_768;
+        let first_completed_queries = 48;
+        let second_candidate_count = 15_640;
+        let second_completed_queries = 40;
+
+        // Act
+        let first =
+            stress::normalize_runtime_counter(first_candidate_count, Some(first_completed_queries));
+        let second = stress::normalize_runtime_counter(
+            second_candidate_count,
+            Some(second_completed_queries),
+        );
+
+        // Assert
+        assert_eq!(first, 391);
+        assert_eq!(first, second);
+        assert!(adapter.contains("let completed = ctx.measure_batch"));
+        assert!(adapter.contains(".per_external_operation(completed)"));
+    }
+
+    #[test]
+    fn should_batch_tier3_time_series_queries_with_per_query_evidence() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+        let harness = include_str!("../benches/support/stress.rs");
+        let time_series_case = owner
+            .split_once("fn bench_time_series_representative")
+            .expect("time-series representative")
+            .1
+            .split_once("fn selected_case")
+            .expect("end of time-series representative")
+            .0;
+        let time_series_execution = owner
+            .split_once("fn execute_time_series_evidence")
+            .expect("time-series execution")
+            .1
+            .split_once("fn execute_vector_evidence")
+            .expect("end of time-series execution")
+            .0;
+        let run_batch = harness
+            .split_once("fn run_batch<F, R>")
+            .expect("batch runner")
+            .1
+            .split_once("pub fn is_enabled")
+            .expect("end of batch runner")
+            .0;
+
+        // Act
+        let has_batch_size = owner.contains("const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;");
+        let has_normalization =
+            time_series_case.contains(".parameter(\"queries_per_logical_operation\", \"1\")");
+        let measures_complete_batch = time_series_case
+            .contains("runner.measure_batch(case, TIME_SERIES_QUERIES_PER_BATCH, ||");
+        let uses_batched_execution = time_series_case.contains("execute_time_series_evidence");
+        let executes_complete_batch =
+            time_series_execution.contains("for _ in 0..TIME_SERIES_QUERIES_PER_BATCH");
+        let reports_per_query_cardinality =
+            time_series_execution.contains("std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)");
+        let uses_actual_completed_count = run_batch.contains("let completed = ctx.measure_batch(");
+        let normalizes_runtime_evidence = run_batch.contains(".per_external_operation(completed)");
+
+        // Assert
+        assert!(has_batch_size);
+        assert!(has_normalization);
+        assert!(measures_complete_batch);
+        assert!(uses_batched_execution);
+        assert!(executes_complete_batch);
+        assert!(reports_per_query_cardinality);
+        assert!(uses_actual_completed_count);
+        assert!(normalizes_runtime_evidence);
     }
 
     #[test]
@@ -1970,6 +2171,52 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_seed_lifecycle_time_series_rows_in_bounded_batches() {
+        // Arrange
+        let setup_source = include_str!("../benches/support/workloads/scaling_legacy.rs");
+        let setup_body = setup_source
+            .split_once("pub fn prepare_time_series_lifecycle_context")
+            .expect("time-series lifecycle setup")
+            .1
+            .split_once("pub fn projection_refresh_existing")
+            .expect("end of time-series lifecycle setup")
+            .0;
+
+        // Act
+        let uses_bounded_ranges =
+            setup_body.contains("bench_document_write_batch_ranges(dataset_rows)");
+        let writes_each_batch = setup_body.contains("put_fresh_time_series_documents(");
+        let reports_batch_range =
+            setup_body.contains("seed scaling time-series rows {start}..{end}: {error}");
+
+        // Assert
+        assert!(uses_bounded_ranges);
+        assert!(writes_each_batch);
+        assert!(reports_batch_range);
+    }
+
+    #[test]
+    fn should_seed_scaling_join_relations_in_bounded_batches() {
+        // Arrange
+        let setup_source = include_str!("../benches/support/workloads/join_context.rs");
+
+        // Act
+        let uses_bounded_ranges = setup_source
+            .matches("bench_document_write_batch_ranges(")
+            .count();
+        let writes_each_batch = setup_source
+            .matches("put_fresh_documents(collection, documents)")
+            .count();
+        let reports_batch_range = setup_source
+            .contains("seed scaling join relation {collection} rows {start}..{end}: {error}");
+
+        // Assert
+        assert!(uses_bounded_ranges >= 1);
+        assert_eq!(writes_each_batch, 1);
+        assert!(reports_batch_range);
+    }
+
+    #[test]
     fn should_prepare_projection_replay_inputs_before_measurement() {
         // Arrange
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
@@ -2087,6 +2334,73 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_classify_non_stationary_transport_soak_throughput_as_diagnostic() {
+        // Arrange
+        let owner = include_str!("../benches/tier6_soak_transport.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let owner_declares_diagnostic_throughput = owner
+            .contains(".metadata(\"trust_class\", \"diagnostic\")")
+            && owner.contains("non_stationary_transport_churn");
+        let contract_preserves_hard_endurance_gates = contract
+            .contains("Transport-soak throughput is retained as diagnostic evidence")
+            && contract
+                .contains("result, resource, cleanup, and duration requirements remain hard gates");
+
+        // Assert
+        assert!(owner_declares_diagnostic_throughput);
+        assert!(contract_preserves_hard_endurance_gates);
+    }
+
+    #[test]
+    fn should_accept_only_explicit_diagnostic_rows_without_a_baseline() {
+        // Arrange
+        use cntryl_stress::artifact::TrustClass;
+        use cntryl_stress::runner::RunGate;
+
+        // Act
+        let diagnostic_only = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Diagnostic],
+        );
+        let invalid = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Invalid],
+        );
+        let mixed = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Diagnostic, TrustClass::Gate],
+        );
+        let empty = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[],
+        );
+        let baseline = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            true,
+            &[TrustClass::Diagnostic],
+        );
+        let correctness = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::CorrectnessFailed,
+            false,
+            &[TrustClass::Diagnostic],
+        );
+
+        // Assert
+        assert!(diagnostic_only);
+        assert!(!invalid);
+        assert!(!mixed);
+        assert!(!empty);
+        assert!(!baseline);
+        assert!(!correctness);
+    }
+
+    #[test]
     fn should_own_only_generated_tls_material_given_http_benchmark_configuration() {
         // Arrange
         let tls_source = include_str!("../benches/support/workloads/http.rs");
@@ -2133,6 +2447,253 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_keep_http_create_get_measurement_free_of_delete_maintenance() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/http.rs");
+        let soak = include_str!("../benches/tier6_soak_transport.rs");
+        let create_get = workloads
+            .split("pub async fn http_transport_document_create_get(ctx:")
+            .nth(1)
+            .expect("HTTP create/get workload")
+            .split("pub async fn http_transport_document_create_get_delete")
+            .next()
+            .expect("bounded HTTP create/get workload source");
+
+        // Act
+        let create_get_times_only_named_requests =
+            !create_get.contains("client.delete") && create_get.contains("black_box(2)");
+        let soak_uses_explicit_steady_state_cycle = workloads
+            .contains("http_transport_document_create_get_delete")
+            && soak.contains("http_transport_document_create_get_delete(http)");
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+        let mutation_path_is_diagnostic = owner
+            .contains(".metadata(\"trust_class\", \"diagnostic\")")
+            && owner.contains("non_stationary_indexed_mutation")
+            && contract
+                .contains("`document_create_get/10k` is retained as diagnostic mutation evidence");
+
+        // Assert
+        assert!(create_get_times_only_named_requests);
+        assert!(soak_uses_explicit_steady_state_cycle);
+        assert!(mutation_path_is_diagnostic);
+    }
+
+    #[test]
+    fn should_measure_http_mutation_after_stable_query_gates() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+
+        // Act
+        let query = owner.find("if enabled[2]").expect("HTTP query owner");
+        let vector = owner.find("if enabled[1]").expect("HTTP vector owner");
+        let mutation = owner.find("if enabled[0]").expect("HTTP mutation owner");
+
+        // Assert
+        assert!(query < mutation);
+        assert!(vector < mutation);
+    }
+
+    #[test]
+    fn should_measure_http_query_as_fixed_work_batches() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+        let query_measurement = owner
+            .split_once("if enabled[2]")
+            .expect("HTTP query measurement")
+            .1
+            .split_once("if enabled[1]")
+            .expect("end of HTTP query measurement")
+            .0;
+
+        // Act
+        let declares_bounded_batch =
+            owner.contains("const HTTP_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 128;");
+        let measures_fixed_work = query_measurement.contains("runner.measure_batch(")
+            && query_measurement.contains("HTTP_QUERY_INVOCATIONS_PER_SAMPLE,")
+            && query_measurement.contains("for _ in 0..HTTP_QUERY_INVOCATIONS_PER_SAMPLE");
+        let preserves_one_request_per_operation =
+            query_measurement.contains("assert_eq!(requests, 1, \"HTTP query request count\")");
+
+        // Assert
+        assert!(declares_bounded_batch);
+        assert!(measures_fixed_work);
+        assert!(preserves_one_request_per_operation);
+    }
+
+    #[test]
+    fn should_measure_slow_pgwire_paths_as_fixed_work_batches() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+        let extended = owner
+            .split_once("fn extended(")
+            .expect("extended-query measurement")
+            .1
+            .split_once("fn portal(")
+            .expect("end of extended-query measurement")
+            .0;
+        let portal = owner
+            .split_once("fn portal(")
+            .expect("portal measurement")
+            .1
+            .split_once("fn cancellation(")
+            .expect("end of portal measurement")
+            .0;
+        let cancellation = owner
+            .split_once("fn cancellation(")
+            .expect("cancellation measurement")
+            .1
+            .split_once("fn multi_statement(")
+            .expect("end of cancellation measurement")
+            .0;
+        let multi_statement = owner
+            .split_once("fn multi_statement(")
+            .expect("multi-statement measurement")
+            .1
+            .split_once("fn binary_extended(")
+            .expect("end of multi-statement measurement")
+            .0;
+        let binary_extended = owner
+            .split_once("fn binary_extended(")
+            .expect("binary-extended measurement")
+            .1
+            .split_once("fn evidenced(")
+            .expect("end of binary-extended measurement")
+            .0;
+
+        // Act
+        let declares_bounded_batches = owner
+            .contains("const EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const CANCELLATION_INVOCATIONS_PER_SAMPLE: u64 = 8;")
+            && owner.contains("const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;");
+        let extended_preserves_query_units = extended.contains("runner.measure_batch(")
+            && extended.contains("EXTENDED_INVOCATIONS_PER_SAMPLE")
+            && extended.contains("pgwire_transport_extended_query");
+        let portal_preserves_fetch_units = portal.contains("runner.measure_batch(")
+            && portal.contains("PORTAL_INVOCATIONS_PER_SAMPLE * 2")
+            && portal.contains("pgwire_transport_portal_fetch");
+        let cancellation_preserves_cancel_units = cancellation.contains("runner.measure_batch(")
+            && cancellation.contains("CANCELLATION_INVOCATIONS_PER_SAMPLE")
+            && cancellation.contains("pgwire_transport_cancellation");
+        let multi_preserves_query_units = multi_statement.contains("runner.measure_batch(")
+            && multi_statement.contains("MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2")
+            && multi_statement.contains("pgwire_transport_multi_statement");
+        let binary_preserves_query_units = binary_extended.contains("runner.measure_batch(")
+            && binary_extended.contains("BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE")
+            && binary_extended.contains("pgwire_transport_binary_query");
+        let registry_uses_batch_timing = [
+            "perf.pgwire.extended.10k",
+            "perf.pgwire.portal.10k",
+            "perf.pgwire.cancellation.10k",
+            "perf.pgwire.multi_statement_query.10k",
+            "perf.pgwire.binary_query.10k",
+        ]
+        .into_iter()
+        .all(|scenario_id| {
+            performance_benchmarks::benchmark_for_scenario(scenario_id).is_some_and(|scenario| {
+                scenario.timing_mode == performance_benchmarks::BenchmarkTimingMode::Batch
+            })
+        });
+        let avoids_duration_sampling = !extended.contains("sample_until_deadline")
+            && !portal.contains("sample_until_deadline")
+            && !cancellation.contains("sample_until_deadline")
+            && !multi_statement.contains("sample_until_deadline")
+            && !binary_extended.contains("sample_until_deadline");
+
+        // Assert
+        assert!(declares_bounded_batches);
+        assert!(extended_preserves_query_units);
+        assert!(portal_preserves_fetch_units);
+        assert!(cancellation_preserves_cancel_units);
+        assert!(multi_preserves_query_units);
+        assert!(binary_preserves_query_units);
+        assert!(registry_uses_batch_timing);
+        assert!(avoids_duration_sampling);
+    }
+
+    #[test]
+    fn should_isolate_tier5_column_measurements_from_scalar_indexes() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
+        let shared_context = include_str!("../benches/support/workloads/scaling.rs");
+        let shared_disk_context = include_str!("../benches/support/workloads/scaling_legacy.rs");
+
+        // Act
+        let creates_column_only_context = owner.contains(
+            "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+        );
+        let records_shared_setup_before_isolated_setup = owner
+            .find("let fixture_setup = setup_started.elapsed();")
+            .zip(owner.find(
+                "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+            ))
+            .is_some_and(|(shared_setup, isolated_setup)| shared_setup < isolated_setup);
+        let opens_isolated_fixture_after_shared_join = owner
+            .find("if let Some(case) = cases.join.clone()")
+            .zip(owner.find(
+                "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+            ))
+            .is_some_and(|(join_measurement, isolated_setup)| join_measurement < isolated_setup);
+        let routes_column_measurement = owner
+            .contains("let (column_context, column_setup) = isolated_column_context")
+            && owner.contains("workloads::column_query(column_context)");
+        let cleans_isolated_context =
+            owner.contains("cleanup_isolated_column_context(isolated_column_context);");
+        let avoids_duplicate_column_build = !shared_context
+            .split_once("pub fn query_scaling_context(")
+            .expect("shared scaling context")
+            .1
+            .split_once("pub fn relational_query(")
+            .expect("end of shared scaling context")
+            .0
+            .contains("CREATE INDEX bench_documents_column_idx")
+            && !shared_disk_context
+                .split_once("pub fn query_scaling_disk_context(")
+                .expect("shared disk scaling context")
+                .1
+                .split_once("pub struct QueryScalingFixture")
+                .expect("end of shared disk scaling context")
+                .0
+                .contains("CREATE INDEX bench_documents_column_idx");
+
+        // Assert
+        assert!(creates_column_only_context);
+        assert!(records_shared_setup_before_isolated_setup);
+        assert!(opens_isolated_fixture_after_shared_join);
+        assert!(routes_column_measurement);
+        assert!(cleans_isolated_context);
+        assert!(avoids_duplicate_column_build);
+    }
+
+    #[test]
+    fn should_batch_posting_merge_samples_without_changing_candidate_units() {
+        // Arrange
+        let owner = include_str!("../benches/tier2_subsystem_search.rs");
+        let fixture = super::workloads::PostingMergeFixture::new(2_048);
+
+        // Act
+        let declares_bounded_batch =
+            owner.contains("const POSTING_MERGE_INVOCATIONS_PER_SAMPLE: usize = 512;");
+        let records_batch_parameter = owner.contains("fixture_invocations_per_sample");
+        let measures_complete_batch = owner.contains("runner.measure_counted(");
+        let preserves_candidate_observation =
+            owner.contains("fixture.merge_batch(POSTING_MERGE_INVOCATIONS_PER_SAMPLE)");
+        let observation = fixture.merge_batch(512);
+
+        // Assert
+        assert!(declares_bounded_batch);
+        assert!(records_batch_parameter);
+        assert!(measures_complete_batch);
+        assert!(preserves_candidate_observation);
+        assert_eq!(observation.completed_operations(), 2_048 * 512);
+        assert_eq!(observation.result_cardinality(), 2_048 * 512);
+        assert_eq!(observation.candidate_count(), Some(2_048 * 512));
+        observation.finish_sample();
+    }
+
+    #[test]
     fn should_enforce_configured_tier6_result_row_bounds() {
         // Arrange
         let mixed = include_str!("../benches/tier6_soak_mixed.rs");
@@ -2158,6 +2719,27 @@ mod benchmark_harness_contract {
         assert!(every_transport_result_is_gated);
     }
 
+    #[test]
+    fn should_keep_mixed_soak_mutations_out_of_the_large_indexed_query_fixture() {
+        // Arrange
+        let owner = include_str!("../benches/tier6_soak_mixed.rs");
+        let workloads = include_str!("../benches/support/workloads/scaling.rs");
+
+        // Act
+        let owner_prepares_mutation_lane =
+            owner.contains("workloads::prepare_mixed_soak_mutation_collection(&context)");
+        let operation_uses_mutation_lane =
+            workloads.contains(
+                "pub const MIXED_SOAK_MUTATION_COLLECTION: &str = \"bench_mixed_soak_mutations\"",
+            ) && workloads.matches("MIXED_SOAK_MUTATION_COLLECTION").count() >= 3
+                && workloads.contains("FROM bench_mixed_soak_mutations WHERE title = $1 LIMIT 1")
+                && workloads.contains("delete_document(MIXED_SOAK_MUTATION_COLLECTION, &id)");
+
+        // Assert
+        assert!(owner_prepares_mutation_lane);
+        assert!(operation_uses_mutation_lane);
+    }
+
     // Merged from tests/benchmark_sql_contract.rs to cut a separate test binary.
 
     #[test]
@@ -2177,12 +2759,12 @@ mod benchmark_harness_contract {
             });
 
         // Assert
-        assert_eq!(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, 1_024);
+        assert_eq!(workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE, 8_192);
         assert_eq!(
             observed_lookups,
             workloads::PLAN_CACHE_MISS_LOOKUPS_PER_SAMPLE
         );
-        assert_eq!(completed, 1_024);
+        assert_eq!(completed, 8_192);
         assert_eq!(
             scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted
@@ -2370,11 +2952,11 @@ mod benchmark_harness_contract {
             });
 
         // Assert
-        assert_eq!(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, 256);
+        assert_eq!(workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE, 8_192);
         assert_eq!(plan_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
         assert_eq!(result_lookups, workloads::CACHE_HIT_LOOKUPS_PER_SAMPLE);
-        assert_eq!(completed_plan_lookups, 256);
-        assert_eq!(completed_result_lookups, 256);
+        assert_eq!(completed_plan_lookups, 8_192);
+        assert_eq!(completed_result_lookups, 8_192);
         assert_eq!(
             plan_scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted
@@ -2409,10 +2991,10 @@ mod benchmark_harness_contract {
         let observation = fixture.ivfflat_batch(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE);
 
         // Assert
-        assert_eq!(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE, 4_096);
-        assert_eq!(observation.completed_operations(), 16_384);
-        assert_eq!(observation.result_cardinality(), 16_384);
-        assert_eq!(observation.candidate_count(), Some(16_384));
+        assert_eq!(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE, 16_384);
+        assert_eq!(observation.completed_operations(), 65_536);
+        assert_eq!(observation.result_cardinality(), 65_536);
+        assert_eq!(observation.candidate_count(), Some(65_536));
         assert_eq!(
             scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted
@@ -2601,14 +3183,16 @@ mod benchmark_harness_contract {
 }
 // Formerly tests/benchmark_kernels.rs.
 mod benchmark_kernels {
-    use super::workloads;
+    use super::{performance_benchmarks, workloads};
+
+    use performance_benchmarks::{benchmark_for_benchmark, BenchmarkTimingMode};
 
     use cassie::benchmark::{
         ExecutorKernel, PgwireParameterBindingKernel, RowCodecKernel, RowKeyKernel,
     };
     use cassie::types::Value;
 
-    const TIER3_DOMAIN_TEST_ROWS: usize = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS + 2;
+    const TIER3_DOMAIN_TEST_ROWS: usize = 5_002;
     const TIER3_GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
     const TIER3_TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
 
@@ -2900,8 +3484,86 @@ mod benchmark_kernels {
 
         // Assert
         assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
-        assert_eq!(batch_sizes.len(), 21);
-        assert!(batch_sizes.iter().all(|size| *size <= 5_000));
+        assert_eq!(batch_sizes.len(), 101);
+        assert!(batch_sizes.iter().all(|size| *size <= 1_000));
+    }
+
+    #[test]
+    fn should_batch_tier4_simple_queries_for_stable_release_evidence() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+        let scenario = benchmark_for_benchmark("tier4_integration_pgwire", "simple_query", "10k")
+            .expect("registered Tier 4 simple-query scenario");
+
+        // Act
+        let timing_mode = scenario.timing_mode;
+        let simple_measurement = owner
+            .split_once("fn simple(")
+            .expect("simple-query measurement")
+            .1
+            .split_once("fn extended(")
+            .expect("end of simple-query measurement")
+            .0;
+        let uses_bounded_batch = owner
+            .contains("const SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && simple_measurement.contains("runner.measure_batch(")
+            && simple_measurement.contains("for _ in 0..SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE");
+
+        // Assert
+        assert_eq!(timing_mode, BenchmarkTimingMode::Batch);
+        assert!(uses_bounded_batch);
+    }
+
+    #[test]
+    fn should_measure_protocol_comparison_as_fixed_query_batches() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_protocol_compare.rs");
+        let pgwire =
+            benchmark_for_benchmark("tier4_integration_protocol_compare", "pgwire_query", "10k")
+                .expect("registered pgwire comparison");
+        let http =
+            benchmark_for_benchmark("tier4_integration_protocol_compare", "http_query", "10k")
+                .expect("registered HTTP comparison");
+
+        // Act
+        let measures_each_protocol_as_fixed_query_batches = owner
+            .contains("const QUERIES_PER_SAMPLE: u64 = 64;")
+            && owner.matches("runner.measure_batch(").count() == 2
+            && owner
+                .matches("transport_external::sample_until_deadline")
+                .count()
+                == 0;
+        let registers_both_rows_as_batches = pgwire.timing_mode == BenchmarkTimingMode::Batch
+            && http.timing_mode == BenchmarkTimingMode::Batch;
+
+        // Assert
+        assert!(measures_each_protocol_as_fixed_query_batches);
+        assert!(registers_both_rows_as_batches);
+    }
+
+    #[test]
+    fn should_amortize_vector_distance_timer_jitter() {
+        // Arrange
+        let minimum_batch_operations = 4_096;
+
+        // Act
+        let configured_batch_operations = workloads::VECTOR_DISTANCE_BATCH_SIZE;
+
+        // Assert
+        assert!(configured_batch_operations >= minimum_batch_operations);
+    }
+
+    #[test]
+    fn should_batch_fsst_encoding_for_stable_release_evidence() {
+        // Arrange
+        let owner = include_str!("../benches/tier1_hotpath_row_codec.rs");
+
+        // Act
+        let uses_fsst_encode_batch = owner.contains("FSST_CODEC_ENCODE_BATCH_SIZE")
+            && owner.contains("workloads::fsst_codec_encode_batch");
+
+        // Assert
+        assert!(uses_fsst_encode_batch);
     }
 
     #[test]
@@ -2976,6 +3638,48 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_omit_unselected_indexes_from_tier3_fixture() {
+        // Arrange
+        workloads::configure_tier3_environment();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark fixture test runtime");
+
+        // Act
+        let context = runtime
+            .block_on(workloads::tier3_query_context_with_indexes(
+                "tier3-selected-indexes",
+                16,
+                workloads::Tier3QueryIndexes {
+                    scalar: false,
+                    fulltext: false,
+                },
+            ))
+            .expect("selective Tier 3 benchmark fixture");
+        let indexes = context
+            .cassie
+            .midge
+            .list_indexes()
+            .expect("list selective benchmark indexes");
+
+        // Assert
+        assert!(indexes.iter().all(|index| {
+            index.collection
+                != cassie::catalog::canonical_relation_name(
+                    "postgres",
+                    "public",
+                    &context.collection,
+                )
+        }));
+        workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-15");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean selective benchmark fixture");
+    }
+
+    #[test]
     fn should_record_projection_lifecycle_metrics_given_small_scaling_fixture() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -3011,6 +3715,83 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up lifecycle metric fixture");
+    }
+
+    #[test]
+    fn should_allow_projection_lifecycle_setup_beyond_the_product_default_deadline() {
+        // Arrange
+        let context = include_str!("../benches/support/workloads/context.rs");
+        let owner = include_str!("../benches/tier5_scaling_lifecycle.rs");
+
+        // Act
+        let lifecycle_tail = context
+            .split_once("pub fn lifecycle_disk_context_with_temp_budget")
+            .expect("lifecycle context constructor")
+            .1;
+        let lifecycle_context = lifecycle_tail
+            .split_once("\npub fn ")
+            .map_or(lifecycle_tail, |(body, _)| body);
+        let lifecycle_has_unbounded_setup_deadline =
+            lifecycle_context.contains("config.limits.query_timeout_ms = 0;");
+        let owner_uses_lifecycle_context =
+            owner.contains("workloads::lifecycle_disk_context_with_temp_budget(");
+
+        // Assert
+        assert!(lifecycle_has_unbounded_setup_deadline);
+        assert!(owner_uses_lifecycle_context);
+    }
+
+    #[test]
+    fn should_complete_one_mixed_soak_cycle_without_rebuilding_the_indexed_fixture() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context_with_mock_tei_embeddings(
+                "mixed-soak-mutation-lane-contract",
+                256,
+                64,
+            ))
+            .expect("mixed soak contract fixture");
+        workloads::prepare_mixed_soak_mutation_collection(&context);
+
+        // Act
+        let cardinality = runtime.block_on(workloads::bounded_mixed_operation(&context, 1));
+
+        // Assert
+        assert!(cardinality > 1);
+        assert!(cardinality <= 64);
+        let remaining = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT id FROM bench_mixed_soak_mutations",
+                vec![],
+            )
+            .expect("inspect mutation-lane cleanup");
+        assert!(remaining.rows.is_empty());
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up mixed soak contract fixture");
+    }
+
+    #[test]
+    fn should_give_pgwire_integration_queries_an_explicit_analytical_deadline() {
+        // Arrange
+        let context = include_str!("../benches/support/workloads/context.rs");
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+
+        // Act
+        let context_accepts_an_explicit_deadline = context
+            .contains("pub fn scalar_context_with_query_timeout(")
+            && context.contains("config.limits.query_timeout_ms = query_timeout_ms;");
+        let owner_uses_analytical_deadline = owner
+            .contains("workloads::scalar_context_with_query_timeout(")
+            && owner.contains("workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS");
+
+        // Assert
+        assert!(context_accepts_an_explicit_deadline);
+        assert!(owner_uses_analytical_deadline);
     }
 
     #[test]
@@ -3050,6 +3831,23 @@ mod benchmark_kernels {
         assert!(fixture
             .fixture_identity()
             .contains("tier2-subsystem-projection"));
+    }
+
+    #[test]
+    fn should_replay_each_tier2_projection_sample_against_equivalent_isolated_state() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let fixture = workloads::ProjectionBatchFixture::new(&runtime, 8);
+
+        // Act
+        let first = fixture.replay_batch();
+        first.finish_sample();
+        let second = fixture.replay_batch();
+        second.finish_sample();
+        let positions = fixture.replayed_projection_positions();
+
+        // Assert
+        assert_eq!(positions, vec![8, 8]);
     }
 
     #[test]
@@ -3413,7 +4211,49 @@ mod benchmark_kernels {
         std::fs::remove_dir_all(data_dir).expect("clean up batched Tier 3 query fixture");
     }
 
+    #[test]
+    fn should_attribute_tier3_domain_batch_errors_to_exact_range() {
+        // Arrange
+        let mut attempted = Vec::new();
+
+        // Act
+        let result = workloads::for_each_tier3_domain_batch(
+            TIER3_DOMAIN_TEST_ROWS,
+            "time-series events",
+            |range| {
+                attempted.push(range.clone());
+                if range.start == workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS {
+                    Err(cassie::app::CassieError::Storage(
+                        "simulated storage deadline".to_string(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            },
+        );
+
+        // Assert
+        assert_eq!(
+            attempted,
+            [
+                0..workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS,
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS
+                    ..workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS * 2,
+            ]
+        );
+        assert_eq!(
+            result.expect_err("second fixture batch should fail").to_string(),
+            format!(
+                "storage error: prepare Tier 3 time-series events rows {}..{}: storage error: simulated storage deadline",
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS,
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS * 2
+            )
+        );
+    }
+
     fn assert_tier3_domain_generations_and_rows(context: &workloads::BenchContext) {
+        let expected_generations =
+            TIER3_DOMAIN_TEST_ROWS.div_ceil(workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS);
         for collection in [
             "bench_join_users",
             "bench_join_orders",
@@ -3427,8 +4267,8 @@ mod benchmark_kernels {
                     .midge
                     .collection_generation(collection)
                     .expect("read Tier 3 domain collection generation"),
-                2,
-                "{collection} must be loaded through exactly two fixture transactions"
+                u64::try_from(expected_generations).expect("fixture generation count should fit"),
+                "{collection} must be loaded through the expected bounded fixture transactions"
             );
         }
         for (collection, expected_rows) in [
@@ -3452,34 +4292,41 @@ mod benchmark_kernels {
     }
 
     fn assert_tier3_domain_boundaries(context: &workloads::BenchContext) {
-        for (collection, ids) in [
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
+        for (collection, prefix, offsets) in [
             (
                 "bench_join_users",
-                &["user-0", "user-4999", "user-5000", "user-5001"][..],
+                "user",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_join_orders",
-                &["order-0", "order-4999", "order-5000", "order-5001"][..],
+                "order",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_graph_nodes",
-                &["node-0", "node-4999", "node-5000", "node-5001"][..],
+                "node",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_graph_edges",
-                &["edge-0", "edge-4999", "edge-5000"][..],
+                "edge",
+                &[0, boundary - 1, boundary][..],
             ),
             (
                 "bench_time_series_events",
-                &["ts-doc-0", "ts-doc-4999", "ts-doc-5000", "ts-doc-5001"][..],
+                "ts-doc",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
         ] {
-            for &id in ids {
+            for offset in offsets {
+                let id = format!("{prefix}-{offset}");
                 assert!(
                     context
                         .cassie
                         .midge
-                        .get_document(collection, id)
+                        .get_document(collection, &id)
                         .expect("read Tier 3 domain fixture boundary")
                         .is_some(),
                     "{collection} must retain boundary document {id}"
@@ -3489,16 +4336,17 @@ mod benchmark_kernels {
     }
 
     fn assert_tier3_join_boundary_semantics(context: &workloads::BenchContext) {
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
         let user = context
             .cassie
             .midge
-            .get_document("bench_join_users", "user-5000")
+            .get_document("bench_join_users", &format!("user-{boundary}"))
             .expect("read join user across fixture batch boundary")
             .expect("join user across fixture batch boundary");
         let order = context
             .cassie
             .midge
-            .get_document("bench_join_orders", "order-5000")
+            .get_document("bench_join_orders", &format!("order-{boundary}"))
             .expect("read join order across fixture batch boundary")
             .expect("join order across fixture batch boundary");
         assert!(
@@ -3509,13 +4357,17 @@ mod benchmark_kernels {
                 .is_some(),
             "join index must remain registered after batched loading"
         );
-        assert_eq!(user.payload["user_key"], serde_json::json!(5000));
-        assert_eq!(user.payload["name"], serde_json::json!("user-5000"));
+        assert_eq!(user.payload["user_key"], serde_json::json!(boundary));
+        assert_eq!(
+            user.payload["name"],
+            serde_json::json!(format!("user-{boundary}"))
+        );
         assert_eq!(order.payload["order_user_key"], user.payload["user_key"]);
         assert_eq!(order.payload["total"], serde_json::json!(0));
     }
 
     fn assert_tier3_graph_boundary_semantics(context: &workloads::BenchContext) {
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
         let graph_before = context.cassie.metrics();
         let graph_rows = context
             .cassie
@@ -3525,7 +4377,7 @@ mod benchmark_kernels {
                 vec![
                     Value::String("bench_graph".to_string()),
                     Value::String("doc".to_string()),
-                    Value::String("node-4998".to_string()),
+                    Value::String(format!("node-{}", boundary - 2)),
                     Value::Int64(3),
                     Value::String("out".to_string()),
                     Value::String("links".to_string()),
@@ -3537,9 +4389,9 @@ mod benchmark_kernels {
         let graph_after = context.cassie.metrics();
         assert_eq!(
             graph_rows,
-            ["node-4999", "node-5000", "node-5001"]
+            [boundary - 1, boundary, boundary + 1]
                 .into_iter()
-                .map(|node| vec![Value::String(node.to_string())])
+                .map(|node| vec![Value::String(format!("node-{node}"))])
                 .collect::<Vec<_>>()
         );
         assert_eq!(
@@ -3614,6 +4466,88 @@ mod benchmark_kernels {
             result.is_ok(),
             "join fixture must be SQL-visible: {result:?}"
         );
+    }
+
+    #[test]
+    fn should_publish_vectorized_join_fixture_cardinality() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let context = runtime
+            .block_on(workloads::vectorized_join_context(
+                "join-fixture-cardinality-contract",
+                4,
+            ))
+            .expect("join fixture");
+
+        // Act
+        let users = context
+            .cassie
+            .catalog
+            .get_cardinality_stats("bench_join_users");
+        let orders = context
+            .cassie
+            .catalog
+            .get_cardinality_stats("bench_join_orders");
+
+        // Assert
+        assert_eq!(users.map(|stats| stats.row_count), Some(4));
+        assert_eq!(orders.map(|stats| stats.row_count), Some(4));
+    }
+
+    #[test]
+    fn should_preserve_column_execution_in_isolated_scaling_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let context = runtime
+            .block_on(workloads::column_batch_context_with_limits(
+                "isolated-column-scaling-contract",
+                10_000,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+                30_000,
+            ))
+            .expect("column scaling fixture");
+
+        // Act
+        let first = runtime.block_on(workloads::column_query(&context));
+        let second = runtime.block_on(workloads::column_query(&context));
+
+        // Assert
+        assert_eq!(first, 500);
+        assert_eq!(second, 500);
+    }
+
+    #[test]
+    fn should_give_large_recursive_cte_results_the_large_analytical_memory_budget() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
+
+        let context = runtime
+            .block_on(workloads::recursive_cte_context(
+                "recursive-cte-large-memory-contract",
+                6,
+            ))
+            .expect("recursive CTE context");
+
+        // Act
+        let rows = runtime.block_on(workloads::recursive_cte_query(&context, 6));
+
+        // Assert
+        assert_eq!(rows, 111_111);
+        assert!(owner.contains("workloads::recursive_cte_context("));
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean recursive CTE context");
     }
 }
 // Formerly tests/operational_smoke.rs.
@@ -4989,6 +5923,7 @@ mod performance_benchmarks_tests {
         let harness = include_str!("../benches/support/stress.rs");
         let contract = include_str!("../docs/performance-contracts.md");
         let invocations = super::workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE;
+        let parameter_invocations = super::workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE;
         let mut observed_invocations = 0_usize;
 
         // Act
@@ -4999,14 +5934,59 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(invocations, 256);
+        assert_eq!(parameter_invocations, 8_192);
         assert_eq!(observed_invocations, invocations);
         assert_eq!(completed, 32_768);
-        for owner in owners {
+        for (index, owner) in owners.into_iter().enumerate() {
             assert_eq!(owner.matches("measure_counted_batch").count(), 4);
             assert!(owner.contains("workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE"));
+            if index == 0 {
+                assert!(owner.contains("workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE"));
+            }
         }
         assert!(harness.contains("\"fixture_invocations_per_sample\""));
         assert!(contract.contains("record `fixture_invocations_per_sample=256`"));
+        assert!(contract.contains("parameter binding batches 8,192 fixture invocations"));
+    }
+
+    #[test]
+    fn should_batch_tier2_executor_samples_with_exact_observation_evidence() {
+        // Arrange
+        let fixture = super::workloads::SubsystemExecutorKernel::with_rows(2_048);
+        let owner = include_str!("../benches/tier2_subsystem_executor.rs");
+        let invocations = super::workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE;
+
+        // Act
+        let filter = super::workloads::executor_filter_batch(&fixture, invocations);
+        let projection = super::workloads::executor_projection_batch(&fixture, invocations);
+        let top_k = super::workloads::executor_top_k_batch(&fixture, invocations);
+
+        // Assert
+        assert_eq!(invocations, 8);
+        assert_eq!(filter.completed_operations(), 16_384);
+        assert_eq!(filter.result_cardinality(), 8_000);
+        assert_eq!(filter.candidate_count(), Some(16_384));
+        assert_eq!(projection.completed_operations(), 16_384);
+        assert_eq!(projection.result_cardinality(), 16_384);
+        assert_eq!(projection.candidate_count(), Some(16_384));
+        assert_eq!(top_k.completed_operations(), 16_384);
+        assert_eq!(top_k.result_cardinality(), 160);
+        assert_eq!(top_k.candidate_count(), Some(16_384));
+        assert!(top_k.peak_query_memory_bytes().is_some_and(|peak| peak > 0));
+        assert_eq!(owner.matches("runner.measure_counted(").count(), 3);
+        assert_eq!(
+            owner
+                .matches("workloads::EXECUTOR_FIXTURE_INVOCATIONS_PER_SAMPLE")
+                .count(),
+            1
+        );
+        assert_eq!(
+            owner.matches("\"fixture_invocations_per_sample\"").count(),
+            3
+        );
+        assert!(owner.contains("workloads::executor_filter_batch"));
+        assert!(owner.contains("workloads::executor_projection_batch"));
+        assert!(owner.contains("workloads::executor_top_k_batch"));
     }
 
     #[test]
@@ -5155,7 +6135,7 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(compressible_queries, 256);
-        assert_eq!(fast_pair_queries, 1_024);
+        assert_eq!(fast_pair_queries, 8_192);
         assert_eq!(fsst_queries, 512);
         assert!(records_query_window);
     }
@@ -5512,62 +6492,77 @@ mod benchmark_deployment_profile_contract {
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
     #[test]
-    fn should_reject_unknown_complete_suite_profile_before_compilation() {
+    fn should_reject_unknown_complete_profile_before_compilation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");
         let profiles = include_str!("../benches/support/performance_benchmark_profiles.rs");
-        let complete_suite = workflow
-            .split_once("  complete-suite:\n")
+        let complete_contract = workflow
+            .split_once("  complete-contract:\n")
             .map(|(_, job)| job)
-            .expect("complete-suite benchmark job");
+            .expect("complete-contract benchmark job");
+        let complete_contract = complete_contract
+            .split_once("  complete-shard:\n")
+            .map_or(complete_contract, |(job, _)| job);
 
         // Act
-        let validation_position = complete_suite
+        let validation_position = complete_contract
             .find("name: Validate deployment profile")
             .expect("deployment profile preflight");
-        let toolchain_position = complete_suite
+        let toolchain_position = complete_contract
             .find("name: Update Rust toolchain")
-            .expect("complete-suite toolchain preparation");
+            .expect("complete-contract toolchain preparation");
 
         // Assert
         assert!(validation_position < toolchain_position);
-        assert!(complete_suite.contains("unsupported benchmark deployment profile"));
-        assert!(complete_suite.contains(NATIVE_LINUX_PROFILE_ID));
+        assert!(complete_contract.contains("unsupported benchmark deployment profile"));
+        assert!(complete_contract.contains(NATIVE_LINUX_PROFILE_ID));
         assert!(profiles.contains(&format!("profile_id: \"{NATIVE_LINUX_PROFILE_ID}\"")));
     }
 
     #[test]
-    fn should_allow_six_hours_for_the_complete_canonical_benchmark_suite() {
+    fn should_parallelize_canonical_benchmark_shards_before_manifest_validation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");
-        let complete_suite = workflow
-            .split_once("  complete-suite:\n")
-            .map(|(_, job)| job)
-            .expect("complete-suite benchmark job");
 
         // Act
-        let configured_timeout = complete_suite
-            .lines()
-            .find(|line| line.trim_start().starts_with("timeout-minutes:"))
-            .map(str::trim);
         let required_controls = [
-            "if: ${{ github.event_name == 'workflow_dispatch' }}",
+            "  complete-shard:\n",
+            "run_id must be a bounded artifact-safe identifier",
+            "deployment_profile must be native-linux-amd64-disk",
+            "soak_duration_seconds must be an integer of at least 3600",
+            "fail-fast: false",
+            "command: \"cargo bench --bench 'tier1_*' --locked\"",
+            "command: \"cargo bench --bench 'tier2_*' --locked\"",
+            "command: \"cargo bench --bench 'tier3_*' --locked\"",
+            "command: \"cargo bench --bench 'tier4_*' --locked\"",
+            "max-parallel: 10",
+            "command: \"cargo bench --bench 'tier5_scaling_query' --locked\"",
+            "command: \"cargo bench --bench 'tier5_scaling_retrieval' --locked\"",
+            "command: \"cargo bench --bench 'tier5_scaling_lifecycle' --locked\"",
+            "command: \"cargo bench --bench 'tier5_scaling_transport' --locked\"",
+            "command: \"cargo bench --bench 'tier6_soak_mixed' --locked\"",
+            "command: \"cargo bench --bench 'tier6_soak_transport' --locked\"",
+            "timeout-minutes: 360",
             "CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}",
-            "run: cargo bench --bench '*' --locked",
+            "run: ${{ matrix.command }}",
+            "name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}",
+            "  complete-manifest:\n",
+            "needs: complete-shard",
+            "pattern: cassie-benchmark-shard-${{ inputs.run_id }}-*",
+            "merge-multiple: true",
             "benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest",
             "path: target/stress/**/latest.json",
             "if-no-files-found: error",
         ];
         let missing_controls = required_controls
             .into_iter()
-            .filter(|control| !complete_suite.contains(control))
+            .filter(|control| !workflow.contains(control))
             .collect::<Vec<_>>();
 
         // Assert
-        assert_eq!(configured_timeout, Some("timeout-minutes: 360"));
         assert!(
             missing_controls.is_empty(),
-            "missing complete-suite controls: {missing_controls:?}"
+            "missing parallel complete-suite controls: {missing_controls:?}"
         );
     }
 
@@ -5637,6 +6632,195 @@ mod benchmark_tier3_join_contract {
 
         // Assert
         assert!(creates_join_index);
+    }
+
+    #[test]
+    fn should_create_tier3_join_index_before_batched_fixture_loading() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/tier3_query_fixture.rs");
+        let join_fixture = fixture
+            .split_once("fn prepare_join_collections(")
+            .and_then(|(_, source)| source.split_once("fn prepare_graph("))
+            .map(|(source, _)| source)
+            .expect("Tier 3 join fixture source");
+
+        // Act
+        let index_position = join_fixture
+            .find("CREATE INDEX bench_join_users_key_idx")
+            .expect("join index creation");
+        let user_load_position = join_fixture
+            .find("for_each_tier3_domain_batch(dataset_rows, \"join users\"")
+            .expect("batched join user loading");
+
+        // Assert
+        assert!(index_position < user_load_position);
+    }
+}
+
+// Regression coverage for analytical scaling workloads whose first measured query can
+// legitimately exceed Cassie's operator-facing 30 second default on shared runners.
+mod benchmark_scaling_query_deadline_contract {
+    #[test]
+    fn should_bound_scalar_index_flush_cadence() {
+        // Arrange
+        let adapter = include_str!("../src/midge/adapter/scalar_indexes.rs");
+
+        // Act
+        let bounds_publication_flushes = adapter
+            .contains("const SCALAR_INDEX_FLUSH_INTERVAL_BATCHES: usize = 4;")
+            && adapter.contains("should_flush_scalar_index_batch(batch_index + 1, batch_count)")
+            && adapter.contains("self.flush_data_family_for_collection(&index.collection)?;");
+        let bounds_cleanup_flushes = adapter
+            .contains("batches_since_flush == SCALAR_INDEX_FLUSH_INTERVAL_BATCHES")
+            && adapter.contains("self.flush_data_family_for_collection(collection)?;");
+        let cleanup_uses_bounded_pages = adapter.contains(
+            "self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;",
+        );
+
+        // Assert
+        assert!(bounds_publication_flushes);
+        assert!(bounds_cleanup_flushes);
+        assert!(cleanup_uses_bounded_pages);
+    }
+
+    #[test]
+    fn should_index_the_tier5_join_curve_before_measurement() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/join_context.rs");
+        let workload = include_str!("../benches/support/workloads/scaling.rs");
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
+
+        // Act
+        let join_measurement = owner
+            .split_once("if let Some(case) = cases.join.clone()")
+            .and_then(|(_, source)| source.split_once("let isolated_column_context ="))
+            .map(|(source, _)| source)
+            .expect("Tier 5 join measurement source");
+        let activates_probe_index = join_measurement
+            .find("workloads::activate_scaling_join_curve_index(context)")
+            .zip(join_measurement.find("runner.measure_batch("))
+            .is_some_and(|(activation, measurement)| activation < measurement);
+        let removes_probe_index = join_measurement
+            .find("runner.measure_batch(")
+            .zip(join_measurement.find("workloads::deactivate_scaling_join_curve_index(context)"))
+            .is_some_and(|(measurement, removal)| measurement < removal);
+        let verifies_indexed_execution = workload
+            .contains("metric_delta(&before, &after, \"read_paths\", \"index_seek_scans\") > 0");
+        let keeps_fixture_index_neutral = fixture
+            .split_once("pub(super) fn prepare_scaling_join_collections(")
+            .and_then(|(_, source)| source.split_once("pub fn activate_scaling_join_curve_index("))
+            .is_some_and(|(source, _)| !source.contains("CREATE INDEX"));
+
+        // Assert
+        assert!(activates_probe_index);
+        assert!(removes_probe_index);
+        assert!(verifies_indexed_execution);
+        assert!(keeps_fixture_index_neutral);
+    }
+
+    #[test]
+    fn should_give_all_scaling_queries_the_analytical_deadline() {
+        // Arrange
+        let query_context = include_str!("../benches/support/workloads/context.rs");
+        let retrieval_context = include_str!("../benches/support/workloads/mock_tei_context.rs");
+        let analytical_deadline =
+            "config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;";
+
+        // Act
+        let query_runtime = query_context
+            .split_once("fn configure_scaling_query_runtime(")
+            .and_then(|(_, source)| source.split_once("pub fn worker_scaling_context("))
+            .map(|(source, _)| source)
+            .expect("scaling query runtime source");
+        let query_context_is_bounded = query_runtime
+            .find(analytical_deadline)
+            .zip(query_runtime.find("if dataset_rows > 100_000"))
+            .is_some_and(|(deadline, large_scale_branch)| deadline < large_scale_branch);
+        let retrieval_context_is_bounded = retrieval_context.contains(analytical_deadline);
+
+        // Assert
+        assert!(query_context_is_bounded);
+        assert!(retrieval_context_is_bounded);
+    }
+
+    #[test]
+    fn should_prepare_ann_state_before_measuring_hybrid_scaling() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_retrieval.rs");
+        let text_measurement = owner
+            .split_once("fn measure_text_retrieval(")
+            .and_then(|(_, source)| source.split_once("fn measure_vector_retrieval("))
+            .map(|(source, _)| source)
+            .expect("text retrieval measurement source");
+
+        // Act
+        let ann_setup_precedes_hybrid = text_measurement
+            .find("workloads::create_hnsw_index(context)")
+            .zip(text_measurement.find("workloads::hybrid_query(context)"))
+            .is_some_and(|(setup, query)| setup < query);
+
+        // Assert
+        assert!(ann_setup_precedes_hybrid);
+    }
+
+    #[test]
+    fn should_treat_hybrid_limit_as_an_upper_bound() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/scaling.rs");
+        let hybrid = workloads
+            .split_once("pub fn hybrid_query(")
+            .and_then(|(_, source)| source.split_once("pub fn assert_scaling_resource_bounds("))
+            .map(|(source, _)| source)
+            .expect("hybrid scaling workload source");
+
+        // Act
+        let accepts_approximate_ann_cardinality = hybrid.contains("query_up_to(")
+            && hybrid.contains("HYBRID_SCALING_SQL")
+            && workloads.contains("(1..=maximum_rows).contains(&result.rows.len())");
+
+        // Assert
+        assert!(accepts_approximate_ann_cardinality);
+    }
+
+    #[test]
+    fn should_exclude_fulltext_maintenance_from_transport_scaling() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_transport.rs");
+        let fixture = owner
+            .split_once("fn prepare_transport_fixture(")
+            .and_then(|(_, source)| source.split_once("fn measure_pgwire_query("))
+            .map(|(source, _)| source)
+            .expect("transport fixture source");
+
+        // Act
+        let uses_scalar_only_fixture = fixture.contains("workloads::scalar_context(")
+            && !fixture.contains("workloads::context(");
+
+        // Assert
+        assert!(uses_scalar_only_fixture);
+    }
+
+    #[test]
+    fn should_keep_pgwire_protocol_samples_free_of_full_fixture_sorts() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/pgwire.rs");
+        let extended = workloads
+            .split_once("pub const PGWIRE_EXTENDED_QUERY")
+            .and_then(|(_, source)| source.split_once("pub const PGWIRE_MULTI_STATEMENT"))
+            .map(|(source, _)| source)
+            .expect("extended pgwire query source");
+        let binary = workloads
+            .split_once("pub const PGWIRE_BINARY_QUERY")
+            .and_then(|(_, source)| source.split_once("const PGWIRE_FIXTURE_ROWS"))
+            .map(|(source, _)| source)
+            .expect("binary pgwire query source");
+
+        // Act
+        let protocol_queries_are_bounded_without_sorting =
+            !extended.contains("ORDER BY") && !binary.contains("ORDER BY");
+
+        // Assert
+        assert!(protocol_queries_are_bounded_without_sorting);
     }
 }
 

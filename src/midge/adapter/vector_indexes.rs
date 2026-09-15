@@ -20,6 +20,20 @@ use self::codec::{
     PersistedIvfManifest, PersistedVectorIndexState,
 };
 
+const VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
+
+#[cfg(test)]
+fn vector_index_build_batch_lengths(item_count: usize) -> Vec<usize> {
+    (0..item_count)
+        .step_by(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)
+        .map(|start| {
+            item_count
+                .saturating_sub(start)
+                .min(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)
+        })
+        .collect()
+}
+
 fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, CassieError> {
     row_schema
         .fields
@@ -122,8 +136,15 @@ impl Midge {
         for record in &mut stored_records {
             record.collection.clone_from(&requested_collection);
         }
-        self.write_normalized_vectors_for_index(&metadata, &stored_records)?;
-        self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
+        let is_initial_build = self
+            .get_vector_index(&metadata.collection, &metadata.field)?
+            .is_none();
+        if is_initial_build {
+            self.write_initial_vector_index_sidecars(&metadata, &stored_records, &state)?;
+        } else {
+            self.write_normalized_vectors_for_index(&metadata, &stored_records)?;
+            self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
+        }
         if let Some(graph) = hnsw_graph {
             self.write_hnsw_source_summary(&metadata.collection, &metadata.field, &graph)?;
         } else if let Some(training) = ivfflat_training {
@@ -236,6 +257,146 @@ impl Midge {
         for key in old_membership_keys {
             tx.delete(key).map_err(CassieError::from)?;
         }
+        if let Some(training) = &state.ivfflat_training {
+            for (id, list) in &training.assignments {
+                let key =
+                    super::key_encoding::ivfflat_membership_key(relation_id, field_id, *list, id);
+                tx.put(key, Vec::new(), None).map_err(CassieError::from)?;
+            }
+        }
+        if let Some(graph) = &state.hnsw_graph {
+            for node in &graph.nodes {
+                tx.put(
+                    super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
+                    encode_hnsw_node(node)?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+            }
+        }
+        Self::write_vector_index_manifest_to_tx(tx, relation_id, field_id, state)?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
+        Ok(())
+    }
+
+    fn write_initial_vector_index_sidecars(
+        &self,
+        index: &VectorIndexRecord,
+        records: &[NormalizedVectorRecord],
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
+        let generation = self.collection_generation(&index.collection)?;
+        let (relation_id, field_id) = self.vector_storage_ids(&index.collection, &index.field)?;
+        let normalized_prefix = Self::normalized_vector_prefix(relation_id, field_id);
+        let node_prefix = super::key_encoding::hnsw_graph_node_prefix(relation_id, field_id);
+        let membership_prefix =
+            super::key_encoding::ivfflat_membership_prefix(relation_id, field_id);
+
+        self.delete_vector_sidecars_in_batches(
+            &index.collection,
+            &[normalized_prefix, node_prefix, membership_prefix],
+        )?;
+
+        for records in records.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+            let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
+            for record in records {
+                let mut record = record.clone();
+                record.built_generation = generation;
+                tx.put(
+                    Self::normalized_vector_key(relation_id, field_id, &record.id),
+                    encode_normalized_vector(&record)?,
+                    None,
+                )
+                .map_err(CassieError::from)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+        }
+
+        if let Some(graph) = state.hnsw_graph.as_ref() {
+            for nodes in graph.nodes.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+                let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
+                for node in nodes {
+                    tx.put(
+                        super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
+                        encode_hnsw_node(node)?,
+                        None,
+                    )
+                    .map_err(CassieError::from)?;
+                }
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)?;
+            }
+        }
+        if let Some(training) = state.ivfflat_training.as_ref() {
+            let assignments = training.assignments.iter().collect::<Vec<_>>();
+            for assignments in assignments.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+                let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
+                for (id, list) in assignments {
+                    tx.put(
+                        super::key_encoding::ivfflat_membership_key(
+                            relation_id,
+                            field_id,
+                            **list,
+                            id,
+                        ),
+                        Vec::new(),
+                        None,
+                    )
+                    .map_err(CassieError::from)?;
+                }
+                tx.commit(self.write_options_sync())
+                    .map_err(CassieError::from)?;
+            }
+        }
+
+        let mut state = state.clone();
+        state.built_generation = generation;
+        let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
+        Self::write_vector_index_manifest_to_tx(&mut tx, relation_id, field_id, &state)?;
+        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)
+    }
+
+    pub(super) fn delete_vector_sidecars_in_batches(
+        &self,
+        collection: &str,
+        prefixes: &[Vec<u8>],
+    ) -> Result<(), CassieError> {
+        for prefix in prefixes {
+            loop {
+                let keys = self
+                    .raw_scan_prefix_page_for_collection(
+                        collection,
+                        prefix,
+                        VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE,
+                    )?
+                    .into_iter()
+                    .map(|(key, _)| key)
+                    .collect::<Vec<_>>();
+                if keys.is_empty() {
+                    break;
+                }
+                for keys in keys.chunks(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE) {
+                    let mut tx = self.begin_data_rw_tx_for(collection)?;
+                    for key in keys {
+                        tx.delete(key.clone()).map_err(CassieError::from)?;
+                    }
+                    tx.commit(self.write_options_sync())
+                        .map_err(CassieError::from)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn write_vector_index_manifest_to_tx(
+        tx: &mut cntryl_midge::Transaction,
+        relation_id: u64,
+        field_id: u32,
+        state: &VectorIndexState,
+    ) -> Result<(), CassieError> {
         let hnsw_graph = state
             .hnsw_graph
             .as_ref()
@@ -248,20 +409,11 @@ impl Midge {
                 entry_point: graph.entry_point.clone(),
                 max_layer: graph.max_layer,
             });
-        let ivfflat_training = state
-            .ivfflat_training
-            .as_ref()
-            .map(|training| {
-                for (id, list) in &training.assignments {
-                    let key = super::key_encoding::ivfflat_membership_key(
-                        relation_id,
-                        field_id,
-                        *list,
-                        id,
-                    );
-                    tx.put(key, Vec::new(), None).map_err(CassieError::from)?;
-                }
-                Ok::<PersistedIvfManifest, CassieError>(PersistedIvfManifest {
+        let ivfflat_training =
+            state
+                .ivfflat_training
+                .as_ref()
+                .map(|training| PersistedIvfManifest {
                     version: training.version,
                     source_fingerprint: training.source_fingerprint,
                     trained: training.trained,
@@ -273,33 +425,18 @@ impl Midge {
                     centroids: training.centroids.clone(),
                     list_sizes: training.list_sizes.clone(),
                     membership_count: training.assignments.len(),
-                })
-            })
-            .transpose()?;
-        let persisted = PersistedVectorIndexState {
+                });
+        let value = encode_vector_index_state(&PersistedVectorIndexState {
             built_generation: state.built_generation,
             hnsw_graph,
             ivfflat_training,
-        };
-        let value = encode_vector_index_state(&persisted)?;
+        })?;
         tx.put(
             Self::vector_index_state_key(relation_id, field_id),
             value,
             None,
         )
-        .map_err(CassieError::from)?;
-        if let Some(graph) = &state.hnsw_graph {
-            for node in &graph.nodes {
-                tx.put(
-                    super::key_encoding::hnsw_graph_node_key(relation_id, field_id, &node.id),
-                    encode_hnsw_node(node)?,
-                    None,
-                )
-                .map_err(CassieError::from)?;
-            }
-        }
-        check_document_write_failure_point(DocumentWriteFailurePoint::VectorState)?;
-        Ok(())
+        .map_err(CassieError::from)
     }
 
     pub(super) fn refresh_vector_index_states_in_tx(
@@ -849,4 +986,21 @@ fn load_hnsw_manifest(
         max_layer: manifest.max_layer,
         nodes,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vector_index_build_batch_lengths;
+
+    #[test]
+    fn should_bound_initial_vector_index_sidecar_write_transactions() {
+        // Arrange
+        let item_count = 10_001;
+
+        // Act
+        let batch_lengths = vector_index_build_batch_lengths(item_count);
+
+        // Assert
+        assert_eq!(batch_lengths, vec![5_000, 5_000, 1]);
+    }
 }

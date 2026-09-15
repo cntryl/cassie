@@ -37,6 +37,7 @@ fn main() {
                 TIER6_MAX_RESULT_ROWS,
             ))
             .expect("mixed soak fixture");
+        workloads::prepare_mixed_soak_mutation_collection(&context);
         let preflight = workloads::assert_explain_contains(
             &context,
             MIXED_LOOKUP_SQL,

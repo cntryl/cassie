@@ -45,22 +45,14 @@ pub fn query_scaling_context(
     aggregation_workers: usize,
     prepare_joins: bool,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    let context = super::context::scaling_query_context_now(
-        label,
-        dataset_rows,
-        aggregation_workers,
-    )
-    .and_then(|context| {
-        if prepare_joins {
-            super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
-        }
-        context.cassie.execute_sql(
-            &context.session,
-            "CREATE INDEX bench_documents_column_idx ON bench_documents USING column (title, body, status, score) WITH (segment_size = 256)",
-            vec![],
-        )?;
-        Ok(context)
-    });
+    let context =
+        super::context::scaling_query_context_now(label, dataset_rows, aggregation_workers)
+            .and_then(|context| {
+                if prepare_joins {
+                    super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
+                }
+                Ok(context)
+            });
     ready(context)
 }
 
@@ -89,6 +81,10 @@ pub fn join_query(ctx: &BenchContext) -> Ready<usize> {
         metric_delta(&before, &after, "joins", "vectorized_fallbacks"),
         0,
         "join scaling query must not fall back"
+    );
+    assert!(
+        metric_delta(&before, &after, "read_paths", "index_seek_scans") > 0,
+        "join scaling query must use its bounded scalar-index probe path"
     );
     ready(rows)
 }
@@ -291,7 +287,7 @@ pub fn vector_execution_count_is_required(index_kind: Option<&str>) -> bool {
 
 pub fn hybrid_query(ctx: &BenchContext) -> Ready<usize> {
     let before = ctx.cassie.metrics();
-    let rows = query(
+    let rows = query_up_to(
         ctx,
         HYBRID_SCALING_SQL,
         vec![
@@ -448,19 +444,30 @@ pub fn create_ivfflat_index(ctx: &BenchContext) {
         .expect("create benchmark IVFFlat index");
 }
 
+pub const MIXED_SOAK_MUTATION_COLLECTION: &str = "bench_mixed_soak_mutations";
+
+pub fn prepare_mixed_soak_mutation_collection(ctx: &BenchContext) {
+    ctx.cassie
+        .execute_sql(
+            &ctx.session,
+            "CREATE TABLE IF NOT EXISTS bench_mixed_soak_mutations (title TEXT, body TEXT, score INT, status TEXT)",
+            vec![],
+        )
+        .expect("prepare mixed soak mutation collection");
+}
+
 pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
     let marker = format!("soak-marker-{nonce}");
     let id = ctx
         .cassie
         .ingest_document(
-            &ctx.collection,
+            MIXED_SOAK_MUTATION_COLLECTION,
             json!({
                 "title": marker,
                 "body": "alpha beta gamma",
                 "score": i64::try_from(nonce % 100).expect("score should fit i64"),
                 "status": "approved",
-                "embedding": [1.0, 0.0, 0.0],
             }),
         )
         .expect("bounded mixed ingest");
@@ -468,7 +475,7 @@ pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize>
         .cassie
         .execute_sql(
             &ctx.session,
-            "SELECT id FROM bench_documents WHERE title = $1 LIMIT 1",
+            "SELECT id FROM bench_mixed_soak_mutations WHERE title = $1 LIMIT 1",
             vec![Value::String(format!("soak-marker-{nonce}"))],
         )
         .expect("bounded mixed relational query");
@@ -478,7 +485,7 @@ pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize>
     let deleted = ctx
         .cassie
         .midge
-        .delete_document(&ctx.collection, &id)
+        .delete_document(MIXED_SOAK_MUTATION_COLLECTION, &id)
         .expect("bounded mixed cleanup");
     assert!(
         deleted,
@@ -514,11 +521,49 @@ fn query(ctx: &BenchContext, sql: &str, params: Vec<Value>, expected_rows: usize
     ready(std::hint::black_box(result.rows.len()))
 }
 
+fn query_up_to(
+    ctx: &BenchContext,
+    sql: &str,
+    params: Vec<Value>,
+    maximum_rows: usize,
+) -> Ready<usize> {
+    let before = ctx.cassie.metrics();
+    let result = ctx
+        .cassie
+        .execute_sql(&ctx.session, sql, params)
+        .expect("benchmark query");
+    assert!(
+        (1..=maximum_rows).contains(&result.rows.len()),
+        "benchmark query result cardinality"
+    );
+    let after = ctx.cassie.metrics();
+    assert_eq!(
+        after["execution_result_cache"]["hits"], before["execution_result_cache"]["hits"],
+        "benchmark query used the execution-result cache"
+    );
+    assert_scaling_resource_bounds(ctx);
+    ready(std::hint::black_box(result.rows.len()))
+}
+
 pub fn assert_scaling_resource_bounds(ctx: &BenchContext) {
-    assert_scaling_cassie_resource_bounds(&ctx.cassie);
+    assert_scaling_cassie_resource_bounds_with_memory_limit(
+        &ctx.cassie,
+        super::context::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    );
 }
 
 pub fn assert_scaling_cassie_resource_bounds(cassie: &Cassie) {
+    assert_scaling_cassie_resource_bounds_with_memory_limit(
+        cassie,
+        super::context::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    );
+}
+
+pub fn assert_scaling_resource_bounds_with_memory_limit(ctx: &BenchContext, memory_limit: usize) {
+    assert_scaling_cassie_resource_bounds_with_memory_limit(&ctx.cassie, memory_limit);
+}
+
+fn assert_scaling_cassie_resource_bounds_with_memory_limit(cassie: &Cassie, memory_limit: usize) {
     let metrics = cassie.metrics();
     assert_eq!(
         metrics["execution_result_cache"]["hits"].as_u64(),
@@ -534,7 +579,7 @@ pub fn assert_scaling_cassie_resource_bounds(cassie: &Cassie) {
         metrics["query"]["peak_accounted_memory_bytes"]
             .as_u64()
             .unwrap_or_default()
-            <= 64 * 1024 * 1024,
+            <= u64::try_from(memory_limit).expect("benchmark memory limit should fit u64"),
         "scaling benchmark exceeded the benchmark query-memory bound"
     );
     assert_eq!(

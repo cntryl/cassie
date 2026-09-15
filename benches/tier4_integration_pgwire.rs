@@ -3,13 +3,17 @@ use std::cell::Cell;
 const BENCHMARK: &str = "tier4_integration_pgwire";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const CANCELLATION_INVOCATIONS_PER_SAMPLE: u64 = 8;
+const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
-#[path = "support/transport_external.rs"]
-mod transport_external;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -37,9 +41,12 @@ fn main() {
     let setup_started = std::time::Instant::now();
     let runtime = workloads::runtime();
     let fixture = runtime
-        .block_on(workloads::unindexed_context(
+        .block_on(workloads::scalar_context_with_query_timeout(
             "tier4-pgwire-10k",
             FIXTURE_ROWS,
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            FIXTURE_ROWS,
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
         ))
         .expect("Tier 4 pgwire fixture");
     let preflights = PgwireQueryPreflights::new(&fixture, enabled);
@@ -125,10 +132,11 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_simple_query(
@@ -136,8 +144,8 @@ impl PgwireBenchmark<'_> {
                             workloads::PGWIRE_SIMPLE_QUERY,
                         ));
                     assert_eq!(rows, 20, "simple query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }
@@ -148,16 +156,17 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            EXTENDED_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..EXTENDED_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_extended_query(self.transport));
                     assert_eq!(rows, 20, "extended query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }
@@ -165,24 +174,25 @@ impl PgwireBenchmark<'_> {
     fn portal(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
         let before = self.fixture.cassie.metrics();
         let completed_fetches = Cell::new(0_u64);
-        runner.record_external(
+        runner.measure_batch(
             evidenced(case, self.setup_time_ns, 20, self.fixture),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    let fetches = self
-                        .runtime
-                        .block_on(workloads::pgwire_transport_portal_fetch(self.transport));
+            PORTAL_INVOCATIONS_PER_SAMPLE * 2,
+            || {
+                for _ in 0..PORTAL_INVOCATIONS_PER_SAMPLE {
+                    let fetches = u64::try_from(
+                        self.runtime
+                            .block_on(workloads::pgwire_transport_portal_fetch(self.transport)),
+                    )
+                    .expect("portal fetch count should fit u64");
                     assert_eq!(fetches, 2, "portal operation count");
-                    let fetches =
-                        u64::try_from(fetches).expect("portal fetch count should fit u64");
                     completed_fetches.set(
                         completed_fetches
                             .get()
                             .checked_add(fetches)
                             .expect("portal fetch count should not overflow"),
                     );
-                    fetches
-                })
+                }
+                20_u64
             },
         );
         let completed_fetches = completed_fetches.get();
@@ -194,10 +204,11 @@ impl PgwireBenchmark<'_> {
     fn cancellation(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
         let before = self.fixture.cassie.metrics();
         let completed_cancellations = Cell::new(0_u64);
-        runner.record_external(
+        runner.measure_batch(
             evidenced(case, self.setup_time_ns, 1, self.fixture),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            CANCELLATION_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..CANCELLATION_INVOCATIONS_PER_SAMPLE {
                     let cancellations = self
                         .runtime
                         .block_on(workloads::pgwire_transport_cancellation(self.transport));
@@ -210,8 +221,8 @@ impl PgwireBenchmark<'_> {
                             .checked_add(cancellations)
                             .expect("cancellation count should not overflow"),
                     );
-                    cancellations
-                })
+                }
+                1_u64
             },
         );
         let completed_cancellations = completed_cancellations.get();
@@ -232,16 +243,19 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 2, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
+            MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2,
+            || {
+                for _ in 0..MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE {
+                    let queries = u64::try_from(
                         self.runtime
                             .block_on(workloads::pgwire_transport_multi_statement(self.transport)),
                     )
-                    .expect("multi-statement query count should fit u64")
-                })
+                    .expect("multi-statement query count should fit u64");
+                    assert_eq!(queries, 2, "multi-statement query count");
+                }
+                2_u64
             },
         );
     }
@@ -252,16 +266,17 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_binary_query(self.transport));
                     assert_eq!(rows, 20, "binary extended query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }
@@ -312,7 +327,7 @@ impl PgwireQueryPreflights {
                     fixture,
                     workloads::PGWIRE_EXTENDED_QUERY,
                     vec![cassie::types::Value::String("title-1".to_string())],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
             multi_statement: enabled[4].then(|| {
@@ -328,7 +343,7 @@ impl PgwireQueryPreflights {
                     fixture,
                     workloads::PGWIRE_BINARY_QUERY,
                     vec![cassie::types::Value::Int64(1)],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
         }

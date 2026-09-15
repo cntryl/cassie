@@ -35,6 +35,23 @@ pub(crate) struct ScalarIndexScanHit {
 }
 
 type ScalarIndexEntry = (Vec<u8>, Vec<u8>);
+const SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
+const SCALAR_INDEX_FLUSH_INTERVAL_BATCHES: usize = 4;
+
+fn scalar_index_build_ranges(item_count: usize) -> impl Iterator<Item = std::ops::Range<usize>> {
+    (0..item_count)
+        .step_by(SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE)
+        .map(move |start| {
+            start
+                ..start
+                    .saturating_add(SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE)
+                    .min(item_count)
+        })
+}
+
+fn should_flush_scalar_index_batch(batch_number: usize, batch_count: usize) -> bool {
+    batch_number.is_multiple_of(SCALAR_INDEX_FLUSH_INTERVAL_BATCHES) || batch_number == batch_count
+}
 
 impl Midge {
     pub(crate) fn sync_scalar_indexes_for_document(
@@ -124,6 +141,76 @@ impl Midge {
         Ok(())
     }
 
+    pub(super) fn rebuild_prepared_scalar_index_for_index(
+        &self,
+        index: &IndexMeta,
+    ) -> Result<(), CassieError> {
+        if !Self::scalar_index_supports_storage(index) {
+            return Ok(());
+        }
+        if self.get_index(&index.collection, &index.name)?.is_some() {
+            return self.rebuild_scalar_index_for_index(index);
+        }
+
+        let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
+        let (relation_id, index_id) = Self::scalar_index_storage_ids(index)?;
+        let prefix = Self::scalar_index_data_prefix(relation_id, index_id);
+        self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;
+
+        let batch_count = rows.len().div_ceil(SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE);
+        for (batch_index, range) in scalar_index_build_ranges(rows.len()).enumerate() {
+            let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
+            for row in &rows[range] {
+                if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &row.payload)?
+                {
+                    tx.put(key, value, None).map_err(CassieError::from)?;
+                }
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+            if should_flush_scalar_index_batch(batch_index + 1, batch_count) {
+                self.flush_data_family_for_collection(&index.collection)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn delete_prepared_scalar_index_data_in_batches(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+    ) -> Result<(), CassieError> {
+        let mut batches_since_flush = 0;
+        loop {
+            let keys = self
+                .raw_scan_prefix_page_for_collection(
+                    collection,
+                    prefix,
+                    SCALAR_INDEX_BUILD_WRITE_BATCH_SIZE,
+                )?
+                .into_iter()
+                .map(|(key, _)| key)
+                .collect::<Vec<_>>();
+            if keys.is_empty() {
+                if batches_since_flush > 0 {
+                    self.flush_data_family_for_collection(collection)?;
+                }
+                return Ok(());
+            }
+            let mut tx = self.begin_data_rw_tx_for(collection)?;
+            for key in keys {
+                tx.delete(key).map_err(CassieError::from)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+            batches_since_flush += 1;
+            if batches_since_flush == SCALAR_INDEX_FLUSH_INTERVAL_BATCHES {
+                self.flush_data_family_for_collection(collection)?;
+                batches_since_flush = 0;
+            }
+        }
+    }
+
     pub(crate) fn delete_scalar_index_data(
         &self,
         collection: &str,
@@ -133,13 +220,8 @@ impl Midge {
             return Ok(());
         };
         let (relation_id, index_id) = Self::scalar_index_storage_ids(&index)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::delete_keys_with_prefix(
-            &mut tx,
-            Self::scalar_index_data_prefix(relation_id, index_id),
-        )?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        let prefix = Self::scalar_index_data_prefix(relation_id, index_id);
+        self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;
         Ok(())
     }
 
@@ -335,5 +417,47 @@ fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
                 .collect(),
         )),
         Value::Json(value) => Ok(value),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_bound_prepared_scalar_index_publication_batches() {
+        // Arrange
+        let entry_count = 10_001;
+
+        // Act
+        let batches = scalar_index_build_ranges(entry_count)
+            .map(|range| range.len())
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(batches, vec![5_000, 5_000, 1]);
+    }
+
+    #[test]
+    fn should_flush_scalar_index_batches_at_bounded_intervals() {
+        // Arrange
+        let exact_interval_batch_count = 20;
+        let partial_interval_batch_count = 10;
+
+        // Act
+        let exact_interval_flushes = (1..=exact_interval_batch_count)
+            .filter(|batch_number| {
+                should_flush_scalar_index_batch(*batch_number, exact_interval_batch_count)
+            })
+            .collect::<Vec<_>>();
+        let partial_interval_flushes = (1..=partial_interval_batch_count)
+            .filter(|batch_number| {
+                should_flush_scalar_index_batch(*batch_number, partial_interval_batch_count)
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(exact_interval_flushes, vec![4, 8, 12, 16, 20]);
+        assert_eq!(partial_interval_flushes, vec![4, 8, 10]);
     }
 }

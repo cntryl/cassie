@@ -295,6 +295,34 @@ pub async fn http_transport_document_create_get_batch(
 }
 
 pub async fn http_transport_document_create_get(ctx: &HttpBenchContext) -> usize {
+    let _ = http_transport_create_get_document(ctx).await;
+    std::hint::black_box(2)
+}
+
+pub async fn http_transport_document_create_get_delete(ctx: &HttpBenchContext) -> usize {
+    let id = http_transport_create_get_document(ctx).await;
+    let deleted = ctx
+        .authorize(ctx.client.delete(format!(
+            "{}/api/v1/collections/{}/documents/{id}",
+            ctx.base_url, ctx.collection
+        )))
+        .send()
+        .await
+        .expect("send delete document request")
+        .error_for_status()
+        .expect("delete document status")
+        .json::<serde_json::Value>()
+        .await
+        .expect("delete document response");
+    assert_eq!(
+        deleted["deleted"].as_bool(),
+        Some(true),
+        "benchmark document cleanup"
+    );
+    std::hint::black_box(3)
+}
+
+async fn http_transport_create_get_document(ctx: &HttpBenchContext) -> String {
     let payload = json!({
         "title": "http-benchmark-title",
         "body": "alpha beta gamma",
@@ -331,25 +359,7 @@ pub async fn http_transport_document_create_get(ctx: &HttpBenchContext) -> usize
         .await
         .expect("get document response");
     std::hint::black_box(loaded);
-    let deleted = ctx
-        .authorize(ctx.client.delete(format!(
-            "{}/api/v1/collections/{}/documents/{id}",
-            ctx.base_url, ctx.collection
-        )))
-        .send()
-        .await
-        .expect("send delete document request")
-        .error_for_status()
-        .expect("delete document status")
-        .json::<serde_json::Value>()
-        .await
-        .expect("delete document response");
-    assert_eq!(
-        deleted["deleted"].as_bool(),
-        Some(true),
-        "benchmark document cleanup"
-    );
-    std::hint::black_box(3)
+    id.to_string()
 }
 
 pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {

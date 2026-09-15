@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use crate::sql::ast::{Expr, SelectItem};
+use crate::sql::ast::{CteQuery, Expr, SelectItem};
 
 use super::super::{vector_prefilter_fallback_reason, vector_prefilter_supported, Cassie};
 use super::{non_empty_or_none, projection_freshness, selected_cost};
@@ -11,6 +11,7 @@ pub(super) fn plan_line(
 ) -> String {
     [
         read_plan_section(cassie, physical),
+        cte_section(physical),
         operator_feedback_section(physical),
         adaptive_plan_section(physical),
         phase03_section(cassie, physical),
@@ -20,6 +21,26 @@ pub(super) fn plan_line(
         cost_section(physical),
     ]
     .join(" ")
+}
+
+fn cte_section(physical: &crate::planner::physical::PhysicalPlan) -> String {
+    let recursive_ctes = physical
+        .logical
+        .ctes
+        .iter()
+        .filter_map(|cte| {
+            matches!(cte.query, CteQuery::Recursive { .. }).then_some(cte.name.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join("|");
+    format!(
+        "recursive_cte={}",
+        if recursive_ctes.is_empty() {
+            "none"
+        } else {
+            recursive_ctes.as_str()
+        }
+    )
 }
 
 fn read_plan_section(cassie: &Cassie, physical: &crate::planner::physical::PhysicalPlan) -> String {

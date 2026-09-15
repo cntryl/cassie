@@ -41,7 +41,7 @@ fn main() {
         ("column_codec_decode", workloads::column_codec_decode),
         ("alp_codec_encode", workloads::alp_codec_encode),
         ("alp_codec_decode", workloads::alp_codec_decode),
-        ("fsst_codec_encode", workloads::fsst_codec_encode),
+        ("fsst_codec_encode", workloads::fsst_codec_encode_batch),
         ("fsst_codec_decode", workloads::fsst_codec_decode),
     ] {
         let case = stress::StressCase::new(operation, "micro").runtime_contract(
@@ -59,7 +59,11 @@ fn main() {
                 "setup_time_ns",
                 setup_started.elapsed().as_nanos().max(1).to_string(),
             );
-            runner.measure_micro(case, workload);
+            if operation == "fsst_codec_encode" {
+                runner.measure_micro_batch(case, workloads::FSST_CODEC_ENCODE_BATCH_SIZE, workload);
+            } else {
+                runner.measure_micro(case, workload);
+            }
         }
     }
     runner.finish();

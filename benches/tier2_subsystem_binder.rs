@@ -35,7 +35,7 @@ fn main() {
         let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
         runner.measure_counted_batch(
             with_setup(parameters, &setup_time_ns),
-            workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE,
+            workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE,
             || fixture.bind_parameters(),
         );
     }

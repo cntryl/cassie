@@ -3638,7 +3638,7 @@ mod metrics_runtime_projections {
         );
         assert_eq!(
             projection_metric_delta(&after_refresh, &after_create, "write_batch_flushes"),
-            1
+            2
         );
 
         let _ = std::fs::remove_dir_all(path);

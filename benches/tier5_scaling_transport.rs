@@ -330,9 +330,11 @@ fn prepare_transport_fixture(
         None
     };
     let context = runtime
-        .block_on(workloads::context(
+        .block_on(workloads::scalar_context(
             &format!("tier5-transport-{scale}"),
             rows,
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            rows.max(1),
         ))
         .expect("transport scaling fixture");
     let pgwire_needed = requirements.pgwire()

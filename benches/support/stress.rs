@@ -5,7 +5,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cntryl_stress::{
-    artifact::{BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile},
+    artifact::{
+        BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile,
+        TrustClass,
+    },
     black_box,
     runner::{evaluate_run_gate, RunGate},
     StressContext, StressRunner, StressRunnerConfig,
@@ -464,13 +467,13 @@ impl CassieStressRunner {
         let evidence = case.runtime_evidence.clone();
         let preflight = case.preflight_evidence.clone();
         let scenario = self.scenario_for(&case);
-        let case = prepare_micro_batch_case(case, logical_operations);
+        let case = prepare_batch_case(case, logical_operations);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let last_cardinality = std::cell::Cell::new(0_u64);
             let last_candidate_count = std::cell::Cell::new(None);
             let last_peak_query_memory_bytes = std::cell::Cell::new(None);
-            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
+            let completed = ctx.measure_batch(&measurement_name, logical_operations, || {
                 let result = (f.borrow_mut())();
                 last_cardinality.set(result.cardinality());
                 last_candidate_count.set(result.candidate_count());
@@ -487,7 +490,8 @@ impl CassieStressRunner {
                     declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
                     last_candidate_count.get(),
                     last_peak_query_memory_bytes.get(),
-                ),
+                )
+                .per_external_operation(completed),
             );
         });
     }
@@ -566,22 +570,13 @@ impl CassieStressRunner {
         let evidence = case.runtime_evidence.clone();
         let preflight = case.preflight_evidence.clone();
         let scenario = self.scenario_for(&case);
-        let case = case
-            .intent(MeasurementIntent::Batch)
-            .parameter(
-                "logical_operations_per_iteration",
-                logical_operations.to_string(),
-            )
-            .metadata(
-                "logical_operations_per_iteration",
-                logical_operations.to_string(),
-            );
+        let case = prepare_batch_case(case, logical_operations);
         let measurement_name = case.measurement_name();
         self.run_case(case, move |ctx| {
             let last_cardinality = std::cell::Cell::new(0_u64);
             let last_candidate_count = std::cell::Cell::new(None);
             let last_peak_query_memory_bytes = std::cell::Cell::new(None);
-            let _completed = ctx.measure_batch(&measurement_name, logical_operations, || {
+            let completed = ctx.measure_batch(&measurement_name, logical_operations, || {
                 let result = (f.borrow_mut())();
                 last_cardinality.set(result.cardinality());
                 last_candidate_count.set(result.candidate_count());
@@ -598,7 +593,8 @@ impl CassieStressRunner {
                     declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
                     last_candidate_count.get(),
                     last_peak_query_memory_bytes.get(),
-                ),
+                )
+                .per_external_operation(completed),
             );
         });
     }
@@ -629,6 +625,7 @@ impl CassieStressRunner {
         }
 
         let relative_p95_gates = self.relative_p95_gates;
+        let has_baseline = self.baseline.is_some();
         let run = if let Some(baseline) = self.baseline {
             self.runner.finish_with_baseline(baseline)
         } else {
@@ -638,7 +635,15 @@ impl CassieStressRunner {
         match run {
             Ok(run) => {
                 let gate = evaluate_run_gate(&run);
-                assert_eq!(gate, RunGate::Passed, "stress run gate failed: {gate:?}");
+                let trust_classes = run
+                    .summaries
+                    .iter()
+                    .map(|summary| summary.trust_class)
+                    .collect::<Vec<_>>();
+                assert!(
+                    run_gate_passes_for_diagnostic_only_owner(gate, has_baseline, &trust_classes),
+                    "stress run gate failed: {gate:?}"
+                );
                 validate_relative_p95_gates(&run, &relative_p95_gates)
                     .unwrap_or_else(|error| panic!("{error}"));
             }
@@ -848,6 +853,21 @@ impl CassieStressRunner {
     }
 }
 
+#[must_use]
+pub(crate) fn run_gate_passes_for_diagnostic_only_owner(
+    gate: RunGate,
+    has_baseline: bool,
+    trust_classes: &[TrustClass],
+) -> bool {
+    gate == RunGate::Passed
+        || (gate == RunGate::QualityFailed
+            && !has_baseline
+            && !trust_classes.is_empty()
+            && trust_classes
+                .iter()
+                .all(|trust| *trust == TrustClass::Diagnostic))
+}
+
 /// A benchmark result whose observed cardinality can be written to the artifact.
 pub trait BenchmarkObservation {
     /// Returns the cardinality produced by the final timed operation.
@@ -960,7 +980,7 @@ fn declared_result_cardinality(case: &StressCase) -> Option<u64> {
         .and_then(|value| value.parse().ok())
 }
 
-fn prepare_micro_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
+fn prepare_batch_case(case: StressCase, logical_operations: u64) -> StressCase {
     let logical_unit = case
         .runtime_declaration
         .as_ref()
@@ -977,6 +997,7 @@ fn prepare_micro_batch_case(case: StressCase, logical_operations: u64) -> Stress
             "logical_operations_per_iteration",
             logical_operations.to_string(),
         )
+        .metadata("measurement_shape", "fixed_workload")
 }
 
 pub(crate) fn repeat_counted_batch<F>(fixture_invocations: usize, mut f: F) -> u64

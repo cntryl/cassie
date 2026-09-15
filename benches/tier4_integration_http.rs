@@ -1,6 +1,7 @@
 const BENCHMARK: &str = "tier4_integration_http";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const HTTP_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 128;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
@@ -14,6 +15,9 @@ mod workloads;
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier4, BENCHMARK);
     let document = declared_case("document_create_get");
+    let document = document
+        .metadata("trust_class", "diagnostic")
+        .metadata("benchmark_shape", "non_stationary_indexed_mutation");
     let vector = declared_case("vector_search");
     let query = declared_case("query");
     let enabled = [
@@ -42,16 +46,16 @@ fn main() {
         .expect("Tier 4 HTTP transport context");
     let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
 
-    if enabled[0] {
-        runner.record_external(
-            evidenced(document, &setup_time_ns, 1, &fixture),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
-                        runtime.block_on(workloads::http_transport_document_create_get(&context)),
-                    )
-                    .expect("HTTP document request count should fit u64")
-                })
+    if enabled[2] {
+        runner.measure_batch(
+            evidenced(query, &setup_time_ns, 20, &fixture),
+            HTTP_QUERY_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..HTTP_QUERY_INVOCATIONS_PER_SAMPLE {
+                    let requests = runtime.block_on(workloads::http_transport_query(&context));
+                    assert_eq!(requests, 1, "HTTP query request count");
+                }
+                20_u64
             },
         );
     }
@@ -67,13 +71,15 @@ fn main() {
             },
         );
     }
-    if enabled[2] {
+    if enabled[0] {
         runner.record_external(
-            evidenced(query, &setup_time_ns, 20, &fixture),
+            evidenced(document, &setup_time_ns, 1, &fixture),
             |sample_duration| {
                 transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
-                        .expect("HTTP query request count should fit u64")
+                    u64::try_from(
+                        runtime.block_on(workloads::http_transport_document_create_get(&context)),
+                    )
+                    .expect("HTTP document request count should fit u64")
                 })
             },
         );

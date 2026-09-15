@@ -121,7 +121,7 @@ jobs:
     needs: complete-contract
     strategy:
       fail-fast: false
-      max-parallel: 7
+      max-parallel: 10
       matrix:
         include:
           - tier: tier1
@@ -132,8 +132,14 @@ jobs:
             command: "cargo bench --bench 'tier3_*' --locked"
           - tier: tier4
             command: "cargo bench --bench 'tier4_*' --locked"
-          - tier: tier5
-            command: "cargo bench --bench 'tier5_*' --locked"
+          - tier: tier5-query
+            command: "cargo bench --bench 'tier5_scaling_query' --locked"
+          - tier: tier5-retrieval
+            command: "cargo bench --bench 'tier5_scaling_retrieval' --locked"
+          - tier: tier5-lifecycle
+            command: "cargo bench --bench 'tier5_scaling_lifecycle' --locked"
+          - tier: tier5-transport
+            command: "cargo bench --bench 'tier5_scaling_transport' --locked"
           - tier: tier6-mixed
             command: "cargo bench --bench 'tier6_soak_mixed' --locked"
           - tier: tier6-transport

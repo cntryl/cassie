@@ -3137,14 +3137,16 @@ mod benchmark_harness_contract {
 }
 // Formerly tests/benchmark_kernels.rs.
 mod benchmark_kernels {
-    use super::workloads;
+    use super::{performance_benchmarks, workloads};
+
+    use performance_benchmarks::{benchmark_for_benchmark, BenchmarkTimingMode};
 
     use cassie::benchmark::{
         ExecutorKernel, PgwireParameterBindingKernel, RowCodecKernel, RowKeyKernel,
     };
     use cassie::types::Value;
 
-    const TIER3_DOMAIN_TEST_ROWS: usize = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS + 2;
+    const TIER3_DOMAIN_TEST_ROWS: usize = 5_002;
     const TIER3_GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
     const TIER3_TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
 
@@ -3436,8 +3438,33 @@ mod benchmark_kernels {
 
         // Assert
         assert_eq!(batch_sizes.iter().sum::<usize>(), dataset_rows);
-        assert_eq!(batch_sizes.len(), 21);
-        assert!(batch_sizes.iter().all(|size| *size <= 5_000));
+        assert_eq!(batch_sizes.len(), 101);
+        assert!(batch_sizes.iter().all(|size| *size <= 1_000));
+    }
+
+    #[test]
+    fn should_batch_tier4_simple_queries_for_stable_release_evidence() {
+        // Arrange
+        let scenario = benchmark_for_benchmark("tier4_integration_pgwire", "simple_query", "10k")
+            .expect("registered Tier 4 simple-query scenario");
+
+        // Act
+        let timing_mode = scenario.timing_mode;
+
+        // Assert
+        assert_eq!(timing_mode, BenchmarkTimingMode::Batch);
+    }
+
+    #[test]
+    fn should_amortize_vector_distance_timer_jitter() {
+        // Arrange
+        let minimum_batch_operations = 4_096;
+
+        // Act
+        let configured_batch_operations = workloads::VECTOR_DISTANCE_BATCH_SIZE;
+
+        // Assert
+        assert!(configured_batch_operations >= minimum_batch_operations);
     }
 
     #[test]
@@ -4111,16 +4138,23 @@ mod benchmark_kernels {
             attempted,
             [
                 0..workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS,
-                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS..TIER3_DOMAIN_TEST_ROWS,
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS
+                    ..workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS * 2,
             ]
         );
         assert_eq!(
             result.expect_err("second fixture batch should fail").to_string(),
-            "storage error: prepare Tier 3 time-series events rows 5000..5002: storage error: simulated storage deadline"
+            format!(
+                "storage error: prepare Tier 3 time-series events rows {}..{}: storage error: simulated storage deadline",
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS,
+                workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS * 2
+            )
         );
     }
 
     fn assert_tier3_domain_generations_and_rows(context: &workloads::BenchContext) {
+        let expected_generations =
+            TIER3_DOMAIN_TEST_ROWS.div_ceil(workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS);
         for collection in [
             "bench_join_users",
             "bench_join_orders",
@@ -4134,8 +4168,8 @@ mod benchmark_kernels {
                     .midge
                     .collection_generation(collection)
                     .expect("read Tier 3 domain collection generation"),
-                2,
-                "{collection} must be loaded through exactly two fixture transactions"
+                u64::try_from(expected_generations).expect("fixture generation count should fit"),
+                "{collection} must be loaded through the expected bounded fixture transactions"
             );
         }
         for (collection, expected_rows) in [
@@ -4159,34 +4193,41 @@ mod benchmark_kernels {
     }
 
     fn assert_tier3_domain_boundaries(context: &workloads::BenchContext) {
-        for (collection, ids) in [
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
+        for (collection, prefix, offsets) in [
             (
                 "bench_join_users",
-                &["user-0", "user-4999", "user-5000", "user-5001"][..],
+                "user",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_join_orders",
-                &["order-0", "order-4999", "order-5000", "order-5001"][..],
+                "order",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_graph_nodes",
-                &["node-0", "node-4999", "node-5000", "node-5001"][..],
+                "node",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
             (
                 "bench_graph_edges",
-                &["edge-0", "edge-4999", "edge-5000"][..],
+                "edge",
+                &[0, boundary - 1, boundary][..],
             ),
             (
                 "bench_time_series_events",
-                &["ts-doc-0", "ts-doc-4999", "ts-doc-5000", "ts-doc-5001"][..],
+                "ts-doc",
+                &[0, boundary - 1, boundary, boundary + 1][..],
             ),
         ] {
-            for &id in ids {
+            for offset in offsets {
+                let id = format!("{prefix}-{offset}");
                 assert!(
                     context
                         .cassie
                         .midge
-                        .get_document(collection, id)
+                        .get_document(collection, &id)
                         .expect("read Tier 3 domain fixture boundary")
                         .is_some(),
                     "{collection} must retain boundary document {id}"
@@ -4196,16 +4237,17 @@ mod benchmark_kernels {
     }
 
     fn assert_tier3_join_boundary_semantics(context: &workloads::BenchContext) {
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
         let user = context
             .cassie
             .midge
-            .get_document("bench_join_users", "user-5000")
+            .get_document("bench_join_users", &format!("user-{boundary}"))
             .expect("read join user across fixture batch boundary")
             .expect("join user across fixture batch boundary");
         let order = context
             .cassie
             .midge
-            .get_document("bench_join_orders", "order-5000")
+            .get_document("bench_join_orders", &format!("order-{boundary}"))
             .expect("read join order across fixture batch boundary")
             .expect("join order across fixture batch boundary");
         assert!(
@@ -4216,13 +4258,17 @@ mod benchmark_kernels {
                 .is_some(),
             "join index must remain registered after batched loading"
         );
-        assert_eq!(user.payload["user_key"], serde_json::json!(5000));
-        assert_eq!(user.payload["name"], serde_json::json!("user-5000"));
+        assert_eq!(user.payload["user_key"], serde_json::json!(boundary));
+        assert_eq!(
+            user.payload["name"],
+            serde_json::json!(format!("user-{boundary}"))
+        );
         assert_eq!(order.payload["order_user_key"], user.payload["user_key"]);
         assert_eq!(order.payload["total"], serde_json::json!(0));
     }
 
     fn assert_tier3_graph_boundary_semantics(context: &workloads::BenchContext) {
+        let boundary = workloads::BENCH_DOCUMENT_WRITE_BATCH_ROWS;
         let graph_before = context.cassie.metrics();
         let graph_rows = context
             .cassie
@@ -4232,7 +4278,7 @@ mod benchmark_kernels {
                 vec![
                     Value::String("bench_graph".to_string()),
                     Value::String("doc".to_string()),
-                    Value::String("node-4998".to_string()),
+                    Value::String(format!("node-{}", boundary - 2)),
                     Value::Int64(3),
                     Value::String("out".to_string()),
                     Value::String("links".to_string()),
@@ -4244,9 +4290,9 @@ mod benchmark_kernels {
         let graph_after = context.cassie.metrics();
         assert_eq!(
             graph_rows,
-            ["node-4999", "node-5000", "node-5001"]
+            [boundary - 1, boundary, boundary + 1]
                 .into_iter()
-                .map(|node| vec![Value::String(node.to_string())])
+                .map(|node| vec![Value::String(format!("node-{node}"))])
                 .collect::<Vec<_>>()
         );
         assert_eq!(

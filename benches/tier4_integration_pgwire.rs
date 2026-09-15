@@ -3,6 +3,7 @@ use std::cell::Cell;
 const BENCHMARK: &str = "tier4_integration_pgwire";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 64;
 const EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;
 const CANCELLATION_INVOCATIONS_PER_SAMPLE: u64 = 8;
@@ -13,8 +14,6 @@ const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
 pub mod stress;
-#[path = "support/transport_external.rs"]
-mod transport_external;
 #[path = "support/workloads.rs"]
 mod workloads;
 
@@ -133,10 +132,11 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_simple_query(
@@ -144,8 +144,8 @@ impl PgwireBenchmark<'_> {
                             workloads::PGWIRE_SIMPLE_QUERY,
                         ));
                     assert_eq!(rows, 20, "simple query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }

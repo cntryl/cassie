@@ -92,7 +92,7 @@ pub const TOP_K_BATCH_SIZE: u64 = 32;
 pub const TOKENIZATION_BATCH_SIZE: u64 = 256;
 pub const BM25_BATCH_SIZE: u64 = 256;
 pub const BM25_TERMS_PER_SCORE: u64 = 8;
-pub const VECTOR_DISTANCE_BATCH_SIZE: u64 = 512;
+pub const VECTOR_DISTANCE_BATCH_SIZE: u64 = 4_096;
 
 static TOKENIZATION_INPUTS: [&str; 8] = [
     "Alpha beta, gamma and delta",

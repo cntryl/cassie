@@ -3,7 +3,9 @@ use std::cell::Cell;
 const BENCHMARK: &str = "tier4_integration_pgwire";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const CANCELLATION_INVOCATIONS_PER_SAMPLE: u64 = 8;
 const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;
 const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 
@@ -154,16 +156,17 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            EXTENDED_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..EXTENDED_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_extended_query(self.transport));
                     assert_eq!(rows, 20, "extended query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }
@@ -201,10 +204,11 @@ impl PgwireBenchmark<'_> {
     fn cancellation(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
         let before = self.fixture.cassie.metrics();
         let completed_cancellations = Cell::new(0_u64);
-        runner.record_external(
+        runner.measure_batch(
             evidenced(case, self.setup_time_ns, 1, self.fixture),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            CANCELLATION_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..CANCELLATION_INVOCATIONS_PER_SAMPLE {
                     let cancellations = self
                         .runtime
                         .block_on(workloads::pgwire_transport_cancellation(self.transport));
@@ -217,8 +221,8 @@ impl PgwireBenchmark<'_> {
                             .checked_add(cancellations)
                             .expect("cancellation count should not overflow"),
                     );
-                    cancellations
-                })
+                }
+                1_u64
             },
         );
         let completed_cancellations = completed_cancellations.get();

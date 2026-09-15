@@ -2449,12 +2449,26 @@ mod benchmark_harness_contract {
         // Arrange
         let owner = include_str!("../benches/tier4_integration_pgwire.rs");
         let contract = include_str!("../docs/performance-contracts.md");
+        let extended = owner
+            .split_once("fn extended(")
+            .expect("extended-query measurement")
+            .1
+            .split_once("fn portal(")
+            .expect("end of extended-query measurement")
+            .0;
         let portal = owner
             .split_once("fn portal(")
             .expect("portal measurement")
             .1
             .split_once("fn cancellation(")
             .expect("end of portal measurement")
+            .0;
+        let cancellation = owner
+            .split_once("fn cancellation(")
+            .expect("cancellation measurement")
+            .1
+            .split_once("fn multi_statement(")
+            .expect("end of cancellation measurement")
             .0;
         let multi_statement = owner
             .split_once("fn multi_statement(")
@@ -2473,12 +2487,20 @@ mod benchmark_harness_contract {
 
         // Act
         let declares_bounded_batches = owner
-            .contains("const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            .contains("const EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const CANCELLATION_INVOCATIONS_PER_SAMPLE: u64 = 8;")
             && owner.contains("const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;")
             && owner.contains("const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;");
+        let extended_preserves_query_units = extended.contains("runner.measure_batch(")
+            && extended.contains("EXTENDED_INVOCATIONS_PER_SAMPLE")
+            && extended.contains("pgwire_transport_extended_query");
         let portal_preserves_fetch_units = portal.contains("runner.measure_batch(")
             && portal.contains("PORTAL_INVOCATIONS_PER_SAMPLE * 2")
             && portal.contains("pgwire_transport_portal_fetch");
+        let cancellation_preserves_cancel_units = cancellation.contains("runner.measure_batch(")
+            && cancellation.contains("CANCELLATION_INVOCATIONS_PER_SAMPLE")
+            && cancellation.contains("pgwire_transport_cancellation");
         let multi_preserves_query_units = multi_statement.contains("runner.measure_batch(")
             && multi_statement.contains("MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2")
             && multi_statement.contains("pgwire_transport_multi_statement");
@@ -2486,7 +2508,9 @@ mod benchmark_harness_contract {
             && binary_extended.contains("BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE")
             && binary_extended.contains("pgwire_transport_binary_query");
         let registry_uses_batch_timing = [
+            "perf.pgwire.extended.10k",
             "perf.pgwire.portal.10k",
+            "perf.pgwire.cancellation.10k",
             "perf.pgwire.multi_statement_query.10k",
             "perf.pgwire.binary_query.10k",
         ]
@@ -2496,16 +2520,20 @@ mod benchmark_harness_contract {
                 scenario.timing_mode == performance_benchmarks::BenchmarkTimingMode::Batch
             })
         });
-        let avoids_duration_sampling = !portal.contains("sample_until_deadline")
+        let avoids_duration_sampling = !extended.contains("sample_until_deadline")
+            && !portal.contains("sample_until_deadline")
+            && !cancellation.contains("sample_until_deadline")
             && !multi_statement.contains("sample_until_deadline")
             && !binary_extended.contains("sample_until_deadline");
         let documents_fixed_work_shape = contract.contains(
-            "Portal fetch, multi-statement, and binary extended-query integration rows use bounded fixed-work batches",
+            "Extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches",
         );
 
         // Assert
         assert!(declares_bounded_batches);
+        assert!(extended_preserves_query_units);
         assert!(portal_preserves_fetch_units);
+        assert!(cancellation_preserves_cancel_units);
         assert!(multi_preserves_query_units);
         assert!(binary_preserves_query_units);
         assert!(registry_uses_batch_timing);
@@ -5696,6 +5724,7 @@ mod performance_benchmarks_tests {
         let harness = include_str!("../benches/support/stress.rs");
         let contract = include_str!("../docs/performance-contracts.md");
         let invocations = super::workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE;
+        let parameter_invocations = super::workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE;
         let mut observed_invocations = 0_usize;
 
         // Act
@@ -5706,14 +5735,19 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(invocations, 256);
+        assert_eq!(parameter_invocations, 8_192);
         assert_eq!(observed_invocations, invocations);
         assert_eq!(completed, 32_768);
-        for owner in owners {
+        for (index, owner) in owners.into_iter().enumerate() {
             assert_eq!(owner.matches("measure_counted_batch").count(), 4);
             assert!(owner.contains("workloads::PLANNING_FIXTURE_INVOCATIONS_PER_SAMPLE"));
+            if index == 0 {
+                assert!(owner.contains("workloads::PARAMETER_BINDING_INVOCATIONS_PER_SAMPLE"));
+            }
         }
         assert!(harness.contains("\"fixture_invocations_per_sample\""));
         assert!(contract.contains("record `fixture_invocations_per_sample=256`"));
+        assert!(contract.contains("parameter binding batches 8,192 fixture invocations"));
     }
 
     #[test]
@@ -6427,6 +6461,35 @@ mod benchmark_tier3_join_contract {
 // Regression coverage for analytical scaling workloads whose first measured query can
 // legitimately exceed Cassie's operator-facing 30 second default on shared runners.
 mod benchmark_scaling_query_deadline_contract {
+    #[test]
+    fn should_index_the_tier5_join_curve_before_measurement() {
+        // Arrange
+        let fixture = include_str!("../benches/support/workloads/join_context.rs");
+        let workload = include_str!("../benches/support/workloads/scaling.rs");
+
+        // Act
+        let scaling_fixture = fixture
+            .split_once("pub(super) fn prepare_scaling_join_collections(")
+            .and_then(|(_, source)| {
+                source.split_once("pub fn prepare_legacy_scaling_join_collection(")
+            })
+            .map(|(source, _)| source)
+            .expect("Tier 5 scaling join fixture source");
+        let creates_probe_index = scaling_fixture.contains(
+            "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+        );
+        let verifies_indexed_execution = workload
+            .contains("metric_delta(&before, &after, \"read_paths\", \"index_seek_scans\") > 0");
+        let preserves_legacy_index_activation = fixture.contains(
+            "CREATE INDEX IF NOT EXISTS bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+        );
+
+        // Assert
+        assert!(creates_probe_index);
+        assert!(verifies_indexed_execution);
+        assert!(preserves_legacy_index_activation);
+    }
+
     #[test]
     fn should_give_all_scaling_queries_the_analytical_deadline() {
         // Arrange

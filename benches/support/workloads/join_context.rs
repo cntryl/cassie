@@ -291,7 +291,13 @@ pub(super) fn prepare_scaling_join_collections(
         JoinLoadShape::OneToOne {
             order_rows: dataset_rows,
         },
-    )
+    )?;
+    let _ = ctx.cassie.execute_sql(
+        &ctx.session,
+        "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+        vec![],
+    )?;
+    Ok(())
 }
 
 pub fn prepare_legacy_scaling_join_collection(
@@ -345,7 +351,7 @@ pub fn prepare_legacy_scaling_join_collection(
 pub fn activate_legacy_join_variant(ctx: &BenchContext, workload: &str) -> Result<(), CassieError> {
     let statement = match workload {
         "vectorized_indexed_inner_join" => Some(
-            "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
+            "CREATE INDEX IF NOT EXISTS bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
         ),
         "vectorized_right_indexed_inner_join" => Some(
             "CREATE INDEX bench_join_orders_key_idx ON bench_join_orders USING btree (order_user_key)",

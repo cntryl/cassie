@@ -123,10 +123,11 @@ The scenario registry declares the tier, operation unit, evidence role, and fixt
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
 
-Portal fetch, multi-statement, and binary extended-query integration rows use bounded fixed-work batches of 64 transport invocations. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while binary extended calls retain one query operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps. Simple query, extended query, and cancellation remain duration-sampled external measurements.
+Extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches. Extended query, portal, multi-statement, and binary extended-query use 64 transport invocations; cancellation uses eight because every operation waits for the bounded cancellation handshake. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while the remaining calls retain one logical operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps. Simple query remains a duration-sampled external measurement.
 
 The two 128-item binder and planning owners batch 256 fixture invocations per measured sample and
-record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the
+record `fixture_invocations_per_sample=256`; parameter binding batches 8,192 fixture invocations
+because its kernel is materially shorter. The elapsed interval covers the full batch, while the
 completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
 rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
 The 2,048-candidate posting-merge owner batches 512 complete production merges per measured sample
@@ -157,6 +158,9 @@ retryable without exposing partial indexed state.
 Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
 
 Fixture classes are part of scenario ownership: Tier 2 is capped at 2,048 rows; Tier 3 uses one representative 100k case per access-path family; Tier 4 normally reuses 10k rows; Tier 5 owns the 10k/100k/250k curves; and Tier 6 uses the two declared 100k and 10k fixtures. A join fixture must be visible to the actual integration harness before its timed query is eligible to run.
+The Tier 5 join curve builds its scalar probe index outside the measurement boundary and requires
+observed index seeks as well as vectorized execution, keeping the limited query bounded at every
+declared scale without widening its hard analytical deadline.
 
 Every network benchmark listener uses a non-empty credential backed by a Cassie role. Passwordless bootstrap is embedded-only and cannot be used to make a listener benchmark pass.
 

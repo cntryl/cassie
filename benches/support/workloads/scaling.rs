@@ -82,6 +82,10 @@ pub fn join_query(ctx: &BenchContext) -> Ready<usize> {
         0,
         "join scaling query must not fall back"
     );
+    assert!(
+        metric_delta(&before, &after, "read_paths", "index_seek_scans") > 0,
+        "join scaling query must use its bounded scalar-index probe path"
+    );
     ready(rows)
 }
 

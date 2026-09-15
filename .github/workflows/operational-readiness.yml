@@ -104,6 +104,7 @@ jobs:
             --publish 127.0.0.1:18080:8080 \
             --env CASSIE_ROOT_PASSWORD \
             --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
+            --env CASSIE_STORAGE_PATH=/data/midge \
             --volume "${container_data}:/data" \
             "${IMAGE}"
           trap 'rm -f "${cookie_jar}"; docker logs cassie-rehearsal > operational-evidence/container.log 2>&1 || true; docker rm --force cassie-rehearsal >/dev/null 2>&1 || true' EXIT

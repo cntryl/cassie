@@ -3,6 +3,8 @@ use cassie::config::{CassieRuntimeConfig, OperatorSwitchingEnabled};
 use cassie::runtime::{RuntimeFeedbackKey, RuntimeFeedbackObservation};
 use cassie::types::Value;
 use serde_json::{json, Value as JsonValue};
+use sha2::{Digest, Sha256};
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -23,9 +25,11 @@ struct ProfileObservation {
     second_page: Vec<Vec<Value>>,
     transaction_visible: Vec<Vec<Value>>,
     transaction_hidden: Vec<Vec<Value>>,
+    join_rows: Vec<Vec<Value>>,
     error: String,
     selected_plan: String,
     pagination_plan: String,
+    join_plan: String,
     fallback_plan: String,
     metrics: JsonValue,
     config: JsonValue,
@@ -37,6 +41,7 @@ struct SemanticObservations {
     second_page: Vec<Vec<Value>>,
     transaction_visible: Vec<Vec<Value>>,
     transaction_hidden: Vec<Vec<Value>>,
+    join_rows: Vec<Vec<Value>>,
     error: String,
 }
 
@@ -75,6 +80,7 @@ impl AdaptiveProfileEvidence {
             self.adaptive.transaction_hidden,
             self.fixed.transaction_hidden
         );
+        assert_eq!(self.adaptive.join_rows, self.fixed.join_rows);
         assert_eq!(self.adaptive.error, self.fixed.error);
         assert!(
             self.fixed
@@ -121,18 +127,44 @@ impl AdaptiveProfileEvidence {
             "plan={}",
             self.adaptive.fallback_plan
         );
+        assert_eq!(self.fixed.join_rows.len(), 2_047);
+        assert!(
+            self.fixed
+                .join_plan
+                .contains("operator_switch_enabled=false"),
+            "plan={}",
+            self.fixed.join_plan
+        );
+        assert!(
+            self.adaptive
+                .join_plan
+                .contains("operator_switch_enabled=true"),
+            "plan={}",
+            self.adaptive.join_plan
+        );
+        assert_eq!(
+            self.fixed.metrics["adaptive_candidates"]["operator_switch_successes"],
+            0
+        );
+        assert_eq!(
+            self.adaptive.metrics["adaptive_candidates"]["operator_switch_successes"],
+            1
+        );
     }
 
     pub fn write_requested_artifact(&self) {
         let Ok(path) = std::env::var("CASSIE_ADAPTIVE_EVIDENCE_PATH") else {
             return;
         };
+        self.assert_equivalent();
         let artifact = json!({
             "schema_version": "cassie-adaptive-profile-evidence.v1",
             "immutable_commit": std::env::var("CASSIE_EVIDENCE_COMMIT").unwrap_or_else(|_| "local".to_string()),
             "fixture": {
                 "id": "adaptive-profile-evidence-v1",
-                "rows": 9,
+                "scalar_rows": 9,
+                "join_left_rows": 2050,
+                "join_right_rows": 2047,
                 "table": TABLE,
                 "base_index": BASE_INDEX,
                 "preferred_index": PREFERRED_INDEX,
@@ -159,6 +191,14 @@ impl AdaptiveProfileEvidence {
 
 impl ProfileObservation {
     fn as_json(&self) -> JsonValue {
+        let join_bytes = serde_json::to_vec(&self.join_rows).expect("serialize join evidence rows");
+        let join_digest = Sha256::digest(join_bytes).iter().fold(
+            String::with_capacity(64),
+            |mut encoded, byte| {
+                write!(encoded, "{byte:02x}").expect("write digest byte");
+                encoded
+            },
+        );
         json!({
             "profile": self.profile,
             "config": self.config,
@@ -168,10 +208,17 @@ impl ProfileObservation {
                 "second_page": self.second_page,
                 "transaction_visible": self.transaction_visible,
                 "transaction_hidden": self.transaction_hidden,
+                "join_result": {
+                    "row_count": self.join_rows.len(),
+                    "sha256": join_digest,
+                    "first_row": self.join_rows.first(),
+                    "last_row": self.join_rows.last(),
+                },
                 "error": self.error,
             },
             "selected_plan": self.selected_plan,
             "pagination_plan": self.pagination_plan,
+            "join_plan": self.join_plan,
             "fallback_plan": self.fallback_plan,
             "storage_reads": self.metrics["storage"]["data"]["reads"],
             "candidates": self.metrics["adaptive_candidates"],
@@ -184,6 +231,8 @@ impl ProfileObservation {
 
 fn disabled_config() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("disabled profile config");
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 256;
     config.limits.operator_feedback_enabled = false;
     config.limits.adaptive_execution_enabled = false;
     config.limits.operator_switching_enabled = OperatorSwitchingEnabled::disabled();
@@ -192,6 +241,8 @@ fn disabled_config() -> CassieRuntimeConfig {
 
 fn evaluation_config() -> CassieRuntimeConfig {
     let mut config = CassieRuntimeConfig::from_env().expect("evaluation profile config");
+    config.limits.vectorized_joins_enabled = true;
+    config.limits.vectorized_join_batch_size = 256;
     config.limits.operator_feedback_enabled = true;
     config.limits.adaptive_execution_enabled = true;
     config.limits.adaptive_min_cost_savings_bps = 500;
@@ -213,6 +264,7 @@ fn observe_profile(
     cassie.startup().expect("start adaptive evidence Cassie");
     let session = cassie.create_session("adaptive-evidence", None);
     seed_fixture(&cassie, &session);
+    seed_join_fixture(&cassie, &session);
     if seed_feedback {
         seed_preferred_feedback(&cassie, &session);
     }
@@ -224,6 +276,7 @@ fn observe_profile(
         &session,
         "SELECT title, body, sequence FROM adaptive_profile_evidence ORDER BY title, body, sequence LIMIT 3 OFFSET 3",
     );
+    let join_plan = explain(&cassie, &session, join_sql());
     let fallback_plan = explain(
         &cassie,
         &session,
@@ -237,9 +290,11 @@ fn observe_profile(
         second_page: semantics.second_page,
         transaction_visible: semantics.transaction_visible,
         transaction_hidden: semantics.transaction_hidden,
+        join_rows: semantics.join_rows,
         error: semantics.error,
         selected_plan,
         pagination_plan,
+        join_plan,
         fallback_plan,
         metrics,
         config: config_evidence,
@@ -289,6 +344,11 @@ fn observe_semantics(
     cassie
         .execute_sql(session, "ROLLBACK", vec![])
         .expect("rollback evidence transaction");
+    let mut join_rows = execute_rows(cassie, session, join_sql());
+    join_rows.sort_by_key(|row| match row.first() {
+        Some(Value::Int64(value)) => *value,
+        _ => i64::MAX,
+    });
     let error = cassie
         .execute_sql(
             session,
@@ -303,6 +363,7 @@ fn observe_semantics(
         second_page,
         transaction_visible,
         transaction_hidden,
+        join_rows,
         error,
     }
 }
@@ -321,6 +382,8 @@ fn execute_rows(
 fn config_json(config: &CassieRuntimeConfig) -> JsonValue {
     json!({
         "operator_feedback_enabled": config.limits.operator_feedback_enabled,
+        "vectorized_joins_enabled": config.limits.vectorized_joins_enabled,
+        "vectorized_join_batch_size": config.limits.vectorized_join_batch_size,
         "adaptive_execution_enabled": config.limits.adaptive_execution_enabled,
         "adaptive_min_cost_savings_bps": config.limits.adaptive_min_cost_savings_bps,
         "adaptive_min_confidence_bps": config.limits.adaptive_min_confidence_bps,
@@ -360,6 +423,53 @@ fn seed_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) {
             )
             .expect("create adaptive evidence index");
     }
+}
+
+fn seed_join_fixture(cassie: &Cassie, session: &cassie::app::CassieSession) {
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE adaptive_profile_users (user_key BIGINT, name TEXT)",
+            vec![],
+        )
+        .expect("create adaptive evidence users");
+    cassie
+        .execute_sql(
+            session,
+            "CREATE TABLE adaptive_profile_orders (order_user_key BIGINT, total BIGINT)",
+            vec![],
+        )
+        .expect("create adaptive evidence orders");
+    insert_join_rows(cassie, session, "adaptive_profile_users", 2_050, |index| {
+        format!("({index}, 'user-{index:04}')")
+    });
+    insert_join_rows(cassie, session, "adaptive_profile_orders", 2_047, |index| {
+        format!("({index}, {})", index * 10)
+    });
+}
+
+fn insert_join_rows(
+    cassie: &Cassie,
+    session: &cassie::app::CassieSession,
+    table: &str,
+    count: usize,
+    row: impl Fn(usize) -> String,
+) {
+    for start in (0..count).step_by(256) {
+        let end = start.saturating_add(256).min(count);
+        let values = (start..end).map(&row).collect::<Vec<_>>().join(", ");
+        cassie
+            .execute_sql(
+                session,
+                &format!("INSERT INTO {table} VALUES {values}"),
+                vec![],
+            )
+            .expect("seed adaptive join rows");
+    }
+}
+
+fn join_sql() -> &'static str {
+    "SELECT adaptive_profile_users.user_key, adaptive_profile_users.name, adaptive_profile_orders.total FROM adaptive_profile_users JOIN adaptive_profile_orders ON adaptive_profile_users.user_key = adaptive_profile_orders.order_user_key"
 }
 
 fn seed_preferred_feedback(cassie: &Cassie, session: &cassie::app::CassieSession) {

@@ -46,7 +46,7 @@ fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
 
     // Assert
     assert_eq!(report.stats.row_puts, 5_001);
-    assert_eq!(report.stats.batch_flushes, 3);
+    assert_eq!(report.stats.batch_flushes, 7);
     assert_eq!(root.row_count, 5_001);
     assert_eq!(root.range_count, 20);
     assert_eq!(

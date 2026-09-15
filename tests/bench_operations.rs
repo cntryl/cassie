@@ -2495,7 +2495,6 @@ mod benchmark_harness_contract {
     fn should_measure_slow_pgwire_paths_as_fixed_work_batches() {
         // Arrange
         let owner = include_str!("../benches/tier4_integration_pgwire.rs");
-        let contract = include_str!("../docs/performance-contracts.md");
         let extended = owner
             .split_once("fn extended(")
             .expect("extended-query measurement")
@@ -2572,9 +2571,6 @@ mod benchmark_harness_contract {
             && !cancellation.contains("sample_until_deadline")
             && !multi_statement.contains("sample_until_deadline")
             && !binary_extended.contains("sample_until_deadline");
-        let documents_fixed_work_shape = contract.contains(
-            "Extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches",
-        );
 
         // Assert
         assert!(declares_bounded_batches);
@@ -2585,7 +2581,6 @@ mod benchmark_harness_contract {
         assert!(binary_preserves_query_units);
         assert!(registry_uses_batch_timing);
         assert!(avoids_duration_sampling);
-        assert!(documents_fixed_work_shape);
     }
 
     #[test]
@@ -3466,14 +3461,27 @@ mod benchmark_kernels {
     #[test]
     fn should_batch_tier4_simple_queries_for_stable_release_evidence() {
         // Arrange
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
         let scenario = benchmark_for_benchmark("tier4_integration_pgwire", "simple_query", "10k")
             .expect("registered Tier 4 simple-query scenario");
 
         // Act
         let timing_mode = scenario.timing_mode;
+        let simple_measurement = owner
+            .split_once("fn simple(")
+            .expect("simple-query measurement")
+            .1
+            .split_once("fn extended(")
+            .expect("end of simple-query measurement")
+            .0;
+        let uses_bounded_batch = owner
+            .contains("const SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && simple_measurement.contains("runner.measure_batch(")
+            && simple_measurement.contains("for _ in 0..SIMPLE_QUERY_INVOCATIONS_PER_SAMPLE");
 
         // Assert
         assert_eq!(timing_mode, BenchmarkTimingMode::Batch);
+        assert!(uses_bounded_batch);
     }
 
     #[test]

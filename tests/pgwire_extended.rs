@@ -920,8 +920,8 @@ mod pgwire_extended_lifecycle {
     use pgwire_support::{
         bind_frame, cancel_request_frame, data_dir, describe_statement_frame, execute_frame,
         parse_data_row, parse_error_fields, parse_frame, parse_parameter_description,
-        parse_row_description, read_until_ready, read_wire_frame, startup_frame, sync_frame,
-        use_local_storage,
+        parse_row_description, read_until_ready, read_wire_frame, simple_query_frame,
+        startup_frame, sync_frame, use_local_storage,
     };
 
     type WireFrame = (u8, Vec<u8>);
@@ -1147,6 +1147,76 @@ mod pgwire_extended_lifecycle {
             server.abort();
             let _ = server.await;
             let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_close_transaction_portals_at_transaction_end() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("transaction_portal_cleanup");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let config = CassieRuntimeConfig::from_env().expect("runtime config");
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            cassie.startup().unwrap();
+            seed_close_cascade_collection(&cassie);
+
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+            for transaction_end in ["COMMIT", "ROLLBACK"] {
+                // Arrange
+                tokio::io::AsyncWriteExt::write_all(&mut write_half, &simple_query_frame("BEGIN"))
+                    .await
+                    .expect("write begin");
+                tokio::io::AsyncWriteExt::flush(&mut write_half)
+                    .await
+                    .expect("flush begin");
+                assert_eq!(read_until_ready(&mut reader).await, vec![b'T']);
+                let suffix = transaction_end.to_ascii_lowercase();
+                let statement = format!("stmt_{suffix}_cleanup");
+                let portal = format!("portal_{suffix}_cleanup");
+                let mut bind = parse_frame(
+                    &statement,
+                    "SELECT title FROM extended_query_close_docs WHERE title = $1",
+                );
+                bind.extend_from_slice(&bind_frame(&portal, &statement, &["alpha"]));
+                bind.extend_from_slice(&sync_frame());
+                tokio::io::AsyncWriteExt::write_all(&mut write_half, &bind)
+                    .await
+                    .expect("write portal bind");
+                tokio::io::AsyncWriteExt::flush(&mut write_half)
+                    .await
+                    .expect("flush portal bind");
+                assert_eq!(read_until_ready(&mut reader).await, vec![b'T']);
+                assert_eq!(cassie.metrics()["pgwire"]["portals"].as_u64(), Some(1));
+
+                // Act
+                tokio::io::AsyncWriteExt::write_all(
+                    &mut write_half,
+                    &simple_query_frame(transaction_end),
+                )
+                .await
+                .expect("write transaction end");
+                tokio::io::AsyncWriteExt::flush(&mut write_half)
+                    .await
+                    .expect("flush transaction end");
+                assert_eq!(read_until_ready(&mut reader).await, vec![b'I']);
+
+                // Assert
+                assert_eq!(cassie.metrics()["pgwire"]["portals"].as_u64(), Some(0));
+            }
+            drop(socket);
+            server.abort();
         });
     }
 }

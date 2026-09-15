@@ -2287,6 +2287,27 @@ mod benchmark_harness_contract {
         assert!(every_transport_result_is_gated);
     }
 
+    #[test]
+    fn should_keep_mixed_soak_mutations_out_of_the_large_indexed_query_fixture() {
+        // Arrange
+        let owner = include_str!("../benches/tier6_soak_mixed.rs");
+        let workloads = include_str!("../benches/support/workloads/scaling.rs");
+
+        // Act
+        let owner_prepares_mutation_lane =
+            owner.contains("workloads::prepare_mixed_soak_mutation_collection(&context)");
+        let operation_uses_mutation_lane =
+            workloads.contains(
+                "pub const MIXED_SOAK_MUTATION_COLLECTION: &str = \"bench_mixed_soak_mutations\"",
+            ) && workloads.matches("MIXED_SOAK_MUTATION_COLLECTION").count() >= 3
+                && workloads.contains("FROM bench_mixed_soak_mutations WHERE title = $1 LIMIT 1")
+                && workloads.contains("delete_document(MIXED_SOAK_MUTATION_COLLECTION, &id)");
+
+        // Assert
+        assert!(owner_prepares_mutation_lane);
+        assert!(operation_uses_mutation_lane);
+    }
+
     // Merged from tests/benchmark_sql_contract.rs to cut a separate test binary.
 
     #[test]
@@ -3182,6 +3203,79 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up lifecycle metric fixture");
+    }
+
+    #[test]
+    fn should_allow_projection_lifecycle_setup_beyond_the_product_default_deadline() {
+        // Arrange
+        let context = include_str!("../benches/support/workloads/context.rs");
+        let owner = include_str!("../benches/tier5_scaling_lifecycle.rs");
+
+        // Act
+        let lifecycle_has_explicit_analytical_deadline = context
+            .contains("pub fn lifecycle_disk_context_with_temp_budget")
+            && context.contains(
+                "config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS",
+            );
+        let owner_uses_lifecycle_context =
+            owner.contains("workloads::lifecycle_disk_context_with_temp_budget(");
+
+        // Assert
+        assert!(lifecycle_has_explicit_analytical_deadline);
+        assert!(owner_uses_lifecycle_context);
+    }
+
+    #[test]
+    fn should_complete_one_mixed_soak_cycle_without_rebuilding_the_indexed_fixture() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context_with_mock_tei_embeddings(
+                "mixed-soak-mutation-lane-contract",
+                256,
+                64,
+            ))
+            .expect("mixed soak contract fixture");
+        workloads::prepare_mixed_soak_mutation_collection(&context);
+
+        // Act
+        let cardinality = runtime.block_on(workloads::bounded_mixed_operation(&context, 1));
+
+        // Assert
+        assert!(cardinality > 1);
+        assert!(cardinality <= 64);
+        let remaining = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT id FROM bench_mixed_soak_mutations",
+                vec![],
+            )
+            .expect("inspect mutation-lane cleanup");
+        assert!(remaining.rows.is_empty());
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up mixed soak contract fixture");
+    }
+
+    #[test]
+    fn should_give_pgwire_integration_queries_an_explicit_analytical_deadline() {
+        // Arrange
+        let context = include_str!("../benches/support/workloads/context.rs");
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+
+        // Act
+        let context_accepts_an_explicit_deadline = context
+            .contains("pub fn unindexed_context_with_query_timeout(")
+            && context.contains("config.limits.query_timeout_ms = query_timeout_ms;");
+        let owner_uses_analytical_deadline = owner
+            .contains("workloads::unindexed_context_with_query_timeout(")
+            && owner.contains("workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS");
+
+        // Assert
+        assert!(context_accepts_an_explicit_deadline);
+        assert!(owner_uses_analytical_deadline);
     }
 
     #[test]

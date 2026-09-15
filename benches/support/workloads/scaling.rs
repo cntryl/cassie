@@ -448,19 +448,30 @@ pub fn create_ivfflat_index(ctx: &BenchContext) {
         .expect("create benchmark IVFFlat index");
 }
 
+pub const MIXED_SOAK_MUTATION_COLLECTION: &str = "bench_mixed_soak_mutations";
+
+pub fn prepare_mixed_soak_mutation_collection(ctx: &BenchContext) {
+    ctx.cassie
+        .execute_sql(
+            &ctx.session,
+            "CREATE TABLE IF NOT EXISTS bench_mixed_soak_mutations (title TEXT, body TEXT, score INT, status TEXT)",
+            vec![],
+        )
+        .expect("prepare mixed soak mutation collection");
+}
+
 pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize> {
     let before = ctx.cassie.metrics();
     let marker = format!("soak-marker-{nonce}");
     let id = ctx
         .cassie
         .ingest_document(
-            &ctx.collection,
+            MIXED_SOAK_MUTATION_COLLECTION,
             json!({
                 "title": marker,
                 "body": "alpha beta gamma",
                 "score": i64::try_from(nonce % 100).expect("score should fit i64"),
                 "status": "approved",
-                "embedding": [1.0, 0.0, 0.0],
             }),
         )
         .expect("bounded mixed ingest");
@@ -468,7 +479,7 @@ pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize>
         .cassie
         .execute_sql(
             &ctx.session,
-            "SELECT id FROM bench_documents WHERE title = $1 LIMIT 1",
+            "SELECT id FROM bench_mixed_soak_mutations WHERE title = $1 LIMIT 1",
             vec![Value::String(format!("soak-marker-{nonce}"))],
         )
         .expect("bounded mixed relational query");
@@ -478,7 +489,7 @@ pub fn bounded_mixed_operation(ctx: &BenchContext, nonce: usize) -> Ready<usize>
     let deleted = ctx
         .cassie
         .midge
-        .delete_document(&ctx.collection, &id)
+        .delete_document(MIXED_SOAK_MUTATION_COLLECTION, &id)
         .expect("bounded mixed cleanup");
     assert!(
         deleted,

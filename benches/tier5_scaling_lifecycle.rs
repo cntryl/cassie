@@ -101,7 +101,7 @@ fn measure_scale(
 
     let setup_started = Instant::now();
     let context = runtime
-        .block_on(workloads::disk_context_with_temp_budget(
+        .block_on(workloads::lifecycle_disk_context_with_temp_budget(
             &format!("tier5-lifecycle-{scale}"),
             rows,
             workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,

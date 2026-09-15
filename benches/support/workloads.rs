@@ -46,10 +46,11 @@ pub use bound_sql::{
 pub use column_codec_context::*;
 pub use context::{
     column_batch_context, column_batch_context_with_limits, context, disk_context_with_temp_budget,
-    execution_result_cache_context, graph_context, recursive_cte_context, replay_context, runtime,
-    scalar_context, time_series_context, time_series_disk_context_with_temp_budget,
-    unindexed_context, unindexed_disk_context_with_temp_budget, worker_scaling_context,
-    BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    execution_result_cache_context, graph_context, lifecycle_disk_context_with_temp_budget,
+    recursive_cte_context, replay_context, runtime, scalar_context, time_series_context,
+    time_series_disk_context_with_temp_budget, unindexed_context,
+    unindexed_context_with_query_timeout, unindexed_disk_context_with_temp_budget,
+    worker_scaling_context, BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
     LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
 pub use document_batches::{bench_document_write_batch_ranges, BENCH_DOCUMENT_WRITE_BATCH_ROWS};

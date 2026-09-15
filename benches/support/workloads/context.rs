@@ -281,6 +281,22 @@ pub fn unindexed_context(
     ))
 }
 
+pub fn unindexed_context_with_query_timeout(
+    label: &str,
+    dataset_rows: usize,
+    query_timeout_ms: u64,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::none(),
+        BenchmarkStorageMode::Default,
+        |config| {
+            config.limits.query_timeout_ms = query_timeout_ms;
+        },
+    ))
+}
+
 pub fn unindexed_disk_context_with_temp_budget(
     label: &str,
     dataset_rows: usize,
@@ -309,6 +325,23 @@ pub fn disk_context_with_temp_budget(
         BenchmarkStorageMode::Disk,
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+        },
+    ))
+}
+
+pub fn lifecycle_disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(context_with_index_options_and_runtime(
+        label,
+        dataset_rows,
+        BenchIndexOptions::full(),
+        BenchmarkStorageMode::Disk,
+        |config| {
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+            config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
         },
     ))
 }

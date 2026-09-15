@@ -37,9 +37,10 @@ fn main() {
     let setup_started = std::time::Instant::now();
     let runtime = workloads::runtime();
     let fixture = runtime
-        .block_on(workloads::unindexed_context(
+        .block_on(workloads::unindexed_context_with_query_timeout(
             "tier4-pgwire-10k",
             FIXTURE_ROWS,
+            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
         ))
         .expect("Tier 4 pgwire fixture");
     let preflights = PgwireQueryPreflights::new(&fixture, enabled);

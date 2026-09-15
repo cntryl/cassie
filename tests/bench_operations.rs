@@ -2282,6 +2282,32 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_lengthen_http_query_samples_without_changing_logical_unit() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+        let query_measurement = owner
+            .split_once("if enabled[2]")
+            .expect("HTTP query measurement")
+            .1
+            .split_once("runtime\n        .block_on(context.shutdown())")
+            .expect("end of HTTP query measurement")
+            .0;
+
+        // Act
+        let declares_five_second_window =
+            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 5;");
+        let lengthens_only_query_window = query_measurement
+            .contains("sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER)");
+        let preserves_one_request_per_operation =
+            query_measurement.contains("http_transport_query(&context)");
+
+        // Assert
+        assert!(declares_five_second_window);
+        assert!(lengthens_only_query_window);
+        assert!(preserves_one_request_per_operation);
+    }
+
+    #[test]
     fn should_enforce_configured_tier6_result_row_bounds() {
         // Arrange
         let mixed = include_str!("../benches/tier6_soak_mixed.rs");

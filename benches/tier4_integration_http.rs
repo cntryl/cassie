@@ -1,6 +1,7 @@
 const BENCHMARK: &str = "tier4_integration_http";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 5;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
@@ -74,10 +75,13 @@ fn main() {
         runner.record_external(
             evidenced(query, &setup_time_ns, 20, &fixture),
             |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
-                        .expect("HTTP query request count should fit u64")
-                })
+                transport_external::sample_until_deadline(
+                    sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER),
+                    || {
+                        u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
+                            .expect("HTTP query request count should fit u64")
+                    },
+                )
             },
         );
     }

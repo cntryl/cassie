@@ -1182,19 +1182,6 @@ mod hnsw_indexes {
     use support::*;
 
     #[test]
-    fn should_bound_initial_vector_index_sidecar_write_transactions() {
-        // Arrange
-        let item_count = 10_001;
-
-        // Act
-        let batch_lengths =
-            cassie::midge::adapter::vector_index_build_batch_lengths_for_diagnostics(item_count);
-
-        // Assert
-        assert_eq!(batch_lengths, vec![5_000, 5_000, 1]);
-    }
-
-    #[test]
     fn should_clean_batched_hnsw_sidecars_after_failed_publication_retry() {
         // Arrange
         let _failpoint_guard = document_write_failure_point_test_guard();

@@ -22,9 +22,8 @@ use self::codec::{
 
 const VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE: usize = 5_000;
 
-#[doc(hidden)]
-#[must_use]
-pub fn vector_index_build_batch_lengths_for_diagnostics(item_count: usize) -> Vec<usize> {
+#[cfg(test)]
+fn vector_index_build_batch_lengths(item_count: usize) -> Vec<usize> {
     (0..item_count)
         .step_by(VECTOR_INDEX_BUILD_WRITE_BATCH_SIZE)
         .map(|start| {
@@ -987,4 +986,21 @@ fn load_hnsw_manifest(
         max_layer: manifest.max_layer,
         nodes,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::vector_index_build_batch_lengths;
+
+    #[test]
+    fn should_bound_initial_vector_index_sidecar_write_transactions() {
+        // Arrange
+        let item_count = 10_001;
+
+        // Act
+        let batch_lengths = vector_index_build_batch_lengths(item_count);
+
+        // Assert
+        assert_eq!(batch_lengths, vec![5_000, 5_000, 1]);
+    }
 }

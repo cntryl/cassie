@@ -6795,6 +6795,24 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_transfer_container_storage_to_the_snapshot_runner() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let ownership_handoff =
+            workflow.find("sudo chown -R \"$(id -u):$(id -g)\" \"${container_data}\"");
+        let snapshot = workflow.find("CASSIE_OPERATIONAL_SNAPSHOT_SOURCE=");
+
+        // Assert
+        assert!(
+            ownership_handoff
+                .is_some_and(|handoff| snapshot.is_some_and(|snapshot| handoff < snapshot)),
+            "the stopped container storage must be readable by the host snapshot process"
+        );
+    }
+
+    #[test]
     fn should_reject_unknown_complete_profile_before_compilation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

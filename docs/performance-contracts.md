@@ -246,6 +246,12 @@ Both Tier 6 scenarios enforce exact result and state checks, configured memory/c
 
 Transport-soak throughput is retained as diagnostic evidence because its sustained create/get/delete lifecycle intentionally changes the disk-backed store throughout the run. Completed-operation variance across equal wall-clock windows therefore describes non-stationary transport churn rather than a stable optimization baseline. Its result, resource, cleanup, and duration requirements remain hard gates, and the artifact retains every sample so degradation remains visible.
 
+A release-profile owner containing only explicitly diagnostic rows may accept the stress harness's
+`QualityFailed` result solely when no comparison baseline is present and every retained summary has
+diagnostic trust. Cassie's adapter still rejects empty or mixed-trust runs and every correctness,
+budget, regression, strict-diagnostic, and artifact failure. This exception lets the transport soak
+retain honest non-stationary throughput evidence without weakening its endurance invariants.
+
 ## Complete Artifact Manifest
 
 A complete-suite artifact contains one run ID, commit, toolchain, profile, and unfiltered result set for the full declared owner registry. The validator rejects missing or extra owners, mixed run metadata, stale results, filtered artifacts, and fixture or evidence mismatches.

@@ -2203,6 +2203,53 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_accept_only_explicit_diagnostic_rows_without_a_baseline() {
+        // Arrange
+        use cntryl_stress::artifact::TrustClass;
+        use cntryl_stress::runner::RunGate;
+
+        // Act
+        let diagnostic_only = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Diagnostic],
+        );
+        let invalid = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Invalid],
+        );
+        let mixed = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[TrustClass::Diagnostic, TrustClass::Gate],
+        );
+        let empty = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            false,
+            &[],
+        );
+        let baseline = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::QualityFailed,
+            true,
+            &[TrustClass::Diagnostic],
+        );
+        let correctness = super::stress::run_gate_passes_for_diagnostic_only_owner(
+            RunGate::CorrectnessFailed,
+            false,
+            &[TrustClass::Diagnostic],
+        );
+
+        // Assert
+        assert!(diagnostic_only);
+        assert!(!invalid);
+        assert!(!mixed);
+        assert!(!empty);
+        assert!(!baseline);
+        assert!(!correctness);
+    }
+
+    #[test]
     fn should_own_only_generated_tls_material_given_http_benchmark_configuration() {
         // Arrange
         let tls_source = include_str!("../benches/support/workloads/http.rs");

@@ -5,7 +5,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cntryl_stress::{
-    artifact::{BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile},
+    artifact::{
+        BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile,
+        TrustClass,
+    },
     black_box,
     runner::{evaluate_run_gate, RunGate},
     StressContext, StressRunner, StressRunnerConfig,
@@ -622,6 +625,7 @@ impl CassieStressRunner {
         }
 
         let relative_p95_gates = self.relative_p95_gates;
+        let has_baseline = self.baseline.is_some();
         let run = if let Some(baseline) = self.baseline {
             self.runner.finish_with_baseline(baseline)
         } else {
@@ -631,7 +635,15 @@ impl CassieStressRunner {
         match run {
             Ok(run) => {
                 let gate = evaluate_run_gate(&run);
-                assert_eq!(gate, RunGate::Passed, "stress run gate failed: {gate:?}");
+                let trust_classes = run
+                    .summaries
+                    .iter()
+                    .map(|summary| summary.trust_class)
+                    .collect::<Vec<_>>();
+                assert!(
+                    run_gate_passes_for_diagnostic_only_owner(gate, has_baseline, &trust_classes),
+                    "stress run gate failed: {gate:?}"
+                );
                 validate_relative_p95_gates(&run, &relative_p95_gates)
                     .unwrap_or_else(|error| panic!("{error}"));
             }
@@ -839,6 +851,21 @@ impl CassieStressRunner {
             metadata,
         }
     }
+}
+
+#[must_use]
+pub(crate) fn run_gate_passes_for_diagnostic_only_owner(
+    gate: RunGate,
+    has_baseline: bool,
+    trust_classes: &[TrustClass],
+) -> bool {
+    gate == RunGate::Passed
+        || (gate == RunGate::QualityFailed
+            && !has_baseline
+            && !trust_classes.is_empty()
+            && trust_classes
+                .iter()
+                .all(|trust| *trust == TrustClass::Diagnostic))
 }
 
 /// A benchmark result whose observed cardinality can be written to the artifact.

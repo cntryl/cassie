@@ -653,7 +653,10 @@ fn measure_recursive_cte(
         u64::try_from(expected_rows).expect("recursive CTE row count should fit u64"),
         || {
             let rows = runtime.block_on(workloads::recursive_cte_query(context, UPPER_BOUND));
-            workloads::assert_scaling_resource_bounds(context);
+            workloads::assert_scaling_resource_bounds_with_memory_limit(
+                context,
+                workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            );
             rows
         },
     );

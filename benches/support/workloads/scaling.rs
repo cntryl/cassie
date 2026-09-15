@@ -546,10 +546,24 @@ fn query_up_to(
 }
 
 pub fn assert_scaling_resource_bounds(ctx: &BenchContext) {
-    assert_scaling_cassie_resource_bounds(&ctx.cassie);
+    assert_scaling_cassie_resource_bounds_with_memory_limit(
+        &ctx.cassie,
+        super::context::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    );
 }
 
 pub fn assert_scaling_cassie_resource_bounds(cassie: &Cassie) {
+    assert_scaling_cassie_resource_bounds_with_memory_limit(
+        cassie,
+        super::context::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    );
+}
+
+pub fn assert_scaling_resource_bounds_with_memory_limit(ctx: &BenchContext, memory_limit: usize) {
+    assert_scaling_cassie_resource_bounds_with_memory_limit(&ctx.cassie, memory_limit);
+}
+
+fn assert_scaling_cassie_resource_bounds_with_memory_limit(cassie: &Cassie, memory_limit: usize) {
     let metrics = cassie.metrics();
     assert_eq!(
         metrics["execution_result_cache"]["hits"].as_u64(),
@@ -565,7 +579,7 @@ pub fn assert_scaling_cassie_resource_bounds(cassie: &Cassie) {
         metrics["query"]["peak_accounted_memory_bytes"]
             .as_u64()
             .unwrap_or_default()
-            <= 64 * 1024 * 1024,
+            <= u64::try_from(memory_limit).expect("benchmark memory limit should fit u64"),
         "scaling benchmark exceeded the benchmark query-memory bound"
     );
     assert_eq!(

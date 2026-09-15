@@ -602,6 +602,11 @@ fn recursive_cte_context_now(
     recursion_depth: usize,
 ) -> Result<BenchContext, CassieError> {
     let expected_rows = recursive_cte_expected_rows(recursion_depth);
+    let query_memory_budget_bytes = if expected_rows > 100_000 {
+        LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    } else {
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    };
     let context = context_with_index_options_and_runtime(
         label,
         0,
@@ -611,7 +616,7 @@ fn recursive_cte_context_now(
             config.limits.query_timeout_ms = 0;
             config.limits.cte_recursion_depth = recursion_depth;
             config.limits.max_result_rows = expected_rows;
-            config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
         },
     )?;
     context.cassie.execute_sql(

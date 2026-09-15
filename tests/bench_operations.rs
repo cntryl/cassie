@@ -4521,6 +4521,32 @@ mod benchmark_kernels {
         assert_eq!(first, 500);
         assert_eq!(second, 500);
     }
+
+    #[test]
+    fn should_give_large_recursive_cte_results_the_large_analytical_memory_budget() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        let context = runtime
+            .block_on(workloads::recursive_cte_context(
+                "recursive-cte-large-memory-contract",
+                6,
+            ))
+            .expect("recursive CTE context");
+
+        // Act
+        let rows = runtime.block_on(workloads::recursive_cte_query(&context, 6));
+
+        // Assert
+        assert_eq!(rows, 111_111);
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean recursive CTE context");
+    }
 }
 // Formerly tests/operational_smoke.rs.
 mod operational_smoke {

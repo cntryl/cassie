@@ -2242,19 +2242,18 @@ mod benchmark_harness_contract {
             .expect("bounded HTTP create/get workload source");
 
         // Act
-        let create_get_times_only_named_requests = !create_get.contains("client.delete")
-            && create_get.contains("black_box(2)");
-        let soak_uses_explicit_steady_state_cycle =
-            workloads.contains("http_transport_document_create_get_delete")
-                && soak.contains("http_transport_document_create_get_delete(http)");
+        let create_get_times_only_named_requests =
+            !create_get.contains("client.delete") && create_get.contains("black_box(2)");
+        let soak_uses_explicit_steady_state_cycle = workloads
+            .contains("http_transport_document_create_get_delete")
+            && soak.contains("http_transport_document_create_get_delete(http)");
         let owner = include_str!("../benches/tier4_integration_http.rs");
         let contract = include_str!("../docs/performance-contracts.md");
-        let mutation_path_is_diagnostic =
-            owner.contains(".metadata(\"trust_class\", \"diagnostic\")")
-                && owner.contains("non_stationary_indexed_mutation")
-                && contract.contains(
-                    "`document_create_get/10k` is retained as diagnostic mutation evidence",
-                );
+        let mutation_path_is_diagnostic = owner
+            .contains(".metadata(\"trust_class\", \"diagnostic\")")
+            && owner.contains("non_stationary_indexed_mutation")
+            && contract
+                .contains("`document_create_get/10k` is retained as diagnostic mutation evidence");
 
         // Assert
         assert!(create_get_times_only_named_requests);

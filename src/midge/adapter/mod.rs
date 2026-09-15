@@ -274,8 +274,8 @@ mod schema_write_control;
 #[doc(hidden)]
 pub use schema_write_control::{
     schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
-    set_schema_write_commit_barriers,
-    SchemaWriteConflictTestGuard, SchemaWriteConflictWorkerGuard, SchemaWritePausePoint,
+    set_schema_write_commit_barriers, SchemaWriteConflictTestGuard, SchemaWriteConflictWorkerGuard,
+    SchemaWritePausePoint,
 };
 #[cfg(test)]
 #[path = "schema_ops_tests.rs"]

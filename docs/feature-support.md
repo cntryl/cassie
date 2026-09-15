@@ -88,6 +88,10 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | REST | Secondary administrative and resource API | Experimental |
 | Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows. Native Askr shell, control, query/mutation, error-boundary, resizable-panel, and Monaco composition is covered by 116 repository tests, 20 desktop/mobile mock-browser cases, 2 real-Cassie production-browser cases, axe state coverage, and four committed visual baselines on Askr `0.2.1`, Askr UI `0.2.0`, `@askrjs/themes` `0.2.1`, and `@askrjs/monaco` `0.2.0`. Dynamic schema fan-out retains a narrow application controller pending [askrjs/askr#327](https://github.com/askrjs/askr/issues/327); it does not duplicate the Askr query cache. | Stable |
 
+The [Query Promotion Evidence](query-promotion-evidence.md) inventory records deterministic
+baselines and remaining promotion owners for the Experimental query families above. Completing an
+evidence row does not independently change that family's support status.
+
 ## Intentional Limits
 
 Cassie does not claim full PostgreSQL syntax or catalog parity, distributed execution or cluster management, trigger-based application logic, or general OLTP behavior. Unsupported syntax and resource exhaustion return deterministic query-visible errors instead of silently changing semantics.

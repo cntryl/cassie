@@ -4,17 +4,31 @@ use cassie::types::Value;
 use uuid::Uuid;
 
 pub struct SeededQueryFixture {
+    seed: u64,
     rows: usize,
 }
 
 pub struct PageComparison {
     pub indexed: Vec<Vec<Vec<Value>>>,
     pub row_baseline: Vec<Vec<Vec<Value>>>,
+    pub indexed_full: Vec<Vec<Value>>,
+    pub row_baseline_full: Vec<Vec<Value>>,
+    pub indexed_empty: Vec<Vec<Value>>,
+    pub row_baseline_empty: Vec<Vec<Value>>,
+    pub indexed_rewritten: Vec<Vec<Value>>,
+    pub row_baseline_rewritten: Vec<Vec<Value>>,
+}
+
+struct QueryResults {
+    pages: Vec<Vec<Vec<Value>>>,
+    full: Vec<Vec<Value>>,
+    empty: Vec<Vec<Value>>,
+    rewritten: Vec<Vec<Value>>,
 }
 
 impl SeededQueryFixture {
-    pub const fn new(rows: usize) -> Self {
-        Self { rows }
+    pub const fn from_seed(seed: u64, rows: usize) -> Self {
+        Self { seed, rows }
     }
 
     pub fn compare_indexed_pages_with_overlay(&self) -> PageComparison {
@@ -32,24 +46,31 @@ impl SeededQueryFixture {
             row_cassie.startup().expect("start row Cassie");
             indexed_cassie.startup().expect("start indexed Cassie");
 
-            seed(&row_cassie, false, self.rows);
-            seed(&indexed_cassie, true, self.rows);
+            let rows = seeded_rows(self.seed, self.rows);
+            seed(&row_cassie, false, &rows, false);
+            seed(&indexed_cassie, true, &rows, true);
 
-            let row_baseline = execute_pages(&row_cassie, "query_evidence_row");
-            let indexed = execute_pages(&indexed_cassie, "query_evidence_indexed");
+            let row_baseline = execute_pages(&row_cassie, "query_evidence_row", self.rows);
+            let indexed = execute_pages(&indexed_cassie, "query_evidence_indexed", self.rows);
 
             let _ = std::fs::remove_dir_all(row_path);
             let _ = std::fs::remove_dir_all(indexed_path);
 
             PageComparison {
-                indexed,
-                row_baseline,
+                indexed: indexed.pages,
+                row_baseline: row_baseline.pages,
+                indexed_full: indexed.full,
+                row_baseline_full: row_baseline.full,
+                indexed_empty: indexed.empty,
+                row_baseline_empty: row_baseline.empty,
+                indexed_rewritten: indexed.rewritten,
+                row_baseline_rewritten: row_baseline.rewritten,
             }
         })
     }
 }
 
-fn seed(cassie: &Cassie, indexed: bool, rows: usize) {
+fn seed(cassie: &Cassie, indexed: bool, rows: &[(Option<String>, Option<i64>)], reverse: bool) {
     let session = cassie.create_session("query-evidence", None);
     let table = if indexed {
         "query_evidence_indexed"
@@ -64,14 +85,18 @@ fn seed(cassie: &Cassie, indexed: bool, rows: usize) {
         )
         .expect("create query evidence table");
 
-    let values = (0..rows)
-        .map(|score| {
-            let category = if score.is_multiple_of(2) {
-                "even"
-            } else {
-                "odd"
-            };
-            format!("('{category}', {score})")
+    let mut rows = rows.iter().collect::<Vec<_>>();
+    if reverse {
+        rows.reverse();
+    }
+    let values = rows
+        .into_iter()
+        .map(|(category, score)| {
+            let category = category
+                .as_ref()
+                .map_or_else(|| "NULL".to_owned(), |value| format!("'{value}'"));
+            let score = score.map_or_else(|| "NULL".to_owned(), |value| value.to_string());
+            format!("({category}, {score})")
         })
         .collect::<Vec<_>>()
         .join(", ");
@@ -93,7 +118,7 @@ fn seed(cassie: &Cassie, indexed: bool, rows: usize) {
     }
 }
 
-fn execute_pages(cassie: &Cassie, table: &str) -> Vec<Vec<Vec<Value>>> {
+fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults {
     let session = cassie.create_session("query-evidence", None);
     cassie
         .execute_sql(&session, "BEGIN", vec![])
@@ -106,13 +131,13 @@ fn execute_pages(cassie: &Cassie, table: &str) -> Vec<Vec<Vec<Value>>> {
         )
         .expect("insert query evidence overlay");
 
-    let pages = (0..4)
+    let pages = (0..=row_count.div_ceil(3))
         .map(|page| {
             cassie
                 .execute_sql(
                     &session,
                     &format!(
-                        "SELECT category, score FROM {table} WHERE score >= 0 ORDER BY score DESC LIMIT 3 OFFSET {}",
+                        "SELECT category, score FROM {table} WHERE score >= 0 ORDER BY score DESC, category ASC LIMIT 3 OFFSET {}",
                         page * 3
                     ),
                     vec![],
@@ -121,10 +146,69 @@ fn execute_pages(cassie: &Cassie, table: &str) -> Vec<Vec<Vec<Value>>> {
                 .rows
         })
         .collect::<Vec<_>>();
+    let full = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "SELECT category, score FROM {table} WHERE score >= 0 ORDER BY score DESC, category ASC"
+            ),
+            vec![],
+        )
+        .expect("execute full query evidence result")
+        .rows;
+    let empty = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "SELECT category, score FROM {table} WHERE score >= 1000 ORDER BY score DESC, category ASC"
+            ),
+            vec![],
+        )
+        .expect("execute empty query evidence result")
+        .rows;
+    let rewritten = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "SELECT category, score FROM {table} WHERE score > -1 ORDER BY score DESC, category ASC"
+            ),
+            vec![],
+        )
+        .expect("execute predicate-equivalent query evidence result")
+        .rows;
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback query evidence transaction");
-    pages
+    QueryResults {
+        pages,
+        full,
+        empty,
+        rewritten,
+    }
+}
+
+fn seeded_rows(seed: u64, rows: usize) -> Vec<(Option<String>, Option<i64>)> {
+    let mut state = seed;
+    (0..rows)
+        .map(|index| {
+            state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+            let mut mixed = state;
+            mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+            mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+            mixed ^= mixed >> 31;
+
+            match index {
+                0 => (None, Some(0)),
+                1 | 2 => (Some("tie".to_owned()), Some(7)),
+                3 => (Some("null-score".to_owned()), None),
+                _ => {
+                    let category = Some(format!("group-{}", mixed % 5));
+                    let score = i64::try_from(mixed % 41).expect("bounded score") - 20;
+                    (category, Some(score))
+                }
+            }
+        })
+        .collect()
 }
 
 fn data_dir(label: &str) -> String {

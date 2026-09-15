@@ -2,6 +2,8 @@
 // Keeping them in one flat test target prevents unrelated scans from consuming
 // an armed hook while preserving parallel setup through shared test guards.
 
+#[path = "support/graph_evidence.rs"]
+mod support_graph_evidence;
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/sql.rs"]
@@ -1136,6 +1138,7 @@ mod graph_resilience {
     use cassie::types::Value;
     use serde_json::json;
 
+    use super::support_graph_evidence::SeededGraphFixture;
     use super::support_sql as support;
     use support::{data_dir, use_local_storage};
 
@@ -1150,6 +1153,28 @@ mod graph_resilience {
         cassie
             .execute_sql(session, sql, vec![])
             .expect("execute graph statement");
+    }
+
+    #[test]
+    fn should_preserve_seeded_graph_results_across_path_permutations() {
+        // Arrange
+        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
+        let forward = SeededGraphFixture::from_seed(0x00CA_551E, false).compare();
+        let reverse = SeededGraphFixture::from_seed(0x00CA_551E, true).compare();
+        let other_seed = SeededGraphFixture::from_seed(0x000A_11CE, false).compare();
+
+        // Act
+        let forward_rows = forward.adjacency.clone();
+        let reverse_rows = reverse.adjacency.clone();
+
+        // Assert
+        assert_eq!(forward.native_overlay, forward_rows);
+        assert_eq!(reverse.native_overlay, reverse_rows);
+        assert_eq!(forward_rows, reverse_rows);
+        assert_ne!(forward_rows, other_seed.adjacency);
+        assert!(forward.disconnected_native_overlay.is_empty());
+        assert!(forward.disconnected_adjacency.is_empty());
+        assert_eq!(forward.overlay_fallback_reason, "transaction-overlay");
     }
 
     fn configured_cassie(path: &str, memory_budget: usize) -> Cassie {

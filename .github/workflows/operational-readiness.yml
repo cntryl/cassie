@@ -281,6 +281,7 @@ jobs:
         env:
           CASSIE_STORAGE_MODE: local
         run: |
+          set -o pipefail
           started_ns="$(date +%s%N)"
           status=0
           cargo test --locked --test storage_indexes snapshot_restore -- --nocapture 2>&1 | tee operational-evidence/snapshot-restore.log || status=$?
@@ -294,6 +295,7 @@ jobs:
         env:
           CASSIE_STORAGE_MODE: local
         run: |
+          set -o pipefail
           started_ns="$(date +%s%N)"
           status=0
           cargo test --locked --test analytics projection_repair -- --nocapture 2>&1 | tee operational-evidence/projection-repair.log || status=$?
@@ -307,6 +309,7 @@ jobs:
         env:
           CASSIE_STORAGE_MODE: local
         run: |
+          set -o pipefail
           started_ns="$(date +%s%N)"
           status=0
           cargo test --locked --test storage_indexes should_remove_partial_restore_after_copy_error -- --nocapture 2>&1 | tee operational-evidence/failure-injection.log || status=$?

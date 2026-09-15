@@ -15,9 +15,9 @@ Work is dependency-ordered. A later item does not begin while an earlier correct
 ## Query Depth
 
 - Promote Experimental query families only through their documented promotion criteria.
-- Close the gaps in the [Query Promotion Evidence](query-promotion-evidence.md) inventory with
-  property, metamorphic, seeded differential, pagination, corruption, cancellation, and
-  source-boundary suites; retain existing focused evidence instead of duplicating it.
+- Use the completed [Query Promotion Evidence](query-promotion-evidence.md) inventory when
+  reviewing each Experimental family; retain its seeded differential and metamorphic evidence
+  instead of duplicating family-specific corruption, cancellation, or resource-control suites.
 - Keep feedback-informed planning and checkpointed switching observable and opt-in until representative workloads justify default enablement.
 
 ## Compatibility Depth

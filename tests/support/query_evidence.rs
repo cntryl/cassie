@@ -15,12 +15,15 @@ pub struct PageComparison {
     pub row_baseline_full: Vec<Vec<Value>>,
     pub indexed_empty: Vec<Vec<Value>>,
     pub row_baseline_empty: Vec<Vec<Value>>,
+    pub indexed_rewritten: Vec<Vec<Value>>,
+    pub row_baseline_rewritten: Vec<Vec<Value>>,
 }
 
 struct QueryResults {
     pages: Vec<Vec<Vec<Value>>>,
     full: Vec<Vec<Value>>,
     empty: Vec<Vec<Value>>,
+    rewritten: Vec<Vec<Value>>,
 }
 
 impl SeededQueryFixture {
@@ -60,6 +63,8 @@ impl SeededQueryFixture {
                 row_baseline_full: row_baseline.full,
                 indexed_empty: indexed.empty,
                 row_baseline_empty: row_baseline.empty,
+                indexed_rewritten: indexed.rewritten,
+                row_baseline_rewritten: row_baseline.rewritten,
             }
         })
     }
@@ -161,10 +166,25 @@ fn execute_pages(cassie: &Cassie, table: &str, row_count: usize) -> QueryResults
         )
         .expect("execute empty query evidence result")
         .rows;
+    let rewritten = cassie
+        .execute_sql(
+            &session,
+            &format!(
+                "SELECT category, score FROM {table} WHERE score > -1 ORDER BY score DESC, category ASC"
+            ),
+            vec![],
+        )
+        .expect("execute predicate-equivalent query evidence result")
+        .rows;
     cassie
         .execute_sql(&session, "ROLLBACK", vec![])
         .expect("rollback query evidence transaction");
-    QueryResults { pages, full, empty }
+    QueryResults {
+        pages,
+        full,
+        empty,
+        rewritten,
+    }
 }
 
 fn seeded_rows(seed: u64, rows: usize) -> Vec<(Option<String>, Option<i64>)> {

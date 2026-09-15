@@ -5460,6 +5460,9 @@ mod query_promotion_evidence {
         assert_eq!(pages.row_baseline.concat(), pages.row_baseline_full);
         assert_eq!(pages.indexed_empty, pages.row_baseline_empty);
         assert!(pages.indexed_empty.is_empty());
+        assert_eq!(pages.indexed_full, pages.indexed_rewritten);
+        assert_eq!(pages.row_baseline_full, pages.row_baseline_rewritten);
+        assert_eq!(pages.indexed_rewritten, pages.row_baseline_rewritten);
         assert_ne!(pages.indexed_full, different_seed_pages.indexed_full);
         assert_eq!(
             different_seed_pages.indexed,

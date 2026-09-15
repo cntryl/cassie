@@ -8,6 +8,8 @@ pub mod performance_benchmarks;
 mod stress;
 #[path = "support/data_dir.rs"]
 mod support_data_dir;
+#[path = "support/operational_evidence.rs"]
+mod support_operational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
 #[path = "../benches/support/workloads.rs"]
@@ -6489,7 +6491,308 @@ mod benchmark_column_metric_contract {
 
 // Formerly tests/benchmark_deployment_profile_contract.rs.
 mod benchmark_deployment_profile_contract {
+    use super::support_operational_evidence::validate_operational_evidence_manifest;
+
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
+    const NATIVE_LINUX_ARM64_PROFILE_ID: &str = "native-linux-arm64-disk";
+
+    fn operational_manifest(shape_only: bool, repair_outcome: &str) -> String {
+        format!(
+            r#"{{
+                "schema_version": "cassie-operational-evidence.v1",
+                "commit": "expected-commit",
+                "run_id": "release-rehearsal-1",
+                "operator": "release-owner",
+                "runner": "hosted-runner-1",
+                "fixture": "operational-rehearsal-single-row-indexed",
+                "midge_lock_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_utc": "2026-09-15T00:00:00Z",
+                "finished_utc": "2026-09-15T00:05:00Z",
+                "platform": "linux/amd64",
+                "deployment_profile": "native-linux-amd64-disk",
+                "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "image_revision": "expected-commit",
+                "shape_only": {shape_only},
+                "steps": {{
+                    "container": {{"outcome": "success"}},
+                    "snapshot_restore": {{"outcome": "success"}},
+                    "projection_repair": {{"outcome": "{repair_outcome}"}},
+                    "failure_injection": {{"outcome": "success"}},
+                    "long_evidence": {{"outcome": "success"}}
+                }},
+                "elapsed_ns": {{
+                    "container": 10,
+                    "snapshot_restore": 20,
+                    "projection_repair": 30,
+                    "failure_injection": 40,
+                    "container_snapshot_restore": 50
+                }}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn should_accept_complete_operational_shape_manifest() {
+        // Arrange
+        let manifest = operational_manifest(true, "success");
+
+        // Act
+        let result = validate_operational_evidence_manifest(&manifest, "expected-commit");
+
+        // Assert
+        result.expect("complete operational shape manifest");
+    }
+
+    #[test]
+    fn should_reject_failed_operational_repair_evidence() {
+        // Arrange
+        let manifest = operational_manifest(true, "failure");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("failed repair evidence must be rejected");
+
+        // Assert
+        assert!(error.contains("projection_repair"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_without_container_restore_timing() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            ",\n                    \"container_snapshot_restore\": 50",
+            "",
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("container restore timing must be retained");
+
+        // Assert
+        assert!(error.contains("container_snapshot_restore"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_without_reproducible_identity() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("                \"operator\": \"release-owner\",\n", "");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("operator identity must be retained");
+
+        // Assert
+        assert!(error.contains("operator"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_with_inverted_timestamps() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("2026-09-15T00:05:00Z", "2026-09-14T23:59:59Z");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("finish must not precede start");
+
+        // Assert
+        assert!(error.contains("finished_utc"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_with_impossible_calendar_timestamp() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("2026-09-15T00:00:00Z", "2026-02-30T00:00:00Z");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("impossible calendar timestamps must be rejected");
+
+        // Assert
+        assert!(error.contains("started_utc"));
+    }
+
+    #[test]
+    fn should_cache_rust_builds_in_operational_rehearsal_jobs() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let updates_toolchain = workflow.contains("run: rustup update stable");
+        let caches_dependencies = workflow.contains("uses: Swatinem/rust-cache@v2");
+
+        // Assert
+        assert!(updates_toolchain);
+        assert!(caches_dependencies);
+    }
+
+    #[test]
+    fn should_skip_long_operational_evidence_after_shape_failure() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let long_evidence_requires_shape_success = [
+            "steps.container.outcome == 'success'",
+            "steps.snapshot_restore.outcome == 'success'",
+            "steps.projection_repair.outcome == 'success'",
+            "steps.failure_injection.outcome == 'success'",
+        ]
+        .into_iter()
+        .all(|guard| workflow.contains(guard));
+
+        // Assert
+        assert!(long_evidence_requires_shape_success);
+    }
+
+    #[test]
+    fn should_propagate_every_piped_operational_test_failure() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let protected_steps = [
+            "Exercise snapshot, restore, repair, and failure cleanup contracts",
+            "Exercise projection repair contracts",
+            "Exercise failed restore cleanup seam",
+        ]
+        .into_iter()
+        .filter(|name| {
+            let marker = format!("- name: {name}");
+            let body = workflow
+                .split_once(&marker)
+                .map(|(_, remainder)| {
+                    remainder
+                        .split("\n      - name:")
+                        .next()
+                        .unwrap_or(remainder)
+                })
+                .unwrap_or_default();
+            body.contains("set -o pipefail") && body.contains("2>&1 | tee")
+        })
+        .count();
+
+        // Assert
+        assert_eq!(protected_steps, 3);
+    }
+
+    #[test]
+    #[ignore = "validates a retained workflow artifact selected by environment"]
+    fn should_validate_retained_operational_evidence_manifest() {
+        // Arrange
+        let manifest_path = std::env::var("CASSIE_OPERATIONAL_EVIDENCE_MANIFEST")
+            .expect("CASSIE_OPERATIONAL_EVIDENCE_MANIFEST");
+        let expected_commit =
+            std::env::var("CASSIE_OPERATIONAL_EVIDENCE_COMMIT").expect("expected commit");
+        let manifest = std::fs::read_to_string(manifest_path).expect("read operational manifest");
+
+        // Act
+        let result = validate_operational_evidence_manifest(&manifest, &expected_commit);
+
+        // Assert
+        result.expect("valid retained operational evidence manifest");
+    }
+
+    #[test]
+    fn should_separate_fast_operational_shape_from_retained_long_evidence() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+        let containers = include_str!("../.github/workflows/containers.yml");
+
+        // Act
+        let required_controls = [
+            "shape_only:",
+            "default: true",
+            "set -o pipefail",
+            "platform: linux/amd64",
+            "runner: ubuntu-latest",
+            "platform: linux/arm64",
+            "runner: ubuntu-24.04-arm",
+            "artifact_suffix: linux-amd64",
+            "artifact_suffix: linux-arm64",
+            "ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}",
+            "org.opencontainers.image.revision",
+            "docker image inspect",
+            "docker restart cassie-rehearsal",
+            "docker stop cassie-rehearsal",
+            "CASSIE_OPERATIONAL_SNAPSHOT_SOURCE",
+            "should_restore_operational_snapshot_selected_by_environment",
+            "${RUNNER_TEMP}/cassie-rehearsal-restored",
+            "select-restored.json",
+            "curl --fail --silent --show-error http://127.0.0.1:18080/readyz",
+            "/api/v1/auth/login",
+            "/api/v1/admin/query/execute",
+            "/api/v1/admin/query/explain",
+            "CREATE TABLE operational_rehearsal",
+            "SELECT value FROM operational_rehearsal",
+            "http://127.0.0.1:18080/metrics",
+            "cargo test --locked --test storage_indexes snapshot_restore -- --nocapture",
+            "cargo test --locked --test analytics projection_repair -- --nocapture",
+            "&& !inputs.shape_only",
+            "cargo bench --locked --bench 'tier5_scaling_lifecycle'",
+            "cargo bench --locked --bench 'tier6_soak_mixed'",
+            "operational-manifest.json",
+            "midge_lock_checksum",
+            "started_utc",
+            "finished_utc",
+            "rollback-command.txt",
+            "elapsed_ns",
+            "steps.snapshot_restore.outcome",
+            "steps.projection_repair.outcome",
+            "steps.failure_injection.outcome",
+            "retention-days: 90",
+        ];
+        let missing_controls = required_controls
+            .into_iter()
+            .filter(|control| !workflow.contains(control))
+            .collect::<Vec<_>>();
+        let container_records_revision =
+            containers.contains("org.opencontainers.image.revision=${{ github.sha }}");
+
+        // Assert
+        assert!(
+            missing_controls.is_empty(),
+            "missing operational evidence controls: {missing_controls:?}"
+        );
+        assert!(
+            container_records_revision,
+            "container image omits source revision label"
+        );
+    }
+
+    #[test]
+    fn should_keep_sensitive_operational_state_out_of_retained_artifacts() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let uses_ephemeral_cookie_jar =
+            workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-cookies.txt");
+        let uses_ephemeral_data_dir = workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-data");
+        let mounts_ephemeral_data_dir = workflow.contains("--volume \"${container_data}:/data\"");
+        let uses_mounted_storage_path = workflow.contains("--env CASSIE_STORAGE_PATH=/data/midge");
+        let assigns_container_data_owner =
+            workflow.contains("sudo chown 65532:65532 \"${container_data}\"");
+        let assigns_restored_data_owner =
+            workflow.contains("sudo chown -R 65532:65532 \"${restored_data}\"");
+        let uses_world_writable_data =
+            workflow.contains("chmod 0777") || workflow.contains("chmod -R 0777");
+        let retains_cookie_jar = workflow.contains("operational-evidence/cookies.txt");
+        let retains_data_dir = workflow.contains("operational-evidence/container-data");
+
+        // Assert
+        assert!(uses_ephemeral_cookie_jar);
+        assert!(uses_ephemeral_data_dir);
+        assert!(mounts_ephemeral_data_dir);
+        assert!(uses_mounted_storage_path);
+        assert!(assigns_container_data_owner);
+        assert!(assigns_restored_data_owner);
+        assert!(!uses_world_writable_data);
+        assert!(!retains_cookie_jar);
+        assert!(!retains_data_dir);
+    }
 
     #[test]
     fn should_reject_unknown_complete_profile_before_compilation() {
@@ -6577,12 +6880,43 @@ mod benchmark_deployment_profile_contract {
         let workflow_accepts_a_profile = workflow.contains("deployment_profile:");
         let documented = documentation.contains(NATIVE_LINUX_PROFILE_ID);
         let registered = profiles.contains(NATIVE_LINUX_PROFILE_ID);
+        let arm64_documented = documentation.contains(NATIVE_LINUX_ARM64_PROFILE_ID);
+        let arm64_registered = profiles.contains(NATIVE_LINUX_ARM64_PROFILE_ID);
 
         // Assert
         assert!(workflow_accepts_a_profile);
         assert!(documented);
         assert!(registered);
+        assert!(arm64_documented);
+        assert!(arm64_registered);
         assert!(profiles.contains("storage_mode: \"midge_disk_native_linux\""));
+    }
+
+    #[test]
+    fn should_document_every_registered_deployment_profile() {
+        // Arrange
+        let documentation = include_str!("../docs/deployment-profiles.md");
+        let registered_profiles = [
+            "workstation-apple-m5-arm64-apfs",
+            "native-linux-amd64-disk",
+            "native-linux-arm64-disk",
+            "local-dev-fallback-2k",
+            "local-dev-fallback-10k",
+            "local-dev-fallback-100k",
+            "local-dev-fallback-250k",
+        ];
+
+        // Act
+        let undocumented = registered_profiles
+            .into_iter()
+            .filter(|profile| !documentation.contains(&format!("`{profile}`")))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            undocumented.is_empty(),
+            "undocumented profiles: {undocumented:?}"
+        );
     }
 
     #[test]

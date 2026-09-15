@@ -34,12 +34,21 @@ credential sources are in [Environment Variables](environment-variables.md).
 - Toolchain: exact Rust toolchain, lockfile, Cassie commit, Midge revision, and benchmark run ID recorded.
 - Status: required representative-Linux profile; evidence remains pending until a complete retained run exists.
 
+## `native-linux-arm64-disk`
+
+- Host: Linux arm64, with the CPU, memory, kernel, filesystem, and mounted-volume identity recorded.
+- Storage: disk-backed `CASSIE_STORAGE_PATH` on the declared native filesystem; fallback storage is not valid.
+- Runtime, fixtures, workload, and toolchain: the same contract as `native-linux-amd64-disk`, executed natively rather than through emulation.
+- Status: required release-architecture rehearsal profile; evidence remains pending until a retained operational and benchmark bundle exists.
+
 ## Diagnostic smoke profiles
 
-`local-dev-fallback-10k` and `local-dev-fallback-100k` may be used for fast feedback. They use
-the configured fallback only when tests explicitly opt in, and their artifacts must be marked
-`diagnostic` rather than `complete`. They cannot replace either disk-backed profile or establish
-production thresholds.
+`local-dev-fallback-2k`, `local-dev-fallback-10k`, `local-dev-fallback-100k`, and
+`local-dev-fallback-250k` are the registered diagnostic fixture profiles. They use the configured
+fallback only when tests explicitly opt in, and their artifacts must be marked `diagnostic` rather
+than `complete`. The 2k profile owns subsystem-scale feedback; 10k and 100k cover fast and heavier
+local evidence; 250k is reserved for manual Tier 5 curves. None can replace a disk-backed profile
+or establish production thresholds.
 
 ## Artifact and ownership contract
 

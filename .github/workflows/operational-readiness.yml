@@ -1,0 +1,441 @@
+name: Operational readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Unique evidence run identifier
+        required: true
+        type: string
+      image_digest:
+        description: Immutable multi-architecture image digest including sha256 prefix
+        required: true
+        type: string
+      shape_only:
+        description: Run fast architecture and recovery shape checks without scale or soak owners
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate immutable evidence identity
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          if [[ ! "${IMAGE_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "image_digest must be an immutable sha256 digest" >&2
+            exit 1
+          fi
+          if [[ ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "run_id must be a bounded artifact-safe identifier" >&2
+            exit 1
+          fi
+
+  rehearse:
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            artifact_suffix: linux-amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            artifact_suffix: linux-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "operational-readiness-${{ matrix.artifact_suffix }}"
+
+      - name: Record architecture and storage identity
+        run: |
+          set -o pipefail
+          mkdir -p operational-evidence
+          started_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          midge_lock_checksum="$(sha256sum Cargo.lock)"
+          midge_lock_checksum="${midge_lock_checksum%% *}"
+          echo "${started_utc}" > operational-evidence/started-utc.txt
+          echo "${midge_lock_checksum}" > operational-evidence/midge-lock-checksum.txt
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "run_id=${{ inputs.run_id }}"
+            echo "operator=${GITHUB_ACTOR}"
+            echo "runner=${RUNNER_NAME}"
+            echo "fixture=operational-rehearsal-single-row-indexed"
+            echo "started_utc=${started_utc}"
+            echo "midge_lock_checksum=${midge_lock_checksum}"
+            echo "platform=${{ matrix.platform }}"
+            echo "profile=${{ matrix.profile }}"
+            echo "image_digest=${{ inputs.image_digest }}"
+            uname -a
+            df -T .
+            rustc --version --verbose
+          } | tee operational-evidence/identity.txt
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Exercise container startup, readiness, and restart
+        id: container
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}
+          CASSIE_ROOT_PASSWORD: operational-${{ github.run_id }}-${{ matrix.artifact_suffix }}
+        run: |
+          set -o pipefail
+          started_ns="$(date +%s%N)"
+          cookie_jar="${RUNNER_TEMP}/cassie-rehearsal-cookies.txt"
+          container_data="${RUNNER_TEMP}/cassie-rehearsal-data"
+          snapshot_bundle="${RUNNER_TEMP}/cassie-rehearsal-snapshot"
+          restored_data="${RUNNER_TEMP}/cassie-rehearsal-restored"
+          printf '%s\n' \
+            "docker rm --force cassie-rehearsal" \
+            "restart ${IMAGE} with ${container_data} mounted at /data and CASSIE_STORAGE_PATH=/data/midge" \
+            > operational-evidence/rollback-command.txt
+          mkdir -p "${container_data}" "${restored_data}"
+          sudo chown 65532:65532 "${container_data}"
+          docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
+          image_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")"
+          if [[ "${image_revision}" != "${GITHUB_SHA}" ]]; then
+            echo "image revision ${image_revision} does not match workflow commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          echo "${image_revision}" > operational-evidence/image-revision.txt
+          docker run --detach --name cassie-rehearsal \
+            --platform '${{ matrix.platform }}' \
+            --publish 127.0.0.1:18080:8080 \
+            --env CASSIE_ROOT_PASSWORD \
+            --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
+            --env CASSIE_STORAGE_PATH=/data/midge \
+            --volume "${container_data}:/data" \
+            "${IMAGE}"
+          trap 'rm -f "${cookie_jar}"; docker logs cassie-rehearsal > operational-evidence/container.log 2>&1 || true; docker rm --force cassie-rehearsal >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-initial.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+
+          login() {
+            jq --null-input --compact-output \
+              --arg password "${CASSIE_ROOT_PASSWORD}" \
+              '{username: "root", password: $password}' \
+              | curl --fail --silent --show-error \
+                  --cookie-jar "${cookie_jar}" \
+                  --header 'content-type: application/json' \
+                  --data-binary @- \
+                  http://127.0.0.1:18080/api/v1/auth/login
+          }
+          execute_query() {
+            local sql="$1"
+            local output="$2"
+            jq --null-input --compact-output --arg sql "${sql}" \
+              '{database: "postgres", sql: $sql}' \
+              | curl --fail --silent --show-error \
+                  --cookie "${cookie_jar}" \
+                  --header 'content-type: application/json' \
+                  --data-binary @- \
+                  http://127.0.0.1:18080/api/v1/admin/query/execute \
+                  > "${output}"
+          }
+
+          login > operational-evidence/login-initial.json
+          execute_query \
+            'CREATE TABLE operational_rehearsal (id INT, value TEXT)' \
+            operational-evidence/create-table.json
+          execute_query \
+            'CREATE INDEX operational_rehearsal_value_idx ON operational_rehearsal (value)' \
+            operational-evidence/create-index.json
+          execute_query \
+            "INSERT INTO operational_rehearsal (id, value) VALUES (1, 'persisted')" \
+            operational-evidence/insert-row.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-initial.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-initial.json
+          jq --null-input --compact-output \
+            --arg sql "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            '{database: "postgres", sql: $sql}' \
+            | curl --fail --silent --show-error \
+                --cookie "${cookie_jar}" \
+                --header 'content-type: application/json' \
+                --data-binary @- \
+                http://127.0.0.1:18080/api/v1/admin/query/explain \
+                > operational-evidence/explain.json
+          curl --fail --silent --show-error \
+            --cookie "${cookie_jar}" \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-initial.json
+
+          docker restart cassie-rehearsal
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-restarted.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          login > operational-evidence/login-restarted.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-restarted.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-restarted.json
+          curl --fail --silent --show-error \
+            --cookie "${cookie_jar}" \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-restarted.json
+
+          docker stop cassie-rehearsal
+          docker logs cassie-rehearsal > operational-evidence/container-source.log 2>&1
+          docker rm cassie-rehearsal
+          snapshot_started_ns="$(date +%s%N)"
+          CASSIE_OPERATIONAL_SNAPSHOT_SOURCE="${container_data}/midge" \
+          CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE="${snapshot_bundle}" \
+          CASSIE_OPERATIONAL_RESTORE_TARGET="${restored_data}/midge" \
+            cargo test --locked --test storage_indexes \
+              should_restore_operational_snapshot_selected_by_environment \
+              -- --ignored --nocapture \
+              2>&1 | tee operational-evidence/snapshot-container-restore.log
+          snapshot_finished_ns="$(date +%s%N)"
+          echo "$((snapshot_finished_ns - snapshot_started_ns))" \
+            > operational-evidence/container-snapshot-restore.elapsed_ns
+          sudo chown -R 65532:65532 "${restored_data}"
+          docker run --detach --name cassie-rehearsal \
+            --platform '${{ matrix.platform }}' \
+            --publish 127.0.0.1:18080:8080 \
+            --env CASSIE_ROOT_PASSWORD \
+            --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
+            --env CASSIE_STORAGE_PATH=/data/midge \
+            --volume "${restored_data}:/data" \
+            "${IMAGE}"
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-restored.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          login > operational-evidence/login-restored.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-restored.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-restored.json
+          execute_query \
+            "SELECT tablename FROM information_schema.tables WHERE tablename = 'operational_rehearsal'" \
+            operational-evidence/catalog-restored.json
+          jq --exit-status '.rows[0][0] == "operational_rehearsal"' operational-evidence/catalog-restored.json
+          jq --null-input --compact-output \
+            --arg sql "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            '{database: "postgres", sql: $sql}' \
+            | curl --fail --silent --show-error \
+                --cookie "${cookie_jar}" \
+                --header 'content-type: application/json' \
+                --data-binary @- \
+                http://127.0.0.1:18080/api/v1/admin/query/explain \
+                > operational-evidence/explain-restored.json
+          jq --exit-status \
+            '.plan.summary.access_path == "index_seek" and (.plan.summary.selected_index | endswith("operational_rehearsal_value_idx"))' \
+            operational-evidence/explain-restored.json
+          curl --fail --silent --show-error \
+            --cookie "${cookie_jar}" \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-restored.json
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/container.elapsed_ns
+
+      - name: Exercise snapshot, restore, repair, and failure cleanup contracts
+        id: snapshot_restore
+        if: always()
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          set -o pipefail
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test storage_indexes snapshot_restore -- --nocapture 2>&1 | tee operational-evidence/snapshot-restore.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/snapshot-restore.elapsed_ns
+          exit "${status}"
+
+      - name: Exercise projection repair contracts
+        id: projection_repair
+        if: always()
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          set -o pipefail
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test analytics projection_repair -- --nocapture 2>&1 | tee operational-evidence/projection-repair.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/projection-repair.elapsed_ns
+          exit "${status}"
+
+      - name: Exercise failed restore cleanup seam
+        id: failure_injection
+        if: always()
+        env:
+          CASSIE_STORAGE_MODE: local
+        run: |
+          set -o pipefail
+          started_ns="$(date +%s%N)"
+          status=0
+          cargo test --locked --test storage_indexes should_remove_partial_restore_after_copy_error -- --nocapture 2>&1 | tee operational-evidence/failure-injection.log || status=$?
+          finished_ns="$(date +%s%N)"
+          echo "$((finished_ns - started_ns))" > operational-evidence/failure-injection.elapsed_ns
+          exit "${status}"
+
+      - name: Exercise scale and endurance owners
+        id: long_evidence
+        if: >-
+          ${{ always()
+              && !inputs.shape_only
+              && steps.container.outcome == 'success'
+              && steps.snapshot_restore.outcome == 'success'
+              && steps.projection_repair.outcome == 'success'
+              && steps.failure_injection.outcome == 'success' }}
+        env:
+          CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}-${{ matrix.artifact_suffix }}
+          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}
+          CASSIE_BENCH_SOAK_DURATION_SECONDS: "3600"
+          STRESS_PROFILE: release
+          STRESS_OUTPUT_DIR: target/stress
+        run: |
+          cargo bench --locked --bench 'tier5_scaling_lifecycle'
+          cargo bench --locked --bench 'tier6_soak_mixed'
+
+      - name: Build operational evidence manifest
+        if: always()
+        env:
+          CONTAINER_OUTCOME: ${{ steps.container.outcome }}
+          SNAPSHOT_RESTORE_OUTCOME: ${{ steps.snapshot_restore.outcome }}
+          PROJECTION_REPAIR_OUTCOME: ${{ steps.projection_repair.outcome }}
+          FAILURE_INJECTION_OUTCOME: ${{ steps.failure_injection.outcome }}
+          LONG_EVIDENCE_OUTCOME: ${{ steps.long_evidence.outcome }}
+        run: |
+          image_revision=""
+          started_utc=""
+          midge_lock_checksum=""
+          if [[ -f operational-evidence/image-revision.txt ]]; then
+            image_revision="$(< operational-evidence/image-revision.txt)"
+          fi
+          if [[ -f operational-evidence/started-utc.txt ]]; then
+            started_utc="$(< operational-evidence/started-utc.txt)"
+          fi
+          if [[ -f operational-evidence/midge-lock-checksum.txt ]]; then
+            midge_lock_checksum="$(< operational-evidence/midge-lock-checksum.txt)"
+          fi
+          finished_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          jq --null-input \
+            --arg schema_version "cassie-operational-evidence.v1" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg run_id '${{ inputs.run_id }}' \
+            --arg operator "${GITHUB_ACTOR}" \
+            --arg runner "${RUNNER_NAME}" \
+            --arg fixture "operational-rehearsal-single-row-indexed" \
+            --arg midge_lock_checksum "${midge_lock_checksum}" \
+            --arg started_utc "${started_utc}" \
+            --arg finished_utc "${finished_utc}" \
+            --arg platform '${{ matrix.platform }}' \
+            --arg profile '${{ matrix.profile }}' \
+            --arg image_digest '${{ inputs.image_digest }}' \
+            --arg image_revision "${image_revision}" \
+            --argjson shape_only '${{ inputs.shape_only }}' \
+            --arg container_outcome "${CONTAINER_OUTCOME}" \
+            --arg snapshot_restore_outcome "${SNAPSHOT_RESTORE_OUTCOME}" \
+            --arg projection_repair_outcome "${PROJECTION_REPAIR_OUTCOME}" \
+            --arg failure_injection_outcome "${FAILURE_INJECTION_OUTCOME}" \
+            --arg long_evidence_outcome "${LONG_EVIDENCE_OUTCOME}" \
+            '{
+              schema_version: $schema_version,
+              commit: $commit,
+              run_id: $run_id,
+              operator: $operator,
+              runner: $runner,
+              fixture: $fixture,
+              midge_lock_checksum: $midge_lock_checksum,
+              started_utc: $started_utc,
+              finished_utc: $finished_utc,
+              platform: $platform,
+              deployment_profile: $profile,
+              image_digest: $image_digest,
+              image_revision: $image_revision,
+              shape_only: $shape_only,
+              steps: {
+                container: {outcome: $container_outcome},
+                snapshot_restore: {outcome: $snapshot_restore_outcome},
+                projection_repair: {outcome: $projection_repair_outcome},
+                failure_injection: {outcome: $failure_injection_outcome},
+                long_evidence: {outcome: $long_evidence_outcome}
+              },
+              elapsed_ns: {
+                container: null,
+                snapshot_restore: null,
+                projection_repair: null,
+                failure_injection: null,
+                container_snapshot_restore: null
+              }
+            }' > operational-evidence/operational-manifest.json
+
+          for step in container snapshot-restore projection-repair failure-injection container-snapshot-restore; do
+            file="operational-evidence/${step}.elapsed_ns"
+            if [[ -f "${file}" ]]; then
+              key="${step//-/_}"
+              value="$(<"${file}")"
+              jq --arg key "${key}" --argjson value "${value}" \
+                '.elapsed_ns[$key] = $value' \
+                operational-evidence/operational-manifest.json \
+                > operational-evidence/operational-manifest.next.json
+              mv operational-evidence/operational-manifest.next.json operational-evidence/operational-manifest.json
+            fi
+          done
+
+      - name: Validate operational evidence manifest
+        if: always()
+        env:
+          CASSIE_OPERATIONAL_EVIDENCE_MANIFEST: operational-evidence/operational-manifest.json
+          CASSIE_OPERATIONAL_EVIDENCE_COMMIT: ${{ github.sha }}
+        run: cargo test --locked --test bench_operations benchmark_deployment_profile_contract::should_validate_retained_operational_evidence_manifest -- --ignored --nocapture
+
+      - name: Retain operational evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: cassie-operational-${{ inputs.run_id }}-${{ matrix.artifact_suffix }}
+          path: |
+            operational-evidence
+            target/stress/**/latest.json
+          if-no-files-found: error
+          retention-days: 90

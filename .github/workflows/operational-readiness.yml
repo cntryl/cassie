@@ -60,6 +60,14 @@ jobs:
       - name: Checkout exact source
         uses: actions/checkout@v7
 
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "operational-readiness-${{ matrix.artifact_suffix }}"
+
       - name: Record architecture and storage identity
         run: |
           set -o pipefail
@@ -308,7 +316,13 @@ jobs:
 
       - name: Exercise scale and endurance owners
         id: long_evidence
-        if: ${{ always() && !inputs.shape_only }}
+        if: >-
+          ${{ always()
+              && !inputs.shape_only
+              && steps.container.outcome == 'success'
+              && steps.snapshot_restore.outcome == 'success'
+              && steps.projection_repair.outcome == 'success'
+              && steps.failure_injection.outcome == 'success' }}
         env:
           CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}-${{ matrix.artifact_suffix }}
           CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}

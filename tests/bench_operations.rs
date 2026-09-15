@@ -6601,6 +6601,53 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_reject_operational_manifest_with_impossible_calendar_timestamp() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("2026-09-15T00:00:00Z", "2026-02-30T00:00:00Z");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("impossible calendar timestamps must be rejected");
+
+        // Assert
+        assert!(error.contains("started_utc"));
+    }
+
+    #[test]
+    fn should_cache_rust_builds_in_operational_rehearsal_jobs() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let updates_toolchain = workflow.contains("run: rustup update stable");
+        let caches_dependencies = workflow.contains("uses: Swatinem/rust-cache@v2");
+
+        // Assert
+        assert!(updates_toolchain);
+        assert!(caches_dependencies);
+    }
+
+    #[test]
+    fn should_skip_long_operational_evidence_after_shape_failure() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let long_evidence_requires_shape_success = [
+            "steps.container.outcome == 'success'",
+            "steps.snapshot_restore.outcome == 'success'",
+            "steps.projection_repair.outcome == 'success'",
+            "steps.failure_injection.outcome == 'success'",
+        ]
+        .into_iter()
+        .all(|guard| workflow.contains(guard));
+
+        // Assert
+        assert!(long_evidence_requires_shape_success);
+    }
+
+    #[test]
     #[ignore = "validates a retained workflow artifact selected by environment"]
     fn should_validate_retained_operational_evidence_manifest() {
         // Arrange
@@ -6652,7 +6699,7 @@ mod benchmark_deployment_profile_contract {
             "http://127.0.0.1:18080/metrics",
             "cargo test --locked --test storage_indexes snapshot_restore -- --nocapture",
             "cargo test --locked --test analytics projection_repair -- --nocapture",
-            "if: ${{ always() && !inputs.shape_only }}",
+            "&& !inputs.shape_only",
             "cargo bench --locked --bench 'tier5_scaling_lifecycle'",
             "cargo bench --locked --bench 'tier6_soak_mixed'",
             "operational-manifest.json",

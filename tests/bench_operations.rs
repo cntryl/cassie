@@ -6521,6 +6521,37 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_propagate_every_piped_operational_test_failure() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let protected_steps = [
+            "Exercise snapshot, restore, repair, and failure cleanup contracts",
+            "Exercise projection repair contracts",
+            "Exercise failed restore cleanup seam",
+        ]
+        .into_iter()
+        .filter(|name| {
+            let marker = format!("- name: {name}");
+            let body = workflow
+                .split_once(&marker)
+                .map(|(_, remainder)| {
+                    remainder
+                        .split("\n      - name:")
+                        .next()
+                        .unwrap_or(remainder)
+                })
+                .unwrap_or_default();
+            body.contains("set -o pipefail") && body.contains("2>&1 | tee")
+        })
+        .count();
+
+        // Assert
+        assert_eq!(protected_steps, 3);
+    }
+
+    #[test]
     #[ignore = "validates a retained workflow artifact selected by environment"]
     fn should_validate_retained_operational_evidence_manifest() {
         // Arrange

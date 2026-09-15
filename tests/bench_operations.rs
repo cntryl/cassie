@@ -2559,10 +2559,10 @@ mod benchmark_harness_contract {
         let observation = fixture.ivfflat_batch(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE);
 
         // Assert
-        assert_eq!(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE, 4_096);
-        assert_eq!(observation.completed_operations(), 16_384);
-        assert_eq!(observation.result_cardinality(), 16_384);
-        assert_eq!(observation.candidate_count(), Some(16_384));
+        assert_eq!(workloads::VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE, 16_384);
+        assert_eq!(observation.completed_operations(), 65_536);
+        assert_eq!(observation.result_cardinality(), 65_536);
+        assert_eq!(observation.candidate_count(), Some(65_536));
         assert_eq!(
             scenario.timing_mode,
             performance_benchmarks::BenchmarkTimingMode::Counted

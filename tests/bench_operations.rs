@@ -1912,6 +1912,36 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_batch_tier3_indexed_vector_queries() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+
+        // Act
+        let indexed_vector_uses = owner
+            .matches("runner.measure_batch(case, INDEXED_VECTOR_QUERIES_PER_BATCH")
+            .count();
+
+        // Assert
+        assert!(owner.contains("const INDEXED_VECTOR_QUERIES_PER_BATCH: u64 = 4;"));
+        assert_eq!(indexed_vector_uses, 1);
+    }
+
+    #[test]
+    fn should_batch_tier3_join_queries() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_query.rs");
+
+        // Act
+        let join_uses = owner
+            .matches("runner.measure_batch(case, JOIN_QUERIES_PER_BATCH")
+            .count();
+
+        // Assert
+        assert!(owner.contains("const JOIN_QUERIES_PER_BATCH: u64 = 4;"));
+        assert_eq!(join_uses, 1);
+    }
+
+    #[test]
     fn should_apply_runtime_logical_units_to_every_batch_measurement() {
         // Arrange
         let adapter = include_str!("../benches/support/stress.rs");

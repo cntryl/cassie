@@ -28,6 +28,8 @@ const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
 const COLUMN_QUERIES_PER_BATCH: u64 = 32;
 const VECTOR_EXACT_QUERIES_PER_BATCH: u64 = 2;
+const INDEXED_VECTOR_QUERIES_PER_BATCH: u64 = 4;
+const JOIN_QUERIES_PER_BATCH: u64 = 4;
 const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;
 const GRAPH_READ_BOUND: u64 = 8;
 
@@ -397,7 +399,9 @@ fn bench_ann_case(
     );
     let before = context.cassie.metrics();
     let expected_rows = RefCell::new(None);
-    runner.measure_batch(case, 1, || execute_vector_evidence(context, &expected_rows));
+    runner.measure_batch(case, INDEXED_VECTOR_QUERIES_PER_BATCH, || {
+        execute_vector_evidence(context, &expected_rows)
+    });
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "vector", execution_metric);
     assert_metric_unchanged(&before, &after, "vector", fallback_metric);
@@ -453,7 +457,7 @@ fn bench_join_representative(
         preflight,
     );
     let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || {
+    runner.measure_batch(case, JOIN_QUERIES_PER_BATCH, || {
         workloads::execute_expected_query(context, JOIN_SQL, vec![], 50)
     });
     let after = context.cassie.metrics();

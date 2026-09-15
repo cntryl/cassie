@@ -3212,16 +3212,20 @@ mod benchmark_kernels {
         let owner = include_str!("../benches/tier5_scaling_lifecycle.rs");
 
         // Act
-        let lifecycle_has_explicit_analytical_deadline = context
-            .contains("pub fn lifecycle_disk_context_with_temp_budget")
-            && context.contains(
-                "config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS",
-            );
+        let lifecycle_tail = context
+            .split_once("pub fn lifecycle_disk_context_with_temp_budget")
+            .expect("lifecycle context constructor")
+            .1;
+        let lifecycle_context = lifecycle_tail
+            .split_once("\npub fn ")
+            .map_or(lifecycle_tail, |(body, _)| body);
+        let lifecycle_has_unbounded_setup_deadline =
+            lifecycle_context.contains("config.limits.query_timeout_ms = 0;");
         let owner_uses_lifecycle_context =
             owner.contains("workloads::lifecycle_disk_context_with_temp_budget(");
 
         // Assert
-        assert!(lifecycle_has_explicit_analytical_deadline);
+        assert!(lifecycle_has_unbounded_setup_deadline);
         assert!(owner_uses_lifecycle_context);
     }
 

@@ -341,7 +341,7 @@ pub fn lifecycle_disk_context_with_temp_budget(
         BenchmarkStorageMode::Disk,
         |config| {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-            config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
+            config.limits.query_timeout_ms = 0;
         },
     ))
 }

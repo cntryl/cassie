@@ -6813,6 +6813,24 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_query_the_supported_information_schema_table_name_column() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let uses_supported_column = workflow.contains(
+            "SELECT table_name FROM information_schema.tables WHERE table_name = 'operational_rehearsal'",
+        );
+        let uses_nonexistent_column = workflow.contains(
+            "SELECT tablename FROM information_schema.tables WHERE tablename = 'operational_rehearsal'",
+        );
+
+        // Assert
+        assert!(uses_supported_column);
+        assert!(!uses_nonexistent_column);
+    }
+
+    #[test]
     fn should_reject_unknown_complete_profile_before_compilation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

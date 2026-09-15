@@ -254,7 +254,7 @@ jobs:
             operational-evidence/select-restored.json
           jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-restored.json
           execute_query \
-            "SELECT tablename FROM information_schema.tables WHERE tablename = 'operational_rehearsal'" \
+            "SELECT table_name FROM information_schema.tables WHERE table_name = 'operational_rehearsal'" \
             operational-evidence/catalog-restored.json
           jq --exit-status '.rows[0][0] == "operational_rehearsal"' operational-evidence/catalog-restored.json
           jq --null-input --compact-output \

@@ -84,9 +84,12 @@ single-architecture container build, or image manifest inspection does not satis
 The manual `Operational readiness` workflow accepts an immutable multi-architecture image digest
 and runs the same source revision natively on `linux/amd64` and `linux/arm64`. Its default
 `shape_only=true` mode is the fast feedback gate: it validates identity, starts and restarts the
-container, checks readiness, and exercises the repository's snapshot/restore, projection-repair,
-and failed-restore cleanup contracts. Those artifacts prove workflow and contract shape only;
-they are not representative-scale or endurance evidence.
+container, checks readiness, stops the source container, creates a physical snapshot through the
+existing library contract, restores it into a new directory, and starts a fresh container from the
+restored data. The restored container must return the persisted row and catalog entry, select the
+persisted scalar index, and expose authenticated metrics. The workflow also exercises the broader
+snapshot/restore, projection-repair, and failed-restore cleanup test contracts. Those artifacts
+prove workflow and contract shape only; they are not representative-scale or endurance evidence.
 
 Set `shape_only=false` only after the candidate implementation and review are complete. That mode
 also runs the disk-backed Tier 5 lifecycle owner and one-hour Tier 6 mixed owner under the matching

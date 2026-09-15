@@ -6391,7 +6391,8 @@ mod benchmark_deployment_profile_contract {
                     "container": 10,
                     "snapshot_restore": 20,
                     "projection_repair": 30,
-                    "failure_injection": 40
+                    "failure_injection": 40,
+                    "container_snapshot_restore": 50
                 }}
             }}"#
         )
@@ -6423,6 +6424,22 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_reject_operational_manifest_without_container_restore_timing() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            ",\n                    \"container_snapshot_restore\": 50",
+            "",
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("container restore timing must be retained");
+
+        // Assert
+        assert!(error.contains("container_snapshot_restore"));
+    }
+
+    #[test]
     #[ignore = "validates a retained workflow artifact selected by environment"]
     fn should_validate_retained_operational_evidence_manifest() {
         // Arrange
@@ -6449,6 +6466,7 @@ mod benchmark_deployment_profile_contract {
         let required_controls = [
             "shape_only:",
             "default: true",
+            "set -o pipefail",
             "platform: linux/amd64",
             "runner: ubuntu-latest",
             "platform: linux/arm64",
@@ -6459,6 +6477,11 @@ mod benchmark_deployment_profile_contract {
             "org.opencontainers.image.revision",
             "docker image inspect",
             "docker restart cassie-rehearsal",
+            "docker stop cassie-rehearsal",
+            "CASSIE_OPERATIONAL_SNAPSHOT_SOURCE",
+            "should_restore_operational_snapshot_selected_by_environment",
+            "${RUNNER_TEMP}/cassie-rehearsal-restored",
+            "select-restored.json",
             "curl --fail --silent --show-error http://127.0.0.1:18080/readyz",
             "/api/v1/auth/login",
             "/api/v1/admin/query/execute",
@@ -6507,6 +6530,12 @@ mod benchmark_deployment_profile_contract {
         let uses_ephemeral_data_dir = workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-data");
         let mounts_ephemeral_data_dir = workflow.contains("--volume \"${container_data}:/data\"");
         let uses_mounted_storage_path = workflow.contains("--env CASSIE_STORAGE_PATH=/data/midge");
+        let assigns_container_data_owner =
+            workflow.contains("sudo chown 65532:65532 \"${container_data}\"");
+        let assigns_restored_data_owner =
+            workflow.contains("sudo chown -R 65532:65532 \"${restored_data}\"");
+        let uses_world_writable_data =
+            workflow.contains("chmod 0777") || workflow.contains("chmod -R 0777");
         let retains_cookie_jar = workflow.contains("operational-evidence/cookies.txt");
         let retains_data_dir = workflow.contains("operational-evidence/container-data");
 
@@ -6515,6 +6544,9 @@ mod benchmark_deployment_profile_contract {
         assert!(uses_ephemeral_data_dir);
         assert!(mounts_ephemeral_data_dir);
         assert!(uses_mounted_storage_path);
+        assert!(assigns_container_data_owner);
+        assert!(assigns_restored_data_owner);
+        assert!(!uses_world_writable_data);
         assert!(!retains_cookie_jar);
         assert!(!retains_data_dir);
     }

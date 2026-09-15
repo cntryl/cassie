@@ -87,11 +87,14 @@ jobs:
           IMAGE: ghcr.io/${{ github.repository }}@${{ inputs.image_digest }}
           CASSIE_ROOT_PASSWORD: operational-${{ github.run_id }}-${{ matrix.artifact_suffix }}
         run: |
+          set -o pipefail
           started_ns="$(date +%s%N)"
           cookie_jar="${RUNNER_TEMP}/cassie-rehearsal-cookies.txt"
           container_data="${RUNNER_TEMP}/cassie-rehearsal-data"
-          mkdir -p "${container_data}"
-          chmod 0777 "${container_data}"
+          snapshot_bundle="${RUNNER_TEMP}/cassie-rehearsal-snapshot"
+          restored_data="${RUNNER_TEMP}/cassie-rehearsal-restored"
+          mkdir -p "${container_data}" "${restored_data}"
+          sudo chown 65532:65532 "${container_data}"
           docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
           image_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "${IMAGE}")"
           if [[ "${image_revision}" != "${GITHUB_SHA}" ]]; then
@@ -146,6 +149,9 @@ jobs:
             'CREATE TABLE operational_rehearsal (id INT, value TEXT)' \
             operational-evidence/create-table.json
           execute_query \
+            'CREATE INDEX operational_rehearsal_value_idx ON operational_rehearsal (value)' \
+            operational-evidence/create-index.json
+          execute_query \
             "INSERT INTO operational_rehearsal (id, value) VALUES (1, 'persisted')" \
             operational-evidence/insert-row.json
           execute_query \
@@ -185,6 +191,64 @@ jobs:
             --cookie "${cookie_jar}" \
             http://127.0.0.1:18080/metrics \
             > operational-evidence/metrics-restarted.json
+
+          docker stop cassie-rehearsal
+          docker logs cassie-rehearsal > operational-evidence/container-source.log 2>&1
+          docker rm cassie-rehearsal
+          snapshot_started_ns="$(date +%s%N)"
+          CASSIE_OPERATIONAL_SNAPSHOT_SOURCE="${container_data}/midge" \
+          CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE="${snapshot_bundle}" \
+          CASSIE_OPERATIONAL_RESTORE_TARGET="${restored_data}/midge" \
+            cargo test --locked --test storage_indexes \
+              should_restore_operational_snapshot_selected_by_environment \
+              -- --ignored --nocapture \
+              2>&1 | tee operational-evidence/snapshot-container-restore.log
+          snapshot_finished_ns="$(date +%s%N)"
+          echo "$((snapshot_finished_ns - snapshot_started_ns))" \
+            > operational-evidence/container-snapshot-restore.elapsed_ns
+          sudo chown -R 65532:65532 "${restored_data}"
+          docker run --detach --name cassie-rehearsal \
+            --platform '${{ matrix.platform }}' \
+            --publish 127.0.0.1:18080:8080 \
+            --env CASSIE_ROOT_PASSWORD \
+            --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
+            --env CASSIE_STORAGE_PATH=/data/midge \
+            --volume "${restored_data}:/data" \
+            "${IMAGE}"
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/readyz | tee operational-evidence/ready-restored.json; then
+              break
+            fi
+            if [[ "${attempt}" == 60 ]]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          login > operational-evidence/login-restored.json
+          execute_query \
+            "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            operational-evidence/select-restored.json
+          jq --exit-status '.rows[0][0] == "persisted"' operational-evidence/select-restored.json
+          execute_query \
+            "SELECT tablename FROM information_schema.tables WHERE tablename = 'operational_rehearsal'" \
+            operational-evidence/catalog-restored.json
+          jq --exit-status '.rows[0][0] == "operational_rehearsal"' operational-evidence/catalog-restored.json
+          jq --null-input --compact-output \
+            --arg sql "SELECT value FROM operational_rehearsal WHERE value = 'persisted'" \
+            '{database: "postgres", sql: $sql}' \
+            | curl --fail --silent --show-error \
+                --cookie "${cookie_jar}" \
+                --header 'content-type: application/json' \
+                --data-binary @- \
+                http://127.0.0.1:18080/api/v1/admin/query/explain \
+                > operational-evidence/explain-restored.json
+          jq --exit-status \
+            '.plan.summary.access_path == "index_seek" and (.plan.summary.selected_index | endswith("operational_rehearsal_value_idx"))' \
+            operational-evidence/explain-restored.json
+          curl --fail --silent --show-error \
+            --cookie "${cookie_jar}" \
+            http://127.0.0.1:18080/metrics \
+            > operational-evidence/metrics-restored.json
           finished_ns="$(date +%s%N)"
           echo "$((finished_ns - started_ns))" > operational-evidence/container.elapsed_ns
 
@@ -287,11 +351,12 @@ jobs:
                 container: null,
                 snapshot_restore: null,
                 projection_repair: null,
-                failure_injection: null
+                failure_injection: null,
+                container_snapshot_restore: null
               }
             }' > operational-evidence/operational-manifest.json
 
-          for step in container snapshot-restore projection-repair failure-injection; do
+          for step in container snapshot-restore projection-repair failure-injection container-snapshot-restore; do
             file="operational-evidence/${step}.elapsed_ns"
             if [[ -f "${file}" ]]; then
               key="${step//-/_}"

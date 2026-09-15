@@ -4158,6 +4158,32 @@ mod snapshot_restore {
     }
 
     #[test]
+    #[ignore = "restores workflow-selected operational data for a fresh container"]
+    fn should_restore_operational_snapshot_selected_by_environment() {
+        // Arrange
+        let source = std::env::var("CASSIE_OPERATIONAL_SNAPSHOT_SOURCE")
+            .expect("CASSIE_OPERATIONAL_SNAPSHOT_SOURCE");
+        let snapshot = std::env::var("CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE")
+            .expect("CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE");
+        let restored = std::env::var("CASSIE_OPERATIONAL_RESTORE_TARGET")
+            .expect("CASSIE_OPERATIONAL_RESTORE_TARGET");
+
+        // Act
+        let created = Cassie::create_snapshot_from_data_dir(
+            &source,
+            &snapshot,
+            CassieSnapshotOptions::default(),
+        )
+        .expect("create operational snapshot");
+        let restored_manifest =
+            Cassie::restore_snapshot(&snapshot, &restored).expect("restore operational snapshot");
+
+        // Assert
+        assert_eq!(restored_manifest, created);
+        assert!(std::path::Path::new(&restored).is_dir());
+    }
+
+    #[test]
     fn should_reject_v1_snapshot_manifest_with_expected_v2_before_restore() {
         // Arrange
         use_local_storage();

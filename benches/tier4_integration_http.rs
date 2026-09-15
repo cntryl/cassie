@@ -46,16 +46,17 @@ fn main() {
         .expect("Tier 4 HTTP transport context");
     let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
 
-    if enabled[0] {
+    if enabled[2] {
         runner.record_external(
-            evidenced(document, &setup_time_ns, 1, &fixture),
+            evidenced(query, &setup_time_ns, 20, &fixture),
             |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
-                        runtime.block_on(workloads::http_transport_document_create_get(&context)),
-                    )
-                    .expect("HTTP document request count should fit u64")
-                })
+                transport_external::sample_until_deadline(
+                    sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER),
+                    || {
+                        u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
+                            .expect("HTTP query request count should fit u64")
+                    },
+                )
             },
         );
     }
@@ -71,17 +72,16 @@ fn main() {
             },
         );
     }
-    if enabled[2] {
+    if enabled[0] {
         runner.record_external(
-            evidenced(query, &setup_time_ns, 20, &fixture),
+            evidenced(document, &setup_time_ns, 1, &fixture),
             |sample_duration| {
-                transport_external::sample_until_deadline(
-                    sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER),
-                    || {
-                        u64::try_from(runtime.block_on(workloads::http_transport_query(&context)))
-                            .expect("HTTP query request count should fit u64")
-                    },
-                )
+                transport_external::sample_until_deadline(sample_duration, || {
+                    u64::try_from(
+                        runtime.block_on(workloads::http_transport_document_create_get(&context)),
+                    )
+                    .expect("HTTP document request count should fit u64")
+                })
             },
         );
     }

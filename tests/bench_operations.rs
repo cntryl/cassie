@@ -2381,6 +2381,21 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_measure_http_mutation_after_stable_query_gates() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+
+        // Act
+        let query = owner.find("if enabled[2]").expect("HTTP query owner");
+        let vector = owner.find("if enabled[1]").expect("HTTP vector owner");
+        let mutation = owner.find("if enabled[0]").expect("HTTP mutation owner");
+
+        // Assert
+        assert!(query < mutation);
+        assert!(vector < mutation);
+    }
+
+    #[test]
     fn should_lengthen_http_query_samples_without_changing_logical_unit() {
         // Arrange
         let owner = include_str!("../benches/tier4_integration_http.rs");
@@ -2388,7 +2403,7 @@ mod benchmark_harness_contract {
             .split_once("if enabled[2]")
             .expect("HTTP query measurement")
             .1
-            .split_once("runtime\n        .block_on(context.shutdown())")
+            .split_once("if enabled[1]")
             .expect("end of HTTP query measurement")
             .0;
 

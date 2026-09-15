@@ -2141,6 +2141,31 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_seed_lifecycle_time_series_rows_in_bounded_batches() {
+        // Arrange
+        let setup_source = include_str!("../benches/support/workloads/scaling_legacy.rs");
+        let setup_body = setup_source
+            .split_once("pub fn prepare_time_series_lifecycle_context")
+            .expect("time-series lifecycle setup")
+            .1
+            .split_once("pub fn projection_refresh_existing")
+            .expect("end of time-series lifecycle setup")
+            .0;
+
+        // Act
+        let uses_bounded_ranges =
+            setup_body.contains("bench_document_write_batch_ranges(dataset_rows)");
+        let writes_each_batch = setup_body.contains("put_fresh_time_series_documents(");
+        let reports_batch_range =
+            setup_body.contains("seed scaling time-series rows {start}..{end}: {error}");
+
+        // Assert
+        assert!(uses_bounded_ranges);
+        assert!(writes_each_batch);
+        assert!(reports_batch_range);
+    }
+
+    #[test]
     fn should_prepare_projection_replay_inputs_before_measurement() {
         // Arrange
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
@@ -2419,7 +2444,7 @@ mod benchmark_harness_contract {
     }
 
     #[test]
-    fn should_lengthen_http_query_samples_without_changing_logical_unit() {
+    fn should_measure_http_query_as_fixed_work_batches() {
         // Arrange
         let owner = include_str!("../benches/tier4_integration_http.rs");
         let query_measurement = owner
@@ -2431,16 +2456,17 @@ mod benchmark_harness_contract {
             .0;
 
         // Act
-        let declares_one_minute_window =
-            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 60;");
-        let lengthens_only_query_window = query_measurement
-            .contains("sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER)");
+        let declares_bounded_batch =
+            owner.contains("const HTTP_QUERY_INVOCATIONS_PER_SAMPLE: u64 = 128;");
+        let measures_fixed_work = query_measurement.contains("runner.measure_batch(")
+            && query_measurement.contains("HTTP_QUERY_INVOCATIONS_PER_SAMPLE,")
+            && query_measurement.contains("for _ in 0..HTTP_QUERY_INVOCATIONS_PER_SAMPLE");
         let preserves_one_request_per_operation =
-            query_measurement.contains("http_transport_query(&context)");
+            query_measurement.contains("assert_eq!(requests, 1, \"HTTP query request count\")");
 
         // Assert
-        assert!(declares_one_minute_window);
-        assert!(lengthens_only_query_window);
+        assert!(declares_bounded_batch);
+        assert!(measures_fixed_work);
         assert!(preserves_one_request_per_operation);
     }
 
@@ -6462,20 +6488,25 @@ mod benchmark_tier3_join_contract {
 // legitimately exceed Cassie's operator-facing 30 second default on shared runners.
 mod benchmark_scaling_query_deadline_contract {
     #[test]
-    fn should_flush_each_bounded_scalar_index_persistence_batch() {
+    fn should_bound_scalar_index_flush_cadence() {
         // Arrange
         let adapter = include_str!("../src/midge/adapter/scalar_indexes.rs");
 
         // Act
-        let flushes_each_batch = adapter
-            .contains("self.flush_data_family_for_collection(&index.collection)?;")
+        let bounds_publication_flushes = adapter
+            .contains("const SCALAR_INDEX_FLUSH_INTERVAL_BATCHES: usize = 4;")
+            && adapter.contains("should_flush_scalar_index_batch(batch_index + 1, batch_count)")
+            && adapter.contains("self.flush_data_family_for_collection(&index.collection)?;");
+        let bounds_cleanup_flushes = adapter
+            .contains("batches_since_flush == SCALAR_INDEX_FLUSH_INTERVAL_BATCHES")
             && adapter.contains("self.flush_data_family_for_collection(collection)?;");
         let cleanup_uses_bounded_pages = adapter.contains(
             "self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;",
         );
 
         // Assert
-        assert!(flushes_each_batch);
+        assert!(bounds_publication_flushes);
+        assert!(bounds_cleanup_flushes);
         assert!(cleanup_uses_bounded_pages);
     }
 

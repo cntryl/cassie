@@ -138,7 +138,7 @@ logical operation unit.
 
 Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 
-`document_create_get/10k` is retained as diagnostic mutation evidence rather than an intended release regression gate. Creating documents against the fully indexed 10k fixture triggers non-stationary index maintenance, so shared-runner timing variance is evidence about the mutation environment, not a stable transport regression signal. The Tier 4 HTTP query and vector-search rows remain the trustworthy release gates and run first against the pristine shared fixture; the query uses a fifteen-second measured window to average transport scheduling without changing its per-request logical unit. The document row runs last so its state changes cannot contaminate either stable gate, while still enforcing request completion, response correctness, runtime evidence, and artifact retention. Tier 4 and Tier 5 time exactly the named create and get requests, while the Tier 6 soak uses an explicit create/get/delete cycle to keep its hour-long fixture bounded.
+`document_create_get/10k` is retained as diagnostic mutation evidence rather than an intended release regression gate. Creating documents against the fully indexed 10k fixture triggers non-stationary index maintenance, so shared-runner timing variance is evidence about the mutation environment, not a stable transport regression signal. The Tier 4 HTTP query and vector-search rows remain the trustworthy release gates and run first against the pristine shared fixture; each HTTP query sample executes a fixed batch of 128 requests, preserving one request as the logical operation while lifting the measured sample above transport scheduling noise. The document row runs last so its state changes cannot contaminate either stable gate, while still enforcing request completion, response correctness, runtime evidence, and artifact retention. Tier 4 and Tier 5 time exactly the named create and get requests, while the Tier 6 soak uses an explicit create/get/delete cycle to keep its hour-long fixture bounded.
 
 ## Fixtures, Setup, Cache, and SQL
 
@@ -155,11 +155,11 @@ IVFFlat memberships through data transactions of at most 5,000 sidecars. The vec
 published after initial batches and removed after cleanup batches, so a failed attempt remains
 retryable without exposing partial indexed state.
 Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
-the owning database family after every committed batch. This prevents encoded index-key memtables
-from accumulating across the full build while publication metadata remains hidden until every
-bounded index batch is durable.
+the owning database family after every four committed batches and after the final partial interval.
+This bounds encoded index-key memtable accumulation without forcing an L0 flush after every
+transaction, while publication metadata remains hidden until every bounded index batch is durable.
 
-Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
+Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. The Tier 5 lifecycle fixture uses the same ceiling while seeding its rollup and retention source rows. Rollup and retention structures belong to that lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
 
 Fixture classes are part of scenario ownership: Tier 2 is capped at 2,048 rows; Tier 3 uses one representative 100k case per access-path family; Tier 4 normally reuses 10k rows; Tier 5 owns the 10k/100k/250k curves; and Tier 6 uses the two declared 100k and 10k fixtures. A join fixture must be visible to the actual integration harness before its timed query is eligible to run.
 The Tier 5 join curve builds its scalar probe index outside the measurement boundary and requires

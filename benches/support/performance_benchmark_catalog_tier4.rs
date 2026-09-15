@@ -142,7 +142,7 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         "10k",
         10_000,
         Tier4,
-        External,
+        Batch,
         Integration,
         "request",
         Disabled,

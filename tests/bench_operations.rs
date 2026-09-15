@@ -6505,12 +6505,16 @@ mod benchmark_deployment_profile_contract {
         let uses_ephemeral_cookie_jar =
             workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-cookies.txt");
         let uses_ephemeral_data_dir = workflow.contains("${RUNNER_TEMP}/cassie-rehearsal-data");
+        let mounts_ephemeral_data_dir = workflow.contains("--volume \"${container_data}:/data\"");
+        let uses_mounted_storage_path = workflow.contains("--env CASSIE_STORAGE_PATH=/data/midge");
         let retains_cookie_jar = workflow.contains("operational-evidence/cookies.txt");
         let retains_data_dir = workflow.contains("operational-evidence/container-data");
 
         // Assert
         assert!(uses_ephemeral_cookie_jar);
         assert!(uses_ephemeral_data_dir);
+        assert!(mounts_ephemeral_data_dir);
+        assert!(uses_mounted_storage_path);
         assert!(!retains_cookie_jar);
         assert!(!retains_data_dir);
     }

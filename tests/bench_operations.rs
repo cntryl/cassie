@@ -5852,27 +5852,30 @@ mod benchmark_deployment_profile_contract {
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
     #[test]
-    fn should_reject_unknown_complete_suite_profile_before_compilation() {
+    fn should_reject_unknown_complete_profile_before_compilation() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");
         let profiles = include_str!("../benches/support/performance_benchmark_profiles.rs");
-        let complete_suite = workflow
-            .split_once("  complete-suite:\n")
+        let complete_contract = workflow
+            .split_once("  complete-contract:\n")
             .map(|(_, job)| job)
-            .expect("complete-suite benchmark job");
+            .expect("complete-contract benchmark job");
+        let complete_contract = complete_contract
+            .split_once("  complete-shard:\n")
+            .map_or(complete_contract, |(job, _)| job);
 
         // Act
-        let validation_position = complete_suite
+        let validation_position = complete_contract
             .find("name: Validate deployment profile")
             .expect("deployment profile preflight");
-        let toolchain_position = complete_suite
+        let toolchain_position = complete_contract
             .find("name: Update Rust toolchain")
-            .expect("complete-suite toolchain preparation");
+            .expect("complete-contract toolchain preparation");
 
         // Assert
         assert!(validation_position < toolchain_position);
-        assert!(complete_suite.contains("unsupported benchmark deployment profile"));
-        assert!(complete_suite.contains(NATIVE_LINUX_PROFILE_ID));
+        assert!(complete_contract.contains("unsupported benchmark deployment profile"));
+        assert!(complete_contract.contains(NATIVE_LINUX_PROFILE_ID));
         assert!(profiles.contains(&format!("profile_id: \"{NATIVE_LINUX_PROFILE_ID}\"")));
     }
 

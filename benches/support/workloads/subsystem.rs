@@ -419,6 +419,11 @@ impl PostingMergeFixture {
         )
         .with_candidate_count(fixture_count(candidate_count))
     }
+
+    #[must_use]
+    pub fn merge_batch(&self, fixture_invocations: usize) -> cassie::benchmark::KernelObservation {
+        repeated_vector_observation(fixture_invocations, "posting merge", || self.merge())
+    }
 }
 
 /// Exact, HNSW, and `IVFFlat` candidate-selection fixtures.

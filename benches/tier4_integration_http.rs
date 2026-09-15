@@ -1,7 +1,7 @@
 const BENCHMARK: &str = "tier4_integration_http";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
-const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 5;
+const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 15;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;

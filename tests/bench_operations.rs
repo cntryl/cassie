@@ -2294,17 +2294,43 @@ mod benchmark_harness_contract {
             .0;
 
         // Act
-        let declares_five_second_window =
-            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 5;");
+        let declares_fifteen_second_window =
+            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 15;");
         let lengthens_only_query_window = query_measurement
             .contains("sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER)");
         let preserves_one_request_per_operation =
             query_measurement.contains("http_transport_query(&context)");
 
         // Assert
-        assert!(declares_five_second_window);
+        assert!(declares_fifteen_second_window);
         assert!(lengthens_only_query_window);
         assert!(preserves_one_request_per_operation);
+    }
+
+    #[test]
+    fn should_batch_posting_merge_samples_without_changing_candidate_units() {
+        // Arrange
+        let owner = include_str!("../benches/tier2_subsystem_search.rs");
+        let fixture = super::workloads::PostingMergeFixture::new(2_048);
+
+        // Act
+        let declares_bounded_batch =
+            owner.contains("const POSTING_MERGE_INVOCATIONS_PER_SAMPLE: usize = 512;");
+        let records_batch_parameter = owner.contains("fixture_invocations_per_sample");
+        let measures_complete_batch = owner.contains("runner.measure_counted(");
+        let preserves_candidate_observation =
+            owner.contains("fixture.merge_batch(POSTING_MERGE_INVOCATIONS_PER_SAMPLE)");
+        let observation = fixture.merge_batch(512);
+
+        // Assert
+        assert!(declares_bounded_batch);
+        assert!(records_batch_parameter);
+        assert!(measures_complete_batch);
+        assert!(preserves_candidate_observation);
+        assert_eq!(observation.completed_operations(), 2_048 * 512);
+        assert_eq!(observation.result_cardinality(), 2_048 * 512);
+        assert_eq!(observation.candidate_count(), Some(2_048 * 512));
+        observation.finish_sample();
     }
 
     #[test]

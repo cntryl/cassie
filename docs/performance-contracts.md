@@ -125,13 +125,15 @@ The two 128-item binder and planning owners batch 256 fixture invocations per me
 record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the
 completed count remains normalized to statements, parameters, or plans. This raises sub-millisecond
 rows above timer noise without changing scenario IDs, fixture identity, or logical operation units.
+The 2,048-candidate posting-merge owner batches 512 complete production merges per measured sample
+and retains `candidate` normalization, lifting the fixed-operation window above scheduler noise.
 The 2,048-candidate hybrid-fusion owner applies the same 256-invocation bounded window and records
 the exact aggregate result-cardinality and candidate counts, while retaining `candidate` as its
 logical operation unit.
 
 Correctness, evidence, setup, and configured resource-bound failures are hard gates and panic. The default and smoke profiles report timing-noise diagnostics without making them fatal when correctness and evidence are intact. The release profile additionally requires every intended optimization gate to retain gate-quality trust, so unstable variance, sub-resolution timing, or an invalid measurement shape fails that owner instead of producing canonical evidence.
 
-`document_create_get/10k` is retained as diagnostic mutation evidence rather than an intended release regression gate. Creating documents against the fully indexed 10k fixture triggers non-stationary index maintenance, so shared-runner timing variance is evidence about the mutation environment, not a stable transport regression signal. The Tier 4 HTTP query and vector-search rows remain the trustworthy release gates; the document row still enforces request completion, response correctness, runtime evidence, and artifact retention. Tier 4 and Tier 5 time exactly the named create and get requests, while the Tier 6 soak uses an explicit create/get/delete cycle to keep its hour-long fixture bounded.
+`document_create_get/10k` is retained as diagnostic mutation evidence rather than an intended release regression gate. Creating documents against the fully indexed 10k fixture triggers non-stationary index maintenance, so shared-runner timing variance is evidence about the mutation environment, not a stable transport regression signal. The Tier 4 HTTP query and vector-search rows remain the trustworthy release gates; the query uses a fifteen-second measured window to average transport scheduling without changing its per-request logical unit. The document row still enforces request completion, response correctness, runtime evidence, and artifact retention. Tier 4 and Tier 5 time exactly the named create and get requests, while the Tier 6 soak uses an explicit create/get/delete cycle to keep its hour-long fixture bounded.
 
 ## Fixtures, Setup, Cache, and SQL
 

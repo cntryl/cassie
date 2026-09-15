@@ -6375,6 +6375,12 @@ mod benchmark_deployment_profile_contract {
                 "schema_version": "cassie-operational-evidence.v1",
                 "commit": "expected-commit",
                 "run_id": "release-rehearsal-1",
+                "operator": "release-owner",
+                "runner": "hosted-runner-1",
+                "fixture": "operational-rehearsal-single-row-indexed",
+                "midge_lock_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_utc": "2026-09-15T00:00:00Z",
+                "finished_utc": "2026-09-15T00:05:00Z",
                 "platform": "linux/amd64",
                 "deployment_profile": "native-linux-amd64-disk",
                 "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -6440,6 +6446,20 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_reject_operational_manifest_without_reproducible_identity() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("                \"operator\": \"release-owner\",\n", "");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("operator identity must be retained");
+
+        // Assert
+        assert!(error.contains("operator"));
+    }
+
+    #[test]
     #[ignore = "validates a retained workflow artifact selected by environment"]
     fn should_validate_retained_operational_evidence_manifest() {
         // Arrange
@@ -6495,6 +6515,10 @@ mod benchmark_deployment_profile_contract {
             "cargo bench --locked --bench 'tier5_scaling_lifecycle'",
             "cargo bench --locked --bench 'tier6_soak_mixed'",
             "operational-manifest.json",
+            "midge_lock_checksum",
+            "started_utc",
+            "finished_utc",
+            "rollback-command.txt",
             "elapsed_ns",
             "steps.snapshot_restore.outcome",
             "steps.projection_repair.outcome",

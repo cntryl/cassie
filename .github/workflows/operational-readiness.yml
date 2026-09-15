@@ -62,10 +62,21 @@ jobs:
 
       - name: Record architecture and storage identity
         run: |
+          set -o pipefail
           mkdir -p operational-evidence
+          started_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          midge_lock_checksum="$(sha256sum Cargo.lock)"
+          midge_lock_checksum="${midge_lock_checksum%% *}"
+          echo "${started_utc}" > operational-evidence/started-utc.txt
+          echo "${midge_lock_checksum}" > operational-evidence/midge-lock-checksum.txt
           {
             echo "commit=${GITHUB_SHA}"
             echo "run_id=${{ inputs.run_id }}"
+            echo "operator=${GITHUB_ACTOR}"
+            echo "runner=${RUNNER_NAME}"
+            echo "fixture=operational-rehearsal-single-row-indexed"
+            echo "started_utc=${started_utc}"
+            echo "midge_lock_checksum=${midge_lock_checksum}"
             echo "platform=${{ matrix.platform }}"
             echo "profile=${{ matrix.profile }}"
             echo "image_digest=${{ inputs.image_digest }}"
@@ -93,6 +104,10 @@ jobs:
           container_data="${RUNNER_TEMP}/cassie-rehearsal-data"
           snapshot_bundle="${RUNNER_TEMP}/cassie-rehearsal-snapshot"
           restored_data="${RUNNER_TEMP}/cassie-rehearsal-restored"
+          printf '%s\n' \
+            "docker rm --force cassie-rehearsal" \
+            "restart ${IMAGE} with ${container_data} mounted at /data and CASSIE_STORAGE_PATH=/data/midge" \
+            > operational-evidence/rollback-command.txt
           mkdir -p "${container_data}" "${restored_data}"
           sudo chown 65532:65532 "${container_data}"
           docker pull --platform '${{ matrix.platform }}' "${IMAGE}"
@@ -314,13 +329,28 @@ jobs:
           LONG_EVIDENCE_OUTCOME: ${{ steps.long_evidence.outcome }}
         run: |
           image_revision=""
+          started_utc=""
+          midge_lock_checksum=""
           if [[ -f operational-evidence/image-revision.txt ]]; then
             image_revision="$(< operational-evidence/image-revision.txt)"
           fi
+          if [[ -f operational-evidence/started-utc.txt ]]; then
+            started_utc="$(< operational-evidence/started-utc.txt)"
+          fi
+          if [[ -f operational-evidence/midge-lock-checksum.txt ]]; then
+            midge_lock_checksum="$(< operational-evidence/midge-lock-checksum.txt)"
+          fi
+          finished_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           jq --null-input \
             --arg schema_version "cassie-operational-evidence.v1" \
             --arg commit "${GITHUB_SHA}" \
             --arg run_id '${{ inputs.run_id }}' \
+            --arg operator "${GITHUB_ACTOR}" \
+            --arg runner "${RUNNER_NAME}" \
+            --arg fixture "operational-rehearsal-single-row-indexed" \
+            --arg midge_lock_checksum "${midge_lock_checksum}" \
+            --arg started_utc "${started_utc}" \
+            --arg finished_utc "${finished_utc}" \
             --arg platform '${{ matrix.platform }}' \
             --arg profile '${{ matrix.profile }}' \
             --arg image_digest '${{ inputs.image_digest }}' \
@@ -335,6 +365,12 @@ jobs:
               schema_version: $schema_version,
               commit: $commit,
               run_id: $run_id,
+              operator: $operator,
+              runner: $runner,
+              fixture: $fixture,
+              midge_lock_checksum: $midge_lock_checksum,
+              started_utc: $started_utc,
+              finished_utc: $finished_utc,
               platform: $platform,
               deployment_profile: $profile,
               image_digest: $image_digest,

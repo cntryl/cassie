@@ -10,6 +10,12 @@ pub fn validate_operational_evidence_manifest(
 
     require_string(object, "schema_version", "cassie-operational-evidence.v1")?;
     require_string(object, "commit", expected_commit)?;
+    for field in ["operator", "runner", "fixture"] {
+        string_field(object, field)?;
+    }
+    validate_lowercase_sha256_field(object, "midge_lock_checksum")?;
+    validate_utc_timestamp(object, "started_utc")?;
+    validate_utc_timestamp(object, "finished_utc")?;
 
     let run_id = string_field(object, "run_id")?;
     if run_id.is_empty()
@@ -96,6 +102,44 @@ pub fn validate_operational_evidence_manifest(
         }
     }
 
+    Ok(())
+}
+
+fn validate_lowercase_sha256_field(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<(), String> {
+    let value = string_field(object, field)?;
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(format!("{field} must be a lowercase sha256 digest"));
+    }
+    Ok(())
+}
+
+fn validate_utc_timestamp(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<(), String> {
+    let value = string_field(object, field)?;
+    let bytes = value.as_bytes();
+    let separators_match = bytes.len() == 20
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes[10] == b'T'
+        && bytes[13] == b':'
+        && bytes[16] == b':'
+        && bytes[19] == b'Z';
+    let digits_match = bytes
+        .iter()
+        .enumerate()
+        .all(|(index, byte)| matches!(index, 4 | 7 | 10 | 13 | 16 | 19) || byte.is_ascii_digit());
+    if !separators_match || !digits_match {
+        return Err(format!("{field} must be an RFC 3339 UTC second timestamp"));
+    }
     Ok(())
 }
 

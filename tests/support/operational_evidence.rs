@@ -16,6 +16,9 @@ pub fn validate_operational_evidence_manifest(
     validate_lowercase_sha256_field(object, "midge_lock_checksum")?;
     validate_utc_timestamp(object, "started_utc")?;
     validate_utc_timestamp(object, "finished_utc")?;
+    if string_field(object, "finished_utc")? < string_field(object, "started_utc")? {
+        return Err("finished_utc must not precede started_utc".to_string());
+    }
 
     let run_id = string_field(object, "run_id")?;
     if run_id.is_empty()

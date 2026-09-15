@@ -6460,6 +6460,20 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_reject_operational_manifest_with_inverted_timestamps() {
+        // Arrange
+        let manifest = operational_manifest(true, "success")
+            .replace("2026-09-15T00:05:00Z", "2026-09-14T23:59:59Z");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("finish must not precede start");
+
+        // Assert
+        assert!(error.contains("finished_utc"));
+    }
+
+    #[test]
     #[ignore = "validates a retained workflow artifact selected by environment"]
     fn should_validate_retained_operational_evidence_manifest() {
         // Arrange

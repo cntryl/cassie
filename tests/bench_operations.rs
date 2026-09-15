@@ -5732,6 +5732,9 @@ mod benchmark_deployment_profile_contract {
         // Act
         let required_controls = [
             "  complete-shard:\n",
+            "run_id must be a bounded artifact-safe identifier",
+            "deployment_profile must be native-linux-amd64-disk",
+            "soak_duration_seconds must be an integer of at least 3600",
             "fail-fast: false",
             "command: \"cargo bench --bench 'tier1_*' --locked\"",
             "command: \"cargo bench --bench 'tier2_*' --locked\"",

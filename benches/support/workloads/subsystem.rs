@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
@@ -38,6 +38,7 @@ pub const PROTOCOL_JSON_INVOCATIONS_PER_SAMPLE: usize = 16;
 pub const VECTOR_BRUTE_FORCE_INVOCATIONS_PER_SAMPLE: usize = 512;
 pub const VECTOR_HNSW_INVOCATIONS_PER_SAMPLE: usize = 256;
 pub const VECTOR_IVFFLAT_INVOCATIONS_PER_SAMPLE: usize = 16_384;
+const TIER2_PROJECTION_REPLAY_LANES: usize = 64;
 
 #[must_use]
 pub fn executor_filter_batch(
@@ -718,8 +719,8 @@ pub struct ProjectionBatchFixture {
 }
 
 struct ReplayFixtureState {
-    batch: ProjectionReplayBatch,
-    sample: usize,
+    batches: VecDeque<ProjectionReplayBatch>,
+    replayed_positions: Vec<u64>,
 }
 
 impl ProjectionBatchFixture {
@@ -744,14 +745,31 @@ impl ProjectionBatchFixture {
                 )
             })
             .collect::<Arc<[_]>>();
-        let batch = replay_batch(&context.collection, 0, &write_documents);
-        assert_eq!(batch.events.len(), rows);
+        let schema = context
+            .cassie
+            .midge
+            .collection_schema(&context.collection)
+            .expect("projection benchmark schema");
+        let batches = (0..TIER2_PROJECTION_REPLAY_LANES)
+            .map(|lane| {
+                let collection = format!("tier2_projection_replay_lane_{lane}");
+                context
+                    .cassie
+                    .midge
+                    .create_collection(&collection, schema.clone())
+                    .expect("create isolated projection replay lane");
+                replay_batch(&collection, 0, &write_documents)
+            })
+            .collect();
         let fixture_identity = context.data_dir.display().to_string();
         Self {
             context,
             fixture_identity,
             write_documents,
-            replay_state: Arc::new(Mutex::new(ReplayFixtureState { batch, sample: 0 })),
+            replay_state: Arc::new(Mutex::new(ReplayFixtureState {
+                batches,
+                replayed_positions: Vec::new(),
+            })),
         }
     }
 
@@ -778,8 +796,14 @@ impl ProjectionBatchFixture {
         let batch = replay_state
             .lock()
             .expect("projection replay fixture")
-            .batch
-            .clone();
+            .batches
+            .pop_front()
+            .expect("prepared Tier 2 projection replay lanes exhausted");
+        let replayed_position = batch
+            .events
+            .last()
+            .and_then(|event| event.position)
+            .expect("projection replay batch must have a final position");
         let report = self
             .context
             .cassie
@@ -796,14 +820,11 @@ impl ProjectionBatchFixture {
         );
         let result_cardinality = report.applied_event_count;
         std::hint::black_box(report);
-        let collection = self.context.collection.clone();
-        let write_documents = self.write_documents.clone();
-        let rows = write_documents.len();
+        let rows = self.write_documents.len();
         cassie::benchmark::KernelObservation::new(fixture_count(rows), result_cardinality)
             .with_after_sample(move || {
                 let mut state = replay_state.lock().expect("projection replay fixture");
-                state.sample = state.sample.wrapping_add(1);
-                state.batch = replay_batch(&collection, state.sample, &write_documents);
+                state.replayed_positions.push(replayed_position);
             })
     }
 
@@ -823,11 +844,20 @@ impl ProjectionBatchFixture {
             .replay_state
             .lock()
             .expect("replay fixture")
-            .batch
-            .events
-            .len();
+            .batches
+            .front()
+            .map_or(self.write_documents.len(), |batch| batch.events.len());
         assert_eq!(replay_rows, self.write_documents.len());
         self.write_documents.len()
+    }
+
+    #[must_use]
+    pub fn replayed_projection_positions(&self) -> Vec<u64> {
+        self.replay_state
+            .lock()
+            .expect("replay fixture")
+            .replayed_positions
+            .clone()
     }
 }
 

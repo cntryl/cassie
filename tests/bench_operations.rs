@@ -3368,6 +3368,23 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_replay_each_tier2_projection_sample_against_equivalent_isolated_state() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let fixture = workloads::ProjectionBatchFixture::new(&runtime, 8);
+
+        // Act
+        let first = fixture.replay_batch();
+        first.finish_sample();
+        let second = fixture.replay_batch();
+        second.finish_sample();
+        let positions = fixture.replayed_projection_positions();
+
+        // Assert
+        assert_eq!(positions, vec![8, 8]);
+    }
+
+    #[test]
     fn should_retain_at_most_2048_logical_rows_given_tier2_projection_fixture() {
         // Arrange
         let runtime = workloads::runtime();

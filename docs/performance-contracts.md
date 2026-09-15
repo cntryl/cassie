@@ -112,7 +112,7 @@ Every benchmark declares a typed `BenchmarkTier`; generic tier constructors are 
 
 | Declared tier | Allowed runner | Timing model |
 | --- | --- | --- |
-| `BenchmarkTier::Tier1` | `measure_micro` | Production-kernel micro measurement |
+| `BenchmarkTier::Tier1` | `measure_micro` or `measure_micro_batch` | Production-kernel micro measurement, optionally repeated in a bounded batch with explicit normalized operation counts |
 | `BenchmarkTier::Tier2` | `measure`, `measure_counted`, or `measure_counted_batch` | One subsystem operation, optionally repeated in a bounded batch with explicit normalized operation counts |
 | `BenchmarkTier::Tier3` | `measure_batch` | Fixed-duration embedded batches |
 | `BenchmarkTier::Tier4` | `measure_batch`; `record_external` only for genuinely external harnesses | Fixed-duration boundary work |
@@ -123,7 +123,9 @@ The scenario registry declares the tier, operation unit, evidence role, and fixt
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
 
-Extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches. Extended query, portal, multi-statement, and binary extended-query use 64 transport invocations; cancellation uses eight because every operation waits for the bounded cancellation handshake. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while the remaining calls retain one logical operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps. Simple query remains a duration-sampled external measurement.
+Simple query, extended query, portal fetch, cancellation, multi-statement, and binary extended-query integration rows use bounded fixed-work batches. Simple query, extended query, portal, multi-statement, and binary extended-query use 64 transport invocations; cancellation uses eight because every operation waits for the bounded cancellation handshake. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while the remaining calls retain one logical operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps.
+
+The Tier 1 FSST encoding kernel batches four complete 1,024-value encodes and normalizes the elapsed time back to one encode operation. The codec work and fixture are unchanged; the batch raises each measured interval above host-scheduling jitter while retaining per-operation evidence.
 
 The two 128-item binder and planning owners batch 256 fixture invocations per measured sample and
 record `fixture_invocations_per_sample=256`; parameter binding batches 8,192 fixture invocations

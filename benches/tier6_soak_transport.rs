@@ -142,7 +142,7 @@ fn run_transport_sample(
         );
         assert_eq!(rows, 20);
         let http_operations = assert_result_cardinality_within_bound(
-            runtime.block_on(workloads::http_transport_document_create_get(http)),
+            runtime.block_on(workloads::http_transport_document_create_get_delete(http)),
         );
         assert_eq!(http_operations, 3);
         let churn_rows = assert_result_cardinality_within_bound(

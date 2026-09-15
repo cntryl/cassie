@@ -14,6 +14,9 @@ mod workloads;
 fn main() {
     let mut runner = stress::runner(performance_benchmarks::BenchmarkTier::Tier4, BENCHMARK);
     let document = declared_case("document_create_get");
+    let document = document
+        .metadata("trust_class", "diagnostic")
+        .metadata("benchmark_shape", "non_stationary_indexed_mutation");
     let vector = declared_case("vector_search");
     let query = declared_case("query");
     let enabled = [

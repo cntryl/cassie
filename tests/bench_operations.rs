@@ -2229,6 +2229,40 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_keep_http_create_get_measurement_free_of_delete_maintenance() {
+        // Arrange
+        let workloads = include_str!("../benches/support/workloads/http.rs");
+        let soak = include_str!("../benches/tier6_soak_transport.rs");
+        let create_get = workloads
+            .split("pub async fn http_transport_document_create_get(ctx:")
+            .nth(1)
+            .expect("HTTP create/get workload")
+            .split("pub async fn http_transport_document_create_get_delete")
+            .next()
+            .expect("bounded HTTP create/get workload source");
+
+        // Act
+        let create_get_times_only_named_requests = !create_get.contains("client.delete")
+            && create_get.contains("black_box(2)");
+        let soak_uses_explicit_steady_state_cycle =
+            workloads.contains("http_transport_document_create_get_delete")
+                && soak.contains("http_transport_document_create_get_delete(http)");
+        let owner = include_str!("../benches/tier4_integration_http.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+        let mutation_path_is_diagnostic =
+            owner.contains(".metadata(\"trust_class\", \"diagnostic\")")
+                && owner.contains("non_stationary_indexed_mutation")
+                && contract.contains(
+                    "`document_create_get/10k` is retained as diagnostic mutation evidence",
+                );
+
+        // Assert
+        assert!(create_get_times_only_named_requests);
+        assert!(soak_uses_explicit_steady_state_cycle);
+        assert!(mutation_path_is_diagnostic);
+    }
+
+    #[test]
     fn should_enforce_configured_tier6_result_row_bounds() {
         // Arrange
         let mixed = include_str!("../benches/tier6_soak_mixed.rs");

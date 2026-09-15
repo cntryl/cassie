@@ -275,6 +275,8 @@ fn prepare_vectorized_join_collections(
             .midge
             .put_fresh_documents("bench_join_orders", orders)?;
     }
+    hydrate_join_row_count(ctx, "bench_join_users", shape.user_rows(dataset_rows));
+    hydrate_join_row_count(ctx, "bench_join_orders", shape.order_rows());
 
     Ok(())
 }
@@ -428,10 +430,8 @@ fn prepare_named_join_collections(
             .midge
             .put_fresh_documents(orders_collection, orders)?;
     }
-    if matches!(variant, LegacyJoinVariant::Fanout) {
-        hydrate_join_row_count(ctx, users_collection, shape.user_rows(dataset_rows));
-        hydrate_join_row_count(ctx, orders_collection, shape.order_rows());
-    }
+    hydrate_join_row_count(ctx, users_collection, shape.user_rows(dataset_rows));
+    hydrate_join_row_count(ctx, orders_collection, shape.order_rows());
     Ok(())
 }
 

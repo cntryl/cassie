@@ -108,7 +108,7 @@ impl Midge {
             }
             match publication.index.kind {
                 IndexKind::Scalar => {
-                    self.rebuild_scalar_index_for_index(&publication.index)?;
+                    self.rebuild_prepared_scalar_index_for_index(&publication.index)?;
                 }
                 IndexKind::TimeSeries => {
                     self.rebuild_time_series_index_for_index(&publication.index)?;
@@ -117,7 +117,7 @@ impl Midge {
                     self.rebuild_column_batches_for_index(&publication.index)?;
                 }
                 IndexKind::FullText => {
-                    self.rebuild_fulltext_index_for_index(&publication.index)?;
+                    self.rebuild_prepared_fulltext_index_for_index(&publication.index)?;
                 }
                 _ => {}
             }

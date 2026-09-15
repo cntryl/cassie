@@ -243,7 +243,15 @@ fn measure_scale(
     }
     let fixture_setup = setup_started.elapsed();
 
-    measure_primary_cases(runtime, runner, &context, fixture_setup, rows, &cases);
+    measure_primary_cases(
+        runtime,
+        runner,
+        &context,
+        fixture_setup,
+        scale,
+        rows,
+        &cases,
+    );
     if scale == "100k" {
         let fixture = workloads::QueryScalingFixture::close(context, rows);
         measure_dense_join_reopen(
@@ -276,11 +284,45 @@ fn column_curve_limits(rows: usize) -> (usize, u64) {
     }
 }
 
+fn prepare_isolated_column_context(
+    runtime: &tokio::runtime::Runtime,
+    cases: &ScaleCases,
+    scale: &str,
+    rows: usize,
+) -> Option<(workloads::BenchContext, Duration)> {
+    if cases.only_column_enabled() || (cases.column.is_none() && cases.column_dml.is_none()) {
+        return None;
+    }
+    let setup_started = Instant::now();
+    let (memory, timeout) = column_curve_limits(rows);
+    let context = runtime
+        .block_on(workloads::column_batch_context_with_limits(
+            &format!("tier5-column-isolated-{scale}"),
+            rows,
+            memory,
+            timeout,
+        ))
+        .expect("isolated column scaling fixture");
+    Some((context, setup_started.elapsed()))
+}
+
+fn cleanup_isolated_column_context(context: Option<(workloads::BenchContext, Duration)>) {
+    let Some((context, _)) = context else {
+        return;
+    };
+    workloads::assert_scaling_resource_bounds(&context);
+    let data_dir = context.data_dir.clone();
+    context.cassie.shutdown();
+    drop(context);
+    std::fs::remove_dir_all(data_dir).expect("clean up isolated column scaling fixture");
+}
+
 fn measure_primary_cases(
     runtime: &tokio::runtime::Runtime,
     runner: &mut stress::CassieStressRunner,
     context: &workloads::BenchContext,
     fixture_setup: Duration,
+    scale: &str,
     fixture_rows: usize,
     cases: &ScaleCases,
 ) {
@@ -310,32 +352,40 @@ fn measure_primary_cases(
             || runtime.block_on(workloads::join_query(context)),
         );
     }
+    let isolated_column_context =
+        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);
+    let (column_context, column_setup) = isolated_column_context
+        .as_ref()
+        .map_or((context, fixture_setup), |(context, setup)| {
+            (context, *setup)
+        });
     if let Some(case) = cases.column.clone() {
         let preflight = workloads::assert_explain_contains(
-            context,
+            column_context,
             workloads::COLUMN_SCALING_SQL,
             vec![],
             "encoded_execution=true",
         );
         runner.measure_batch(
-            evidenced(case, fixture_setup, context, preflight),
+            evidenced(case, column_setup, column_context, preflight),
             1,
-            || runtime.block_on(workloads::column_query(context)),
+            || runtime.block_on(workloads::column_query(column_context)),
         );
     }
     if let Some(case) = cases.column_dml.clone() {
         let nonce = std::cell::Cell::new(0usize);
         let case = case
-            .metadata("setup_time_ns", fixture_setup.as_nanos().to_string())
+            .metadata("setup_time_ns", column_setup.as_nanos().to_string())
             .metadata("execution_result_cache_hits", "0")
             .preflight_evidence("column_batch_incremental_maintenance", "none")
-            .runtime_evidence(context.cassie.clone());
+            .runtime_evidence(column_context.cassie.clone());
         runner.measure_batch(case, 1, || {
             let current = nonce.get();
             nonce.set(current.wrapping_add(1));
-            runtime.block_on(workloads::column_dml(context, current, fixture_rows))
+            runtime.block_on(workloads::column_dml(column_context, current, fixture_rows))
         });
     }
+    cleanup_isolated_column_context(isolated_column_context);
     measure_legacy_scalar_cases(runner, context, fixture_setup, cases);
     measure_recursive_cte(
         runtime,

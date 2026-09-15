@@ -1872,7 +1872,7 @@ mod benchmark_harness_contract {
         let source = include_str!("../benches/tier3_system_query.rs");
 
         // Act
-        let has_batch_size = source.contains("const COLUMN_QUERIES_PER_BATCH: u64 = 8;");
+        let has_batch_size = source.contains("const COLUMN_QUERIES_PER_BATCH: u64 = 32;");
         let has_query_unit = source.contains(".parameter(\"logical_unit\", \"query\")");
         let has_normalization =
             source.contains(".parameter(\"queries_per_logical_operation\", \"1\")");
@@ -2431,17 +2431,140 @@ mod benchmark_harness_contract {
             .0;
 
         // Act
-        let declares_fifteen_second_window =
-            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 15;");
+        let declares_one_minute_window =
+            owner.contains("const HTTP_QUERY_SAMPLE_MULTIPLIER: u32 = 60;");
         let lengthens_only_query_window = query_measurement
             .contains("sample_duration.saturating_mul(HTTP_QUERY_SAMPLE_MULTIPLIER)");
         let preserves_one_request_per_operation =
             query_measurement.contains("http_transport_query(&context)");
 
         // Assert
-        assert!(declares_fifteen_second_window);
+        assert!(declares_one_minute_window);
         assert!(lengthens_only_query_window);
         assert!(preserves_one_request_per_operation);
+    }
+
+    #[test]
+    fn should_measure_slow_pgwire_paths_as_fixed_work_batches() {
+        // Arrange
+        let owner = include_str!("../benches/tier4_integration_pgwire.rs");
+        let contract = include_str!("../docs/performance-contracts.md");
+        let portal = owner
+            .split_once("fn portal(")
+            .expect("portal measurement")
+            .1
+            .split_once("fn cancellation(")
+            .expect("end of portal measurement")
+            .0;
+        let multi_statement = owner
+            .split_once("fn multi_statement(")
+            .expect("multi-statement measurement")
+            .1
+            .split_once("fn binary_extended(")
+            .expect("end of multi-statement measurement")
+            .0;
+        let binary_extended = owner
+            .split_once("fn binary_extended(")
+            .expect("binary-extended measurement")
+            .1
+            .split_once("fn evidenced(")
+            .expect("end of binary-extended measurement")
+            .0;
+
+        // Act
+        let declares_bounded_batches = owner
+            .contains("const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;")
+            && owner.contains("const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;");
+        let portal_preserves_fetch_units = portal.contains("runner.measure_batch(")
+            && portal.contains("PORTAL_INVOCATIONS_PER_SAMPLE * 2")
+            && portal.contains("pgwire_transport_portal_fetch");
+        let multi_preserves_query_units = multi_statement.contains("runner.measure_batch(")
+            && multi_statement.contains("MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2")
+            && multi_statement.contains("pgwire_transport_multi_statement");
+        let binary_preserves_query_units = binary_extended.contains("runner.measure_batch(")
+            && binary_extended.contains("BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE")
+            && binary_extended.contains("pgwire_transport_binary_query");
+        let registry_uses_batch_timing = [
+            "perf.pgwire.portal.10k",
+            "perf.pgwire.multi_statement_query.10k",
+            "perf.pgwire.binary_query.10k",
+        ]
+        .into_iter()
+        .all(|scenario_id| {
+            performance_benchmarks::benchmark_for_scenario(scenario_id).is_some_and(|scenario| {
+                scenario.timing_mode == performance_benchmarks::BenchmarkTimingMode::Batch
+            })
+        });
+        let avoids_duration_sampling = !portal.contains("sample_until_deadline")
+            && !multi_statement.contains("sample_until_deadline")
+            && !binary_extended.contains("sample_until_deadline");
+        let documents_fixed_work_shape = contract.contains(
+            "Portal fetch, multi-statement, and binary extended-query integration rows use bounded fixed-work batches",
+        );
+
+        // Assert
+        assert!(declares_bounded_batches);
+        assert!(portal_preserves_fetch_units);
+        assert!(multi_preserves_query_units);
+        assert!(binary_preserves_query_units);
+        assert!(registry_uses_batch_timing);
+        assert!(avoids_duration_sampling);
+        assert!(documents_fixed_work_shape);
+    }
+
+    #[test]
+    fn should_isolate_tier5_column_measurements_from_scalar_indexes() {
+        // Arrange
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
+        let shared_context = include_str!("../benches/support/workloads/scaling.rs");
+        let shared_disk_context = include_str!("../benches/support/workloads/scaling_legacy.rs");
+
+        // Act
+        let creates_column_only_context = owner.contains(
+            "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+        );
+        let records_shared_setup_before_isolated_setup = owner
+            .find("let fixture_setup = setup_started.elapsed();")
+            .zip(owner.find(
+                "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+            ))
+            .is_some_and(|(shared_setup, isolated_setup)| shared_setup < isolated_setup);
+        let opens_isolated_fixture_after_shared_join = owner
+            .find("if let Some(case) = cases.join.clone()")
+            .zip(owner.find(
+                "let isolated_column_context =\n        prepare_isolated_column_context(runtime, cases, scale, fixture_rows);",
+            ))
+            .is_some_and(|(join_measurement, isolated_setup)| join_measurement < isolated_setup);
+        let routes_column_measurement = owner
+            .contains("let (column_context, column_setup) = isolated_column_context")
+            && owner.contains("workloads::column_query(column_context)");
+        let cleans_isolated_context =
+            owner.contains("cleanup_isolated_column_context(isolated_column_context);");
+        let avoids_duplicate_column_build = !shared_context
+            .split_once("pub fn query_scaling_context(")
+            .expect("shared scaling context")
+            .1
+            .split_once("pub fn relational_query(")
+            .expect("end of shared scaling context")
+            .0
+            .contains("CREATE INDEX bench_documents_column_idx")
+            && !shared_disk_context
+                .split_once("pub fn query_scaling_disk_context(")
+                .expect("shared disk scaling context")
+                .1
+                .split_once("pub struct QueryScalingFixture")
+                .expect("end of shared disk scaling context")
+                .0
+                .contains("CREATE INDEX bench_documents_column_idx");
+
+        // Assert
+        assert!(creates_column_only_context);
+        assert!(records_shared_setup_before_isolated_setup);
+        assert!(opens_isolated_fixture_after_shared_join);
+        assert!(routes_column_measurement);
+        assert!(cleans_isolated_context);
+        assert!(avoids_duplicate_column_build);
     }
 
     #[test]
@@ -4144,6 +4267,60 @@ mod benchmark_kernels {
             result.is_ok(),
             "join fixture must be SQL-visible: {result:?}"
         );
+    }
+
+    #[test]
+    fn should_publish_vectorized_join_fixture_cardinality() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let context = runtime
+            .block_on(workloads::vectorized_join_context(
+                "join-fixture-cardinality-contract",
+                4,
+            ))
+            .expect("join fixture");
+
+        // Act
+        let users = context
+            .cassie
+            .catalog
+            .get_cardinality_stats("bench_join_users");
+        let orders = context
+            .cassie
+            .catalog
+            .get_cardinality_stats("bench_join_orders");
+
+        // Assert
+        assert_eq!(users.map(|stats| stats.row_count), Some(4));
+        assert_eq!(orders.map(|stats| stats.row_count), Some(4));
+    }
+
+    #[test]
+    fn should_preserve_column_execution_in_isolated_scaling_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+        let context = runtime
+            .block_on(workloads::column_batch_context_with_limits(
+                "isolated-column-scaling-contract",
+                10_000,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+                30_000,
+            ))
+            .expect("column scaling fixture");
+
+        // Act
+        let first = runtime.block_on(workloads::column_query(&context));
+        let second = runtime.block_on(workloads::column_query(&context));
+
+        // Assert
+        assert_eq!(first, 500);
+        assert_eq!(second, 500);
     }
 }
 // Formerly tests/operational_smoke.rs.

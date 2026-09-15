@@ -3,6 +3,9 @@ use std::cell::Cell;
 const BENCHMARK: &str = "tier4_integration_pgwire";
 const FIXTURE_SCALE: &str = "10k";
 const FIXTURE_ROWS: usize = 10_000;
+const PORTAL_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE: u64 = 64;
+const BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE: u64 = 64;
 
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
@@ -168,24 +171,25 @@ impl PgwireBenchmark<'_> {
     fn portal(&self, runner: &mut stress::CassieStressRunner, case: stress::StressCase) {
         let before = self.fixture.cassie.metrics();
         let completed_fetches = Cell::new(0_u64);
-        runner.record_external(
+        runner.measure_batch(
             evidenced(case, self.setup_time_ns, 20, self.fixture),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    let fetches = self
-                        .runtime
-                        .block_on(workloads::pgwire_transport_portal_fetch(self.transport));
+            PORTAL_INVOCATIONS_PER_SAMPLE * 2,
+            || {
+                for _ in 0..PORTAL_INVOCATIONS_PER_SAMPLE {
+                    let fetches = u64::try_from(
+                        self.runtime
+                            .block_on(workloads::pgwire_transport_portal_fetch(self.transport)),
+                    )
+                    .expect("portal fetch count should fit u64");
                     assert_eq!(fetches, 2, "portal operation count");
-                    let fetches =
-                        u64::try_from(fetches).expect("portal fetch count should fit u64");
                     completed_fetches.set(
                         completed_fetches
                             .get()
                             .checked_add(fetches)
                             .expect("portal fetch count should not overflow"),
                     );
-                    fetches
-                })
+                }
+                20_u64
             },
         );
         let completed_fetches = completed_fetches.get();
@@ -235,16 +239,19 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 2, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
-                    u64::try_from(
+            MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2,
+            || {
+                for _ in 0..MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE {
+                    let queries = u64::try_from(
                         self.runtime
                             .block_on(workloads::pgwire_transport_multi_statement(self.transport)),
                     )
-                    .expect("multi-statement query count should fit u64")
-                })
+                    .expect("multi-statement query count should fit u64");
+                    assert_eq!(queries, 2, "multi-statement query count");
+                }
+                2_u64
             },
         );
     }
@@ -255,16 +262,17 @@ impl PgwireBenchmark<'_> {
         case: stress::StressCase,
         preflight: workloads::QueryPreflightEvidence,
     ) {
-        runner.record_external(
+        runner.measure_batch(
             query_evidenced(case, self.setup_time_ns, 20, self.fixture, preflight),
-            |sample_duration| {
-                transport_external::sample_until_deadline(sample_duration, || {
+            BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE,
+            || {
+                for _ in 0..BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE {
                     let rows = self
                         .runtime
                         .block_on(workloads::pgwire_transport_binary_query(self.transport));
                     assert_eq!(rows, 20, "binary extended query result cardinality");
-                    1
-                })
+                }
+                20_u64
             },
         );
     }

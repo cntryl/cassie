@@ -70,6 +70,8 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
+Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 5,000 rows. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
+
 Golden fixtures own ordering and round-trip behavior for rows, scalar indexes, full-text postings, vectors, time-series entries, graph adjacency, and column batches. The baseline fixture must show at least a 25% reduction in total query-hot key/value bytes from the fixed pre-change fixture.
 
 Mutation benchmarks report logical mutations, Midge writes, bytes, index maintenance, and derived-state publication. Duplicate replay and no-op updates must not rewrite unchanged hot records. Amplification limits are contract assertions tied to workload shape, not elapsed time.
@@ -120,6 +122,8 @@ Every benchmark declares a typed `BenchmarkTier`; generic tier constructors are 
 The scenario registry declares the tier, operation unit, evidence role, and fixture class for every scenario. Before any measurement, the harness rejects a mismatch between the declared tier and owner prefix, runner or timing mode, fixture class, or fixture size.
 
 External timing records the elapsed interval once. `record_external` receives the completed-operation count and elapsed duration for the whole interval; it never multiplies elapsed time by completed operations.
+
+Portal fetch, multi-statement, and binary extended-query integration rows use bounded fixed-work batches of 64 transport invocations. Portal and multi-statement calls each retain their two declared logical fetch or query operations, while binary extended calls retain one query operation. This produces stable gate-quality samples without misclassifying deterministic operation counts as duration caps. Simple query, extended query, and cancellation remain duration-sampled external measurements.
 
 The two 128-item binder and planning owners batch 256 fixture invocations per measured sample and
 record `fixture_invocations_per_sample=256`. The elapsed interval covers the full batch, while the

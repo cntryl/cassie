@@ -45,22 +45,14 @@ pub fn query_scaling_context(
     aggregation_workers: usize,
     prepare_joins: bool,
 ) -> Ready<Result<BenchContext, CassieError>> {
-    let context = super::context::scaling_query_context_now(
-        label,
-        dataset_rows,
-        aggregation_workers,
-    )
-    .and_then(|context| {
-        if prepare_joins {
-            super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
-        }
-        context.cassie.execute_sql(
-            &context.session,
-            "CREATE INDEX bench_documents_column_idx ON bench_documents USING column (title, body, status, score) WITH (segment_size = 256)",
-            vec![],
-        )?;
-        Ok(context)
-    });
+    let context =
+        super::context::scaling_query_context_now(label, dataset_rows, aggregation_workers)
+            .and_then(|context| {
+                if prepare_joins {
+                    super::join_context::prepare_scaling_join_collections(&context, dataset_rows)?;
+                }
+                Ok(context)
+            });
     ready(context)
 }
 

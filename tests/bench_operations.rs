@@ -6509,6 +6509,21 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_document_the_ten_canonical_benchmark_shards() {
+        // Arrange
+        let contract = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let normalized_contract = contract.split_whitespace().collect::<Vec<_>>().join(" ");
+        let documents_actual_topology = normalized_contract.contains(
+            "ten independent unfiltered shards: one each for Tiers 1-4, four for Tier 5, and two Tier 6 soak owners",
+        );
+
+        // Assert
+        assert!(documents_actual_topology);
+    }
+
+    #[test]
     fn should_register_the_workflow_native_linux_profile() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

@@ -143,6 +143,8 @@ fn validate_utc_timestamp(
     if !separators_match || !digits_match {
         return Err(format!("{field} must be an RFC 3339 UTC second timestamp"));
     }
+    time::OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|_| format!("{field} must be an RFC 3339 UTC second timestamp"))?;
     Ok(())
 }
 

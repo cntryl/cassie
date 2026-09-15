@@ -6462,7 +6462,7 @@ mod benchmark_tier3_join_contract {
 // legitimately exceed Cassie's operator-facing 30 second default on shared runners.
 mod benchmark_scaling_query_deadline_contract {
     #[test]
-    fn should_flush_bounded_scalar_index_publication_and_cleanup_batches() {
+    fn should_flush_each_bounded_scalar_index_persistence_batch() {
         // Arrange
         let adapter = include_str!("../src/midge/adapter/scalar_indexes.rs");
 

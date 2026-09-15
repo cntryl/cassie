@@ -218,6 +218,7 @@ jobs:
           docker stop cassie-rehearsal
           docker logs cassie-rehearsal > operational-evidence/container-source.log 2>&1
           docker rm cassie-rehearsal
+          sudo chown -R "$(id -u):$(id -g)" "${container_data}"
           snapshot_started_ns="$(date +%s%N)"
           CASSIE_OPERATIONAL_SNAPSHOT_SOURCE="${container_data}/midge" \
           CASSIE_OPERATIONAL_SNAPSHOT_BUNDLE="${snapshot_bundle}" \

@@ -73,6 +73,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Validate canonical evidence inputs
+        env:
+          RUN_ID: ${{ inputs.run_id }}
+          DEPLOYMENT_PROFILE: ${{ inputs.deployment_profile }}
+          SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
+        run: |
+          if [[ ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "run_id must be a bounded artifact-safe identifier" >&2
+            exit 1
+          fi
+          if [[ "${DEPLOYMENT_PROFILE}" != "native-linux-amd64-disk" ]]; then
+            echo "deployment_profile must be native-linux-amd64-disk" >&2
+            exit 1
+          fi
+          if [[ ! "${SOAK_DURATION_SECONDS}" =~ ^[1-9][0-9]*$ ]] || (( 10#${SOAK_DURATION_SECONDS} < 3600 )); then
+            echo "soak_duration_seconds must be an integer of at least 3600" >&2
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v7
 

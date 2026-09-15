@@ -6801,6 +6801,33 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_document_every_registered_deployment_profile() {
+        // Arrange
+        let documentation = include_str!("../docs/deployment-profiles.md");
+        let registered_profiles = [
+            "workstation-apple-m5-arm64-apfs",
+            "native-linux-amd64-disk",
+            "native-linux-arm64-disk",
+            "local-dev-fallback-2k",
+            "local-dev-fallback-10k",
+            "local-dev-fallback-100k",
+            "local-dev-fallback-250k",
+        ];
+
+        // Act
+        let undocumented = registered_profiles
+            .into_iter()
+            .filter(|profile| !documentation.contains(&format!("`{profile}`")))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            undocumented.is_empty(),
+            "undocumented profiles: {undocumented:?}"
+        );
+    }
+
+    #[test]
     fn should_select_local_storage_for_native_linux_disk_evidence() {
         // Arrange
         let harness = include_str!("../benches/support/stress.rs");

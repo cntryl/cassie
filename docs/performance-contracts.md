@@ -154,6 +154,10 @@ Initial vector-index publication and vector-index removal page normalized vector
 IVFFlat memberships through data transactions of at most 5,000 sidecars. The vector manifest is
 published after initial batches and removed after cleanup batches, so a failed attempt remains
 retryable without exposing partial indexed state.
+Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
+the owning database family after every committed batch. This prevents encoded index-key memtables
+from accumulating across the full build while publication metadata remains hidden until every
+bounded index batch is durable.
 
 Tier 3 join, graph, and time-series domain fixtures use the same 5,000-row transaction ceiling. Fresh graph-edge batches accumulate the generation-bound adjacency manifest across batches, while time-series batches incrementally maintain the pre-created bucket index. Rollup and retention structures belong to their Tier 5 lifecycle fixture and are not prepared by the Tier 3 window-scan owner. The representative 100k scale, query semantics, and Midge response timeout remain unchanged.
 

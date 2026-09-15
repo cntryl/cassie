@@ -141,6 +141,17 @@ impl Midge {
         self.database_tx(&database, mode)
     }
 
+    pub(super) fn flush_data_family_for_collection(
+        &self,
+        collection: &str,
+    ) -> Result<(), CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let database =
+            relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
+        let family = self.database_family(&database)?;
+        self.engine.flush_cf(&family).map_err(CassieError::from)
+    }
+
     pub(super) fn transaction(
         &self,
         family: StorageFamily,

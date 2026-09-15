@@ -6462,32 +6462,56 @@ mod benchmark_tier3_join_contract {
 // legitimately exceed Cassie's operator-facing 30 second default on shared runners.
 mod benchmark_scaling_query_deadline_contract {
     #[test]
+    fn should_flush_bounded_scalar_index_publication_and_cleanup_batches() {
+        // Arrange
+        let adapter = include_str!("../src/midge/adapter/scalar_indexes.rs");
+
+        // Act
+        let flushes_each_batch = adapter
+            .contains("self.flush_data_family_for_collection(&index.collection)?;")
+            && adapter.contains("self.flush_data_family_for_collection(collection)?;");
+        let cleanup_uses_bounded_pages = adapter.contains(
+            "self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;",
+        );
+
+        // Assert
+        assert!(flushes_each_batch);
+        assert!(cleanup_uses_bounded_pages);
+    }
+
+    #[test]
     fn should_index_the_tier5_join_curve_before_measurement() {
         // Arrange
         let fixture = include_str!("../benches/support/workloads/join_context.rs");
         let workload = include_str!("../benches/support/workloads/scaling.rs");
+        let owner = include_str!("../benches/tier5_scaling_query.rs");
 
         // Act
-        let scaling_fixture = fixture
-            .split_once("pub(super) fn prepare_scaling_join_collections(")
-            .and_then(|(_, source)| {
-                source.split_once("pub fn prepare_legacy_scaling_join_collection(")
-            })
+        let join_measurement = owner
+            .split_once("if let Some(case) = cases.join.clone()")
+            .and_then(|(_, source)| source.split_once("let isolated_column_context ="))
             .map(|(source, _)| source)
-            .expect("Tier 5 scaling join fixture source");
-        let creates_probe_index = scaling_fixture.contains(
-            "CREATE INDEX bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
-        );
+            .expect("Tier 5 join measurement source");
+        let activates_probe_index = join_measurement
+            .find("workloads::activate_scaling_join_curve_index(context)")
+            .zip(join_measurement.find("runner.measure_batch("))
+            .is_some_and(|(activation, measurement)| activation < measurement);
+        let removes_probe_index = join_measurement
+            .find("runner.measure_batch(")
+            .zip(join_measurement.find("workloads::deactivate_scaling_join_curve_index(context)"))
+            .is_some_and(|(measurement, removal)| measurement < removal);
         let verifies_indexed_execution = workload
             .contains("metric_delta(&before, &after, \"read_paths\", \"index_seek_scans\") > 0");
-        let preserves_legacy_index_activation = fixture.contains(
-            "CREATE INDEX IF NOT EXISTS bench_join_users_key_idx ON bench_join_users USING btree (user_key)",
-        );
+        let keeps_fixture_index_neutral = fixture
+            .split_once("pub(super) fn prepare_scaling_join_collections(")
+            .and_then(|(_, source)| source.split_once("pub fn activate_scaling_join_curve_index("))
+            .is_some_and(|(source, _)| !source.contains("CREATE INDEX"));
 
         // Assert
-        assert!(creates_probe_index);
+        assert!(activates_probe_index);
+        assert!(removes_probe_index);
         assert!(verifies_indexed_execution);
-        assert!(preserves_legacy_index_activation);
+        assert!(keeps_fixture_index_neutral);
     }
 
     #[test]

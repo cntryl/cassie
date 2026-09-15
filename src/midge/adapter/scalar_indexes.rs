@@ -162,6 +162,7 @@ impl Midge {
             }
             tx.commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
+            self.flush_data_family_for_collection(&index.collection)?;
         }
         Ok(())
     }
@@ -190,6 +191,7 @@ impl Midge {
             }
             tx.commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
+            self.flush_data_family_for_collection(collection)?;
         }
     }
 
@@ -202,13 +204,8 @@ impl Midge {
             return Ok(());
         };
         let (relation_id, index_id) = Self::scalar_index_storage_ids(&index)?;
-        let mut tx = self.begin_data_rw_tx_for(collection)?;
-        Self::delete_keys_with_prefix(
-            &mut tx,
-            Self::scalar_index_data_prefix(relation_id, index_id),
-        )?;
-        tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)?;
+        let prefix = Self::scalar_index_data_prefix(relation_id, index_id);
+        self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;
         Ok(())
     }
 

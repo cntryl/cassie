@@ -340,17 +340,21 @@ fn measure_primary_cases(
         );
     }
     if let Some(case) = cases.join.clone() {
+        let join_setup_started = Instant::now();
+        workloads::activate_scaling_join_curve_index(context)
+            .expect("activate Tier 5 join-curve probe index");
+        let join_setup = fixture_setup.saturating_add(join_setup_started.elapsed());
         let preflight = workloads::assert_explain_contains(
             context,
             workloads::JOIN_SCALING_SQL,
             vec![],
             "vectorized_join_candidate=true",
         );
-        runner.measure_batch(
-            evidenced(case, fixture_setup, context, preflight),
-            1,
-            || runtime.block_on(workloads::join_query(context)),
-        );
+        runner.measure_batch(evidenced(case, join_setup, context, preflight), 1, || {
+            runtime.block_on(workloads::join_query(context))
+        });
+        workloads::deactivate_scaling_join_curve_index(context)
+            .expect("remove Tier 5 join-curve probe index");
     }
     let isolated_column_context =
         prepare_isolated_column_context(runtime, cases, scale, fixture_rows);

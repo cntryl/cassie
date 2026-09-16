@@ -7027,6 +7027,85 @@ mod projection_lifecycle {
     }
 
     #[test]
+    fn should_allocate_new_projection_version_id_after_dropping_older_version() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_version_id_after_drop");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            let projection = seed_materialized_projection_version_fixture(&cassie, &session);
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v1",
+            );
+            let served_before_build = query_rows(
+                &cassie,
+                &session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "INSERT INTO projection_version_docs (title) VALUES ('charlie')",
+            );
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            let served_after_build = query_rows(
+                &cassie,
+                &session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            let versions = projection_version_rows(&cassie, &session, &projection);
+            let metadata = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .expect("materialized projection metadata");
+
+            // Assert
+            assert_eq!(
+                versions,
+                vec![
+                    vec![
+                        Value::String("v2".to_string()),
+                        Value::String("active".to_string())
+                    ],
+                    vec![
+                        Value::String("v3".to_string()),
+                        Value::String("built".to_string())
+                    ],
+                ]
+            );
+            assert_eq!(metadata.active_version.as_deref(), Some("v2"));
+            assert_eq!(served_after_build, served_before_build);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_keep_active_projection_visible_when_version_build_stops_after_row_batches() {
         // Arrange
         use_local_storage();

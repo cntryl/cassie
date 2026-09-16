@@ -86,9 +86,18 @@ pub(super) fn build_projection_version(
             "materialized projection '{name}' is missing definition"
         ))
     })?;
-    let next_ordinal = metadata.versions.len() + 1;
-    let version_id = format!("v{next_ordinal}");
+    let version_id = next_projection_version_id(&metadata);
     let output_collection = catalog::materialized_output_collection(name, &version_id);
+    if metadata
+        .versions
+        .iter()
+        .any(|version| version.version_id == version_id)
+        || cassie.catalog.exists(&output_collection)
+    {
+        return Err(QueryError::General(format!(
+            "projection version '{version_id}' already exists for '{name}'"
+        )));
+    }
     metadata.versions.push(catalog::ProjectionVersionMeta {
         version_id: version_id.clone(),
         output_collection,
@@ -122,4 +131,18 @@ pub(super) fn build_projection_version(
             Err(error)
         }
     }
+}
+
+/// Allocates the next version id from the highest existing `v<N>` ordinal so a
+/// dropped version never causes a live id to be handed out again.
+fn next_projection_version_id(metadata: &catalog::ProjectionMeta) -> String {
+    let highest = metadata
+        .versions
+        .iter()
+        .map(|version| version.version_id.as_str())
+        .chain(metadata.active_version.as_deref())
+        .filter_map(|version_id| version_id.strip_prefix('v')?.parse::<usize>().ok())
+        .max()
+        .unwrap_or(0);
+    format!("v{}", highest + 1)
 }

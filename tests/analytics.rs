@@ -7105,6 +7105,251 @@ mod projection_lifecycle {
         });
     }
 
+    fn start_projection_version_fixture(
+        label: &str,
+    ) -> (
+        tokio::runtime::Runtime,
+        String,
+        Cassie,
+        CassieSession,
+        String,
+    ) {
+        use_local_storage();
+        let path = data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cassie = runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            cassie
+        });
+        let session = cassie.create_session("tester", None);
+        let projection = seed_materialized_projection_version_fixture(&cassie, &session);
+        (runtime, path, cassie, session, projection)
+    }
+
+    #[test]
+    fn should_not_reuse_projection_version_id_after_dropping_highest_version() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_id_after_highest_drop");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v2",
+            );
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            let versions = projection_version_rows(&cassie, &session, &projection);
+
+            // Assert
+            assert_eq!(
+                versions,
+                vec![
+                    vec![
+                        Value::String("v1".to_string()),
+                        Value::String("active".to_string())
+                    ],
+                    vec![
+                        Value::String("v3".to_string()),
+                        Value::String("built".to_string())
+                    ],
+                ]
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_projection_version_build_when_output_collection_already_exists() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_output_exists");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "CREATE TABLE __cassie_projection_projection_versioned_v2 (title TEXT)",
+            );
+
+            // Act
+            let error = cassie
+                .execute_sql(
+                    &session,
+                    "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+                    vec![],
+                )
+                .expect_err("build over an existing output collection should fail");
+            let versions = projection_version_rows(&cassie, &session, &projection);
+
+            // Assert
+            assert!(
+                error
+                    .to_string()
+                    .contains("__cassie_projection_projection_versioned_v2"),
+                "error should name the existing output collection: {error}"
+            );
+            assert_eq!(
+                versions,
+                vec![vec![
+                    Value::String("v1".to_string()),
+                    Value::String("active".to_string())
+                ]]
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_build_projection_version_after_dropping_conflicting_output_collection() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_output_recovery");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "CREATE TABLE __cassie_projection_projection_versioned_v2 (title TEXT)",
+            );
+            let _ = cassie.execute_sql(
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+                vec![],
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "DROP TABLE __cassie_projection_projection_versioned_v2",
+            );
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            let versions = projection_version_rows(&cassie, &session, &projection);
+
+            // Assert
+            assert_eq!(
+                versions,
+                vec![
+                    vec![
+                        Value::String("v1".to_string()),
+                        Value::String("active".to_string())
+                    ],
+                    vec![
+                        Value::String("v2".to_string()),
+                        Value::String("built".to_string())
+                    ],
+                ]
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_remove_version_reports_when_dropping_projection_version() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_report_cleanup");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            for version in ["v1", "v2"] {
+                execute_statement(
+                    &cassie,
+                    &session,
+                    &format!(
+                        "COMPARE PROJECTION projection_versioned VERSION {version} WITH MANIFEST '{{\"root_digest\":\"abc\"}}'"
+                    ),
+                );
+                let report = cassie::catalog::ProjectionRepairReportMeta {
+                    report_id: format!("repair-report-{version}"),
+                    created_ms: 1,
+                    projection_name: projection.clone(),
+                    target: projection.clone(),
+                    version_id: Some(version.to_string()),
+                    scope: "projection-version".to_string(),
+                    action: "rebuild".to_string(),
+                    state: "completed".to_string(),
+                    executable: true,
+                    affected_objects: Vec::new(),
+                    source_report_state: "failed".to_string(),
+                    source_mismatch_count: 0,
+                    source_missing_count: 0,
+                    source_stale_count: 0,
+                    verification_required: "full".to_string(),
+                    post_verification_state: "verified".to_string(),
+                    last_error: None,
+                };
+                cassie.midge.put_projection_repair_report(&report).unwrap();
+                cassie.catalog.register_projection_repair_report(report);
+            }
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v2",
+            );
+            let comparison_versions = cassie
+                .catalog
+                .list_projection_comparison_reports()
+                .into_iter()
+                .map(|report| report.target_version_id)
+                .collect::<Vec<_>>();
+            let repair_versions = cassie
+                .catalog
+                .list_projection_repair_reports()
+                .into_iter()
+                .map(|report| report.version_id)
+                .collect::<Vec<_>>();
+            let stored_repair_versions = cassie
+                .midge
+                .list_projection_repair_reports()
+                .unwrap()
+                .into_iter()
+                .map(|report| report.version_id)
+                .chain(
+                    cassie
+                        .midge
+                        .list_projection_comparison_reports()
+                        .unwrap()
+                        .into_iter()
+                        .map(|report| report.target_version_id),
+                )
+                .collect::<Vec<_>>();
+
+            // Assert
+            let v1 = Some("v1".to_string());
+            assert_eq!(comparison_versions, vec![v1.clone()]);
+            assert_eq!(repair_versions, vec![v1.clone()]);
+            assert_eq!(stored_repair_versions, vec![v1.clone(), v1]);
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
     #[test]
     fn should_keep_active_projection_visible_when_version_build_stops_after_row_batches() {
         // Arrange

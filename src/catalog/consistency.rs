@@ -110,6 +110,31 @@ impl Catalog {
         out
     }
 
+    /// Removes comparison reports for one projection version and returns their ids.
+    pub fn remove_projection_comparison_reports_for_version(
+        &self,
+        projection: &str,
+        version_id: &str,
+    ) -> Vec<String> {
+        let mut reports = self.projection_comparison_reports.write();
+        let ids = reports
+            .values()
+            .filter(|report| {
+                report.target.eq_ignore_ascii_case(projection)
+                    && report.target_version_id.as_deref() == Some(version_id)
+            })
+            .map(|report| report.report_id.clone())
+            .collect::<Vec<_>>();
+        for id in &ids {
+            reports.remove(id);
+        }
+        drop(reports);
+        if !ids.is_empty() {
+            self.bump_version();
+        }
+        ids
+    }
+
     pub fn register_projection_consistency_report(&self, report: ProjectionConsistencyReportMeta) {
         self.projection_consistency_reports
             .write()

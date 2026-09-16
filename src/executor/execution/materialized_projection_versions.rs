@@ -86,16 +86,22 @@ pub(super) fn build_projection_version(
             "materialized projection '{name}' is missing definition"
         ))
     })?;
-    let version_id = next_projection_version_id(&metadata);
+    let version_id = metadata.allocate_version_id();
     let output_collection = catalog::materialized_output_collection(name, &version_id);
     if metadata
         .versions
         .iter()
         .any(|version| version.version_id == version_id)
-        || cassie.catalog.exists(&output_collection)
     {
         return Err(QueryError::General(format!(
             "projection version '{version_id}' already exists for '{name}'"
+        )));
+    }
+    if cassie.catalog.exists(&output_collection)
+        || cassie.midge.collection_schema(&output_collection).is_some()
+    {
+        return Err(QueryError::General(format!(
+            "output collection '{output_collection}' for projection version '{version_id}' already exists"
         )));
     }
     metadata.versions.push(catalog::ProjectionVersionMeta {
@@ -133,16 +139,47 @@ pub(super) fn build_projection_version(
     }
 }
 
-/// Allocates the next version id from the highest existing `v<N>` ordinal so a
-/// dropped version never causes a live id to be handed out again.
-fn next_projection_version_id(metadata: &catalog::ProjectionMeta) -> String {
-    let highest = metadata
+pub(super) fn drop_materialized_projection_version(
+    cassie: &Cassie,
+    name: &str,
+    version_id: &str,
+) -> Result<QueryResult, QueryError> {
+    let mut metadata = cassie
+        .catalog
+        .get_materialized_projection(name)
+        .ok_or_else(|| {
+            QueryError::General(format!("materialized projection '{name}' does not exist"))
+        })?;
+    if metadata.active_version.as_deref() == Some(version_id) {
+        return Err(QueryError::General(format!(
+            "cannot drop active projection version '{version_id}'"
+        )));
+    }
+    let Some(index) = metadata
         .versions
         .iter()
-        .map(|version| version.version_id.as_str())
-        .chain(metadata.active_version.as_deref())
-        .filter_map(|version_id| version_id.strip_prefix('v')?.parse::<usize>().ok())
-        .max()
-        .unwrap_or(0);
-    format!("v{}", highest + 1)
+        .position(|version| version.version_id == version_id)
+    else {
+        return Err(QueryError::General(format!(
+            "projection version '{version_id}' does not exist"
+        )));
+    };
+    let version = metadata.versions.remove(index);
+    let _ = cassie.midge.drop_collection(&version.output_collection);
+    let _ = cassie
+        .catalog
+        .unregister_collection(&version.output_collection);
+    let projection = metadata.collection.clone();
+    persist_projection_metadata(cassie, metadata)?;
+    let repair_reports = cassie
+        .catalog
+        .remove_projection_repair_reports_for_version(&projection, version_id);
+    let comparison_reports = cassie
+        .catalog
+        .remove_projection_comparison_reports_for_version(&projection, version_id);
+    cassie
+        .midge
+        .delete_projection_reports(&repair_reports, &comparison_reports)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
 }

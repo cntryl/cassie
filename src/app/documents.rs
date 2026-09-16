@@ -5,6 +5,7 @@ use super::{
 };
 
 mod controlled;
+mod payload_keys;
 
 impl Cassie {
     pub(crate) fn write_document_for_session(
@@ -84,12 +85,18 @@ impl Cassie {
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<serde_json::Value, CassieError> {
+        let schema = self
+            .catalog
+            .get_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        payload_keys::normalize_payload_keys(collection, &schema.fields, &mut payload)?;
+
         let constraints = self.catalog.get_constraints(collection);
         if apply_defaults && !constraints.is_empty() {
             super::defaults::apply_default_values(self, &mut payload, &constraints)?;
         }
 
-        self.validate_payload_schema(collection, &payload)?;
+        Self::validate_payload_schema(collection, &schema, &payload)?;
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
@@ -300,15 +307,10 @@ impl Cassie {
     }
 
     fn validate_payload_schema(
-        &self,
         collection: &str,
+        schema: &crate::catalog::CollectionSchema,
         payload: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let schema = self
-            .catalog
-            .get_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
@@ -317,7 +319,7 @@ impl Cassie {
             let expected = schema
                 .fields
                 .iter()
-                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+                .find(|entry| entry.name == *field)
                 .ok_or_else(|| {
                     CassieError::InvalidVector(format!(
                         "field '{field}' is not defined on collection '{collection}'"

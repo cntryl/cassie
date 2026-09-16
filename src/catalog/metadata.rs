@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use parking_lot::RwLock;
 
+use crate::app::CassieError;
 use crate::catalog::{
     local_name, name_matches, parse_name, CollectionCardinalityStats, CollectionMeta,
     CollectionSchema, CollectionStorageMode, DatabaseMeta, FieldConstraint, FieldMeta,
@@ -48,6 +49,8 @@ pub struct Catalog {
 mod metadata_databases;
 #[path = "metadata_domains.rs"]
 mod metadata_domains;
+#[path = "metadata_stored_names.rs"]
+mod metadata_stored_names;
 
 impl Catalog {
     #[must_use]
@@ -229,8 +232,14 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub fn unregister_collection(&self, collection: &str) {
-        self.collections.write().remove(collection);
+    /// Removes a collection and every catalog entry keyed by it.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CollectionNotFound` when no collection is stored under exactly
+    /// `collection`; dependent entries under that key are still cleared.
+    pub fn unregister_collection(&self, collection: &str) -> Result<(), CassieError> {
+        let removed = self.collections.write().remove(collection).is_some();
         self.schemas.write().remove(collection);
         self.projections.write().remove(collection);
         self.constraints.write().remove(collection);
@@ -257,6 +266,11 @@ impl Catalog {
             .write()
             .retain(|_, report| report.projection_name != collection);
         self.bump_version();
+        if removed {
+            Ok(())
+        } else {
+            Err(CassieError::CollectionNotFound(collection.to_string()))
+        }
     }
 
     #[must_use]
@@ -490,13 +504,23 @@ impl Catalog {
         self.bump_version();
     }
 
-    pub fn rename_collection(&self, current_name: &str, next_name: &str) {
+    /// Moves a collection and every catalog entry keyed by it to `next_name`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CollectionNotFound` without changing the catalog when no
+    /// collection is stored under exactly `current_name`.
+    pub fn rename_collection(
+        &self,
+        current_name: &str,
+        next_name: &str,
+    ) -> Result<(), CassieError> {
         let mut collections = self.collections.write();
-        let metadata = collections.remove(current_name);
-        if let Some(mut metadata) = metadata {
-            metadata.name = next_name.to_string();
-            collections.insert(next_name.to_string(), metadata);
-        }
+        let Some(mut metadata) = collections.remove(current_name) else {
+            return Err(CassieError::CollectionNotFound(current_name.to_string()));
+        };
+        metadata.name = next_name.to_string();
+        collections.insert(next_name.to_string(), metadata);
 
         let mut schemas = self.schemas.write();
         if let Some(schema) = schemas.remove(current_name) {
@@ -573,6 +597,7 @@ impl Catalog {
             }
         }
         self.bump_version();
+        Ok(())
     }
 
     pub fn rename_collection_field(&self, collection: &str, current_name: &str, next_name: &str) {

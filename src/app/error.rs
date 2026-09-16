@@ -12,6 +12,7 @@ pub enum CatalogObjectKind {
     Sequence,
     Rollup,
     RetentionPolicy,
+    ProjectionVersion,
 }
 
 impl CatalogObjectKind {
@@ -26,6 +27,7 @@ impl CatalogObjectKind {
             Self::Sequence => "sequence",
             Self::Rollup => "rollup",
             Self::RetentionPolicy => "retention policy",
+            Self::ProjectionVersion => "projection version",
         }
     }
 
@@ -34,7 +36,11 @@ impl CatalogObjectKind {
             Self::Database => "3D000",
             Self::Relation | Self::View | Self::Sequence => "42P01",
             Self::Schema => "3F000",
-            Self::Index | Self::Role | Self::Rollup | Self::RetentionPolicy => "42704",
+            Self::Index
+            | Self::Role
+            | Self::Rollup
+            | Self::RetentionPolicy
+            | Self::ProjectionVersion => "42704",
         }
     }
 }
@@ -447,9 +453,6 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
-    if let Some(descriptor) = legacy_catalog_not_found_descriptor(message) {
-        return descriptor;
-    }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
@@ -481,32 +484,6 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return resource_limit_descriptor(message.to_string());
     }
     bad_request_descriptor("22000", message.to_string())
-}
-
-fn legacy_catalog_not_found_descriptor(message: &str) -> Option<CassieErrorDescriptor> {
-    [
-        ("namespace '", CatalogObjectKind::Schema),
-        ("schema '", CatalogObjectKind::Schema),
-        ("index '", CatalogObjectKind::Index),
-        ("view '", CatalogObjectKind::View),
-        ("role '", CatalogObjectKind::Role),
-        ("sequence '", CatalogObjectKind::Sequence),
-        ("rollup '", CatalogObjectKind::Rollup),
-        ("retention policy '", CatalogObjectKind::RetentionPolicy),
-        ("relation '", CatalogObjectKind::Relation),
-        ("collection '", CatalogObjectKind::Relation),
-    ]
-    .into_iter()
-    .find_map(|(prefix, kind)| {
-        if !message.starts_with(prefix) || !message.ends_with(" does not exist") {
-            return None;
-        }
-        let name = message
-            .strip_prefix(prefix)?
-            .strip_suffix(" does not exist")?
-            .to_string();
-        Some(CassieError::CatalogObjectNotFound { kind, name }.descriptor())
-    })
 }
 
 pub(crate) fn unsupported_sql_error(sql: &str) -> Option<CassieError> {

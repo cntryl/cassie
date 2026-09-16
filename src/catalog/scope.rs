@@ -179,6 +179,10 @@ pub fn qualifier_variants(raw: &str) -> Vec<String> {
     variants
 }
 
+/// Returns the fully qualified schema that owns `raw`.
+///
+/// Only a three-part `database.schema.name` carries its database; a two-part
+/// `schema.name` depends on the session database and yields `None`.
 #[must_use]
 pub fn parent_schema(raw: &str) -> Option<SchemaId> {
     match parse_name(raw).ok()? {
@@ -187,19 +191,24 @@ pub fn parent_schema(raw: &str) -> Option<SchemaId> {
             schema,
             name: _,
         } => Some(SchemaId::new(database, schema)),
-        ParsedName::SchemaQualified { schema, name } => Some(SchemaId::new(schema, name)),
-        ParsedName::Unqualified(_) => None,
+        ParsedName::SchemaQualified { .. } | ParsedName::Unqualified(_) => None,
     }
 }
 
+/// Derives a sibling object name that keeps every qualifier of `base`.
 #[must_use]
 pub fn derive_scoped_name(base: &str, derived_local_name: impl FnOnce(&str) -> String) -> String {
-    if let Some(parent) = parent_schema(base) {
-        return parent
-            .relation(derived_local_name(&local_name(base)))
-            .canonical_name();
+    match parse_name(base) {
+        Ok(ParsedName::DatabaseQualified {
+            database,
+            schema,
+            name,
+        }) => canonical_relation_name(&database, &schema, &derived_local_name(&name)),
+        Ok(ParsedName::SchemaQualified { schema, name }) => {
+            format!("{schema}.{}", derived_local_name(&name))
+        }
+        Ok(ParsedName::Unqualified(_)) | Err(_) => derived_local_name(base),
     }
-    derived_local_name(base)
 }
 
 #[must_use]
@@ -340,9 +349,38 @@ pub fn parse_name(raw: &str) -> Result<ParsedName, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_relation_name, parse_name, qualifier_variants, split_identifier_path, ParsedName,
-        RelationId, SchemaId,
+        canonical_relation_name, derive_scoped_name, parent_schema, parse_name, qualifier_variants,
+        split_identifier_path, ParsedName, RelationId, SchemaId,
     };
+
+    #[test]
+    fn should_keep_schema_qualifier_when_deriving_from_two_part_name() {
+        // Arrange
+        let base = "reporting.orders";
+
+        // Act
+        let derived = derive_scoped_name(base, |local| format!("{local}_id_seq"));
+
+        // Assert
+        assert_eq!(derived, "reporting.orders_id_seq");
+        assert_eq!(parent_schema(base), None);
+    }
+
+    #[test]
+    fn should_keep_full_qualifier_when_deriving_from_three_part_name() {
+        // Arrange
+        let base = "tenant_db.reporting.orders";
+
+        // Act
+        let derived = derive_scoped_name(base, |local| format!("{local}_id_seq"));
+
+        // Assert
+        assert_eq!(derived, "tenant_db.reporting.orders_id_seq");
+        assert_eq!(
+            parent_schema(base),
+            Some(SchemaId::new("tenant_db", "reporting"))
+        );
+    }
 
     #[test]
     fn should_parse_quoted_identifier_paths() {

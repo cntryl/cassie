@@ -13,14 +13,16 @@ directory; replication, remote coordination, and traffic movement remain externa
    generations use authoritative source rows rather than an old projection output.
 3. `REFRESH MATERIALIZED PROJECTION <name>` rebuilds the active version under source and output
    write gates, publishes hashes, and then publishes fresh metadata.
-4. `ALTER MATERIALIZED PROJECTION <name> BUILD VERSION` creates the next inactive version. A
-   failed or interrupted build is recorded as failed and never becomes query-visible.
+4. `ALTER MATERIALIZED PROJECTION <name> BUILD VERSION` creates the next inactive version. Version
+   ids come from a persisted high-water ordinal and are never reused, even after `DROP ... VERSION`.
+   A failed or interrupted build is recorded as failed and never becomes query-visible.
 5. `VERIFY PROJECTION <name> [VERSION <id>] MODE <mode>` persists an integrity report. Supported
    modes are `metadata_only`, `hashes_only`, `indexes_only`, and `full`.
 6. `ALTER MATERIALIZED PROJECTION <name> ACTIVATE VERSION <id>` atomically retires the previous
    active version and activates a built target. Publication is one synchronous metadata commit.
-7. `DROP MATERIALIZED PROJECTION VERSION <name> VERSION <id>` removes an inactive version and its
-   output. The active version cannot be dropped. Dropping the projection removes every version.
+7. `DROP MATERIALIZED PROJECTION VERSION <name> VERSION <id>` removes an inactive version, its
+   output, and its comparison and repair reports. The active version cannot be dropped. Dropping
+   the projection removes every version.
 
 Checkpointed replay is defined by [Projection Replay Contracts](projection-replay-contracts.md).
 Diff, comparison, and repair start with a persisted verification report and follow the
@@ -71,6 +73,10 @@ immutable output and recorded why Cassie's verification result is being overridd
    metrics, and restart checks pass.
 5. Roll back by reactivating a retained verified version. If no safe version remains, keep source
    fallback active and restore/rebuild from a local snapshot or authoritative source.
+
+If `BUILD VERSION` reports that the version's output collection already exists, no version
+metadata references that collection; confirm it holds nothing you need, remove it with
+`DROP TABLE <output collection>`, and rerun the build.
 
 Manual intervention is required for repeated debt retry failure, unavailable authoritative source
 data, a failed full verification, exhausted query-memory limits, or recovery that cannot open the

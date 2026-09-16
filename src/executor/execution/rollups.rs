@@ -91,7 +91,7 @@ pub(super) fn drop_rollup(
         )));
     };
     let _ = cassie.midge.drop_collection(&meta.output_collection);
-    cassie
+    let _ = cassie
         .catalog
         .unregister_collection(&meta.output_collection);
     cassie
@@ -339,7 +339,7 @@ fn aggregate_data_type(cassie: &Cassie, source: &str, function: &FunctionCall) -
 fn create_rollup_collection(cassie: &Cassie, meta: &RollupMeta) -> Result<(), QueryError> {
     let schema = rollup_schema(cassie, meta);
     let _ = cassie.midge.drop_collection(&meta.output_collection);
-    cassie
+    let _ = cassie
         .catalog
         .unregister_collection(&meta.output_collection);
     cassie

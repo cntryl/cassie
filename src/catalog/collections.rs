@@ -367,6 +367,10 @@ pub struct ProjectionMeta {
     pub verification: ProjectionRebuildVerificationMeta,
     #[serde(default)]
     pub integrity: ProjectionIntegrityReportMeta,
+    /// Highest version ordinal ever allocated, so dropped version ids are never
+    /// reused. Metadata written before this field existed reads as zero.
+    #[serde(default)]
+    pub version_high_water: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -427,6 +431,7 @@ impl ProjectionMeta {
             hashes: ProjectionHashMeta::default(),
             verification: ProjectionRebuildVerificationMeta::default(),
             integrity: ProjectionIntegrityReportMeta::default(),
+            version_high_water: 0,
         }
     }
 
@@ -483,7 +488,23 @@ impl ProjectionMeta {
             hashes: ProjectionHashMeta::default(),
             verification: ProjectionRebuildVerificationMeta::default(),
             integrity: ProjectionIntegrityReportMeta::default(),
+            version_high_water: 1,
         }
+    }
+
+    /// Allocates the next `v<N>` version id past both the persisted high-water
+    /// ordinal and every live version, and records it as the new high water.
+    pub fn allocate_version_id(&mut self) -> String {
+        let live = self
+            .versions
+            .iter()
+            .map(|version| version.version_id.as_str())
+            .chain(self.active_version.as_deref())
+            .filter_map(|version_id| version_id.strip_prefix('v')?.parse::<u64>().ok())
+            .max()
+            .unwrap_or(0);
+        self.version_high_water = self.version_high_water.max(live) + 1;
+        format!("v{}", self.version_high_water)
     }
 
     #[must_use]

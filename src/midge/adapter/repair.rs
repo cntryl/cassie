@@ -18,6 +18,33 @@ impl Midge {
         Ok(())
     }
 
+    /// Deletes stored repair and comparison reports by id in one transaction.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the storage transaction fails.
+    pub fn delete_projection_reports(
+        &self,
+        repair_report_ids: &[String],
+        comparison_report_ids: &[String],
+    ) -> Result<(), CassieError> {
+        if repair_report_ids.is_empty() && comparison_report_ids.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self.begin_schema_rw_tx()?;
+        for id in repair_report_ids {
+            tx.delete(projection_repair_report_key(id))
+                .map_err(CassieError::from)?;
+        }
+        for id in comparison_report_ids {
+            tx.delete(key_encoding::projection_comparison_report_key(id))
+                .map_err(CassieError::from)?;
+        }
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        Ok(())
+    }
+
     /// # Errors
     ///
     /// Returns an error when validation, storage, or execution fails.

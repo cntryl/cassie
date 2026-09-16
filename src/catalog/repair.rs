@@ -32,6 +32,7 @@ impl Catalog {
     }
 
     /// Removes repair reports for one projection version and returns their ids.
+    #[must_use]
     pub fn remove_projection_repair_reports_for_version(
         &self,
         projection: &str,

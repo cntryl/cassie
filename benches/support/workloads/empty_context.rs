@@ -25,6 +25,20 @@ pub fn empty_context_with_temp_budget(
     }))
 }
 
+pub fn empty_disk_context_with_temp_budget(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    configure_benchmark_environment();
+    std::env::set_var("CASSIE_STORAGE_MODE", "local");
+    ready(empty_context_with_config(label, |config| {
+        config.limits.max_result_rows = dataset_rows;
+        config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
+        config.limits.query_timeout_ms = 0;
+    }))
+}
+
 fn empty_context_with_config(
     label: &str,
     configure: impl FnOnce(&mut CassieRuntimeConfig),

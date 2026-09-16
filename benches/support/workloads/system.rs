@@ -448,6 +448,80 @@ pub fn time_series_rollup_refresh(ctx: &BenchContext) -> Ready<usize> {
     )))
 }
 
+pub fn assert_time_series_retention_state(ctx: &BenchContext) {
+    let policy = ctx
+        .cassie
+        .catalog
+        .get_retention_policy("bench_time_series_retention")
+        .expect("retention benchmark policy");
+    assert_eq!(
+        policy.last_deleted_rows, 0,
+        "repeated retention delete count"
+    );
+    assert_eq!(policy.last_skipped_rows, 0, "repeated retention skip count");
+    assert!(
+        ctx.cassie
+            .midge
+            .get_document(&ctx.collection, "ts-retention-expired-sentinel")
+            .expect("read expired retention sentinel")
+            .is_none(),
+        "expired retention sentinel must remain deleted"
+    );
+    assert_time_series_rollup_state(ctx);
+}
+
+pub fn assert_time_series_rollup_state(ctx: &BenchContext) {
+    let rollup = ctx
+        .cassie
+        .catalog
+        .get_rollup("bench_time_series_hourly")
+        .expect("time-series benchmark rollup");
+    let source_generation = ctx
+        .cassie
+        .midge
+        .collection_generation(&ctx.collection)
+        .expect("time-series source generation");
+    assert_eq!(rollup.refresh_cursor.source_generation, source_generation);
+    assert!(
+        !ctx.cassie
+            .midge
+            .has_rollup_maintenance_debt(&ctx.collection)
+            .expect("rollup maintenance debt"),
+        "repeated rollup refresh must clear maintenance debt"
+    );
+
+    let rollup_rows = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM bench_time_series_events GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant",
+            vec![],
+        )
+        .expect("read time-series rollup aggregates");
+    let source = ctx
+        .cassie
+        .execute_sql(
+            &ctx.session,
+            "SELECT COUNT(*) AS total, SUM(amount) AS amount_sum FROM bench_time_series_events",
+            vec![],
+        )
+        .expect("read authoritative time-series aggregates");
+    let rollup_total = rollup_rows
+        .rows
+        .iter()
+        .map(|row| row[2].as_i64().expect("rollup count"))
+        .sum::<i64>();
+    let rollup_amount = rollup_rows
+        .rows
+        .iter()
+        .map(|row| row[3].as_i64().expect("rollup sum"))
+        .sum::<i64>();
+    let source_total = source.rows[0][0].as_i64().expect("source count");
+    let source_amount = source.rows[0][1].as_i64().expect("source sum");
+    assert_eq!(rollup_total, source_total, "rollup count aggregate");
+    assert_eq!(rollup_amount, source_amount, "rollup sum aggregate");
+}
+
 pub fn timed_ingest_document(ctx: &BenchContext) -> Ready<Duration> {
     timed_ingest_document_batch(ctx, 1)
 }

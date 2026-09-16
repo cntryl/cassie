@@ -595,7 +595,7 @@ fn collect_equality_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
 }
 
 fn scan_limit(plan: &LogicalPlan, projected_scan_fields: &[String]) -> Option<usize> {
-    if projected_scan_fields.is_empty() || plan.filter.is_some() {
+    if projected_scan_fields.is_empty() || plan.filter.is_some() || !plan.order.is_empty() {
         return None;
     }
     let limit = plan.limit?;

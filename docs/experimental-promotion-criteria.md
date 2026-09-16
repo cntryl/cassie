@@ -55,3 +55,24 @@ The `evaluation-conservative` profile is opt-in and uses `operator_feedback_enab
 `operator_switch_join_row_threshold=4096`. It is intended for representative evidence only;
 result-equivalence, deterministic EXPLAIN guard diagnostics, stale-feedback fallback, and
 operator-switch rollback tests must pass before any default change is considered.
+
+## Selected Adaptive Surface
+
+The promotion boundary is deliberately narrower than the adaptive feature family:
+
+- feedback-informed selection between a scalar row scan and an already legal scalar-index read;
+- checkpointed switching from a vectorized inner/left equi-join to the existing merge-join
+  implementation after the configured row threshold is crossed.
+
+Candidate-budget expansion, new candidate generation, other join pairs, and automatic profile
+selection remain Experimental. The selected surface is still opt-in: promotion does not change the
+`disabled-default` profile.
+
+`metrics_adaptive::should_preserve_the_selected_adaptive_read_surface_across_profiles` compares the
+two profiles over identical fixtures and records exact rows, ordering, pagination, transaction
+visibility, errors, fallback diagnostics, selected paths, storage reads, candidate metrics, memory,
+and worker state. Main-branch backend CI retains the resulting
+`cassie-adaptive-profile-<commit>` artifact. The companion adaptive metrics tests cover fresh,
+missing, low-confidence, below-savings, stale-TTL, stale-schema, and persistence-failure feedback,
+plus join-switch success, disabled/unsupported skips, replacement failure, memory bounds, EXPLAIN,
+and metrics. Rollback is exercised across restart with persisted feedback retained.

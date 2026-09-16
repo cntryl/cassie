@@ -150,11 +150,14 @@ pub fn resolve_relation_name(
     context: &BindingContext,
 ) -> Result<String, CassieError> {
     let parsed = parse_name(raw).map_err(CassieError::Planner)?;
-    if !context.scopes_database_objects() {
-        return resolve_unscoped_relation_name(parsed, catalog, context);
-    }
-
-    resolve_scoped_relation_name(parsed, catalog, context)
+    let resolved = if context.scopes_database_objects() {
+        resolve_scoped_relation_name(parsed, catalog, context)?
+    } else {
+        resolve_unscoped_relation_name(parsed, catalog, context)?
+    };
+    // Resolution matches names without regard to case; hand back the stored
+    // name so storage and catalog operations that use exact keys find it.
+    Ok(catalog.stored_relation_name(&resolved).unwrap_or(resolved))
 }
 
 fn resolve_unscoped_relation_name(
@@ -300,13 +303,15 @@ pub fn resolve_schema_name(
     catalog: &crate::catalog::Catalog,
     context: &BindingContext,
 ) -> Result<String, CassieError> {
-    if !context.scopes_database_objects() && catalog.namespace_exists(raw) {
-        return Ok(raw.to_string());
+    if !context.scopes_database_objects() {
+        if let Some(stored) = catalog.stored_namespace_name(raw) {
+            return Ok(stored);
+        }
     }
 
     let name = normalize_schema_name(raw, context)?;
-    if catalog.namespace_exists(&name) {
-        return Ok(name);
+    if let Some(stored) = catalog.stored_namespace_name(&name) {
+        return Ok(stored);
     }
 
     Err(CassieError::CatalogObjectNotFound {

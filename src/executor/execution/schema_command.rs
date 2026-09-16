@@ -114,7 +114,10 @@ pub(super) fn drop_table(
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_collection(&statement.table);
+    cassie
+        .catalog
+        .unregister_collection(&statement.table)
+        .map_err(|error| QueryError::General(error.to_string()))?;
 
     Ok(empty_command("DROP TABLE"))
 }
@@ -566,8 +569,10 @@ fn alter_table_rename_table(
         .midge
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.rename_collection(table, next_table);
-    Ok(())
+    cassie
+        .catalog
+        .rename_collection(table, next_table)
+        .map_err(|error| QueryError::General(error.to_string()))
 }
 
 fn ensure_row_store_alter_supported(

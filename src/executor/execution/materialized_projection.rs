@@ -119,7 +119,7 @@ pub(super) fn drop_materialized_projection(
 
     for version in &metadata.versions {
         let _ = cassie.midge.drop_collection(&version.output_collection);
-        cassie
+        let _ = cassie
             .catalog
             .unregister_collection(&version.output_collection);
     }
@@ -180,7 +180,7 @@ pub(super) fn drop_materialized_projection_version(
     };
     let version = metadata.versions.remove(index);
     let _ = cassie.midge.drop_collection(&version.output_collection);
-    cassie
+    let _ = cassie
         .catalog
         .unregister_collection(&version.output_collection);
     persist_projection_metadata(cassie, metadata)?;
@@ -747,7 +747,7 @@ fn replace_output_rows_gated(
 ) -> Result<RootHashRecord, QueryError> {
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
-        cassie.catalog.unregister_collection(output_collection);
+        let _ = cassie.catalog.unregister_collection(output_collection);
         crate::executor::pause_after_materialized_projection_drop();
     }
     cassie

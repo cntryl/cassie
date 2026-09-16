@@ -145,7 +145,8 @@ fn requalify_serial_sequences(
     }
     for field in &mut statement.fields {
         for constraint in &mut field.constraints {
-            if constraint.default_sequence.is_none() || !constraint.default_sequence_owned.is_owned()
+            if constraint.default_sequence.is_none()
+                || !constraint.default_sequence_owned.is_owned()
             {
                 continue;
             }

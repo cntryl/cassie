@@ -6298,9 +6298,17 @@ mod migration_ddl_sequences {
                 .into_iter()
                 .map(|sequence| sequence.name)
                 .collect::<Vec<_>>();
-            let rows = query_rows(&cassie, &session, "SELECT entry_id, label FROM ledger.entries");
+            let rows = query_rows(
+                &cassie,
+                &session,
+                "SELECT entry_id, label FROM ledger.entries",
+            );
             execute_statement(&cassie, &session, "DROP TABLE ledger.entries");
-            let dropped = cassie.execute_sql(&session, "DROP SEQUENCE ledger.entries_entry_id_seq", vec![]);
+            let dropped = cassie.execute_sql(
+                &session,
+                "DROP SEQUENCE ledger.entries_entry_id_seq",
+                vec![],
+            );
 
             // Assert
             assert_eq!(

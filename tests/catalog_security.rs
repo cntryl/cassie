@@ -3239,6 +3239,139 @@ mod integration_sql_catalog {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    fn run_case_insensitive_catalog_scenario(
+        label: &str,
+        setup: &[&str],
+        act: &str,
+        probe: &str,
+    ) -> (Result<(), String>, Result<usize, String>) {
+        use_local_storage();
+        let path = data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        let outcome = runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            for sql in setup {
+                cassie.execute_sql(&session, sql, vec![]).unwrap();
+            }
+            let acted = cassie
+                .execute_sql(&session, act, vec![])
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+            let probed = cassie
+                .execute_sql(&session, probe, vec![])
+                .map(|result| result.rows.len())
+                .map_err(|error| error.to_string());
+            (acted, probed)
+        });
+        let _ = std::fs::remove_dir_all(path);
+        outcome
+    }
+
+    #[test]
+    fn should_drop_table_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = ["CREATE TABLE CaseDropDocs (title TEXT)"];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_table",
+            &setup,
+            "DROP TABLE casedropdocs",
+            "SELECT title FROM CaseDropDocs",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert!(probed.is_err(), "table still readable: {probed:?}");
+    }
+
+    #[test]
+    fn should_rename_table_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE TABLE CaseRenameDocs (title TEXT)",
+            "INSERT INTO CaseRenameDocs (title) VALUES ('alpha')",
+        ];
+
+        // Act
+        let (renamed, probed) = run_case_insensitive_catalog_scenario(
+            "case_rename_table",
+            &setup,
+            "ALTER TABLE caserenamedocs RENAME TO case_renamed_docs",
+            "SELECT title FROM case_renamed_docs",
+        );
+
+        // Assert
+        assert_eq!(renamed, Ok(()));
+        assert_eq!(probed, Ok(1));
+    }
+
+    #[test]
+    fn should_drop_index_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE TABLE CaseIndexDocs (title TEXT)",
+            "CREATE INDEX CaseTitleIdx ON CaseIndexDocs (title)",
+        ];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_index",
+            &setup,
+            "DROP INDEX casetitleidx ON caseindexdocs",
+            "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'CaseIndexDocs'",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
+
+    #[test]
+    fn should_rename_schema_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE SCHEMA CaseReporting",
+            "CREATE TABLE CaseReporting.events (title TEXT)",
+        ];
+
+        // Act
+        let (renamed, probed) = run_case_insensitive_catalog_scenario(
+            "case_rename_schema",
+            &setup,
+            "ALTER SCHEMA casereporting RENAME TO case_archive",
+            "SELECT title FROM case_archive.events",
+        );
+
+        // Assert
+        assert_eq!(renamed, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
+
+    #[test]
+    fn should_drop_schema_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = ["CREATE SCHEMA CaseScratch"];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_schema",
+            &setup,
+            "DROP SCHEMA casescratch",
+            "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'CaseScratch'",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
 }
 
 // Formerly tests/role_authorization.rs.

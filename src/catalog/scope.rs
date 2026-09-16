@@ -349,8 +349,8 @@ pub fn parse_name(raw: &str) -> Result<ParsedName, String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_relation_name, derive_scoped_name, parent_schema, parse_name,
-        qualifier_variants, split_identifier_path, ParsedName, RelationId, SchemaId,
+        canonical_relation_name, derive_scoped_name, parent_schema, parse_name, qualifier_variants,
+        split_identifier_path, ParsedName, RelationId, SchemaId,
     };
 
     #[test]

@@ -40,8 +40,11 @@ immutable output and recorded why Cassie's verification result is being overridd
 
 ## Failure And Retry Semantics
 
-- Output rows and row hashes are committed in batches of at most 256. Range and root hashes are
-  published together only after all row batches finish.
+- Output rows and row hashes are committed in transactions of at most 1,000 rows, independent of
+  the 256-row integrity range-segment size. Range and root hashes are published together only
+  after all row batches finish.
+- Projection-hash repair removes the root hash first, rewrites row and range hashes in
+  transactions of at most 1,000 records, and publishes the root only after every batch succeeds.
 - Projection metadata is published after the output root exists. Activation changes become
   visible in the in-memory catalog only after the same durable metadata commit succeeds.
 - Interruption after row batches, before range/root publication, after hash publication, before
@@ -81,4 +84,6 @@ categories, storage reads, memory limits, worker limits, and cleanup. Tier 5 ret
 evidence owns projection replay and rebuild at 10k, 100k, and 250k source rows plus verification,
 repair, and restart at their registered representative scale. Fixture setup is excluded from the
 measured operation. These observations are environment-labelled capacity evidence, not universal
-latency guarantees.
+latency guarantees. The promotion record retains the 100k refresh, replay, full-verification, and
+hash-repair owners; replay throughput on hosted runners is diagnostic only, and 250k rows are not
+yet retained capacity evidence. See [Production Readiness](production-readiness.md).

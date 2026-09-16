@@ -614,6 +614,66 @@ mod pgwire_binary_codecs {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_encode_integer_sum_as_exact_binary_int8() {
+        // Arrange
+        const EXACT_SUM: i64 = 9_007_199_254_740_993;
+        support::use_local_storage();
+        let path = support::data_dir("binary-integer-sum");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(&session, "CREATE TABLE binary_sum_docs (wide BIGINT)", Vec::new())
+                .expect("create binary sum table");
+            for value in [EXACT_SUM, 0] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        "INSERT INTO binary_sum_docs (wide) VALUES ($1)",
+                        vec![Value::Int64(value)],
+                    )
+                    .expect("insert binary sum row");
+            }
+
+            // Act
+            let (frames, server) = start_extended_query(
+                cassie,
+                support::parse_frame("binary_sum_stmt", "SELECT SUM(wide) FROM binary_sum_docs"),
+                support::bind_frame_with_formats(
+                    "binary_sum_portal",
+                    "binary_sum_stmt",
+                    &[],
+                    &[],
+                    &[1],
+                ),
+                support::execute_frame("binary_sum_portal"),
+            )
+            .await;
+
+            // Assert
+            let row_description = frames
+                .iter()
+                .find(|frame| frame.0 == b'T')
+                .expect("row description");
+            let fields = support::parse_row_description(&row_description.1);
+            assert_eq!(fields[0].type_oid, 20, "SUM(bigint) must be declared int8");
+            let row = frames
+                .iter()
+                .find(|frame| frame.0 == b'D')
+                .expect("data row");
+            assert_eq!(
+                read_binary_row(&row.1),
+                vec![Some(EXACT_SUM.to_be_bytes().to_vec())]
+            );
+
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/pgwire_cancellation.rs.

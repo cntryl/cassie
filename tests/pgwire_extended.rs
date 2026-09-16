@@ -1641,6 +1641,84 @@ mod pgwire_extended_metadata {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_describe_builtin_function_results_with_runtime_types() {
+        // Arrange
+        const OID_INT8: i32 = 20;
+        const OID_FLOAT8: i32 = 701;
+        use_local_storage();
+        let path = data_dir("builtin_function_result_types");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cases = [
+            ("SELECT length(name) FROM function_result_items", OID_INT4),
+            ("SELECT abs(score) FROM function_result_items", OID_INT4),
+            ("SELECT abs(ratio) FROM function_result_items", OID_FLOAT8),
+            ("SELECT coalesce(score, 0) FROM function_result_items", OID_INT4),
+            ("SELECT pg_backend_pid() FROM function_result_items", OID_INT4),
+            (
+                "SELECT has_database_privilege('cassie', 'CONNECT') FROM function_result_items",
+                OID_BOOL,
+            ),
+            ("SELECT min(wide) FROM function_result_items", OID_INT8),
+            ("SELECT max(score) FROM function_result_items", OID_INT4),
+            ("SELECT max(name) FROM function_result_items", OID_TEXT),
+            ("SELECT count(name) FROM function_result_items", OID_INT8),
+            ("SELECT sum(score) FROM function_result_items", OID_INT8),
+            ("SELECT sum(ratio) FROM function_result_items", OID_FLOAT8),
+        ];
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE function_result_items (name TEXT, score INT, wide BIGINT, ratio FLOAT)",
+                    vec![],
+                )
+                .unwrap();
+            let server = spawn_server(cassie.clone()).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            let mut described = Vec::with_capacity(cases.len());
+            for (sql, _) in cases {
+                write_frames(
+                    &mut write_half,
+                    vec![
+                        parse_frame("", sql),
+                        describe_statement_frame(""),
+                        sync_frame(),
+                    ],
+                )
+                .await;
+                let frames = read_frames_until_ready(&mut reader).await;
+                let columns = frames
+                    .iter()
+                    .find(|frame| frame.0 == b'T')
+                    .map(|frame| parse_row_description(&frame.1))
+                    .unwrap_or_else(|| panic!("row description for {sql}: {frames:?}"));
+                described.push((sql, columns[0].type_oid));
+            }
+
+            // Assert
+            assert_eq!(described, cases.to_vec());
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/pgwire_extended_prepared.rs.

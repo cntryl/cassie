@@ -9,6 +9,8 @@ use crate::types::DataType;
 
 #[path = "schema_graph_rename.rs"]
 mod schema_graph_rename;
+#[path = "schema_sequence_rename.rs"]
+mod schema_sequence_rename;
 
 pub(super) fn create_graph(
     cassie: &Cassie,
@@ -617,7 +619,12 @@ fn rename_schema_descendants(
 
     rename_schema_collections(cassie, &collection_renames)?;
     rename_schema_views(cassie, current_schema, next_schema)?;
-    rename_schema_sequences(cassie, current_schema, next_schema)?;
+    schema_sequence_rename::rename_schema_sequences(
+        cassie,
+        current_schema,
+        next_schema,
+        &relation_renames,
+    )?;
     schema_graph_rename::rename_schema_graphs(
         cassie,
         current_schema,
@@ -663,26 +670,6 @@ fn rename_schema_views(
         view.query = rewrite_schema_qualified_sql(&view.query, current_schema, next_schema);
         cassie.midge.delete_view(&current_name)?;
         cassie.midge.put_view(&view)?;
-    }
-    Ok(())
-}
-
-fn rename_schema_sequences(
-    cassie: &Cassie,
-    current_schema: &str,
-    next_schema: &str,
-) -> Result<(), QueryError> {
-    for mut sequence in cassie
-        .catalog
-        .list_sequences()
-        .into_iter()
-        .filter(|sequence| object_in_schema(&sequence.name, current_schema))
-    {
-        let current_name = sequence.name.clone();
-        sequence.name =
-            rewrite_relation_name_for_schema(&sequence.name, current_schema, next_schema);
-        cassie.midge.delete_sequence(&current_name)?;
-        cassie.midge.put_sequence(&sequence)?;
     }
     Ok(())
 }

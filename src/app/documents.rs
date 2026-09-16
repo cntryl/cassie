@@ -5,6 +5,7 @@ use super::{
 };
 
 mod controlled;
+mod payload_keys;
 
 impl Cassie {
     pub(crate) fn write_document_for_session(
@@ -80,16 +81,45 @@ impl Cassie {
         &self,
         session: Option<&CassieSession>,
         collection: &str,
-        mut payload: serde_json::Value,
+        payload: serde_json::Value,
         apply_defaults: bool,
         exclude_id: Option<&str>,
     ) -> Result<serde_json::Value, CassieError> {
+        let (payload, constraints) = self.prepare_document_write_deferring_foreign_keys(
+            session,
+            collection,
+            payload,
+            apply_defaults,
+            exclude_id,
+        )?;
+        self.validate_foreign_keys_for_session(session, collection, &payload, &constraints)?;
+        Ok(payload)
+    }
+
+    /// Prepares a document write without checking FOREIGN KEY references.
+    ///
+    /// Returns the collection constraints so the caller can check references,
+    /// for example once per distinct parent key across a batch of rows.
+    pub(crate) fn prepare_document_write_deferring_foreign_keys(
+        &self,
+        session: Option<&CassieSession>,
+        collection: &str,
+        mut payload: serde_json::Value,
+        apply_defaults: bool,
+        exclude_id: Option<&str>,
+    ) -> Result<(serde_json::Value, Vec<FieldConstraint>), CassieError> {
+        let schema = self
+            .catalog
+            .get_schema(collection)
+            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+        payload_keys::normalize_payload_keys(collection, &schema.fields, &mut payload)?;
+
         let constraints = self.catalog.get_constraints(collection);
         if apply_defaults && !constraints.is_empty() {
             super::defaults::apply_default_values(self, &mut payload, &constraints)?;
         }
 
-        self.validate_payload_schema(collection, &payload)?;
+        Self::validate_payload_schema(collection, &schema, &payload)?;
 
         let indexes = self.catalog.list_vector_indexes(collection);
         if !indexes.is_empty() {
@@ -104,9 +134,8 @@ impl Cassie {
             exclude_id,
         )?;
         self.validate_unique_indexes_for_session(session, collection, &payload, exclude_id)?;
-        self.validate_foreign_keys_for_session(session, collection, &payload, &constraints)?;
 
-        Ok(payload)
+        Ok((payload, constraints))
     }
 
     pub(crate) fn put_prepared_document_for_session(
@@ -300,15 +329,10 @@ impl Cassie {
     }
 
     fn validate_payload_schema(
-        &self,
         collection: &str,
+        schema: &crate::catalog::CollectionSchema,
         payload: &serde_json::Value,
     ) -> Result<(), CassieError> {
-        let schema = self
-            .catalog
-            .get_schema(collection)
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
-
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
@@ -317,7 +341,7 @@ impl Cassie {
             let expected = schema
                 .fields
                 .iter()
-                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+                .find(|entry| entry.name == *field)
                 .ok_or_else(|| {
                     CassieError::InvalidVector(format!(
                         "field '{field}' is not defined on collection '{collection}'"
@@ -771,44 +795,9 @@ impl Cassie {
         payload: &serde_json::Value,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
-        let object = payload.as_object().ok_or_else(|| {
-            CassieError::InvalidVector("document payload must be a JSON object".to_string())
-        })?;
-
-        for constraint in constraints {
-            let (Some(table), Some(field)) = (
-                constraint.references_table.as_deref(),
-                constraint.references_field.as_deref(),
-            ) else {
-                continue;
-            };
-
-            let Some(value) = object.get(&constraint.field) else {
-                continue;
-            };
-            if value.is_null() {
-                continue;
-            }
-
-            if self
-                .find_document_id_by_fields(session, table, &[(field, value)], None)?
-                .is_none()
-            {
-                return Err(CassieError::ForeignKeyViolation {
-                    table: collection.to_string(),
-                    column: constraint.field.clone(),
-                    constraint: crate::catalog::generated_constraint_name(
-                        collection,
-                        &constraint.field,
-                        "FOREIGN KEY",
-                    ),
-                    referenced_table: table.to_string(),
-                    referenced_column: field.to_string(),
-                });
-            }
-        }
-
-        Ok(())
+        let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
+        references.collect(constraints, payload)?;
+        self.validate_foreign_key_references(session, collection, &references)
     }
 
     fn validate_unique_indexes_for_session(

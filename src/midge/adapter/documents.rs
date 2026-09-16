@@ -342,11 +342,16 @@ impl Midge {
                 &fulltext_indexes_by_collection,
             ) {
                 Ok(reports) => return Ok(reports),
-                Err(error)
-                    if attempts < 8
-                        && matches!(&error, CassieError::StorageRetryable(message) if message.to_ascii_lowercase().starts_with("midge write conflict")) =>
-                    {}
-                Err(error) => return Err(error),
+                Err(error) => match commit::document_write_retry_delay(&error, attempts) {
+                    Some(delay) => {
+                        // Releases only this attempt's own guards. The gates are
+                        // reentrant, so any gates an outer caller already holds
+                        // stay held during the backoff.
+                        drop(write_guards);
+                        std::thread::sleep(delay);
+                    }
+                    None => return Err(error),
+                },
             }
         }
     }

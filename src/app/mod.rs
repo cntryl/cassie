@@ -64,6 +64,7 @@ use cache::{
     QueryEmbeddingCacheKey, VectorSearchResultCacheKey,
 };
 pub(crate) use error::unsupported_sql_error;
+pub(crate) use error::StorageRetryKind;
 pub use error::{CassieError, CatalogObjectKind};
 pub use session::CassieSession;
 pub(crate) use session::{
@@ -86,6 +87,7 @@ mod document_scans;
 pub(crate) use document_scans::SessionRowCursor;
 mod documents;
 mod embeddings;
+mod foreign_key_checks;
 mod hydration;
 mod lifecycle;
 mod operational;

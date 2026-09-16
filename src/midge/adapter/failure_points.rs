@@ -7,7 +7,32 @@ static DOCUMENT_WRITE_FAILPOINT_TEST_GUARD: OnceLock<parking_lot::Mutex<()>> = O
 
 thread_local! {
     static DOCUMENT_WRITE_FAILPOINT: Cell<u8> = const { Cell::new(0) };
-    static DOCUMENT_WRITE_CONFLICTS_REMAINING: Cell<u8> = const { Cell::new(0) };
+    static DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING: Cell<u8> = const { Cell::new(0) };
+    static DOCUMENT_WRITE_STORAGE_FAILURE: Cell<DocumentWriteStorageFailure> =
+        const { Cell::new(DocumentWriteStorageFailure::WriteConflict) };
+}
+
+/// Storage error injected before a document write batch commits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[doc(hidden)]
+pub enum DocumentWriteStorageFailure {
+    WriteConflict,
+    WriteStall,
+    Fenced,
+}
+
+impl DocumentWriteStorageFailure {
+    fn midge_error(self) -> cntryl_midge::MidgeError {
+        match self {
+            Self::WriteConflict => {
+                cntryl_midge::MidgeError::WriteConflict("injected test conflict".to_string())
+            }
+            Self::WriteStall => {
+                cntryl_midge::MidgeError::WriteStall("injected test write stall".to_string())
+            }
+            Self::Fenced => cntryl_midge::MidgeError::Fenced("injected test fencing".to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,11 +106,25 @@ pub(crate) fn check_document_write_failure_point(
 
 #[doc(hidden)]
 pub fn set_document_write_conflicts_remaining(remaining: u8) {
-    DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| counter.set(remaining));
+    set_document_write_storage_failures(DocumentWriteStorageFailure::WriteConflict, remaining);
+}
+
+/// Injects `remaining` storage failures of one kind into this thread's next document write batch commits.
+#[doc(hidden)]
+pub fn set_document_write_storage_failures(failure: DocumentWriteStorageFailure, remaining: u8) {
+    DOCUMENT_WRITE_STORAGE_FAILURE.with(|kind| kind.set(failure));
+    DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(|counter| counter.set(remaining));
+}
+
+/// Returns how many injected storage failures this thread has not consumed yet.
+#[doc(hidden)]
+#[must_use]
+pub fn document_write_storage_failures_remaining() -> u8 {
+    DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(Cell::get)
 }
 
 pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieError> {
-    let injected = DOCUMENT_WRITE_CONFLICTS_REMAINING.with(|counter| {
+    let injected = DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(|counter| {
         let remaining = counter.get();
         if remaining == 0 {
             return false;
@@ -94,9 +133,8 @@ pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieErro
         true
     });
     if injected {
-        return Err(CassieError::StorageRetryable(
-            "midge write conflict: injected test conflict".to_string(),
-        ));
+        let failure = DOCUMENT_WRITE_STORAGE_FAILURE.with(Cell::get);
+        return Err(CassieError::from(failure.midge_error()));
     }
 
     Ok(())

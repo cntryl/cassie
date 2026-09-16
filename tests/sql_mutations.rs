@@ -723,6 +723,7 @@ mod dml_statement_atomicity {
 // Formerly tests/foreign_key_concurrency.rs.
 mod foreign_key_concurrency {
     use cassie::app::Cassie;
+    use cassie::sql::ast::{CopyFormat, CopyStatement};
 
     use super::support_sql as support;
 
@@ -737,14 +738,14 @@ mod foreign_key_concurrency {
         cassie
             .execute_sql(
                 &session,
-                "CREATE TABLE fk_race_parents (id INT PRIMARY KEY)",
+                "CREATE TABLE fk_race_parents (pid INT PRIMARY KEY)",
                 vec![],
             )
             .expect("create parent table");
         cassie
             .execute_sql(
                 &session,
-                "CREATE TABLE fk_race_children (parent_id INT REFERENCES fk_race_parents(id))",
+                "CREATE TABLE fk_race_children (parent_id INT REFERENCES fk_race_parents(pid))",
                 vec![],
             )
             .expect("create child table");
@@ -753,7 +754,7 @@ mod foreign_key_concurrency {
             cassie
                 .execute_sql(
                     &session,
-                    "INSERT INTO fk_race_parents (id) VALUES (1)",
+                    "INSERT INTO fk_race_parents (pid) VALUES (1)",
                     vec![],
                 )
                 .expect("insert parent");
@@ -776,7 +777,7 @@ mod foreign_key_concurrency {
                 delete_barrier.wait();
                 delete_cassie.execute_sql(
                     &session,
-                    "DELETE FROM fk_race_parents WHERE id = 1",
+                    "DELETE FROM fk_race_parents WHERE pid = 1",
                     vec![],
                 )
             });
@@ -813,6 +814,188 @@ mod foreign_key_concurrency {
                 .execute_sql(&session, "DELETE FROM fk_race_parents", vec![])
                 .expect("clear parents");
         }
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn copy_child_statement() -> CopyStatement {
+        CopyStatement {
+            table: "fk_copy_children".to_string(),
+            columns: vec!["parent_pid".to_string()],
+            format: CopyFormat::Csv,
+            header: false,
+        }
+    }
+
+    fn create_copy_tables(cassie: &Cassie, session: &cassie::app::CassieSession) {
+        for sql in [
+            "CREATE TABLE fk_copy_parents (pid INT PRIMARY KEY)",
+            "CREATE TABLE fk_copy_children (parent_pid INT REFERENCES fk_copy_parents(pid))",
+            "INSERT INTO fk_copy_parents (pid) VALUES (1)",
+        ] {
+            cassie
+                .execute_sql(session, sql, vec![])
+                .expect("prepare tables");
+        }
+    }
+
+    #[test]
+    fn should_not_commit_an_orphaned_child_when_copy_races_a_parent_delete() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("foreign_key_copy_concurrent_parent_delete");
+        let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        create_copy_tables(&cassie, &session);
+        let parent_collection = support::canonical_test_collection(&cassie, "fk_copy_parents");
+        let child_collection = support::canonical_test_collection(&cassie, "fk_copy_children");
+
+        for attempt in 0..64_u64 {
+            if attempt > 0 {
+                cassie
+                    .execute_sql(
+                        &session,
+                        "INSERT INTO fk_copy_parents (pid) VALUES (1)",
+                        vec![],
+                    )
+                    .expect("insert parent");
+            }
+            let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+            let copy_cassie = std::sync::Arc::clone(&cassie);
+            let copy_barrier = std::sync::Arc::clone(&barrier);
+            let child_copy = std::thread::spawn(move || {
+                let session = copy_cassie.create_session("tester", None);
+                copy_barrier.wait();
+                std::thread::sleep(std::time::Duration::from_micros((attempt % 16) * 60));
+                copy_cassie.copy_from_csv_stdin(&session, &copy_child_statement(), b"1\n")
+            });
+            let delete_cassie = std::sync::Arc::clone(&cassie);
+            let delete_barrier = std::sync::Arc::clone(&barrier);
+            let parent_delete = std::thread::spawn(move || {
+                let session = delete_cassie.create_session("tester", None);
+                delete_barrier.wait();
+                delete_cassie.execute_sql(
+                    &session,
+                    "DELETE FROM fk_copy_parents WHERE pid = 1",
+                    vec![],
+                )
+            });
+            barrier.wait();
+
+            // Act
+            let child_result = child_copy.join().expect("child copy worker completed");
+            let parent_result = parent_delete
+                .join()
+                .expect("parent delete worker completed");
+            let parents = cassie
+                .midge
+                .scan_documents(&parent_collection)
+                .expect("scan parents");
+            let children = cassie
+                .midge
+                .scan_documents(&child_collection)
+                .expect("scan children");
+
+            // Assert
+            let no_rows_remain = parents.is_empty() && children.is_empty();
+            let parent_and_child_remain = parents.len() == 1 && children.len() == 1;
+            assert!(
+                no_rows_remain || parent_and_child_remain,
+                "attempt {attempt} committed an orphaned child via COPY: parents={} children={} copy={child_result:?} delete={:?}",
+                parents.len(),
+                children.len(),
+                parent_result.map(|result| result.command)
+            );
+
+            cassie
+                .execute_sql(&session, "DELETE FROM fk_copy_children", vec![])
+                .expect("clear children");
+            cassie
+                .execute_sql(&session, "DELETE FROM fk_copy_parents", vec![])
+                .expect("clear parents");
+        }
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_a_copy_whose_middle_row_references_a_missing_parent() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("foreign_key_copy_missing_parent");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        create_copy_tables(&cassie, &session);
+
+        // Act
+        let result = cassie.copy_from_csv_stdin(&session, &copy_child_statement(), b"1\n2\n1\n");
+
+        // Assert
+        let child_collection = support::canonical_test_collection(&cassie, "fk_copy_children");
+        let children = cassie
+            .midge
+            .scan_documents(&child_collection)
+            .expect("scan children");
+        assert!(
+            matches!(
+                result,
+                Err(cassie::app::CassieError::ForeignKeyViolation { .. })
+            ),
+            "COPY with a missing parent was not rejected: {result:?}"
+        );
+        assert!(children.is_empty(), "COPY applied child rows: {children:?}");
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_a_transactional_copy_commit_after_its_parent_is_deleted() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("foreign_key_transactional_copy_parent_delete");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        create_copy_tables(&cassie, &session);
+        let deleter = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin transaction");
+        cassie
+            .copy_from_csv_stdin(&session, &copy_child_statement(), b"1\n")
+            .expect("stage child copy");
+        cassie
+            .execute_sql(
+                &deleter,
+                "DELETE FROM fk_copy_parents WHERE pid = 1",
+                vec![],
+            )
+            .expect("delete parent outside the transaction");
+
+        // Act
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+
+        // Assert
+        let child_collection = support::canonical_test_collection(&cassie, "fk_copy_children");
+        let children = cassie
+            .midge
+            .scan_documents(&child_collection)
+            .expect("scan children");
+        assert!(
+            matches!(
+                commit,
+                Err(cassie::app::CassieError::ForeignKeyViolation { .. })
+            ),
+            "commit of an orphaned COPY row was not rejected: {:?}",
+            commit.map(|result| result.command)
+        );
+        assert!(
+            children.is_empty(),
+            "orphaned child committed: {children:?}"
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }

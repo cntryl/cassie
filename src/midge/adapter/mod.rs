@@ -281,8 +281,9 @@ pub(crate) use failure_points::{
 };
 #[doc(hidden)]
 pub use failure_points::{
-    document_write_failure_point_test_guard, set_document_write_conflicts_remaining,
-    set_document_write_failure_point, DocumentWriteFailurePoint,
+    document_write_failure_point_test_guard, document_write_storage_failures_remaining,
+    set_document_write_conflicts_remaining, set_document_write_failure_point,
+    set_document_write_storage_failures, DocumentWriteFailurePoint, DocumentWriteStorageFailure,
 };
 mod fresh_documents;
 mod graphs;

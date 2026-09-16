@@ -4052,6 +4052,133 @@ mod rest_json_contract {
     }
 
     #[test]
+    fn should_store_a_value_under_the_declared_field_name_given_a_differently_cased_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("payload-key-case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "rest_json_payload_key_case";
+        collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": collection,
+                "fields": [{"name": "DisplayName", "type": "text"}]
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .expect("create collection");
+
+        // Act
+        let created = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"displayname": "Alice"})
+                .to_string()
+                .as_bytes(),
+        )
+        .expect("create document");
+        let id = created["id"].as_str().expect("document id");
+        let loaded = documents::get(&cassie, collection, id).expect("get document");
+
+        // Assert
+        assert_eq!(loaded, serde_json::json!({"DisplayName": "Alice"}));
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_enforce_unique_given_a_differently_cased_payload_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("payload-key-case-unique");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_json_key_case_unique (account INT PRIMARY KEY, email TEXT UNIQUE)",
+                vec![],
+            )
+            .expect("create table");
+        let collection = "rest_json_key_case_unique";
+        documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"account": 1, "email": "a@example.com"})
+                .to_string()
+                .as_bytes(),
+        )
+        .expect("create first document");
+
+        // Act
+        let duplicate = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"account": 2, "EMAIL": "a@example.com"})
+                .to_string()
+                .as_bytes(),
+        );
+
+        // Assert
+        assert!(
+            matches!(
+                duplicate,
+                Err(cassie::app::CassieError::UniqueViolation { .. })
+            ),
+            "duplicate UNIQUE value with a differently cased key was accepted: {duplicate:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_payload_keys_that_name_the_same_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("payload-key-case-duplicate");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "rest_json_payload_key_duplicate";
+        collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": collection,
+                "fields": [{"name": "DisplayName", "type": "text"}]
+            })
+            .to_string()
+            .as_bytes(),
+        )
+        .expect("create collection");
+
+        // Act
+        let result = documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"DisplayName": "Alice", "displayname": "Bob"})
+                .to_string()
+                .as_bytes(),
+        );
+
+        // Assert
+        let error = result.expect_err("ambiguous payload keys must be rejected");
+        assert!(
+            matches!(&error, cassie::app::CassieError::InvalidVector(_)),
+            "unexpected error variant: {error:?}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("field 'DisplayName' is specified more than once"),
+            "unexpected error: {error}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_keep_metadata_response_keys_snake_case() {
         // Arrange
         use_local_storage();

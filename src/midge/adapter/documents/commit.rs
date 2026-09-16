@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use super::super::{CassieError, Midge};
 use super::{DocumentWriteBatchOptions, DocumentWriteBatchReport};
+use crate::app::StorageRetryKind;
 use crate::midge::adapter::maintenance::check_fulltext_maintenance_failure_point;
 
 impl Midge {
@@ -100,5 +102,85 @@ impl Midge {
         }
 
         Ok(reports)
+    }
+}
+
+const DOCUMENT_WRITE_BATCH_ATTEMPTS: u8 = 8;
+const WRITE_STALL_BACKOFF_STEP: Duration = Duration::from_millis(2);
+
+/// Returns how long to wait before retrying a failed document write batch, or
+/// `None` when the failure must be returned to the caller.
+///
+/// Write conflicts retry immediately against fresh state. Write stalls are
+/// storage backpressure, so retries back off linearly to let flushes and
+/// compaction catch up. A fenced writer is not retried: fencing means another
+/// writer now owns the lease epoch, and retrying in-process cannot regain it and
+/// risks acting as a stale leader.
+pub(super) fn document_write_retry_delay(error: &CassieError, attempts: u8) -> Option<Duration> {
+    if attempts >= DOCUMENT_WRITE_BATCH_ATTEMPTS {
+        return None;
+    }
+    match error.storage_retry_kind()? {
+        StorageRetryKind::WriteConflict => Some(Duration::ZERO),
+        StorageRetryKind::WriteStall => {
+            Some(WRITE_STALL_BACKOFF_STEP.saturating_mul(u32::from(attempts)))
+        }
+        StorageRetryKind::Fenced | StorageRetryKind::Unavailable => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{document_write_retry_delay, Duration, DOCUMENT_WRITE_BATCH_ATTEMPTS};
+    use crate::app::CassieError;
+
+    #[test]
+    fn should_retry_a_write_conflict_immediately() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteConflict(
+            "overlap".to_string(),
+        ));
+
+        // Act
+        let delay = document_write_retry_delay(&error, 1);
+
+        // Assert
+        assert_eq!(delay, Some(Duration::ZERO));
+    }
+
+    #[test]
+    fn should_back_off_linearly_before_retrying_a_write_stall() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteStall("full".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, 3);
+
+        // Assert
+        assert_eq!(delay, Some(Duration::from_millis(6)));
+    }
+
+    #[test]
+    fn should_not_retry_a_fenced_writer() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::Fenced("stale".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, 1);
+
+        // Assert
+        assert_eq!(delay, None);
+    }
+
+    #[test]
+    fn should_stop_retrying_after_the_attempt_limit() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteStall("full".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, DOCUMENT_WRITE_BATCH_ATTEMPTS);
+
+        // Assert
+        assert_eq!(delay, None);
     }
 }

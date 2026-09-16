@@ -4516,7 +4516,10 @@ mod snapshot_restore {
 mod storage_integrity {
     use cassie::app::Cassie;
     use cassie::catalog::canonical_relation_name;
-    use cassie::midge::adapter::set_document_write_conflicts_remaining;
+    use cassie::midge::adapter::{
+        document_write_storage_failures_remaining, set_document_write_conflicts_remaining,
+        set_document_write_storage_failures, DocumentWriteStorageFailure,
+    };
     use cassie::types::{DataType, FieldSchema, Schema};
 
     use super::support_sql as support;
@@ -4681,6 +4684,78 @@ mod storage_integrity {
             .expect("read row")
             .is_none());
         assert_eq!(cassie.midge.data_epoch().expect("read data epoch"), 0);
+    }
+
+    #[test]
+    fn should_retry_a_document_write_batch_after_a_transient_write_stall() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("write_stall_retry");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let collection = register_collection(&cassie, "write_stall_retry");
+        set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 2);
+
+        // Act
+        let result = cassie.midge.put_document(
+            &collection,
+            Some("row-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        );
+        let unconsumed_failures = document_write_storage_failures_remaining();
+        set_document_write_storage_failures(DocumentWriteStorageFailure::WriteStall, 0);
+
+        // Assert
+        assert!(result.is_ok(), "write stall was not retried: {result:?}");
+        assert_eq!(
+            unconsumed_failures, 0,
+            "injected write stalls were not all consumed"
+        );
+        assert!(cassie
+            .midge
+            .get_document(&collection, "row-1")
+            .expect("read row")
+            .is_some());
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_not_retry_a_document_write_batch_after_the_writer_is_fenced() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("fenced_write_no_retry");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let collection = register_collection(&cassie, "fenced_write_no_retry");
+        set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 1);
+
+        // Act
+        let result = cassie.midge.put_document(
+            &collection,
+            Some("row-1".to_string()),
+            serde_json::json!({"title": "alpha"}),
+        );
+        set_document_write_storage_failures(DocumentWriteStorageFailure::Fenced, 0);
+
+        // Assert
+        assert!(
+            matches!(
+                &result,
+                Err(cassie::app::CassieError::StorageRetryable(message)) if message.contains("fenced")
+            ),
+            "fenced write should fail without an in-process retry: {result:?}"
+        );
+        assert!(cassie
+            .midge
+            .get_document(&collection, "row-1")
+            .expect("read row")
+            .is_none());
+        assert_eq!(cassie.midge.data_epoch().expect("read data epoch"), 0);
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

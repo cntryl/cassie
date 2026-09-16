@@ -766,7 +766,7 @@ impl Cassie {
         Ok(())
     }
 
-    fn validate_foreign_keys_for_session(
+    pub(super) fn validate_foreign_keys_for_session(
         &self,
         session: Option<&CassieSession>,
         collection: &str,

@@ -71,7 +71,6 @@ impl Cassie {
         cancellation: Option<&QueryCancellationHandle>,
     ) -> Result<usize, CassieError> {
         check_copy_cancellation(cancellation)?;
-        let transactional = session.is_transaction_active();
         let database = session.current_database().unwrap_or(&self.default_database);
         let context = crate::sql::binder::BindingContext::scoped(database, session.search_path());
         let mut statement = statement.clone();
@@ -97,6 +96,29 @@ impl Cassie {
             rows.remove(0);
         }
 
+        let collections = self.referential_write_collections(&statement.table);
+        let (affected, stats) = self.midge.with_collection_write_gates(&collections, || {
+            self.stage_and_apply_copy_rows(session, &statement, &columns, rows, cancellation)
+        })?;
+        let Some(stats) = stats else {
+            return Ok(affected);
+        };
+        finish_copy_batch(self, &statement, &stats)?;
+        self.runtime.set_data_epoch(self.midge.data_epoch()?);
+        Ok(affected)
+    }
+
+    /// Prepares, validates and applies COPY rows while the caller holds the
+    /// referential write gates for the target table.
+    fn stage_and_apply_copy_rows(
+        &self,
+        session: &CassieSession,
+        statement: &CopyStatement,
+        columns: &[CopyColumn],
+        rows: Vec<Vec<Option<String>>>,
+        cancellation: Option<&QueryCancellationHandle>,
+    ) -> Result<(usize, Option<crate::runtime::ProjectionWriteStats>), CassieError> {
+        let transactional = session.is_transaction_active();
         let batch = session.fork_statement_batch()?;
         let staging = batch.session();
         let mut seen_ids = BTreeSet::new();
@@ -155,7 +177,7 @@ impl Cassie {
         if transactional {
             check_copy_cancellation(cancellation)?;
             session.publish_statement_batch(&batch)?;
-            return Ok(affected);
+            return Ok((affected, None));
         }
 
         let writes = staging
@@ -163,7 +185,7 @@ impl Cassie {
             .remove(&statement.table)
             .unwrap_or_default();
         if writes.is_empty() {
-            return Ok(0);
+            return Ok((0, None));
         }
 
         let operations = copy_write_operations(writes)?;
@@ -174,9 +196,7 @@ impl Cassie {
             operations,
             &options,
         )?;
-        finish_copy_batch(self, &statement, &report.stats)?;
-        self.runtime.set_data_epoch(self.midge.data_epoch()?);
-        Ok(affected)
+        Ok((affected, Some(report.stats)))
     }
 }
 

@@ -53,8 +53,13 @@ impl Cassie {
                 "COMMIT requires an active transaction".to_string(),
             ));
         }
+        let collections = self.transaction_referential_write_collections(session);
         let committed = self
-            .apply_staged_write_batches(session, None)
+            .midge
+            .with_collection_write_gates(&collections, || {
+                self.validate_staged_foreign_keys(session)?;
+                self.apply_staged_write_batches(session, None)
+            })
             .inspect_err(|_| session.mark_transaction_failed())?;
 
         session.commit_transaction();

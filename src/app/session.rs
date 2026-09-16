@@ -620,6 +620,10 @@ impl CassieSession {
             })
     }
 
+    pub(crate) fn transaction_write_collections(&self) -> Vec<String> {
+        self.transaction.lock().writes.keys().cloned().collect()
+    }
+
     pub(crate) fn transaction_writes(
         &self,
     ) -> BTreeMap<String, BTreeMap<String, TransactionRowChange>> {

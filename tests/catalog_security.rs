@@ -6236,6 +6236,38 @@ mod catalog_missing_object_sqlstates {
     }
 
     #[test]
+    fn should_report_undefined_object_sqlstate_for_projection_maintenance_on_missing_version() {
+        // Arrange
+        use_local_storage();
+        let setup = [
+            "CREATE TABLE missing_version_docs (title TEXT)",
+            "INSERT INTO missing_version_docs (title) VALUES ('alpha')",
+            "CREATE MATERIALIZED PROJECTION missing_version_projection AS SELECT title FROM missing_version_docs",
+        ];
+        let statements = [
+            "VERIFY PROJECTION missing_version_projection VERSION v9",
+            "DIFF PROJECTION missing_version_projection VERSION v9 WITH missing_version_projection",
+            "COMPARE PROJECTION missing_version_projection VERSION v9 WITH MANIFEST '{\"root_digest\":\"abc\"}'",
+            "PLAN REPAIR PROJECTION missing_version_projection VERSION v9 SCOPE range",
+            "REPAIR PROJECTION missing_version_projection VERSION v9 SCOPE full-rebuild",
+        ];
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let sqlstates = runtime.block_on(sqlstates_for(
+            "missing_projection_version",
+            &setup,
+            &statements,
+        ));
+
+        // Assert
+        assert_eq!(sqlstates, vec![Some("42704".to_string()); statements.len()]);
+    }
+
+    #[test]
     fn should_report_undefined_table_sqlstate_when_serial_default_sequence_is_missing() {
         // Arrange
         use_local_storage();

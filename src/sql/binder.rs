@@ -696,7 +696,7 @@ fn bind_verify_projection_statement(
             "VERIFY PROJECTION requires a name".into(),
         ));
     }
-    ensure_projection_target_exists(&statement.name, catalog)?;
+    ensure_projection_target_exists(&statement.name, statement.version_id.as_deref(), catalog)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::VerifyProjection(statement),
@@ -767,11 +767,31 @@ fn normalize_projection_target(
             "projection targets require a name".into(),
         ));
     }
-    ensure_projection_target_exists(&target.name, catalog)?;
+    ensure_projection_target_exists(&target.name, target.version_id.as_deref(), catalog)?;
     Ok(target)
 }
 
-fn ensure_projection_target_exists(name: &str, catalog: &Catalog) -> Result<(), CassieError> {
+fn ensure_projection_target_exists(
+    name: &str,
+    version_id: Option<&str>,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    if let Some(projection) = catalog.get_materialized_projection(name) {
+        let Some(version_id) = version_id else {
+            return Ok(());
+        };
+        if projection
+            .versions
+            .iter()
+            .any(|version| version.version_id == version_id)
+        {
+            return Ok(());
+        }
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::ProjectionVersion,
+            name: format!("{name} VERSION {version_id}"),
+        });
+    }
     if catalog.relation_exists(name) || catalog.get_projection_metadata(name).is_some() {
         return Ok(());
     }

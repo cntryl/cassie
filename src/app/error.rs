@@ -12,6 +12,7 @@ pub enum CatalogObjectKind {
     Sequence,
     Rollup,
     RetentionPolicy,
+    ProjectionVersion,
 }
 
 impl CatalogObjectKind {
@@ -26,6 +27,7 @@ impl CatalogObjectKind {
             Self::Sequence => "sequence",
             Self::Rollup => "rollup",
             Self::RetentionPolicy => "retention policy",
+            Self::ProjectionVersion => "projection version",
         }
     }
 
@@ -34,7 +36,11 @@ impl CatalogObjectKind {
             Self::Database => "3D000",
             Self::Relation | Self::View | Self::Sequence => "42P01",
             Self::Schema => "3F000",
-            Self::Index | Self::Role | Self::Rollup | Self::RetentionPolicy => "42704",
+            Self::Index
+            | Self::Role
+            | Self::Rollup
+            | Self::RetentionPolicy
+            | Self::ProjectionVersion => "42704",
         }
     }
 }

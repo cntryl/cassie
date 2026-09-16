@@ -12,19 +12,15 @@ fn should_bound_fresh_projection_output_write_batches() {
     let row_count = 10_001;
 
     // Act
-    let batches = super::verification::storage::write_ranges(row_count, 256)
-        .map(|range| range.len())
-        .collect::<Vec<_>>();
+    let batches = super::verification::storage::write_ranges(
+        row_count,
+        super::verification::PROJECTION_OUTPUT_WRITE_BATCH_SIZE,
+    )
+    .map(|range| range.len())
+    .collect::<Vec<_>>();
 
     // Assert
-    assert_eq!(
-        batches,
-        vec![
-            256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-            256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-            256, 256, 256, 256, 256, 17,
-        ]
-    );
+    assert_eq!(batches, vec![5_000, 5_000, 1]);
 }
 
 #[test]
@@ -146,7 +142,7 @@ fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
 
     // Assert
     assert_eq!(report.stats.row_puts, 5_001);
-    assert_eq!(report.stats.batch_flushes, 21);
+    assert_eq!(report.stats.batch_flushes, 3);
     assert_eq!(root.row_count, 5_001);
     assert_eq!(root.range_count, 20);
     assert_eq!(

@@ -65,6 +65,27 @@ The view is metadata only. Cassie performs no routing, placement, movement, fail
 replication, fleet coordination, or remote repair. External orchestration owns those workflows;
 see [Operational Scale](operational-scale.md).
 
+## Operator Actions By State
+
+Each supported diagnostic state has one deterministic operator reaction. States not listed here
+have no defined operator action and must not be inferred as safe to ignore.
+
+| Surface | State | Meaning | Operator action |
+| --- | --- | --- | --- |
+| `/healthz`, `/readyz`, `/startupz` | `ready = false` | Startup has not finished. | Wait and re-poll; do not route traffic. Escalate if `ready` stays false past the expected startup window for the deployment profile. |
+| `/livez` | `ready = false` | Process is not answering. | Restart the process; escalate if repeated restarts do not recover liveness. |
+| `pg_catalog.pg_operational_assignments` | `claimed` | This node owns the assignment at the recorded generation. | Normal state; no action. Confirm `generation` is the highest known value before trusting the claim. |
+| `pg_catalog.pg_operational_assignments` | `draining` | External orchestration is moving traffic off this assignment. | Stop routing new work externally; wait for in-flight work to finish, then mark `released`. Do not delete data while draining. |
+| `pg_catalog.pg_operational_assignments` | `released` | This node no longer owns the assignment. | Safe to reclaim local resources for the assignment. Rollback: re-claim with a higher generation if validation on the new target failed. |
+| `pg_catalog.pg_operational_assignments` | `failed` | The last claim/drain/release transition did not complete cleanly. | Manual intervention required: compare `generation`/`updated_ms` against the intended target, then re-issue a claim with a higher generation. Do not retry automatically. |
+| `pg_catalog.pg_maintenance_debt` | Non-zero debt rising | Derived state (projection/rollup/index) is falling behind its source. | Run the documented rebuild/repair workflow during a maintenance window; escalate if debt keeps growing after rebuild. |
+| `pg_catalog.pg_projection_integrity_reports` | Verification failure | A projection's derived rows disagree with the authoritative source. | Query continues to serve from the authoritative fallback. Run repair; treat repeated failures on the same projection as an escalation, not a routine retry. |
+| `pg_catalog.pg_projection_repair_reports` | Repair failure | An attempted repair did not converge. | Do not retry automatically. Escalate for manual investigation; keep serving from the authoritative fallback in the meantime. |
+| `capacity.families` / `capacity.categories` | Advisory threshold breached | See [Capacity Management](capacity-management.md) signal table. | Follow the matching response in that table; these are advisory, not release gates. |
+
+These reactions describe local operator behavior only. Claiming, draining, releasing, or
+retrying a remote node's assignment is external orchestration and is not part of this contract.
+
 ## Evidence Boundary
 
 The `rest_metrics`, `metrics_capacity`, `metrics_runtime`, `operational_smoke`, and

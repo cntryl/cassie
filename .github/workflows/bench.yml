@@ -211,6 +211,7 @@ jobs:
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
           STRESS_FILTER: ${{ inputs.workload }}
+          STRESS_ALLOW_EMPTY_FILTERED_OWNER: ${{ inputs.workload != 'all' && '1' || '0' }}
         run: |
           if [[ "${STRESS_FILTER}" == "all" ]]; then
             unset STRESS_FILTER

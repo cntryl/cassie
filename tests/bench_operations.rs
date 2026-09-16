@@ -7367,6 +7367,7 @@ mod benchmark_deployment_profile_contract {
         let declares_selector = workflow.contains("      workload:")
             && workflow.contains("default: all")
             && workflow.contains("STRESS_FILTER: ${{ inputs.workload }}")
+            && workflow.contains("STRESS_ALLOW_EMPTY_FILTERED_OWNER:")
             && workflow.contains("unset STRESS_FILTER");
         let validates_observed_artifact = workflow.contains("Validate selected workload artifact")
             && workflow.contains(".metadata.scenario_id == $workload")
@@ -7383,6 +7384,29 @@ mod benchmark_deployment_profile_contract {
         assert!(validates_observed_artifact);
         assert!(withholds_complete_manifest);
         assert!(documents_scope);
+    }
+
+    #[test]
+    fn should_allow_only_filtered_non_owner_binaries_to_finish_without_rows() {
+        // Arrange
+        let selected_rows = 0;
+        let exact_filter = Some("perf.scale.vector.hnsw.100k");
+
+        // Act
+        let allowed =
+            super::stress::allow_empty_filtered_owner(selected_rows, exact_filter, Some("1"));
+        let rejected_without_filter =
+            super::stress::allow_empty_filtered_owner(selected_rows, None, Some("1"));
+        let rejected_without_opt_in =
+            super::stress::allow_empty_filtered_owner(selected_rows, exact_filter, Some("0"));
+        let rejected_with_rows =
+            super::stress::allow_empty_filtered_owner(1, exact_filter, Some("1"));
+
+        // Assert
+        assert!(allowed);
+        assert!(!rejected_without_filter);
+        assert!(!rejected_without_opt_in);
+        assert!(!rejected_with_rows);
     }
 
     #[test]

@@ -59,6 +59,15 @@ pub fn external_elapsed(elapsed: Duration, completed_operations: u64) -> Duratio
     elapsed
 }
 
+#[must_use]
+pub fn allow_empty_filtered_owner(
+    selected: usize,
+    filter: Option<&str>,
+    opt_in: Option<&str>,
+) -> bool {
+    selected == 0 && filter.is_some() && opt_in == Some("1")
+}
+
 pub struct CassieStressRunner {
     suite: &'static str,
     tier: BenchmarkTier,
@@ -561,6 +570,15 @@ impl CassieStressRunner {
     pub fn finish(self) {
         if self.selected == 0 {
             eprintln!("No stress benchmarks matched the selected filters.");
+            if allow_empty_filtered_owner(
+                self.selected,
+                self.filter.as_deref(),
+                std::env::var("STRESS_ALLOW_EMPTY_FILTERED_OWNER")
+                    .ok()
+                    .as_deref(),
+            ) {
+                return;
+            }
         }
 
         let relative_p95_gates = self.relative_p95_gates;

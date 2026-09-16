@@ -135,24 +135,52 @@ mod tests {
     use crate::app::CassieError;
 
     #[test]
-    fn should_retry_write_conflicts_and_stalls_but_not_fenced_writers() {
+    fn should_retry_a_write_conflict_immediately() {
         // Arrange
-        let conflict = CassieError::from(cntryl_midge::MidgeError::WriteConflict(
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteConflict(
             "overlap".to_string(),
         ));
-        let stall = CassieError::from(cntryl_midge::MidgeError::WriteStall("full".to_string()));
-        let fenced = CassieError::from(cntryl_midge::MidgeError::Fenced("stale".to_string()));
 
         // Act
-        let conflict_delay = document_write_retry_delay(&conflict, 1);
-        let stall_delay = document_write_retry_delay(&stall, 3);
-        let fenced_delay = document_write_retry_delay(&fenced, 1);
-        let exhausted_delay = document_write_retry_delay(&stall, DOCUMENT_WRITE_BATCH_ATTEMPTS);
+        let delay = document_write_retry_delay(&error, 1);
 
         // Assert
-        assert_eq!(conflict_delay, Some(Duration::ZERO));
-        assert_eq!(stall_delay, Some(Duration::from_millis(6)));
-        assert_eq!(fenced_delay, None);
-        assert_eq!(exhausted_delay, None);
+        assert_eq!(delay, Some(Duration::ZERO));
+    }
+
+    #[test]
+    fn should_back_off_linearly_before_retrying_a_write_stall() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteStall("full".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, 3);
+
+        // Assert
+        assert_eq!(delay, Some(Duration::from_millis(6)));
+    }
+
+    #[test]
+    fn should_not_retry_a_fenced_writer() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::Fenced("stale".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, 1);
+
+        // Assert
+        assert_eq!(delay, None);
+    }
+
+    #[test]
+    fn should_stop_retrying_after_the_attempt_limit() {
+        // Arrange
+        let error = CassieError::from(cntryl_midge::MidgeError::WriteStall("full".to_string()));
+
+        // Act
+        let delay = document_write_retry_delay(&error, DOCUMENT_WRITE_BATCH_ATTEMPTS);
+
+        // Assert
+        assert_eq!(delay, None);
     }
 }

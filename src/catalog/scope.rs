@@ -367,7 +367,7 @@ mod tests {
     }
 
     #[test]
-    fn should_keep_database_and_schema_when_deriving_from_three_part_name() {
+    fn should_keep_full_qualifier_when_deriving_from_three_part_name() {
         // Arrange
         let base = "tenant_db.reporting.orders";
 

@@ -55,7 +55,9 @@ pub use context::{
     LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
 };
 pub use document_batches::{bench_document_write_batch_ranges, BENCH_DOCUMENT_WRITE_BATCH_ROWS};
-pub use empty_context::{empty_context, empty_context_with_temp_budget};
+pub use empty_context::{
+    empty_context, empty_context_with_temp_budget, empty_disk_context_with_temp_budget,
+};
 pub use hotpath::*;
 pub use http::*;
 pub use join_context::*;

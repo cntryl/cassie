@@ -90,6 +90,14 @@ impl ScaleCases {
             || self.retention.is_some()
             || self.rollup.is_some()
     }
+
+    fn only_time_series_enabled(&self) -> bool {
+        (self.retention.is_some() || self.rollup.is_some())
+            && self.replay.is_none()
+            && self.rebuild.is_none()
+            && self.startup.is_none()
+            && self.verify.is_none()
+    }
 }
 
 fn measure_scale(
@@ -100,6 +108,10 @@ fn measure_scale(
 ) -> Option<workloads::StartupFixture> {
     let cases = ScaleCases::select(runner, scale, rows);
     if !cases.any_enabled() {
+        return None;
+    }
+    if cases.only_time_series_enabled() {
+        measure_isolated_time_series(runtime, runner, rows, &cases);
         return None;
     }
 
@@ -194,6 +206,54 @@ fn measure_scale(
     Some(fixture)
 }
 
+fn measure_isolated_time_series(
+    runtime: &tokio::runtime::Runtime,
+    runner: &mut stress::CassieStressRunner,
+    rows: usize,
+    cases: &ScaleCases,
+) {
+    let setup_started = Instant::now();
+    let context = runtime
+        .block_on(workloads::empty_disk_context_with_temp_budget(
+            "tier5-lifecycle-time-series-100k",
+            rows,
+            workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+        ))
+        .expect("isolated time-series lifecycle fixture");
+    let time_series = workloads::prepare_time_series_lifecycle_context(&context, rows);
+    let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
+    let operation_count = u64::try_from(rows).expect("lifecycle source rows should fit u64");
+
+    if let Some(case) = cases.retention.clone() {
+        measure_retention(
+            runtime,
+            runner,
+            case,
+            &setup_time_ns,
+            operation_count,
+            &time_series,
+            &time_series,
+        );
+    }
+    if let Some(case) = cases.rollup.clone() {
+        measure_rollup(
+            runtime,
+            runner,
+            case,
+            &setup_time_ns,
+            operation_count,
+            &time_series,
+            &time_series,
+        );
+    }
+    workloads::assert_scaling_resource_bounds(&time_series);
+    let data_dir = context.data_dir.clone();
+    context.cassie.shutdown();
+    drop(time_series);
+    drop(context);
+    std::fs::remove_dir_all(data_dir).expect("clean up isolated time-series lifecycle fixture");
+}
+
 fn measure_replay(
     runtime: &tokio::runtime::Runtime,
     runner: &mut stress::CassieStressRunner,
@@ -233,6 +293,9 @@ fn measure_retention(
             completed
         },
     );
+    let repeated = runtime.block_on(workloads::time_series_retention_enforcement(time_series));
+    assert_eq!(repeated, 1, "repeated retention command must report once");
+    workloads::assert_time_series_retention_state(time_series);
 }
 
 fn measure_rollup(
@@ -254,6 +317,9 @@ fn measure_rollup(
             completed
         },
     );
+    let repeated = runtime.block_on(workloads::time_series_rollup_refresh(time_series));
+    assert_eq!(repeated, 1, "repeated rollup command must report once");
+    workloads::assert_time_series_rollup_state(time_series);
 }
 
 fn selected_case(

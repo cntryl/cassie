@@ -83,6 +83,45 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 - Production-browser coverage runs the Admin UI from a real temporary Cassie process at desktop and mobile viewports. The Askr `0.2.1`, Askr UI `0.2.0`, `@askrjs/themes` `0.2.1`, and `@askrjs/monaco` `0.2.0` package run passes 116 repository tests, 20 desktop/mobile mock-browser cases, and 2 real-Cassie desktop/mobile production-browser cases together. Mock-browser evidence covers axe scans of login, empty workspace, controlled dialog, populated results, query failure, and mobile-sidebar states plus committed populated desktop light/dark and mobile open/closed screenshots. The production-browser case loads a fresh Monaco editor, immediately filters the schema tree, and rejects the historical `state.set() cannot be called during component render` console failure. Cassie isolates live query-text reactivity from Monaco host reconciliation so editor selection, history, completion, results, and theme changes preserve workspace state. The released packages resolve [askrjs/askr-monaco#22](https://github.com/askrjs/askr-monaco/issues/22) and [askrjs/askr-themes#62](https://github.com/askrjs/askr-themes/issues/62), so their application workarounds are removed. This evidence promotes only the Admin UI support entry to Stable; Cassie's overall Production Candidate classification is unchanged.
 - Askr does not yet expose a lifecycle-owned dynamic keyed-query collection with bounded prefetch and aggregate state. Cassie therefore retains one narrow `DatabaseCatalogController` for lazy schema loading, three-request search prefetch, retry, aggregate progress, and abort-on-unmount without adding another schema cache. The upstream capability is tracked in [askrjs/askr#327](https://github.com/askrjs/askr/issues/327).
 
+## Rollup and Retention Operator Contract
+
+Rollup refresh and retention enforcement are explicit, local, single-node maintenance commands.
+Run `ENFORCE RETENTION POLICY <policy> AT '<timestamp>'` with a recorded cutoff, inspect the
+policy catalog row and runtime metrics, then run `REFRESH ROLLUP <rollup>` when an explicit
+refresh is required. Repeating either command over unchanged state is supported: subsequent
+retention windows delete zero additional eligible rows, and repeated rollup refreshes preserve
+the same aggregates and source generation.
+
+The stable metric keys and their cumulative semantics are:
+
+- `retention.enforcements`, `retention.deleted_rows`, `retention.skipped_rows`, and
+  `retention.errors` count completed enforcement attempts, deleted source rows, rows skipped
+  because they were invalid or referentially restricted, and failed attempts. The gauges
+  `retention.last_policy` and `retention.last_error` identify the most recent policy and failure.
+- `rollups.refreshes`, `rollups.rewrite_hits`, `rollups.fallback_scans`, and
+  `rollups.stale_fallbacks` count completed refreshes, rollup-backed reads, authoritative-source
+  fallbacks, and the stale subset of those fallbacks. The gauges `rollups.last_rollup` and
+  `rollups.last_fallback_reason` identify the latest rollup activity.
+- `pg_catalog.pg_maintenance_debt` is the durable recovery surface. `artifact`,
+  `target_generation`, `retry_count`, `last_error`, and `fallback_reason` describe work that must
+  be replayed before the derived artifact can serve reads.
+
+Cancellation or resource exhaustion before durable source mutation returns an error and must not
+be reported as successful enforcement or refresh. A failure after source mutation leaves the
+source authoritative, records maintenance debt, and forces rollup reads to fall back until retry
+completes. Restart automatically retries durable rollup debt. If debt remains or `retry_count`
+continues increasing, preserve the database directory and diagnostics, correct the underlying
+storage or resource condition, restart, and verify the debt row disappears before relying on the
+rollup again.
+
+The retained capacity owners are `perf.time_series.retention.100k` and
+`perf.time_series.rollup_refresh.100k` on the `native-linux-amd64-disk` profile. Their artifacts
+separate fixture setup from measured work and retain affected rows, storage activity, peak query
+memory, configured workers, variance, and trust status. These 100k results are representative
+evidence, not an SLO or an assertion that larger operator windows fit the same maintenance window.
+Calendar-aware buckets, background scheduling, distributed coordination, and analytical
+projection lifecycle remain outside this contract.
+
 ## Production Candidate Support Envelope
 
 - PostgreSQL wire is the primary SQL interface; REST is secondary and administrative.

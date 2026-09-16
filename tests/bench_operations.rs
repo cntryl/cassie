@@ -2443,6 +2443,102 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_validate_repeated_time_series_maintenance_windows() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let workload_source = include_str!("../benches/support/workloads/system.rs");
+
+        // Act
+        let validates_retention =
+            owner_source.contains("workloads::assert_time_series_retention_state(time_series)");
+        let validates_rollup =
+            owner_source.contains("workloads::assert_time_series_rollup_state(time_series)");
+        let bypasses_projection_fixture = owner_source.contains("cases.only_time_series_enabled()")
+            && owner_source.contains("empty_disk_context_with_temp_budget");
+        let proves_idempotent_delete = workload_source.contains("policy.last_deleted_rows, 0")
+            && workload_source.contains("repeated retention delete count");
+        let proves_fresh_generation = workload_source
+            .contains("assert_eq!(rollup.refresh_cursor.source_generation, source_generation)");
+        let proves_exact_aggregates = workload_source
+            .contains("assert_eq!(rollup_total, source_total, \"rollup count aggregate\")")
+            && workload_source
+                .contains("assert_eq!(rollup_amount, source_amount, \"rollup sum aggregate\")");
+
+        // Assert
+        assert!(validates_retention);
+        assert!(validates_rollup);
+        assert!(bypasses_projection_fixture);
+        assert!(proves_idempotent_delete);
+        assert!(proves_fresh_generation);
+        assert!(proves_exact_aggregates);
+    }
+
+    #[test]
+    fn should_preserve_disk_mode_when_building_isolated_lifecycle_fixture() {
+        // Arrange
+        let source = include_str!("../benches/support/workloads/empty_context.rs");
+        let helper = source
+            .split_once("pub fn empty_disk_context_with_temp_budget")
+            .expect("disk-backed empty context helper")
+            .1
+            .split_once("fn empty_context_with_config")
+            .expect("end of disk-backed empty context helper")
+            .0;
+        let builder = source
+            .split_once("fn empty_context_with_config")
+            .expect("empty context builder")
+            .1;
+
+        // Act
+        let selects_disk_mode = helper.contains("BenchmarkStorageMode::Disk");
+        let setup_position = builder
+            .find("configure_benchmark_environment();")
+            .expect("benchmark environment setup");
+        let disk_position = builder
+            .find("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")")
+            .expect("explicit local storage mode");
+        let config_position = builder
+            .find("CassieRuntimeConfig::from_env()")
+            .expect("runtime configuration read");
+
+        // Assert
+        assert!(selects_disk_mode);
+        assert!(setup_position < disk_position);
+        assert!(disk_position < config_position);
+    }
+
+    #[test]
+    fn should_document_rollup_retention_operator_contract() {
+        // Arrange
+        let readiness = include_str!("../docs/production-readiness.md");
+        let required_contract = [
+            "## Rollup and Retention Operator Contract",
+            "retention.enforcements",
+            "retention.deleted_rows",
+            "retention.skipped_rows",
+            "retention.errors",
+            "retention.last_policy",
+            "rollups.refreshes",
+            "rollups.rewrite_hits",
+            "rollups.fallback_scans",
+            "rollups.stale_fallbacks",
+            "rollups.last_rollup",
+            "pg_catalog.pg_maintenance_debt",
+            "REFRESH ROLLUP",
+            "ENFORCE RETENTION POLICY",
+        ];
+
+        // Act
+        let missing = required_contract
+            .into_iter()
+            .filter(|entry| !readiness.contains(entry))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(missing.is_empty(), "missing operator contract: {missing:?}");
+    }
+
+    #[test]
     fn should_seed_lifecycle_time_series_rows_in_bounded_batches() {
         // Arrange
         let setup_source = include_str!("../benches/support/workloads/scaling_legacy.rs");

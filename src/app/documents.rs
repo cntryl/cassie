@@ -697,7 +697,7 @@ impl Cassie {
                 let Some(expected) = check.value.as_str() else {
                     return false;
                 };
-                Self::string_like_match(expected, value)
+                crate::executor::filter::like_matches(value, expected).unwrap_or(false)
             }
         }
     }
@@ -718,26 +718,6 @@ impl Cassie {
                 Some(left.cmp(right))
             }
             _ => None,
-        }
-    }
-
-    fn string_like_match(pattern: &str, value: &str) -> bool {
-        if pattern == "%" {
-            return true;
-        }
-
-        let starts_with_wildcard = pattern.starts_with('%');
-        let ends_with_wildcard = pattern.ends_with('%');
-        let normalized = pattern.trim_matches('%');
-
-        if starts_with_wildcard && ends_with_wildcard {
-            value.contains(normalized)
-        } else if starts_with_wildcard {
-            value.ends_with(normalized)
-        } else if ends_with_wildcard {
-            value.starts_with(normalized)
-        } else {
-            value == pattern
         }
     }
 

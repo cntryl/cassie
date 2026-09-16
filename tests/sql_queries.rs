@@ -3895,6 +3895,73 @@ mod integration_sql_predicates {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_match_like_wildcards_anywhere_in_pattern() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("predicate_like_wildcards");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE predicate_like_wildcards (row_key INT, name TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO predicate_like_wildcards (row_key, name) VALUES (1, 'foobar'), (2, 'abc'), (3, 'ABC'), (4, 'a%c'), (5, 'a_c'), (6, 'axxc'), (7, 'fooxbarbar'), (8, NULL)",
+                vec![],
+            )
+            .expect("seed rows");
+        let selected_ids = |predicate: &str, params: Vec<Value>| {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "SELECT row_key FROM predicate_like_wildcards WHERE {predicate} ORDER BY row_key"
+                    ),
+                    params,
+                )
+                .expect("evaluate like predicate")
+                .rows
+                .into_iter()
+                .map(|row| row[0].clone())
+                .collect::<Vec<_>>()
+        };
+        let ids = |values: &[i64]| values.iter().copied().map(Value::Int64).collect::<Vec<_>>();
+
+        // Act
+        let interior = selected_ids("name LIKE 'foo%bar'", vec![]);
+        let multiple = selected_ids("name LIKE '%a%c%'", vec![]);
+        let single = selected_ids("name LIKE 'a_c'", vec![]);
+        let repeated = selected_ids("name LIKE 'foo%%bar'", vec![]);
+        let escaped_percent = selected_ids("name LIKE 'a\\%c'", vec![]);
+        let escaped_underscore = selected_ids("name LIKE 'a\\_c'", vec![]);
+        let case_sensitive = selected_ids("name LIKE 'A%'", vec![]);
+        let parameterized = selected_ids(
+            "name LIKE $1",
+            vec![Value::String("%o%b_r".to_string())],
+        );
+        let negated = selected_ids("NOT (name LIKE '%a%')", vec![]);
+
+        // Assert
+        assert_eq!(interior, ids(&[1, 7]), "foo%bar");
+        assert_eq!(multiple, ids(&[2, 4, 5, 6]), "%a%c%");
+        assert_eq!(single, ids(&[2, 4, 5]), "a_c");
+        assert_eq!(repeated, ids(&[1, 7]), "foo%%bar");
+        assert_eq!(escaped_percent, ids(&[4]), "escaped percent");
+        assert_eq!(escaped_underscore, ids(&[5]), "escaped underscore");
+        assert_eq!(case_sensitive, ids(&[3]), "LIKE is case-sensitive");
+        assert_eq!(parameterized, ids(&[1, 7]), "parameterized pattern");
+        assert_eq!(negated, ids(&[3]), "negated LIKE keeps NULL out");
+
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/integration_sql_projection.rs.

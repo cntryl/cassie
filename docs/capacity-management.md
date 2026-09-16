@@ -66,6 +66,17 @@ duration, disk growth, and sustained mixed-workload saturation at the declared f
 client/worker axes. Until those artifacts are retained with matching commit, toolchain, fixture,
 and profile identity, alerts are operator guidance rather than SLA or release gates.
 
+### Value classification
+
+Every value in this document falls into exactly one of three categories; treating one as another
+misrepresents its support level:
+
+| Category | Meaning | Example | Enforcement |
+| --- | --- | --- | --- |
+| Advisory alert | Manual-operations starting point; not validated against repeated runs. | The disk headroom/cache/fallback values in the profile threshold matrix above. | None; tune per deployment before using as an alert. |
+| Release gate | A CI check that blocks merge/release on a missing or failing artifact, independent of the underlying number's SLA status. | PR #226's exact-digest operational evidence workflow failing closed on an incomplete manifest. | `validate_operational_evidence_manifest` and the `operational-readiness.yml` workflow. |
+| Supported production objective | A numeric bound backed by a retained, same-profile, multi-sample bundle with recorded variance. | None currently exist for any profile in the matrix above (`Pending`/`Diagnostic only`). | `validate_threshold_evidence_bundle` (see below) once a bundle is retained and reviewed. |
+
 | Signal | Advisory threshold | Response |
 | --- | --- | --- |
 | Disk free space under `CASSIE_STORAGE_PATH` | Below 30% during normal serving, or below 50% before snapshots, restore tests, large index builds, or projection rebuilds. | Add capacity, move tenants, reduce retention horizon, or defer rebuild/snapshot work. |
@@ -103,6 +114,27 @@ Move before disk pressure blocks snapshots, restores, index builds, projection r
 4. Capture `/metrics`, including `capacity.families` and `capacity.categories`, representative `EXPLAIN ANALYZE` output, host CPU, memory, and `CASSIE_STORAGE_PATH` disk usage before and after the change.
 5. Compare fallback counters, cache occupancy, candidate counts, storage-family operations, advisory capacity bytes, and rebuild/write-amplification counters against earlier evidence for the same profile.
 6. Decide whether to add an access path, reshape the projection, move a tenant/projection to another independent node, or keep the workload as explicit batch/offline work.
+
+## Threshold Evidence Bundle Rules
+
+Proposing a profile-specific threshold requires a *bundle* of comparable retained manifests, not
+a single run. `validate_threshold_evidence_bundle` in
+`tests/support/operational_evidence.rs` enforces this deterministically before any value is
+derived from a bundle:
+
+- Fewer samples than the declared minimum: rejected. A single measurement can never satisfy a
+  `min_samples > 1` requirement, so it can never be promoted to an SLA by this function alone.
+- Any sample failing the single-manifest shape contract (incomplete, malformed, wrong revision,
+  wrong platform/profile pairing): the whole bundle is rejected, with the offending sample index
+  and field named in the error.
+- Any sample pinned to a commit other than the bundle's expected commit (mixed-revision): rejected.
+- Any sample whose `deployment_profile` does not match the bundle's declared profile (outside the
+  declared profile): rejected.
+
+A bundle that passes returns per-metric sample count, mean, and standard deviation for every
+`elapsed_ns` field, satisfying "record sample count and observed variance" without asserting that
+the resulting numbers are themselves a production objective. See `threshold_evidence_bundle` in
+`tests/bench_operations.rs` for the deterministic coverage.
 
 ## Production Evidence Backlog Checklist
 

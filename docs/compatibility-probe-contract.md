@@ -8,9 +8,11 @@ runtime profile.
 
 Run `.github/workflows/compatibility-probes.yml` manually with:
 
-- `probe`: `native`, `sqlx`, `diesel`, `prisma`, `sqlalchemy`, `psql`, `desktop`, or `catalog`;
+- `probe`: `native`, `sqlx`, `diesel`, `prisma`, `sqlalchemy`, `psql`, `pgadmin-9.16`,
+  `dbeaver-26.1.3`, or `catalog`;
 - `run_external`: `true` only when the required client tools are available;
-- `source_revision`: the Cassie commit being tested.
+- `source_revision`: the full Cassie commit SHA being tested; the workflow fails unless it exactly
+  matches the checked-out `HEAD`.
 
 The workflow never accepts a password or other secret input. It starts Cassie with the test-only
 in-memory fallback and uses loopback connections. External runs must retain only normalized,
@@ -25,8 +27,22 @@ secret-free stdout/stderr and the generated manifest.
 | Prisma | Prisma CLI `6.1.0` | Opt-in probe in `compatibility_matrix.rs` |
 | SQLAlchemy | SQLAlchemy `2.0.36`, psycopg `3.2.3` | Opt-in probe in `compatibility_sqlalchemy.rs` |
 | psql | `postgres:16.6-bookworm` image | Opt-in probe in `compatibility_matrix.rs` |
-| pgAdmin | pgAdmin `9.16`, JDBC `42.7.11` where applicable | External desktop gate; not certified here |
-| DBeaver | DBeaver `26.1.3`, JDBC `42.7.11` where applicable | External desktop gate; not certified here |
+| pgAdmin | pgAdmin `9.16` | Pinned normalized trace replay; live desktop gate is not provisioned or certified |
+| DBeaver | DBeaver `26.1.3`, PostgreSQL JDBC `42.7.11` | Pinned normalized trace replay; live desktop gate is not provisioned or certified |
+
+## Desktop trace replay
+
+The `pgadmin-9.16` and `dbeaver-26.1.3` lanes validate the checked-in fixture digest, client and
+driver identity, upstream source revision, required workflow coverage, SQL or protocol mode,
+expected columns, row count, and deterministic SQLSTATE failures before replaying the fixture
+against a temporary authenticated Cassie pgwire listener. The retained manifest records
+`status=replay-passed` and `certification_status=unavailable`; trace replay is a prerequisite and
+never a live-client certification claim.
+
+Live password/TLS connection and reconnection, cancellation, native navigator/properties UI,
+graphical plan rendering, and primary-key grid editing still require separately provisioned
+pgAdmin and DBeaver desktop runners. No such repository runner is currently available, so those
+gates and exact-revision live artifacts remain open.
 
 ## sqlx workflow
 

@@ -116,6 +116,13 @@ pub fn set_document_write_storage_failures(failure: DocumentWriteStorageFailure,
     DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(|counter| counter.set(remaining));
 }
 
+/// Returns how many injected storage failures this thread has not consumed yet.
+#[doc(hidden)]
+#[must_use]
+pub fn document_write_storage_failures_remaining() -> u8 {
+    DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(Cell::get)
+}
+
 pub(crate) fn check_document_write_conflict_injection() -> Result<(), CassieError> {
     let injected = DOCUMENT_WRITE_STORAGE_FAILURES_REMAINING.with(|counter| {
         let remaining = counter.get();

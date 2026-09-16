@@ -344,6 +344,9 @@ impl Midge {
                 Ok(reports) => return Ok(reports),
                 Err(error) => match commit::document_write_retry_delay(&error, attempts) {
                     Some(delay) => {
+                        // Releases only this attempt's own guards. The gates are
+                        // reentrant, so any gates an outer caller already holds
+                        // stay held during the backoff.
                         drop(write_guards);
                         std::thread::sleep(delay);
                     }

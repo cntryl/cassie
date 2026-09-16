@@ -87,6 +87,7 @@ mod document_scans;
 pub(crate) use document_scans::SessionRowCursor;
 mod documents;
 mod embeddings;
+mod foreign_key_checks;
 mod hydration;
 mod lifecycle;
 mod operational;

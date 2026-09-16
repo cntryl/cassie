@@ -288,6 +288,16 @@ impl Midge {
         operation: impl FnOnce() -> T,
     ) -> T {
         let _referential_guard = self.referential_write_gate.lock();
+        self.with_collection_gates(collections, operation)
+    }
+
+    /// Holds only the per-collection write gates, without the global referential
+    /// gate. Use it only for writes to collections outside any FOREIGN KEY.
+    pub(crate) fn with_collection_gates<T>(
+        &self,
+        collections: &[String],
+        operation: impl FnOnce() -> T,
+    ) -> T {
         let mut names = collections
             .iter()
             .map(|collection| collection.to_ascii_lowercase())

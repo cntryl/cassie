@@ -4165,7 +4165,13 @@ mod rest_json_contract {
         // Assert
         let error = result.expect_err("ambiguous payload keys must be rejected");
         assert!(
-            error.to_string().contains("DisplayName"),
+            matches!(&error, cassie::app::CassieError::InvalidVector(_)),
+            "unexpected error variant: {error:?}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("field 'DisplayName' is specified more than once"),
             "unexpected error: {error}"
         );
 

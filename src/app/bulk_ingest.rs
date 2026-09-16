@@ -121,6 +121,7 @@ impl Cassie {
         let transactional = session.is_transaction_active();
         let batch = session.fork_statement_batch()?;
         let staging = batch.session();
+        let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
         let mut seen_ids = BTreeSet::new();
         let mut affected = 0usize;
 
@@ -163,16 +164,20 @@ impl Cassie {
                 )));
             }
 
-            let prepared = self.prepare_document_write_for_session(
+            let (prepared, constraints) = self.prepare_document_write_deferring_foreign_keys(
                 Some(staging),
                 &statement.table,
                 serde_json::Value::Object(payload),
                 true,
                 None,
             )?;
+            references.collect(&constraints, &prepared)?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
         }
+
+        check_copy_cancellation(cancellation)?;
+        self.validate_foreign_key_references(Some(staging), &statement.table, &references)?;
 
         if transactional {
             check_copy_cancellation(cancellation)?;

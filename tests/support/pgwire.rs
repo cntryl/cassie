@@ -412,6 +412,27 @@ pub fn parse_data_row(payload: &[u8]) -> Vec<Option<String>> {
     values
 }
 
+pub fn row_description_names(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
+    frames
+        .iter()
+        .find(|(tag, _)| *tag == b'T')
+        .map(|(_, payload)| {
+            parse_row_description(payload)
+                .into_iter()
+                .map(|field| field.name)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn data_rows(frames: &[(u8, Vec<u8>)]) -> Vec<Vec<Option<String>>> {
+    frames
+        .iter()
+        .filter(|(tag, _)| *tag == b'D')
+        .map(|(_, payload)| parse_data_row(payload))
+        .collect()
+}
+
 pub fn parse_error_fields(payload: &[u8]) -> Vec<(char, String)> {
     let mut cursor = 0usize;
     let mut fields = Vec::new();

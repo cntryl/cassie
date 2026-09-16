@@ -2652,6 +2652,335 @@ mod pgwire_portal_streaming {
         });
     }
 
+    #[test]
+    fn should_align_extended_wildcard_data_rows_with_row_description_when_table_declares_id() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("extended-wildcard-declared-id");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (cassie, row_id) = declared_id_table(&path, "extended_wildcard_id_docs");
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("wildcard_stmt", "SELECT * FROM extended_wildcard_id_docs"),
+                    support::describe_statement_frame("wildcard_stmt"),
+                    support::bind_frame("wildcard_portal", "wildcard_stmt", &[]),
+                    support::execute_frame("wildcard_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert!(frames.iter().all(|(tag, _)| *tag != b'E'));
+            assert_eq!(
+                support::row_description_names(&frames),
+                vec!["id".to_string(), "title".to_string()]
+            );
+            assert_eq!(
+                support::data_rows(&frames),
+                vec![vec![Some(row_id), Some("x".to_string())]]
+            );
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_align_streaming_portal_wildcard_data_rows_with_row_description_when_table_declares_id(
+    ) {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-wildcard-declared-id");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (cassie, row_id) = declared_id_table(&path, "portal_wildcard_id_docs");
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("wildcard_stmt", "SELECT * FROM portal_wildcard_id_docs"),
+                    support::bind_frame("wildcard_portal", "wildcard_stmt", &[]),
+                    support::describe_portal_frame("wildcard_portal"),
+                    support::execute_limited_frame("wildcard_portal", 10),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert!(frames.iter().all(|(tag, _)| *tag != b'E'));
+            assert_eq!(
+                support::row_description_names(&frames),
+                vec!["id".to_string(), "title".to_string()]
+            );
+            assert_eq!(
+                support::data_rows(&frames),
+                vec![vec![Some(row_id), Some("x".to_string())]]
+            );
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_page_portal_from_one_result_when_delete_commits_during_staged_transaction() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-staged-concurrent-delete");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+            config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+            config.limits.parallel_scan_workers = 1;
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config.clone()).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE portal_staged_rows (payload TEXT)",
+                    vec![],
+                )
+                .expect("create table");
+            for index in 0..6 {
+                cassie
+                    .midge
+                    .put_document(
+                        "portal_staged_rows",
+                        Some(format!("doc-{index:02}")),
+                        serde_json::json!({"payload": format!("value-{index:02}")}),
+                    )
+                    .expect("seed row");
+            }
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+                .await
+                .expect("bind listener");
+            let addr = listener.local_addr().expect("listener address");
+            drop(listener);
+            let server = tokio::spawn(cassie::pgwire::server::run(
+                addr.to_string(),
+                Arc::new(cassie),
+                config,
+            ));
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            let mut reader_socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("reader connection");
+            let (read_half, mut write_half) = reader_socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            for sql in ["BEGIN", "INSERT INTO portal_staged_rows (payload) VALUES ('staged')"] {
+                support::write_frames(&mut write_half, vec![support::simple_query_frame(sql)])
+                    .await;
+                let frames = support::read_frames_until_ready(&mut reader).await;
+                assert!(frames.iter().all(|(tag, _)| *tag != b'E'), "{sql} failed");
+            }
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("staged_stmt", "SELECT payload FROM portal_staged_rows"),
+                    support::bind_frame("staged_portal", "staged_stmt", &[]),
+                    support::execute_limited_frame("staged_portal", 3),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let first_page = data_values(&support::read_frames_until_ready(&mut reader).await);
+            let mut writer_socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("writer connection");
+            let (writer_read_half, mut writer_write_half) = writer_socket.split();
+            let mut writer_reader = BufReader::new(writer_read_half);
+            support::complete_startup(&mut writer_reader, &mut writer_write_half).await;
+            support::write_frames(
+                &mut writer_write_half,
+                vec![support::simple_query_frame(
+                    "DELETE FROM portal_staged_rows WHERE payload = 'value-00'",
+                )],
+            )
+            .await;
+            let deleted = support::read_frames_until_ready(&mut writer_reader).await;
+            assert!(deleted.iter().all(|(tag, _)| *tag != b'E'), "delete failed");
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::execute_limited_frame("staged_portal", 100),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let second_page = data_values(&support::read_frames_until_ready(&mut reader).await);
+
+            // Assert
+            assert_eq!(first_page.len(), 3, "first page = {first_page:?}");
+            let mut served = first_page
+                .iter()
+                .chain(second_page.iter())
+                .cloned()
+                .collect::<Vec<_>>();
+            served.sort();
+            let mut expected = (0..6)
+                .map(|index| format!("value-{index:02}"))
+                .chain(std::iter::once("staged".to_string()))
+                .collect::<Vec<_>>();
+            expected.sort();
+            assert_eq!(
+                served, expected,
+                "portal pages must come from one result; first={first_page:?} second={second_page:?}"
+            );
+
+            drop(reader_socket);
+            drop(writer_socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_page_wildcard_portal_from_one_result_when_source_has_no_collection_schema() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-schemaless-concurrent-create");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for name in ["portal_catalog_b", "portal_catalog_c", "portal_catalog_d"] {
+                cassie
+                    .execute_sql(&session, &format!("CREATE TABLE {name} (payload TEXT)"), vec![])
+                    .expect("create table");
+            }
+            let observed = cassie.clone();
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("catalog_stmt", "SELECT * FROM information_schema.tables"),
+                    support::bind_frame("catalog_portal", "catalog_stmt", &[]),
+                    support::describe_portal_frame("catalog_portal"),
+                    support::execute_limited_frame("catalog_portal", 1),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let first_frames = support::read_frames_until_ready(&mut reader).await;
+            observed
+                .execute_sql(&session, "CREATE TABLE portal_catalog_a (payload TEXT)", vec![])
+                .expect("concurrent create table");
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::execute_limited_frame("catalog_portal", 1000),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let second_frames = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            let names = support::row_description_names(&first_frames);
+            let table_name = names
+                .iter()
+                .position(|name| name == "table_name")
+                .unwrap_or_else(|| panic!("table_name column: {names:?} {first_frames:?}"));
+            let first_page = support::data_rows(&first_frames);
+            let second_page = support::data_rows(&second_frames);
+            let served = first_page
+                .iter()
+                .chain(second_page.iter())
+                .filter_map(|row| row[table_name].clone())
+                .filter(|name| name.starts_with("portal_catalog_"))
+                .collect::<Vec<_>>();
+            assert_eq!(
+                served,
+                vec![
+                    "portal_catalog_b".to_string(),
+                    "portal_catalog_c".to_string(),
+                    "portal_catalog_d".to_string(),
+                ],
+                "first={first_page:?} second={second_page:?}"
+            );
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    fn declared_id_table(path: &str, table: &str) -> (Cassie, String) {
+        let cassie = Cassie::new_with_data_dir(path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            format!("CREATE TABLE {table} (id TEXT, title TEXT)"),
+            format!("INSERT INTO {table} (id, title) VALUES ('a', 'x')"),
+        ] {
+            cassie
+                .execute_sql(&session, &sql, vec![])
+                .unwrap_or_else(|error| panic!("{sql}: {error}"));
+        }
+        let selected = cassie
+            .execute_sql(&session, &format!("SELECT id FROM {table}"), vec![])
+            .expect("select row id");
+        let cassie::types::Value::String(row_id) = selected.rows[0][0].clone() else {
+            panic!("row id should be text");
+        };
+        (cassie, row_id)
+    }
+
     fn data_values(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
         frames
             .iter()

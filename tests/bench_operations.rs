@@ -2154,7 +2154,10 @@ mod benchmark_harness_contract {
     #[test]
     fn should_apply_runtime_logical_units_to_every_batch_measurement() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = concat!(
+            include_str!("../benches/support/stress.rs"),
+            include_str!("../benches/support/stress_batch.rs")
+        );
 
         // Act
         let shared_preparations = adapter
@@ -2165,7 +2168,7 @@ mod benchmark_harness_contract {
             adapter.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
 
         // Assert
-        assert_eq!(shared_preparations, 2);
+        assert_eq!(shared_preparations, 3);
         assert!(records_runtime_unit);
         assert!(declares_fixed_workload);
     }
@@ -2173,7 +2176,7 @@ mod benchmark_harness_contract {
     #[test]
     fn should_normalize_duration_batch_evidence_by_completed_operations() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = include_str!("../benches/support/stress_batch.rs");
         let first_candidate_count = 18_768;
         let first_completed_queries = 48;
         let second_candidate_count = 15_640;
@@ -2198,7 +2201,7 @@ mod benchmark_harness_contract {
     fn should_batch_tier3_time_series_queries_with_per_query_evidence() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_query.rs");
-        let harness = include_str!("../benches/support/stress.rs");
+        let harness = include_str!("../benches/support/stress_batch.rs");
         let time_series_case = owner
             .split_once("fn bench_time_series_representative")
             .expect("time-series representative")
@@ -2217,7 +2220,7 @@ mod benchmark_harness_contract {
             .split_once("fn run_batch<F, R>")
             .expect("batch runner")
             .1
-            .split_once("pub fn is_enabled")
+            .split_once("fn run_batch_with_setup")
             .expect("end of batch runner")
             .0;
 
@@ -2233,7 +2236,7 @@ mod benchmark_harness_contract {
         let reports_per_query_cardinality =
             time_series_execution.contains("std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)");
         let uses_actual_completed_count = run_batch.contains("let completed = ctx.measure_batch(");
-        let normalizes_runtime_evidence = run_batch.contains(".per_external_operation(completed)");
+        let normalizes_runtime_evidence = harness.contains(".per_external_operation(completed)");
 
         // Assert
         assert!(has_batch_size);
@@ -2328,6 +2331,7 @@ mod benchmark_harness_contract {
             "perf.time_series.retention.100k",
             "perf.time_series.rollup_refresh.100k",
             "perf.verification.full.100k",
+            "perf.repair.projection_hashes.100k",
         ];
 
         // Act
@@ -2342,11 +2346,69 @@ mod benchmark_harness_contract {
                 .operation_unit;
 
         // Assert
-        assert_eq!(operation_units, ["source_row"; 6]);
+        assert_eq!(operation_units, ["source_row"; 7]);
         assert_eq!(replay_unit, "event");
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
         assert!(owner_source.contains("let source_rows = u64::try_from(rows)"));
-        assert_eq!(owner_source.matches("source_rows,").count(), 6);
+        assert_eq!(owner_source.matches("source_rows,").count(), 7);
+    }
+
+    #[test]
+    fn should_register_projection_repair_with_prepared_failure_evidence() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let workload_source = include_str!("../benches/support/workloads/scaling_legacy.rs");
+
+        // Act
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.repair.projection_hashes.100k");
+        let setup_position = owner_source.find("prepare_projection_repair");
+        let measurement_position = owner_source.find("projection_repair_existing");
+        let rebuild_position = owner_source.find("projection_refresh_existing");
+        let timed_repair = workload_source
+            .split_once("pub fn projection_repair_existing")
+            .and_then(|(_, tail)| {
+                tail.split_once("pub fn prepare_time_series_lifecycle_context")
+                    .map(|(body, _)| body)
+            });
+
+        // Assert
+        let scenario = scenario.expect("registered projection repair scenario");
+        assert_eq!(scenario.benchmark, "tier5_scaling_lifecycle");
+        assert_eq!(scenario.workload, "projection_repair");
+        assert_eq!(scenario.fixture_scale, "100k");
+        assert_eq!(scenario.operation_unit, "source_row");
+        assert!(setup_position.is_some_and(|setup| {
+            measurement_position.is_some_and(|measurement| setup < measurement)
+        }));
+        assert!(measurement_position
+            .is_some_and(|repair| { rebuild_position.is_some_and(|rebuild| repair < rebuild) }));
+        let timed_repair = timed_repair.expect("timed projection repair workload");
+        assert!(timed_repair.contains("REPAIR PROJECTION bench_projection SCOPE row"));
+        assert!(!timed_repair.contains("VERIFY PROJECTION"));
+    }
+
+    #[test]
+    fn should_prepare_projection_repair_before_every_timed_invocation() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let harness_source = include_str!("../benches/support/stress_batch.rs");
+
+        // Act
+        let repair_measurement = owner_source
+            .split_once("if let Some(case) = cases.repair")
+            .expect("projection repair measurement")
+            .1
+            .split_once("if let Some(case) = cases.rebuild")
+            .expect("end of projection repair measurement")
+            .0;
+
+        // Assert
+        assert!(repair_measurement.contains("measure_batch_with_setup"));
+        assert!(repair_measurement.contains("prepare_projection_repair(&context)"));
+        assert!(repair_measurement.contains("projection_repair_existing(&context)"));
+        assert!(harness_source.contains("pub fn measure_batch_with_setup"));
+        assert!(harness_source.contains(".measure_outcome_with_setup("));
     }
 
     #[test]
@@ -3925,6 +3987,87 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up lifecycle metric fixture");
+    }
+
+    #[test]
+    fn should_refresh_projection_once_when_preparing_lifecycle_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark lifecycle test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-lifecycle-single-refresh",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection lifecycle fixture");
+        let before = context.cassie.metrics();
+
+        // Act
+        workloads::prepare_projection_lifecycle(&context);
+        let after = context.cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            after["projections"]["materialized_refreshes"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["projections"]["materialized_refreshes"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1,
+            "projection lifecycle setup must perform only the refresh owned by creation"
+        );
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up lifecycle single-refresh fixture");
+    }
+
+    #[test]
+    fn should_repair_prepared_projection_failure_given_small_scaling_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark projection repair test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-projection-repair",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection repair fixture");
+        workloads::prepare_projection_lifecycle(&context);
+        workloads::prepare_projection_repair(&context);
+
+        // Act
+        let cardinality = runtime.block_on(workloads::projection_repair_existing(&context));
+        let report = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT state, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = 'postgres.public.bench_projection'",
+                vec![],
+            )
+            .expect("projection repair report");
+
+        // Assert
+        assert_eq!(cardinality, 1);
+        assert_eq!(
+            report.rows,
+            vec![vec![
+                cassie::types::Value::String("completed".to_string()),
+                cassie::types::Value::String("verified".to_string()),
+            ]]
+        );
+
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up projection repair fixture");
     }
 
     #[test]
@@ -5674,6 +5817,12 @@ mod performance_benchmarks_tests {
             "projection_verify",
             "100k",
             "perf.verification.full.100k",
+        ),
+        (
+            "tier5_scaling_lifecycle",
+            "projection_repair",
+            "100k",
+            "perf.repair.projection_hashes.100k",
         ),
         (
             "tier5_scaling_transport",

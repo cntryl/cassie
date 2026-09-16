@@ -251,6 +251,7 @@ mod analytical_projection_recovery {
     use cassie::app::Cassie;
     use cassie::app::CassieSession;
     use cassie::executor::set_materialized_projection_maintenance_failure_point;
+    use cassie::midge::adapter::set_materialized_projection_debt_persistence_failure_point;
     use cassie::types::Value;
     use std::path::Path;
 
@@ -396,6 +397,94 @@ mod analytical_projection_recovery {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_retain_projection_fallback_when_debt_detail_persistence_is_interrupted() {
+        // Arrange
+        use_local_storage();
+        let _failpoint_guard = MATERIALIZED_PROJECTION_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("analytical_projection_debt_persistence_interrupted");
+
+        runtime().block_on(async {
+            let (cassie, session) = setup_source_and_projection(path.as_ref());
+            set_materialized_projection_maintenance_failure_point(true);
+            set_materialized_projection_debt_persistence_failure_point(true);
+
+            // Act
+            let insert = cassie.execute_sql(
+                &session,
+                "INSERT INTO analytical_debt_source (tenant, amount) VALUES ('acme', 20)",
+                vec![],
+            );
+            let debt_before_restart = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.analytical_debt_source'",
+                    vec![],
+                )
+                .unwrap();
+            let rows_before_restart = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT tenant, amount FROM analytical_debt_source ORDER BY amount",
+                    vec![],
+                )
+                .unwrap();
+            cassie.shutdown();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let debt_after_restart = restarted
+                .execute_sql(
+                    &restarted_session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.analytical_debt_source'",
+                    vec![],
+                )
+                .unwrap();
+            let rows_after_restart = restarted
+                .execute_sql(
+                    &restarted_session,
+                    "SELECT tenant, amount FROM analytical_debt_source ORDER BY amount",
+                    vec![],
+                )
+                .unwrap();
+            restarted
+                .execute_sql(
+                    &restarted_session,
+                    "REFRESH MATERIALIZED PROJECTION analytical_debt",
+                    vec![],
+                )
+                .unwrap();
+            let rows_after_refresh = restarted
+                .execute_sql(
+                    &restarted_session,
+                    "SELECT tenant, amount FROM analytical_debt_source ORDER BY amount",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(insert.unwrap().command, "INSERT 0 1");
+            assert_eq!(
+                debt_before_restart.rows,
+                vec![vec![Value::String("materialized_projection".to_string())]]
+            );
+            assert!(debt_after_restart.rows.is_empty());
+            assert_eq!(
+                rows_before_restart.rows,
+                vec![
+                    vec![Value::String("acme".to_string()), Value::Int64(10)],
+                    vec![Value::String("acme".to_string()), Value::Int64(20)],
+                ]
+            );
+            assert_eq!(rows_after_restart.rows, rows_before_restart.rows);
+            assert_eq!(rows_after_refresh.rows, rows_before_restart.rows);
+
+            restarted.shutdown();
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -6187,7 +6276,12 @@ mod projection_lifecycle {
 
     use cassie::app::{Cassie, CassieSession};
     use cassie::app::{ProjectionReplayBatch, ProjectionReplayEvent};
-    use cassie::catalog::ProjectionVerificationState;
+    use cassie::catalog::{ProjectionVerificationState, ProjectionVersionState};
+    use cassie::executor::set_projection_activation_failure_point;
+    use cassie::midge::adapter::{
+        set_projection_metadata_persistence_failure_point, set_projection_output_failure_point,
+        ProjectionOutputFailurePoint,
+    };
     use cassie::sql::ast::{
         AlterMaterializedProjectionOperation, CopyFormat, CopyStatement, QueryStatement,
     };
@@ -6928,6 +7022,322 @@ mod projection_lifecycle {
                 ]]
             );
 
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_active_projection_visible_when_version_build_stops_after_row_batches() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_version_interrupted_rows");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            seed_materialized_projection_version_fixture(&cassie, &session);
+            set_projection_output_failure_point(Some(
+                ProjectionOutputFailurePoint::AfterRowBatches,
+            ));
+
+            // Act
+            let build = cassie.execute_sql(
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+                vec![],
+            );
+            let visible_before_restart = query_rows(
+                &cassie,
+                &session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            let metadata = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .unwrap();
+            let failed = metadata
+                .versions
+                .iter()
+                .find(|version| version.version_id == "v2")
+                .unwrap();
+            let interrupted_output = failed.output_collection.clone();
+            cassie.shutdown();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let visible_after_restart = query_rows(
+                &restarted,
+                &restarted_session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+
+            // Assert
+            assert!(build
+                .expect_err("interrupted projection build")
+                .to_string()
+                .contains("after row batches"));
+            assert_eq!(metadata.active_version.as_deref(), Some("v1"));
+            assert_eq!(failed.state, ProjectionVersionState::Failed);
+            assert!(restarted
+                .midge
+                .root_hash(&interrupted_output)
+                .expect("interrupted root hash")
+                .is_none());
+            assert!(restarted
+                .midge
+                .list_range_hashes(&interrupted_output)
+                .expect("interrupted range hashes")
+                .is_empty());
+            assert_eq!(
+                visible_before_restart,
+                vec![vec![Value::String("alpha".to_string())]]
+            );
+            assert_eq!(visible_after_restart, visible_before_restart);
+
+            restarted.shutdown();
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_hashed_projection_version_inactive_when_build_stops_before_metadata_publish() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_version_interrupted_hashes");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            seed_materialized_projection_version_fixture(&cassie, &session);
+            set_projection_output_failure_point(Some(
+                ProjectionOutputFailurePoint::AfterHashPublication,
+            ));
+
+            // Act
+            let build = cassie.execute_sql(
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+                vec![],
+            );
+            let metadata = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .unwrap();
+            let failed = metadata
+                .versions
+                .iter()
+                .find(|version| version.version_id == "v2")
+                .unwrap();
+            let interrupted_output = failed.output_collection.clone();
+            let visible_before_restart = query_rows(
+                &cassie,
+                &session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            cassie.shutdown();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let visible_after_restart = query_rows(
+                &restarted,
+                &restarted_session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+
+            // Assert
+            assert!(build
+                .expect_err("interrupted projection build")
+                .to_string()
+                .contains("after hash publication"));
+            assert_eq!(metadata.active_version.as_deref(), Some("v1"));
+            assert_eq!(failed.state, ProjectionVersionState::Failed);
+            assert!(restarted
+                .midge
+                .root_hash(&interrupted_output)
+                .expect("interrupted root hash")
+                .is_some());
+            assert!(!restarted
+                .midge
+                .list_range_hashes(&interrupted_output)
+                .expect("interrupted range hashes")
+                .is_empty());
+            assert_eq!(
+                visible_before_restart,
+                vec![vec![Value::String("alpha".to_string())]]
+            );
+            assert_eq!(visible_after_restart, visible_before_restart);
+
+            restarted.shutdown();
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_previous_projection_active_when_activation_stops_before_publish() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_version_interrupted_activation");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            seed_materialized_projection_version_fixture(&cassie, &session);
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            set_projection_activation_failure_point(true);
+
+            // Act
+            let activation = cassie.execute_sql(
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
+                vec![],
+            );
+            let metadata = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .unwrap();
+            let visible_before_restart = query_rows(
+                &cassie,
+                &session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            cassie.shutdown();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let visible_after_restart = query_rows(
+                &restarted,
+                &restarted_session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+            execute_statement(
+                &restarted,
+                &restarted_session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
+            );
+            let visible_after_retry = query_rows(
+                &restarted,
+                &restarted_session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+
+            // Assert
+            assert!(activation
+                .expect_err("interrupted projection activation")
+                .to_string()
+                .contains("before activation publication"));
+            assert_eq!(metadata.active_version.as_deref(), Some("v1"));
+            assert_eq!(
+                metadata
+                    .versions
+                    .iter()
+                    .find(|version| version.version_id == "v2")
+                    .unwrap()
+                    .state,
+                ProjectionVersionState::Built
+            );
+            assert_eq!(
+                visible_before_restart,
+                vec![vec![Value::String("alpha".to_string())]]
+            );
+            assert_eq!(visible_after_restart, visible_before_restart);
+            assert_eq!(
+                visible_after_retry,
+                vec![
+                    vec![Value::String("alpha".to_string())],
+                    vec![Value::String("bravo".to_string())],
+                ]
+            );
+
+            restarted.shutdown();
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_publish_projection_metadata_atomically_when_activation_commit_fails() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_version_metadata_commit_interrupted");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            seed_materialized_projection_version_fixture(&cassie, &session);
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            set_projection_metadata_persistence_failure_point(true);
+
+            // Act
+            let activation = cassie.execute_sql(
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned ACTIVATE VERSION v2",
+                vec![],
+            );
+            let metadata_before_restart = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .unwrap();
+            cassie.shutdown();
+            drop(cassie);
+            let restarted = Cassie::new_with_data_dir(&path).unwrap();
+            restarted.startup().unwrap();
+            let restarted_session = restarted.create_session("tester", None);
+            let metadata_after_restart = restarted
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .unwrap();
+            let visible_after_restart = query_rows(
+                &restarted,
+                &restarted_session,
+                "SELECT title FROM projection_versioned ORDER BY title",
+            );
+
+            // Assert
+            assert!(activation
+                .expect_err("interrupted metadata commit")
+                .to_string()
+                .contains("projection metadata persistence"));
+            assert_eq!(
+                metadata_before_restart.active_version.as_deref(),
+                Some("v1")
+            );
+            assert_eq!(metadata_after_restart.active_version.as_deref(), Some("v1"));
+            assert_eq!(
+                visible_after_restart,
+                vec![vec![Value::String("alpha".to_string())]]
+            );
+
+            restarted.shutdown();
             let _ = std::fs::remove_dir_all(path);
         });
     }

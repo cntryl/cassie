@@ -82,7 +82,7 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
-Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 256 rows, matching the integrity range-segment boundary. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
+Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 1,000 rows, independent of the 256-row integrity range-segment size. The owning data family is flushed after every committed row batch so large rebuilds cannot accumulate write pressure behind the fixed storage response deadline. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
 
 Golden fixtures own ordering and round-trip behavior for rows, scalar indexes, full-text postings, vectors, time-series entries, graph adjacency, and column batches. The baseline fixture must show at least a 25% reduction in total query-hot key/value bytes from the fixed pre-change fixture.
 
@@ -254,6 +254,13 @@ Tier 5 has explicit query, retrieval, lifecycle, and transport owners. Its requi
 - worker counts of 1, 2, and 4 for applicable execution cases.
 
 Every applicable owner emits evidence for every value on its declared axis. These are manual, environment-labelled scale curves, not production capacity claims.
+
+The projection lifecycle owner measures replay and refresh/rebuild at 10k, 100k, and 250k source
+rows. Full verification and row-hash repair use the representative 100k fixture. Repair setup
+marks one output row hash stale and persists the failed verification report before timing; the
+measured operation contains only `REPAIR PROJECTION ... SCOPE row`, its mandatory post-repair full
+verification, and audit publication. Exact completed/verified state, runtime resource bounds, and
+the common evidence counters remain hard gates.
 
 ## Tier 6 Duration and Resource Gates
 

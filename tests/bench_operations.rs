@@ -6919,6 +6919,35 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_run_only_the_requested_retained_benchmark_shard() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+
+        // Act
+        let declares_selector = workflow.contains("      shard:")
+            && workflow.contains("description: \"Canonical shard to run\"")
+            && workflow.contains("default: all")
+            && workflow.contains("- tier5-lifecycle");
+        let filters_matrix = workflow
+            .matches("if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}")
+            .count()
+            == 4
+            && workflow.contains(
+                "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}",
+            );
+        let validates_only_complete_runs = workflow.contains(
+            "if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' }}",
+        );
+        let retains_targeted_artifacts = workflow.contains("retention-days: 90");
+
+        // Assert
+        assert!(declares_selector);
+        assert!(filters_matrix);
+        assert!(validates_only_complete_runs);
+        assert!(retains_targeted_artifacts);
+    }
+
+    #[test]
     fn should_register_the_workflow_native_linux_profile() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");

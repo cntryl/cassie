@@ -18,6 +18,23 @@ on:
         required: true
         default: "3600"
         type: string
+      shard:
+        description: "Canonical shard to run"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - tier1
+          - tier2
+          - tier3
+          - tier4
+          - tier5-query
+          - tier5-retrieval
+          - tier5-lifecycle
+          - tier5-transport
+          - tier6-mixed
+          - tier6-transport
 
 permissions:
   contents: read
@@ -78,6 +95,7 @@ jobs:
           RUN_ID: ${{ inputs.run_id }}
           DEPLOYMENT_PROFILE: ${{ inputs.deployment_profile }}
           SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
+          SHARD: ${{ inputs.shard }}
         run: |
           if [[ ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
             echo "run_id must be a bounded artifact-safe identifier" >&2
@@ -91,6 +109,13 @@ jobs:
             echo "soak_duration_seconds must be an integer of at least 3600" >&2
             exit 1
           fi
+          case "${SHARD}" in
+            all|tier1|tier2|tier3|tier4|tier5-query|tier5-retrieval|tier5-lifecycle|tier5-transport|tier6-mixed|tier6-transport) ;;
+            *)
+              echo "shard must name a registered canonical shard" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -148,17 +173,21 @@ jobs:
     timeout-minutes: 360
     steps:
       - name: Checkout repository
+        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
         uses: actions/checkout@v7
 
       - name: Update Rust toolchain
+        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
         run: rustup update stable
 
       - name: Cache Rust dependencies
+        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: "benchmark-evidence-${{ matrix.tier }}"
 
       - name: Run unfiltered owner shard
+        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
         env:
           CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}
           CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ inputs.deployment_profile }}
@@ -168,16 +197,16 @@ jobs:
         run: ${{ matrix.command }}
 
       - name: Upload canonical shard artifacts
-        if: always()
+        if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}
         uses: actions/upload-artifact@v7
         with:
           name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}
           path: target/stress/**/latest.json
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 90
 
   complete-manifest:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' }}
     needs: complete-shard
     runs-on: ubuntu-latest
     timeout-minutes: 30

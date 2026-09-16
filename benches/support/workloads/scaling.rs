@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeSet, VecDeque};
 use std::future::{ready, Ready};
 
 use cassie::app::{Cassie, CassieError, ProjectionReplayBatch, ProjectionReplayEvent};
@@ -228,6 +228,35 @@ pub fn vector_hnsw_query(ctx: &BenchContext) -> Ready<usize> {
 
 pub fn vector_ivfflat_query(ctx: &BenchContext) -> Ready<usize> {
     vector_query_with_index(ctx, Some("ivfflat"))
+}
+
+pub fn vector_top_k_ids(ctx: &BenchContext) -> Vec<String> {
+    ctx.cassie
+        .execute_sql(&ctx.session, VECTOR_SCALING_SQL, vector_params())
+        .expect("benchmark vector recall query")
+        .rows
+        .into_iter()
+        .map(|row| {
+            row.first()
+                .and_then(Value::as_str)
+                .expect("benchmark vector result id")
+                .to_string()
+        })
+        .collect()
+}
+
+#[must_use]
+pub fn recall_at_k(exact: &[String], approximate: &[String]) -> f64 {
+    assert!(!exact.is_empty(), "recall requires a non-empty exact top-k");
+    let exact = exact.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let approximate = approximate
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    let recalled = exact.intersection(&approximate).count();
+    let recalled = u32::try_from(recalled).expect("recalled count should fit u32");
+    let exact = u32::try_from(exact.len()).expect("exact top-k should fit u32");
+    f64::from(recalled) / f64::from(exact)
 }
 
 fn vector_query_with_index(ctx: &BenchContext, index_kind: Option<&str>) -> Ready<usize> {

@@ -83,7 +83,7 @@ PostgreSQL replication, extensions, foreign-data wrappers, triggers, dashboards,
 
 The Stable procedure subset is defined separately in [Limited Procedures and CALL](procedure-support.md). It covers one persisted Cassie SQL statement and a named `tokio-postgres` workflow, not PostgreSQL procedural languages or trigger behavior.
 
-The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. The psycopg 3, JDBC, trace-replay, pgAdmin, and DBeaver lanes remain Planned/unverified until version-pinned workflows and retained artifacts exist. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
+The repository currently keeps automated coverage for the native pgwire harness and `tokio-postgres`; external Prisma, psql, and SQLAlchemy probes are opt-in when separately provisioned. Version-pinned pgAdmin 9.16 and DBeaver 26.1.3 normalized trace-replay lanes are available and retain explicitly non-certifying manifests. The psycopg 3 and JDBC client lanes remain Planned/unverified, and pgAdmin/DBeaver remain uncertified until separately provisioned live desktop workflows retain exact-revision evidence. Client-version upgrades require refreshed traces and live smoke suites before a future certification claim changes.
 
 The shared dispatch contract for these lanes is documented in [Compatibility Probe Contract](compatibility-probe-contract.md)
 and implemented by the opt-in [Compatibility Probes workflow](../.github/workflows/compatibility-probes.yml).

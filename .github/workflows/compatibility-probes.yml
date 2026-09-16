@@ -14,7 +14,8 @@ on:
           - prisma
           - sqlalchemy
           - psql
-          - desktop
+          - pgadmin-9.16
+          - dbeaver-26.1.3
           - catalog
       run_external:
         description: Run an external client; false records an unavailable result
@@ -36,6 +37,9 @@ env:
   POSTGRES_CLIENT_IMAGE: postgres:16.6-bookworm
   DIESEL_VERSION: 2.2.6
   SQLX_VERSION: 0.8.3
+  PGADMIN_VERSION: 9.16
+  DBEAVER_VERSION: 26.1.3
+  POSTGRES_JDBC_VERSION: 42.7.11
 
 jobs:
   probe:
@@ -47,8 +51,18 @@ jobs:
         with:
           ref: ${{ inputs.source_revision }}
 
+      - name: Validate exact source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_revision="$(git rev-parse HEAD)"
+          if [[ "${{ inputs.source_revision }}" != "${resolved_revision}" ]]; then
+            echo "source revision must be the exact checked-out commit" >&2
+            exit 1
+          fi
+
       - name: Set up Rust
-        if: inputs.probe == 'native' || inputs.probe == 'sqlx' || inputs.probe == 'diesel' || inputs.probe == 'prisma' || inputs.probe == 'psql'
+        if: inputs.probe == 'native' || inputs.probe == 'sqlx' || inputs.probe == 'diesel' || inputs.probe == 'prisma' || inputs.probe == 'psql' || inputs.probe == 'pgadmin-9.16' || inputs.probe == 'dbeaver-26.1.3'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Set up Python
@@ -168,8 +182,28 @@ jobs:
                 --ignored --nocapture
               sed -i 's/^status=unavailable$/status=passed/' compatibility-artifacts/manifest.txt
               ;;
-            desktop|catalog)
-              echo "selected lane requires a separately provisioned client fixture or desktop runner"
+            pgadmin-9.16|dbeaver-26.1.3)
+              export CASSIE_DESKTOP_TRACE_CLIENT="${{ inputs.probe }}"
+              fixture="tests/fixtures/desktop_traces/${CASSIE_DESKTOP_TRACE_CLIENT}.json"
+              fixture_digest="$(sha256sum "${fixture}" | awk '{print $1}')"
+              cargo test --locked --test compatibility \
+                desktop_client_trace_replay::should_replay_selected_desktop_trace -- \
+                --ignored --nocapture
+              {
+                echo "client=${CASSIE_DESKTOP_TRACE_CLIENT}"
+                echo "client_version=$([[ "${CASSIE_DESKTOP_TRACE_CLIENT}" == pgadmin-* ]] && echo "${PGADMIN_VERSION}" || echo "${DBEAVER_VERSION}")"
+                echo "driver_version=$([[ "${CASSIE_DESKTOP_TRACE_CLIENT}" == dbeaver-* ]] && echo "${POSTGRES_JDBC_VERSION}" || echo not-applicable)"
+                echo "deployment_profile=loopback-memory"
+                echo "protocol=pgwire-trace-replay"
+                echo "fixture=${fixture}"
+                echo "fixture_sha256=${fixture_digest}"
+                echo "certification_status=unavailable"
+                echo "certification_reason=no-live-desktop-evidence"
+              } >> compatibility-artifacts/manifest.txt
+              sed -i 's/^status=unavailable$/status=replay-passed/' compatibility-artifacts/manifest.txt
+              ;;
+            catalog)
+              echo "selected lane requires a separately provisioned catalog fixture"
               ;;
           esac
 

@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "client": {
+    "name": "pgadmin",
+    "version": "9.16",
+    "driver_version": null,
+    "upstream_revision": "888a053231923e6704b56165cf248db056252144"
+  },
+  "steps": [
+    {
+      "id": "initialize-date-style",
+      "workflow": "initialization",
+      "protocol_mode": "simple-query",
+      "sql": "SET DateStyle = 'ISO, MDY'",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "initialize-messages",
+      "workflow": "initialization",
+      "protocol_mode": "simple-query",
+      "sql": "SET client_min_messages = 'warning'",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "create-browser-table",
+      "workflow": "navigator",
+      "protocol_mode": "simple-query",
+      "sql": "CREATE TABLE desktop_pgadmin_docs (id INT PRIMARY KEY, title TEXT NOT NULL)",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "create-browser-index",
+      "workflow": "navigator",
+      "protocol_mode": "simple-query",
+      "sql": "CREATE INDEX desktop_pgadmin_docs_title_idx ON desktop_pgadmin_docs (title)",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "list-browser-table",
+      "workflow": "navigator",
+      "protocol_mode": "extended-query",
+      "sql": "SELECT table_name FROM information_schema.tables WHERE table_name = 'desktop_pgadmin_docs'",
+      "expected_columns": ["table_name"],
+      "expected_row_count": 1,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "read-table-properties",
+      "workflow": "properties",
+      "protocol_mode": "extended-query",
+      "sql": "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'desktop_pgadmin_docs' ORDER BY ordinal_position",
+      "expected_columns": ["column_name", "data_type"],
+      "expected_row_count": 2,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "insert-query-row",
+      "workflow": "query",
+      "protocol_mode": "extended-query",
+      "sql": "INSERT INTO desktop_pgadmin_docs (id, title) VALUES (1, 'alpha')",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "read-query-row",
+      "workflow": "query",
+      "protocol_mode": "extended-query",
+      "sql": "SELECT id, title FROM desktop_pgadmin_docs ORDER BY id",
+      "expected_columns": ["id", "title"],
+      "expected_row_count": 1,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "begin-transaction",
+      "workflow": "transaction",
+      "protocol_mode": "simple-query",
+      "sql": "BEGIN",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "insert-rolled-back-row",
+      "workflow": "transaction",
+      "protocol_mode": "extended-query",
+      "sql": "INSERT INTO desktop_pgadmin_docs (id, title) VALUES (2, 'rollback')",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "rollback-transaction",
+      "workflow": "transaction",
+      "protocol_mode": "simple-query",
+      "sql": "ROLLBACK",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "explain-query",
+      "workflow": "plan",
+      "protocol_mode": "extended-query",
+      "sql": "EXPLAIN SELECT title FROM desktop_pgadmin_docs WHERE id = 1",
+      "expected_columns": ["QUERY PLAN"],
+      "expected_row_count": 1,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "edit-grid-row",
+      "workflow": "grid-edit",
+      "protocol_mode": "extended-query",
+      "sql": "UPDATE desktop_pgadmin_docs SET title = 'edited' WHERE id = 1",
+      "expected_columns": [],
+      "expected_row_count": 0,
+      "expected_sqlstate": null
+    },
+    {
+      "id": "read-grid-row",
+      "workflow": "grid-edit",
+      "protocol_mode": "extended-query",
+      "sql": "SELECT title FROM desktop_pgadmin_docs WHERE id = 1",
+      "expected_columns": ["title"],
+      "expected_row_count": 1,
+      "expected_sqlstate": null
+    }
+  ]
+}

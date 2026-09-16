@@ -2,6 +2,7 @@ use std::future::{ready, Ready};
 use std::path::PathBuf;
 
 use cassie::app::CassieError;
+use cassie::midge::adapter::{RowHashRecord, StorageFamily, StoredHashState};
 use cassie::types::Value;
 
 use super::context::{
@@ -298,6 +299,87 @@ pub fn prepare_projection_lifecycle(context: &BenchContext) {
         .expect("prepare scaling projection");
     let rows = projection_refresh_existing(context).into_inner();
     assert!(rows > 0, "projection setup refresh must complete");
+}
+
+pub fn prepare_projection_repair(context: &BenchContext) {
+    let metadata = context
+        .cassie
+        .catalog
+        .get_materialized_projection("bench_projection")
+        .expect("scaling projection metadata");
+    let active_version = metadata
+        .active_version
+        .as_deref()
+        .expect("scaling projection active version");
+    let output_collection = &metadata
+        .versions
+        .iter()
+        .find(|version| version.version_id == active_version)
+        .expect("scaling projection active version metadata")
+        .output_collection;
+    let mut row_hash = context
+        .cassie
+        .midge
+        .list_row_hashes(output_collection)
+        .expect("scaling projection row hashes")
+        .into_iter()
+        .next()
+        .expect("scaling projection row hash");
+    let row_hash_key = context
+        .cassie
+        .midge
+        .raw_scan_prefix(StorageFamily::Data, b"")
+        .expect("scan scaling projection row hash")
+        .into_iter()
+        .find_map(|(key, value)| {
+            let record = serde_json::from_slice::<RowHashRecord>(&value).ok()?;
+            (record.collection == *output_collection && record.row_id == row_hash.row_id)
+                .then_some(key)
+        })
+        .expect("scaling projection row hash key");
+    row_hash.state = StoredHashState::Stale;
+    let mut tx = context
+        .cassie
+        .midge
+        .data_tx(cntryl_midge::TransactionMode::ReadWrite)
+        .expect("open scaling projection corruption transaction");
+    tx.put(
+        row_hash_key,
+        serde_json::to_vec(&row_hash).expect("encode corrupted scaling projection row hash"),
+        None,
+    )
+    .expect("write corrupted scaling projection row hash");
+    tx.commit(cntryl_midge::WriteOptions::sync())
+        .expect("commit corrupted scaling projection row hash");
+    let verification = context
+        .cassie
+        .execute_sql(
+            &context.session,
+            "VERIFY PROJECTION bench_projection MODE hashes_only",
+            vec![],
+        )
+        .expect("prepare scaling projection repair report");
+    assert_eq!(
+        verification.rows[0][0],
+        Value::String("failed".to_string()),
+        "projection repair setup must retain a failed integrity report"
+    );
+}
+
+pub fn projection_repair_existing(context: &BenchContext) -> Ready<usize> {
+    let result = context
+        .cassie
+        .execute_sql(
+            &context.session,
+            "REPAIR PROJECTION bench_projection SCOPE row",
+            vec![],
+        )
+        .expect("repair existing scaling projection");
+    assert_scaling_resource_bounds(context);
+    assert_eq!(result.command, "REPAIR PROJECTION");
+    assert_eq!(result.rows[0][0], Value::String("completed".to_string()));
+    assert_eq!(result.rows[0][7], Value::String("verified".to_string()));
+    ready(std::hint::black_box(result.rows.len()))
 }
 
 pub fn prepare_time_series_lifecycle_context(

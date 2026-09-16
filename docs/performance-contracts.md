@@ -243,6 +243,13 @@ Tier 5 has explicit query, retrieval, lifecycle, and transport owners. Its requi
 
 Every applicable owner emits evidence for every value on its declared axis. These are manual, environment-labelled scale curves, not production capacity claims.
 
+The projection lifecycle owner measures replay and refresh/rebuild at 10k, 100k, and 250k source
+rows. Full verification and row-hash repair use the representative 100k fixture. Repair setup
+marks one output row hash stale and persists the failed verification report before timing; the
+measured operation contains only `REPAIR PROJECTION ... SCOPE row`, its mandatory post-repair full
+verification, and audit publication. Exact completed/verified state, runtime resource bounds, and
+the common evidence counters remain hard gates.
+
 ## Tier 6 Duration and Resource Gates
 
 `CASSIE_BENCH_SOAK_DURATION_SECONDS` sets the measured duration for each Tier 6 scenario and defaults to `3600`. The `--soak-duration-seconds` command-line option takes precedence over the environment variable, which takes precedence over the default.

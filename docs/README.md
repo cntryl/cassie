@@ -31,6 +31,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [POC Quickstart](poc-quickstart.md)
 - [Environment Variables](environment-variables.md)
 - [Projection Replay Contracts](projection-replay-contracts.md)
+- [Materialized Projection Lifecycle](materialized-projection-lifecycle.md)
 - [Projection Repair Runbook](projection-repair-runbook.md)
 - [Capacity Management](capacity-management.md)
 - [Local Diagnostics Contract](local-diagnostics-contract.md)

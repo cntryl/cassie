@@ -402,6 +402,8 @@ fn activate_projection_version(
         unsafe_override,
         last_error: None,
     };
+    crate::executor::check_projection_activation_failure_point()
+        .map_err(|error| QueryError::General(error.to_string()))?;
     persist_projection_metadata(cassie, metadata)?;
     cassie.runtime.record_projection_swap(name.to_string());
     cassie

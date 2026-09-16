@@ -2120,6 +2120,7 @@ mod benchmark_harness_contract {
             "perf.time_series.retention.100k",
             "perf.time_series.rollup_refresh.100k",
             "perf.verification.full.100k",
+            "perf.repair.projection_hashes.100k",
         ];
 
         // Act
@@ -2134,11 +2135,46 @@ mod benchmark_harness_contract {
                 .operation_unit;
 
         // Assert
-        assert_eq!(operation_units, ["source_row"; 6]);
+        assert_eq!(operation_units, ["source_row"; 7]);
         assert_eq!(replay_unit, "event");
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
         assert!(owner_source.contains("let source_rows = u64::try_from(rows)"));
-        assert_eq!(owner_source.matches("source_rows,").count(), 6);
+        assert_eq!(owner_source.matches("source_rows,").count(), 7);
+    }
+
+    #[test]
+    fn should_register_projection_repair_with_prepared_failure_evidence() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let workload_source = include_str!("../benches/support/workloads/scaling_legacy.rs");
+
+        // Act
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.repair.projection_hashes.100k");
+        let setup_position = owner_source.find("prepare_projection_repair");
+        let measurement_position = owner_source.find("projection_repair_existing");
+        let rebuild_position = owner_source.find("projection_refresh_existing");
+        let timed_repair = workload_source
+            .split_once("pub fn projection_repair_existing")
+            .and_then(|(_, tail)| {
+                tail.split_once("pub fn prepare_time_series_lifecycle_context")
+                    .map(|(body, _)| body)
+            });
+
+        // Assert
+        let scenario = scenario.expect("registered projection repair scenario");
+        assert_eq!(scenario.benchmark, "tier5_scaling_lifecycle");
+        assert_eq!(scenario.workload, "projection_repair");
+        assert_eq!(scenario.fixture_scale, "100k");
+        assert_eq!(scenario.operation_unit, "source_row");
+        assert!(setup_position.is_some_and(|setup| {
+            measurement_position.is_some_and(|measurement| setup < measurement)
+        }));
+        assert!(measurement_position
+            .is_some_and(|repair| { rebuild_position.is_some_and(|rebuild| repair < rebuild) }));
+        let timed_repair = timed_repair.expect("timed projection repair workload");
+        assert!(timed_repair.contains("REPAIR PROJECTION bench_projection SCOPE row"));
+        assert!(!timed_repair.contains("VERIFY PROJECTION"));
     }
 
     #[test]
@@ -3717,6 +3753,50 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up lifecycle metric fixture");
+    }
+
+    #[test]
+    fn should_repair_prepared_projection_failure_given_small_scaling_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark projection repair test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-projection-repair",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection repair fixture");
+        workloads::prepare_projection_lifecycle(&context);
+        workloads::prepare_projection_repair(&context);
+
+        // Act
+        let cardinality = runtime.block_on(workloads::projection_repair_existing(&context));
+        let report = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT state, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = 'postgres.public.bench_projection'",
+                vec![],
+            )
+            .expect("projection repair report");
+
+        // Assert
+        assert_eq!(cardinality, 1);
+        assert_eq!(
+            report.rows,
+            vec![vec![
+                cassie::types::Value::String("completed".to_string()),
+                cassie::types::Value::String("verified".to_string()),
+            ]]
+        );
+
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up projection repair fixture");
     }
 
     #[test]
@@ -5466,6 +5546,12 @@ mod performance_benchmarks_tests {
             "projection_verify",
             "100k",
             "perf.verification.full.100k",
+        ),
+        (
+            "tier5_scaling_lifecycle",
+            "projection_repair",
+            "100k",
+            "perf.repair.projection_hashes.100k",
         ),
         (
             "tier5_scaling_transport",

@@ -20,6 +20,7 @@ fn main() {
             .any(|workload| runner.is_enabled(&stress::StressCase::new(workload, scale)))
     }) || [
         "projection_verify",
+        "projection_repair",
         "time_series_retention_enforcement",
         "time_series_rollup_refresh",
     ]
@@ -49,6 +50,7 @@ struct ScaleCases {
     rebuild: Option<stress::StressCase>,
     startup: Option<stress::StressCase>,
     verify: Option<stress::StressCase>,
+    repair: Option<stress::StressCase>,
     retention: Option<stress::StressCase>,
     rollup: Option<stress::StressCase>,
 }
@@ -61,6 +63,7 @@ impl ScaleCases {
             rebuild: selected_case(runner, "projection_rebuild", scale, rows),
             startup: selected_case(runner, "startup_reopen", scale, rows),
             verify: selected_legacy_case(runner, "projection_verify", scale, rows, legacy_100k),
+            repair: selected_legacy_case(runner, "projection_repair", scale, rows, legacy_100k),
             retention: selected_legacy_case(
                 runner,
                 "time_series_retention_enforcement",
@@ -83,6 +86,7 @@ impl ScaleCases {
             || self.rebuild.is_some()
             || self.startup.is_some()
             || self.verify.is_some()
+            || self.repair.is_some()
             || self.retention.is_some()
             || self.rollup.is_some()
     }
@@ -114,8 +118,11 @@ fn measure_scale(
     let mut replay_batches = replay_context
         .as_ref()
         .map(workloads::prepare_isolated_projection_replay_batches);
-    if cases.rebuild.is_some() || cases.verify.is_some() {
+    if cases.rebuild.is_some() || cases.verify.is_some() || cases.repair.is_some() {
         workloads::prepare_projection_lifecycle(&context);
+    }
+    if cases.repair.is_some() {
+        workloads::prepare_projection_repair(&context);
     }
     let time_series_context = (cases.retention.is_some() || cases.rollup.is_some())
         .then(|| workloads::prepare_time_series_lifecycle_context(&context, rows));
@@ -130,6 +137,13 @@ fn measure_scale(
             &setup_time_ns,
             replay_context.as_ref().expect("isolated replay context"),
             replay_batches.as_mut().expect("prepared replay batches"),
+        );
+    }
+    if let Some(case) = cases.repair {
+        runner.measure_batch(
+            evidenced(case, &setup_time_ns, context.cassie.clone()),
+            source_rows,
+            || runtime.block_on(workloads::projection_repair_existing(&context)),
         );
     }
     if let Some(case) = cases.rebuild {
@@ -255,6 +269,7 @@ fn selected_case(
         "startup_reopen" => stress::OperationUnit::Startup,
         "projection_rebuild"
         | "projection_verify"
+        | "projection_repair"
         | "time_series_retention_enforcement"
         | "time_series_rollup_refresh" => stress::OperationUnit::SourceRow,
         _ => panic!("unsupported lifecycle workload '{workload}'"),

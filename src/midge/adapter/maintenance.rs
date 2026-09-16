@@ -14,11 +14,18 @@ pub(crate) const MATERIALIZED_PROJECTION_ARTIFACT: &str = "materialized_projecti
 const FULLTEXT_ARTIFACT_PREFIX: &str = "fulltext:";
 thread_local! {
     static FULLTEXT_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static MATERIALIZED_PROJECTION_DEBT_PERSISTENCE_FAILPOINT: Cell<bool> =
+        const { Cell::new(false) };
 }
 
 #[doc(hidden)]
 pub fn set_fulltext_maintenance_failure_point(enabled: bool) {
     FULLTEXT_MAINTENANCE_FAILPOINT.set(enabled);
+}
+
+#[doc(hidden)]
+pub fn set_materialized_projection_debt_persistence_failure_point(enabled: bool) {
+    MATERIALIZED_PROJECTION_DEBT_PERSISTENCE_FAILPOINT.set(enabled);
 }
 
 pub(crate) fn check_fulltext_maintenance_failure_point() -> Result<(), CassieError> {
@@ -236,6 +243,13 @@ impl Midge {
             None,
         )
         .map_err(CassieError::from)?;
+        if artifact == MATERIALIZED_PROJECTION_ARTIFACT
+            && MATERIALIZED_PROJECTION_DEBT_PERSISTENCE_FAILPOINT.replace(false)
+        {
+            return Err(CassieError::Execution(
+                "injected materialized projection debt persistence failure".to_string(),
+            ));
+        }
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
     }

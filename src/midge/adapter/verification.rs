@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{collect_scan, encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema};
+use super::{
+    check_projection_output_failure_point, collect_scan, encode_row, CassieError, Midge,
+    ProjectionMeta, ProjectionOutputFailurePoint, Query, RowSchema,
+};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -330,6 +333,7 @@ impl Midge {
                 .map_err(CassieError::from)?;
             report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
         }
+        check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
 
         records.sort_by_key(|record| record.row_id.clone());
         let ranges =
@@ -353,6 +357,7 @@ impl Midge {
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
         self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
+        check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterHashPublication)?;
         Ok((report, root))
     }
 

@@ -43,6 +43,8 @@ pub use core::Midge;
 thread_local! {
     static COLUMN_BATCH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static PROJECTION_HASH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static PROJECTION_OUTPUT_FAILURE_POINT: Cell<Option<ProjectionOutputFailurePoint>> = const { Cell::new(None) };
+    static PROJECTION_METADATA_PERSISTENCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static ROLLUP_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static COLLECTION_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static INDEX_PUBLICATION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
@@ -52,6 +54,47 @@ thread_local! {
     static FIELD_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static OPERATOR_FEEDBACK_PERSISTENCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectionOutputFailurePoint {
+    AfterRowBatches,
+    AfterHashPublication,
+}
+
+#[doc(hidden)]
+pub fn set_projection_output_failure_point(failure_point: Option<ProjectionOutputFailurePoint>) {
+    PROJECTION_OUTPUT_FAILURE_POINT.set(failure_point);
+}
+
+pub(crate) fn check_projection_output_failure_point(
+    expected: ProjectionOutputFailurePoint,
+) -> Result<(), CassieError> {
+    if PROJECTION_OUTPUT_FAILURE_POINT.get() == Some(expected) {
+        PROJECTION_OUTPUT_FAILURE_POINT.set(None);
+        let stage = match expected {
+            ProjectionOutputFailurePoint::AfterRowBatches => "after row batches",
+            ProjectionOutputFailurePoint::AfterHashPublication => "after hash publication",
+        };
+        return Err(CassieError::Execution(format!(
+            "injected projection output failure {stage}"
+        )));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_projection_metadata_persistence_failure_point(enabled: bool) {
+    PROJECTION_METADATA_PERSISTENCE_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_projection_metadata_persistence_failure_point() -> Result<(), CassieError> {
+    if PROJECTION_METADATA_PERSISTENCE_FAILPOINT.replace(false) {
+        return Err(CassieError::Execution(
+            "injected projection metadata persistence failure".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Default)]
@@ -252,7 +295,10 @@ use layout::{
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
 mod maintenance;
-pub use maintenance::set_fulltext_maintenance_failure_point;
+pub use maintenance::{
+    set_fulltext_maintenance_failure_point,
+    set_materialized_projection_debt_persistence_failure_point,
+};
 mod metadata;
 mod operational;
 mod operator_feedback;

@@ -341,6 +341,22 @@ pub const SCENARIOS: &[PerformanceBenchmarkScenario] = &[
         None
     ),
     scenario!(
+        "perf.repair.projection_hashes.100k",
+        "verification",
+        "projection_repair",
+        "tier5_scaling_lifecycle",
+        "projection_repair",
+        "100k",
+        100_000,
+        Tier5,
+        Batch,
+        Scaling,
+        "source_row",
+        Disabled,
+        None,
+        None
+    ),
+    scenario!(
         "perf.pgwire.simple_query.100k",
         "pgwire",
         "transport",

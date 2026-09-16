@@ -1,4 +1,7 @@
-use super::{CassieError, Midge, ProjectionMeta, StorageFamily};
+use super::{
+    check_projection_metadata_persistence_failure_point, CassieError, Midge, ProjectionMeta,
+    StorageFamily,
+};
 
 impl Midge {
     /// # Errors
@@ -9,6 +12,7 @@ impl Midge {
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let mut tx = self.begin_schema_rw_tx()?;
         Self::save_projection_metadata_to_tx(&mut tx, &metadata)?;
+        check_projection_metadata_persistence_failure_point()?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         Ok(())

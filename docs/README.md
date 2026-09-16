@@ -19,6 +19,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Compatibility Probe Contract](compatibility-probe-contract.md)
 - [Performance Contracts](performance-contracts.md)
 - [HNSW Release Evidence](hnsw-release-evidence.md)
+- [IVFFlat Release Evidence](ivfflat-release-evidence.md)
 - [Production Readiness](production-readiness.md)
 - [Support, Release, and Security-Response Policy](support-policy.md)
 - [Product Roadmap](product-roadmap.md)

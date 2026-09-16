@@ -1713,6 +1713,105 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_reject_incomplete_ivfflat_release_evidence() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = json!({});
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("incomplete IVFFlat release evidence must fail");
+
+        // Assert
+        assert!(error.contains("recall_at_k"));
+    }
+
+    #[test]
+    fn should_reject_ivfflat_release_evidence_below_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("0.89", "64");
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("sub-floor IVFFlat recall must fail");
+
+        // Assert
+        assert!(error.contains("0.89"));
+        assert!(error.contains("0.9"));
+    }
+
+    #[test]
+    fn should_reject_changed_ivfflat_release_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("1.00", "32");
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("changed IVFFlat release configuration must fail");
+
+        // Assert
+        assert!(error.contains("ivfflat_lists"));
+        assert!(error.contains("32"));
+        assert!(error.contains("64"));
+    }
+
+    #[test]
+    fn should_accept_complete_ivfflat_release_evidence_at_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("0.90", "64");
+
+        // Act
+        let result = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn should_accept_declared_ivfflat_scaling_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.10k")
+                .expect("registered IVFFlat scaling scenario");
+        let mut metadata = ivfflat_release_metadata("0.90", "16");
+        metadata["ivfflat_probes"] = json!("4");
+        metadata["ivfflat_training_sample_size"] = json!("1024");
+
+        // Act
+        let result = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    fn ivfflat_release_metadata(recall: &str, lists: &str) -> serde_json::Value {
+        json!({
+            "recall_at_k": recall,
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "filter_selectivity": "unfiltered",
+            "fixture_seed": "0",
+            "ivfflat_lists": lists,
+            "ivfflat_probes": "16",
+            "ivfflat_training_sample_size": "4096",
+            "ivfflat_training_seed": "42"
+        })
+    }
+
+    #[test]
     fn should_scope_candidate_count_to_access_family() {
         // Arrange
         let delta = json!({

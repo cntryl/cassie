@@ -788,6 +788,8 @@ fn validate_ann_release_evidence(
 ) -> Result<(), String> {
     if scenario.expected_selected_access_path() == Some("hnsw") {
         validate_hnsw_release_evidence(scenario, metadata)?;
+    } else if scenario.expected_selected_access_path() == Some("ivfflat") {
+        validate_ivfflat_release_evidence(scenario, metadata)?;
     }
     Ok(())
 }
@@ -802,20 +804,7 @@ pub fn validate_hnsw_release_evidence(
             scenario.scenario_id
         ));
     }
-    let recall = require_numeric_f64_metadata(metadata, "recall_at_k")?;
-    let floor = require_numeric_f64_metadata(metadata, "recall_floor")?;
-    if (floor - 0.90).abs() > f64::EPSILON {
-        return Err(format!(
-            "benchmark scenario {} recall floor {floor} does not match the documented 0.9 floor",
-            scenario.scenario_id
-        ));
-    }
-    if recall < floor {
-        return Err(format!(
-            "benchmark scenario {} recall_at_k {recall} is below the {floor} floor",
-            scenario.scenario_id
-        ));
-    }
+    validate_ann_recall_floor(scenario, metadata)?;
     for (key, expected) in [
         ("exact_top_k", 20),
         ("vector_dimensions", 3),
@@ -829,6 +818,74 @@ pub fn validate_hnsw_release_evidence(
     if required_metadata_string(metadata, "distance_metric")? != "l2" {
         return Err(format!(
             "benchmark scenario {} must record the declared l2 distance metric",
+            scenario.scenario_id
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_ivfflat_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    if scenario.expected_selected_access_path() != Some("ivfflat") {
+        return Err(format!(
+            "benchmark scenario {} is not an IVFFlat release-evidence scenario",
+            scenario.scenario_id
+        ));
+    }
+    validate_ann_recall_floor(scenario, metadata)?;
+    let (lists, probes, training_sample_size) = match scenario.benchmark {
+        "tier3_system_query" => (64, 16, 4_096),
+        "tier5_scaling_retrieval" => (16, 4, 1_024),
+        owner => {
+            return Err(format!(
+                "benchmark scenario {} has unsupported IVFFlat owner {owner}",
+                scenario.scenario_id
+            ));
+        }
+    };
+    for (key, expected) in [
+        ("exact_top_k", 20),
+        ("vector_dimensions", 3),
+        ("fixture_seed", 0),
+        ("ivfflat_lists", lists),
+        ("ivfflat_probes", probes),
+        ("ivfflat_training_sample_size", training_sample_size),
+        ("ivfflat_training_seed", 42),
+    ] {
+        require_numeric_metadata_value(metadata, key, expected, scenario.scenario_id)?;
+    }
+    if required_metadata_string(metadata, "distance_metric")? != "l2" {
+        return Err(format!(
+            "benchmark scenario {} must record the declared l2 distance metric",
+            scenario.scenario_id
+        ));
+    }
+    if required_metadata_string(metadata, "filter_selectivity")? != "unfiltered" {
+        return Err(format!(
+            "benchmark scenario {} must record the declared unfiltered ANN profile",
+            scenario.scenario_id
+        ));
+    }
+    Ok(())
+}
+
+fn validate_ann_recall_floor(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    let recall = require_numeric_f64_metadata(metadata, "recall_at_k")?;
+    let floor = require_numeric_f64_metadata(metadata, "recall_floor")?;
+    if (floor - 0.90).abs() > f64::EPSILON {
+        return Err(format!(
+            "benchmark scenario {} recall floor {floor} does not match the documented 0.9 floor",
+            scenario.scenario_id
+        ));
+    }
+    if recall < floor {
+        return Err(format!(
+            "benchmark scenario {} recall_at_k {recall} is below the {floor} floor",
             scenario.scenario_id
         ));
     }

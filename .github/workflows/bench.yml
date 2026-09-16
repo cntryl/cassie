@@ -35,6 +35,11 @@ on:
           - tier5-transport
           - tier6-mixed
           - tier6-transport
+      workload:
+        description: "Exact registered scenario ID within the selected shard, or all"
+        required: true
+        default: all
+        type: string
 
 permissions:
   contents: read
@@ -96,6 +101,7 @@ jobs:
           DEPLOYMENT_PROFILE: ${{ inputs.deployment_profile }}
           SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
           SHARD: ${{ inputs.shard }}
+          WORKLOAD: ${{ inputs.workload }}
         run: |
           if [[ ! "${RUN_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
             echo "run_id must be a bounded artifact-safe identifier" >&2
@@ -116,6 +122,16 @@ jobs:
               exit 1
               ;;
           esac
+          if [[ "${WORKLOAD}" != "all" ]]; then
+            if [[ "${SHARD}" == "all" ]]; then
+              echo "a selected workload requires one owning shard" >&2
+              exit 1
+            fi
+            if [[ ! "${WORKLOAD}" =~ ^[a-z0-9][a-z0-9._-]{0,127}$ ]]; then
+              echo "workload must be all or a bounded registered scenario ID" >&2
+              exit 1
+            fi
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -186,7 +202,7 @@ jobs:
         with:
           shared-key: "benchmark-evidence-${{ matrix.tier }}"
 
-      - name: Run unfiltered owner shard
+      - name: Run selected owner shard
         if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
         env:
           CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}
@@ -194,19 +210,55 @@ jobs:
           CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
-        run: ${{ matrix.command }}
+          STRESS_FILTER: ${{ inputs.workload }}
+        run: |
+          if [[ "${STRESS_FILTER}" == "all" ]]; then
+            unset STRESS_FILTER
+          fi
+          find target/stress -type f -name latest.json -delete 2>/dev/null || true
+          ${{ matrix.command }}
+
+      - name: Validate selected workload artifact
+        if: ${{ inputs.workload != 'all' && inputs.shard == matrix.tier }}
+        env:
+          SELECTED_WORKLOAD: ${{ inputs.workload }}
+        run: |
+          matched_artifacts=0
+          while IFS= read -r artifact; do
+            matching_specs="$(jq --arg workload "${SELECTED_WORKLOAD}" \
+              '[.benchmark_specs[]? | select(.metadata.scenario_id == $workload)] | length' \
+              "${artifact}")"
+            if (( matching_specs > 0 )); then
+              if (( matching_specs != 1 )); then
+                echo "selected workload artifact must contain exactly one matching scenario" >&2
+                exit 1
+              fi
+              other_specs="$(jq --arg workload "${SELECTED_WORKLOAD}" \
+                '[.benchmark_specs[]? | select(.metadata.scenario_id != $workload)] | length' \
+                "${artifact}")"
+              if (( other_specs > 0 )); then
+                echo "selected workload artifact contains another scenario" >&2
+                exit 1
+              fi
+              matched_artifacts=$((matched_artifacts + 1))
+            fi
+          done < <(find target/stress -type f -name latest.json -print)
+          if (( matched_artifacts != 1 )); then
+            echo "selected workload did not produce exactly one matching scenario" >&2
+            exit 1
+          fi
 
       - name: Upload canonical shard artifacts
         if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}
         uses: actions/upload-artifact@v7
         with:
-          name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}
+          name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}-${{ inputs.workload }}
           path: target/stress/**/latest.json
           if-no-files-found: ignore
           retention-days: 90
 
   complete-manifest:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' && inputs.workload == 'all' }}
     needs: complete-shard
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -314,6 +314,14 @@ toolchain, cache, compilation, or benchmark work. A targeted artifact can satisf
 feature's evidence requirement. It is not a complete-suite manifest, does not run the downstream
 complete-manifest validator, and cannot support repository-wide readiness claims.
 
+A targeted shard may additionally select one exact registered scenario ID. The release profile,
+sample counts, duration, exact commit, and deployment profile remain unchanged. The workflow
+accepts the result only when exactly one retained artifact contains that scenario and no other
+scenario; an unknown ID or a scenario assigned to another shard therefore fails closed.
+A workload-targeted artifact can satisfy only that exact registered scenario feature evidence requirement.
+It is not evidence for the rest of its shard, does not create a complete manifest,
+and cannot support shard-wide or repository-wide readiness claims.
+
 ## Benchmark Scope Boundary
 
 Benchmark source and test files remain under 1,000 lines. Cassie's suite does not add coverage for Midge durability, WAL, snapshot, or recovery mechanics; those remain Midge responsibilities. Benchmark completion does not by itself close deployment-profile or disk-backed production evidence.

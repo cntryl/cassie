@@ -6896,7 +6896,7 @@ mod benchmark_deployment_profile_contract {
             "command: \"cargo bench --bench 'tier6_soak_transport' --locked\"",
             "timeout-minutes: 360",
             "CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}",
-            "run: ${{ matrix.command }}",
+            "${{ matrix.command }}",
             "name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}",
             "  complete-manifest:\n",
             "needs: complete-shard",
@@ -6936,7 +6936,7 @@ mod benchmark_deployment_profile_contract {
                 "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}",
             );
         let validates_only_complete_runs = workflow.contains(
-            "if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' }}",
+            "if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' && inputs.workload == 'all' }}",
         );
         let retains_targeted_artifacts = workflow.contains("retention-days: 90");
 
@@ -6945,6 +6945,34 @@ mod benchmark_deployment_profile_contract {
         assert!(filters_matrix);
         assert!(validates_only_complete_runs);
         assert!(retains_targeted_artifacts);
+    }
+
+    #[test]
+    fn should_run_only_the_requested_registered_workload() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let documentation = include_str!("../docs/performance-contracts.md");
+
+        // Act
+        let declares_selector = workflow.contains("      workload:")
+            && workflow.contains("default: all")
+            && workflow.contains("STRESS_FILTER: ${{ inputs.workload }}")
+            && workflow.contains("unset STRESS_FILTER");
+        let validates_observed_artifact = workflow.contains("Validate selected workload artifact")
+            && workflow.contains(".metadata.scenario_id == $workload")
+            && workflow.contains("if (( matching_specs != 1 )); then")
+            && workflow.contains("selected workload did not produce exactly one matching scenario");
+        let withholds_complete_manifest =
+            workflow.contains("inputs.shard == 'all' && inputs.workload == 'all'");
+        let documents_scope = documentation.contains(
+            "A workload-targeted artifact can satisfy only that exact registered scenario",
+        );
+
+        // Assert
+        assert!(declares_selector);
+        assert!(validates_observed_artifact);
+        assert!(withholds_complete_manifest);
+        assert!(documents_scope);
     }
 
     #[test]

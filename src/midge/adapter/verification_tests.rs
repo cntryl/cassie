@@ -40,7 +40,7 @@ fn should_flush_fresh_projection_output_at_bounded_batch_intervals() {
         .collect::<Vec<_>>();
 
     // Assert
-    assert_eq!(flushes, vec![4, 8, 10]);
+    assert_eq!(flushes, (1..=batch_count).collect::<Vec<_>>());
 }
 
 #[test]

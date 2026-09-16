@@ -1,6 +1,6 @@
 use super::{CassieError, Midge, RangeHashRecord, RootHashRecord, RowHashRecord};
 
-const PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES: usize = 4;
+const PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES: usize = 1;
 
 pub(crate) fn write_ranges(
     item_count: usize,

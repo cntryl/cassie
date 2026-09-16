@@ -307,6 +307,13 @@ when the entire manifest passes. Dispatch it only on the commit being evidenced,
 ID and a deployment profile matching the runner; a smoke duration remains diagnostic and cannot
 pass the complete-suite validator.
 
+Manual dispatch may instead select one canonical shard when a feature issue owns evidence from
+that benchmark owner. The selected shard still runs its complete unfiltered release profile on the
+exact commit and retains its artifact for 90 days; the nine unselected shards perform no checkout,
+toolchain, cache, compilation, or benchmark work. A targeted artifact can satisfy only the named
+feature's evidence requirement. It is not a complete-suite manifest, does not run the downstream
+complete-manifest validator, and cannot support repository-wide readiness claims.
+
 ## Benchmark Scope Boundary
 
 Benchmark source and test files remain under 1,000 lines. Cassie's suite does not add coverage for Midge durability, WAL, snapshot, or recovery mechanics; those remain Midge responsibilities. Benchmark completion does not by itself close deployment-profile or disk-backed production evidence.

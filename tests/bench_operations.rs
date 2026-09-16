@@ -2204,6 +2204,40 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_preserve_disk_mode_when_building_isolated_lifecycle_fixture() {
+        // Arrange
+        let source = include_str!("../benches/support/workloads/empty_context.rs");
+        let helper = source
+            .split_once("pub fn empty_disk_context_with_temp_budget")
+            .expect("disk-backed empty context helper")
+            .1
+            .split_once("fn empty_context_with_config")
+            .expect("end of disk-backed empty context helper")
+            .0;
+        let builder = source
+            .split_once("fn empty_context_with_config")
+            .expect("empty context builder")
+            .1;
+
+        // Act
+        let selects_disk_mode = helper.contains("BenchmarkStorageMode::Disk");
+        let setup_position = builder
+            .find("configure_benchmark_environment();")
+            .expect("benchmark environment setup");
+        let disk_position = builder
+            .find("std::env::set_var(\"CASSIE_STORAGE_MODE\", \"local\")")
+            .expect("explicit local storage mode");
+        let config_position = builder
+            .find("CassieRuntimeConfig::from_env()")
+            .expect("runtime configuration read");
+
+        // Assert
+        assert!(selects_disk_mode);
+        assert!(setup_position < disk_position);
+        assert!(disk_position < config_position);
+    }
+
+    #[test]
     fn should_document_rollup_retention_operator_contract() {
         // Arrange
         let readiness = include_str!("../docs/production-readiness.md");

@@ -155,6 +155,9 @@ pub fn resolve_relation_name(
     } else {
         resolve_unscoped_relation_name(parsed, catalog, context)?
     };
+    if crate::catalog::virtual_views::schema(&resolved).is_some() {
+        return Ok(resolved);
+    }
     // Resolution matches names without regard to case; hand back the stored
     // name so storage and catalog operations that use exact keys find it.
     Ok(catalog.stored_relation_name(&resolved).unwrap_or(resolved))

@@ -5,7 +5,7 @@ use super::{
 };
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
-use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexPlanPath};
+use crate::planner::physical::{scalar_index_plan_shape, ScalarIndexNullKeys, ScalarIndexPlanPath};
 use crate::types::semantic::compare_values;
 use crate::types::DataType;
 use std::cmp::Ordering;
@@ -39,6 +39,11 @@ pub(super) fn execute_scalar_index_read(
         .scan_scalar_index_controlled(&spec.index, &spec.request, controls)
         .map_err(QueryError::from)?;
     let (hits, _hits_memory) = hits.into_parts();
+    if spec.null_keys == ScalarIndexNullKeys::SortAfterLimit && !hits_fill_limit(plan, hits.len()) {
+        // Rows with a NULL sort key are not indexed; the scan and sort path
+        // returns them once the indexed rows run out.
+        return Ok(None);
+    }
     let schema = cassie.catalog.get_schema(&spec.collection);
     let mut rows = Vec::with_capacity(hits.len());
 
@@ -102,7 +107,16 @@ struct ScalarIndexReadSpec {
     path: ScalarIndexPlanPath,
     covered: bool,
     sort_applied: bool,
+    null_keys: ScalarIndexNullKeys,
     predicate_resolution: ScalarIndexPredicateResolution,
+}
+
+fn hits_fill_limit(plan: &LogicalPlan, hits: usize) -> bool {
+    let Some(limit) = plan.limit else {
+        return false;
+    };
+    let needed = limit.max(0).saturating_add(plan.offset.unwrap_or(0).max(0));
+    usize::try_from(needed).is_ok_and(|needed| hits >= needed)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -218,6 +232,7 @@ fn scalar_index_read_spec(
         path: shape.path,
         covered: covered_index,
         sort_applied: plan.order.is_empty() || shape.order_satisfied,
+        null_keys: shape.null_keys,
         predicate_resolution,
     }))
 }
@@ -449,6 +464,44 @@ fn canonicalize_field_constraints(
         }
         refresh_constraint_satisfiability(constraint);
     }
+}
+
+/// Canonicalizes an equality probe value for `field` the way scalar-index keys
+/// are stored, so integer-shaped probes match whole-number `FLOAT` keys.
+pub(in crate::executor::execution) fn canonicalize_index_probe_value(
+    cassie: &Cassie,
+    collection: &str,
+    field: &str,
+    value: &mut serde_json::Value,
+) {
+    if matches!(
+        cassie.catalog.field_type(collection, field),
+        Some(DataType::Float)
+    ) {
+        canonicalize_float_number(value);
+    }
+}
+
+/// Returns true when an equality probe on the first key field of `index`
+/// reaches every row with that value. Rows whose later key fields are NULL are
+/// not indexed, so those fields must be NOT NULL.
+pub(in crate::executor::execution) fn index_trailing_keys_not_null(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+) -> bool {
+    if !index.normalized_expressions().is_empty() {
+        return false;
+    }
+    let fields = index.normalized_fields();
+    if fields.len() <= 1 {
+        return true;
+    }
+    let not_null_fields = cassie.catalog.not_null_fields(collection);
+    fields
+        .iter()
+        .skip(1)
+        .all(|field| not_null_fields.contains(&field.to_ascii_lowercase()))
 }
 
 fn canonicalize_float_number(value: &mut serde_json::Value) {

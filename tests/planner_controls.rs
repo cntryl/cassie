@@ -3851,7 +3851,7 @@ mod planner_logical {
 mod planner_physical {
     #![allow(unused_imports, dead_code)]
     use cassie::app::CassieError;
-    use cassie::catalog::{Catalog, FieldConstraint, IndexKind, IndexMeta};
+    use cassie::catalog::{Catalog, IndexKind, IndexMeta};
     use cassie::planner::{logical, optimizer, physical, physical::Operator};
     use cassie::sql::ast::{
         BinaryOp, Expr, InsertSource, JoinKind, ParsedStatement, QuerySource, QueryStatement,
@@ -3886,14 +3886,6 @@ mod planner_physical {
             .enable_all()
             .build()
             .expect("runtime");
-        let not_null_constraints = schema
-            .iter()
-            .filter(|field| !field.nullable)
-            .map(|field| FieldConstraint {
-                not_null: true,
-                ..FieldConstraint::new(field.name.clone())
-            })
-            .collect::<Vec<_>>();
 
         runtime.block_on(async {
             catalog.register_collection(
@@ -3903,7 +3895,6 @@ mod planner_physical {
                     .map(|field| (field.name, field.data_type))
                     .collect(),
             );
-            catalog.register_constraints(name, not_null_constraints);
         });
     }
 
@@ -4518,7 +4509,7 @@ mod planner_physical {
                 FieldSchema {
                     name: "title".to_string(),
                     data_type: DataType::Text,
-                    nullable: false,
+                    nullable: true,
                 },
                 FieldSchema {
                     name: "body".to_string(),
@@ -4552,12 +4543,8 @@ mod planner_physical {
                 String,
                 cassie::catalog::CollectionCardinalityStats,
             >::new();
-            let physical_plan = physical::build_with_indexes_and_not_null_fields(
-                logical,
-                indexes.as_slice(),
-                &catalog.not_null_fields("planner_ordered_bounded"),
-                &cardinality_stats,
-            );
+            let physical_plan =
+                physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats);
 
             // Assert
             assert_eq!(
@@ -5205,6 +5192,61 @@ mod planner_read_path_depth {
             physical::ReadAccessPath::RangeScan
         );
         assert_eq!(physical_plan.read.access_path_reason, "scalar-index-range");
+        assert_eq!(physical_plan.read.fallback_reason, None);
+    }
+
+    #[test]
+    fn should_lower_expression_order_limit_to_ordered_bounded_scan() {
+        // Arrange
+        let catalog = Catalog::new();
+        register_collection_fields(
+            &catalog,
+            "planner_expression_index_order",
+            vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        );
+        let expression = expression_from_create_index(
+            "CREATE INDEX planner_expression_index_order_idx \
+         ON planner_expression_index_order USING btree (lower(title))",
+        );
+        register_expression_index(
+            &catalog,
+            "planner_expression_index_order",
+            "planner_expression_index_order_idx",
+            &expression,
+        );
+
+        // Act
+        let physical_plan = build_plan(
+            &catalog,
+            "SELECT body FROM planner_expression_index_order \
+         ORDER BY lower(title) ASC LIMIT 2",
+            "planner_expression_index_order",
+        );
+
+        // Assert
+        assert_eq!(
+            physical_plan.read.selected_index.as_deref(),
+            Some("planner_expression_index_order_idx")
+        );
+        assert_eq!(
+            physical_plan.read.access_path,
+            physical::ReadAccessPath::OrderedBoundedScan
+        );
+        assert_eq!(
+            physical_plan.read.access_path_reason,
+            "scalar-index-ordered-bounded"
+        );
         assert_eq!(physical_plan.read.fallback_reason, None);
     }
 

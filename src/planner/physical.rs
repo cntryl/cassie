@@ -41,7 +41,9 @@ use feature_flags::{
 pub(crate) use index_selection::{
     read_operator_selection, ReadOperatorCandidate, ReadOperatorSelection,
 };
-pub(crate) use scalar_paths::{scalar_index_plan_shape, ScalarIndexPlanPath, ScalarIndexPlanShape};
+pub(crate) use scalar_paths::{
+    scalar_index_plan_shape, ScalarIndexNullKeys, ScalarIndexPlanPath, ScalarIndexPlanShape,
+};
 pub use state::{
     EarlyStopMode, PaginationStrategy, PhysicalAggregatePlan, PhysicalJoinPlan,
     PhysicalJoinProperties, PhysicalPlan, PhysicalProjectionPlan, PhysicalReadPlan,

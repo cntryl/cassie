@@ -506,9 +506,7 @@ fn measure_legacy_scalar_cases(
             sql: workloads::EXPRESSION_INDEX_ORDER_SCALING_SQL,
             params: vec![],
             expected_rows: 50,
-            // Expression keys may be NULL, and NULL keys are not indexed, so the
-            // unfiltered ordered query cannot use the expression index.
-            expected_plan: "access_path=collection_scan",
+            expected_plan: "access_path=ordered_bounded_scan",
         },
     );
 }

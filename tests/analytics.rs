@@ -10098,6 +10098,61 @@ mod read_model_optimization_round {
     }
 
     #[test]
+    fn should_keep_null_trailing_index_keys_in_bounded_indexed_join() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("read_model_indexed_join_null_trailing_key");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie =
+                Cassie::new_with_data_dir_and_config(&path, vectorized_join_config()).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE indexed_join_nullable_users (user_key INT, name TEXT)",
+                "CREATE TABLE indexed_join_nullable_orders (order_user_key INT, total INT)",
+                "CREATE INDEX indexed_join_nullable_users_idx \
+                 ON indexed_join_nullable_users USING btree (user_key, name)",
+                "INSERT INTO indexed_join_nullable_users (user_key, name) VALUES (150, NULL)",
+                "INSERT INTO indexed_join_nullable_users (user_key, name) VALUES (151, 'named')",
+                "INSERT INTO indexed_join_nullable_orders (order_user_key, total) VALUES (150, 150)",
+                "INSERT INTO indexed_join_nullable_orders (order_user_key, total) VALUES (151, 151)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+
+            // Act
+            let mut rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT indexed_join_nullable_users.name, indexed_join_nullable_orders.total \
+                 FROM indexed_join_nullable_users JOIN indexed_join_nullable_orders \
+                 ON indexed_join_nullable_users.user_key = indexed_join_nullable_orders.order_user_key \
+                 LIMIT 2",
+                    vec![],
+                )
+                .unwrap()
+                .rows;
+            rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+
+            // Assert
+            assert_eq!(
+                rows,
+                vec![
+                    vec![Value::Null, Value::Int64(150)],
+                    vec![Value::String("named".to_string()), Value::Int64(151)],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_probe_indexed_left_source_for_bounded_inner_join() {
         // Arrange
         use_local_storage();

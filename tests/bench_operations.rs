@@ -6843,7 +6843,7 @@ mod poc_quickstart {
 
     fn execute_poc_setup(cassie: &Cassie, session: &cassie::app::CassieSession) {
         for sql in [
-        "CREATE TABLE poc_orders (tenant_id TEXT, status TEXT, created_at INT NOT NULL, title TEXT, total INT)",
+        "CREATE TABLE poc_orders (tenant_id TEXT, status TEXT, created_at INT, title TEXT, total INT)",
         "INSERT INTO poc_orders (tenant_id, status, created_at, title, total) VALUES ('acme', 'open', 1, 'first order', 42), ('acme', 'open', 2, 'second order', 99), ('acme', 'closed', 3, 'closed order', 10), ('other', 'open', 4, 'other tenant', 7)",
         "CREATE INDEX poc_orders_lookup_idx ON poc_orders USING btree (tenant_id, status, created_at)",
     ] {

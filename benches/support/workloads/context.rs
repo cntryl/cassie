@@ -946,7 +946,6 @@ fn prepare_replay_collection(ctx: &BenchContext, dataset_rows: usize) -> Result<
     }
 
     let statements = [
-        "ALTER TABLE bench_documents ALTER COLUMN score SET NOT NULL",
         "CREATE INDEX bench_documents_score_idx ON bench_documents USING btree (score)",
         "CREATE INDEX bench_documents_status_score_idx ON bench_documents USING btree (status, score)",
     ];

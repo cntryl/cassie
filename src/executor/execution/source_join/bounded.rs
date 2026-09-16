@@ -800,6 +800,9 @@ fn scalar_join_index(
                     .normalized_fields()
                     .first()
                     .is_some_and(|candidate| candidate.eq_ignore_ascii_case(field))
+                && crate::executor::execution::index_read::index_trailing_keys_not_null(
+                    env.cassie, collection, index,
+                )
         })
 }
 

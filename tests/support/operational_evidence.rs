@@ -48,6 +48,8 @@ pub fn validate_operational_evidence_manifest(
         ));
     }
 
+    validate_host_resources(object)?;
+
     let digest = string_field(object, "image_digest")?;
     let digest_bytes = digest.as_bytes();
     if digest_bytes.len() != 71
@@ -106,6 +108,43 @@ pub fn validate_operational_evidence_manifest(
     }
 
     Ok(())
+}
+
+fn validate_host_resources(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    let host = object
+        .get("host")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| "host must be an object".to_string())?;
+    for field in ["cpu_model", "filesystem"] {
+        string_field(host, field).map_err(|error| format!("host.{error}"))?;
+    }
+    for field in [
+        "core_count",
+        "memory_total_bytes",
+        "disk_total_bytes",
+        "disk_available_bytes",
+    ] {
+        positive_u64_field(host, field).map_err(|error| format!("host.{error}"))?;
+    }
+    let total = positive_u64_field(host, "disk_total_bytes")?;
+    let available = positive_u64_field(host, "disk_available_bytes")?;
+    if available > total {
+        return Err("host.disk_available_bytes must not exceed host.disk_total_bytes".to_string());
+    }
+    Ok(())
+}
+
+fn positive_u64_field(
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Result<u64, String> {
+    object
+        .get(field)
+        .and_then(serde_json::Value::as_u64)
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("{field} must be an exact positive integer"))
 }
 
 fn validate_lowercase_sha256_field(

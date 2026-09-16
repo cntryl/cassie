@@ -6636,6 +6636,23 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_reject_operational_manifest_with_impossible_disk_capacity() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            "                    \"disk_available_bytes\": 75161927680",
+            "                    \"disk_available_bytes\": 107374182401",
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("available disk bytes must not exceed total disk bytes");
+
+        // Assert
+        assert!(error.contains("host.disk_available_bytes"));
+        assert!(error.contains("host.disk_total_bytes"));
+    }
+
+    #[test]
     fn should_reject_operational_manifest_with_inverted_timestamps() {
         // Arrange
         let manifest = operational_manifest(true, "success")

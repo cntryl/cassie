@@ -5709,21 +5709,21 @@ mod performance_benchmarks_tests {
     }
 
     #[test]
-    fn should_keep_tier3_to_one_100k_representative_per_access_family() {
+    fn should_keep_tier3_to_the_declared_100k_representatives_per_access_family() {
         // Arrange
         let required_families = [
-            "relational_index",
-            "join",
-            "column_analytics",
-            "fulltext",
-            "vector_exact",
-            "vector_hnsw",
-            "vector_ivf",
-            "hybrid",
-            "graph",
-            "time_series",
-            "lifecycle",
-            "mixed_load",
+            ("relational_index", 1),
+            ("join", 1),
+            ("column_analytics", 1),
+            ("fulltext", 1),
+            ("vector_exact", 1),
+            ("vector_hnsw", 1),
+            ("vector_ivf", 1),
+            ("hybrid", 1),
+            ("graph", 1),
+            ("time_series", 3),
+            ("lifecycle", 1),
+            ("mixed_load", 1),
         ];
 
         // Act
@@ -5732,14 +5732,19 @@ mod performance_benchmarks_tests {
             .collect::<Vec<_>>();
         let counts = required_families
             .into_iter()
-            .map(|family| {
+            .map(|(family, expected)| {
                 let count = tier3
                     .iter()
                     .filter(|scenario| scenario.access_family == family)
                     .count();
-                (family, count)
+                (family, count, expected)
             })
             .collect::<Vec<_>>();
+        let time_series_workloads = tier3
+            .iter()
+            .filter(|scenario| scenario.access_family == "time_series")
+            .map(|scenario| scenario.workload)
+            .collect::<std::collections::BTreeSet<_>>();
 
         // Assert
         assert!(tier3.iter().all(|scenario| {
@@ -5747,8 +5752,16 @@ mod performance_benchmarks_tests {
                 && scenario.fixture_rows == 100_000
         }));
         assert!(
-            counts.iter().all(|(_, count)| *count == 1),
+            counts.iter().all(|(_, count, expected)| count == expected),
             "Tier 3 representative counts: {counts:?}"
+        );
+        assert_eq!(
+            time_series_workloads,
+            std::collections::BTreeSet::from([
+                "time_series_window_scan_15m",
+                "time_series_window_scan_1d",
+                "time_series_window_scan_1h",
+            ])
         );
     }
 

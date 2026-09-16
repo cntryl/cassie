@@ -219,13 +219,26 @@ fn parse_time_series_bucket_width(statement: &CreateIndexStatement) -> Result<St
         .map_or("1 hour", String::as_str)
         .trim()
         .to_string();
-    if bucket_width.is_empty() {
-        Err(CassieError::Planner(
-            "time-series index option 'bucket_width' cannot be empty".into(),
-        ))
-    } else {
-        Ok(bucket_width)
+    let mut parts = bucket_width.split_whitespace();
+    let amount = parts.next().and_then(|value| value.parse::<u64>().ok());
+    let unit_seconds = match parts.next().map(str::to_ascii_lowercase).as_deref() {
+        Some("minute" | "minutes") => Some(60_u64),
+        Some("hour" | "hours") => Some(60 * 60),
+        Some("day" | "days") => Some(24 * 60 * 60),
+        _ => None,
+    };
+    let valid = amount
+        .zip(unit_seconds)
+        .and_then(|(amount, unit_seconds)| amount.checked_mul(unit_seconds))
+        .is_some_and(|seconds| seconds > 0 && i64::try_from(seconds).is_ok())
+        && parts.next().is_none();
+    if !valid {
+        return Err(CassieError::Planner(
+            "time-series index bucket_width must be a positive minute, hour, or day interval"
+                .into(),
+        ));
     }
+    Ok(bucket_width)
 }
 
 fn parse_time_series_partition_by(statement: &CreateIndexStatement) -> Vec<String> {

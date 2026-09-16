@@ -7,6 +7,8 @@ mod support_graph;
 mod support_graph_neighbors;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/time_series_evidence.rs"]
+mod support_time_series_evidence;
 
 // Formerly tests/graph_transaction_semantics.rs.
 mod graph_transaction_semantics {
@@ -1032,6 +1034,7 @@ mod time_series_indexes {
     use serde_json::json;
 
     use super::support_sql as support;
+    use super::support_time_series_evidence::TimeSeriesWidthEvidence;
     use support::*;
 
     #[test]
@@ -1056,6 +1059,70 @@ mod time_series_indexes {
             statement.options.get("partition_by"),
             Some(&"tenant,status".to_string())
         );
+    }
+
+    #[test]
+    fn should_reject_unsupported_time_series_bucket_width() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("time_series_unsupported_bucket_width");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE ts_unsupported_width_events (event_at TIMESTAMP)",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let errors = [
+            "0 minutes",
+            "-1 hour",
+            "1 second",
+            "1 week",
+            "1 month",
+            "1 calendar day",
+            "18446744073709551615 days",
+        ]
+        .map(|width| {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "CREATE INDEX idx_ts_unsupported_width ON ts_unsupported_width_events USING time_series (event_at) WITH (bucket_width = '{width}')"
+                    ),
+                    vec![],
+                )
+                .expect_err("unsupported width must not create a row-backed time-series index")
+        });
+
+        // Assert
+        for error in errors {
+            assert!(
+                error
+                    .to_string()
+                    .contains("bucket_width must be a positive minute, hour, or day interval"),
+                "error={error}"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_preserve_bucket_native_results_across_supported_widths() {
+        // Arrange
+        let evidence = TimeSeriesWidthEvidence::collect();
+
+        // Act
+        let widths = evidence.widths();
+
+        // Assert
+        assert_eq!(widths, vec!["15 minutes", "1 hour", "1 day"]);
+        evidence.assert_exact_equivalence();
     }
 
     #[test]

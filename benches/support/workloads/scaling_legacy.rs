@@ -289,7 +289,7 @@ pub fn prepare_fulltext_warm_state(context: &BenchContext) {
 }
 
 pub fn prepare_projection_lifecycle(context: &BenchContext) {
-    context
+    let result = context
         .cassie
         .execute_sql(
             &context.session,
@@ -297,8 +297,10 @@ pub fn prepare_projection_lifecycle(context: &BenchContext) {
             vec![],
         )
         .expect("prepare scaling projection");
-    let rows = projection_refresh_existing(context).into_inner();
-    assert!(rows > 0, "projection setup refresh must complete");
+    assert_eq!(
+        result.command, "CREATE MATERIALIZED PROJECTION",
+        "projection setup creation must complete"
+    );
 }
 
 pub fn prepare_projection_repair(context: &BenchContext) {

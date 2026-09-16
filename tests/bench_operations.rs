@@ -3782,6 +3782,43 @@ mod benchmark_kernels {
     }
 
     #[test]
+    fn should_refresh_projection_once_when_preparing_lifecycle_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark lifecycle test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-lifecycle-single-refresh",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection lifecycle fixture");
+        let before = context.cassie.metrics();
+
+        // Act
+        workloads::prepare_projection_lifecycle(&context);
+        let after = context.cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            after["projections"]["materialized_refreshes"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["projections"]["materialized_refreshes"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1,
+            "projection lifecycle setup must perform only the refresh owned by creation"
+        );
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up lifecycle single-refresh fixture");
+    }
+
+    #[test]
     fn should_repair_prepared_projection_failure_given_small_scaling_fixture() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()

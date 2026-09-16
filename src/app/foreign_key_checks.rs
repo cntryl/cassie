@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::{Cassie, CassieError, CassieSession, FieldConstraint};
 
@@ -69,9 +69,12 @@ impl ForeignKeyReferences {
 impl Cassie {
     /// Checks that every collected reference has a matching referenced row.
     ///
-    /// Each referenced table is scanned at most once, and the scan stops as soon
-    /// as all of its pending references are found. The first missing reference,
-    /// in collection order, is reported.
+    /// Pending references are grouped by referenced table and keyed by
+    /// (referenced column, value), so each parent row costs one lookup per
+    /// distinct referenced column. Each referenced table is scanned at most once.
+    /// The scan loads the whole table, so stopping once every key is found only
+    /// saves comparisons, not I/O. The first missing reference, in collection
+    /// order, is reported.
     pub(crate) fn validate_foreign_key_references(
         &self,
         session: Option<&CassieSession>,
@@ -81,30 +84,40 @@ impl Cassie {
         if references.is_empty() {
             return Ok(());
         }
-        let mut pending_by_table = BTreeMap::<&str, Vec<usize>>::new();
+        let mut pending_by_table = BTreeMap::<&str, HashMap<(&str, String), Vec<usize>>>::new();
         for (index, reference) in references.references.iter().enumerate() {
             pending_by_table
                 .entry(reference.referenced_table.as_str())
+                .or_default()
+                .entry((
+                    reference.referenced_column.as_str(),
+                    reference.value.to_string(),
+                ))
                 .or_default()
                 .push(index);
         }
 
         let mut found = vec![false; references.len()];
         for (table, mut pending) in pending_by_table {
+            let columns = pending
+                .keys()
+                .map(|(column, _)| *column)
+                .collect::<BTreeSet<_>>();
             let batches =
                 self.scan_documents_batched_for_session(session, table, REFERENCE_SCAN_BATCH_SIZE)?;
-            for document in batches.into_iter().flatten() {
-                pending.retain(|&index| {
-                    let reference = &references.references[index];
-                    let matched = document.payload.get(&reference.referenced_column)
-                        == Some(&reference.value);
-                    if matched {
-                        found[index] = true;
+            'documents: for document in batches.into_iter().flatten() {
+                for column in &columns {
+                    let Some(value) = document.payload.get(*column) else {
+                        continue;
+                    };
+                    if let Some(hits) = pending.remove(&(*column, value.to_string())) {
+                        for index in hits {
+                            found[index] = true;
+                        }
+                        if pending.is_empty() {
+                            break 'documents;
+                        }
                     }
-                    !matched
-                });
-                if pending.is_empty() {
-                    break;
                 }
             }
         }

@@ -920,6 +920,38 @@ mod foreign_key_concurrency {
     }
 
     #[test]
+    fn should_reject_a_copy_whose_middle_row_references_a_missing_parent() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("foreign_key_copy_missing_parent");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        create_copy_tables(&cassie, &session);
+
+        // Act
+        let result = cassie.copy_from_csv_stdin(&session, &copy_child_statement(), b"1\n2\n1\n");
+
+        // Assert
+        let child_collection = support::canonical_test_collection(&cassie, "fk_copy_children");
+        let children = cassie
+            .midge
+            .scan_documents(&child_collection)
+            .expect("scan children");
+        assert!(
+            matches!(
+                result,
+                Err(cassie::app::CassieError::ForeignKeyViolation { .. })
+            ),
+            "COPY with a missing parent was not rejected: {result:?}"
+        );
+        assert!(children.is_empty(), "COPY applied child rows: {children:?}");
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_a_transactional_copy_commit_after_its_parent_is_deleted() {
         // Arrange
         support::use_local_storage();

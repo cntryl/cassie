@@ -121,9 +121,6 @@ fn measure_scale(
     if cases.rebuild.is_some() || cases.verify.is_some() || cases.repair.is_some() {
         workloads::prepare_projection_lifecycle(&context);
     }
-    if cases.repair.is_some() {
-        workloads::prepare_projection_repair(&context);
-    }
     let time_series_context = (cases.retention.is_some() || cases.rollup.is_some())
         .then(|| workloads::prepare_time_series_lifecycle_context(&context, rows));
     let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
@@ -140,10 +137,11 @@ fn measure_scale(
         );
     }
     if let Some(case) = cases.repair {
-        runner.measure_batch(
+        runner.measure_batch_with_setup(
             evidenced(case, &setup_time_ns, context.cassie.clone()),
             source_rows,
-            || runtime.block_on(workloads::projection_repair_existing(&context)),
+            || workloads::prepare_projection_repair(&context),
+            |()| runtime.block_on(workloads::projection_repair_existing(&context)),
         );
     }
     if let Some(case) = cases.rebuild {

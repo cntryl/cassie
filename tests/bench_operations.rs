@@ -1946,7 +1946,10 @@ mod benchmark_harness_contract {
     #[test]
     fn should_apply_runtime_logical_units_to_every_batch_measurement() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = concat!(
+            include_str!("../benches/support/stress.rs"),
+            include_str!("../benches/support/stress_batch.rs")
+        );
 
         // Act
         let shared_preparations = adapter
@@ -1957,7 +1960,7 @@ mod benchmark_harness_contract {
             adapter.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
 
         // Assert
-        assert_eq!(shared_preparations, 2);
+        assert_eq!(shared_preparations, 3);
         assert!(records_runtime_unit);
         assert!(declares_fixed_workload);
     }
@@ -1965,7 +1968,7 @@ mod benchmark_harness_contract {
     #[test]
     fn should_normalize_duration_batch_evidence_by_completed_operations() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = include_str!("../benches/support/stress_batch.rs");
         let first_candidate_count = 18_768;
         let first_completed_queries = 48;
         let second_candidate_count = 15_640;
@@ -1990,7 +1993,7 @@ mod benchmark_harness_contract {
     fn should_batch_tier3_time_series_queries_with_per_query_evidence() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_query.rs");
-        let harness = include_str!("../benches/support/stress.rs");
+        let harness = include_str!("../benches/support/stress_batch.rs");
         let time_series_case = owner
             .split_once("fn bench_time_series_representative")
             .expect("time-series representative")
@@ -2009,7 +2012,7 @@ mod benchmark_harness_contract {
             .split_once("fn run_batch<F, R>")
             .expect("batch runner")
             .1
-            .split_once("pub fn is_enabled")
+            .split_once("fn run_batch_with_setup")
             .expect("end of batch runner")
             .0;
 
@@ -2025,7 +2028,7 @@ mod benchmark_harness_contract {
         let reports_per_query_cardinality =
             time_series_execution.contains("std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)");
         let uses_actual_completed_count = run_batch.contains("let completed = ctx.measure_batch(");
-        let normalizes_runtime_evidence = run_batch.contains(".per_external_operation(completed)");
+        let normalizes_runtime_evidence = harness.contains(".per_external_operation(completed)");
 
         // Assert
         assert!(has_batch_size);
@@ -2175,6 +2178,29 @@ mod benchmark_harness_contract {
         let timed_repair = timed_repair.expect("timed projection repair workload");
         assert!(timed_repair.contains("REPAIR PROJECTION bench_projection SCOPE row"));
         assert!(!timed_repair.contains("VERIFY PROJECTION"));
+    }
+
+    #[test]
+    fn should_prepare_projection_repair_before_every_timed_invocation() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let harness_source = include_str!("../benches/support/stress_batch.rs");
+
+        // Act
+        let repair_measurement = owner_source
+            .split_once("if let Some(case) = cases.repair")
+            .expect("projection repair measurement")
+            .1
+            .split_once("if let Some(case) = cases.rebuild")
+            .expect("end of projection repair measurement")
+            .0;
+
+        // Assert
+        assert!(repair_measurement.contains("measure_batch_with_setup"));
+        assert!(repair_measurement.contains("prepare_projection_repair(&context)"));
+        assert!(repair_measurement.contains("projection_repair_existing(&context)"));
+        assert!(harness_source.contains("pub fn measure_batch_with_setup"));
+        assert!(harness_source.contains(".measure_outcome_with_setup("));
     }
 
     #[test]

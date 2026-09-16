@@ -74,3 +74,9 @@ capacity, runtime, restart, and assignment evidence. These tests establish field
 behavior only. Production thresholds, sustained capacity, and availability claims require
 retained deployment-profile evidence as described in [Capacity Management](capacity-management.md)
 and [Production Readiness](production-readiness.md).
+
+Retained operational manifests fail closed unless they identify the exact revision, deployment
+profile, platform, and host resource context: CPU model, online core count, total memory,
+filesystem type, and evidence-volume total and available bytes. That context supports comparison
+between repeated same-profile runs; one runner snapshot is not itself a latency, throughput,
+capacity, or availability commitment.

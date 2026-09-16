@@ -6523,6 +6523,14 @@ mod benchmark_deployment_profile_contract {
                 "finished_utc": "2026-09-15T00:05:00Z",
                 "platform": "linux/amd64",
                 "deployment_profile": "native-linux-amd64-disk",
+                "host": {{
+                    "cpu_model": "AMD EPYC test",
+                    "core_count": 4,
+                    "memory_total_bytes": 17179869184,
+                    "filesystem": "ext4",
+                    "disk_total_bytes": 107374182400,
+                    "disk_available_bytes": 75161927680
+                }},
                 "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "image_revision": "expected-commit",
                 "shape_only": {shape_only},
@@ -6597,6 +6605,34 @@ mod benchmark_deployment_profile_contract {
 
         // Assert
         assert!(error.contains("operator"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_without_complete_host_resources() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            "                    \"memory_total_bytes\": 17179869184,\n",
+            "",
+        );
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("host resource evidence must be complete");
+        let captures_host_resources = [
+            "cpu_model",
+            "core_count",
+            "memory_total_bytes",
+            "filesystem",
+            "disk_total_bytes",
+            "disk_available_bytes",
+        ]
+        .into_iter()
+        .all(|field| workflow.contains(field));
+
+        // Assert
+        assert!(error.contains("host.memory_total_bytes"));
+        assert!(captures_host_resources);
     }
 
     #[test]

@@ -358,6 +358,16 @@ jobs:
           if [[ -f operational-evidence/midge-lock-checksum.txt ]]; then
             midge_lock_checksum="$(< operational-evidence/midge-lock-checksum.txt)"
           fi
+          cpu_model="$(awk -F: '/model name|Hardware|Processor/ {sub(/^[[:space:]]+/, "", $2); print $2; exit}' /proc/cpuinfo)"
+          if [[ -z "${cpu_model}" ]]; then
+            cpu_model="$(uname -m)"
+          fi
+          core_count="$(getconf _NPROCESSORS_ONLN)"
+          memory_total_bytes="$(awk '/^MemTotal:/ {printf "%.0f", $2 * 1024; exit}' /proc/meminfo)"
+          filesystem="$(findmnt -n -o FSTYPE --target "${RUNNER_TEMP}")"
+          read -r disk_total_bytes disk_available_bytes < <(
+            df -B1 --output=size,avail "${RUNNER_TEMP}" | tail -n 1
+          )
           finished_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           jq --null-input \
             --arg schema_version "cassie-operational-evidence.v1" \
@@ -371,6 +381,12 @@ jobs:
             --arg finished_utc "${finished_utc}" \
             --arg platform '${{ matrix.platform }}' \
             --arg profile '${{ matrix.profile }}' \
+            --arg cpu_model "${cpu_model}" \
+            --argjson core_count "${core_count}" \
+            --argjson memory_total_bytes "${memory_total_bytes}" \
+            --arg filesystem "${filesystem}" \
+            --argjson disk_total_bytes "${disk_total_bytes}" \
+            --argjson disk_available_bytes "${disk_available_bytes}" \
             --arg image_digest '${{ inputs.image_digest }}' \
             --arg image_revision "${image_revision}" \
             --argjson shape_only '${{ inputs.shape_only }}' \
@@ -391,6 +407,14 @@ jobs:
               finished_utc: $finished_utc,
               platform: $platform,
               deployment_profile: $profile,
+              host: {
+                cpu_model: $cpu_model,
+                core_count: $core_count,
+                memory_total_bytes: $memory_total_bytes,
+                filesystem: $filesystem,
+                disk_total_bytes: $disk_total_bytes,
+                disk_available_bytes: $disk_available_bytes
+              },
               image_digest: $image_digest,
               image_revision: $image_revision,
               shape_only: $shape_only,

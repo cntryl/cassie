@@ -2,7 +2,91 @@ use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::Duration;
 
-use super::{FieldSchema, Midge, Schema};
+use super::{
+    set_projection_output_failure_point, FieldSchema, Midge, ProjectionOutputFailurePoint, Schema,
+};
+
+#[test]
+fn should_bound_fresh_projection_output_write_batches() {
+    // Arrange
+    let row_count = 10_001;
+
+    // Act
+    let batches = super::verification::storage::write_ranges(row_count, 256)
+        .map(|range| range.len())
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(
+        batches,
+        vec![
+            256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+            256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
+            256, 256, 256, 256, 256, 17,
+        ]
+    );
+}
+
+#[test]
+fn should_leave_batched_projection_hash_rebuild_unpublished_until_retry_completes() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!(
+        "cassie_projection_batched_hash_rebuild_{}",
+        uuid::Uuid::new_v4()
+    ));
+    let midge = Midge::new_with_data_dir(&path).expect("create Midge");
+    midge
+        .create_collection(
+            "projection_batched_hash_rebuild",
+            Schema {
+                fields: vec![FieldSchema {
+                    name: "value".to_string(),
+                    data_type: crate::types::DataType::Text,
+                    nullable: false,
+                }],
+            },
+        )
+        .expect("create projection collection");
+    let rows = (0..5_001)
+        .map(|index| {
+            (
+                Some(format!("row-{index:05}")),
+                serde_json::json!({"value": format!("value-{index:05}")}),
+            )
+        })
+        .collect();
+    midge
+        .put_documents("projection_batched_hash_rebuild", rows)
+        .expect("seed projection rows");
+    set_projection_output_failure_point(Some(ProjectionOutputFailurePoint::AfterRowBatches));
+
+    // Act
+    let interrupted = midge.rebuild_projection_hashes("projection_batched_hash_rebuild");
+    let unpublished = midge
+        .root_hash("projection_batched_hash_rebuild")
+        .expect("read interrupted root");
+    let retried = midge
+        .rebuild_projection_hashes("projection_batched_hash_rebuild")
+        .expect("retry projection hash rebuild");
+
+    // Assert
+    assert!(interrupted
+        .expect_err("rebuild should stop after row batches")
+        .to_string()
+        .contains("after row batches"));
+    assert!(unpublished.is_none());
+    assert_eq!(retried.row_count, 5_001);
+    assert_eq!(
+        midge
+            .list_row_hashes("projection_batched_hash_rebuild")
+            .expect("list rebuilt row hashes")
+            .len(),
+        5_001
+    );
+
+    drop(midge);
+    let _ = std::fs::remove_dir_all(path);
+}
 
 #[test]
 fn should_publish_complete_fresh_projection_output_across_bounded_batches() {

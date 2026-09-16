@@ -38,6 +38,10 @@ const VECTOR_TOP_K: usize = 20;
 const HNSW_M: usize = 32;
 const HNSW_EF_CONSTRUCTION: usize = 256;
 const HNSW_EF_SEARCH: usize = 256;
+const IVFFLAT_LISTS: usize = 64;
+const IVFFLAT_PROBES: usize = 16;
+const IVFFLAT_TRAINING_SAMPLE_SIZE: usize = 4_096;
+const IVFFLAT_TRAINING_SEED: u64 = 42;
 const ANN_RECALL_FLOOR: f64 = 0.90;
 
 #[path = "support/performance_benchmarks.rs"]
@@ -324,7 +328,8 @@ fn bench_indexed_vector_representatives(
     ivf: Option<stress::StressCase>,
 ) {
     let mut vector_index = None;
-    let hnsw_exact_ids = hnsw.as_ref().map(|_| workloads::vector_top_k_ids(context));
+    let ann_exact_ids =
+        (hnsw.is_some() || ivf.is_some()).then(|| workloads::vector_top_k_ids(context));
     if let Some(case) = hybrid {
         let case_setup = Instant::now();
         install_vector_index(context, &mut vector_index, VectorIndexKind::Hnsw);
@@ -358,7 +363,7 @@ fn bench_indexed_vector_representatives(
         }
         let hnsw_ids = workloads::vector_top_k_ids(context);
         let recall = workloads::recall_at_k(
-            hnsw_exact_ids
+            ann_exact_ids
                 .as_ref()
                 .expect("Tier 3 HNSW exact recall baseline"),
             &hnsw_ids,
@@ -380,9 +385,20 @@ fn bench_indexed_vector_representatives(
     if let Some(case) = ivf {
         let case_setup = Instant::now();
         install_vector_index(context, &mut vector_index, VectorIndexKind::IvfFlat);
+        let ivfflat_ids = workloads::vector_top_k_ids(context);
+        let recall = workloads::recall_at_k(
+            ann_exact_ids
+                .as_ref()
+                .expect("Tier 3 IVFFlat exact recall baseline"),
+            &ivfflat_ids,
+        );
+        assert!(
+            recall >= ANN_RECALL_FLOOR,
+            "Tier 3 IVFFlat recall@{VECTOR_TOP_K} {recall} is below {ANN_RECALL_FLOOR}"
+        );
         bench_ann_case(
             runner,
-            case,
+            ivfflat_release_evidenced(case, recall),
             context,
             fixture_setup + case_setup.elapsed(),
             workloads::VectorAccessPath::IvfFlat,
@@ -390,6 +406,23 @@ fn bench_indexed_vector_representatives(
             "ivfflat_fallbacks",
         );
     }
+}
+
+fn ivfflat_release_evidenced(case: stress::StressCase, recall: f64) -> stress::StressCase {
+    case.metadata("recall_at_k", format!("{recall:.6}"))
+        .metadata("recall_floor", format!("{ANN_RECALL_FLOOR:.2}"))
+        .metadata("exact_top_k", VECTOR_TOP_K.to_string())
+        .metadata("vector_dimensions", VECTOR_DIMENSIONS.to_string())
+        .metadata("distance_metric", "l2")
+        .metadata("filter_selectivity", "unfiltered")
+        .metadata("fixture_seed", VECTOR_FIXTURE_SEED.to_string())
+        .metadata("ivfflat_lists", IVFFLAT_LISTS.to_string())
+        .metadata("ivfflat_probes", IVFFLAT_PROBES.to_string())
+        .metadata(
+            "ivfflat_training_sample_size",
+            IVFFLAT_TRAINING_SAMPLE_SIZE.to_string(),
+        )
+        .metadata("ivfflat_training_seed", IVFFLAT_TRAINING_SEED.to_string())
 }
 
 fn hnsw_release_evidenced(case: stress::StressCase, recall: f64) -> stress::StressCase {

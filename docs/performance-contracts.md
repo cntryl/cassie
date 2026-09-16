@@ -56,6 +56,12 @@ dimensions, metric, fixture seed, and every graph parameter alongside latency, r
 memory, workers, and fallback evidence. Complete-artifact validation rejects missing fields, a
 weakened floor, or sub-floor recall.
 
+Retained IVFFlat release rows use the bounded list, probe, training-sample, seed, and filter matrix
+in [IVFFlat Release Evidence](ivfflat-release-evidence.md). Exact top-k comparison is outside the
+timed region. Artifacts record the complete configuration alongside recall, latency,
+membership-prefix and point reads, candidates, memory, workers, and fallback diagnostics;
+validation rejects configuration drift or recall below 0.90.
+
 Hybrid retrieval combines persisted text, vector, and structured candidates before exact final scoring under the shared query memory and cancellation controls. It reports component candidate counts, final row fetches, and fallback reasons.
 
 Remote embedding providers expose controlled document and query methods. Each request, retry, and backoff observes cancellation and clamps its transport timeout to the remaining query deadline. Provider success and error bodies are bounded by `CASSIE_EMBEDDINGS_MAX_RESPONSE_BYTES` (default 8 MiB), declared oversized bodies are rejected before reading, chunked bodies stop at the limit plus one byte, and propagated provider-error excerpts are control-free and capped at 1 KiB. Stable describes Cassie's protocol behavior and deterministic local contract evidence, not the availability or latency of third-party services.

@@ -467,7 +467,7 @@ pub fn create_ivfflat_index(ctx: &BenchContext) {
     ctx.cassie
         .execute_sql(
             &ctx.session,
-            "CREATE INDEX bench_documents_embedding_idx ON bench_documents USING vector (embedding) WITH (source_field = body, metric = l2, index_type = ivfflat, lists = 16, probes = 16, training_sample_size = 1024, training_seed = 42)",
+            "CREATE INDEX bench_documents_embedding_idx ON bench_documents USING vector (embedding) WITH (source_field = body, metric = l2, index_type = ivfflat, lists = 16, probes = 4, training_sample_size = 1024, training_seed = 42)",
             vec![],
         )
         .expect("create benchmark IVFFlat index");

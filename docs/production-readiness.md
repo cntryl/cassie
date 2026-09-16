@@ -30,6 +30,9 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
   graph parameters, exact-top-k recall comparison, resource observations, and interrupted-publication
   recovery proof. Its exact-head native-Linux artifact link remains open until the release-candidate
   run completes; the Stable feature label is not a Cassie-wide capacity claim.
+- The [IVFFlat Release Evidence](ivfflat-release-evidence.md) contract fixes the representative
+  list, probe, training, filter, recall, resource, and interrupted-publication matrix. Its exact-head
+  native-Linux artifact link remains open until the release-candidate run completes.
 - Deterministic local-server contracts for OpenAI, OpenAI-compatible, TEI, Ollama, Voyage, Cohere, and local embeddings, including request shape, ordering, dimensions, retry deadlines, transport timeouts, and active cancellation.
 - Remote embedding-provider evidence is mock-provider evidence: it covers authentication headers,
   HTTP 429 handling, bounded retry attempts, query-deadline clamping, response limits, and

@@ -244,3 +244,15 @@ pub fn validate_hnsw_release_evidence(
 ) -> Result<(), String> {
     performance_benchmark_samples::validate_hnsw_release_evidence(scenario, metadata)
 }
+
+/// Validates the retained recall and configuration contract for one `IVFFlat` scenario.
+///
+/// # Errors
+///
+/// Returns an error when the scenario is not `IVFFlat` or evidence violates the declared matrix.
+pub fn validate_ivfflat_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    performance_benchmark_samples::validate_ivfflat_release_evidence(scenario, metadata)
+}

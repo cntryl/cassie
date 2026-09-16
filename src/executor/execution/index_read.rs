@@ -130,6 +130,7 @@ fn scalar_index_read_spec(
     }
 
     let indexes = cassie.catalog.list_indexes(&projected.collection);
+    let not_null_fields = cassie.catalog.not_null_fields(&projected.collection);
     let physical = physical.filter(|physical| physical.collection == projected.collection);
     let (index_name, covered_index) = if let Some(physical) = physical {
         let Some(index_name) = physical.read.selected_index.as_deref() else {
@@ -139,9 +140,10 @@ fn scalar_index_read_spec(
     } else {
         let cardinality_stats =
             std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
-        let physical = crate::planner::physical::build_with_indexes(
+        let physical = crate::planner::physical::build_with_indexes_and_not_null_fields(
             plan.clone(),
             indexes.as_slice(),
+            &not_null_fields,
             &cardinality_stats,
         );
         let Some(index_name) = physical.read.selected_index else {
@@ -152,9 +154,14 @@ fn scalar_index_read_spec(
     let Some(index) = indexes.into_iter().find(|index| index.name == index_name) else {
         return Ok(None);
     };
-    let Some(shape) = scalar_index_plan_shape(plan, &index) else {
+    let Some(shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };
+    // Scalar-index keys cannot represent NaN or infinities, while the filter
+    // operator orders them above every finite value. Let the scan answer.
+    if params.iter().any(is_non_finite_float) {
+        return Ok(None);
+    }
 
     let extracted_constraints = if index.expressions.is_empty() {
         concrete_constraints(plan.filter.as_ref(), params)
@@ -475,6 +482,8 @@ fn intersect_constraint(
     op: &BinaryOp,
     value: serde_json::Value,
 ) -> Option<()> {
+    // Comparisons with NULL never match, so a NULL bound must not widen the scan.
+    let compares_with_null = value.is_null();
     match op {
         BinaryOp::Eq => {
             if constraint
@@ -493,6 +502,7 @@ fn intersect_constraint(
         BinaryOp::Lte => intersect_upper_bound(&mut constraint.upper, value, true),
         _ => return None,
     }
+    constraint.unsatisfiable |= compares_with_null;
     refresh_constraint_satisfiability(constraint);
     Some(())
 }
@@ -770,18 +780,21 @@ fn expr_to_json(expr: &Expr, params: &[Value]) -> Option<serde_json::Value> {
         Expr::IntegerLiteral(value) => Some(serde_json::Value::Number((*value).into())),
         Expr::BoolLiteral(value) => Some(serde_json::Value::Bool(*value)),
         Expr::Null => Some(serde_json::Value::Null),
-        Expr::Param(index) => params.get(*index).map(value_to_json),
+        Expr::Param(index) => params.get(*index).and_then(value_to_json),
         _ => None,
     }
 }
 
-fn value_to_json(value: &Value) -> serde_json::Value {
-    match value {
+fn is_non_finite_float(value: &Value) -> bool {
+    matches!(value, Value::Float64(value) if !value.is_finite())
+}
+
+fn value_to_json(value: &Value) -> Option<serde_json::Value> {
+    Some(match value {
         Value::Null => serde_json::Value::Null,
         Value::Bool(value) => serde_json::Value::Bool(*value),
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
-        Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+        Value::Float64(value) => serde_json::Value::Number(serde_json::Number::from_f64(*value)?),
         Value::String(value) => serde_json::Value::String(value.clone()),
         Value::Vector(value) => serde_json::Value::Array(
             value
@@ -792,7 +805,7 @@ fn value_to_json(value: &Value) -> serde_json::Value {
                 .collect(),
         ),
         Value::Json(value) => value.clone(),
-    }
+    })
 }
 
 fn record_scalar_index_read_path(cassie: &Cassie, spec: &ScalarIndexReadSpec, rows: usize) {

@@ -25,9 +25,11 @@ pub(crate) struct ReadOperatorSelection {
 pub(crate) fn read_operator_selection<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> ReadOperatorSelection {
-    let base_selected_index = base_selected_index(plan, indexes, cardinality_stats);
+    let base_selected_index =
+        base_selected_index(plan, indexes, not_null_fields, cardinality_stats);
     let scan_estimates = PlanEstimates::from_plan(plan, None, cardinality_stats);
     let mut candidates = vec![ReadOperatorCandidate {
         label: "row_scan".to_string(),
@@ -39,7 +41,7 @@ pub(crate) fn read_operator_selection<S: BuildHasher>(
         index: None,
     }];
 
-    for index in scalar_candidates(plan, indexes, cardinality_stats) {
+    for index in scalar_candidates(plan, indexes, not_null_fields, cardinality_stats) {
         let estimates =
             PlanEstimates::from_plan(plan, Some(index.name.as_str()), cardinality_stats);
         candidates.push(ReadOperatorCandidate {
@@ -83,6 +85,7 @@ pub(crate) fn read_operator_selection<S: BuildHasher>(
 pub(crate) fn base_selected_index<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Option<String> {
     let QuerySource::Collection(collection) = &plan.source else {
@@ -98,10 +101,16 @@ pub(crate) fn base_selected_index<S: BuildHasher>(
         .as_ref()
         .map(super::equality_filter_expressions)
         .unwrap_or_default();
-    let scalar = scalar_candidates(plan, indexes, cardinality_stats)
+    let scalar = scalar_candidates(plan, indexes, not_null_fields, cardinality_stats)
         .into_iter()
         .find(|index| {
-            scalar_index_matches_plan(plan, index, &equality_fields, &equality_expressions)
+            scalar_index_matches_plan(
+                plan,
+                index,
+                not_null_fields,
+                &equality_fields,
+                &equality_expressions,
+            )
         })
         .map(|index| index.name.clone());
     scalar.or_else(|| {
@@ -114,6 +123,7 @@ pub(crate) fn base_selected_index<S: BuildHasher>(
 fn scalar_candidates<S: BuildHasher>(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Vec<IndexMeta> {
     let QuerySource::Collection(collection) = &plan.source else {
@@ -134,12 +144,25 @@ fn scalar_candidates<S: BuildHasher>(
         .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
-            scalar_index_matches_plan(plan, index, &equality_fields, &equality_expressions)
+            scalar_index_matches_plan(
+                plan,
+                index,
+                not_null_fields,
+                &equality_fields,
+                &equality_expressions,
+            )
         })
         .cloned()
         .collect::<Vec<_>>();
     scalar.sort_by(|left, right| {
-        compare_scalar_index_candidates(plan, collection, left, right, cardinality_stats)
+        compare_scalar_index_candidates(
+            plan,
+            collection,
+            left,
+            right,
+            not_null_fields,
+            cardinality_stats,
+        )
     });
     scalar
 }
@@ -147,6 +170,7 @@ fn scalar_candidates<S: BuildHasher>(
 fn scalar_index_matches_plan(
     plan: &LogicalPlan,
     index: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
     equality_fields: &BTreeSet<String>,
     equality_expressions: &BTreeSet<String>,
 ) -> bool {
@@ -155,9 +179,13 @@ fn scalar_index_matches_plan(
             .normalized_fields()
             .iter()
             .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
-        return scalar_index_plan_shape(plan, index).is_some()
+        return scalar_index_plan_shape(plan, index, not_null_fields).is_some()
             || field_match
-            || super::scalar_paths::scalar_index_order_proof_missing_candidate(plan, index);
+            || super::scalar_paths::scalar_index_order_proof_missing_candidate(
+                plan,
+                index,
+                not_null_fields,
+            );
     }
 
     let field_match = index
@@ -168,7 +196,8 @@ fn scalar_index_matches_plan(
         .normalized_expressions()
         .iter()
         .all(|expression| equality_expressions.contains(expression));
-    scalar_index_plan_shape(plan, index).is_some() || (field_match && expression_match)
+    scalar_index_plan_shape(plan, index, not_null_fields).is_some()
+        || (field_match && expression_match)
 }
 
 fn compare_scalar_index_candidates<S: BuildHasher>(
@@ -176,11 +205,12 @@ fn compare_scalar_index_candidates<S: BuildHasher>(
     collection: &str,
     left: &IndexMeta,
     right: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> std::cmp::Ordering {
     match (
-        scalar_index_plan_shape(plan, left),
-        scalar_index_plan_shape(plan, right),
+        scalar_index_plan_shape(plan, left, not_null_fields),
+        scalar_index_plan_shape(plan, right, not_null_fields),
     ) {
         (Some(left_shape), Some(right_shape)) => scalar_index_path_rank(left_shape.path)
             .cmp(&scalar_index_path_rank(right_shape.path))

@@ -5044,6 +5044,67 @@ mod integration_sql_update {
     use support::*;
 
     #[test]
+    fn should_reject_non_finite_float_values_on_write_paths() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("non_finite_write_paths");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE non_finite_writes (item_id INT, x FLOAT)",
+                "CREATE TABLE non_finite_writes_copy (item_id INT, x FLOAT)",
+                "INSERT INTO non_finite_writes (item_id, x) VALUES (1, 5.5)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+            let statements = [
+                "UPDATE non_finite_writes SET x = $1 WHERE item_id = 1",
+                "UPDATE non_finite_writes SET x = x * $1 WHERE item_id = 1",
+                "INSERT INTO non_finite_writes (item_id, x) VALUES (2, $1)",
+                "INSERT INTO non_finite_writes_copy (item_id, x) SELECT item_id, x * $1 FROM non_finite_writes",
+            ];
+
+            // Act
+            let mut accepted = Vec::new();
+            for sql in statements {
+                for parameter in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                    if cassie
+                        .execute_sql(&session, sql, vec![Value::Float64(parameter)])
+                        .is_ok()
+                    {
+                        accepted.push(format!("{sql} [{parameter}]"));
+                    }
+                }
+            }
+            let stored = cassie
+                .execute_sql(&session, "SELECT item_id, x FROM non_finite_writes", vec![])
+                .expect("select stored rows");
+            let copied = cassie
+                .execute_sql(&session, "SELECT item_id, x FROM non_finite_writes_copy", vec![])
+                .expect("select copied rows");
+
+            // Assert
+            assert!(
+                accepted.is_empty(),
+                "non-finite float values must be rejected: {accepted:#?}"
+            );
+            assert_eq!(
+                stored.rows,
+                vec![vec![Value::Int64(1), Value::Float64(5.5)]]
+            );
+            assert!(copied.rows.is_empty());
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_maintain_include_values_after_update_delete() {
         // Arrange
         use_local_storage();

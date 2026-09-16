@@ -18,13 +18,16 @@ pub(super) use dml_insert::execute_insert;
 pub(crate) use dml_insert::resolve_transaction_conflict_intents;
 pub(super) use dml_update::execute_update;
 
-fn value_to_json(value: &Value) -> serde_json::Value {
-    match value {
+const NON_FINITE_WRITE_VALUE_ERROR: &str = "stored float values must be finite";
+
+fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
+    Ok(match value {
         Value::Null => serde_json::Value::Null,
         Value::Bool(value) => serde_json::Value::Bool(*value),
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
         Value::Float64(value) => serde_json::Number::from_f64(*value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| QueryError::General(NON_FINITE_WRITE_VALUE_ERROR.to_string()))?,
         Value::String(value) => serde_json::Value::String(value.clone()),
         Value::Vector(value) => serde_json::Value::Array(
             value
@@ -35,14 +38,14 @@ fn value_to_json(value: &Value) -> serde_json::Value {
                 .collect(),
         ),
         Value::Json(value) => value.clone(),
-    }
+    })
 }
 
 fn update_assignment_to_json(
     field: &str,
     value: &Value,
     schema: &CollectionSchema,
-) -> serde_json::Value {
+) -> Result<serde_json::Value, QueryError> {
     if let Some(field_meta) = schema
         .fields
         .iter()
@@ -52,7 +55,7 @@ fn update_assignment_to_json(
             if let Some(text) = value.as_str() {
                 if let Some(vector) = super::scored::parse_vector_literal(text) {
                     if vector.len() == *dimensions {
-                        return serde_json::Value::Array(
+                        return Ok(serde_json::Value::Array(
                             vector
                                 .into_iter()
                                 .map(|component| {
@@ -61,7 +64,7 @@ fn update_assignment_to_json(
                                 })
                                 .collect::<Option<Vec<_>>>()
                                 .unwrap_or_default(),
-                        );
+                        ));
                     }
                 }
             }
@@ -72,7 +75,7 @@ fn update_assignment_to_json(
         ) {
             if let Value::Float64(number) = value {
                 if let Some(integer) = integral_json_number(*number) {
-                    return serde_json::Value::Number(integer);
+                    return Ok(serde_json::Value::Number(integer));
                 }
             }
         }

@@ -510,9 +510,10 @@ fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalo
     let indexes = cassie.catalog.list_indexes(collection);
     let cardinality_stats =
         std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
-    let physical = crate::planner::physical::build_with_indexes(
+    let physical = crate::planner::physical::build_with_indexes_and_not_null_fields(
         plan.clone(),
         indexes.as_slice(),
+        &cassie.catalog.not_null_fields(collection),
         &cardinality_stats,
     );
     let selected = physical.read.selected_index?;
@@ -533,9 +534,10 @@ fn selected_scalar_index_for_plan(
     let indexes = cassie.catalog.list_indexes(collection);
     let cardinality_stats =
         std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
-    let physical = crate::planner::physical::build_with_indexes(
+    let physical = crate::planner::physical::build_with_indexes_and_not_null_fields(
         plan.clone(),
         indexes.as_slice(),
+        &cassie.catalog.not_null_fields(collection),
         &cardinality_stats,
     );
     let selected = physical.read.selected_index?;

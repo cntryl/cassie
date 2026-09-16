@@ -71,16 +71,37 @@ pub fn build(plan: LogicalPlan) -> PhysicalPlan {
     build_with_indexes(plan, &[], &cardinality_stats)
 }
 
+/// Builds a physical plan without column nullability facts.
+///
+/// Every column is treated as nullable, so scalar-index paths that would need
+/// a NOT NULL key column to stay complete are declined.
 #[must_use]
 pub fn build_with_indexes<S: BuildHasher>(
     plan: LogicalPlan,
     indexes: &[IndexMeta],
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> PhysicalPlan {
-    let selected_index = index_selection::base_selected_index(&plan, indexes, cardinality_stats);
+    build_with_indexes_and_not_null_fields(plan, indexes, &BTreeSet::new(), cardinality_stats)
+}
+
+/// Builds a physical plan using the source relation's NOT NULL columns.
+///
+/// `not_null_fields` holds lowercase names of columns that can never store
+/// NULL. Scalar indexes do not store NULL keys, so these facts decide whether
+/// ordered or partially constrained index scans return every matching row.
+#[must_use]
+pub fn build_with_indexes_and_not_null_fields<S: BuildHasher>(
+    plan: LogicalPlan,
+    indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
+    cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
+) -> PhysicalPlan {
+    let selected_index =
+        index_selection::base_selected_index(&plan, indexes, not_null_fields, cardinality_stats);
     build_with_selection(
         plan,
         indexes,
+        not_null_fields,
         cardinality_stats,
         selected_index,
         OperatorFeedbackPlanDiagnostics::default(),
@@ -91,6 +112,7 @@ pub fn build_with_indexes<S: BuildHasher>(
 pub(crate) fn build_with_selection<S: BuildHasher>(
     plan: LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
     selected_index: Option<String>,
     operator_feedback: OperatorFeedbackPlanDiagnostics,
@@ -100,7 +122,7 @@ pub(crate) fn build_with_selection<S: BuildHasher>(
         return command_physical_plan(plan, operator_feedback, adaptive_plan);
     }
 
-    let read = read_plan(&plan, indexes, selected_index);
+    let read = read_plan(&plan, indexes, not_null_fields, selected_index);
     let top_k = top_k_plan(&plan, &read.access_path);
     let join = join_plan(&plan);
     let aggregate = aggregate_plan(&plan, indexes);
@@ -153,12 +175,18 @@ fn command_physical_plan(
 fn read_plan(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     selected_index: Option<String>,
 ) -> PhysicalReadPlan {
     let projected_scan_fields = projected_scan_fields(plan).unwrap_or_default();
-    let scalar_shape = selected_scalar_index_shape(plan, indexes, selected_index.as_deref());
-    let access_path =
-        read_paths::determine_read_access_path(plan, indexes, selected_index.as_deref());
+    let scalar_shape =
+        selected_scalar_index_shape(plan, indexes, not_null_fields, selected_index.as_deref());
+    let access_path = read_paths::determine_read_access_path(
+        plan,
+        indexes,
+        not_null_fields,
+        selected_index.as_deref(),
+    );
     let pagination_strategy = read_paths::determine_pagination_strategy(plan, &access_path);
     let top_k_mode = read_paths::determine_top_k_mode(plan, &access_path);
 
@@ -190,11 +218,12 @@ fn read_plan(
 fn selected_scalar_index_shape(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     selected_index: Option<&str>,
 ) -> Option<ScalarIndexPlanShape> {
     selected_index
         .and_then(|name| indexes.iter().find(|index| index.name == name))
-        .and_then(|index| scalar_index_plan_shape(plan, index))
+        .and_then(|index| scalar_index_plan_shape(plan, index, not_null_fields))
 }
 
 fn covered_index(plan: &LogicalPlan, indexes: &[IndexMeta], selected_index: Option<&str>) -> bool {

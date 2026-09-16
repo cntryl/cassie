@@ -1,11 +1,12 @@
 use super::{
-    check_document_write_failure_point, key_encoding, CassieError, DocumentWriteFailurePoint,
-    Midge, RowDecode,
+    check_document_write_failure_point, key_encoding, CassieError, DataType,
+    DocumentWriteFailurePoint, Midge, RowDecode, RowSchema,
 };
 use crate::catalog::{IndexKind, IndexMeta};
 use crate::executor::filter;
 use crate::sql::ast::Expr;
 use crate::types::Value;
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 
 mod codec;
@@ -361,6 +362,48 @@ impl Midge {
             .is_empty();
         Ok(matched)
     }
+}
+
+/// Returns the payload with integer-shaped `FLOAT` values stored as JSON floats.
+///
+/// Row blobs decode `FLOAT` columns as floats, so index backfill, delete-side
+/// maintenance, and index probes all encode those keys with the float tag.
+/// Incoming write payloads can still carry integer-shaped numbers for `FLOAT`
+/// columns; canonicalizing them keeps incrementally maintained keys identical.
+pub(crate) fn scalar_index_canonical_payload<'a>(
+    row_schema: &RowSchema,
+    payload: &'a serde_json::Value,
+) -> Cow<'a, serde_json::Value> {
+    let Some(object) = payload.as_object() else {
+        return Cow::Borrowed(payload);
+    };
+    let integer_shaped_float = |field: &str| {
+        object
+            .get(field)
+            .and_then(serde_json::Value::as_number)
+            .is_some_and(|number| !number.is_f64())
+    };
+    let float_fields = row_schema
+        .active_fields_by_id()
+        .into_iter()
+        .filter(|field| field.data_type == DataType::Float && integer_shaped_float(&field.name))
+        .map(|field| field.name.as_str())
+        .collect::<Vec<_>>();
+    if float_fields.is_empty() {
+        return Cow::Borrowed(payload);
+    }
+
+    let mut canonical = object.clone();
+    for field in float_fields {
+        let float = canonical
+            .get(field)
+            .and_then(serde_json::Value::as_f64)
+            .and_then(serde_json::Number::from_f64);
+        if let Some(float) = float {
+            canonical.insert(field.to_string(), serde_json::Value::Number(float));
+        }
+    }
+    Cow::Owned(serde_json::Value::Object(canonical))
 }
 
 fn payload_to_row(payload: &serde_json::Value) -> Vec<(String, Value)> {

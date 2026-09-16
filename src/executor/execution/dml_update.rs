@@ -164,7 +164,7 @@ fn updated_payload_from_row(
             filter::evaluate_expr_value(row, expr, params, None, user_functions, session, None)?;
         payload.insert(
             field.clone(),
-            update_assignment_to_json(field, &value, schema),
+            update_assignment_to_json(field, &value, schema)?,
         );
     }
     Ok(serde_json::Value::Object(payload))

@@ -36,9 +36,17 @@ impl FieldConstraintShape {
     }
 }
 
+/// Returns the scalar-index access shape for `plan`, if the index can answer it.
+///
+/// Rows whose index key contains NULL are not stored in scalar indexes, so a
+/// shape is only returned when every key component is proven non-null for the
+/// matching rows: either the filter compares it with a value, or the field is
+/// named in `not_null_fields` (lowercase names of NOT NULL or primary key
+/// columns).
 pub(crate) fn scalar_index_plan_shape(
     plan: &LogicalPlan,
     index: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
 ) -> Option<ScalarIndexPlanShape> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
@@ -66,6 +74,9 @@ pub(crate) fn scalar_index_plan_shape(
                 .any(|candidate| candidate.eq_ignore_ascii_case(field))
         })
     {
+        return None;
+    }
+    if !index_fields_exclude_nulls(&fields, &constraints, not_null_fields) {
         return None;
     }
 
@@ -149,12 +160,13 @@ pub(crate) fn scalar_index_plan_shape(
 pub(crate) fn scalar_index_order_proof_missing_candidate(
     plan: &LogicalPlan,
     index: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
 ) -> bool {
     if plan.order.is_empty()
         || plan.limit.is_none()
         || index.kind != IndexKind::Scalar
         || !index.expressions.is_empty()
-        || scalar_index_plan_shape(plan, index).is_some()
+        || scalar_index_plan_shape(plan, index, not_null_fields).is_some()
     {
         return false;
     }
@@ -170,6 +182,7 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
                 .any(|candidate| candidate.eq_ignore_ascii_case(field))
         })
         || plan.order.iter().any(|order| order.nulls.is_some())
+        || !index_fields_exclude_nulls(&fields, &constraints, not_null_fields)
     {
         return false;
     }
@@ -239,20 +252,10 @@ fn expression_index_plan_shape(
         return None;
     }
 
+    // Expression keys are only proven non-null by a filter constraint on the
+    // expression, so an unfiltered ordered scan could omit NULL-valued rows.
     if fields.is_empty() && expressions.len() == 1 {
         let order_shape = single_expression_order_shape(plan, &expressions[0])?;
-        if plan.filter.is_none() && order_shape.order_columns_used > 0 && plan.limit.is_some() {
-            return Some(ScalarIndexPlanShape {
-                path: ScalarIndexPlanPath::OrderedBoundedScan,
-                equality_prefix_len: 0,
-                range_field_index: None,
-                order_columns_used: order_shape.order_columns_used,
-                order_by_row_id: false,
-                reverse: order_shape.reverse,
-                order_satisfied: order_shape.order_satisfied,
-            });
-        }
-
         if let Some(constraint) =
             single_expression_constraint_shape(plan.filter.as_ref(), &expressions[0])
         {
@@ -590,6 +593,17 @@ fn order_shape(
     }
 
     None
+}
+
+fn index_fields_exclude_nulls(
+    fields: &[String],
+    constraints: &BTreeMap<String, FieldConstraintShape>,
+    not_null_fields: &BTreeSet<String>,
+) -> bool {
+    fields.iter().all(|field| {
+        let field = field.to_ascii_lowercase();
+        constraints.contains_key(&field) || not_null_fields.contains(&field)
+    })
 }
 
 fn filter_constraint_shapes(

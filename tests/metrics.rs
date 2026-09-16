@@ -3052,6 +3052,7 @@ mod metrics_read_paths {
         register_collection_with_schema(cassie, collection, scalar_read_schema());
         let bootstrap = cassie.create_session("bootstrap", None);
         for sql in [
+        "ALTER TABLE metrics_scalar_read_paths ALTER COLUMN title SET NOT NULL",
         "CREATE INDEX metrics_scalar_title_idx ON metrics_scalar_read_paths USING btree (title)",
         "CREATE INDEX metrics_scalar_tenant_status_idx ON metrics_scalar_read_paths USING btree (tenant_id, status)",
     ] {

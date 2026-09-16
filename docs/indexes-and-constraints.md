@@ -50,6 +50,17 @@ Supported predicate shapes include:
 - Left-prefix composite lookup.
 - Combined predicates extracted from simple conjunctions.
 
+NULL and non-finite values:
+
+- Rows whose index key contains NULL are not stored in scalar indexes. The planner uses a scalar index only when every key column is compared with a value in the filter or is declared `NOT NULL` (or is part of the primary key). An unfiltered `ORDER BY col LIMIT n` therefore uses an ordered index scan only on `NOT NULL` columns, and unfiltered ordering by an expression index key falls back to a scan plus top-k sort.
+- Comparisons with a NULL bind parameter match no rows.
+- NaN and infinite float parameters are not index-encodable; range predicates that bind them fall back to the row scan, which orders NaN and infinities above every finite value. Writes reject non-finite float values instead of storing NULL.
+
+Whole-number `FLOAT` keys:
+
+- Integer-shaped values written to a `FLOAT` column (for example `INSERT ... VALUES (5)` or an `INT8` bind parameter) are indexed as floats, matching index backfill and query bounds.
+- Scalar indexes on `FLOAT` columns that received such writes after the index was created, on a build before this rule, can hold entries that range and equality lookups miss. Drop and recreate those indexes to rebuild them from row blobs. No automatic migration runs.
+
 Out of scope unless separately documented:
 
 - Arbitrary skip-column lookup.

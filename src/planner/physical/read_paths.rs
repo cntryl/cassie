@@ -1,6 +1,6 @@
 use super::{
     is_row_id_column, join_paths, projected_scan_fields, scalar_index_plan_shape, scan_limit,
-    source_contains_join, BinaryOp, EarlyStopMode, Expr, IndexMeta, LogicalPlan,
+    source_contains_join, BTreeSet, BinaryOp, EarlyStopMode, Expr, IndexMeta, LogicalPlan,
     PaginationStrategy, ProjectionShape, QuerySource, ReadAccessPath, ScalarIndexPlanPath,
     ScalarIndexPlanShape, SelectItem, TopKMode,
 };
@@ -8,6 +8,7 @@ use super::{
 pub(super) fn determine_read_access_path(
     plan: &LogicalPlan,
     indexes: &[IndexMeta],
+    not_null_fields: &BTreeSet<String>,
     selected_index: Option<&str>,
 ) -> ReadAccessPath {
     if source_contains_join(&plan.source) {
@@ -24,7 +25,7 @@ pub(super) fn determine_read_access_path(
 
     if let Some(shape) = selected_index
         .and_then(|name| indexes.iter().find(|index| index.name == name))
-        .and_then(|index| scalar_index_plan_shape(plan, index))
+        .and_then(|index| scalar_index_plan_shape(plan, index, not_null_fields))
     {
         return match shape.path {
             ScalarIndexPlanPath::IndexSeek => ReadAccessPath::IndexSeek,

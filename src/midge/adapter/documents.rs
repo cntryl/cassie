@@ -640,13 +640,16 @@ impl Midge {
         let payload = prepared
             .payload
             .expect("prepared put operation must include payload");
+        // Existing payloads are decoded from row blobs and are already canonical.
+        let index_payload =
+            super::scalar_indexes::scalar_index_canonical_payload(&context.row_schema, &payload);
         Self::sync_unique_reservations_for_document(
             tx,
             collection,
             context,
             &prepared.id,
             existing.payload.as_ref(),
-            Some(&payload),
+            Some(index_payload.as_ref()),
         )?;
         let row_key = Self::row_key(context.row_schema.relation_id, &prepared.id);
         let legacy_key = Self::doc_key(collection, &prepared.id);
@@ -699,7 +702,7 @@ impl Midge {
             context,
             &prepared.id,
             existing.payload.as_ref(),
-            Some(&payload),
+            Some(index_payload.as_ref()),
         )?;
         report.changed_ids.push(prepared.id.clone());
         report.ids.push(prepared.id);

@@ -287,6 +287,16 @@ impl Catalog {
             })
     }
 
+    /// Returns lowercase names of columns that cannot store NULL values.
+    #[must_use]
+    pub fn not_null_fields(&self, collection: &str) -> std::collections::BTreeSet<String> {
+        self.get_constraints(collection)
+            .into_iter()
+            .filter(|constraint| constraint.not_null || constraint.primary_key)
+            .map(|constraint| constraint.field.to_ascii_lowercase())
+            .collect()
+    }
+
     pub fn register_constraints(&self, collection: &str, constraints: Vec<FieldConstraint>) {
         let normalized = constraints
             .into_iter()

@@ -21,7 +21,7 @@ const RANGE_HASH_VERSION: u16 = 1;
 const ROOT_HASH_VERSION: u16 = 1;
 const RANGE_SEGMENT_SIZE: usize = 256;
 const EAGER_HASH_REBUILD_ROW_LIMIT: u64 = 512;
-pub(super) const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = 5_000;
+pub(super) const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = 1_000;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

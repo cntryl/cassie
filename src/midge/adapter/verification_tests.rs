@@ -9,7 +9,7 @@ use super::{
 #[test]
 fn should_bound_fresh_projection_output_write_batches() {
     // Arrange
-    let row_count = 10_001;
+    let row_count = 5_001;
 
     // Act
     let batches = super::verification::storage::write_ranges(
@@ -20,7 +20,7 @@ fn should_bound_fresh_projection_output_write_batches() {
     .collect::<Vec<_>>();
 
     // Assert
-    assert_eq!(batches, vec![5_000, 5_000, 1]);
+    assert_eq!(batches, vec![1_000, 1_000, 1_000, 1_000, 1_000, 1]);
 }
 
 #[test]
@@ -142,7 +142,7 @@ fn should_publish_complete_fresh_projection_output_across_bounded_batches() {
 
     // Assert
     assert_eq!(report.stats.row_puts, 5_001);
-    assert_eq!(report.stats.batch_flushes, 3);
+    assert_eq!(report.stats.batch_flushes, 7);
     assert_eq!(root.row_count, 5_001);
     assert_eq!(root.range_count, 20);
     assert_eq!(

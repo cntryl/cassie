@@ -1,5 +1,7 @@
 use super::{CassieError, Midge, RangeHashRecord, RootHashRecord, RowHashRecord};
 
+const PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES: usize = 4;
+
 pub(crate) fn write_ranges(
     item_count: usize,
     batch_size: usize,
@@ -7,6 +9,14 @@ pub(crate) fn write_ranges(
     (0..item_count)
         .step_by(batch_size)
         .map(move |start| start..start.saturating_add(batch_size).min(item_count))
+}
+
+pub(crate) fn should_flush_projection_output_batch(
+    completed_batches: usize,
+    batch_count: usize,
+) -> bool {
+    completed_batches == batch_count
+        || completed_batches.is_multiple_of(PROJECTION_OUTPUT_FLUSH_INTERVAL_BATCHES)
 }
 
 pub(super) fn write_row_hash_record_to_tx(

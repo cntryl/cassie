@@ -28,6 +28,22 @@ fn should_bound_fresh_projection_output_write_batches() {
 }
 
 #[test]
+fn should_flush_fresh_projection_output_at_bounded_batch_intervals() {
+    // Arrange
+    let batch_count = 10;
+
+    // Act
+    let flushes = (1..=batch_count)
+        .filter(|batch| {
+            super::verification::storage::should_flush_projection_output_batch(*batch, batch_count)
+        })
+        .collect::<Vec<_>>();
+
+    // Assert
+    assert_eq!(flushes, vec![4, 8, 10]);
+}
+
+#[test]
 fn should_leave_batched_projection_hash_rebuild_unpublished_until_retry_completes() {
     // Arrange
     let path = std::env::temp_dir().join(format!(

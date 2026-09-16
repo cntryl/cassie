@@ -9,8 +9,8 @@ use super::{
 #[path = "verification/storage.rs"]
 pub(super) mod storage;
 use storage::{
-    delete_keys_from_tx, write_range_hash_record_to_tx, write_ranges, write_root_hash_record_to_tx,
-    write_row_hash_record_to_tx,
+    delete_keys_from_tx, should_flush_projection_output_batch, write_range_hash_record_to_tx,
+    write_ranges, write_root_hash_record_to_tx, write_row_hash_record_to_tx,
 };
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
@@ -342,7 +342,12 @@ impl Midge {
             records.push(record);
         }
 
-        for range in write_ranges(encoded_rows.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
+        let batch_count = encoded_rows
+            .len()
+            .div_ceil(PROJECTION_OUTPUT_WRITE_BATCH_SIZE);
+        for (batch_index, range) in
+            write_ranges(encoded_rows.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE).enumerate()
+        {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
             for index in range {
                 let (id, row_blob) = &encoded_rows[index];
@@ -357,6 +362,9 @@ impl Midge {
             tx.commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
             report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+            if should_flush_projection_output_batch(batch_index + 1, batch_count) {
+                self.flush_data_family_for_collection(&collection)?;
+            }
         }
         check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
 

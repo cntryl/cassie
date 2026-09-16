@@ -1,3 +1,4 @@
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap};
 use std::thread;
 
@@ -17,7 +18,11 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 mod group_memory;
 #[path = "aggregate_exec/state.rs"]
 mod state;
+#[cfg(test)]
+#[path = "aggregate_exec/tests.rs"]
+mod tests;
 
+use group_memory::GroupMemory;
 use state::{i64_to_f64, usize_to_f64, NumericSum, PartialAggregateGroup};
 
 pub(super) struct AggregateExecutionContext<'a> {
@@ -75,23 +80,29 @@ fn aggregate_query_batches_serial(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
     let mut groups = BTreeMap::<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>::new();
-    let mut group_memory = group_memory::replace_serial(None, context.controls, &groups)?;
+    let mut group_memory = GroupMemory::new(context.controls)?;
 
     for row in rows {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(&row, context)?;
         let signature = aggregate_group_signature(&group_values);
-        groups
-            .entry(signature)
-            .or_insert_with(|| (group_values, Vec::new()))
-            .1
-            .push(row);
-        group_memory = group_memory::replace_serial(Some(group_memory), context.controls, &groups)?;
+        let mut added_bytes = group_memory::serial_row_bytes(&row);
+        let group = match groups.entry(signature) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                added_bytes = added_bytes
+                    .saturating_add(group_memory::serial_group_bytes(entry.key(), &group_values));
+                entry.insert((group_values, Vec::new()))
+            }
+        };
+        group.1.push(row);
+        group_memory.add(added_bytes)?;
     }
 
     if groups.is_empty() && context.plan.group_by.is_empty() {
-        groups.insert(SemanticKey::default(), (Vec::new(), Vec::new()));
-        group_memory = group_memory::replace_serial(Some(group_memory), context.controls, &groups)?;
+        let signature = SemanticKey::default();
+        group_memory.add(group_memory::serial_group_bytes(&signature, &[]))?;
+        groups.insert(signature, (Vec::new(), Vec::new()));
     }
 
     let mut out = Vec::with_capacity(groups.len());
@@ -124,21 +135,21 @@ fn aggregate_query_batches_parallel(
             .map(|chunk| {
                 scope.spawn(move || {
                     let mut groups = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
-                    let mut group_memory =
-                        group_memory::replace_partial(None, context.controls, &groups)?;
+                    let mut group_memory = GroupMemory::new(context.controls)?;
                     for row in chunk {
                         check_timeout(context.controls)?;
                         let group_values = aggregate_group_values(row, context)?;
                         let signature = aggregate_group_signature(&group_values);
-                        let group = groups
-                            .entry(signature)
-                            .or_insert_with(|| PartialAggregateGroup::new(group_values, specs));
+                        let group = match groups.entry(signature) {
+                            Entry::Occupied(entry) => entry.into_mut(),
+                            Entry::Vacant(entry) => {
+                                let group = PartialAggregateGroup::new(group_values, specs);
+                                group_memory
+                                    .add(group_memory::partial_group_bytes(entry.key(), &group))?;
+                                entry.insert(group)
+                            }
+                        };
                         group.update(row, specs, context)?;
-                        group_memory = group_memory::replace_partial(
-                            Some(group_memory),
-                            context.controls,
-                            &groups,
-                        )?;
                     }
                     Ok::<_, QueryError>(groups)
                 })
@@ -157,29 +168,26 @@ fn aggregate_query_batches_parallel(
     let partitions = partials.len();
     let input_rows = rows.len();
     let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
-    let mut merged_memory = group_memory::replace_partial(None, context.controls, &merged)?;
+    let mut merged_memory = GroupMemory::new(context.controls)?;
     for partial in partials.drain(..) {
         for (signature, group) in partial {
             match merged.entry(signature) {
-                std::collections::btree_map::Entry::Occupied(mut entry) => {
+                Entry::Occupied(mut entry) => {
                     entry.get_mut().merge(&group)?;
                 }
-                std::collections::btree_map::Entry::Vacant(entry) => {
+                Entry::Vacant(entry) => {
+                    merged_memory.add(group_memory::partial_group_bytes(entry.key(), &group))?;
                     entry.insert(group);
                 }
             }
-            merged_memory =
-                group_memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
         }
     }
 
     if merged.is_empty() && context.plan.group_by.is_empty() {
-        merged.insert(
-            SemanticKey::default(),
-            PartialAggregateGroup::new(Vec::new(), specs),
-        );
-        merged_memory =
-            group_memory::replace_partial(Some(merged_memory), context.controls, &merged)?;
+        let signature = SemanticKey::default();
+        let group = PartialAggregateGroup::new(Vec::new(), specs);
+        merged_memory.add(group_memory::partial_group_bytes(&signature, &group))?;
+        merged.insert(signature, group);
     }
 
     let group_count = merged.len();

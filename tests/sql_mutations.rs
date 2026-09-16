@@ -6266,6 +6266,58 @@ mod migration_ddl_sequences {
     }
 
     #[test]
+    fn should_register_serial_sequence_in_schema_of_qualified_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_schema_qualified_table");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", Some("postgres".to_string()));
+            execute_statement(&cassie, &session, "CREATE SCHEMA ledger");
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "CREATE TABLE ledger.entries (entry_id SERIAL PRIMARY KEY, label TEXT)",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "INSERT INTO ledger.entries (label) VALUES ('one')",
+            );
+            let sequence_names = cassie
+                .catalog
+                .list_sequences()
+                .into_iter()
+                .map(|sequence| sequence.name)
+                .collect::<Vec<_>>();
+            let rows = query_rows(&cassie, &session, "SELECT entry_id, label FROM ledger.entries");
+            execute_statement(&cassie, &session, "DROP TABLE ledger.entries");
+            let dropped = cassie.execute_sql(&session, "DROP SEQUENCE ledger.entries_entry_id_seq", vec![]);
+
+            // Assert
+            assert_eq!(
+                sequence_names,
+                vec!["postgres.ledger.entries_entry_id_seq".to_string()]
+            );
+            assert_eq!(
+                rows,
+                vec![vec![Value::Int64(1), Value::String("one".to_string())]]
+            );
+            assert!(dropped.is_ok(), "drop sequence failed: {dropped:?}");
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
         // Arrange
         use_local_storage();

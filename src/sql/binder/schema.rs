@@ -126,8 +126,36 @@ pub(super) fn bind_create_table(
         field.name = field_name.to_string();
     }
 
+    requalify_serial_sequences(&mut statement, &name)?;
     statement.table = name;
     Ok(statement)
+}
+
+/// SERIAL sequence names are derived while parsing, before the table name is
+/// qualified, so rederive them from the bound table name for qualified tables.
+fn requalify_serial_sequences(
+    statement: &mut crate::sql::ast::CreateTableStatement,
+    bound_table: &str,
+) -> Result<(), CassieError> {
+    if matches!(
+        crate::catalog::parse_name(statement.table.trim()).map_err(CassieError::Planner)?,
+        crate::catalog::ParsedName::Unqualified(_)
+    ) {
+        return Ok(());
+    }
+    for field in &mut statement.fields {
+        for constraint in &mut field.constraints {
+            if constraint.default_sequence.is_none() || !constraint.default_sequence_owned.is_owned()
+            {
+                continue;
+            }
+            let sequence = crate::catalog::serial_sequence_name(bound_table, &field.name);
+            constraint.default_expression =
+                Some(crate::catalog::canonical_nextval_expression(&sequence));
+            constraint.default_sequence = Some(sequence);
+        }
+    }
+    Ok(())
 }
 
 pub(super) fn bind_create_view(

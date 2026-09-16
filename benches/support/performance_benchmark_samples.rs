@@ -721,10 +721,7 @@ fn validate_query_evidence(
     if failed_operations != 0 {
         return Err("benchmark summary recorded failed operations".to_string());
     }
-    let leaked_workers = require_numeric_metadata(metadata, "leaked_active_operator_workers")?;
-    if leaked_workers != 0 {
-        return Err("benchmark summary recorded leaked active operator workers".to_string());
-    }
+    validate_worker_cleanup(metadata)?;
     if let Some(scenario) = scenario.filter(|scenario| scenario.requires_observed_query_evidence())
     {
         let access_source = metadata["access_path_evidence_source"]
@@ -772,7 +769,149 @@ fn validate_query_evidence(
             ));
         }
     }
+    if let Some(scenario) = scenario {
+        validate_ann_release_evidence(scenario, metadata)?;
+    }
     Ok(())
+}
+
+fn validate_worker_cleanup(metadata: &serde_json::Value) -> Result<(), String> {
+    if require_numeric_metadata(metadata, "leaked_active_operator_workers")? != 0 {
+        return Err("benchmark summary recorded leaked active operator workers".to_string());
+    }
+    Ok(())
+}
+
+fn validate_ann_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    if scenario.expected_selected_access_path() == Some("hnsw") {
+        validate_hnsw_release_evidence(scenario, metadata)?;
+    } else if scenario.expected_selected_access_path() == Some("ivfflat") {
+        validate_ivfflat_release_evidence(scenario, metadata)?;
+    }
+    Ok(())
+}
+
+pub fn validate_hnsw_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    if scenario.expected_selected_access_path() != Some("hnsw") {
+        return Err(format!(
+            "benchmark scenario {} is not an HNSW release-evidence scenario",
+            scenario.scenario_id
+        ));
+    }
+    validate_ann_recall_floor(scenario, metadata)?;
+    for (key, expected) in [
+        ("exact_top_k", 20),
+        ("vector_dimensions", 3),
+        ("fixture_seed", 0),
+        ("hnsw_m", 32),
+        ("hnsw_ef_construction", 256),
+        ("hnsw_ef_search", 256),
+    ] {
+        require_numeric_metadata_value(metadata, key, expected, scenario.scenario_id)?;
+    }
+    if required_metadata_string(metadata, "distance_metric")? != "l2" {
+        return Err(format!(
+            "benchmark scenario {} must record the declared l2 distance metric",
+            scenario.scenario_id
+        ));
+    }
+    Ok(())
+}
+
+pub fn validate_ivfflat_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    if scenario.expected_selected_access_path() != Some("ivfflat") {
+        return Err(format!(
+            "benchmark scenario {} is not an IVFFlat release-evidence scenario",
+            scenario.scenario_id
+        ));
+    }
+    validate_ann_recall_floor(scenario, metadata)?;
+    let (lists, probes, training_sample_size) = match scenario.benchmark {
+        "tier3_system_query" => (64, 16, 4_096),
+        "tier5_scaling_retrieval" => (16, 4, 1_024),
+        owner => {
+            return Err(format!(
+                "benchmark scenario {} has unsupported IVFFlat owner {owner}",
+                scenario.scenario_id
+            ));
+        }
+    };
+    for (key, expected) in [
+        ("exact_top_k", 20),
+        ("vector_dimensions", 3),
+        ("fixture_seed", 0),
+        ("ivfflat_lists", lists),
+        ("ivfflat_probes", probes),
+        ("ivfflat_training_sample_size", training_sample_size),
+        ("ivfflat_training_seed", 42),
+    ] {
+        require_numeric_metadata_value(metadata, key, expected, scenario.scenario_id)?;
+    }
+    if required_metadata_string(metadata, "distance_metric")? != "l2" {
+        return Err(format!(
+            "benchmark scenario {} must record the declared l2 distance metric",
+            scenario.scenario_id
+        ));
+    }
+    if required_metadata_string(metadata, "filter_selectivity")? != "unfiltered" {
+        return Err(format!(
+            "benchmark scenario {} must record the declared unfiltered ANN profile",
+            scenario.scenario_id
+        ));
+    }
+    Ok(())
+}
+
+fn validate_ann_recall_floor(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    let recall = require_numeric_f64_metadata(metadata, "recall_at_k")?;
+    let floor = require_numeric_f64_metadata(metadata, "recall_floor")?;
+    if (floor - 0.90).abs() > f64::EPSILON {
+        return Err(format!(
+            "benchmark scenario {} recall floor {floor} does not match the documented 0.9 floor",
+            scenario.scenario_id
+        ));
+    }
+    if recall < floor {
+        return Err(format!(
+            "benchmark scenario {} recall_at_k {recall} is below the {floor} floor",
+            scenario.scenario_id
+        ));
+    }
+    Ok(())
+}
+
+fn require_numeric_metadata_value(
+    metadata: &serde_json::Value,
+    key: &str,
+    expected: u64,
+    scenario_id: &str,
+) -> Result<(), String> {
+    let actual = require_numeric_metadata(metadata, key)?;
+    if actual != expected {
+        return Err(format!(
+            "benchmark scenario {scenario_id} metadata.{key} {actual} does not match {expected}"
+        ));
+    }
+    Ok(())
+}
+
+fn require_numeric_f64_metadata(metadata: &serde_json::Value, key: &str) -> Result<f64, String> {
+    metadata[key]
+        .as_f64()
+        .or_else(|| metadata[key].as_str().and_then(|value| value.parse().ok()))
+        .ok_or_else(|| format!("benchmark summary missing numeric metadata.{key}"))
 }
 
 fn require_numeric_metadata(metadata: &serde_json::Value, key: &str) -> Result<u64, String> {

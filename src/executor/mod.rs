@@ -85,6 +85,8 @@ pub(crate) use execution::{
 thread_local! {
     static MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT: std::cell::Cell<bool> =
         const { std::cell::Cell::new(false) };
+    static PROJECTION_ACTIVATION_FAILPOINT: std::cell::Cell<bool> =
+        const { std::cell::Cell::new(false) };
 }
 
 #[doc(hidden)]
@@ -97,6 +99,20 @@ pub(crate) fn check_materialized_projection_maintenance_failure_point(
     if MATERIALIZED_PROJECTION_MAINTENANCE_FAILPOINT.replace(false) {
         return Err(crate::app::CassieError::Execution(
             "injected test failure during materialized projection maintenance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
+pub fn set_projection_activation_failure_point(enabled: bool) {
+    PROJECTION_ACTIVATION_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::app::CassieError> {
+    if PROJECTION_ACTIVATION_FAILPOINT.replace(false) {
+        return Err(crate::app::CassieError::Execution(
+            "injected projection failure before activation publication".to_string(),
         ));
     }
     Ok(())

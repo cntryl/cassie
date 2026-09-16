@@ -35,6 +35,8 @@ pub use stress_runtime_contract::{
 #[path = "stress_relative_gates.rs"]
 mod stress_relative_gates;
 use stress_relative_gates::{validate_relative_p95_gates, RelativeP95Gate};
+#[path = "stress_batch.rs"]
+mod stress_batch;
 #[path = "stress_interleaved.rs"]
 pub(crate) mod stress_interleaved;
 #[path = "stress_soak.rs"]
@@ -55,6 +57,15 @@ pub fn external_elapsed(elapsed: Duration, completed_operations: u64) -> Duratio
         "external measurements require completed operations"
     );
     elapsed
+}
+
+#[must_use]
+pub fn allow_empty_filtered_owner(
+    selected: usize,
+    filter: Option<&str>,
+    opt_in: Option<&str>,
+) -> bool {
+    selected == 0 && filter.is_some() && opt_in == Some("1")
 }
 
 pub struct CassieStressRunner {
@@ -360,30 +371,6 @@ impl CassieStressRunner {
         });
     }
 
-    /// Measures a fixed-duration Tier 3-6 batch.
-    ///
-    /// # Panics
-    ///
-    /// Panics when called by Tier 1 or 2, or when the case violates the registry contract.
-    pub fn measure_batch<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
-    where
-        F: FnMut() -> R,
-        R: BenchmarkObservation,
-    {
-        assert!(
-            matches!(
-                self.tier,
-                BenchmarkTier::Tier3
-                    | BenchmarkTier::Tier4
-                    | BenchmarkTier::Tier5
-                    | BenchmarkTier::Tier6
-            ),
-            "measure_batch is only valid for Tiers 3-6"
-        );
-        let case = self.prepare_case(case, BenchmarkTimingMode::Batch);
-        self.run_batch(case, logical_operations, f);
-    }
-
     /// Records one sample timed by a real Tier 4 or Tier 6 external harness.
     ///
     /// # Panics
@@ -560,45 +547,6 @@ impl CassieStressRunner {
         });
     }
 
-    fn run_batch<F, R>(&mut self, case: StressCase, logical_operations: u64, f: F)
-    where
-        F: FnMut() -> R,
-        R: BenchmarkObservation,
-    {
-        let f = RefCell::new(f);
-        let declared_cardinality = declared_result_cardinality(&case);
-        let evidence = case.runtime_evidence.clone();
-        let preflight = case.preflight_evidence.clone();
-        let scenario = self.scenario_for(&case);
-        let case = prepare_batch_case(case, logical_operations);
-        let measurement_name = case.measurement_name();
-        self.run_case(case, move |ctx| {
-            let last_cardinality = std::cell::Cell::new(0_u64);
-            let last_candidate_count = std::cell::Cell::new(None);
-            let last_peak_query_memory_bytes = std::cell::Cell::new(None);
-            let completed = ctx.measure_batch(&measurement_name, logical_operations, || {
-                let result = (f.borrow_mut())();
-                last_cardinality.set(result.cardinality());
-                last_candidate_count.set(result.candidate_count());
-                last_peak_query_memory_bytes.set(result.peak_query_memory_bytes());
-                black_box(result);
-            });
-            ctx.metadata("failed_operations", 0);
-            record_observed_evidence(
-                ctx,
-                evidence.as_ref(),
-                scenario,
-                preflight.as_ref(),
-                RuntimeEvidenceObservation::new(
-                    declared_cardinality.unwrap_or_else(|| last_cardinality.get()),
-                    last_candidate_count.get(),
-                    last_peak_query_memory_bytes.get(),
-                )
-                .per_external_operation(completed),
-            );
-        });
-    }
-
     #[must_use]
     pub fn is_enabled(&self, case: &StressCase) -> bool {
         let scenario = performance_benchmarks::expect_benchmark(
@@ -622,6 +570,15 @@ impl CassieStressRunner {
     pub fn finish(self) {
         if self.selected == 0 {
             eprintln!("No stress benchmarks matched the selected filters.");
+            if allow_empty_filtered_owner(
+                self.selected,
+                self.filter.as_deref(),
+                std::env::var("STRESS_ALLOW_EMPTY_FILTERED_OWNER")
+                    .ok()
+                    .as_deref(),
+            ) {
+                return;
+            }
         }
 
         let relative_p95_gates = self.relative_p95_gates;

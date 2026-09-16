@@ -58,6 +58,11 @@ filesystem, Cassie/Midge revisions, toolchain, command, fixture identity, runtim
 result rows, p50/p95/p99, throughput, fallback reasons, storage reads/writes, candidates, peak
 accounted memory, workers, and cancellation latency where applicable.
 
+The manifest's host context is mandatory: CPU model, online core count, total memory, filesystem
+type, and total and available bytes for the evidence volume. These fields make repeated runs
+comparable and diagnose capacity drift; a single host snapshot does not establish an SLA or a
+production threshold.
+
 The benchmark owner validates schema and completeness; the release-readiness owner compares
 only artifacts with matching profile, fixture, toolchain, and commit contracts. Retain the
 latest complete manifest plus the prior complete manifest for comparison, and retain diagnostic

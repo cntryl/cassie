@@ -10,6 +10,17 @@ pub mod stress;
 mod workloads;
 
 const OWNER: &str = "tier5_scaling_retrieval";
+const VECTOR_DIMENSIONS: usize = 3;
+const VECTOR_FIXTURE_SEED: u64 = 0;
+const VECTOR_TOP_K: usize = 20;
+const HNSW_M: usize = 32;
+const HNSW_EF_CONSTRUCTION: usize = 256;
+const HNSW_EF_SEARCH: usize = 256;
+const IVFFLAT_LISTS: usize = 16;
+const IVFFLAT_PROBES: usize = 4;
+const IVFFLAT_TRAINING_SAMPLE_SIZE: usize = 1_024;
+const IVFFLAT_TRAINING_SEED: u64 = 42;
+const ANN_RECALL_FLOOR: f64 = 0.90;
 
 struct TextRetrievalCases {
     fulltext: stress::StressCase,
@@ -226,6 +237,8 @@ fn measure_vector_retrieval(
     if cases.enabled.iter().any(|enabled| *enabled) {
         accumulate_setup(setup_time, || workloads::drop_vector_index(context));
     }
+    let ann_exact_ids = (cases.enabled[1] || cases.enabled[2])
+        .then(|| accumulate_setup(setup_time, || workloads::vector_top_k_ids(context)));
     if cases.enabled[0] {
         let preflight = accumulate_setup(setup_time, || {
             vector_preflight(context, fixture_rows, workloads::VectorAccessPath::Exact)
@@ -238,11 +251,20 @@ fn measure_vector_retrieval(
     }
     if cases.enabled[1] {
         accumulate_setup(setup_time, || workloads::create_hnsw_index(context));
+        let hnsw_ids = accumulate_setup(setup_time, || workloads::vector_top_k_ids(context));
+        let recall = workloads::recall_at_k(
+            ann_exact_ids.as_ref().expect("HNSW exact recall baseline"),
+            &hnsw_ids,
+        );
+        assert!(
+            recall >= ANN_RECALL_FLOOR,
+            "HNSW recall@{VECTOR_TOP_K} {recall} is below {ANN_RECALL_FLOOR}"
+        );
         let preflight = accumulate_setup(setup_time, || {
             vector_preflight(context, fixture_rows, workloads::VectorAccessPath::Hnsw)
         });
         runner.measure_batch(
-            evidenced(cases.hnsw, *setup_time, context, preflight),
+            hnsw_evidenced(cases.hnsw, *setup_time, context, preflight, recall),
             1,
             || runtime.block_on(workloads::vector_hnsw_query(context)),
         );
@@ -254,15 +276,69 @@ fn measure_vector_retrieval(
         accumulate_setup(setup_time, || {
             workloads::create_ivfflat_index(context);
         });
+        let ivfflat_ids = accumulate_setup(setup_time, || workloads::vector_top_k_ids(context));
+        let recall = workloads::recall_at_k(
+            ann_exact_ids
+                .as_ref()
+                .expect("IVFFlat exact recall baseline"),
+            &ivfflat_ids,
+        );
+        assert!(
+            recall >= ANN_RECALL_FLOOR,
+            "IVFFlat recall@{VECTOR_TOP_K} {recall} is below {ANN_RECALL_FLOOR}"
+        );
         let preflight = accumulate_setup(setup_time, || {
             vector_preflight(context, fixture_rows, workloads::VectorAccessPath::IvfFlat)
         });
         runner.measure_batch(
-            evidenced(cases.ivf, *setup_time, context, preflight),
+            ivfflat_evidenced(cases.ivf, *setup_time, context, preflight, recall),
             1,
             || runtime.block_on(workloads::vector_ivfflat_query(context)),
         );
     }
+}
+
+fn ivfflat_evidenced(
+    case: stress::StressCase,
+    setup_time: Duration,
+    context: &workloads::BenchContext,
+    preflight: workloads::QueryPreflightEvidence,
+    recall: f64,
+) -> stress::StressCase {
+    evidenced(case, setup_time, context, preflight)
+        .metadata("recall_at_k", format!("{recall:.6}"))
+        .metadata("recall_floor", format!("{ANN_RECALL_FLOOR:.2}"))
+        .metadata("exact_top_k", VECTOR_TOP_K.to_string())
+        .metadata("vector_dimensions", VECTOR_DIMENSIONS.to_string())
+        .metadata("distance_metric", "l2")
+        .metadata("filter_selectivity", "unfiltered")
+        .metadata("fixture_seed", VECTOR_FIXTURE_SEED.to_string())
+        .metadata("ivfflat_lists", IVFFLAT_LISTS.to_string())
+        .metadata("ivfflat_probes", IVFFLAT_PROBES.to_string())
+        .metadata(
+            "ivfflat_training_sample_size",
+            IVFFLAT_TRAINING_SAMPLE_SIZE.to_string(),
+        )
+        .metadata("ivfflat_training_seed", IVFFLAT_TRAINING_SEED.to_string())
+}
+
+fn hnsw_evidenced(
+    case: stress::StressCase,
+    setup_time: Duration,
+    context: &workloads::BenchContext,
+    preflight: workloads::QueryPreflightEvidence,
+    recall: f64,
+) -> stress::StressCase {
+    evidenced(case, setup_time, context, preflight)
+        .metadata("recall_at_k", format!("{recall:.6}"))
+        .metadata("recall_floor", format!("{ANN_RECALL_FLOOR:.2}"))
+        .metadata("exact_top_k", VECTOR_TOP_K.to_string())
+        .metadata("vector_dimensions", VECTOR_DIMENSIONS.to_string())
+        .metadata("distance_metric", "l2")
+        .metadata("fixture_seed", VECTOR_FIXTURE_SEED.to_string())
+        .metadata("hnsw_m", HNSW_M.to_string())
+        .metadata("hnsw_ef_construction", HNSW_EF_CONSTRUCTION.to_string())
+        .metadata("hnsw_ef_search", HNSW_EF_SEARCH.to_string())
 }
 
 fn declared_case(workload: &str, scale: &str, rows: usize) -> stress::StressCase {

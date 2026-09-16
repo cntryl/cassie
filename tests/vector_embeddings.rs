@@ -3937,7 +3937,10 @@ mod ivfflat_indexes {
         DistanceMetric, IvfFlatIndexOptions, VectorIndexMetadata, VectorIndexRecord,
         VectorIndexType,
     };
-    use cassie::midge::adapter::StorageFamily;
+    use cassie::midge::adapter::{
+        document_write_failure_point_test_guard, set_document_write_failure_point,
+        DocumentWriteFailurePoint, StorageFamily,
+    };
     use cassie::sql::ast::QueryStatement;
     use cassie::types::{DataType, FieldSchema, Schema, Value};
     use cntryl_midge::{TransactionMode, WriteOptions};
@@ -4119,6 +4122,112 @@ mod ivfflat_indexes {
             after["vector"]["last_fallback_reason"].as_str(),
             Some(expected_reason)
         );
+    }
+
+    #[test]
+    fn should_clean_batched_ivfflat_sidecars_after_failed_publication_retry() {
+        // Arrange
+        let _failpoint_guard = document_write_failure_point_test_guard();
+        use_local_storage();
+        let path = data_dir("ivfflat_batched_build_retry");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "ivfflat_batched_build_retry";
+        register_ivfflat_collection(&cassie, collection);
+        let documents = (0..5_001)
+            .map(|index| {
+                let ordinate = f64::from(u32::try_from(index % 97).expect("small ordinate")) + 1.0;
+                (
+                    Some(format!("document-{index:05}")),
+                    serde_json::json!({
+                        "content": format!("document-{index:05}"),
+                        "embedding": [1.0, ordinate, 0.5]
+                    }),
+                )
+            })
+            .collect();
+        cassie
+            .midge
+            .put_documents(collection, documents)
+            .expect("seed documents");
+        let record = VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "content".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 3,
+                metric: DistanceMetric::L2,
+                index_type: VectorIndexType::IvfFlat,
+                hnsw: None,
+                hnsw_graph: None,
+                ivfflat: Some(IvfFlatIndexOptions {
+                    version: 1,
+                    lists: 16,
+                    probes: 16,
+                    training_sample_size: 1_024,
+                    training_seed: 42,
+                }),
+                ivfflat_training: None,
+            },
+        };
+        let normalized_prefix = cassie
+            .midge
+            .normalized_vector_prefix_for_diagnostics(collection, "embedding")
+            .expect("normalized-vector prefix");
+        let membership_prefix = cassie
+            .midge
+            .ivfflat_membership_prefix_for_diagnostics(collection, "embedding")
+            .expect("IVFFlat membership prefix");
+
+        // Act
+        set_document_write_failure_point(Some(DocumentWriteFailurePoint::VectorState));
+        let failed = cassie.midge.put_vector_index(record.clone());
+        let unpublished = cassie
+            .midge
+            .get_vector_index(collection, "embedding")
+            .expect("read unpublished index");
+        let staged_memberships = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &membership_prefix)
+            .expect("scan staged memberships");
+        set_document_write_failure_point(None);
+        cassie
+            .midge
+            .put_vector_index(record)
+            .expect("retry index build");
+        let published = stored_ivfflat_index(&cassie, collection);
+        cassie
+            .midge
+            .delete_vector_index(collection, "embedding")
+            .expect("delete batched vector sidecars");
+        let remaining_normalized = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &normalized_prefix)
+            .expect("scan remaining normalized vectors");
+        let remaining_memberships = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &membership_prefix)
+            .expect("scan remaining memberships");
+
+        // Assert
+        let failed = failed.expect_err("manifest publication should fail");
+        assert!(failed.to_string().contains("injected test failure"));
+        assert!(unpublished.is_none());
+        assert_eq!(staged_memberships.len(), 5_001);
+        assert_eq!(
+            published
+                .metadata
+                .ivfflat_training
+                .expect("published training")
+                .row_count,
+            5_001
+        );
+        assert!(remaining_normalized.is_empty());
+        assert!(remaining_memberships.is_empty());
+
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

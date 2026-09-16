@@ -49,7 +49,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | `information_schema.tables` | Stable named-client table/view discovery columns documented in the catalog support contract | Stable |
 | `information_schema.columns` | Stable named-client column discovery columns documented in the catalog support contract | Stable |
 | Remaining virtual catalogs | PostgreSQL-like and Cassie runtime views outside the stable named-client subset; no PostgreSQL-internal parity claim | Experimental |
-| Projection lifecycle | Checkpoints, replay, materialization, refresh, version activation | Experimental |
+| Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
 | Verification and repair | Hashes, manifests, local repair planning and audit | Experimental |
 
 ## Retrieval and Analytics

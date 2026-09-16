@@ -1,7 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{collect_scan, encode_row, CassieError, Midge, ProjectionMeta, Query, RowSchema};
+use super::{
+    check_projection_output_failure_point, encode_row, CassieError, Midge, ProjectionMeta,
+    ProjectionOutputFailurePoint, RowSchema,
+};
+
+#[path = "verification/storage.rs"]
+pub(super) mod storage;
+use storage::{
+    delete_keys_from_tx, should_flush_projection_output_batch, write_range_hash_record_to_tx,
+    write_ranges, write_root_hash_record_to_tx, write_row_hash_record_to_tx,
+};
 
 const ROW_HASH_ALGORITHM: &str = "cassie-fnv128";
 const ROW_HASH_DIGEST_LENGTH: u16 = 16;
@@ -11,20 +21,7 @@ const RANGE_HASH_VERSION: u16 = 1;
 const ROOT_HASH_VERSION: u16 = 1;
 const RANGE_SEGMENT_SIZE: usize = 256;
 const EAGER_HASH_REBUILD_ROW_LIMIT: u64 = 512;
-const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = RANGE_SEGMENT_SIZE;
-
-fn projection_output_write_ranges(
-    row_count: usize,
-) -> impl Iterator<Item = std::ops::Range<usize>> {
-    (0..row_count)
-        .step_by(PROJECTION_OUTPUT_WRITE_BATCH_SIZE)
-        .map(move |start| {
-            start
-                ..start
-                    .saturating_add(PROJECTION_OUTPUT_WRITE_BATCH_SIZE)
-                    .min(row_count)
-        })
-}
+pub(super) const PROJECTION_OUTPUT_WRITE_BATCH_SIZE: usize = 1_000;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -263,24 +260,55 @@ impl Midge {
             &ranges,
         );
 
-        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         let existing =
             self.raw_scan_prefix_for_collection(&collection, &Self::row_hash_prefix(&collection))?;
+        let mut obsolete_keys = Vec::new();
         for (key, value) in existing {
             let Ok(record) = serde_json::from_slice::<RowHashRecord>(&value) else {
                 continue;
             };
             if !live_ids.contains(&record.row_id) {
-                tx.delete(key).map_err(CassieError::from)?;
+                obsolete_keys.push(key);
             }
         }
-        delete_keys_with_prefix_from_tx(&mut tx, Self::range_hash_prefix(&collection))?;
-        for record in &records {
-            write_row_hash_record_to_tx(&mut tx, record)?;
+        obsolete_keys.extend(
+            self.raw_scan_prefix_for_collection(
+                &collection,
+                &Self::range_hash_prefix(&collection),
+            )?
+            .into_iter()
+            .map(|(key, _)| key),
+        );
+
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
+        tx.delete(Self::root_hash_key(&collection))
+            .map_err(CassieError::from)?;
+        tx.commit(self.write_options_sync())
+            .map_err(CassieError::from)?;
+        for keys in obsolete_keys.chunks(PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            delete_keys_from_tx(&mut tx, keys)?;
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
         }
-        for record in &ranges {
-            write_range_hash_record_to_tx(&mut tx, record)?;
+        for range in write_ranges(records.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            for record in &records[range] {
+                write_row_hash_record_to_tx(&mut tx, record)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
         }
+        check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
+        for range in write_ranges(ranges.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE) {
+            let mut tx = self.begin_data_rw_tx_for(&collection)?;
+            for record in &ranges[range] {
+                write_range_hash_record_to_tx(&mut tx, record)?;
+            }
+            tx.commit(self.write_options_sync())
+                .map_err(CassieError::from)?;
+        }
+        let mut tx = self.begin_data_rw_tx_for(&collection)?;
         write_root_hash_record_to_tx(&mut tx, &root)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
@@ -314,7 +342,12 @@ impl Midge {
             records.push(record);
         }
 
-        for range in projection_output_write_ranges(encoded_rows.len()) {
+        let batch_count = encoded_rows
+            .len()
+            .div_ceil(PROJECTION_OUTPUT_WRITE_BATCH_SIZE);
+        for (batch_index, range) in
+            write_ranges(encoded_rows.len(), PROJECTION_OUTPUT_WRITE_BATCH_SIZE).enumerate()
+        {
             let mut tx = self.begin_data_rw_tx_for(&collection)?;
             for index in range {
                 let (id, row_blob) = &encoded_rows[index];
@@ -329,7 +362,11 @@ impl Midge {
             tx.commit(self.write_options_sync())
                 .map_err(CassieError::from)?;
             report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
+            if should_flush_projection_output_batch(batch_index + 1, batch_count) {
+                self.flush_data_family_for_collection(&collection)?;
+            }
         }
+        check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterRowBatches)?;
 
         records.sort_by_key(|record| record.row_id.clone());
         let ranges =
@@ -353,6 +390,7 @@ impl Midge {
         report.stats.batch_flushes = report.stats.batch_flushes.saturating_add(1);
 
         self.update_projection_hash_metadata(&collection, &records, &ranges, &root)?;
+        check_projection_output_failure_point(ProjectionOutputFailurePoint::AfterHashPublication)?;
         Ok((report, root))
     }
 
@@ -885,63 +923,6 @@ fn build_root_hash_record(
     }
 }
 
-fn write_row_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
-    record: &RowHashRecord,
-) -> Result<(), CassieError> {
-    tx.put(
-        Midge::row_hash_key(&record.collection, &record.row_id),
-        serde_json::to_vec(record).map_err(|error| CassieError::Parse(error.to_string()))?,
-        None,
-    )
-    .map_err(CassieError::from)?;
-    Ok(())
-}
-
-fn write_range_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
-    record: &RangeHashRecord,
-) -> Result<(), CassieError> {
-    tx.put(
-        Midge::range_hash_key(&record.collection, record.range_id),
-        serde_json::to_vec(record).map_err(|error| CassieError::Parse(error.to_string()))?,
-        None,
-    )
-    .map_err(CassieError::from)?;
-    Ok(())
-}
-
-fn write_root_hash_record_to_tx(
-    tx: &mut cntryl_midge::Transaction,
-    record: &RootHashRecord,
-) -> Result<(), CassieError> {
-    tx.put(
-        Midge::root_hash_key(&record.collection),
-        serde_json::to_vec(record).map_err(|error| CassieError::Parse(error.to_string()))?,
-        None,
-    )
-    .map_err(CassieError::from)?;
-    Ok(())
-}
-
-fn delete_keys_with_prefix_from_tx(
-    tx: &mut cntryl_midge::Transaction,
-    prefix: Vec<u8>,
-) -> Result<(), CassieError> {
-    let scan = collect_scan(
-        tx.scan(&Query::new().prefix(prefix.into()))
-            .map_err(CassieError::from)?,
-    )?;
-    let mut keys = Vec::new();
-    for (key, _value) in scan {
-        keys.push(key);
-    }
-    for key in keys {
-        tx.delete(key).map_err(CassieError::from)?;
-    }
-    Ok(())
-}
-
 fn write_json_canonical(value: &serde_json::Value, out: &mut Vec<u8>) {
     match value {
         serde_json::Value::Null => out.push(b'0'),
@@ -1018,30 +999,4 @@ fn now_ms() -> u64 {
 
 fn duration_ms(duration: std::time::Duration) -> u64 {
     duration.as_millis().try_into().unwrap_or(u64::MAX)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn should_bound_fresh_projection_output_write_batches() {
-        // Arrange
-        let row_count = 10_001;
-
-        // Act
-        let batches = projection_output_write_ranges(row_count)
-            .map(|range| range.len())
-            .collect::<Vec<_>>();
-
-        // Assert
-        assert_eq!(
-            batches,
-            vec![
-                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-                256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256, 256,
-                256, 256, 256, 256, 256, 256, 256, 17,
-            ]
-        );
-    }
 }

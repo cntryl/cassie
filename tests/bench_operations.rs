@@ -1604,6 +1604,214 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_reject_incomplete_hnsw_release_evidence() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({});
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("incomplete HNSW release evidence must fail");
+
+        // Assert
+        assert!(error.contains("recall_at_k"));
+    }
+
+    #[test]
+    fn should_reject_hnsw_release_evidence_below_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "0.85",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "256"
+        });
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("sub-floor HNSW recall must fail");
+
+        // Assert
+        assert!(error.contains("0.85"));
+        assert!(error.contains("0.9"));
+    }
+
+    #[test]
+    fn should_accept_complete_hnsw_release_evidence_at_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "0.90",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "256"
+        });
+
+        // Act
+        let result = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn should_reject_changed_hnsw_release_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "1.00",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "512"
+        });
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("changed HNSW release configuration must fail");
+
+        // Assert
+        assert!(error.contains("hnsw_ef_search"));
+        assert!(error.contains("512"));
+        assert!(error.contains("256"));
+    }
+
+    #[test]
+    fn should_compute_recall_from_exact_top_k_membership() {
+        // Arrange
+        let exact = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let approximate = vec!["c".to_string(), "a".to_string(), "x".to_string()];
+
+        // Act
+        let recall = workloads::recall_at_k(&exact, &approximate);
+
+        // Assert
+        assert!((recall - (2.0 / 3.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn should_reject_incomplete_ivfflat_release_evidence() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = json!({});
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("incomplete IVFFlat release evidence must fail");
+
+        // Assert
+        assert!(error.contains("recall_at_k"));
+    }
+
+    #[test]
+    fn should_reject_ivfflat_release_evidence_below_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("0.89", "64");
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("sub-floor IVFFlat recall must fail");
+
+        // Assert
+        assert!(error.contains("0.89"));
+        assert!(error.contains("0.9"));
+    }
+
+    #[test]
+    fn should_reject_changed_ivfflat_release_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("1.00", "32");
+
+        // Act
+        let error = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata)
+            .expect_err("changed IVFFlat release configuration must fail");
+
+        // Assert
+        assert!(error.contains("ivfflat_lists"));
+        assert!(error.contains("32"));
+        assert!(error.contains("64"));
+    }
+
+    #[test]
+    fn should_accept_complete_ivfflat_release_evidence_at_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.100k")
+                .expect("registered IVFFlat scenario");
+        let metadata = ivfflat_release_metadata("0.90", "64");
+
+        // Act
+        let result = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn should_accept_declared_ivfflat_scaling_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.ivfflat_persisted.10k")
+                .expect("registered IVFFlat scaling scenario");
+        let mut metadata = ivfflat_release_metadata("0.90", "16");
+        metadata["ivfflat_probes"] = json!("4");
+        metadata["ivfflat_training_sample_size"] = json!("1024");
+
+        // Act
+        let result = performance_benchmarks::validate_ivfflat_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    fn ivfflat_release_metadata(recall: &str, lists: &str) -> serde_json::Value {
+        json!({
+            "recall_at_k": recall,
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "filter_selectivity": "unfiltered",
+            "fixture_seed": "0",
+            "ivfflat_lists": lists,
+            "ivfflat_probes": "16",
+            "ivfflat_training_sample_size": "4096",
+            "ivfflat_training_seed": "42"
+        })
+    }
+
+    #[test]
     fn should_scope_candidate_count_to_access_family() {
         // Arrange
         let delta = json!({
@@ -1946,7 +2154,10 @@ mod benchmark_harness_contract {
     #[test]
     fn should_apply_runtime_logical_units_to_every_batch_measurement() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = concat!(
+            include_str!("../benches/support/stress.rs"),
+            include_str!("../benches/support/stress_batch.rs")
+        );
 
         // Act
         let shared_preparations = adapter
@@ -1957,7 +2168,7 @@ mod benchmark_harness_contract {
             adapter.contains(".metadata(\"measurement_shape\", \"fixed_workload\")");
 
         // Assert
-        assert_eq!(shared_preparations, 2);
+        assert_eq!(shared_preparations, 3);
         assert!(records_runtime_unit);
         assert!(declares_fixed_workload);
     }
@@ -1965,7 +2176,7 @@ mod benchmark_harness_contract {
     #[test]
     fn should_normalize_duration_batch_evidence_by_completed_operations() {
         // Arrange
-        let adapter = include_str!("../benches/support/stress.rs");
+        let adapter = include_str!("../benches/support/stress_batch.rs");
         let first_candidate_count = 18_768;
         let first_completed_queries = 48;
         let second_candidate_count = 15_640;
@@ -1990,7 +2201,7 @@ mod benchmark_harness_contract {
     fn should_batch_tier3_time_series_queries_with_per_query_evidence() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_query.rs");
-        let harness = include_str!("../benches/support/stress.rs");
+        let harness = include_str!("../benches/support/stress_batch.rs");
         let time_series_case = owner
             .split_once("fn bench_time_series_representative")
             .expect("time-series representative")
@@ -2009,7 +2220,7 @@ mod benchmark_harness_contract {
             .split_once("fn run_batch<F, R>")
             .expect("batch runner")
             .1
-            .split_once("pub fn is_enabled")
+            .split_once("fn run_batch_with_setup")
             .expect("end of batch runner")
             .0;
 
@@ -2025,7 +2236,7 @@ mod benchmark_harness_contract {
         let reports_per_query_cardinality =
             time_series_execution.contains("std::hint::black_box(TIME_SERIES_EXPECTED_ROWS)");
         let uses_actual_completed_count = run_batch.contains("let completed = ctx.measure_batch(");
-        let normalizes_runtime_evidence = run_batch.contains(".per_external_operation(completed)");
+        let normalizes_runtime_evidence = harness.contains(".per_external_operation(completed)");
 
         // Assert
         assert!(has_batch_size);
@@ -2120,6 +2331,7 @@ mod benchmark_harness_contract {
             "perf.time_series.retention.100k",
             "perf.time_series.rollup_refresh.100k",
             "perf.verification.full.100k",
+            "perf.repair.projection_hashes.100k",
         ];
 
         // Act
@@ -2134,11 +2346,69 @@ mod benchmark_harness_contract {
                 .operation_unit;
 
         // Assert
-        assert_eq!(operation_units, ["source_row"; 6]);
+        assert_eq!(operation_units, ["source_row"; 7]);
         assert_eq!(replay_unit, "event");
         let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
         assert!(owner_source.contains("let source_rows = u64::try_from(rows)"));
-        assert_eq!(owner_source.matches("source_rows,").count(), 6);
+        assert_eq!(owner_source.matches("source_rows,").count(), 7);
+    }
+
+    #[test]
+    fn should_register_projection_repair_with_prepared_failure_evidence() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let workload_source = include_str!("../benches/support/workloads/scaling_legacy.rs");
+
+        // Act
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.repair.projection_hashes.100k");
+        let setup_position = owner_source.find("prepare_projection_repair");
+        let measurement_position = owner_source.find("projection_repair_existing");
+        let rebuild_position = owner_source.find("projection_refresh_existing");
+        let timed_repair = workload_source
+            .split_once("pub fn projection_repair_existing")
+            .and_then(|(_, tail)| {
+                tail.split_once("pub fn prepare_time_series_lifecycle_context")
+                    .map(|(body, _)| body)
+            });
+
+        // Assert
+        let scenario = scenario.expect("registered projection repair scenario");
+        assert_eq!(scenario.benchmark, "tier5_scaling_lifecycle");
+        assert_eq!(scenario.workload, "projection_repair");
+        assert_eq!(scenario.fixture_scale, "100k");
+        assert_eq!(scenario.operation_unit, "source_row");
+        assert!(setup_position.is_some_and(|setup| {
+            measurement_position.is_some_and(|measurement| setup < measurement)
+        }));
+        assert!(measurement_position
+            .is_some_and(|repair| { rebuild_position.is_some_and(|rebuild| repair < rebuild) }));
+        let timed_repair = timed_repair.expect("timed projection repair workload");
+        assert!(timed_repair.contains("REPAIR PROJECTION bench_projection SCOPE row"));
+        assert!(!timed_repair.contains("VERIFY PROJECTION"));
+    }
+
+    #[test]
+    fn should_prepare_projection_repair_before_every_timed_invocation() {
+        // Arrange
+        let owner_source = include_str!("../benches/tier5_scaling_lifecycle.rs");
+        let harness_source = include_str!("../benches/support/stress_batch.rs");
+
+        // Act
+        let repair_measurement = owner_source
+            .split_once("if let Some(case) = cases.repair")
+            .expect("projection repair measurement")
+            .1
+            .split_once("if let Some(case) = cases.rebuild")
+            .expect("end of projection repair measurement")
+            .0;
+
+        // Assert
+        assert!(repair_measurement.contains("measure_batch_with_setup"));
+        assert!(repair_measurement.contains("prepare_projection_repair(&context)"));
+        assert!(repair_measurement.contains("projection_repair_existing(&context)"));
+        assert!(harness_source.contains("pub fn measure_batch_with_setup"));
+        assert!(harness_source.contains(".measure_outcome_with_setup("));
     }
 
     #[test]
@@ -3813,6 +4083,87 @@ mod benchmark_kernels {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean up lifecycle metric fixture");
+    }
+
+    #[test]
+    fn should_refresh_projection_once_when_preparing_lifecycle_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark lifecycle test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-lifecycle-single-refresh",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection lifecycle fixture");
+        let before = context.cassie.metrics();
+
+        // Act
+        workloads::prepare_projection_lifecycle(&context);
+        let after = context.cassie.metrics();
+
+        // Assert
+        assert_eq!(
+            after["projections"]["materialized_refreshes"]
+                .as_u64()
+                .unwrap_or_default()
+                - before["projections"]["materialized_refreshes"]
+                    .as_u64()
+                    .unwrap_or_default(),
+            1,
+            "projection lifecycle setup must perform only the refresh owned by creation"
+        );
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up lifecycle single-refresh fixture");
+    }
+
+    #[test]
+    fn should_repair_prepared_projection_failure_given_small_scaling_fixture() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("benchmark projection repair test runtime");
+        let context = runtime
+            .block_on(workloads::disk_context_with_temp_budget(
+                "benchmark-projection-repair",
+                16,
+                workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+            ))
+            .expect("small projection repair fixture");
+        workloads::prepare_projection_lifecycle(&context);
+        workloads::prepare_projection_repair(&context);
+
+        // Act
+        let cardinality = runtime.block_on(workloads::projection_repair_existing(&context));
+        let report = context
+            .cassie
+            .execute_sql(
+                &context.session,
+                "SELECT state, post_verification_state FROM pg_catalog.pg_projection_repair_reports WHERE projection_name = 'postgres.public.bench_projection'",
+                vec![],
+            )
+            .expect("projection repair report");
+
+        // Assert
+        assert_eq!(cardinality, 1);
+        assert_eq!(
+            report.rows,
+            vec![vec![
+                cassie::types::Value::String("completed".to_string()),
+                cassie::types::Value::String("verified".to_string()),
+            ]]
+        );
+
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean up projection repair fixture");
     }
 
     #[test]
@@ -5564,6 +5915,12 @@ mod performance_benchmarks_tests {
             "perf.verification.full.100k",
         ),
         (
+            "tier5_scaling_lifecycle",
+            "projection_repair",
+            "100k",
+            "perf.repair.projection_hashes.100k",
+        ),
+        (
             "tier5_scaling_transport",
             "pgwire_simple_query",
             "100k",
@@ -6619,6 +6976,14 @@ mod benchmark_deployment_profile_contract {
                 "finished_utc": "2026-09-15T00:05:00Z",
                 "platform": "linux/amd64",
                 "deployment_profile": "native-linux-amd64-disk",
+                "host": {{
+                    "cpu_model": "AMD EPYC test",
+                    "core_count": 4,
+                    "memory_total_bytes": 17179869184,
+                    "filesystem": "ext4",
+                    "disk_total_bytes": 107374182400,
+                    "disk_available_bytes": 75161927680
+                }},
                 "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "image_revision": "expected-commit",
                 "shape_only": {shape_only},
@@ -6693,6 +7058,51 @@ mod benchmark_deployment_profile_contract {
 
         // Assert
         assert!(error.contains("operator"));
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_without_complete_host_resources() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            "                    \"memory_total_bytes\": 17179869184,\n",
+            "",
+        );
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("host resource evidence must be complete");
+        let captures_host_resources = [
+            "cpu_model",
+            "core_count",
+            "memory_total_bytes",
+            "filesystem",
+            "disk_total_bytes",
+            "disk_available_bytes",
+        ]
+        .into_iter()
+        .all(|field| workflow.contains(field));
+
+        // Assert
+        assert!(error.contains("host.memory_total_bytes"));
+        assert!(captures_host_resources);
+    }
+
+    #[test]
+    fn should_reject_operational_manifest_with_impossible_disk_capacity() {
+        // Arrange
+        let manifest = operational_manifest(true, "success").replace(
+            "                    \"disk_available_bytes\": 75161927680",
+            "                    \"disk_available_bytes\": 107374182401",
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&manifest, "expected-commit")
+            .expect_err("available disk bytes must not exceed total disk bytes");
+
+        // Assert
+        assert!(error.contains("host.disk_available_bytes"));
+        assert!(error.contains("host.disk_total_bytes"));
     }
 
     #[test]
@@ -7053,6 +7463,7 @@ mod benchmark_deployment_profile_contract {
         let declares_selector = workflow.contains("      workload:")
             && workflow.contains("default: all")
             && workflow.contains("STRESS_FILTER: ${{ inputs.workload }}")
+            && workflow.contains("STRESS_ALLOW_EMPTY_FILTERED_OWNER:")
             && workflow.contains("unset STRESS_FILTER");
         let validates_observed_artifact = workflow.contains("Validate selected workload artifact")
             && workflow.contains(".metadata.scenario_id == $workload")
@@ -7069,6 +7480,29 @@ mod benchmark_deployment_profile_contract {
         assert!(validates_observed_artifact);
         assert!(withholds_complete_manifest);
         assert!(documents_scope);
+    }
+
+    #[test]
+    fn should_allow_only_filtered_non_owner_binaries_to_finish_without_rows() {
+        // Arrange
+        let selected_rows = 0;
+        let exact_filter = Some("perf.scale.vector.hnsw.100k");
+
+        // Act
+        let allowed =
+            super::stress::allow_empty_filtered_owner(selected_rows, exact_filter, Some("1"));
+        let rejected_without_filter =
+            super::stress::allow_empty_filtered_owner(selected_rows, None, Some("1"));
+        let rejected_without_opt_in =
+            super::stress::allow_empty_filtered_owner(selected_rows, exact_filter, Some("0"));
+        let rejected_with_rows =
+            super::stress::allow_empty_filtered_owner(1, exact_filter, Some("1"));
+
+        // Assert
+        assert!(allowed);
+        assert!(!rejected_without_filter);
+        assert!(!rejected_without_opt_in);
+        assert!(!rejected_with_rows);
     }
 
     #[test]

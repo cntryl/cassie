@@ -1,3 +1,99 @@
+/// Per-metric sample statistics computed across a comparable evidence bundle.
+/// `mean_ns` and `stdev_ns` support the "record sample count and observed
+/// variance" requirement for proposing a production threshold; they are not
+/// themselves a threshold or SLA.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ThresholdMetricStats {
+    pub sample_count: usize,
+    pub mean_ns: f64,
+    pub stdev_ns: f64,
+}
+
+/// Validates that a set of retained operational evidence manifests is
+/// comparable enough to support a production threshold proposal, and
+/// summarizes elapsed-time variance across the bundle.
+///
+/// Fails closed when the bundle is incomplete (fewer than `min_samples`),
+/// any individual manifest is malformed or fails shape validation, any
+/// manifest is not pinned to `expected_commit` (mixed-revision), or any
+/// manifest's `deployment_profile` does not match `expected_profile`
+/// (outside the declared profile). A single measurement can never satisfy
+/// `min_samples > 1`, so it can never be promoted to an SLA by this
+/// function alone.
+pub fn validate_threshold_evidence_bundle(
+    documents: &[String],
+    expected_commit: &str,
+    expected_profile: &str,
+    min_samples: usize,
+) -> Result<std::collections::BTreeMap<String, ThresholdMetricStats>, String> {
+    if documents.len() < min_samples {
+        return Err(format!(
+            "threshold evidence bundle has {} sample(s), fewer than the required minimum {min_samples}",
+            documents.len()
+        ));
+    }
+
+    let mut per_metric: std::collections::BTreeMap<String, Vec<f64>> =
+        std::collections::BTreeMap::new();
+
+    for (index, document) in documents.iter().enumerate() {
+        validate_operational_evidence_manifest(document, expected_commit)
+            .map_err(|error| format!("bundle sample {index}: {error}"))?;
+
+        let manifest: serde_json::Value = serde_json::from_str(document)
+            .map_err(|error| format!("bundle sample {index}: invalid JSON: {error}"))?;
+        let object = manifest
+            .as_object()
+            .ok_or_else(|| format!("bundle sample {index}: manifest must be an object"))?;
+
+        let profile = string_field(object, "deployment_profile")
+            .map_err(|error| format!("bundle sample {index}: {error}"))?;
+        if profile != expected_profile {
+            return Err(format!(
+                "bundle sample {index}: deployment_profile '{profile}' is outside the declared profile '{expected_profile}'"
+            ));
+        }
+
+        let elapsed = object
+            .get("elapsed_ns")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| format!("bundle sample {index}: elapsed_ns must be an object"))?;
+        for (metric, value) in elapsed {
+            let value = value.as_u64().ok_or_else(|| {
+                format!(
+                    "bundle sample {index}: elapsed_ns.{metric} must be an exact positive integer"
+                )
+            })?;
+            #[allow(clippy::cast_precision_loss)]
+            let value_ns = value as f64;
+            per_metric.entry(metric.clone()).or_default().push(value_ns);
+        }
+    }
+
+    Ok(per_metric
+        .into_iter()
+        .map(|(metric, samples)| {
+            let sample_count = samples.len();
+            #[allow(clippy::cast_precision_loss)]
+            let sample_count_f64 = sample_count as f64;
+            let mean_ns = samples.iter().sum::<f64>() / sample_count_f64;
+            let variance = samples
+                .iter()
+                .map(|value| (value - mean_ns).powi(2))
+                .sum::<f64>()
+                / sample_count_f64;
+            (
+                metric,
+                ThresholdMetricStats {
+                    sample_count,
+                    mean_ns,
+                    stdev_ns: variance.sqrt(),
+                },
+            )
+        })
+        .collect())
+}
+
 pub fn validate_operational_evidence_manifest(
     document: &str,
     expected_commit: &str,

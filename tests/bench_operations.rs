@@ -7575,6 +7575,186 @@ mod benchmark_deployment_profile_contract {
     }
 }
 
+// Deterministic evidence-bundle rules for proposing production thresholds
+// (issue #8): reject incomplete, stale-relative-to-the-required-sample-count,
+// mixed-revision, or off-profile bundles before any threshold value is
+// derived, and report sample count/variance rather than a bare single value.
+mod threshold_evidence_bundle {
+    use super::support_operational_evidence::validate_threshold_evidence_bundle;
+
+    const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
+
+    fn manifest(run_id: &str, profile: &str, commit: &str, snapshot_restore_ns: u64) -> String {
+        let platform = if profile == "native-linux-arm64-disk" {
+            "linux/arm64"
+        } else {
+            "linux/amd64"
+        };
+        format!(
+            r#"{{
+                "schema_version": "cassie-operational-evidence.v1",
+                "commit": "{commit}",
+                "run_id": "{run_id}",
+                "operator": "release-owner",
+                "runner": "hosted-runner-1",
+                "fixture": "operational-rehearsal-single-row-indexed",
+                "midge_lock_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "started_utc": "2026-09-15T00:00:00Z",
+                "finished_utc": "2026-09-15T00:05:00Z",
+                "platform": "{platform}",
+                "deployment_profile": "{profile}",
+                "host": {{
+                    "cpu_model": "AMD EPYC test",
+                    "core_count": 4,
+                    "memory_total_bytes": 17179869184,
+                    "filesystem": "ext4",
+                    "disk_total_bytes": 107374182400,
+                    "disk_available_bytes": 75161927680
+                }},
+                "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "image_revision": "{commit}",
+                "shape_only": false,
+                "steps": {{
+                    "container": {{"outcome": "success"}},
+                    "snapshot_restore": {{"outcome": "success"}},
+                    "projection_repair": {{"outcome": "success"}},
+                    "failure_injection": {{"outcome": "success"}},
+                    "long_evidence": {{"outcome": "success"}}
+                }},
+                "elapsed_ns": {{
+                    "container": 10,
+                    "snapshot_restore": {snapshot_restore_ns},
+                    "projection_repair": 30,
+                    "failure_injection": 40,
+                    "container_snapshot_restore": 50
+                }}
+            }}"#
+        )
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_below_required_sample_count() {
+        // Arrange
+        let bundle = vec![manifest(
+            "run-1",
+            NATIVE_LINUX_PROFILE_ID,
+            "expected-commit",
+            1_000,
+        )];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a single sample must not support a threshold proposal");
+
+        // Assert
+        assert!(error.contains("fewer than the required minimum 3"));
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_with_mixed_revisions() {
+        // Arrange
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "other-commit", 1_100),
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050),
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("mixed-revision bundles must be rejected");
+
+        // Assert
+        assert!(error.contains("commit"));
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_outside_declared_profile() {
+        // Arrange
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", "native-linux-arm64-disk", "expected-commit", 1_100),
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050),
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("off-profile samples must be rejected");
+
+        // Assert
+        assert!(error.contains("outside the declared profile"));
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_with_a_malformed_sample() {
+        // Arrange
+        let mut bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+        ];
+        bundle.push(
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050).replace(
+                "                    \"memory_total_bytes\": 17179869184,\n",
+                "",
+            ),
+        );
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("an incomplete sample must fail the whole bundle closed");
+
+        // Assert
+        assert!(error.contains("bundle sample 2"));
+        assert!(error.contains("host.memory_total_bytes"));
+    }
+
+    #[test]
+    fn should_summarize_sample_statistics_for_a_comparable_bundle() {
+        // Arrange
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050),
+        ];
+
+        // Act
+        let stats = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect("comparable same-profile bundle at the minimum sample count");
+        let snapshot_restore = stats
+            .get("snapshot_restore")
+            .expect("snapshot_restore metric present");
+
+        // Assert
+        assert_eq!(snapshot_restore.sample_count, 3);
+        assert!((snapshot_restore.mean_ns - 1_050.0).abs() < f64::EPSILON);
+        assert!(snapshot_restore.stdev_ns > 0.0);
+    }
+}
+
 // Formerly tests/benchmark_tier3_join_contract.rs.
 mod benchmark_tier3_join_contract {
     #[test]

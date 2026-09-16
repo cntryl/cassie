@@ -15,7 +15,7 @@ const VECTOR_SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance 
 const HYBRID_SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
-const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE event_at >= $1 AND event_at < $2 ORDER BY event_at LIMIT 512";
+const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE tenant = $1 AND event_at >= $2 AND event_at < $3 ORDER BY event_at LIMIT 512";
 const EXPECTED_COLUMN_ROW: [Value; 5] = [
     Value::Int64(5_000),
     Value::Int64(470_000),
@@ -45,11 +45,11 @@ fn main() {
     let core_cases = CoreCases::select(&runner);
     let join_case = selected_case(&runner, "vectorized_join_query");
     let graph_case = selected_case(&runner, "graph_expand_query");
-    let time_series_case = selected_case(&runner, "time_series_window_scan");
+    let time_series_cases = TimeSeriesCases::select(&runner);
     if !core_cases.any_enabled()
         && join_case.is_none()
         && graph_case.is_none()
-        && time_series_case.is_none()
+        && !time_series_cases.any_enabled()
     {
         runner.finish();
         return;
@@ -78,7 +78,7 @@ fn main() {
         workloads::Tier3QueryDomains {
             join: join_case.is_some(),
             graph: graph_case.is_some(),
-            time_series: time_series_case.is_some(),
+            time_series: false,
         },
     )
     .expect("prepare Tier 3 query domains in shared fixture");
@@ -88,7 +88,7 @@ fn main() {
     bench_core_representatives(&mut runner, &context, fixture_setup, core_cases);
     bench_join_representative(&mut runner, &context, fixture_setup, join_case);
     bench_graph_representative(&mut runner, &context, fixture_setup, graph_case);
-    bench_time_series_representative(&mut runner, &context, fixture_setup, time_series_case);
+    bench_time_series_representatives(&mut runner, &runtime, time_series_cases);
     workloads::assert_result_cache_disabled(&context);
 
     let data_dir = context.data_dir.clone();
@@ -511,16 +511,37 @@ fn bench_graph_representative(
     assert_query_cleanup(context);
 }
 
-fn bench_time_series_representative(
+fn bench_time_series_representatives(
+    runner: &mut stress::CassieStressRunner,
+    runtime: &tokio::runtime::Runtime,
+    cases: TimeSeriesCases,
+) {
+    for (width, case) in cases.enabled() {
+        let fixture_setup_started = Instant::now();
+        let context = runtime
+            .block_on(workloads::tier3_time_series_context(
+                &format!("tier3-time-series-{}-100k", width.replace(' ', "-")),
+                FIXTURE_ROWS,
+                width,
+            ))
+            .expect("Tier 3 time-series fixture");
+        bench_time_series_width(
+            runner,
+            &context,
+            fixture_setup_started.elapsed(),
+            width,
+            case,
+        );
+    }
+}
+
+fn bench_time_series_width(
     runner: &mut stress::CassieStressRunner,
     context: &workloads::BenchContext,
     fixture_setup: Duration,
-    case: Option<stress::StressCase>,
+    width: &'static str,
+    case: stress::StressCase,
 ) {
-    let Some(case) = case else {
-        return;
-    };
-    let case_setup = Instant::now();
     workloads::assert_fixture_boundaries(
         context,
         "bench_time_series_events",
@@ -530,9 +551,10 @@ fn bench_time_series_representative(
     let preflight =
         workloads::assert_time_series_preflight(context, TIME_SERIES_SQL, time_series_params());
     let case = evidenced(
-        case.parameter("queries_per_logical_operation", "1"),
+        case.parameter("queries_per_logical_operation", "1")
+            .parameter("bucket_width", width),
         context,
-        fixture_setup + case_setup.elapsed(),
+        fixture_setup,
         preflight,
     );
     let before = context.cassie.metrics();
@@ -542,6 +564,36 @@ fn bench_time_series_representative(
     let after = context.cassie.metrics();
     assert_metric_increased(&before, &after, "time_series", "bucket_native_hits");
     assert_metric_unchanged(&before, &after, "time_series", "fallback_scans");
+}
+
+struct TimeSeriesCases {
+    minutes_15: Option<stress::StressCase>,
+    hour_1: Option<stress::StressCase>,
+    day_1: Option<stress::StressCase>,
+}
+
+impl TimeSeriesCases {
+    fn select(runner: &stress::CassieStressRunner) -> Self {
+        Self {
+            minutes_15: selected_case(runner, "time_series_window_scan_15m"),
+            hour_1: selected_case(runner, "time_series_window_scan_1h"),
+            day_1: selected_case(runner, "time_series_window_scan_1d"),
+        }
+    }
+
+    fn any_enabled(&self) -> bool {
+        self.minutes_15.is_some() || self.hour_1.is_some() || self.day_1.is_some()
+    }
+
+    fn enabled(self) -> impl Iterator<Item = (&'static str, stress::StressCase)> {
+        [
+            ("15 minutes", self.minutes_15),
+            ("1 hour", self.hour_1),
+            ("1 day", self.day_1),
+        ]
+        .into_iter()
+        .filter_map(|(width, case)| case.map(|case| (width, case)))
+    }
 }
 
 fn selected_case(
@@ -767,6 +819,7 @@ fn graph_params() -> Vec<Value> {
 
 fn time_series_params() -> Vec<Value> {
     vec![
+        Value::String("tenant-a".to_string()),
         Value::String("2026-01-10T00:00:00Z".to_string()),
         Value::String("2026-01-12T00:00:00Z".to_string()),
     ]

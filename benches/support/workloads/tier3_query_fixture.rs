@@ -48,6 +48,17 @@ pub fn tier3_query_context_with_indexes(
     ready(tier3_query_context_now(label, dataset_rows, indexes))
 }
 
+pub fn tier3_time_series_context(
+    label: &str,
+    dataset_rows: usize,
+    bucket_width: &str,
+) -> Ready<Result<BenchContext, CassieError>> {
+    let result = empty_tier3_query_context_now(label, dataset_rows).and_then(|context| {
+        prepare_time_series(&context, dataset_rows, bucket_width).map(|()| context)
+    });
+    ready(result)
+}
+
 fn tier3_query_context_now(
     label: &str,
     dataset_rows: usize,
@@ -119,7 +130,7 @@ pub fn prepare_tier3_query_domains(
         prepare_graph(context, dataset_rows)?;
     }
     if domains.time_series {
-        prepare_time_series(context, dataset_rows)?;
+        prepare_time_series(context, dataset_rows, "1 hour")?;
     }
     Ok(())
 }
@@ -240,7 +251,11 @@ fn prepare_graph(context: &BenchContext, dataset_rows: usize) -> Result<(), Cass
     Ok(())
 }
 
-fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<(), CassieError> {
+fn prepare_time_series(
+    context: &BenchContext,
+    dataset_rows: usize,
+    bucket_width: &str,
+) -> Result<(), CassieError> {
     if context.cassie.catalog.exists(TIME_SERIES) {
         return Ok(());
     }
@@ -251,7 +266,9 @@ fn prepare_time_series(context: &BenchContext, dataset_rows: usize) -> Result<()
     )?;
     execute_ddl(
         context,
-        "CREATE INDEX bench_time_series_time_idx ON bench_time_series_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+        &format!(
+            "CREATE INDEX bench_time_series_time_idx ON bench_time_series_events USING time_series (event_at) WITH (bucket_width = '{bucket_width}', partition_by = tenant)"
+        ),
     )?;
 
     let tenants = ["tenant-a", "tenant-b", "tenant-c", "tenant-d"];

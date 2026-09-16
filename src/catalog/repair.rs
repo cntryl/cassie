@@ -31,30 +31,35 @@ impl Catalog {
         self.bump_version();
     }
 
-    /// Removes repair reports for one projection version and returns their ids.
+    /// Returns the ids of repair reports recorded for one projection version.
     #[must_use]
-    pub fn remove_projection_repair_reports_for_version(
+    pub fn projection_repair_report_ids_for_version(
         &self,
         projection: &str,
         version_id: &str,
     ) -> Vec<String> {
-        let mut reports = self.projection_repair_reports.write();
-        let ids = reports
+        self.projection_repair_reports
+            .read()
             .values()
             .filter(|report| {
                 report.projection_name.eq_ignore_ascii_case(projection)
                     && report.version_id.as_deref() == Some(version_id)
             })
             .map(|report| report.report_id.clone())
-            .collect::<Vec<_>>();
-        for id in &ids {
-            reports.remove(id);
-        }
+            .collect()
+    }
+
+    /// Removes repair reports by id from the catalog.
+    pub fn unregister_projection_repair_reports(&self, report_ids: &[String]) {
+        let mut reports = self.projection_repair_reports.write();
+        let removed = report_ids
+            .iter()
+            .filter(|id| reports.remove(id.as_str()).is_some())
+            .count();
         drop(reports);
-        if !ids.is_empty() {
+        if removed > 0 {
             self.bump_version();
         }
-        ids
     }
 
     #[must_use]

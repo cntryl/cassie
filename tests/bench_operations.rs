@@ -1604,6 +1604,115 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_reject_incomplete_hnsw_release_evidence() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({});
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("incomplete HNSW release evidence must fail");
+
+        // Assert
+        assert!(error.contains("recall_at_k"));
+    }
+
+    #[test]
+    fn should_reject_hnsw_release_evidence_below_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "0.85",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "256"
+        });
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("sub-floor HNSW recall must fail");
+
+        // Assert
+        assert!(error.contains("0.85"));
+        assert!(error.contains("0.9"));
+    }
+
+    #[test]
+    fn should_accept_complete_hnsw_release_evidence_at_recall_floor() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "0.90",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "256"
+        });
+
+        // Act
+        let result = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata);
+
+        // Assert
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn should_reject_changed_hnsw_release_configuration() {
+        // Arrange
+        let scenario =
+            performance_benchmarks::benchmark_for_scenario("perf.vector.hnsw_persisted.100k")
+                .expect("registered HNSW scenario");
+        let metadata = json!({
+            "recall_at_k": "1.00",
+            "recall_floor": "0.90",
+            "exact_top_k": "20",
+            "vector_dimensions": "3",
+            "distance_metric": "l2",
+            "fixture_seed": "0",
+            "hnsw_m": "32",
+            "hnsw_ef_construction": "256",
+            "hnsw_ef_search": "512"
+        });
+
+        // Act
+        let error = performance_benchmarks::validate_hnsw_release_evidence(scenario, &metadata)
+            .expect_err("changed HNSW release configuration must fail");
+
+        // Assert
+        assert!(error.contains("hnsw_ef_search"));
+        assert!(error.contains("512"));
+        assert!(error.contains("256"));
+    }
+
+    #[test]
+    fn should_compute_recall_from_exact_top_k_membership() {
+        // Arrange
+        let exact = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        let approximate = vec!["c".to_string(), "a".to_string(), "x".to_string()];
+
+        // Act
+        let recall = workloads::recall_at_k(&exact, &approximate);
+
+        // Assert
+        assert!((recall - (2.0 / 3.0)).abs() < f64::EPSILON);
+    }
+
+    #[test]
     fn should_scope_candidate_count_to_access_family() {
         // Arrange
         let delta = json!({

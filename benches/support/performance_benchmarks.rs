@@ -232,3 +232,15 @@ pub fn validate_complete_benchmark_artifacts(
 pub fn validate_complete_benchmark_suite(stress_root: &std::path::Path) -> Result<(), String> {
     performance_benchmark_samples::validate_complete_benchmark_suite(stress_root)
 }
+
+/// Validates the retained recall and configuration contract for one HNSW scenario.
+///
+/// # Errors
+///
+/// Returns an error when the scenario is not HNSW or required evidence is missing or below floor.
+pub fn validate_hnsw_release_evidence(
+    scenario: &PerformanceBenchmarkScenario,
+    metadata: &serde_json::Value,
+) -> Result<(), String> {
+    performance_benchmark_samples::validate_hnsw_release_evidence(scenario, metadata)
+}

@@ -218,6 +218,11 @@ fn insert_source_rows(
                 offset: select.offset,
                 set: select.set.clone(),
             };
+            // Constructed here, so it needs the reserved-id rewrite too —
+            // otherwise `INSERT ... SELECT id` stores NULL instead of the
+            // source rows' internal identity.
+            let mut logical = logical;
+            crate::planner::logical::rewrite_reserved_id_references(&mut logical, &cassie.catalog);
             let mut cte_context = CteContext::new();
             let rows = execute_plan(
                 cassie,

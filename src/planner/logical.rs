@@ -568,9 +568,13 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                     "ALTER TABLE DROP COLUMN requires a field".into(),
                 ));
             }
-            if field.trim().eq_ignore_ascii_case("id") {
+            // Only the internal identity is undroppable. A declared `id`
+            // column is an ordinary column (see
+            // `planner::logical::reserved_id`) and drops like any other;
+            // the binder reports it as unknown when undeclared.
+            if field.trim().eq_ignore_ascii_case("_id") {
                 return Err(CassieError::Planner(
-                    "ALTER TABLE cannot drop reserved field 'id'".into(),
+                    "ALTER TABLE cannot drop reserved field '_id'".into(),
                 ));
             }
         }

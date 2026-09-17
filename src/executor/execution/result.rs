@@ -39,6 +39,15 @@ pub(super) fn build_select_result(
         .iter()
         .any(|item| matches!(item, crate::sql::ast::SelectItem::Wildcard))
         && !crate::executor::scan::schema_declares_id(collection_schema.as_ref());
+    // A query can also name `_id` as an output column of its own, either by
+    // selecting it directly or by aliasing an expression to it. Dropping the
+    // matching entry would emit a row narrower than its own `RowDescription`
+    // — a protocol violation, not just a missing value — so the entry is
+    // kept whenever a column claims that name.
+    let projects_internal_identity = columns
+        .iter()
+        .any(|column| column.name.eq_ignore_ascii_case("_id"));
+    let keep_internal_identity_as_id = keep_internal_identity_as_id || projects_internal_identity;
     let rows: Vec<Vec<Value>> = rows
         .into_iter()
         .map(|row| {

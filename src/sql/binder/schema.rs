@@ -620,7 +620,11 @@ fn validate_alter_drop_column(
             "ALTER TABLE DROP COLUMN requires a field name".into(),
         ));
     }
-    if name.eq_ignore_ascii_case("id") || name.eq_ignore_ascii_case("_id") {
+    // `_id` is the reserved internal identity and is never a user field.
+    // `id` is an ordinary column when the table declares one, so it is
+    // droppable like any other; when the table does not declare it, the
+    // `existing_fields` check below reports it as unknown.
+    if name.eq_ignore_ascii_case("_id") {
         return Err(CassieError::Planner(format!(
             "ALTER TABLE DROP COLUMN cannot remove reserved field '{name}'"
         )));

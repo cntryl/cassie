@@ -304,6 +304,13 @@ fn execute_subquery_source(
         offset: select.offset,
         set: select.set.clone(),
     };
+    // Built here rather than by the planner, so it needs the reserved-id
+    // rewrite the dispatch entry points apply (see
+    // `planner::logical::rewrite_reserved_id_references`); without it a bare
+    // `id` in a derived table resolves to nothing, because rows carry the
+    // internal identity only under `_id`.
+    let mut logical = logical;
+    crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
     let mut subquery_context = cte_context.clone();
     let plan_env = plan_execution_env(
         env.cassie,
@@ -774,7 +781,13 @@ fn finalize_plan_rows(
     let mut rows = batch::flatten_batches(batches);
     if let Some(set) = &plan.set {
         let left_output_names = set_left_output_names(env, plan, &rows);
-        let right_plan = plan_inspection::logical_plan_from_select(&set.right);
+        let mut right_plan = plan_inspection::logical_plan_from_select(&set.right);
+        // The left branch was rewritten with the rest of `plan`; the right
+        // branch is constructed here and needs the same treatment.
+        crate::planner::logical::rewrite_reserved_id_references(
+            &mut right_plan,
+            &env.cassie.catalog,
+        );
         let right_rows = execute_plan(
             env.cassie,
             env.session,

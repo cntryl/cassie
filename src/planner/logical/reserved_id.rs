@@ -24,14 +24,21 @@
 //! optimizations' `is_row_id_column` checks and is treated as an ordinary
 //! column everywhere — which is exactly correct.
 //!
-//! Scope: only `QuerySource::Collection` (a plain single-table read) is
-//! rewritten. Joins, CTEs, and subqueries are not — those need their own
-//! per-branch schema resolution and are left as a known follow-up (see
-//! GitHub issue #276).
+//! Scope: every source shape that can put the internal identity in a row
+//! is rewritten, because the row shape itself is global — `scan` stores the
+//! identity only under `_id`, so any `id` reference left unrewritten
+//! resolves to nothing at all. A bare `id` is rewritten whenever *nothing*
+//! in scope declares its own `id`: a single collection, both sides of a
+//! join, and the body of a subquery or CTE reference (recursively). A
+//! subquery or CTE that projects an explicit `id` output column already
+//! carries a real `id` entry, so references to it are left alone.
 
 use super::LogicalPlan;
 use crate::catalog::Catalog;
-use crate::sql::ast::{Expr, OrderExpr, QuerySource, SelectItem};
+use crate::sql::ast::{
+    CommonTableExpression, CteQuery, Expr, OrderExpr, QuerySource, QueryStatement, SelectItem,
+    SelectStatement,
+};
 
 const RESERVED_ID: &str = "id";
 const INTERNAL_IDENTITY: &str = "_id";
@@ -64,10 +71,7 @@ pub fn rewrite_expr_for_schema(expr: &mut Expr, schema_has_id: bool) {
 }
 
 pub fn rewrite_reserved_id_references(plan: &mut LogicalPlan, catalog: &Catalog) {
-    let QuerySource::Collection(collection) = &plan.source else {
-        return;
-    };
-    if collection_declares_id(catalog, collection) {
+    if !source_resolves_id_to_identity(&plan.source, &plan.ctes, catalog) {
         return;
     }
 
@@ -89,6 +93,81 @@ pub fn rewrite_reserved_id_references(plan: &mut LogicalPlan, catalog: &Catalog)
     for expr in &mut plan.distinct_on {
         rewrite_expr(expr);
     }
+}
+
+/// Whether a bare `id` reference against `source` means Cassie's reserved
+/// internal identity rather than a real column that something in scope
+/// declares or projects. Only then is rewriting `id` to `_id` correct.
+fn source_resolves_id_to_identity(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    catalog: &Catalog,
+) -> bool {
+    match source {
+        QuerySource::Collection(collection) => !collection_declares_id(catalog, collection),
+        // A join row carries each side's entries, so `id` means the identity
+        // only when neither side declares one of its own.
+        QuerySource::Join { left, right, .. } => {
+            source_resolves_id_to_identity(left, ctes, catalog)
+                && source_resolves_id_to_identity(right, ctes, catalog)
+        }
+        QuerySource::Subquery { select, .. } => {
+            inner_resolves_id_to_identity(select, ctes, catalog)
+        }
+        QuerySource::Cte(name) => ctes
+            .iter()
+            .find(|cte| cte.name.eq_ignore_ascii_case(name))
+            .and_then(cte_body)
+            .is_some_and(|select| inner_resolves_id_to_identity(select, ctes, catalog)),
+        // A table function's rows and the single synthetic row have no
+        // document identity to resolve to, so `id` is left as written.
+        QuerySource::TableFunction { .. } | QuerySource::SingleRow => false,
+    }
+}
+
+/// A subquery or CTE body that projects an explicit `id` output column
+/// hands its consumer a real `id` entry (a rewritten `_id AS id`, or a
+/// user's own aliased value), so an outer reference must not be rewritten.
+/// Otherwise the body just passes its source's rows through and the same
+/// question applies one level down.
+fn inner_resolves_id_to_identity(
+    select: &SelectStatement,
+    outer_ctes: &[CommonTableExpression],
+    catalog: &Catalog,
+) -> bool {
+    if projects_id_output(select) {
+        return false;
+    }
+    let ctes = if select.ctes.is_empty() {
+        outer_ctes
+    } else {
+        &select.ctes
+    };
+    source_resolves_id_to_identity(&select.source, ctes, catalog)
+}
+
+fn cte_body(cte: &CommonTableExpression) -> Option<&SelectStatement> {
+    let statement = match &cte.query {
+        CteQuery::Simple(statement) => statement,
+        // A recursive CTE's output shape is its base branch's shape.
+        CteQuery::Recursive { base, .. } => base,
+    };
+    match &statement.statement {
+        QueryStatement::Select(select) => Some(select),
+        _ => None,
+    }
+}
+
+fn projects_id_output(select: &SelectStatement) -> bool {
+    select.projection.iter().any(|item| match item {
+        SelectItem::Column { name, alias } => alias
+            .as_deref()
+            .map_or_else(|| is_reserved_id(name), is_reserved_id),
+        SelectItem::Function { alias, .. }
+        | SelectItem::Expr { alias, .. }
+        | SelectItem::WindowFunction { alias, .. } => alias.as_deref().is_some_and(is_reserved_id),
+        SelectItem::Wildcard => false,
+    })
 }
 
 fn rewrite_select_item(item: &mut SelectItem) {

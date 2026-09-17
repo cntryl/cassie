@@ -366,11 +366,16 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
             BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul => {
-                let left = infer_expr_type(left, source_schema, user_functions, parameter_types);
-                let right = infer_expr_type(right, source_schema, user_functions, parameter_types);
-                if left.as_ref().is_some_and(is_integer_type)
-                    && right.as_ref().is_some_and(is_integer_type)
-                {
+                let left_type =
+                    infer_expr_type(left, source_schema, user_functions, parameter_types);
+                let right_type =
+                    infer_expr_type(right, source_schema, user_functions, parameter_types);
+                if arithmetic_result_is_integer(
+                    left_type.as_ref(),
+                    left,
+                    right_type.as_ref(),
+                    right,
+                ) {
                     Some(DataType::BigInt)
                 } else {
                     Some(DataType::Float)
@@ -388,6 +393,33 @@ fn is_integer_type(data_type: &DataType) -> bool {
     matches!(
         data_type,
         DataType::SmallInt | DataType::Int | DataType::BigInt
+    )
+}
+
+/// Matches the runtime coercion in `executor::filter::coerce_whole_number_literal`:
+/// a bare whole-number literal is declared `Float` in isolation (so
+/// `1 + 2` alone stays float, matching the table-free literal contract),
+/// but paired with a genuine integer operand it takes on integer semantics,
+/// so the declared column type agrees with the value `int_column + 1`
+/// actually produces.
+fn arithmetic_result_is_integer(
+    left_type: Option<&DataType>,
+    left_expr: &Expr,
+    right_type: Option<&DataType>,
+    right_expr: &Expr,
+) -> bool {
+    let left_is_int = left_type.is_some_and(is_integer_type);
+    let right_is_int = right_type.is_some_and(is_integer_type);
+    let left_ok = left_is_int || is_whole_number_literal(left_expr);
+    let right_ok = right_is_int || is_whole_number_literal(right_expr);
+    left_ok && right_ok && (left_is_int || right_is_int)
+}
+
+fn is_whole_number_literal(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::NumberLiteral(value)
+            if value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0
     )
 }
 

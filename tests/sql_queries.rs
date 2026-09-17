@@ -8243,6 +8243,46 @@ mod sql_semantic_regressions {
     }
 
     #[test]
+    fn should_keep_integer_column_arithmetic_exact_when_combined_with_a_bare_literal() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("integer_literal_arithmetic");
+        cassie
+            .execute_sql(&session, "CREATE TABLE t (n INT)", vec![])
+            .expect("create table");
+        cassie
+            .execute_sql(&session, "INSERT INTO t (n) VALUES (1)", vec![])
+            .expect("insert row");
+
+        // Act
+        let column_plus_literal = cassie
+            .execute_sql(&session, "SELECT n + 1 FROM t", vec![])
+            .expect("execute column plus literal");
+        let literal_plus_column = cassie
+            .execute_sql(&session, "SELECT 1 + n FROM t", vec![])
+            .expect("execute literal plus column");
+        let column_plus_column = cassie
+            .execute_sql(&session, "SELECT n + n FROM t", vec![])
+            .expect("execute column plus column");
+        let pure_literal = cassie
+            .execute_sql(&session, "SELECT 1 + 2 AS total", vec![])
+            .expect("execute pure literal arithmetic");
+
+        // Assert
+        assert_eq!(column_plus_literal.rows, vec![vec![Value::Int64(2)]]);
+        assert_eq!(column_plus_literal.columns[0].type_oid, 20);
+        assert_eq!(literal_plus_column.rows, vec![vec![Value::Int64(2)]]);
+        assert_eq!(literal_plus_column.columns[0].type_oid, 20);
+        assert_eq!(column_plus_column.rows, vec![vec![Value::Int64(2)]]);
+        // A literal-only expression with no integer operand keeps its
+        // existing float-by-default contract (see
+        // should_execute_table_free_literal_alias_cast_projection).
+        assert_eq!(pure_literal.rows, vec![vec![Value::Float64(3.0)]]);
+        assert_eq!(pure_literal.columns[0].type_oid, 701);
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_bigint_scalar_arithmetic_overflow() {
         // Arrange
         let (cassie, session, path) = cassie_for("bigint_scalar_overflow");

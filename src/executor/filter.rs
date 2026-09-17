@@ -716,9 +716,46 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     right: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let left = eval_scalar_with_context(row, left, context)?;
-    let right = eval_scalar_with_context(row, right, context)?;
-    binary_scalar(&left, op, &right)
+    let mut left_value = eval_scalar_with_context(row, left, context)?;
+    let mut right_value = eval_scalar_with_context(row, right, context)?;
+    coerce_literal_pair_to_matching_int(left, &mut left_value, right, &mut right_value);
+    binary_scalar(&left_value, op, &right_value)
+}
+
+/// A bare numeric literal like `1` has no declared type of its own and
+/// defaults to float when it stands alone (`SELECT 1 + 2` stays float,
+/// matching the table-free literal contract). But paired with a genuine
+/// integer operand (a column or an out-of-f64-precision integer literal),
+/// an integral literal should behave as an integer rather than silently
+/// promoting exact integer arithmetic to float, e.g. `int_column + 1` must
+/// stay an integer rather than becoming `Float64`.
+fn coerce_literal_pair_to_matching_int(
+    left_expr: &Expr,
+    left: &mut ScalarValue,
+    right_expr: &Expr,
+    right: &mut ScalarValue,
+) {
+    match (&*left, &*right) {
+        (ScalarValue::Int(_), ScalarValue::Float(_)) => {
+            coerce_whole_number_literal(right_expr, right);
+        }
+        (ScalarValue::Float(_), ScalarValue::Int(_)) => {
+            coerce_whole_number_literal(left_expr, left);
+        }
+        _ => {}
+    }
+}
+
+fn coerce_whole_number_literal(expr: &Expr, value: &mut ScalarValue) {
+    let (Expr::NumberLiteral(_), ScalarValue::Float(number)) = (expr, &*value) else {
+        return;
+    };
+    if number.fract() != 0.0 || number.abs() > 9_007_199_254_740_992.0 {
+        return;
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    let whole = *number as i64;
+    *value = ScalarValue::Int(whole);
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(

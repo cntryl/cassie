@@ -50,6 +50,21 @@ Supported predicate shapes include:
 - Left-prefix composite lookup.
 - Combined predicates extracted from simple conjunctions.
 
+NULL and non-finite values:
+
+- Rows whose index key contains NULL are not stored in scalar indexes. The planner uses a scalar index when every key column is compared with a value in the filter or is declared `NOT NULL` (or is part of the primary key).
+- One nullable, unconstrained key is allowed when it is the leading `ORDER BY` key, NULLs sort last (`ASC` by default), and the query has a `LIMIT`. For example, `ORDER BY score LIMIT 10` or `WHERE status = $1 ORDER BY score LIMIT 10` on `(status, score)`, including an expression key such as `ORDER BY lower(title) LIMIT 10`. If the index yields fewer than `LIMIT + OFFSET` rows, execution falls back to the scan plus top-k sort so NULL-keyed rows are still returned.
+- Other shapes decline the index: NULLs sorting first (`DESC` by default), no `LIMIT`, or a nullable key that is not the leading order key (for example `WHERE x > 1` on `(x, y)`).
+- The full-text scalar prefilter and indexed join probes use a composite index only when its trailing key columns are `NOT NULL`.
+- Comparisons with a NULL bind parameter match no rows.
+- NaN and infinite float parameters are not index-encodable; range predicates that bind them fall back to the row scan, which orders NaN and infinities above every finite value. Writes reject non-finite float values instead of storing NULL.
+
+Whole-number `FLOAT` keys:
+
+- Integer-shaped values written to a `FLOAT` column (for example `INSERT ... VALUES (5)` or an `INT8` bind parameter) are indexed as floats, matching index backfill and query bounds. Unique reservation keys for `FLOAT` `UNIQUE` and primary key columns, and for unique scalar indexes, use the same float encoding.
+- Scalar indexes on `FLOAT` columns that received such writes after the index was created, on a build before this rule, can hold entries that range and equality lookups miss. Drop and recreate those indexes to rebuild them from row blobs. No automatic migration runs.
+- Rows written that way on an earlier build also hold integer-encoded unique reservation keys. A new write of the same whole-number value uses the float encoding and does not collide with them, and the write-time uniqueness scan compares stored JSON values exactly (`5` and `5.0` differ), so it does not close that gap. Rewrite affected rows (for example `UPDATE t SET price = price`) so they store float-encoded reservations before relying on uniqueness for those values.
+
 Out of scope unless separately documented:
 
 - Arbitrary skip-column lookup.

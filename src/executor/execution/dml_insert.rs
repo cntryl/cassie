@@ -263,12 +263,12 @@ fn insert_source_width(
 fn payload_from_insert_row(
     target_fields: &[FieldMeta],
     source_row: &[Value],
-) -> serde_json::Map<String, serde_json::Value> {
+) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
     let mut payload = serde_json::Map::with_capacity(target_fields.len());
     for (field, value) in target_fields.iter().zip(source_row.iter()) {
-        payload.insert(field.name.clone(), value_to_json(value));
+        payload.insert(field.name.clone(), value_to_json(value)?);
     }
-    payload
+    Ok(payload)
 }
 
 fn validate_insert_source_rows(
@@ -302,7 +302,7 @@ fn execute_insert_source_row(
     target_fields: &[FieldMeta],
     source_row: &[Value],
 ) -> Result<Option<String>, QueryError> {
-    let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row));
+    let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row)?);
     let maybe_conflict_id =
         find_insert_conflict_row_id(context.cassie, context.session, context.statement, &payload)?;
     match (context.statement.on_conflict.as_ref(), maybe_conflict_id) {
@@ -564,7 +564,7 @@ fn merged_conflict_payload(
         )?;
         merged_payload.insert(
             field.clone(),
-            update_assignment_to_json(field, &value, context.schema),
+            update_assignment_to_json(field, &value, context.schema)?,
         );
     }
     Ok(merged_payload)
@@ -673,8 +673,8 @@ fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Valu
         Expr::Null => Ok(serde_json::Value::Null),
         Expr::Param(index) => params
             .get(*index)
-            .map(value_to_json)
-            .ok_or_else(|| format!("missing bind parameter ${}", index + 1)),
+            .ok_or_else(|| format!("missing bind parameter ${}", index + 1))
+            .and_then(|value| value_to_json(value).map_err(|error| error.to_string())),
         Expr::Column(_)
         | Expr::Function(_)
         | Expr::IsNull { .. }

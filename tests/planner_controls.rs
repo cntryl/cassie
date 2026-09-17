@@ -4720,7 +4720,7 @@ mod planner_physical {
 // Formerly tests/planner_read_path_depth.rs.
 mod planner_read_path_depth {
     #![allow(unused_imports, dead_code)]
-    use cassie::catalog::{Catalog, IndexKind, IndexMeta};
+    use cassie::catalog::{Catalog, FieldConstraint, IndexKind, IndexMeta};
     use cassie::planner::{logical, physical};
     use cassie::sql::ast::{Expr, QueryStatement};
     use cassie::sql::{binder, parser};
@@ -4732,6 +4732,14 @@ mod planner_read_path_depth {
             .enable_all()
             .build()
             .expect("runtime");
+        let not_null_constraints = schema
+            .iter()
+            .filter(|field| !field.nullable)
+            .map(|field| FieldConstraint {
+                not_null: true,
+                ..FieldConstraint::new(field.name.clone())
+            })
+            .collect::<Vec<_>>();
 
         runtime.block_on(async {
             catalog.register_collection(
@@ -4741,6 +4749,7 @@ mod planner_read_path_depth {
                     .map(|field| (field.name, field.data_type))
                     .collect(),
             );
+            catalog.register_constraints(name, not_null_constraints);
         });
     }
 
@@ -4806,7 +4815,12 @@ mod planner_read_path_depth {
                 String,
                 cassie::catalog::CollectionCardinalityStats,
             >::new();
-            physical::build_with_indexes(logical, indexes.as_slice(), &cardinality_stats)
+            physical::build_with_indexes_and_not_null_fields(
+                logical,
+                indexes.as_slice(),
+                &catalog.not_null_fields(collection),
+                &cardinality_stats,
+            )
         })
     }
 
@@ -4885,12 +4899,12 @@ mod planner_read_path_depth {
                 FieldSchema {
                     name: "created_at".to_string(),
                     data_type: DataType::Int,
-                    nullable: true,
+                    nullable: false,
                 },
                 FieldSchema {
                     name: "score".to_string(),
                     data_type: DataType::Int,
-                    nullable: true,
+                    nullable: false,
                 },
                 FieldSchema {
                     name: "title".to_string(),
@@ -4946,7 +4960,7 @@ mod planner_read_path_depth {
                 FieldSchema {
                     name: "score".to_string(),
                     data_type: DataType::Int,
-                    nullable: true,
+                    nullable: false,
                 },
                 FieldSchema {
                     name: "title".to_string(),
@@ -4995,7 +5009,7 @@ mod planner_read_path_depth {
                 FieldSchema {
                     name: "score".to_string(),
                     data_type: DataType::Int,
-                    nullable: true,
+                    nullable: false,
                 },
                 FieldSchema {
                     name: "title".to_string(),
@@ -5216,7 +5230,7 @@ mod planner_read_path_depth {
         let physical_plan = build_plan(
             &catalog,
             "SELECT body FROM planner_expression_index_order \
-         ORDER BY lower(title) DESC LIMIT 2",
+         ORDER BY lower(title) ASC LIMIT 2",
             "planner_expression_index_order",
         );
 
@@ -5234,6 +5248,53 @@ mod planner_read_path_depth {
             "scalar-index-ordered-bounded"
         );
         assert_eq!(physical_plan.read.fallback_reason, None);
+    }
+
+    #[test]
+    fn should_decline_expression_order_limit_when_expression_keys_can_be_null() {
+        // Arrange
+        let catalog = Catalog::new();
+        register_collection_fields(
+            &catalog,
+            "planner_expression_index_order",
+            vec![
+                FieldSchema {
+                    name: "title".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+                FieldSchema {
+                    name: "body".to_string(),
+                    data_type: DataType::Text,
+                    nullable: true,
+                },
+            ],
+        );
+        let expression = expression_from_create_index(
+            "CREATE INDEX planner_expression_index_order_idx \
+         ON planner_expression_index_order USING btree (lower(title))",
+        );
+        register_expression_index(
+            &catalog,
+            "planner_expression_index_order",
+            "planner_expression_index_order_idx",
+            &expression,
+        );
+
+        // Act
+        let physical_plan = build_plan(
+            &catalog,
+            "SELECT body FROM planner_expression_index_order \
+         ORDER BY lower(title) DESC LIMIT 2",
+            "planner_expression_index_order",
+        );
+
+        // Assert
+        assert_eq!(physical_plan.read.selected_index, None);
+        assert_eq!(
+            physical_plan.read.access_path,
+            physical::ReadAccessPath::CollectionScan
+        );
     }
 }
 

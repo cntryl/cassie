@@ -717,6 +717,96 @@ mod fulltext_persisted_sql {
     }
 
     #[test]
+    fn should_prefilter_fulltext_candidates_with_integer_parameter_on_float_index() {
+        // Arrange
+        use_local_storage();
+        std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+        let path = data_dir("persisted_fulltext_float_prefilter");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE persisted_float_filter_docs (rating FLOAT, body TEXT)",
+            "CREATE INDEX persisted_float_filter_rating_idx ON persisted_float_filter_docs (rating)",
+            "INSERT INTO persisted_float_filter_docs (rating, body) VALUES (5, 'alpha beta')",
+            "INSERT INTO persisted_float_filter_docs (rating, body) VALUES (7, 'alpha gamma')",
+            "CREATE INDEX persisted_float_filter_body_idx ON persisted_float_filter_docs USING fulltext (body)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT rating, search_score(body, $1) AS score FROM persisted_float_filter_docs WHERE search(body, $1) AND rating = $2",
+                vec![Value::String("alpha".to_string()), Value::Int64(5)],
+            )
+            .expect("query float-filtered postings");
+        let after = cassie.metrics();
+
+        // Assert
+        let ratings = result
+            .rows
+            .iter()
+            .map(|row| row[0].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(ratings, vec![Value::Float64(5.0)]);
+        assert_eq!(
+            after["search"]["retrieval_fallback_reasons"]["authoritative_row_scan"],
+            serde_json::Value::Null
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_null_trailing_index_keys_in_fulltext_prefilter() {
+        // Arrange
+        use_local_storage();
+        std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+        let path = data_dir("persisted_fulltext_nullable_prefilter");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE persisted_nullable_filter_docs (category TEXT, label TEXT, body TEXT)",
+            "INSERT INTO persisted_nullable_filter_docs (category, label, body) VALUES ('keep', 'named', 'alpha beta')",
+            "INSERT INTO persisted_nullable_filter_docs (category, label, body) VALUES ('keep', NULL, 'alpha gamma')",
+            "CREATE INDEX persisted_nullable_filter_body_idx ON persisted_nullable_filter_docs USING fulltext (body)",
+            "CREATE INDEX persisted_nullable_filter_category_idx ON persisted_nullable_filter_docs (category, label)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let mut labels = cassie
+            .execute_sql(
+                &session,
+                "SELECT label, search_score(body, $1) AS score FROM persisted_nullable_filter_docs WHERE search(body, $1) AND category = $2",
+                vec![
+                    Value::String("alpha".to_string()),
+                    Value::String("keep".to_string()),
+                ],
+            )
+            .expect("query nullable-filtered postings")
+            .rows
+            .into_iter()
+            .map(|row| row[0].clone())
+            .collect::<Vec<_>>();
+        let after = cassie.metrics();
+        labels.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+
+        // Assert
+        assert_eq!(
+            labels,
+            vec![Value::Null, Value::String("named".to_string())]
+        );
+        assert_eq!(
+            after["search"]["retrieval_fallback_reasons"]["authoritative_row_scan"],
+            serde_json::Value::Null
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_overlay_transaction_mutations_on_fulltext_fallback() {
         // Arrange
         use_local_storage();

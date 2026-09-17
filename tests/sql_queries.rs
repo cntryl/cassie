@@ -4790,7 +4790,7 @@ mod integration_sql_read_path_depth {
                 .execute_sql(
                     &session,
                     "CREATE TABLE read_path_mixed_order_suffix \
-                 (tenant TEXT, created_at INT, priority INT, title TEXT)",
+                 (tenant TEXT, created_at INT NOT NULL, priority INT NOT NULL, title TEXT)",
                     vec![],
                 )
                 .unwrap();
@@ -4898,7 +4898,7 @@ mod integration_sql_read_path_depth {
                 .execute_sql(
                     &session,
                     "CREATE TABLE read_path_nonselective_mixed_order_suffix \
-                 (score INT, title TEXT)",
+                 (score INT NOT NULL, title TEXT)",
                     vec![],
                 )
                 .unwrap();
@@ -5174,8 +5174,133 @@ mod integration_sql_read_path_depth {
         });
     }
 
+    fn seed_nullable_expression_order_rows(cassie: &Cassie, session: &cassie::app::CassieSession) {
+        cassie
+            .execute_sql(
+                session,
+                "CREATE TABLE read_path_expression_index_order_asc (title TEXT, body TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (id, payload) in [
+            (
+                "row-1",
+                serde_json::json!({"title": "Beta", "body": "second"}),
+            ),
+            (
+                "row-2",
+                serde_json::json!({"title": "alpha", "body": "first"}),
+            ),
+            (
+                "row-3",
+                serde_json::json!({"title": "Gamma", "body": "third"}),
+            ),
+            (
+                "row-4",
+                serde_json::json!({"title": null, "body": "untitled"}),
+            ),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    "read_path_expression_index_order_asc",
+                    Some(id.to_string()),
+                    payload,
+                )
+                .unwrap();
+        }
+        cassie
+            .execute_sql(
+                session,
+                "CREATE INDEX read_path_expression_index_order_asc_idx \
+         ON read_path_expression_index_order_asc USING btree (lower(title))",
+                vec![],
+            )
+            .unwrap();
+    }
+
     #[test]
-    fn should_scan_expression_index_order_limit_with_row_blob_projection() {
+    fn should_return_null_expression_keys_after_index_ordered_rows() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("read_path_expression_index_order_asc");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            let session = cassie.create_session("tester", None);
+
+            seed_nullable_expression_order_rows(&cassie, &session);
+            let before = cassie.metrics();
+
+            // Act
+            let filled = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT body FROM read_path_expression_index_order_asc \
+                 ORDER BY lower(title) ASC LIMIT 2",
+                    vec![],
+                )
+                .unwrap();
+            let after_filled = cassie.metrics();
+            let unfilled = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT body FROM read_path_expression_index_order_asc \
+                 ORDER BY lower(title) ASC LIMIT 5",
+                    vec![],
+                )
+                .unwrap();
+            let explain = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT body FROM read_path_expression_index_order_asc \
+                 ORDER BY lower(title) ASC LIMIT 2",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(
+                filled.rows,
+                vec![
+                    vec![Value::String("first".to_string())],
+                    vec![Value::String("second".to_string())],
+                ]
+            );
+            assert_eq!(
+                unfilled.rows,
+                vec![
+                    vec![Value::String("first".to_string())],
+                    vec![Value::String("second".to_string())],
+                    vec![Value::String("third".to_string())],
+                    vec![Value::String("untitled".to_string())],
+                ]
+            );
+            let Value::String(plan) = &explain.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(plan.contains("index=read_path_expression_index_order_asc_idx"));
+            assert!(plan.contains("access_path=ordered_bounded_scan"));
+            assert!(plan.contains("top_k_mode=storage"));
+            assert!(
+                after_filled["read_paths"]["ordered_bounded_scans"]
+                    .as_u64()
+                    .unwrap()
+                    > before["read_paths"]["ordered_bounded_scans"]
+                        .as_u64()
+                        .unwrap()
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_decline_expression_index_order_limit_when_null_keys_sort_first() {
         // Arrange
         use_local_storage();
         let path = data_dir("read_path_expression_index_order");
@@ -5195,17 +5320,30 @@ mod integration_sql_read_path_depth {
                     vec![],
                 )
                 .unwrap();
-            for (id, title, body) in [
-                ("row-1", "Beta", "second"),
-                ("row-2", "alpha", "third"),
-                ("row-3", "Gamma", "first"),
+            for (id, payload) in [
+                (
+                    "row-1",
+                    serde_json::json!({"title": "Beta", "body": "second"}),
+                ),
+                (
+                    "row-2",
+                    serde_json::json!({"title": "alpha", "body": "third"}),
+                ),
+                (
+                    "row-3",
+                    serde_json::json!({"title": "Gamma", "body": "first"}),
+                ),
+                (
+                    "row-4",
+                    serde_json::json!({"title": null, "body": "untitled"}),
+                ),
             ] {
                 cassie
                     .midge
                     .put_document(
                         "read_path_expression_index_order",
                         Some(id.to_string()),
-                        serde_json::json!({"title": title, "body": body}),
+                        payload,
                     )
                     .unwrap();
             }
@@ -5217,7 +5355,6 @@ mod integration_sql_read_path_depth {
                     vec![],
                 )
                 .unwrap();
-            let before = cassie.metrics();
 
             // Act
             let result = cassie
@@ -5236,36 +5373,19 @@ mod integration_sql_read_path_depth {
                     vec![],
                 )
                 .unwrap();
-            let after = cassie.metrics();
 
             // Assert
             assert_eq!(
                 result.rows,
                 vec![
+                    vec![Value::String("untitled".to_string())],
                     vec![Value::String("first".to_string())],
-                    vec![Value::String("second".to_string())],
                 ]
             );
             let Value::String(plan) = &explain.rows[0][0] else {
                 panic!("expected textual plan");
             };
-            assert!(plan.contains("index=read_path_expression_index_order_idx"));
-            assert!(plan.contains("access_path=ordered_bounded_scan"));
-            assert!(plan.contains("access_path_reason=scalar-index-ordered-bounded"));
-            assert!(plan.contains("fallback_reason=none"));
-            assert!(plan.contains("top_k_mode=storage"));
-            assert!(
-                after["read_paths"]["ordered_bounded_scans"]
-                    .as_u64()
-                    .unwrap()
-                    > before["read_paths"]["ordered_bounded_scans"]
-                        .as_u64()
-                        .unwrap()
-            );
-            assert_eq!(
-                after["read_paths"]["last_index_scan_index"].as_str(),
-                Some("read_path_expression_index_order_idx")
-            );
+            assert!(!plan.contains("access_path=ordered_bounded_scan"));
 
             let _ = std::fs::remove_dir_all(path);
         });

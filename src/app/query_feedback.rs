@@ -266,9 +266,11 @@ impl Cassie {
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let logical = crate::planner::logical::plan(&bound)?;
         let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
+        let not_null_fields = self.catalog.not_null_fields(&optimized.collection);
         let selection = crate::planner::physical::read_operator_selection(
             &optimized,
             bound.indexes.as_slice(),
+            &not_null_fields,
             &cardinality_stats,
         );
         let (operator_selected_index, operator_feedback) = self.select_operator_feedback_plan(
@@ -290,6 +292,7 @@ impl Cassie {
         let mut physical = crate::planner::physical::build_with_selection(
             optimized,
             bound.indexes.as_slice(),
+            &not_null_fields,
             &cardinality_stats,
             selected_index,
             operator_feedback,
@@ -326,6 +329,7 @@ impl Cassie {
         let selection = crate::planner::physical::read_operator_selection(
             &logical,
             bound.indexes.as_slice(),
+            &self.catalog.not_null_fields(&logical.collection),
             &cardinality_stats,
         );
         let candidate = selection

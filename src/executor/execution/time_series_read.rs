@@ -805,9 +805,10 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
     let indexes = cassie.catalog.list_indexes(collection);
     let cardinality_stats =
         std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
-    let physical = crate::planner::physical::build_with_indexes(
+    let physical = crate::planner::physical::build_with_indexes_and_not_null_fields(
         plan.clone(),
         indexes.as_slice(),
+        &cassie.catalog.not_null_fields(collection),
         &cardinality_stats,
     );
     let selected = physical.read.selected_index?;

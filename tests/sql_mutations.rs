@@ -5227,6 +5227,70 @@ mod integration_sql_update {
     use support::*;
 
     #[test]
+    fn should_reject_non_finite_float_values_on_write_paths() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("non_finite_write_paths");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE non_finite_writes (item_id INT PRIMARY KEY, x FLOAT)",
+                "CREATE TABLE non_finite_writes_copy (item_id INT, x FLOAT)",
+                "INSERT INTO non_finite_writes (item_id, x) VALUES (1, 5.5)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+            let statements = [
+                "UPDATE non_finite_writes SET x = $1 WHERE item_id = 1",
+                "UPDATE non_finite_writes SET x = x * $1 WHERE item_id = 1",
+                "INSERT INTO non_finite_writes (item_id, x) VALUES (2, $1)",
+                "INSERT INTO non_finite_writes_copy (item_id, x) SELECT item_id, x * $1 FROM non_finite_writes",
+                "INSERT INTO non_finite_writes (item_id, x) VALUES (1, 2.5) \
+                 ON CONFLICT (item_id) DO UPDATE SET x = $1",
+            ];
+
+            // Act
+            let mut unexpected = Vec::new();
+            for sql in statements {
+                for parameter in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                    match cassie.execute_sql(&session, sql, vec![Value::Float64(parameter)]) {
+                        Err(error)
+                            if error
+                                .to_string()
+                                .contains("stored float values must be finite") => {}
+                        outcome => unexpected.push(format!("{sql} [{parameter}]: {outcome:?}")),
+                    }
+                }
+            }
+            let stored = cassie
+                .execute_sql(&session, "SELECT item_id, x FROM non_finite_writes", vec![])
+                .expect("select stored rows");
+            let copied = cassie
+                .execute_sql(&session, "SELECT item_id, x FROM non_finite_writes_copy", vec![])
+                .expect("select copied rows");
+
+            // Assert
+            assert!(
+                unexpected.is_empty(),
+                "non-finite float values must be rejected as non-finite: {unexpected:#?}"
+            );
+            assert_eq!(
+                stored.rows,
+                vec![vec![Value::Int64(1), Value::Float64(5.5)]]
+            );
+            assert!(copied.rows.is_empty());
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_maintain_include_values_after_update_delete() {
         // Arrange
         use_local_storage();
@@ -7477,6 +7541,40 @@ mod unique_reservations {
     use cassie::types::Value;
 
     use super::support_sql as support;
+
+    #[test]
+    fn should_reject_whole_number_float_duplicates_in_unique_reservations() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_whole_float");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_reservation_whole_float (price FLOAT UNIQUE)",
+            "INSERT INTO unique_reservation_whole_float (price) VALUES (5.0)",
+            "INSERT INTO unique_reservation_whole_float (price) VALUES (7)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let integer_duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_whole_float (price) VALUES (5)",
+            vec![],
+        );
+        let float_duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_whole_float (price) VALUES (7.0)",
+            vec![],
+        );
+
+        // Assert
+        assert!(integer_duplicate.is_err(), "{integer_duplicate:?}");
+        assert!(float_duplicate.is_err(), "{float_duplicate:?}");
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     #[test]
     fn should_release_unique_reservation_when_document_is_deleted() {

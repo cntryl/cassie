@@ -646,7 +646,7 @@ fn scalar_prefilter_ids(
     let Some(residual) = spec.residual_filter.as_ref() else {
         return Ok(None);
     };
-    let Some((field, value)) = equality_literal(residual, params) else {
+    let Some((field, mut value)) = equality_literal(residual, params) else {
         return Ok(None);
     };
     let Some(index) = cassie
@@ -659,10 +659,21 @@ fn scalar_prefilter_ids(
                     .normalized_fields()
                     .first()
                     .is_some_and(|indexed| indexed.eq_ignore_ascii_case(&field))
+                && super::super::index_read::index_trailing_keys_not_null(
+                    cassie,
+                    &spec.collection,
+                    index,
+                )
         })
     else {
         return Ok(None);
     };
+    super::super::index_read::canonicalize_index_probe_value(
+        cassie,
+        &spec.collection,
+        &field,
+        &mut value,
+    );
     let hits = cassie
         .midge
         .scan_scalar_index_controlled(

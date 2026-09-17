@@ -405,6 +405,139 @@ mod integration_sql_scalar_index_lexkey {
         });
     }
 
+    fn sorted_rows(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        sql: &str,
+        params: Vec<Value>,
+    ) -> Vec<Vec<Value>> {
+        let mut rows = cassie.execute_sql(session, sql, params).expect(sql).rows;
+        rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+        rows
+    }
+
+    fn seed_float_tables_with_index_first(cassie: &Cassie, session: &cassie::app::CassieSession) {
+        for (table, indexed) in [
+            ("float_index_first_baseline", false),
+            ("float_index_first_indexed", true),
+        ] {
+            cassie
+                .execute_sql(session, &format!("CREATE TABLE {table} (x FLOAT)"), vec![])
+                .expect("create float table");
+            if indexed {
+                cassie
+                    .execute_sql(
+                        session,
+                        &format!("CREATE INDEX float_index_first_x_idx ON {table} USING btree (x)"),
+                        vec![],
+                    )
+                    .expect("create float scalar index before writes");
+            }
+            for sql in [
+                format!("INSERT INTO {table} (x) VALUES (5)"),
+                format!("INSERT INTO {table} (x) VALUES (10)"),
+                format!("INSERT INTO {table} (x) VALUES (2.5)"),
+                format!("UPDATE {table} SET x = 12 WHERE x = 10"),
+            ] {
+                cassie.execute_sql(session, &sql, vec![]).expect(&sql);
+            }
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("INSERT INTO {table} (x) VALUES ($1)"),
+                    vec![Value::Int64(7)],
+                )
+                .expect("insert integer parameter");
+        }
+    }
+
+    #[test]
+    fn should_match_unindexed_float_results_when_scalar_index_precedes_writes() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_float_index_first");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            seed_float_tables_with_index_first(&cassie, &session);
+            let literal_predicates = [
+                "x > 4.5", "x >= 5", "x < 0.5", "x <= 7", "x = 5", "x = 7", "x = 10", "x > 11",
+            ];
+            let parameter_predicates = [
+                ("x > $1", 5),
+                ("x >= $1", 5),
+                ("x < $1", 7),
+                ("x <= $1", 7),
+                ("x = $1", 12),
+            ];
+
+            // Act
+            let mut mismatches = Vec::new();
+            for predicate in literal_predicates {
+                let baseline = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM float_index_first_baseline WHERE {predicate}"),
+                    vec![],
+                );
+                let indexed = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM float_index_first_indexed WHERE {predicate}"),
+                    vec![],
+                );
+                if indexed != baseline {
+                    mismatches.push(format!(
+                        "{predicate}: baseline={baseline:?} indexed={indexed:?}"
+                    ));
+                }
+            }
+            for (predicate, parameter) in parameter_predicates {
+                let baseline = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM float_index_first_baseline WHERE {predicate}"),
+                    vec![Value::Int64(parameter)],
+                );
+                let indexed = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM float_index_first_indexed WHERE {predicate}"),
+                    vec![Value::Int64(parameter)],
+                );
+                if indexed != baseline {
+                    mismatches.push(format!(
+                        "{predicate} [{parameter}]: baseline={baseline:?} indexed={indexed:?}"
+                    ));
+                }
+            }
+            let explain = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT x FROM float_index_first_indexed WHERE x > 4.5",
+                    vec![],
+                )
+                .expect("explain float range");
+
+            // Assert
+            assert!(
+                mismatches.is_empty(),
+                "indexed FLOAT results diverge from unindexed results: {mismatches:#?}"
+            );
+            let Value::String(plan) = &explain.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(plan.contains("index=float_index_first_x_idx"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     #[test]
     fn should_match_integer_shaped_literals_in_float_scalar_indexes() {
         // Arrange
@@ -1490,6 +1623,449 @@ mod integration_sql_scalar_indexes {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    fn create_indexed_and_plain_tables(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        tables: [&str; 2],
+        definition: &str,
+        index_columns: &str,
+        rows: &[Value],
+    ) {
+        let [indexed, plain] = tables;
+        for table in tables {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("CREATE TABLE {table} ({definition})"),
+                    vec![],
+                )
+                .expect("create table");
+        }
+        cassie
+            .execute_sql(
+                session,
+                &format!("CREATE INDEX {indexed}_idx ON {indexed} USING btree ({index_columns})"),
+                vec![],
+            )
+            .expect("create scalar index");
+        for table in [indexed, plain] {
+            for value in rows {
+                cassie
+                    .execute_sql(
+                        session,
+                        &format!("INSERT INTO {table} (x) VALUES ($1)"),
+                        vec![value.clone()],
+                    )
+                    .expect("insert row");
+            }
+        }
+    }
+
+    #[test]
+    fn should_match_full_scan_for_non_finite_range_parameters_on_scalar_index() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_non_finite_parameters");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["non_finite_param_indexed", "non_finite_param_plain"],
+                "x FLOAT",
+                "x",
+                &[Value::Float64(5.5)],
+            );
+
+            // Act
+            let mut mismatches = Vec::new();
+            for op in [">", ">=", "<", "<="] {
+                for parameter in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                    let run = |table: &str| {
+                        cassie
+                            .execute_sql(
+                                &session,
+                                &format!("SELECT x FROM {table} WHERE x {op} $1"),
+                                vec![Value::Float64(parameter)],
+                            )
+                            .expect("range query with non-finite parameter")
+                            .rows
+                    };
+                    let full_scan = run("non_finite_param_plain");
+                    let indexed = run("non_finite_param_indexed");
+                    if indexed != full_scan {
+                        mismatches.push(format!(
+                            "x {op} {parameter}: full_scan={full_scan:?} indexed={indexed:?}"
+                        ));
+                    }
+                }
+            }
+
+            // Assert
+            assert!(
+                mismatches.is_empty(),
+                "indexed results diverge from full scan: {mismatches:#?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_return_no_rows_for_null_range_parameter_on_scalar_index() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_null_range_parameter");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["null_range_param_indexed", "null_range_param_plain"],
+                "x FLOAT",
+                "x",
+                &[Value::Float64(5.5)],
+            );
+
+            // Act
+            let mut results = Vec::new();
+            for op in [">", ">=", "<", "<=", "="] {
+                for table in ["null_range_param_plain", "null_range_param_indexed"] {
+                    let rows = cassie
+                        .execute_sql(
+                            &session,
+                            &format!("SELECT x FROM {table} WHERE x {op} $1"),
+                            vec![Value::Null],
+                        )
+                        .expect("range query with NULL parameter")
+                        .rows;
+                    results.push((format!("{table}: x {op} NULL"), rows));
+                }
+            }
+
+            // Assert
+            let non_empty = results
+                .into_iter()
+                .filter(|(_, rows)| !rows.is_empty())
+                .collect::<Vec<_>>();
+            assert!(
+                non_empty.is_empty(),
+                "comparisons with a NULL parameter must match no rows: {non_empty:#?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_include_null_sort_keys_in_indexed_order_by_limit() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_order_null_keys");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["order_null_keys_indexed", "order_null_keys_plain"],
+                "x INT",
+                "x",
+                &[Value::Int64(5), Value::Null, Value::Int64(3)],
+            );
+
+            // Act
+            let run = |table: &str, direction: &str| {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("SELECT x FROM {table} ORDER BY x {direction} LIMIT 5"),
+                        vec![],
+                    )
+                    .expect("ordered limit query")
+                    .rows
+            };
+            let indexed_asc = run("order_null_keys_indexed", "ASC");
+            let plain_asc = run("order_null_keys_plain", "ASC");
+            let indexed_desc = run("order_null_keys_indexed", "DESC");
+            let plain_desc = run("order_null_keys_plain", "DESC");
+
+            // Assert
+            assert_eq!(
+                indexed_asc,
+                vec![
+                    vec![Value::Int64(3)],
+                    vec![Value::Int64(5)],
+                    vec![Value::Null],
+                ]
+            );
+            assert_eq!(indexed_asc, plain_asc);
+            assert_eq!(
+                indexed_desc,
+                vec![
+                    vec![Value::Null],
+                    vec![Value::Int64(5)],
+                    vec![Value::Int64(3)],
+                ]
+            );
+            assert_eq!(indexed_desc, plain_desc);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_include_null_trailing_keys_in_composite_index_range_scan() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_composite_null_trailing");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                [
+                    "composite_null_trailing_indexed",
+                    "composite_null_trailing_plain",
+                ],
+                "x INT, y INT",
+                "x, y",
+                &[Value::Int64(5), Value::Int64(7)],
+            );
+
+            // Act
+            let run = |table: &str| {
+                let mut rows = cassie
+                    .execute_sql(
+                        &session,
+                        &format!("SELECT x FROM {table} WHERE x > 1"),
+                        vec![],
+                    )
+                    .expect("composite range query")
+                    .rows;
+                rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+                rows
+            };
+            let indexed = run("composite_null_trailing_indexed");
+            let plain = run("composite_null_trailing_plain");
+
+            // Assert
+            assert_eq!(indexed, vec![vec![Value::Int64(5)], vec![Value::Int64(7)]]);
+            assert_eq!(indexed, plain);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_ordered_bounded_scan_for_not_null_indexed_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_order_not_null");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["order_not_null_indexed", "order_not_null_plain"],
+                "x INT NOT NULL",
+                "x",
+                &[Value::Int64(5), Value::Int64(3), Value::Int64(9)],
+            );
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT x FROM order_not_null_indexed ORDER BY x DESC LIMIT 2",
+                    vec![],
+                )
+                .expect("ordered limit query");
+            let explain = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT x FROM order_not_null_indexed ORDER BY x DESC LIMIT 2",
+                    vec![],
+                )
+                .expect("explain ordered limit query");
+
+            // Assert
+            assert_eq!(
+                result.rows,
+                vec![vec![Value::Int64(9)], vec![Value::Int64(5)]]
+            );
+            let Value::String(plan) = &explain.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(plan.contains("access_path=ordered_bounded_scan"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_ordered_index_scan_for_nullable_leading_order_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_order_nullable_leading_key");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE order_nullable_leading (status TEXT, score INT)",
+                "CREATE INDEX order_nullable_leading_idx ON order_nullable_leading USING btree (status, score)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+            for (status, score) in [
+                ("open", Value::Int64(5)),
+                ("open", Value::Null),
+                ("open", Value::Int64(3)),
+                ("closed", Value::Int64(1)),
+            ] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        "INSERT INTO order_nullable_leading (status, score) VALUES ($1, $2)",
+                        vec![Value::String(status.to_string()), score],
+                    )
+                    .expect("insert row");
+            }
+            let run = |sql: &str| {
+                let rows = cassie
+                    .execute_sql(&session, sql, vec![Value::String("open".to_string())])
+                    .expect(sql)
+                    .rows;
+                let Value::String(plan) = cassie
+                    .execute_sql(
+                        &session,
+                        &format!("EXPLAIN {sql}"),
+                        vec![Value::String("open".to_string())],
+                    )
+                    .expect("explain")
+                    .rows[0][0]
+                    .clone()
+                else {
+                    panic!("expected textual plan");
+                };
+                (rows, plan)
+            };
+
+            // Act
+            let (filled, filled_plan) = run(
+                "SELECT score FROM order_nullable_leading WHERE status = $1 ORDER BY score LIMIT 2",
+            );
+            let (unfilled, unfilled_plan) = run(
+                "SELECT score FROM order_nullable_leading WHERE status = $1 ORDER BY score LIMIT 3",
+            );
+            let (descending, descending_plan) = run(
+                "SELECT score FROM order_nullable_leading WHERE status = $1 ORDER BY score DESC LIMIT 2",
+            );
+
+            // Assert
+            assert_eq!(filled, vec![vec![Value::Int64(3)], vec![Value::Int64(5)]]);
+            assert!(filled_plan.contains("access_path=ordered_bounded_scan"));
+            assert_eq!(
+                unfilled,
+                vec![
+                    vec![Value::Int64(3)],
+                    vec![Value::Int64(5)],
+                    vec![Value::Null],
+                ]
+            );
+            assert!(unfilled_plan.contains("access_path=ordered_bounded_scan"));
+            assert_eq!(descending, vec![vec![Value::Null], vec![Value::Int64(5)]]);
+            assert!(descending_plan.contains("index=none"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_replan_ordered_limit_after_dropping_not_null_on_indexed_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_order_drop_not_null");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["order_drop_not_null_indexed", "order_drop_not_null_plain"],
+                "x INT NOT NULL",
+                "x",
+                &[Value::Int64(5), Value::Int64(9)],
+            );
+            let sql = "SELECT x FROM order_drop_not_null_indexed ORDER BY x DESC LIMIT 2";
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("warm ordered limit plan");
+            for statement in [
+                "ALTER TABLE order_drop_not_null_indexed ALTER COLUMN x DROP NOT NULL",
+                "INSERT INTO order_drop_not_null_indexed (x) VALUES (NULL)",
+            ] {
+                cassie
+                    .execute_sql(&session, statement, vec![])
+                    .expect(statement);
+            }
+
+            // Act
+            let result = cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("ordered limit query after dropping NOT NULL");
+
+            // Assert
+            assert_eq!(result.rows, vec![vec![Value::Null], vec![Value::Int64(9)]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 

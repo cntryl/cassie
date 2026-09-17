@@ -1,5 +1,5 @@
 use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan, QuerySource};
-use crate::sql::ast::SortDirection;
+use crate::sql::ast::{NullsOrder, OrderExpr, SortDirection};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,6 +21,19 @@ pub(crate) struct ScalarIndexPlanShape {
     pub order_by_row_id: bool,
     pub reverse: bool,
     pub order_satisfied: bool,
+    pub null_keys: ScalarIndexNullKeys,
+}
+
+/// How rows with NULL index keys, which scalar indexes do not store, affect a
+/// scalar-index read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ScalarIndexNullKeys {
+    /// No matching row can have a NULL key component.
+    Excluded,
+    /// The leading ORDER BY key is nullable and unconstrained. NULL keys sort
+    /// after every indexed row, so the index answers the query only when it
+    /// yields at least `LIMIT + OFFSET` matching rows.
+    SortAfterLimit,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -36,9 +49,18 @@ impl FieldConstraintShape {
     }
 }
 
+/// Returns the scalar-index access shape for `plan`, if the index can answer it.
+///
+/// Rows whose index key contains NULL are not stored in scalar indexes, so a
+/// shape is only returned when every key component is proven non-null for the
+/// matching rows (the filter compares it with a value, or the field is named in
+/// `not_null_fields`, the lowercase names of NOT NULL or primary key columns),
+/// or when the single unproven key is the leading ORDER BY key with NULLs
+/// sorting last under a LIMIT, reported as `ScalarIndexNullKeys::SortAfterLimit`.
 pub(crate) fn scalar_index_plan_shape(
     plan: &LogicalPlan,
     index: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
 ) -> Option<ScalarIndexPlanShape> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
@@ -68,7 +90,22 @@ pub(crate) fn scalar_index_plan_shape(
     {
         return None;
     }
+    let null_keys = key_null_proof(plan, &fields, &constraints, not_null_fields)?;
+    let shape = field_index_plan_shape(plan, index, &fields, &constraints)?;
+    if null_keys == ScalarIndexNullKeys::SortAfterLimit
+        && !constraints_are_represented(&fields, &constraints, &shape)
+    {
+        return None;
+    }
+    Some(ScalarIndexPlanShape { null_keys, ..shape })
+}
 
+fn field_index_plan_shape(
+    plan: &LogicalPlan,
+    index: &IndexMeta,
+    fields: &[String],
+    constraints: &BTreeMap<String, FieldConstraintShape>,
+) -> Option<ScalarIndexPlanShape> {
     let equality_prefix_len = fields
         .iter()
         .take_while(|field| {
@@ -81,7 +118,7 @@ pub(crate) fn scalar_index_plan_shape(
         .get(equality_prefix_len)
         .and_then(|field| constraints.get(&field.to_ascii_lowercase()))
         .and_then(|constraint| constraint.has_range().then_some(equality_prefix_len));
-    let order_shape = order_shape(plan, &fields, equality_prefix_len)?;
+    let order_shape = order_shape(plan, fields, equality_prefix_len)?;
 
     if equality_prefix_len == fields.len() {
         let path = if fields.len() == 1 && !order_shape.order_by_row_id {
@@ -97,6 +134,7 @@ pub(crate) fn scalar_index_plan_shape(
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
             order_satisfied: order_shape.order_satisfied,
+            null_keys: ScalarIndexNullKeys::Excluded,
         });
     }
 
@@ -109,6 +147,7 @@ pub(crate) fn scalar_index_plan_shape(
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
             order_satisfied: order_shape.order_satisfied,
+            null_keys: ScalarIndexNullKeys::Excluded,
         });
     }
 
@@ -125,6 +164,7 @@ pub(crate) fn scalar_index_plan_shape(
                 order_by_row_id: order_shape.order_by_row_id,
                 reverse: order_shape.reverse,
                 order_satisfied: false,
+                null_keys: ScalarIndexNullKeys::Excluded,
             });
         }
 
@@ -140,6 +180,7 @@ pub(crate) fn scalar_index_plan_shape(
             order_by_row_id: order_shape.order_by_row_id,
             reverse: order_shape.reverse,
             order_satisfied: true,
+            null_keys: ScalarIndexNullKeys::Excluded,
         });
     }
 
@@ -149,12 +190,13 @@ pub(crate) fn scalar_index_plan_shape(
 pub(crate) fn scalar_index_order_proof_missing_candidate(
     plan: &LogicalPlan,
     index: &IndexMeta,
+    not_null_fields: &BTreeSet<String>,
 ) -> bool {
     if plan.order.is_empty()
         || plan.limit.is_none()
         || index.kind != IndexKind::Scalar
         || !index.expressions.is_empty()
-        || scalar_index_plan_shape(plan, index).is_some()
+        || scalar_index_plan_shape(plan, index, not_null_fields).is_some()
     {
         return false;
     }
@@ -170,6 +212,7 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
                 .any(|candidate| candidate.eq_ignore_ascii_case(field))
         })
         || plan.order.iter().any(|order| order.nulls.is_some())
+        || key_null_proof(plan, &fields, &constraints, not_null_fields).is_none()
     {
         return false;
     }
@@ -241,7 +284,13 @@ fn expression_index_plan_shape(
 
     if fields.is_empty() && expressions.len() == 1 {
         let order_shape = single_expression_order_shape(plan, &expressions[0])?;
-        if plan.filter.is_none() && order_shape.order_columns_used > 0 && plan.limit.is_some() {
+        // Expression keys can be NULL. Without a filter on the expression the
+        // ordered scan is only complete when NULLs sort after the LIMIT fills.
+        if plan.filter.is_none()
+            && order_shape.order_columns_used > 0
+            && plan.limit.is_some()
+            && plan.order.first().is_some_and(nulls_sort_last)
+        {
             return Some(ScalarIndexPlanShape {
                 path: ScalarIndexPlanPath::OrderedBoundedScan,
                 equality_prefix_len: 0,
@@ -250,6 +299,7 @@ fn expression_index_plan_shape(
                 order_by_row_id: false,
                 reverse: order_shape.reverse,
                 order_satisfied: order_shape.order_satisfied,
+                null_keys: ScalarIndexNullKeys::SortAfterLimit,
             });
         }
 
@@ -265,6 +315,7 @@ fn expression_index_plan_shape(
                     order_by_row_id: false,
                     reverse: order_shape.reverse,
                     order_satisfied: order_shape.order_satisfied,
+                    null_keys: ScalarIndexNullKeys::Excluded,
                 });
             }
             if constraint.has_range() {
@@ -276,6 +327,7 @@ fn expression_index_plan_shape(
                     order_by_row_id: false,
                     reverse: order_shape.reverse,
                     order_satisfied: order_shape.order_satisfied,
+                    null_keys: ScalarIndexNullKeys::Excluded,
                 });
             }
         }
@@ -307,6 +359,7 @@ fn expression_index_plan_shape(
         order_by_row_id: false,
         reverse: false,
         order_satisfied: true,
+        null_keys: ScalarIndexNullKeys::Excluded,
     })
 }
 
@@ -590,6 +643,62 @@ fn order_shape(
     }
 
     None
+}
+
+/// Proves that NULL keys cannot hide rows from a field-index scan.
+///
+/// Returns `Excluded` when every key field is filter-constrained or NOT NULL,
+/// `SortAfterLimit` when the only unproven field is the leading ORDER BY key
+/// with NULLs sorting last under a LIMIT, and `None` otherwise.
+fn key_null_proof(
+    plan: &LogicalPlan,
+    fields: &[String],
+    constraints: &BTreeMap<String, FieldConstraintShape>,
+    not_null_fields: &BTreeSet<String>,
+) -> Option<ScalarIndexNullKeys> {
+    let mut unproven = fields
+        .iter()
+        .map(|field| field.to_ascii_lowercase())
+        .filter(|field| !constraints.contains_key(field) && !not_null_fields.contains(field));
+    let Some(unproven_field) = unproven.next() else {
+        return Some(ScalarIndexNullKeys::Excluded);
+    };
+    if unproven.next().is_some() || plan.limit.is_none() {
+        return None;
+    }
+    let leading_order = plan.order.iter().find(|order| {
+        !matches!(&order.expr, Expr::Column(column) if constraints
+            .get(&column.to_ascii_lowercase())
+            .is_some_and(|constraint| constraint.equality))
+    })?;
+    let leads = matches!(&leading_order.expr, Expr::Column(column)
+        if column.eq_ignore_ascii_case(&unproven_field));
+    (leads && nulls_sort_last(leading_order)).then_some(ScalarIndexNullKeys::SortAfterLimit)
+}
+
+fn nulls_sort_last(order: &OrderExpr) -> bool {
+    match order.nulls {
+        Some(NullsOrder::Last) => true,
+        Some(NullsOrder::First) => false,
+        None => matches!(order.direction, SortDirection::Asc),
+    }
+}
+
+/// A limit-fill check counts index hits, so every filter constraint must be
+/// applied by the index scan itself rather than by a residual filter.
+fn constraints_are_represented(
+    fields: &[String],
+    constraints: &BTreeMap<String, FieldConstraintShape>,
+    shape: &ScalarIndexPlanShape,
+) -> bool {
+    constraints.keys().all(|constraint| {
+        fields
+            .iter()
+            .position(|field| field.eq_ignore_ascii_case(constraint))
+            .is_some_and(|position| {
+                position < shape.equality_prefix_len || shape.range_field_index == Some(position)
+            })
+    })
 }
 
 fn filter_constraint_shapes(

@@ -78,13 +78,19 @@ impl Midge {
     pub fn next_sequence_value(&self, name: &str) -> Result<i64, CassieError> {
         let stored_name = self
             .get_sequence(name)?
-            .ok_or_else(|| CassieError::NotFound(format!("sequence '{name}' does not exist")))?
+            .ok_or_else(|| CassieError::CatalogObjectNotFound {
+                kind: crate::app::CatalogObjectKind::Sequence,
+                name: name.to_string(),
+            })?
             .name;
         let mut tx = self.begin_schema_rw_tx()?;
         let raw = tx
             .get(&key_encoding::sequence_key(&stored_name))
             .map_err(CassieError::from)?
-            .ok_or_else(|| CassieError::NotFound(format!("sequence '{name}' does not exist")))?;
+            .ok_or_else(|| CassieError::CatalogObjectNotFound {
+                kind: crate::app::CatalogObjectKind::Sequence,
+                name: name.to_string(),
+            })?;
         let mut metadata: crate::catalog::SequenceMeta =
             serde_json::from_slice(&raw).map_err(|error| {
                 CassieError::Parse(format!("invalid sequence metadata for '{name}': {error}"))

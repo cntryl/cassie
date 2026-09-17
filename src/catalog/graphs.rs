@@ -62,3 +62,21 @@ impl GraphMeta {
         ]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::GraphMeta;
+
+    #[test]
+    fn should_derive_graph_backing_tables_inside_schema_of_qualified_name() {
+        // Arrange
+        let name = "reporting.social";
+
+        // Act
+        let graph = GraphMeta::new(name);
+
+        // Assert
+        assert_eq!(graph.node_collection, "reporting.social_nodes");
+        assert_eq!(graph.edge_collection, "reporting.social_edges");
+    }
+}

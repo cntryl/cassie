@@ -149,7 +149,7 @@ fn execute_projection_command_group(
         }
         LogicalCommand::DropMaterializedProjectionVersion(statement) => {
             Some(CommandExecution::invalidating(
-                super::materialized_projection::drop_materialized_projection_version(
+                super::materialized_projection_versions::drop_materialized_projection_version(
                     cassie,
                     &statement.name,
                     &statement.version_id,

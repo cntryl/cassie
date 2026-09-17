@@ -119,7 +119,7 @@ pub(super) fn drop_materialized_projection(
 
     for version in &metadata.versions {
         let _ = cassie.midge.drop_collection(&version.output_collection);
-        cassie
+        let _ = cassie
             .catalog
             .unregister_collection(&version.output_collection);
     }
@@ -151,40 +151,6 @@ pub(super) fn alter_materialized_projection(
             unsafe_override,
         } => activate_projection_version(cassie, &statement.name, version_id, *unsafe_override),
     }
-}
-
-pub(super) fn drop_materialized_projection_version(
-    cassie: &Cassie,
-    name: &str,
-    version_id: &str,
-) -> Result<QueryResult, QueryError> {
-    let mut metadata = cassie
-        .catalog
-        .get_materialized_projection(name)
-        .ok_or_else(|| {
-            QueryError::General(format!("materialized projection '{name}' does not exist"))
-        })?;
-    if metadata.active_version.as_deref() == Some(version_id) {
-        return Err(QueryError::General(format!(
-            "cannot drop active projection version '{version_id}'"
-        )));
-    }
-    let Some(index) = metadata
-        .versions
-        .iter()
-        .position(|version| version.version_id == version_id)
-    else {
-        return Err(QueryError::General(format!(
-            "projection version '{version_id}' does not exist"
-        )));
-    };
-    let version = metadata.versions.remove(index);
-    let _ = cassie.midge.drop_collection(&version.output_collection);
-    cassie
-        .catalog
-        .unregister_collection(&version.output_collection);
-    persist_projection_metadata(cassie, metadata)?;
-    Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
 }
 
 pub(super) fn verify_projection(
@@ -747,7 +713,7 @@ fn replace_output_rows_gated(
 ) -> Result<RootHashRecord, QueryError> {
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
-        cassie.catalog.unregister_collection(output_collection);
+        let _ = cassie.catalog.unregister_collection(output_collection);
         crate::executor::pause_after_materialized_projection_drop();
     }
     cassie

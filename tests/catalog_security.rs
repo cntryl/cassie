@@ -3239,6 +3239,139 @@ mod integration_sql_catalog {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    fn run_case_insensitive_catalog_scenario(
+        label: &str,
+        setup: &[&str],
+        act: &str,
+        probe: &str,
+    ) -> (Result<(), String>, Result<usize, String>) {
+        use_local_storage();
+        let path = data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        let outcome = runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            for sql in setup {
+                cassie.execute_sql(&session, sql, vec![]).unwrap();
+            }
+            let acted = cassie
+                .execute_sql(&session, act, vec![])
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+            let probed = cassie
+                .execute_sql(&session, probe, vec![])
+                .map(|result| result.rows.len())
+                .map_err(|error| error.to_string());
+            (acted, probed)
+        });
+        let _ = std::fs::remove_dir_all(path);
+        outcome
+    }
+
+    #[test]
+    fn should_drop_table_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = ["CREATE TABLE CaseDropDocs (title TEXT)"];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_table",
+            &setup,
+            "DROP TABLE casedropdocs",
+            "SELECT title FROM CaseDropDocs",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert!(probed.is_err(), "table still readable: {probed:?}");
+    }
+
+    #[test]
+    fn should_rename_table_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE TABLE CaseRenameDocs (title TEXT)",
+            "INSERT INTO CaseRenameDocs (title) VALUES ('alpha')",
+        ];
+
+        // Act
+        let (renamed, probed) = run_case_insensitive_catalog_scenario(
+            "case_rename_table",
+            &setup,
+            "ALTER TABLE caserenamedocs RENAME TO case_renamed_docs",
+            "SELECT title FROM case_renamed_docs",
+        );
+
+        // Assert
+        assert_eq!(renamed, Ok(()));
+        assert_eq!(probed, Ok(1));
+    }
+
+    #[test]
+    fn should_drop_index_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE TABLE CaseIndexDocs (title TEXT)",
+            "CREATE INDEX CaseTitleIdx ON CaseIndexDocs (title)",
+        ];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_index",
+            &setup,
+            "DROP INDEX casetitleidx ON caseindexdocs",
+            "SELECT indexname FROM pg_catalog.pg_indexes WHERE tablename = 'CaseIndexDocs'",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
+
+    #[test]
+    fn should_rename_schema_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = [
+            "CREATE SCHEMA CaseReporting",
+            "CREATE TABLE CaseReporting.events (title TEXT)",
+        ];
+
+        // Act
+        let (renamed, probed) = run_case_insensitive_catalog_scenario(
+            "case_rename_schema",
+            &setup,
+            "ALTER SCHEMA casereporting RENAME TO case_archive",
+            "SELECT title FROM case_archive.events",
+        );
+
+        // Assert
+        assert_eq!(renamed, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
+
+    #[test]
+    fn should_drop_schema_when_reference_case_differs_from_stored_name() {
+        // Arrange
+        let setup = ["CREATE SCHEMA CaseScratch"];
+
+        // Act
+        let (dropped, probed) = run_case_insensitive_catalog_scenario(
+            "case_drop_schema",
+            &setup,
+            "DROP SCHEMA casescratch",
+            "SELECT schema_name FROM information_schema.schemata WHERE schema_name = 'CaseScratch'",
+        );
+
+        // Assert
+        assert_eq!(dropped, Ok(()));
+        assert_eq!(probed, Ok(0));
+    }
 }
 
 // Formerly tests/role_authorization.rs.
@@ -6005,5 +6138,156 @@ mod schema_write_conflicts {
 
         drop(restarted);
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+mod catalog_missing_object_sqlstates {
+    use cassie::app::Cassie;
+
+    use super::support_pgwire::{
+        complete_startup, data_dir, parse_error_fields, read_wire_frame, simple_query_frame,
+        spawn_server, use_local_storage,
+    };
+
+    async fn query_sqlstate(
+        reader: &mut (impl tokio::io::AsyncRead + Unpin),
+        writer: &mut (impl tokio::io::AsyncWrite + Unpin),
+        sql: &str,
+    ) -> Option<String> {
+        tokio::io::AsyncWriteExt::write_all(writer, &simple_query_frame(sql))
+            .await
+            .expect("write query");
+        tokio::io::AsyncWriteExt::flush(writer)
+            .await
+            .expect("flush query");
+        let mut sqlstate = None;
+        loop {
+            let (tag, payload) = read_wire_frame(reader).await;
+            match tag {
+                b'E' => {
+                    sqlstate = parse_error_fields(&payload)
+                        .into_iter()
+                        .find(|(field, _)| *field == 'C')
+                        .map(|(_, value)| value);
+                }
+                b'Z' => return sqlstate,
+                _ => {}
+            }
+        }
+    }
+
+    async fn sqlstates_for(
+        label: &str,
+        setup: &[&str],
+        statements: &[&str],
+    ) -> Vec<Option<String>> {
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let server = spawn_server(cassie).await;
+        let mut socket = tokio::net::TcpStream::connect(server.addr)
+            .await
+            .expect("connect pgwire");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = tokio::io::BufReader::new(read_half);
+        complete_startup(&mut reader, &mut write_half).await;
+        for sql in setup {
+            assert_eq!(
+                query_sqlstate(&mut reader, &mut write_half, sql).await,
+                None,
+                "setup statement failed: {sql}"
+            );
+        }
+        let mut sqlstates = Vec::with_capacity(statements.len());
+        for sql in statements {
+            sqlstates.push(query_sqlstate(&mut reader, &mut write_half, sql).await);
+        }
+        drop(socket);
+        server.stop().await;
+        let _ = std::fs::remove_dir_all(path);
+        sqlstates
+    }
+
+    #[test]
+    fn should_report_undefined_table_sqlstate_for_projection_maintenance_on_missing_objects() {
+        // Arrange
+        use_local_storage();
+        let statements = [
+            "VERIFY PROJECTION missing_maintenance_target",
+            "DIFF PROJECTION missing_maintenance_target WITH missing_maintenance_other",
+            "COMPARE PROJECTION missing_maintenance_target WITH MANIFEST '{\"root_digest\":\"abc\"}'",
+            "PLAN REPAIR PROJECTION missing_maintenance_target SCOPE range",
+            "REPAIR PROJECTION missing_maintenance_target SCOPE full-rebuild",
+        ];
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let sqlstates = runtime.block_on(sqlstates_for(
+            "missing_projection_maintenance",
+            &[],
+            &statements,
+        ));
+
+        // Assert
+        assert_eq!(sqlstates, vec![Some("42P01".to_string()); statements.len()]);
+    }
+
+    #[test]
+    fn should_report_undefined_object_sqlstate_for_projection_maintenance_on_missing_version() {
+        // Arrange
+        use_local_storage();
+        let setup = [
+            "CREATE TABLE missing_version_docs (title TEXT)",
+            "INSERT INTO missing_version_docs (title) VALUES ('alpha')",
+            "CREATE MATERIALIZED PROJECTION missing_version_projection AS SELECT title FROM missing_version_docs",
+        ];
+        let statements = [
+            "VERIFY PROJECTION missing_version_projection VERSION v9",
+            "DIFF PROJECTION missing_version_projection VERSION v9 WITH missing_version_projection",
+            "COMPARE PROJECTION missing_version_projection VERSION v9 WITH MANIFEST '{\"root_digest\":\"abc\"}'",
+            "PLAN REPAIR PROJECTION missing_version_projection VERSION v9 SCOPE range",
+            "REPAIR PROJECTION missing_version_projection VERSION v9 SCOPE full-rebuild",
+        ];
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let sqlstates = runtime.block_on(sqlstates_for(
+            "missing_projection_version",
+            &setup,
+            &statements,
+        ));
+
+        // Assert
+        assert_eq!(sqlstates, vec![Some("42704".to_string()); statements.len()]);
+    }
+
+    #[test]
+    fn should_report_undefined_table_sqlstate_when_serial_default_sequence_is_missing() {
+        // Arrange
+        use_local_storage();
+        let setup = [
+            "CREATE TABLE public.missing_sequence_orders (order_no SERIAL, label TEXT)",
+            "DROP SEQUENCE public.missing_sequence_orders_order_no_seq",
+        ];
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let sqlstates = runtime.block_on(sqlstates_for(
+            "missing_default_sequence",
+            &setup,
+            &["INSERT INTO missing_sequence_orders (label) VALUES ('one')"],
+        ));
+
+        // Assert
+        assert_eq!(sqlstates, vec![Some("42P01".to_string())]);
     }
 }

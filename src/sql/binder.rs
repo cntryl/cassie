@@ -456,19 +456,19 @@ fn bind_projection_route(
             bind_drop_materialized_projection_version_statement(statement, raw_sql, context)
         }
         ProjectionStatement::VerifyProjection(statement) => {
-            bind_verify_projection_statement(statement, raw_sql, context)
+            bind_verify_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::DiffProjection(statement) => {
-            bind_diff_projection_statement(statement, raw_sql, context)
+            bind_diff_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::CompareProjection(statement) => {
-            bind_compare_projection_statement(statement, raw_sql, context)
+            bind_compare_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::PlanRepairProjection(statement) => {
-            bind_plan_repair_projection_statement(statement, raw_sql, context)
+            bind_plan_repair_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::RepairProjection(statement) => {
-            bind_repair_projection_statement(statement, raw_sql, context)
+            bind_repair_projection_statement(statement, catalog, raw_sql, context)
         }
     }
 }
@@ -686,6 +686,7 @@ fn bind_drop_materialized_projection_version_statement(
 
 fn bind_verify_projection_statement(
     mut statement: crate::sql::ast::VerifyProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
@@ -695,6 +696,7 @@ fn bind_verify_projection_statement(
             "VERIFY PROJECTION requires a name".into(),
         ));
     }
+    ensure_projection_target_exists(&statement.name, statement.version_id.as_deref(), catalog)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::VerifyProjection(statement),
@@ -703,11 +705,12 @@ fn bind_verify_projection_statement(
 
 fn bind_diff_projection_statement(
     mut statement: crate::sql::ast::DiffProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.left = normalize_projection_target(statement.left, context)?;
-    statement.right = normalize_projection_target(statement.right, context)?;
+    statement.left = normalize_projection_target(statement.left, catalog, context)?;
+    statement.right = normalize_projection_target(statement.right, catalog, context)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::DiffProjection(statement),
@@ -716,10 +719,11 @@ fn bind_diff_projection_statement(
 
 fn bind_compare_projection_statement(
     mut statement: crate::sql::ast::CompareProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, context)?;
+    statement.target = normalize_projection_target(statement.target, catalog, context)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::CompareProjection(statement),
@@ -728,10 +732,11 @@ fn bind_compare_projection_statement(
 
 fn bind_plan_repair_projection_statement(
     mut statement: crate::sql::ast::PlanRepairProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, context)?;
+    statement.target = normalize_projection_target(statement.target, catalog, context)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::PlanRepairProjection(statement),
@@ -740,10 +745,11 @@ fn bind_plan_repair_projection_statement(
 
 fn bind_repair_projection_statement(
     mut statement: crate::sql::ast::RepairProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, context)?;
+    statement.target = normalize_projection_target(statement.target, catalog, context)?;
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::RepairProjection(statement),
@@ -752,6 +758,7 @@ fn bind_repair_projection_statement(
 
 fn normalize_projection_target(
     mut target: crate::sql::ast::ProjectionDiffTarget,
+    catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::ProjectionDiffTarget, CassieError> {
     target.name = normalize_relation_name(target.name.trim(), context)?;
@@ -760,7 +767,38 @@ fn normalize_projection_target(
             "projection targets require a name".into(),
         ));
     }
+    ensure_projection_target_exists(&target.name, target.version_id.as_deref(), catalog)?;
     Ok(target)
+}
+
+fn ensure_projection_target_exists(
+    name: &str,
+    version_id: Option<&str>,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    if let Some(projection) = catalog.get_materialized_projection(name) {
+        let Some(version_id) = version_id else {
+            return Ok(());
+        };
+        if projection
+            .versions
+            .iter()
+            .any(|version| version.version_id == version_id)
+        {
+            return Ok(());
+        }
+        return Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::ProjectionVersion,
+            name: format!("{name} VERSION {version_id}"),
+        });
+    }
+    if catalog.relation_exists(name) || catalog.get_projection_metadata(name).is_some() {
+        return Ok(());
+    }
+    Err(CassieError::CatalogObjectNotFound {
+        kind: CatalogObjectKind::Relation,
+        name: name.to_string(),
+    })
 }
 
 fn bind_drop_retention_policy_statement(

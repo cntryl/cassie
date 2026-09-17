@@ -9,6 +9,8 @@ use crate::types::DataType;
 
 #[path = "schema_graph_rename.rs"]
 mod schema_graph_rename;
+#[path = "schema_sequence_rename.rs"]
+mod schema_sequence_rename;
 
 pub(super) fn create_graph(
     cassie: &Cassie,
@@ -114,7 +116,10 @@ pub(super) fn drop_table(
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_collection(&statement.table);
+    cassie
+        .catalog
+        .unregister_collection(&statement.table)
+        .map_err(|error| QueryError::General(error.to_string()))?;
 
     Ok(empty_command("DROP TABLE"))
 }
@@ -566,8 +571,10 @@ fn alter_table_rename_table(
         .midge
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.rename_collection(table, next_table);
-    Ok(())
+    cassie
+        .catalog
+        .rename_collection(table, next_table)
+        .map_err(|error| QueryError::General(error.to_string()))
 }
 
 fn ensure_row_store_alter_supported(
@@ -612,7 +619,12 @@ fn rename_schema_descendants(
 
     rename_schema_collections(cassie, &collection_renames)?;
     rename_schema_views(cassie, current_schema, next_schema)?;
-    rename_schema_sequences(cassie, current_schema, next_schema)?;
+    schema_sequence_rename::rename_schema_sequences(
+        cassie,
+        current_schema,
+        next_schema,
+        &relation_renames,
+    )?;
     schema_graph_rename::rename_schema_graphs(
         cassie,
         current_schema,
@@ -658,26 +670,6 @@ fn rename_schema_views(
         view.query = rewrite_schema_qualified_sql(&view.query, current_schema, next_schema);
         cassie.midge.delete_view(&current_name)?;
         cassie.midge.put_view(&view)?;
-    }
-    Ok(())
-}
-
-fn rename_schema_sequences(
-    cassie: &Cassie,
-    current_schema: &str,
-    next_schema: &str,
-) -> Result<(), QueryError> {
-    for mut sequence in cassie
-        .catalog
-        .list_sequences()
-        .into_iter()
-        .filter(|sequence| object_in_schema(&sequence.name, current_schema))
-    {
-        let current_name = sequence.name.clone();
-        sequence.name =
-            rewrite_relation_name_for_schema(&sequence.name, current_schema, next_schema);
-        cassie.midge.delete_sequence(&current_name)?;
-        cassie.midge.put_sequence(&sequence)?;
     }
     Ok(())
 }

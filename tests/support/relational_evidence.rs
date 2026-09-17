@@ -21,6 +21,8 @@ pub struct RelationalComparison {
     pub expected_window: Vec<Vec<Value>>,
     pub has_null_window_value: bool,
     pub has_tied_window_rank: bool,
+    pub aggregate: Vec<Vec<Value>>,
+    pub expected_aggregate: Vec<Vec<Value>>,
 }
 
 pub struct SeededRelationalFixture {
@@ -114,6 +116,12 @@ impl SeededRelationalFixture {
             let has_tied_window_rank = window.windows(2).any(|rows| {
                 rows[0].first() == rows[1].first() && rows[0].get(3) == rows[1].get(3)
             });
+            let aggregate = query(
+                &cassie,
+                &session,
+                "SELECT category, count(score), sum(score), min(score), max(score) FROM evidence_facts GROUP BY category ORDER BY category ASC NULLS LAST",
+            );
+            let expected_aggregate = expected_aggregate(&facts);
 
             let _ = std::fs::remove_dir_all(path);
             RelationalComparison {
@@ -125,6 +133,8 @@ impl SeededRelationalFixture {
                 expected_window,
                 has_null_window_value,
                 has_tied_window_rank,
+                aggregate,
+                expected_aggregate,
             }
         })
     }
@@ -213,6 +223,38 @@ fn expected_window(facts: &[Fact]) -> Vec<Vec<Value>> {
                 Value::Int64(fact.id),
                 fact.score.map_or(Value::Null, Value::Int64),
                 Value::Int64(i64::try_from(rank).expect("bounded rank")),
+            ]
+        })
+        .collect()
+}
+
+fn expected_aggregate(facts: &[Fact]) -> Vec<Vec<Value>> {
+    let mut categories: Vec<Option<String>> = Vec::new();
+    for fact in facts {
+        if !categories.contains(&fact.category) {
+            categories.push(fact.category.clone());
+        }
+    }
+    categories.sort_by(|left, right| category_order(left.as_ref(), right.as_ref()));
+
+    categories
+        .into_iter()
+        .map(|category| {
+            let scores = facts
+                .iter()
+                .filter(|fact| fact.category == category)
+                .filter_map(|fact| fact.score)
+                .collect::<Vec<_>>();
+            let count = i64::try_from(scores.len()).expect("bounded aggregate count");
+            let sum = scores.iter().copied().reduce(|left, right| left + right);
+            let min = scores.iter().copied().min();
+            let max = scores.iter().copied().max();
+            vec![
+                category.map_or(Value::Null, Value::String),
+                Value::Int64(count),
+                sum.map_or(Value::Null, Value::Int64),
+                min.map_or(Value::Null, Value::Int64),
+                max.map_or(Value::Null, Value::Int64),
             ]
         })
         .collect()

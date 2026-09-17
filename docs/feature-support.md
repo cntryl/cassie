@@ -34,7 +34,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Window functions | Ranking, offset, value functions, and documented row frames | Experimental |
 | Views | Read-only views and nested views | Stable |
 | User functions | Scalar UDFs with declared volatility | Experimental |
-| Procedures | Limited compatibility and administration surface | Experimental |
+| Procedures | `CREATE PROCEDURE`, `CALL`, and `DROP PROCEDURE` for the narrow one-statement contract in [Limited Procedures and CALL](procedure-support.md); not a stored-procedure business-logic platform | Stable |
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
 
 ## Mutation and Catalog
@@ -50,7 +50,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | `information_schema.columns` | Stable named-client column discovery columns documented in the catalog support contract | Stable |
 | Remaining virtual catalogs | PostgreSQL-like and Cassie runtime views outside the stable named-client subset; no PostgreSQL-internal parity claim | Experimental |
 | Projection lifecycle | Materialized projection create, refresh, checkpointed replay, version build, verification, activation, rollback by reactivation, repair, and drop on one local instance, as defined in [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). Interrupted or failed builds never become query-visible; stale or unproven projections fall back to authoritative source rows. Column-store table mode, remote replay coordination, and automatic activation are outside this surface. | Stable |
-| Verification and repair | Hashes, manifests, local repair planning and audit | Experimental |
+| Verification and repair | Hashes, manifests, local repair planning and audit for materialized projections; see [Materialized Projection Lifecycle](materialized-projection-lifecycle.md). No general (non-projection) index verification or repair exists. | Experimental |
 
 ## Retrieval and Analytics
 

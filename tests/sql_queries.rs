@@ -30,6 +30,8 @@ mod relational_promotion_evidence {
         assert_eq!(forward.window, forward.expected_window);
         assert!(forward.has_null_window_value);
         assert!(forward.has_tied_window_rank);
+        assert_eq!(forward.aggregate, forward.expected_aggregate);
+        assert_eq!(forward.aggregate, reverse.aggregate);
     }
 }
 
@@ -9440,6 +9442,123 @@ mod typed_literal_canonicalization {
             );
         }
         assert!(text_control.rows.is_empty());
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// Promotion evidence for the "Types and casts" row in docs/feature-support.md,
+// tracked in docs/query-promotion-evidence.md. A boundary-value matrix rather
+// than a seeded differential fixture: CAST has no alternate access path to
+// compare against, so evidence here is exact-value and exact-error coverage
+// at every documented type's representable range and rejection boundary.
+mod type_cast_promotion_evidence {
+    use super::support_sql as support;
+
+    use cassie::app::Cassie;
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    #[test]
+    fn should_cast_values_at_every_documented_type_boundary() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("type_cast_boundary_matrix_ok");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        let ok_cases: &[(&str, Value)] = &[
+            ("CAST('32767' AS SMALLINT)", Value::Int64(32767)),
+            ("CAST('-32768' AS SMALLINT)", Value::Int64(-32768)),
+            ("CAST('2147483647' AS INT)", Value::Int64(2_147_483_647)),
+            ("CAST('-2147483648' AS INT)", Value::Int64(-2_147_483_648)),
+            (
+                "CAST('9223372036854775807' AS BIGINT)",
+                Value::Int64(9_223_372_036_854_775_807),
+            ),
+            (
+                "CAST('-9223372036854775808' AS BIGINT)",
+                Value::Int64(-9_223_372_036_854_775_808),
+            ),
+            ("CAST('3.5' AS FLOAT)", Value::Float64(3.5)),
+            ("CAST('true' AS BOOLEAN)", Value::Bool(true)),
+            ("CAST('F' AS BOOLEAN)", Value::Bool(false)),
+            ("CAST('abc' AS CHAR(3))", Value::String("abc".to_string())),
+            (
+                "CAST('abc' AS VARCHAR(3))",
+                Value::String("abc".to_string()),
+            ),
+            (
+                "CAST('550e8400-e29b-41d4-a716-446655440000' AS UUID)",
+                Value::String("550e8400-e29b-41d4-a716-446655440000".to_string()),
+            ),
+            (
+                "CAST('\\x0a0b' AS BYTEA)",
+                Value::String("\\x0a0b".to_string()),
+            ),
+            (
+                "CAST('2024-01-01T09:00:00+02:00' AS TIMESTAMP)",
+                Value::String("2024-01-01T07:00:00Z".to_string()),
+            ),
+            ("CAST(NULL AS INT)", Value::Null),
+        ];
+
+        // Act
+        let selected = ok_cases
+            .iter()
+            .map(|(expr, _)| {
+                cassie
+                    .execute_sql(&session, &format!("SELECT {expr}"), vec![])
+                    .unwrap_or_else(|error| panic!("{expr} should cast: {error}"))
+                    .rows
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        for ((expr, expected), rows) in ok_cases.iter().zip(selected) {
+            assert_eq!(rows, vec![vec![expected.clone()]], "{expr}");
+        }
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_casts_beyond_every_documented_type_boundary() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("type_cast_boundary_matrix_rejected");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        let rejected_cases: &[&str] = &[
+            "CAST('32768' AS SMALLINT)",
+            "CAST('-32769' AS SMALLINT)",
+            "CAST('2147483648' AS INT)",
+            "CAST('9223372036854775808' AS BIGINT)",
+            "CAST('inf' AS FLOAT)",
+            "CAST('nan' AS FLOAT)",
+            "CAST('not-a-number' AS INT)",
+            "CAST('maybe' AS BOOLEAN)",
+            "CAST('abcd' AS CHAR(3))",
+            "CAST('abcd' AS VARCHAR(3))",
+            "CAST('not-a-uuid' AS UUID)",
+            "CAST('not-hex' AS BYTEA)",
+            "CAST('not-a-timestamp' AS TIMESTAMP)",
+            "CAST('not-a-date' AS DATE)",
+            "CAST('25:00:00' AS TIME)",
+        ];
+
+        // Act
+        let results = rejected_cases
+            .iter()
+            .map(|expr| cassie.execute_sql(&session, &format!("SELECT {expr}"), vec![]))
+            .collect::<Vec<_>>();
+
+        // Assert
+        for (expr, result) in rejected_cases.iter().zip(results) {
+            assert!(result.is_err(), "{expr} should be rejected");
+        }
+
         let _ = std::fs::remove_dir_all(path);
     }
 }

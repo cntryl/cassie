@@ -602,12 +602,15 @@ fn parse_f64_to_i64(value: f64) -> io::Result<i64> {
 }
 
 fn parse_i64_to_f64(value: i64) -> io::Result<f64> {
-    value.to_string().parse::<f64>().map_err(|_| {
-        io::Error::new(
+    let converted = value as f64;
+    if converted as i64 == value {
+        Ok(converted)
+    } else {
+        Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "cannot encode int8 value to float8",
-        )
-    })
+        ))
+    }
 }
 
 fn encode_date(value: &str) -> io::Result<i32> {

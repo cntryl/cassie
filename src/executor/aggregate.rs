@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use crate::catalog::{name_matches, CollectionSchema, FunctionMeta};
+use crate::catalog::{CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
 use crate::sql::ast::SelectItem;
 use crate::types::{DataType, FieldSchema, Schema};
@@ -63,8 +63,17 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
                 )]
             }
             SelectItem::Function { function, alias } => {
-                let data_type =
-                    function_return_type(&function.name, &user_functions).unwrap_or(DataType::Text);
+                let data_type = if function.name.eq_ignore_ascii_case("count") {
+                    Some(DataType::BigInt)
+                } else {
+                    crate::sql::binder::infer_function_return_type(
+                        function,
+                        &source_schema,
+                        &user_functions,
+                        parameter_type_oids,
+                    )
+                }
+                .unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
                     alias.clone().unwrap_or_else(|| function.name.clone()),
                     &data_type,
@@ -110,55 +119,6 @@ fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Sch
     Schema { fields }
 }
 
-fn function_return_type<S: BuildHasher>(
-    name: &str,
-    user_functions: &HashMap<String, FunctionMeta, S>,
-) -> Option<DataType> {
-    let lookup = name.to_ascii_lowercase();
-    if let Some(metadata) = user_functions.get(&lookup).or_else(|| {
-        user_functions
-            .values()
-            .find(|metadata| name_matches(&metadata.name, name))
-    }) {
-        return Some(metadata.return_type.clone());
-    }
-
-    match name.to_ascii_lowercase().as_str() {
-        "count" => Some(DataType::BigInt),
-        "sum" | "avg" | "search" | "search_score" | "vector_distance" | "vector_score"
-        | "cosine_distance" | "dot_product" | "hybrid_score" => Some(DataType::Float),
-        "min"
-        | "max"
-        | "snippet"
-        | "version"
-        | "pg_catalog.version"
-        | "current_schema"
-        | "current_database"
-        | "current_user"
-        | "session_user"
-        | "current_role"
-        | "quote_ident"
-        | "pg_catalog.quote_ident"
-        | "format_type"
-        | "pg_catalog.format_type"
-        | "pg_get_expr"
-        | "pg_catalog.pg_get_expr"
-        | "pg_get_userbyid"
-        | "pg_catalog.pg_get_userbyid"
-        | "obj_description"
-        | "pg_catalog.obj_description"
-        | "cast" => Some(DataType::Text),
-        "has_schema_privilege"
-        | "pg_catalog.has_schema_privilege"
-        | "has_table_privilege"
-        | "pg_catalog.has_table_privilege"
-        | "pg_table_is_visible"
-        | "pg_catalog.pg_table_is_visible" => Some(DataType::Boolean),
-        "time_bucket" => Some(DataType::Timestamp),
-        _ => None,
-    }
-}
-
 fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
     if name.eq_ignore_ascii_case("id") || name.eq_ignore_ascii_case("_id") {
         return DataType::Text;
@@ -179,18 +139,25 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
 mod tests {
     use std::collections::HashMap;
 
-    use super::function_return_type;
+    use super::columns_from_projection;
+    use crate::sql::ast::{FunctionCall, SelectItem};
     use crate::types::DataType;
 
     #[test]
     fn should_report_count_results_as_bigint() {
         // Arrange
-        let functions = HashMap::new();
+        let projection = vec![SelectItem::Function {
+            function: FunctionCall {
+                name: "count".to_string(),
+                args: vec![],
+            },
+            alias: None,
+        }];
 
         // Act
-        let data_type = function_return_type("count", &functions);
+        let columns = columns_from_projection(&projection, None, &HashMap::new());
 
         // Assert
-        assert_eq!(data_type, Some(DataType::BigInt));
+        assert_eq!(columns[0].type_oid, DataType::BigInt.type_oid());
     }
 }

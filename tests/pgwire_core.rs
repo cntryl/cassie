@@ -627,7 +627,11 @@ mod pgwire_binary_codecs {
             cassie.startup().expect("startup");
             let session = cassie.create_session("tester", None);
             cassie
-                .execute_sql(&session, "CREATE TABLE binary_sum_docs (wide BIGINT)", Vec::new())
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE binary_sum_docs (wide BIGINT)",
+                    Vec::new(),
+                )
                 .expect("create binary sum table");
             for value in [EXACT_SUM, 0] {
                 cassie

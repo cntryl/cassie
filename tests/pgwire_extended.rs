@@ -1657,8 +1657,14 @@ mod pgwire_extended_metadata {
             ("SELECT length(name) FROM function_result_items", OID_INT4),
             ("SELECT abs(score) FROM function_result_items", OID_INT4),
             ("SELECT abs(ratio) FROM function_result_items", OID_FLOAT8),
-            ("SELECT coalesce(score, 0) FROM function_result_items", OID_INT4),
-            ("SELECT pg_backend_pid() FROM function_result_items", OID_INT4),
+            (
+                "SELECT coalesce(score, 0) FROM function_result_items",
+                OID_INT4,
+            ),
+            (
+                "SELECT pg_backend_pid() FROM function_result_items",
+                OID_INT4,
+            ),
             (
                 "SELECT has_database_privilege('cassie', 'CONNECT') FROM function_result_items",
                 OID_BOOL,

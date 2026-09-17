@@ -277,7 +277,7 @@ pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType>
         .map(|field| field.data_type.clone())
 }
 
-pub(super) fn infer_function_return_type(
+pub(crate) fn infer_function_return_type(
     function: &FunctionCall,
     source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
@@ -311,6 +311,16 @@ pub(super) fn infer_function_return_type(
             .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
             .map(|data_type| match data_type {
                 DataType::Int => DataType::Int,
+                DataType::BigInt => DataType::BigInt,
+                _ => DataType::Float,
+            })
+            .or(Some(DataType::Float)),
+        crate::sql::functions::FunctionReturnType::SumArgument => function
+            .args
+            .first()
+            .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
+            .map(|data_type| match data_type {
+                DataType::Int | DataType::SmallInt | DataType::BigInt => DataType::BigInt,
                 _ => DataType::Float,
             })
             .or(Some(DataType::Float)),

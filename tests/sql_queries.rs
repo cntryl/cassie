@@ -3943,10 +3943,7 @@ mod integration_sql_predicates {
         let escaped_percent = selected_ids("name LIKE 'a\\%c'", vec![]);
         let escaped_underscore = selected_ids("name LIKE 'a\\_c'", vec![]);
         let case_sensitive = selected_ids("name LIKE 'A%'", vec![]);
-        let parameterized = selected_ids(
-            "name LIKE $1",
-            vec![Value::String("%o%b_r".to_string())],
-        );
+        let parameterized = selected_ids("name LIKE $1", vec![Value::String("%o%b_r".to_string())]);
         let negated = selected_ids("NOT (name LIKE '%a%')", vec![]);
 
         // Assert

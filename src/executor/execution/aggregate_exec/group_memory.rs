@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use crate::executor::batch::BatchRow;
 use crate::executor::semantic::SemanticKey;
 use crate::runtime::QueryExecutionControls;
@@ -9,55 +7,63 @@ use super::state::{AggregateAccumulator, PartialAggregateGroup};
 use super::QueryError;
 
 type Reservation = crate::runtime::QueryMemoryReservation;
-type SerialGroups = BTreeMap<SemanticKey, (Vec<(String, Value)>, Vec<BatchRow>)>;
 
-pub(super) fn replace_serial(
-    previous: Option<Reservation>,
-    controls: &QueryExecutionControls,
-    groups: &SerialGroups,
-) -> Result<Reservation, QueryError> {
-    drop(previous);
-    let bytes = groups
-        .iter()
-        .map(|(signature, (values, rows))| {
-            signature
-                .estimated_bytes()
-                .saturating_add(json_bytes(values))
-                .saturating_add(
-                    rows.iter()
-                        .map(|row| json_bytes(row.entries()))
-                        .sum::<usize>(),
-                )
-        })
-        .sum();
-    controls
-        .reserve_query_memory(bytes)
-        .map_err(QueryError::from)
+/// Tracks the accounted bytes of in-flight aggregate groups.
+///
+/// Group sizes never change after insertion, so callers add only the bytes of
+/// newly buffered rows or groups. This keeps accounting linear in input rows
+/// instead of re-measuring every retained group and row on each update.
+pub(super) struct GroupMemory<'a> {
+    controls: &'a QueryExecutionControls,
+    bytes: usize,
+    reservation: Option<Reservation>,
 }
 
-pub(super) fn replace_partial(
-    previous: Option<Reservation>,
-    controls: &QueryExecutionControls,
-    groups: &BTreeMap<SemanticKey, PartialAggregateGroup>,
-) -> Result<Reservation, QueryError> {
-    drop(previous);
-    let bytes = groups
-        .iter()
-        .map(|(signature, group)| {
-            signature
-                .estimated_bytes()
-                .saturating_add(json_bytes(&group.group_values))
-                .saturating_add(
-                    group
-                        .accumulators
-                        .len()
-                        .saturating_mul(std::mem::size_of::<AggregateAccumulator>()),
-                )
+impl<'a> GroupMemory<'a> {
+    pub(super) fn new(controls: &'a QueryExecutionControls) -> Result<Self, QueryError> {
+        let reservation = controls.reserve_query_memory(0).map_err(QueryError::from)?;
+        Ok(Self {
+            controls,
+            bytes: 0,
+            reservation: Some(reservation),
         })
-        .sum();
-    controls
-        .reserve_query_memory(bytes)
-        .map_err(QueryError::from)
+    }
+
+    pub(super) fn add(&mut self, bytes: usize) -> Result<(), QueryError> {
+        if bytes == 0 {
+            return Ok(());
+        }
+        self.bytes = self.bytes.saturating_add(bytes);
+        drop(self.reservation.take());
+        self.reservation = Some(
+            self.controls
+                .reserve_query_memory(self.bytes)
+                .map_err(QueryError::from)?,
+        );
+        Ok(())
+    }
+}
+
+pub(super) fn serial_group_bytes(signature: &SemanticKey, values: &[(String, Value)]) -> usize {
+    signature
+        .estimated_bytes()
+        .saturating_add(json_bytes(values))
+}
+
+pub(super) fn serial_row_bytes(row: &BatchRow) -> usize {
+    json_bytes(row.entries())
+}
+
+pub(super) fn partial_group_bytes(signature: &SemanticKey, group: &PartialAggregateGroup) -> usize {
+    signature
+        .estimated_bytes()
+        .saturating_add(json_bytes(&group.group_values))
+        .saturating_add(
+            group
+                .accumulators
+                .len()
+                .saturating_mul(std::mem::size_of::<AggregateAccumulator>()),
+        )
 }
 
 fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {

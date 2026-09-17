@@ -2,7 +2,7 @@ use super::*;
 
 fn plan_for_sql(sql: &str) -> LogicalPlan {
     let parsed = crate::sql::parse_statement(sql).expect("parse statement");
-    build_logical_plan(&parsed).expect("build logical plan")
+    build_logical_plan(&crate::catalog::Catalog::new(), &parsed).expect("build logical plan")
 }
 
 fn scalar_index(collection: &str, name: &str, fields: Vec<&str>) -> catalog::IndexMeta {
@@ -67,7 +67,11 @@ fn should_detect_unordered_fulltext_fast_path_for_matching_search_query() {
     assert_eq!(spec.query, "alpha");
     assert_eq!(spec.score_column, "score");
     assert_eq!(spec.columns.len(), 1);
-    assert_eq!(spec.columns[0].name, "id");
+    // `bench_documents` has no declared `id` field, so the bare `id`
+    // reference was rewritten to the reserved internal identity `_id`
+    // (see `planner::logical::rewrite_reserved_id_references`); the
+    // display name is preserved as `id` via the rewrite's alias.
+    assert_eq!(spec.columns[0].name, "_id");
     assert_eq!(spec.columns[0].output_name, "id");
 }
 

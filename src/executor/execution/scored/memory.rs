@@ -88,7 +88,7 @@ pub(super) fn reserve_hybrid_documents(
     analyzer: &AnalyzerConfig,
 ) -> Result<Reservation, QueryError> {
     let bytes = rows.iter().fold(0usize, |total, row| {
-        let id_bytes = row.get("id").and_then(Value::as_str).map_or(0, str::len);
+        let id_bytes = row.get("_id").and_then(Value::as_str).map_or(0, str::len);
         let text_bytes = row
             .get(&spec.text_field)
             .and_then(Value::as_str)

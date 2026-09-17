@@ -562,8 +562,9 @@ fn build_exists_logical_plan(
         &binding_context,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
-    let plan = crate::planner::logical::plan(&bound)
+    let mut plan = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::planner::logical::rewrite_reserved_id_references(&mut plan, &context.cassie.catalog);
     if plan.command.is_some() {
         return Err(QueryError::General(
             "CTE statements cannot include command statements".into(),
@@ -598,13 +599,15 @@ fn exists_binding_context(
 }
 
 pub(super) fn build_logical_plan(
+    catalog: &crate::catalog::Catalog,
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
-    let plan = crate::planner::logical::plan(&crate::sql::binder::BoundStatement {
+    let mut plan = crate::planner::logical::plan(&crate::sql::binder::BoundStatement {
         statement: statement.clone(),
         indexes: Vec::new(),
     })
     .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::planner::logical::rewrite_reserved_id_references(&mut plan, catalog);
 
     if plan.command.is_some() {
         return Err(QueryError::General(
@@ -623,8 +626,9 @@ pub(super) fn build_logical_plan_in_session(
     let context = statement_binding_context(cassie, session);
     let bound = crate::sql::binder::bind_with_context(statement.clone(), &cassie.catalog, &context)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let plan = crate::planner::logical::plan(&bound)
+    let mut plan = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::planner::logical::rewrite_reserved_id_references(&mut plan, &cassie.catalog);
 
     if plan.command.is_some() {
         return Err(QueryError::General(

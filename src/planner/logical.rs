@@ -18,6 +18,12 @@ use crate::sql::{
 };
 use serde::{Deserialize, Serialize};
 
+#[path = "logical/reserved_id.rs"]
+mod reserved_id;
+pub use reserved_id::{
+    collection_declares_id, rewrite_expr_for_schema, rewrite_reserved_id_references,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalPlan {
     pub command: Option<LogicalCommand>,
@@ -562,9 +568,13 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
                     "ALTER TABLE DROP COLUMN requires a field".into(),
                 ));
             }
-            if field.trim().eq_ignore_ascii_case("id") {
+            // Only the internal identity is undroppable. A declared `id`
+            // column is an ordinary column (see
+            // `planner::logical::reserved_id`) and drops like any other;
+            // the binder reports it as unknown when undeclared.
+            if field.trim().eq_ignore_ascii_case("_id") {
                 return Err(CassieError::Planner(
-                    "ALTER TABLE cannot drop reserved field 'id'".into(),
+                    "ALTER TABLE cannot drop reserved field '_id'".into(),
                 ));
             }
         }

@@ -11,8 +11,15 @@ mod specialized;
 
 pub(super) use breakdown::execute_projected_filtered_read_with_breakdown;
 
+/// `_id` is the only name that unconditionally means Cassie's reserved
+/// internal document identity here. A bare `id` reference only ever reaches
+/// this executor as `_id` when the target schema has no `id` field of its
+/// own: `crate::planner::logical::rewrite_reserved_id_references` rewrites
+/// it at the logical-plan level before physical planning runs, so by the
+/// time this function is consulted, `id` has already become an ordinary
+/// column name whenever it needs to be.
 pub(super) fn is_row_id_column(column: &str) -> bool {
-    column.eq_ignore_ascii_case("id") || column.eq_ignore_ascii_case("_id")
+    column.eq_ignore_ascii_case("_id")
 }
 
 pub(super) fn json_to_query_value(value: &serde_json::Value) -> Value {

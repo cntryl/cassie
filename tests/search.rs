@@ -1133,7 +1133,9 @@ mod fulltext_retrieval_corruption {
     fn seed_corruptible_index() -> Cassie {
         let cassie = cassie_temp("fulltext_retrieval_corruption");
         let collection = "fulltext_retrieval_corruption";
-        create_text_collection(&cassie, collection, &["id", "body"]);
+        // No declared `id` field: `SELECT id` below resolves to the
+        // document's internal identity, not a real schema column.
+        create_text_collection(&cassie, collection, &["body"]);
         put_document(
             &cassie,
             collection,

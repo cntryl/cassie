@@ -43,7 +43,12 @@ fn execute_delete_with_held_referential_gates(
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     let matched_rows = if let Some(filter_expr) = &statement.filter {
-        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)?
+        let mut filter_expr = filter_expr.clone();
+        crate::planner::logical::rewrite_expr_for_schema(
+            &mut filter_expr,
+            crate::planner::logical::collection_declares_id(&cassie.catalog, &statement.table),
+        );
+        filter::filter_rows(rows, &filter_expr, params, None, user_functions, session)?
     } else {
         rows
     };

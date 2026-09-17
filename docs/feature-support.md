@@ -36,6 +36,15 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | User functions | Scalar UDFs with declared volatility | Experimental |
 | Procedures | `CREATE PROCEDURE`, `CALL`, and `DROP PROCEDURE` for the narrow one-statement contract in [Limited Procedures and CALL](procedure-support.md); not a stored-procedure business-logic platform | Stable |
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
+| Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
+
+### Reserved Identity Column
+
+Every stored document carries an internal identity. It is exposed under the reserved name `_id`, which cannot be declared by `CREATE TABLE` or `ALTER TABLE` and cannot be dropped.
+
+A table may declare its own `id` column. When it does, `id` is an ordinary column everywhere: `SELECT`, `WHERE`, `ORDER BY`, `GROUP BY`, `UPDATE`, `DELETE`, and `ALTER TABLE DROP COLUMN` all resolve the user's stored value. When a table does not declare `id`, a bare `id` reference resolves to the internal identity, which is the long-standing default and the value `SELECT *` returns in its leading column.
+
+This resolution is uniform across single-table reads, joins, set operations, derived tables, CTE references, and `INSERT ... SELECT`. A subquery or CTE that projects an explicit `id` output column passes that column to its consumer unchanged.
 
 ## Mutation and Catalog
 

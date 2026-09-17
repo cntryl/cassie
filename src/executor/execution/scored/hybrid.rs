@@ -649,7 +649,7 @@ pub(super) fn hybrid_search_documents(
     rows.into_iter()
         .map(|row| TokenizedHybridDocument {
             id: row
-                .get("id")
+                .get("_id")
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),

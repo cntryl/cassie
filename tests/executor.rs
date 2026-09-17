@@ -1289,7 +1289,9 @@ mod executor_fulltext_scoring {
         // Arrange
         let cassie = cassie_temp("fulltext_k1_b");
         let collection = "exec_fulltext_k1_b";
-        create_text_collection(&cassie, collection, &["id", "body"]);
+        // No declared `id` field: `WHERE id = 'd1'` below resolves to the
+        // document's internal identity, not a real schema column.
+        create_text_collection(&cassie, collection, &["body"]);
         put_document(
             &cassie,
             collection,
@@ -1376,7 +1378,9 @@ mod executor_fulltext_scoring {
         // Arrange
         let cassie = cassie_temp("fulltext_default_case_folding");
         let collection = "exec_fulltext_default_case_folding";
-        create_text_collection(&cassie, collection, &["id", "body"]);
+        // No declared `id` field: `WHERE id = 'd1'` below resolves to the
+        // document's internal identity, not a real schema column.
+        create_text_collection(&cassie, collection, &["body"]);
         put_document(
             &cassie,
             collection,
@@ -1483,7 +1487,9 @@ mod executor_fulltext_scoring {
         // Arrange
         let cassie = cassie_temp("plain_select_bad_fulltext");
         let collection = "exec_plain_select_bad_fulltext";
-        create_text_collection(&cassie, collection, &["id", "body"]);
+        // No declared `id` field: `WHERE id = 'd1'` below resolves to the
+        // document's internal identity, not a real schema column.
+        create_text_collection(&cassie, collection, &["body"]);
         put_document(
             &cassie,
             collection,

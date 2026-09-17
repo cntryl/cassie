@@ -49,11 +49,23 @@ where
         for op in &ops {
             match op {
                 ProjectionOp::Wildcard => {
-                    projected.extend(
-                        row.entries()
-                            .iter()
-                            .map(|(name, value)| (name.clone(), value.clone())),
-                    );
+                    // A row carries the internal identity only under `_id`
+                    // (see `scan::push_row_identity`). A row that also has an
+                    // `id` entry got it from a schema that declares its own
+                    // `id` field, so `_id` is internal working state there and
+                    // is excluded from `SELECT *`. Without such an entry `_id`
+                    // is itself what `SELECT *` reports as `id`, so it stays.
+                    let hide_internal_identity = row
+                        .entries()
+                        .iter()
+                        .any(|(name, _)| name.eq_ignore_ascii_case("id"));
+                    projected.extend(row.entries().iter().filter_map(|(name, value)| {
+                        if hide_internal_identity && name.eq_ignore_ascii_case("_id") {
+                            None
+                        } else {
+                            Some((name.clone(), value.clone()))
+                        }
+                    }));
                 }
                 ProjectionOp::Column { source, key } => {
                     let value = row.get(source).cloned().unwrap_or(Value::Null);
@@ -202,7 +214,16 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
     for op in ops {
         match op {
             ProjectionOp::Wildcard => {
+                // Same rule as `project_rows`' wildcard branch above; the two
+                // paths are chosen by plan shape alone and must produce
+                // identically wide rows for the same query.
+                let hide_internal_identity = entries
+                    .iter()
+                    .any(|(name, _)| name.eq_ignore_ascii_case("id"));
                 for (name, value) in &mut entries {
+                    if hide_internal_identity && name.eq_ignore_ascii_case("_id") {
+                        continue;
+                    }
                     let value = value.take().unwrap_or(Value::Null);
                     OWNED_VALUE_MOVES.fetch_add(1, Ordering::Relaxed);
                     projected.push((name.clone(), value));

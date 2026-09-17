@@ -35,7 +35,14 @@ pub struct BenchContext {
 }
 
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
-pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
+// `_id` (Cassie's reserved internal document identity key, one byte longer
+// than the `id` key it replaced) appears once per row constructed anywhere
+// in a query's execution, including rows that never reach the final result.
+// At the 250k scale the large recursive-CTE benchmark peaks at 100,911,883
+// accounted bytes, about 243 KiB above the previous 96 MiB budget and in
+// line with one extra byte per row at that row count. Rounded up to 100 MiB
+// to clear the measured peak with roughly 4% headroom.
+pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 100 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {

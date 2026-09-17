@@ -33,7 +33,7 @@ pub(super) fn execute_cte<'a>(
 
     let output = match &cte.query {
         CteQuery::Simple(statement) => {
-            let logical = build_logical_plan(statement.as_ref())?;
+            let logical = build_logical_plan(&cassie.catalog, statement.as_ref())?;
             execute_plan(
                 cassie,
                 session,
@@ -52,8 +52,8 @@ pub(super) fn execute_cte<'a>(
             base,
             recursive,
         } => {
-            let base_plan = build_logical_plan(base.as_ref())?;
-            let recursive_plan = build_logical_plan(recursive.as_ref())?;
+            let base_plan = build_logical_plan(&cassie.catalog, base.as_ref())?;
+            let recursive_plan = build_logical_plan(&cassie.catalog, recursive.as_ref())?;
             let mut rows = execute_plan(
                 cassie,
                 session,

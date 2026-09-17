@@ -89,7 +89,7 @@ pub(super) fn execute_exact_vector_top_k(
                 sort_value: candidate_sort_value(&spec.direction, score),
                 score,
                 id: candidate
-                    .get("id")
+                    .get("_id")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
@@ -189,7 +189,13 @@ fn document_matches_filter(
     let Some(filter_expr) = filter_expr else {
         return Ok(true);
     };
-    let mut entries = vec![("id".to_string(), Value::String(document.id.clone()))];
+    // `filter_expr` was already rewritten (see
+    // `planner::logical::rewrite_reserved_id_references`) to reference `_id`
+    // instead of `id` whenever the schema has no `id` field of its own, so
+    // pushing `_id` here and letting the real payload (which only has an
+    // `id` entry when the schema declares one) flow through unfiltered
+    // resolves either case correctly without needing schema access here.
+    let mut entries = vec![("_id".to_string(), Value::String(document.id.clone()))];
     if let Some(payload) = document.payload.as_object() {
         entries.extend(payload.iter().map(|(name, value)| {
             (

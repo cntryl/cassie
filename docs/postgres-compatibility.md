@@ -53,6 +53,8 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - `CREATE TABLE IF NOT EXISTS` and `CREATE [UNIQUE] INDEX IF NOT EXISTS` are name-only no-ops. An existing name succeeds even when the requested definition differs, preserving the existing object and schema epoch. Without the clause, duplicates are errors.
 - The index rule applies to Cassie's scalar, full-text, vector, column, hybrid, and time-series index kinds.
 - Standalone `UPSERT`, `ON CONSTRAINT`, concurrent conflict arbitration, and partial or expression-index conflict inference are unsupported.
+- `_id` is a reserved identifier naming Cassie's internal document identity. `CREATE TABLE` and `ALTER TABLE` reject a field named `_id`, and `ALTER TABLE DROP COLUMN _id` is an error. Cassie has no PostgreSQL system-column equivalent such as `ctid` or `oid`.
+- A table may declare its own `id` column, including `id INT PRIMARY KEY`. It then behaves as an ordinary column in every statement, and drops like any other column. A table that declares no `id` resolves a bare `id` reference to the internal identity instead; that value is what `SELECT *` returns in its leading column. Applications that want PostgreSQL-portable behavior should declare `id` explicitly rather than relying on the implicit identity.
 
 ## Expression Semantics
 

@@ -808,8 +808,19 @@ fn expr_is_pushdown_literal(expr: &Expr) -> bool {
     )
 }
 
+/// `_id` is the only name that unconditionally means Cassie's reserved
+/// internal document identity here. A bare `id` reference only ever reaches
+/// physical planning as `_id` when the target schema has no `id` field of
+/// its own: `crate::planner::logical::rewrite_reserved_id_references`
+/// rewrites it at the logical-plan level before physical planning runs, so
+/// by the time this function is consulted, `id` has already become an
+/// ordinary column name whenever it needs to be.
 fn is_row_id_column(field: &str) -> bool {
-    field == "_id" || field.eq_ignore_ascii_case("id")
+    // Case-insensitive to match `execution::projected_read::is_row_id_column`;
+    // SQL identifiers are compared case-insensitively throughout, and the two
+    // must agree or a query takes one path in planning and another in
+    // execution.
+    field.eq_ignore_ascii_case("_id")
 }
 
 fn source_contains_join(source: &QuerySource) -> bool {

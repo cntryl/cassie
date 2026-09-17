@@ -242,7 +242,7 @@ fn parse_timestamp(raw: &str) -> Result<OffsetDateTime, QueryError> {
 }
 
 fn row_id(row: &BatchRow) -> Result<String, QueryError> {
-    match row.get("id") {
+    match row.get("_id") {
         Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
         _ => Err(QueryError::General(
             "scanned row is missing internal row id".to_string(),

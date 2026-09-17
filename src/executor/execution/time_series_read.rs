@@ -825,7 +825,7 @@ fn document_to_row(
 ) -> BatchRow {
     let schema_has_id = crate::executor::scan::schema_declares_id(schema);
     let mut values = Vec::with_capacity(fields.len() + 2);
-    crate::executor::scan::push_row_identity(&mut values, &document.id, schema_has_id);
+    crate::executor::scan::push_row_identity(&mut values, &document.id);
     for field in fields {
         if field.eq_ignore_ascii_case("_id") || (field.eq_ignore_ascii_case("id") && !schema_has_id)
         {

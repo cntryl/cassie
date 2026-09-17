@@ -560,7 +560,7 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
         .into_iter()
         .map(|document| {
             let mut row = Vec::new();
-            push_row_identity(&mut row, &document.id, schema_has_id);
+            push_row_identity(&mut row, &document.id);
             if let Some(obj) = document.payload.as_object() {
                 if let Some(schema) = schema.as_ref() {
                     let mut seen = HashSet::new();
@@ -575,9 +575,20 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                         seen.insert(field.name.clone());
                     }
                     for (k, v) in obj {
-                        if !seen.contains(k) && !k.eq_ignore_ascii_case("_id") {
-                            row.push((k.clone(), json_to_value(v)));
+                        if seen.contains(k) || k.eq_ignore_ascii_case("_id") {
+                            continue;
                         }
+                        // When the schema declares no `id` field, `id` names
+                        // the internal identity already pushed above, and
+                        // `aggregate::columns_from_projection` emits exactly
+                        // one column for it. SQL writes cannot store such a
+                        // key, but a payload from another write path could;
+                        // dropping it keeps the row from being one value
+                        // wider than its own column list.
+                        if !schema_has_id && k.eq_ignore_ascii_case("id") {
+                            continue;
+                        }
+                        row.push((k.clone(), json_to_value(v)));
                     }
                 } else {
                     for (k, v) in obj {
@@ -596,17 +607,17 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
 /// Every document has an internal identity that Cassie must always be able
 /// to resolve regardless of the user's schema (DML target resolution,
 /// retention, and scored retrieval all depend on it), so it is always
-/// pushed under the reserved `_id` key. `id` is a normal, queryable column:
-/// it holds the user's declared `id` field's real value when the schema
-/// declares one (so `WHERE`/`ORDER BY`/`GROUP BY`/`SELECT` resolve it
-/// correctly instead of silently reading the internal identity), or falls
-/// back to that same internal identity when the schema does not declare its
-/// own `id` field, preserving the long-standing default.
-pub(crate) fn push_row_identity(
-    row: &mut Vec<(String, Value)>,
-    document_id: &str,
-    _schema_has_id: bool,
-) {
+/// pushed under the reserved `_id` key — and only that key.
+///
+/// A bare `id` never reaches row building on a table that declares no `id`
+/// field: `planner::logical::rewrite_reserved_id_references` renames it to
+/// `_id` at the logical-plan level first. A table that does declare `id`
+/// gets that field pushed as an ordinary column by the caller's own field
+/// loop. Neither case needs a second physical copy of the identity value in
+/// every row, so nothing is stored under `id` here. `SELECT *` resolves its
+/// leading `id` column from this entry at the final result boundary (see
+/// `execution::result::build_select_result`).
+pub(crate) fn push_row_identity(row: &mut Vec<(String, Value)>, document_id: &str) {
     // Only `_id` is stored physically. Every reference to a bare `id` on a
     // table without its own `id` field was already rewritten to `_id` at
     // the logical-plan level (see
@@ -740,7 +751,7 @@ pub(crate) fn projected_document_to_row(
 ) -> BatchRow {
     let schema_has_id = schema_declares_id(schema);
     let mut row = Vec::with_capacity(fields.len() + 2);
-    push_row_identity(&mut row, &document.id, schema_has_id);
+    push_row_identity(&mut row, &document.id);
     let object = document.payload.as_object();
     for field in fields {
         if field.eq_ignore_ascii_case("_id") {

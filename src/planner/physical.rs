@@ -816,7 +816,11 @@ fn expr_is_pushdown_literal(expr: &Expr) -> bool {
 /// by the time this function is consulted, `id` has already become an
 /// ordinary column name whenever it needs to be.
 fn is_row_id_column(field: &str) -> bool {
-    field == "_id"
+    // Case-insensitive to match `execution::projected_read::is_row_id_column`;
+    // SQL identifiers are compared case-insensitively throughout, and the two
+    // must agree or a query takes one path in planning and another in
+    // execution.
+    field.eq_ignore_ascii_case("_id")
 }
 
 fn source_contains_join(source: &QuerySource) -> bool {

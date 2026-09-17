@@ -555,18 +555,17 @@ fn document_batches_to_rows(
 }
 
 fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&CollectionSchema>) -> Batch {
+    let schema_has_id = schema_declares_id(schema);
     documents
         .into_iter()
         .map(|document| {
             let mut row = Vec::new();
-            row.push(("id".to_string(), Value::String(document.id)));
+            push_row_identity(&mut row, &document.id, schema_has_id);
             if let Some(obj) = document.payload.as_object() {
                 if let Some(schema) = schema.as_ref() {
                     let mut seen = HashSet::new();
                     for field in &schema.fields {
-                        if field.name.eq_ignore_ascii_case("id")
-                            || field.name.eq_ignore_ascii_case("_id")
-                        {
+                        if field.name.eq_ignore_ascii_case("_id") {
                             continue;
                         }
                         let value = obj.get(&field.name).map_or(Value::Null, |value| {
@@ -576,10 +575,7 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                         seen.insert(field.name.clone());
                     }
                     for (k, v) in obj {
-                        if !seen.contains(k)
-                            && !k.eq_ignore_ascii_case("id")
-                            && !k.eq_ignore_ascii_case("_id")
-                        {
+                        if !seen.contains(k) && !k.eq_ignore_ascii_case("_id") {
                             row.push((k.clone(), json_to_value(v)));
                         }
                     }
@@ -595,6 +591,41 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
             BatchRow::new(row)
         })
         .collect::<Batch>()
+}
+
+/// Every document has an internal identity that Cassie must always be able
+/// to resolve regardless of the user's schema (DML target resolution,
+/// retention, and scored retrieval all depend on it), so it is always
+/// pushed under the reserved `_id` key. `id` is a normal, queryable column:
+/// it holds the user's declared `id` field's real value when the schema
+/// declares one (so `WHERE`/`ORDER BY`/`GROUP BY`/`SELECT` resolve it
+/// correctly instead of silently reading the internal identity), or falls
+/// back to that same internal identity when the schema does not declare its
+/// own `id` field, preserving the long-standing default.
+pub(crate) fn push_row_identity(
+    row: &mut Vec<(String, Value)>,
+    document_id: &str,
+    _schema_has_id: bool,
+) {
+    // Only `_id` is stored physically. Every reference to a bare `id` on a
+    // table without its own `id` field was already rewritten to `_id` at
+    // the logical-plan level (see
+    // `planner::logical::rewrite_reserved_id_references`) before reaching
+    // any code that reads rows, so nothing needs a duplicate `id` entry
+    // here — except the raw `SELECT *` value dump, which resolves it
+    // separately at the final result boundary (see
+    // `execution::result::build_select_result`) instead of paying for a
+    // second copy of the value in every row.
+    row.push(("_id".to_string(), Value::String(document_id.to_string())));
+}
+
+pub(crate) fn schema_declares_id(schema: Option<&CollectionSchema>) -> bool {
+    schema.is_some_and(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| field.name.eq_ignore_ascii_case("id"))
+    })
 }
 
 fn projected_document_batches_to_rows(
@@ -698,16 +729,24 @@ fn projected_document_batch_to_rows(
         .collect::<Batch>()
 }
 
+// `document` is taken by value to match this function's ~14 existing call
+// sites, most of which already own it there; borrowing here alone isn't
+// worth changing every caller's ownership shape for.
+#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn projected_document_to_row(
     document: DocumentRef,
     fields: &[String],
     schema: Option<&CollectionSchema>,
 ) -> BatchRow {
-    let mut row = Vec::with_capacity(fields.len() + 1);
-    row.push(("id".to_string(), Value::String(document.id)));
+    let schema_has_id = schema_declares_id(schema);
+    let mut row = Vec::with_capacity(fields.len() + 2);
+    push_row_identity(&mut row, &document.id, schema_has_id);
     let object = document.payload.as_object();
     for field in fields {
-        if field.eq_ignore_ascii_case("id") || field.eq_ignore_ascii_case("_id") {
+        if field.eq_ignore_ascii_case("_id") {
+            continue;
+        }
+        if field.eq_ignore_ascii_case("id") && !schema_has_id {
             continue;
         }
         let value = object
@@ -862,6 +901,9 @@ mod tests {
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].len(), 1);
         assert!(!batches[0][0].lookup_initialized());
+        // Entries are [_id, title]: `push_row_identity` always pushes the
+        // reserved internal identity (`_id`) first, then the requested
+        // `title` field.
         assert_eq!(
             batches[0][0].entries()[1].1,
             Value::String("alpha".to_string())

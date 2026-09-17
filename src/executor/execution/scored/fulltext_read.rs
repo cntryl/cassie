@@ -764,7 +764,14 @@ fn publish_filtered_fulltext_metrics(
 }
 
 fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
-    let mut entries = vec![("id".to_string(), Value::String(id.to_string()))];
+    // The filter expression this row is evaluated against was already
+    // rewritten (see `planner::logical::rewrite_reserved_id_references`) to
+    // reference `_id` instead of `id` whenever the schema has no `id` field
+    // of its own, so pushing `_id` here and letting the real payload (which
+    // only has an `id` entry when the schema declares one) flow through
+    // unfiltered resolves either case correctly without needing schema
+    // access here.
+    let mut entries = vec![("_id".to_string(), Value::String(id.to_string()))];
     if let Some(object) = payload.as_object() {
         entries.extend(
             object

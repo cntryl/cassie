@@ -264,7 +264,8 @@ impl Cassie {
         }
 
         let cardinality_stats = self.catalog.cardinality_snapshot();
-        let logical = crate::planner::logical::plan(&bound)?;
+        let mut logical = crate::planner::logical::plan(&bound)?;
+        crate::planner::logical::rewrite_reserved_id_references(&mut logical, &self.catalog);
         let optimized = crate::planner::optimizer::optimize_with_stats(logical, &cardinality_stats);
         let not_null_fields = self.catalog.not_null_fields(&optimized.collection);
         let selection = crate::planner::physical::read_operator_selection(
@@ -322,10 +323,10 @@ impl Cassie {
         let context = self.binding_context_for_session(Some(session));
         let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
         let cardinality_stats = self.catalog.cardinality_snapshot();
-        let logical = crate::planner::optimizer::optimize_with_stats(
-            crate::planner::logical::plan(&bound)?,
-            &cardinality_stats,
-        );
+        let mut logical_plan = crate::planner::logical::plan(&bound)?;
+        crate::planner::logical::rewrite_reserved_id_references(&mut logical_plan, &self.catalog);
+        let logical =
+            crate::planner::optimizer::optimize_with_stats(logical_plan, &cardinality_stats);
         let selection = crate::planner::physical::read_operator_selection(
             &logical,
             bound.indexes.as_slice(),

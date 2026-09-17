@@ -585,8 +585,9 @@ fn plan_projection_query(
     let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let source_collections = collect_source_collections(&select.source);
-    let logical = crate::planner::logical::plan(&bound)
+    let mut logical = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::planner::logical::rewrite_reserved_id_references(&mut logical, &cassie.catalog);
     Ok(ProjectionBuildPlan {
         logical,
         select: select.clone(),

@@ -21,7 +21,36 @@ pub(super) fn build_select_result(
         collection_schema.as_ref(),
         user_functions,
     );
-    let rows: Vec<Vec<Value>> = rows.into_iter().map(BatchRow::into_values).collect();
+    // Every row carries the reserved `_id` internal-identity entry (see
+    // `scan::push_row_identity`) as working state for DML/retention/scored-
+    // candidate resolution; it is never a `SELECT` output column, so it's
+    // dropped here rather than earlier, to keep it available to every
+    // internal consumer up to this final boundary. `SELECT *` against a
+    // table with no declared `id` field is the one exception: its `id`
+    // output column *is* that same internal identity (see
+    // `aggregate::columns_from_projection`'s wildcard branch and
+    // `scan::push_row_identity`'s doc comment), and rather than pay for a
+    // second physical copy of the value in every row, that single `_id`
+    // entry is kept instead of dropped, landing in the `id` column's
+    // position because both list it first.
+    let keep_internal_identity_as_id = plan
+        .logical
+        .projection
+        .iter()
+        .any(|item| matches!(item, crate::sql::ast::SelectItem::Wildcard))
+        && !crate::executor::scan::schema_declares_id(collection_schema.as_ref());
+    let rows: Vec<Vec<Value>> = rows
+        .into_iter()
+        .map(|row| {
+            row.into_entries()
+                .into_iter()
+                .filter(|(name, _)| {
+                    keep_internal_identity_as_id || !name.eq_ignore_ascii_case("_id")
+                })
+                .map(|(_, value)| value)
+                .collect()
+        })
+        .collect();
 
     if rows.len() > controls.max_result_rows {
         return Err(QueryError::General(format!(

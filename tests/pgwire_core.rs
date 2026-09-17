@@ -2919,14 +2919,19 @@ mod pgwire_simple_query {
                     "{sql} data row values"
                 );
             }
+            // `simple_wildcard_upper_id_docs` declares its own `ID` field
+            // (case-insensitively still "id"), so wildcard output preserves
+            // the real schema field order and values instead of
+            // synthesizing an internal-identity `id` column.
             assert_eq!(
                 pgwire_support::row_description_names(&upper_frames),
-                vec!["id".to_string(), "title".to_string()]
+                vec!["title".to_string(), "ID".to_string()]
             );
             let upper_rows = pgwire_support::data_rows(&upper_frames);
             assert_eq!(upper_rows.len(), 1);
             assert_eq!(upper_rows[0].len(), 2);
-            assert_eq!(upper_rows[0][1], Some("y".to_string()));
+            assert_eq!(upper_rows[0][0], Some("y".to_string()));
+            assert_eq!(upper_rows[0][1], Some("b".to_string()));
 
             drop(socket);
             server.abort();

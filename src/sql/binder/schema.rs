@@ -58,6 +58,7 @@ pub(super) fn bind_create_table(
                 "CREATE TABLE field names cannot be empty".into(),
             ));
         }
+        validate_not_internal_identity_field(field_name)?;
 
         if !seen.insert(field_name.to_ascii_lowercase()) {
             return Err(CassieError::Planner(format!(
@@ -505,6 +506,11 @@ pub(super) fn validate_alter_schema(
                     "ALTER TABLE RENAME COLUMN requires a target field".into(),
                 ));
             }
+            if to.eq_ignore_ascii_case("_id") {
+                return Err(CassieError::Planner(
+                    "ALTER TABLE RENAME COLUMN cannot rename to reserved field '_id'".into(),
+                ));
+            }
             if from.eq_ignore_ascii_case(to) {
                 return Err(CassieError::Planner(
                     "ALTER TABLE cannot rename column to same name".into(),
@@ -545,6 +551,18 @@ pub(super) fn validate_alter_schema(
     Ok(())
 }
 
+/// `_id` is Cassie's permanently reserved internal document identity (see
+/// `executor::scan::push_row_identity`); a field declared with that name
+/// would be a dead column no query can ever reach.
+fn validate_not_internal_identity_field(name: &str) -> Result<(), CassieError> {
+    if name.eq_ignore_ascii_case("_id") {
+        return Err(CassieError::Planner(
+            "field '_id' conflicts with Cassie's reserved internal document identity".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_alter_add_column(
     table: &str,
     field: &str,
@@ -556,6 +574,7 @@ fn validate_alter_add_column(
             "ALTER TABLE ADD COLUMN requires a field name".into(),
         ));
     }
+    validate_not_internal_identity_field(name)?;
     if existing_fields.contains(&name.to_ascii_lowercase()) {
         return Err(CassieError::Planner(format!(
             "cannot add existing column '{name}' on collection '{table}'"
@@ -601,10 +620,10 @@ fn validate_alter_drop_column(
             "ALTER TABLE DROP COLUMN requires a field name".into(),
         ));
     }
-    if name.eq_ignore_ascii_case("id") {
-        return Err(CassieError::Planner(
-            "ALTER TABLE DROP COLUMN cannot remove reserved field 'id'".into(),
-        ));
+    if name.eq_ignore_ascii_case("id") || name.eq_ignore_ascii_case("_id") {
+        return Err(CassieError::Planner(format!(
+            "ALTER TABLE DROP COLUMN cannot remove reserved field '{name}'"
+        )));
     }
     if !existing_fields.contains(&name.to_ascii_lowercase()) {
         return Err(CassieError::Planner(format!(

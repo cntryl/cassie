@@ -182,12 +182,18 @@ pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Sc
         .get_schema(name)
         .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
 
+    let schema_has_id = schema
+        .fields
+        .iter()
+        .any(|field| field.name.eq_ignore_ascii_case("id"));
     let mut fields = Vec::with_capacity(schema.fields.len() + 1);
-    fields.push(FieldSchema {
-        name: "id".to_string(),
-        data_type: DataType::Text,
-        nullable: true,
-    });
+    if !schema_has_id {
+        fields.push(FieldSchema {
+            name: "id".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        });
+    }
     fields.extend(schema.fields.into_iter().map(|field| FieldSchema {
         name: field.name,
         data_type: field.data_type,

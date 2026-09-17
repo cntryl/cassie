@@ -344,6 +344,13 @@ fn portal_document_rows(
     let QueryStatement::Select(select) = &prepared.parsed.statement else {
         return Vec::new();
     };
+    // A bare `id` reference against a table with no declared `id` field
+    // means Cassie's reserved internal identity, stored physically only
+    // under `_id` (see `scan::push_row_identity`); this path builds rows
+    // directly from the prepared statement's own (unrewritten) projection
+    // instead of a rewritten `LogicalPlan`, so it resolves that mapping
+    // itself rather than via `planner::logical::rewrite_reserved_id_references`.
+    let schema_has_id = crate::executor::scan::schema_declares_id(schema.as_ref());
     documents
         .into_iter()
         .map(|document| {
@@ -359,13 +366,21 @@ fn portal_document_rows(
                     SelectItem::Wildcard => row
                         .entries()
                         .iter()
+                        .filter(|(name, _)| !schema_has_id || !name.eq_ignore_ascii_case("_id"))
                         .map(|(_, value)| value.clone())
                         .collect::<Vec<_>>(),
                     SelectItem::Column { name, .. }
                     | SelectItem::Expr {
                         expr: crate::sql::ast::Expr::Column(name),
                         ..
-                    } => vec![row.get(name).cloned().unwrap_or(Value::Null)],
+                    } => {
+                        let lookup_name = if !schema_has_id && name.eq_ignore_ascii_case("id") {
+                            "_id"
+                        } else {
+                            name.as_str()
+                        };
+                        vec![row.get(lookup_name).cloned().unwrap_or(Value::Null)]
+                    }
                     _ => Vec::new(),
                 })
                 .collect()

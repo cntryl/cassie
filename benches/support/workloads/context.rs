@@ -35,7 +35,14 @@ pub struct BenchContext {
 }
 
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
-pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 96 * 1024 * 1024;
+// `_id` (Cassie's reserved internal document identity field, one byte
+// longer than the `id` key name it replaced) appears once per row
+// constructed anywhere in a query's execution, including join build/probe
+// rows that are never part of the final result. The large recursive-CTE
+// benchmark below builds on the order of 10^6 such rows across its
+// recursion, so this budget carries a few extra mebibytes of headroom for
+// that one-byte-per-row difference.
+pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 104 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct QueryBreakdownMicros {

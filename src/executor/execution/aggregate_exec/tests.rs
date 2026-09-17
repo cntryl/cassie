@@ -30,7 +30,8 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
     let parsed =
         crate::sql::parse_statement("SELECT tenant, COUNT(*) AS total FROM events GROUP BY tenant")
             .expect("parse grouped aggregate");
-    let plan = build_logical_plan(&parsed).expect("plan grouped aggregate");
+    let plan = build_logical_plan(&crate::catalog::Catalog::new(), &parsed)
+        .expect("plan grouped aggregate");
     let specs = aggregate_specs(&plan);
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());

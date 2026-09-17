@@ -98,7 +98,12 @@ fn matched_dml_rows(
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     if let Some(filter_expr) = filter_expr {
-        filter::filter_rows(rows, filter_expr, params, None, user_functions, session)
+        let mut filter_expr = filter_expr.clone();
+        crate::planner::logical::rewrite_expr_for_schema(
+            &mut filter_expr,
+            crate::planner::logical::collection_declares_id(&cassie.catalog, table),
+        );
+        filter::filter_rows(rows, &filter_expr, params, None, user_functions, session)
     } else {
         Ok(rows)
     }
@@ -159,9 +164,15 @@ fn updated_payload_from_row(
         .as_object()
         .cloned()
         .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
+    let schema_has_id = schema
+        .fields
+        .iter()
+        .any(|field| field.name.eq_ignore_ascii_case("id"));
     for (field, expr) in assignments {
+        let mut expr = expr.clone();
+        crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
         let value =
-            filter::evaluate_expr_value(row, expr, params, None, user_functions, session, None)?;
+            filter::evaluate_expr_value(row, &expr, params, None, user_functions, session, None)?;
         payload.insert(
             field.clone(),
             update_assignment_to_json(field, &value, schema)?,

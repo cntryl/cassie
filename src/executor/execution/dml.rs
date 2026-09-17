@@ -106,9 +106,22 @@ fn dml_returning_columns(
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Vec<ColumnMeta> {
     let mut columns = aggregate::columns_from_projection(returning, schema, user_functions);
-    if returning
-        .iter()
-        .any(|item| matches!(item, SelectItem::Wildcard))
+    let schema_has_id = schema.is_some_and(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| field.name.eq_ignore_ascii_case("id"))
+    });
+    // `aggregate::columns_from_projection` only synthesizes a metadata
+    // column literally named "id" for the reserved internal identity when
+    // the schema has no real "id" field of its own; relabel that one to
+    // "_id" to match `inserted_row_to_batch_row`'s row shape. When the
+    // schema declares its own "id" field, the "id" column here is already
+    // that real field and must not be renamed.
+    if !schema_has_id
+        && returning
+            .iter()
+            .any(|item| matches!(item, SelectItem::Wildcard))
     {
         for column in &mut columns {
             if column.name == "id" {
@@ -193,7 +206,7 @@ fn build_dml_result(
 }
 
 fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
-    match row.get("id") {
+    match row.get("_id") {
         Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
         _ => Err(QueryError::General(
             "scanned row is missing internal row id".to_string(),

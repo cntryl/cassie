@@ -50,8 +50,14 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
                     } else {
                         let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
                         let mut seen = HashSet::new();
-                        seen.insert("id".to_string());
-                        columns.push(ColumnMeta::from_data_type("id", &DataType::Text));
+                        let schema_has_id = collection_schema
+                            .fields
+                            .iter()
+                            .any(|field| field.name.eq_ignore_ascii_case("id"));
+                        if !schema_has_id {
+                            seen.insert("id".to_string());
+                            columns.push(ColumnMeta::from_data_type("id", &DataType::Text));
+                        }
                         for field in &collection_schema.fields {
                             if seen.insert(field.name.to_ascii_lowercase()) {
                                 columns.push(ColumnMeta::from_data_type(
@@ -116,12 +122,18 @@ fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Sch
         return Schema { fields: Vec::new() };
     };
 
+    let schema_has_id = collection_schema
+        .fields
+        .iter()
+        .any(|field| field.name.eq_ignore_ascii_case("id"));
     let mut fields = Vec::with_capacity(collection_schema.fields.len() + 1);
-    fields.push(FieldSchema {
-        name: "id".to_string(),
-        data_type: DataType::Text,
-        nullable: true,
-    });
+    if !schema_has_id {
+        fields.push(FieldSchema {
+            name: "id".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        });
+    }
     fields.extend(collection_schema.fields.iter().map(|field| FieldSchema {
         name: field.name.clone(),
         data_type: field.data_type.clone(),
@@ -131,7 +143,7 @@ fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Sch
 }
 
 fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
-    if name.eq_ignore_ascii_case("id") || name.eq_ignore_ascii_case("_id") {
+    if name.eq_ignore_ascii_case("_id") {
         return DataType::Text;
     }
 
@@ -139,6 +151,12 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
         return DataType::Text;
     };
 
+    // "id" is a normal column when the schema declares one (its own type
+    // applies), otherwise a bare "id" reference was already rewritten to
+    // "_id" before reaching here (see
+    // `planner::logical::rewrite_reserved_id_references`), so falling
+    // through to "not found in schema" -> Text is unreachable for it, not a
+    // silent wrong guess.
     schema
         .fields
         .iter()

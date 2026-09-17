@@ -18,6 +18,12 @@ use crate::sql::{
 };
 use serde::{Deserialize, Serialize};
 
+#[path = "logical/reserved_id.rs"]
+mod reserved_id;
+pub use reserved_id::{
+    collection_declares_id, rewrite_expr_for_schema, rewrite_reserved_id_references,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalPlan {
     pub command: Option<LogicalCommand>,

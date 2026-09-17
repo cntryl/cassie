@@ -2013,7 +2013,8 @@ mod planner_aggregates_sets {
         let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Assert
         assert!(logical.distinct);
@@ -2041,7 +2042,8 @@ mod planner_aggregates_sets {
         let bound = binder::bind(parsed, &catalog).unwrap();
 
         // Act
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Assert
         assert!(logical.set.is_some());
@@ -2069,7 +2071,8 @@ mod planner_aggregates_sets {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let physical_plan = physical::build(logical);
@@ -2106,7 +2109,8 @@ mod planner_aggregates_sets {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let physical_plan = physical::build(logical);
@@ -2136,7 +2140,8 @@ mod planner_aggregates_sets {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let physical_plan = physical::build(logical);
@@ -2642,7 +2647,8 @@ mod planner_estimates {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
             let cardinality_stats = std::collections::HashMap::new();
 
@@ -2697,7 +2703,8 @@ mod planner_estimates {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
             let cardinality_stats = catalog.cardinality_snapshot();
 
@@ -2764,7 +2771,8 @@ mod planner_estimates {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
             let cardinality_stats = catalog.cardinality_snapshot();
 
@@ -2826,7 +2834,8 @@ mod planner_estimates {
         )
         .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
             let cardinality_stats = catalog.cardinality_snapshot();
 
@@ -2936,7 +2945,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -2974,7 +2984,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_covering_index");
@@ -3016,7 +3027,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_covering_fallback");
@@ -3064,7 +3076,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_include_covering");
@@ -3120,7 +3133,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_partial_index");
@@ -3167,7 +3181,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_partial_fallback");
@@ -3219,7 +3234,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_expression_index");
@@ -3274,7 +3290,8 @@ mod planner_indexes {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_expression_fallback");
@@ -3318,7 +3335,8 @@ mod planner_indexes {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let indexes = catalog.list_indexes("planner_operator_feedback_tie");
@@ -3490,7 +3508,8 @@ mod planner_logical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let optimized = optimizer::optimize(logical);
@@ -3553,7 +3572,8 @@ mod planner_logical {
             let bound = binder::bind(parsed, &catalog).unwrap();
 
             // Act
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Assert
             assert_eq!(logical.collection, "planner_clauses");
@@ -3805,7 +3825,8 @@ mod planner_logical {
             let bound = binder::bind(parsed, &catalog).unwrap();
 
             // Act
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Assert
             assert_eq!(logical.ctes.len(), 1);
@@ -3833,7 +3854,8 @@ mod planner_logical {
             let bound = binder::bind(parsed, &catalog).unwrap();
 
             // Act
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Assert
             assert_eq!(logical.ctes.len(), 1);
@@ -3933,7 +3955,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
         let logical = optimizer::optimize(logical);
 
         // Act
@@ -4039,7 +4062,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4066,7 +4090,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4096,7 +4121,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4123,7 +4149,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4154,7 +4181,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let physical_plan = physical::build(logical);
@@ -4197,7 +4225,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4242,7 +4271,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4282,7 +4312,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
         let logical = optimizer::optimize(logical);
 
         // Act
@@ -4315,7 +4346,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4354,7 +4386,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
             let logical = optimizer::optimize(logical);
 
             // Act
@@ -4418,7 +4451,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let indexes = catalog.list_indexes("planner_prefix_scan");
@@ -4474,7 +4508,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_range_scan");
@@ -4535,7 +4570,8 @@ mod planner_physical {
             )
             .unwrap();
             let bound = binder::bind(parsed, &catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
             // Act
             let indexes = catalog.list_indexes("planner_ordered_bounded");
@@ -4596,7 +4632,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let indexes = catalog.list_indexes("planner_ordering_fallback");
@@ -4635,7 +4672,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
         let logical = optimizer::optimize(logical);
 
         // Act
@@ -4664,7 +4702,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
         let logical = optimizer::optimize(logical);
 
         // Act
@@ -4699,7 +4738,8 @@ mod planner_physical {
         )
         .unwrap();
         let bound = binder::bind(parsed, &catalog).unwrap();
-        let logical = logical::plan(&bound).unwrap();
+        let mut logical = logical::plan(&bound).unwrap();
+        logical::rewrite_reserved_id_references(&mut logical, &catalog);
 
         // Act
         let physical_plan = physical::build(logical);
@@ -4809,7 +4849,8 @@ mod planner_read_path_depth {
         runtime.block_on(async {
             let parsed = parser::parse_statement(sql).unwrap();
             let bound = binder::bind(parsed, catalog).unwrap();
-            let logical = logical::plan(&bound).unwrap();
+            let mut logical = logical::plan(&bound).unwrap();
+            logical::rewrite_reserved_id_references(&mut logical, catalog);
             let indexes = catalog.list_indexes(collection);
             let cardinality_stats = std::collections::HashMap::<
                 String,

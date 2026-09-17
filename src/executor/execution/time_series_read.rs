@@ -817,14 +817,20 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
         .find(|index| index.name == selected && index.kind == catalog::IndexKind::TimeSeries)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn document_to_row(
     document: DocumentRef,
     fields: &[String],
     schema: Option<&CollectionSchema>,
 ) -> BatchRow {
-    let mut values = Vec::with_capacity(fields.len() + 1);
-    values.push(("id".to_string(), Value::String(document.id)));
+    let schema_has_id = crate::executor::scan::schema_declares_id(schema);
+    let mut values = Vec::with_capacity(fields.len() + 2);
+    crate::executor::scan::push_row_identity(&mut values, &document.id, schema_has_id);
     for field in fields {
+        if field.eq_ignore_ascii_case("_id") || (field.eq_ignore_ascii_case("id") && !schema_has_id)
+        {
+            continue;
+        }
         let value = payload_field(&document.payload, field)
             .map_or(Value::Null, |value| typed_value(value, schema, field));
         values.push((field.clone(), value));

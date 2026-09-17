@@ -49,11 +49,26 @@ where
         for op in &ops {
             match op {
                 ProjectionOp::Wildcard => {
-                    projected.extend(
-                        row.entries()
-                            .iter()
-                            .map(|(name, value)| (name.clone(), value.clone())),
-                    );
+                    // A row built by a plain scan always carries both `id`
+                    // (the user's real field when declared, else the same
+                    // internal identity as `_id`) and `_id` (see
+                    // `scan::push_row_identity`); `_id` is redundant there
+                    // and excluded from `SELECT *`. `INSERT ... RETURNING *`
+                    // rows are a narrower, pre-existing exception that carry
+                    // only `_id` (no `id` entry at all when the schema
+                    // doesn't declare one) and must keep showing it, so the
+                    // exclusion only applies when `id` is also present.
+                    let hide_internal_identity = row
+                        .entries()
+                        .iter()
+                        .any(|(name, _)| name.eq_ignore_ascii_case("id"));
+                    projected.extend(row.entries().iter().filter_map(|(name, value)| {
+                        if hide_internal_identity && name.eq_ignore_ascii_case("_id") {
+                            None
+                        } else {
+                            Some((name.clone(), value.clone()))
+                        }
+                    }));
                 }
                 ProjectionOp::Column { source, key } => {
                     let value = row.get(source).cloned().unwrap_or(Value::Null);

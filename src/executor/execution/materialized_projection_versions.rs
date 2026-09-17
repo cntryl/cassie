@@ -164,22 +164,30 @@ pub(super) fn drop_materialized_projection_version(
             "projection version '{version_id}' does not exist"
         )));
     };
+    let projection = metadata.collection.clone();
+    let repair_reports = cassie
+        .catalog
+        .projection_repair_report_ids_for_version(&projection, version_id);
+    let comparison_reports = cassie
+        .catalog
+        .projection_comparison_report_ids_for_version(&projection, version_id);
+    // Delete the stored reports first: if that fails, the version, its output,
+    // and its metadata are still intact.
+    cassie
+        .midge
+        .delete_projection_reports(&repair_reports, &comparison_reports)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .catalog
+        .unregister_projection_repair_reports(&repair_reports);
+    cassie
+        .catalog
+        .unregister_projection_comparison_reports(&comparison_reports);
     let version = metadata.versions.remove(index);
     let _ = cassie.midge.drop_collection(&version.output_collection);
     let _ = cassie
         .catalog
         .unregister_collection(&version.output_collection);
-    let projection = metadata.collection.clone();
     persist_projection_metadata(cassie, metadata)?;
-    let repair_reports = cassie
-        .catalog
-        .remove_projection_repair_reports_for_version(&projection, version_id);
-    let comparison_reports = cassie
-        .catalog
-        .remove_projection_comparison_reports_for_version(&projection, version_id);
-    cassie
-        .midge
-        .delete_projection_reports(&repair_reports, &comparison_reports)
-        .map_err(|error| QueryError::General(error.to_string()))?;
     Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
 }

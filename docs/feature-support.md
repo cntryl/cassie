@@ -22,7 +22,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 
 | Capability | Behavior | Status |
 | --- | --- | --- |
-| Core reads | `SELECT`, projection, aliases, expressions, `FROM`, `WHERE` | Stable |
+| Core reads | `SELECT`, projection, aliases, expressions, `FROM`, `WHERE`. `CASE WHEN` is not implemented and is rejected with a deterministic parse error rather than partially parsed. | Stable |
 | Predicates and nulls | Comparison, boolean logic, `IS NULL`, `IN`, `BETWEEN`, three-valued logic | Stable |
 | Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` | Stable |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |

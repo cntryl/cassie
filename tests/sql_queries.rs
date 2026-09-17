@@ -5831,6 +5831,34 @@ mod integration_sql_scalar_functions {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_reject_case_expressions_with_a_clear_error() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("reject_case_expression");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let selected = cassie.execute_sql(
+            &session,
+            "SELECT CASE WHEN 1 = 1 THEN 'a' ELSE 'b' END",
+            vec![],
+        );
+
+        // Assert: CASE is unimplemented, so it must fail cleanly rather than
+        // being misparsed as a call to a function literally named
+        // "CASE WHEN...".
+        let message = selected.unwrap_err().to_string();
+        assert!(
+            message.contains("CASE expressions are not supported"),
+            "{message}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 // Formerly tests/integration_sql_sets.rs.
 mod integration_sql_sets {

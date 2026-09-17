@@ -367,6 +367,9 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         }
         return Ok(Expr::Param(idx - 1));
     }
+    if starts_with_keyword(raw, "case") {
+        return Err(SqlError::new("CASE expressions are not supported".into()));
+    }
     if raw.eq_ignore_ascii_case("null") {
         return Ok(Expr::Null);
     }

@@ -10,6 +10,14 @@ pub(super) type CteRows = Vec<Vec<(String, Value)>>;
 pub(super) type CteContext = HashMap<String, CteRows>;
 type CteExecution<'a> = Result<CteRows, QueryError>;
 
+fn recursion_depth_exceeded(name: &str, depth: usize) -> QueryError {
+    QueryError::General(format!(
+        "recursive CTE '{name}' exceeded the maximum recursion depth of {depth} iterations \
+         (configured via CASSIE_CTE_RECURSION_DEPTH); this stops both a non-terminating \
+         recursion and a legitimate one that needs more iterations than configured"
+    ))
+}
+
 pub(super) fn execute_cte<'a>(
     cassie: &'a Cassie,
     session: Option<&'a CassieSession>,
@@ -110,10 +118,10 @@ pub(super) fn execute_cte<'a>(
             }
 
             if !stabilized {
-                return Err(QueryError::General(format!(
-                    "recursive CTE '{}' did not stabilize within {} iterations",
-                    cte.name, controls.cte_recursion_depth
-                )));
+                return Err(recursion_depth_exceeded(
+                    &cte.name,
+                    controls.cte_recursion_depth,
+                ));
             }
 
             rows

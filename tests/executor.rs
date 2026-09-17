@@ -2018,7 +2018,7 @@ mod executor_limits {
         .expect_err("recursive cte should fail when depth is exhausted")
         .to_string();
     assert!(
-        message.contains("did not stabilize within 0 iterations"),
+        message.contains("exceeded the maximum recursion depth of 0 iterations"),
         "expected recursion depth error, got {message}"
     );
 

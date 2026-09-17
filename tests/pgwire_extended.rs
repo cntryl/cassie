@@ -1709,11 +1709,10 @@ mod pgwire_extended_metadata {
                 )
                 .await;
                 let frames = read_frames_until_ready(&mut reader).await;
-                let columns = frames
-                    .iter()
-                    .find(|frame| frame.0 == b'T')
-                    .map(|frame| parse_row_description(&frame.1))
-                    .unwrap_or_else(|| panic!("row description for {sql}: {frames:?}"));
+                let columns = frames.iter().find(|frame| frame.0 == b'T').map_or_else(
+                    || panic!("row description for {sql}: {frames:?}"),
+                    |frame| parse_row_description(&frame.1),
+                );
                 described.push((sql, columns[0].type_oid));
             }
 

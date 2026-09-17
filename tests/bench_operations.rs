@@ -7848,7 +7848,159 @@ mod threshold_evidence_bundle {
         // Assert
         assert_eq!(snapshot_restore.sample_count, 3);
         assert!((snapshot_restore.mean_ns - 1_050.0).abs() < f64::EPSILON);
-        assert!(snapshot_restore.stdev_ns > 0.0);
+        // Sample (Bessel-corrected) standard deviation of 1000/1100/1050 is
+        // exactly 50; the population estimator would give ~40.82, so this
+        // asserts which estimator backs a proposed threshold.
+        assert!(
+            (snapshot_restore.stdev_ns - 50.0).abs() < 1e-9,
+            "expected the sample standard deviation, got {}",
+            snapshot_restore.stdev_ns
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_that_repeats_one_run() {
+        // Arrange
+        // The same retained manifest three times: it satisfies the sample
+        // count and reports zero variance, the most reproducible-looking
+        // result the validator can emit, while resting on one measurement.
+        let sample = manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000);
+        let bundle = vec![sample.clone(), sample.clone(), sample];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a repeated run must not satisfy the sample count");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 1"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            error.contains("run_id 'run-1' is repeated"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_containing_shape_only_runs() {
+        // Arrange
+        let shape_only = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace("\"shape_only\": false", "\"shape_only\": true")
+            .replace(
+                "\"long_evidence\": {\"outcome\": \"success\"}",
+                "\"long_evidence\": {\"outcome\": \"skipped\"}",
+            );
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            shape_only,
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("shape-only evidence must not support a threshold");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 2"),
+            "unexpected error: {error}"
+        );
+        assert!(error.contains("shape_only"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_mixing_fixtures_or_host_shapes() {
+        // Arrange
+        let other_fixture = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace(
+                "operational-rehearsal-single-row-indexed",
+                "operational-rehearsal-wide-row",
+            );
+        let bigger_host = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace("\"core_count\": 4", "\"core_count\": 64");
+        let base = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+        ];
+
+        // Act
+        let mut fixture_bundle = base.clone();
+        fixture_bundle.push(other_fixture);
+        let fixture_error = validate_threshold_evidence_bundle(
+            &fixture_bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a different fixture is not comparable");
+
+        let mut host_bundle = base;
+        host_bundle.push(bigger_host);
+        let host_error = validate_threshold_evidence_bundle(
+            &host_bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a different host shape is not comparable");
+
+        // Assert
+        assert!(
+            fixture_error.contains("fixture differs"),
+            "unexpected error: {fixture_error}"
+        );
+        assert!(
+            host_error.contains("host.core_count differs"),
+            "unexpected error: {host_error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_whose_samples_report_different_metrics() {
+        // Arrange
+        // An extra metric in one sample would otherwise yield a
+        // ThresholdMetricStats with sample_count 1 and zero variance,
+        // indistinguishable in the result from a fully-sampled metric.
+        let extra_metric = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace(
+                "\"container_snapshot_restore\": 50",
+                "\"container_snapshot_restore\": 50,\n                    \"long_evidence\": 60",
+            );
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            extra_metric,
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("samples must report the same metric set");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 2"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            error.contains("elapsed_ns metrics differ"),
+            "unexpected error: {error}"
+        );
     }
 }
 

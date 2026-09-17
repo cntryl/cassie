@@ -199,8 +199,11 @@ mod tests {
         let earlier = canonical_timestamp("2024-01-01T09:00:00+02:00").expect("earlier");
         let later = canonical_timestamp("2024-01-01T08:00:00Z").expect("later");
 
-        // Act & Assert: 07:00Z < 08:00Z, so plain string comparison must agree.
-        assert!(earlier < later);
+        // Act
+        let is_earlier_first = earlier < later;
+
+        // Assert: 07:00Z < 08:00Z, so plain string comparison must agree.
+        assert!(is_earlier_first);
     }
 
     #[test]

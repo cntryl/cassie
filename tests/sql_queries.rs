@@ -3226,6 +3226,63 @@ mod integration_sql_ordering {
         let _ = std::fs::remove_dir_all(path);
     });
     }
+
+    #[test]
+    fn should_order_timestamps_with_mixed_utc_offsets_by_instant() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("timestamp_mixed_offset_order");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE timestamp_mixed_offset_order (seq INT, ts TIMESTAMP)",
+                    vec![],
+                )
+                .unwrap();
+            // Row 1 is 2024-01-01T07:00:00Z once its +02:00 offset is applied,
+            // an hour before row 2's plain UTC instant.
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO timestamp_mixed_offset_order (seq, ts) VALUES (1, '2024-01-01T09:00:00+02:00')",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO timestamp_mixed_offset_order (seq, ts) VALUES (2, '2024-01-01T08:00:00Z')",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT seq FROM timestamp_mixed_offset_order ORDER BY ts ASC",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert: row 1's instant (07:00Z) is earlier than row 2's (08:00Z).
+            assert_eq!(
+                result.rows,
+                vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/integration_sql_predicates.rs.

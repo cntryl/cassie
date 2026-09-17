@@ -3608,6 +3608,88 @@ mod integration_sql_insert_values {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_reject_an_invalid_timestamp_string_on_insert() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("insert_invalid_timestamp");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE insert_invalid_timestamp (id INT, ts TIMESTAMP)",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            let inserted = cassie.execute_sql(
+                &session,
+                "INSERT INTO insert_invalid_timestamp (id, ts) VALUES (1, 'not-a-timestamp')",
+                vec![],
+            );
+
+            // Assert
+            assert!(
+                inserted.is_err(),
+                "an unparseable TIMESTAMP string must be rejected on write"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_cast_a_timestamp_string_to_its_canonical_utc_form() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cast_timestamp_canonical");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+
+            // Act
+            let cast_offset = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT CAST('2024-01-01T09:00:00+02:00' AS TIMESTAMP) AS ts",
+                    vec![],
+                )
+                .unwrap();
+            let cast_invalid = cassie.execute_sql(
+                &session,
+                "SELECT CAST('not-a-timestamp' AS TIMESTAMP) AS ts",
+                vec![],
+            );
+
+            // Assert
+            assert_eq!(
+                cast_offset.rows[0][0],
+                Value::String("2024-01-01T07:00:00Z".to_string())
+            );
+            assert!(
+                cast_invalid.is_err(),
+                "casting an invalid string to TIMESTAMP must fail"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/integration_sql_transaction_storage_failures.rs.

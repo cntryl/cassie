@@ -88,7 +88,10 @@ These are the only valid values for both `CASSIE_STORAGE_PROVIDER` and
 | `sqrzl-gcs` | None | Local emulator GCS front door with the same emulator defaults. |
 
 Any other provider identifier fails startup. The `sqrzl-*` providers are
-development emulators, not production provider choices.
+development emulators, not production provider choices: they always
+authenticate with the compiled-in `admin`/`sqrzl-secret` credentials, and
+startup fails if `CASSIE_STORAGE_ENDPOINT` is set to anything other than a
+loopback address (`127.0.0.1`, `localhost`, or `::1`).
 
 All Cassie-owned bootstrap, schema, document, index, session, cache, recovery,
 and maintenance commits use the selected cloud durability. Local and memory

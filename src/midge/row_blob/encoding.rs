@@ -62,11 +62,24 @@ pub(super) fn encode_value(
                 .map_err(|_| CassieError::InvalidVector("uuid field expects UUID".into()))?;
             Ok((TYPE_UUID, uuid.as_bytes().to_vec()))
         }
-        DataType::Date => encode_typed_string(value, TYPE_DATE, "date field expects string"),
-        DataType::Time => encode_typed_string(value, TYPE_TIME, "time field expects string"),
-        DataType::Timestamp => {
-            encode_typed_string(value, TYPE_TIMESTAMP, "timestamp field expects string")
-        }
+        DataType::Date => encode_temporal_string(
+            value,
+            TYPE_DATE,
+            "date field expects string",
+            crate::types::temporal::canonical_date,
+        ),
+        DataType::Time => encode_temporal_string(
+            value,
+            TYPE_TIME,
+            "time field expects string",
+            crate::types::temporal::canonical_time,
+        ),
+        DataType::Timestamp => encode_temporal_string(
+            value,
+            TYPE_TIMESTAMP,
+            "timestamp field expects string",
+            crate::types::temporal::canonical_timestamp,
+        ),
         DataType::Bytea => {
             let value = value
                 .as_str()
@@ -121,6 +134,22 @@ fn encode_typed_string(
         .as_str()
         .ok_or_else(|| CassieError::InvalidVector(error.to_string()))?;
     Ok((type_tag, value.as_bytes().to_vec()))
+}
+
+/// Validates a DATE/TIME/TIMESTAMP string with `canonicalize` and stores the
+/// canonical form, so every stored temporal value uses one shared parser and
+/// one representation regardless of how it was originally formatted.
+fn encode_temporal_string(
+    value: &serde_json::Value,
+    type_tag: u8,
+    error: &str,
+    canonicalize: impl Fn(&str) -> Result<String, String>,
+) -> Result<(u8, Vec<u8>), CassieError> {
+    let value = value
+        .as_str()
+        .ok_or_else(|| CassieError::InvalidVector(error.to_string()))?;
+    let canonical = canonicalize(value).map_err(CassieError::InvalidVector)?;
+    Ok((type_tag, canonical.into_bytes()))
 }
 
 fn encode_bounded_string(
@@ -199,6 +228,11 @@ fn encode_vector_value(
         let value = value.as_f64().ok_or_else(|| {
             CassieError::InvalidVector("vector field expects numeric values".into())
         })?;
+        if !value.is_finite() || value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
+            return Err(CassieError::InvalidVector(
+                "vector field expects finite f32-range values".into(),
+            ));
+        }
         let encoded = value.to_string().parse::<f32>().map_err(|_| {
             CassieError::InvalidVector("vector field expects f32-range values".into())
         })?;

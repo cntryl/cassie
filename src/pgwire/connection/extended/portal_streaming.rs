@@ -3,8 +3,9 @@ use std::sync::Arc;
 use tokio::io::AsyncWrite;
 
 use super::portal_state::{
-    write_streaming_result, write_suspended_result, PortalExecution, PortalFetchWindow,
-    StreamingPortalResult, SuspendedPortalWriteRequest,
+    write_materialized_result, write_streaming_result, write_suspended_result,
+    MaterializedPortalWriteRequest, PortalExecution, PortalFetchWindow, StreamingPortalResult,
+    SuspendedPortalWriteRequest,
 };
 use super::{
     describe_prepared, run_pgwire_blocking, Cassie, CassieError, CassieSession, ExecutionMode,
@@ -169,9 +170,12 @@ async fn execute_offset_portal_page(
         ));
     };
     let result_cap = cassie.runtime.limits().max_result_rows;
-    let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
-    let fetch_rows = window.page_rows().saturating_add(1);
-    select.limit = Some(i64::try_from(fetch_rows).unwrap_or(i64::MAX));
+    // A real cursor snapshot isn't available here, so the underlying source can
+    // shift under concurrent writes. Fetch everything up to the result cap in
+    // one shot and cache the remainder (see `write_materialized_result`)
+    // instead of re-querying with OFFSET on every subsequent page, which would
+    // silently skip or repeat rows when the source mutates between pages.
+    select.limit = Some(i64::try_from(result_cap.saturating_add(1)).unwrap_or(i64::MAX));
     select.offset = Some(i64::try_from(request.rows_emitted).unwrap_or(i64::MAX));
     let fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let Some(registration) = request.state.backend_registration.as_ref() else {
@@ -203,6 +207,7 @@ async fn execute_offset_portal_page(
             return Err(ExtendedQueryError::cassie(&error));
         }
     };
+    let window = PortalFetchWindow::new(result_cap, request.rows_emitted, request.max_rows);
     let remains_suspended = result.rows.len() > window.page_rows();
     let suspended_cancellation = if remains_suspended {
         Some(cancellation.suspend())
@@ -211,21 +216,22 @@ async fn execute_offset_portal_page(
         None
     };
     let rows_emitted = request.rows_emitted;
-    write_streaming_result(
+    let row_description_sent = request.portal.described || request.prepared.described;
+    write_materialized_result(
         write_half,
-        &mut *request.state,
-        request.portal_name,
-        request.portal,
-        StreamingPortalResult {
+        MaterializedPortalWriteRequest {
+            state: &mut *request.state,
+            portal_name: request.portal_name,
+            portal: request.portal,
             result,
             cancellation: suspended_cancellation,
-            has_more: remains_suspended,
+            max_rows: request.max_rows,
+            result_cap,
             rows_emitted,
-            window,
+            row_description_sent,
         },
     )
     .await
-    .map(|_| ())
 }
 
 async fn execute_cursor_portal_page(

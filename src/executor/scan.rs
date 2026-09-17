@@ -564,6 +564,11 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                 if let Some(schema) = schema.as_ref() {
                     let mut seen = HashSet::new();
                     for field in &schema.fields {
+                        if field.name.eq_ignore_ascii_case("id")
+                            || field.name.eq_ignore_ascii_case("_id")
+                        {
+                            continue;
+                        }
                         let value = obj.get(&field.name).map_or(Value::Null, |value| {
                             json_to_typed_value(value, &field.data_type)
                         });
@@ -571,12 +576,18 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                         seen.insert(field.name.clone());
                     }
                     for (k, v) in obj {
-                        if !seen.contains(k) {
+                        if !seen.contains(k)
+                            && !k.eq_ignore_ascii_case("id")
+                            && !k.eq_ignore_ascii_case("_id")
+                        {
                             row.push((k.clone(), json_to_value(v)));
                         }
                     }
                 } else {
                     for (k, v) in obj {
+                        if k.eq_ignore_ascii_case("id") || k.eq_ignore_ascii_case("_id") {
+                            continue;
+                        }
                         row.push((k.clone(), json_to_value(v)));
                     }
                 }
@@ -696,6 +707,9 @@ pub(crate) fn projected_document_to_row(
     row.push(("id".to_string(), Value::String(document.id)));
     let object = document.payload.as_object();
     for field in fields {
+        if field.eq_ignore_ascii_case("id") || field.eq_ignore_ascii_case("_id") {
+            continue;
+        }
         let value = object
             .and_then(|object| projected_field_value(object, field))
             .map_or(Value::Null, |value| {

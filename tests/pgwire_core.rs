@@ -2806,9 +2806,7 @@ mod pgwire_simple_query {
                     .unwrap_or_else(|error| panic!("{sql}: {error}"));
             }
             let (addr, server) = spawn_pgwire_server(&cassie).await;
-            let mut socket = tokio::net::TcpStream::connect(addr)
-                .await
-                .expect("connect");
+            let mut socket = tokio::net::TcpStream::connect(addr).await.expect("connect");
             let (read_half, mut writer) = socket.split();
             let mut reader = tokio::io::BufReader::new(read_half);
             start_pgwire_session(&mut reader, &mut writer).await;
@@ -2828,7 +2826,8 @@ mod pgwire_simple_query {
                 "SELECT * FROM simple_wildcard_id_docs ORDER BY title",
                 "SELECT * FROM simple_wildcard_id_docs LIMIT 1",
             ] {
-                let frames = write_simple_query_and_read_frames(&mut reader, &mut writer, sql).await;
+                let frames =
+                    write_simple_query_and_read_frames(&mut reader, &mut writer, sql).await;
                 results.push((sql, frames));
             }
             let upper_frames = write_simple_query_and_read_frames(

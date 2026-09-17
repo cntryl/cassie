@@ -2676,7 +2676,10 @@ mod pgwire_portal_streaming {
             support::write_frames(
                 &mut write_half,
                 vec![
-                    support::parse_frame("wildcard_stmt", "SELECT * FROM extended_wildcard_id_docs"),
+                    support::parse_frame(
+                        "wildcard_stmt",
+                        "SELECT * FROM extended_wildcard_id_docs",
+                    ),
                     support::describe_statement_frame("wildcard_stmt"),
                     support::bind_frame("wildcard_portal", "wildcard_stmt", &[]),
                     support::execute_frame("wildcard_portal"),
@@ -2892,7 +2895,11 @@ mod pgwire_portal_streaming {
             let session = cassie.create_session("tester", None);
             for name in ["portal_catalog_b", "portal_catalog_c", "portal_catalog_d"] {
                 cassie
-                    .execute_sql(&session, &format!("CREATE TABLE {name} (payload TEXT)"), vec![])
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE {name} (payload TEXT)"),
+                        vec![],
+                    )
                     .expect("create table");
             }
             let observed = cassie.clone();
@@ -2916,7 +2923,11 @@ mod pgwire_portal_streaming {
             .await;
             let first_frames = support::read_frames_until_ready(&mut reader).await;
             observed
-                .execute_sql(&session, "CREATE TABLE portal_catalog_a (payload TEXT)", vec![])
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE portal_catalog_a (payload TEXT)",
+                    vec![],
+                )
                 .expect("concurrent create table");
 
             // Act

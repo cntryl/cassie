@@ -103,7 +103,25 @@ impl Cassie {
         } else {
             HashMap::new()
         };
-        let collection_schema = self.catalog.get_schema(&physical.logical.collection);
+        let collection_schema = self
+            .catalog
+            .get_schema(&physical.logical.collection)
+            .or_else(|| {
+                crate::catalog::virtual_views::schema(&physical.logical.collection).map(|fields| {
+                    crate::catalog::CollectionSchema {
+                        collection: physical.logical.collection.clone(),
+                        fields: fields
+                            .into_iter()
+                            .map(|(name, data_type)| crate::catalog::FieldMeta {
+                                name,
+                                data_type,
+                                is_indexed: false,
+                                boost: None,
+                            })
+                            .collect(),
+                    }
+                })
+            });
 
         if let Some(command) = physical.logical.command.as_ref() {
             let returning = match command {

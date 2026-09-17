@@ -346,7 +346,7 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
             included_field_names(field, Some(projection), include_historical_aliases);
         let is_filter_field = field_matches_name(field, &filter_field, include_historical_aliases);
         if !include_names.is_empty() || is_filter_field {
-            let Some(value) = directory.decode(field.field_id)? else {
+            let Some(value) = directory.decode(field)? else {
                 continue;
             };
             if is_filter_field {
@@ -374,7 +374,7 @@ fn decode_row_with_projection(
     for field in &schema.fields {
         let include_names = included_field_names(field, projection, include_historical_aliases);
         if !include_names.is_empty() {
-            let Some(value) = directory.decode(field.field_id)? else {
+            let Some(value) = directory.decode(field)? else {
                 continue;
             };
             for name in include_names {
@@ -421,7 +421,14 @@ impl<'a> RowDirectory<'a> {
             entries.insert(field_id, (type_tag, offset, len));
         }
         let payload = cursor.remaining();
-        let mut encoded_payload_len = 0usize;
+        // `encode_row` lays fields out back to back, so the directory must
+        // describe a partition of the payload. Checking only the maximum end
+        // offset would accept entries that overlap each other and leave
+        // earlier bytes covered twice and later bytes not at all, which
+        // decodes as a plausible value instead of an error. Sorting the
+        // ranges and requiring each to start exactly where the previous one
+        // ended rejects overlaps, gaps, and trailing bytes together.
+        let mut ranges = Vec::with_capacity(entries.len());
         for (_, offset, len) in entries.values() {
             let Some(end) = offset.checked_add(*len) else {
                 return Err(CassieError::Parse(
@@ -433,9 +440,19 @@ impl<'a> RowDirectory<'a> {
                     "invalid row blob field bounds".to_string(),
                 ));
             }
-            encoded_payload_len = encoded_payload_len.max(end);
+            ranges.push((*offset, end));
         }
-        if encoded_payload_len != payload.len() {
+        ranges.sort_unstable();
+        let mut covered = 0usize;
+        for (start, end) in ranges {
+            if start != covered {
+                return Err(CassieError::Parse(
+                    "row blob field ranges must partition the payload".to_string(),
+                ));
+            }
+            covered = end;
+        }
+        if covered != payload.len() {
             return Err(CassieError::Parse(
                 "row blob contains trailing bytes".to_string(),
             ));
@@ -448,7 +465,8 @@ impl<'a> RowDirectory<'a> {
         })
     }
 
-    fn decode(&self, field_id: u32) -> Result<Option<serde_json::Value>, CassieError> {
+    fn decode(&self, field: &RowFieldMeta) -> Result<Option<serde_json::Value>, CassieError> {
+        let field_id = field.field_id;
         if !field_bit(self.presence, field_id) {
             return Ok(None);
         }
@@ -458,6 +476,17 @@ impl<'a> RowDirectory<'a> {
         let (type_tag, offset, len) = self.entries.get(&field_id).copied().ok_or_else(|| {
             CassieError::Parse("row blob field missing directory entry".to_string())
         })?;
+        // Several tags differ by a single bit (TYPE_F64/TYPE_STRING,
+        // TYPE_UUID/TYPE_JSON), so a corrupted tag can decode as a valid
+        // value of the wrong type. The schema already says what this field
+        // must be; disagreement means the blob is not what it claims.
+        let expected = expected_type_tag(&field.data_type);
+        if type_tag != expected {
+            return Err(CassieError::Parse(format!(
+                "row blob field '{}' stores type tag {type_tag} but its schema declares type tag {expected}",
+                field.name
+            )));
+        }
         let bytes = &self.payload[offset..offset + len];
         decode_directory_value(type_tag, bytes).map(Some)
     }
@@ -490,7 +519,39 @@ fn decode_directory_value(type_tag: u8, bytes: &[u8]) -> Result<serde_json::Valu
     } else {
         bytes
     };
-    decode_value(type_tag, &mut Cursor::new(input))
+    // `decode_array` already checks that its nested elements consume
+    // exactly their framed length; apply the same rule at the top level, so
+    // a field whose payload decodes a shorter prefix is rejected instead of
+    // silently dropping the remainder.
+    let mut cursor = Cursor::new(input);
+    let value = decode_value(type_tag, &mut cursor)?;
+    if !cursor.remaining().is_empty() {
+        return Err(CassieError::Parse(
+            "row blob field payload has unconsumed bytes".to_string(),
+        ));
+    }
+    Ok(value)
+}
+
+/// The one type tag `encode_value` writes for a declared field type. Kept
+/// beside the decoder so a new `DataType` cannot be added without deciding
+/// what its stored tag is.
+fn expected_type_tag(data_type: &DataType) -> u8 {
+    match data_type {
+        DataType::Null => TYPE_NULL,
+        DataType::SmallInt | DataType::Int | DataType::BigInt => TYPE_I64,
+        DataType::Float => TYPE_F64,
+        DataType::Boolean => TYPE_BOOL,
+        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } => TYPE_STRING,
+        DataType::Uuid => TYPE_UUID,
+        DataType::Date => TYPE_DATE,
+        DataType::Time => TYPE_TIME,
+        DataType::Timestamp => TYPE_TIMESTAMP,
+        DataType::Bytea => TYPE_BYTEA,
+        DataType::Array(_) => TYPE_ARRAY,
+        DataType::Json => TYPE_JSON,
+        DataType::Vector(_) => TYPE_VECTOR_F32,
+    }
 }
 
 fn value_matches_filter(value: &serde_json::Value, filter_value: &serde_json::Value) -> bool {

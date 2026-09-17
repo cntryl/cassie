@@ -2844,6 +2844,96 @@ mod pgwire_simple_query {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_align_wildcard_data_rows_with_row_description_when_table_declares_id() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("simple-wildcard-declared-id");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE simple_wildcard_id_docs (id TEXT, title TEXT)",
+                "INSERT INTO simple_wildcard_id_docs (id, title) VALUES ('a', 'x')",
+                "CREATE TABLE simple_wildcard_upper_id_docs (title TEXT, ID TEXT)",
+                "INSERT INTO simple_wildcard_upper_id_docs (title, ID) VALUES ('y', 'b')",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .unwrap_or_else(|error| panic!("{sql}: {error}"));
+            }
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr).await.expect("connect");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut writer).await;
+            let id_frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut writer,
+                "SELECT id FROM simple_wildcard_id_docs",
+            )
+            .await;
+            let row_id = pgwire_support::data_rows(&id_frames)[0][0].clone();
+
+            // Act
+            let mut results = Vec::new();
+            for sql in [
+                "SELECT * FROM simple_wildcard_id_docs",
+                "SELECT * FROM simple_wildcard_id_docs WHERE title = 'x'",
+                "SELECT * FROM simple_wildcard_id_docs ORDER BY title",
+                "SELECT * FROM simple_wildcard_id_docs LIMIT 1",
+            ] {
+                let frames =
+                    write_simple_query_and_read_frames(&mut reader, &mut writer, sql).await;
+                results.push((sql, frames));
+            }
+            let upper_frames = write_simple_query_and_read_frames(
+                &mut reader,
+                &mut writer,
+                "SELECT * FROM simple_wildcard_upper_id_docs",
+            )
+            .await;
+
+            // Assert
+            assert!(row_id.is_some(), "row id should be returned");
+            for (sql, frames) in results {
+                assert!(
+                    frames.iter().all(|(tag, _)| *tag != b'E'),
+                    "{sql} should succeed"
+                );
+                assert_eq!(
+                    pgwire_support::row_description_names(&frames),
+                    vec!["id".to_string(), "title".to_string()],
+                    "{sql} row description"
+                );
+                assert_eq!(
+                    pgwire_support::data_rows(&frames),
+                    vec![vec![row_id.clone(), Some("x".to_string())]],
+                    "{sql} data row values"
+                );
+            }
+            assert_eq!(
+                pgwire_support::row_description_names(&upper_frames),
+                vec!["id".to_string(), "title".to_string()]
+            );
+            let upper_rows = pgwire_support::data_rows(&upper_frames);
+            assert_eq!(upper_rows.len(), 1);
+            assert_eq!(upper_rows[0].len(), 2);
+            assert_eq!(upper_rows[0][1], Some("y".to_string()));
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/pgwire_startup.rs.

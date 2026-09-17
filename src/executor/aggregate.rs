@@ -37,20 +37,31 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
         .flat_map(|item| match item {
             SelectItem::Wildcard => {
                 if let Some(collection_schema) = collection_schema {
-                    let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
-                    let mut seen = HashSet::new();
-                    let id = "id".to_string();
-                    seen.insert(id.clone());
-                    columns.push(ColumnMeta::from_data_type(id, &DataType::Text));
-                    for field in &collection_schema.fields {
-                        if seen.insert(field.name.clone()) {
-                            columns.push(ColumnMeta::from_data_type(
-                                field.name.clone(),
-                                &field.data_type,
-                            ));
+                    if crate::catalog::virtual_views::schema(&collection_schema.collection)
+                        .is_some()
+                    {
+                        collection_schema
+                            .fields
+                            .iter()
+                            .map(|field| {
+                                ColumnMeta::from_data_type(field.name.clone(), &field.data_type)
+                            })
+                            .collect()
+                    } else {
+                        let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
+                        let mut seen = HashSet::new();
+                        seen.insert("id".to_string());
+                        columns.push(ColumnMeta::from_data_type("id", &DataType::Text));
+                        for field in &collection_schema.fields {
+                            if seen.insert(field.name.to_ascii_lowercase()) {
+                                columns.push(ColumnMeta::from_data_type(
+                                    field.name.clone(),
+                                    &field.data_type,
+                                ));
+                            }
                         }
+                        columns.into_iter().collect()
                     }
-                    columns.into_iter().collect()
                 } else {
                     vec![ColumnMeta::from_data_type("*", &DataType::Text)]
                 }

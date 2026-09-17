@@ -104,12 +104,61 @@ pub(super) async fn write_fresh_result(
         max_rows,
         result_cap,
     } = request;
+    let row_description_sent = portal.described || prepared.described;
+    write_materialized_result(
+        write_half,
+        MaterializedPortalWriteRequest {
+            state,
+            portal_name,
+            portal,
+            result,
+            cancellation,
+            max_rows,
+            result_cap,
+            rows_emitted: 0,
+            row_description_sent,
+        },
+    )
+    .await
+}
+
+pub(super) struct MaterializedPortalWriteRequest<'a> {
+    pub(super) state: &'a mut SessionState,
+    pub(super) portal_name: &'a str,
+    pub(super) portal: &'a PortalExecution,
+    pub(super) result: QueryResult,
+    pub(super) cancellation: Option<crate::runtime::QueryCancellationHandle>,
+    pub(super) max_rows: usize,
+    pub(super) result_cap: usize,
+    pub(super) rows_emitted: usize,
+    pub(super) row_description_sent: bool,
+}
+
+/// Serves a portal page from a fully materialized result, caching the
+/// remainder for subsequent resumes instead of re-executing the query. This
+/// is what keeps pagination stable across concurrent writes: once the rows
+/// are fetched here, later `Execute` calls only slice the cached vector.
+pub(super) async fn write_materialized_result(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    request: MaterializedPortalWriteRequest<'_>,
+) -> Result<(), ExtendedQueryError> {
+    let MaterializedPortalWriteRequest {
+        state,
+        portal_name,
+        portal,
+        result,
+        cancellation,
+        max_rows,
+        result_cap,
+        rows_emitted,
+        row_description_sent,
+    } = request;
     let QueryResult {
         columns,
         mut rows,
         command,
     } = result;
-    let window = PortalFetchWindow::new(result_cap, 0, max_rows);
+    let window = PortalFetchWindow::new(result_cap, rows_emitted, max_rows);
     if window.rejects_lookahead(rows.len() > window.page_rows()) {
         clear_cancellation(state, cancellation.as_ref());
         return Err(window.overflow_error());
@@ -126,7 +175,6 @@ pub(super) async fn write_fresh_result(
     };
     let remaining = rows.split_off(page_len);
     let remains_suspended = !remaining.is_empty();
-    let row_description_sent = portal.described || prepared.described;
     let row_description_sent = write_portal_page_frames(
         write_half,
         PortalPageFrames {
@@ -147,7 +195,7 @@ pub(super) async fn write_fresh_result(
         command,
         row_description_sent,
         streaming: false,
-        rows_emitted: page_len,
+        rows_emitted: rows_emitted.saturating_add(page_len),
         cancellation,
         portal_memory,
     });

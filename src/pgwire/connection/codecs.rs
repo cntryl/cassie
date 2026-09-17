@@ -1,7 +1,7 @@
 use crate::executor::ColumnMeta;
 use crate::types::Value;
 use std::{io, str};
-use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use time::{Date, PrimitiveDateTime, Time, UtcOffset};
 
 const OID_BOOL: i64 = 16;
 const OID_BYTEA: i64 = 17;
@@ -683,78 +683,19 @@ fn decode_timestamp(bytes: &[u8]) -> io::Result<String> {
         .map_err(|_| invalid_data("timestamp"))
 }
 
+// DATE/TIME/TIMESTAMP parsing and canonical formatting are shared with
+// storage and casts via `crate::types::temporal`; these just adapt that
+// shared parser's `Result<_, String>` to this module's `io::Result`.
 fn parse_date(value: &str) -> io::Result<Date> {
-    let mut parts = value.split('-');
-    let year = parts
-        .next()
-        .ok_or_else(|| invalid_data("date"))?
-        .parse::<i32>()
-        .map_err(|_| invalid_data("date"))?;
-    let month = parts
-        .next()
-        .ok_or_else(|| invalid_data("date"))?
-        .parse::<u8>()
-        .map_err(|_| invalid_data("date"))?;
-    let day = parts
-        .next()
-        .ok_or_else(|| invalid_data("date"))?
-        .parse::<u8>()
-        .map_err(|_| invalid_data("date"))?;
-    if parts.next().is_some() {
-        return Err(invalid_data("date"));
-    }
-    let month = Month::try_from(month).map_err(|_| invalid_data("date"))?;
-    Date::from_calendar_date(year, month, day).map_err(|_| invalid_data("date"))
+    crate::types::temporal::parse_date(value).map_err(|_| invalid_data("date"))
 }
 
 fn parse_time(value: &str) -> io::Result<Time> {
-    let (clock, fraction) = value.split_once('.').unwrap_or((value, ""));
-    let mut parts = clock.split(':');
-    let hour = parts
-        .next()
-        .ok_or_else(|| invalid_data("time"))?
-        .parse::<u8>()
-        .map_err(|_| invalid_data("time"))?;
-    let minute = parts
-        .next()
-        .ok_or_else(|| invalid_data("time"))?
-        .parse::<u8>()
-        .map_err(|_| invalid_data("time"))?;
-    let second = parts
-        .next()
-        .ok_or_else(|| invalid_data("time"))?
-        .parse::<u8>()
-        .map_err(|_| invalid_data("time"))?;
-    if parts.next().is_some()
-        || fraction.len() > 6
-        || !fraction.bytes().all(|byte| byte.is_ascii_digit())
-    {
-        return Err(invalid_data("time"));
-    }
-    let micros = if fraction.is_empty() {
-        0
-    } else {
-        fraction
-            .parse::<u32>()
-            .map_err(|_| invalid_data("time"))?
-            .saturating_mul(10_u32.pow(6 - u32::try_from(fraction.len()).unwrap_or(6)))
-    };
-    Time::from_hms_micro(hour, minute, second, micros).map_err(|_| invalid_data("time"))
+    crate::types::temporal::parse_time(value).map_err(|_| invalid_data("time"))
 }
 
 fn parse_timestamp(value: &str) -> io::Result<PrimitiveDateTime> {
-    if let Ok(datetime) =
-        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
-    {
-        let datetime = datetime.to_offset(UtcOffset::UTC);
-        return Ok(PrimitiveDateTime::new(datetime.date(), datetime.time()));
-    }
-
-    let normalized = value.replace(' ', "T");
-    let (date, time) = normalized
-        .split_once('T')
-        .ok_or_else(|| invalid_data("timestamp"))?;
-    Ok(PrimitiveDateTime::new(parse_date(date)?, parse_time(time)?))
+    crate::types::temporal::parse_timestamp(value).map_err(|_| invalid_data("timestamp"))
 }
 
 fn time_from_microseconds(micros: i64) -> io::Result<Time> {
@@ -769,31 +710,11 @@ fn time_from_microseconds(micros: i64) -> io::Result<Time> {
 }
 
 fn format_date(date: Date) -> String {
-    format!(
-        "{:04}-{:02}-{:02}",
-        date.year(),
-        u8::from(date.month()),
-        date.day()
-    )
+    crate::types::temporal::format_date(date)
 }
 
 fn format_time(time: Time) -> String {
-    if time.microsecond() == 0 {
-        format!(
-            "{:02}:{:02}:{:02}",
-            time.hour(),
-            time.minute(),
-            time.second()
-        )
-    } else {
-        format!(
-            "{:02}:{:02}:{:02}.{:06}",
-            time.hour(),
-            time.minute(),
-            time.second(),
-            time.microsecond()
-        )
-    }
+    crate::types::temporal::format_time(time)
 }
 
 fn hex_bytea(bytes: &[u8]) -> String {

@@ -3087,6 +3087,60 @@ mod integration_sql_vector_indexes {
     }
 
     #[test]
+    fn should_reject_vector_components_outside_f32_range_on_write() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_component_outside_f32_range");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE vector_component_outside_f32_range (doc_id TEXT, embedding VECTOR(3))",
+                    vec![],
+                )
+                .unwrap();
+            let collection = canonical_test_collection(&cassie, "vector_component_outside_f32_range");
+
+            // Act
+            let overflow = cassie.midge.put_document(
+                &collection,
+                Some("row-1".to_string()),
+                serde_json::json!({"doc_id": "row-1", "embedding": [1e40, 0.0, 0.0]}),
+            );
+            let negative_overflow = cassie.midge.put_document(
+                &collection,
+                Some("row-2".to_string()),
+                serde_json::json!({"doc_id": "row-2", "embedding": [-1e40, 0.0, 0.0]}),
+            );
+
+            // Assert
+            assert!(overflow.is_err(), "1e40 component must be rejected on write");
+            assert!(
+                negative_overflow.is_err(),
+                "-1e40 component must be rejected on write"
+            );
+            assert!(matches!(
+                cassie.midge.get_document(&collection, "row-1"),
+                Ok(None)
+            ));
+            assert!(matches!(
+                cassie.midge.get_document(&collection, "row-2"),
+                Ok(None)
+            ));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_hydrate_hnsw_vector_index_options_after_restart() {
         // Arrange
         use_local_storage();

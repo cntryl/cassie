@@ -102,6 +102,51 @@ fn cloud_write_policy(
     }
 }
 
+/// Resolves the endpoint for a `sqrzl-*` development-emulator provider and
+/// rejects anything but a loopback address. These providers always
+/// authenticate with the compiled-in `admin`/`sqrzl-secret` credentials, so
+/// pointing one at a real, non-loopback endpoint would silently leak those
+/// credentials to whatever is listening there.
+fn sqrzl_loopback_endpoint(
+    read_env: &impl Fn(&str) -> Option<String>,
+    provider: &str,
+) -> Result<String, CassieError> {
+    let endpoint = env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
+        .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string());
+    if !endpoint_is_loopback(&endpoint) {
+        return Err(unsupported(format!(
+            "{provider} is a development emulator and only accepts a loopback \
+             CASSIE_STORAGE_ENDPOINT (127.0.0.1, localhost, or ::1); received '{endpoint}'"
+        )));
+    }
+    Ok(endpoint)
+}
+
+fn endpoint_is_loopback(endpoint: &str) -> bool {
+    let without_scheme = endpoint
+        .split_once("://")
+        .map_or(endpoint, |(_, rest)| rest);
+    let host_port = without_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(without_scheme);
+    let host = if let Some(bracketed) = host_port.strip_prefix('[') {
+        bracketed.split(']').next().unwrap_or(bracketed)
+    } else if host_port.matches(':').count() > 1 {
+        // A bare (unbracketed) IPv6 address with no port suffix.
+        host_port
+    } else {
+        host_port
+            .rsplit_once(':')
+            .map_or(host_port, |(host, _)| host)
+    };
+    host.eq_ignore_ascii_case("localhost")
+        || host == "::1"
+        || host
+            .parse::<std::net::Ipv4Addr>()
+            .is_ok_and(|address| address.octets()[0] == 127)
+}
+
 fn build_cloud_provider_config(
     read_env: &impl Fn(&str) -> Option<String>,
     provider: &str,
@@ -110,8 +155,7 @@ fn build_cloud_provider_config(
         "sqrzl-s3" => Ok(CloudProviderConfig::s3_compatible_static(
             env_non_empty(read_env, "CASSIE_STORAGE_BUCKET")
                 .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
-            env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
-                .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
+            sqrzl_loopback_endpoint(read_env, provider)?,
             DEFAULT_SQRZL_ACCESS_KEY,
             DEFAULT_SQRZL_SECRET_KEY,
         )),
@@ -120,10 +164,7 @@ fn build_cloud_provider_config(
             env_non_empty(read_env, "CASSIE_STORAGE_CONTAINER")
                 .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
         )
-        .with_endpoint(
-            env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
-                .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
-        )
+        .with_endpoint(sqrzl_loopback_endpoint(read_env, provider)?)
         .with_credentials(AzureCredentialSource::shared_key(
             DEFAULT_SQRZL_SECRET_KEY,
         ))
@@ -133,10 +174,7 @@ fn build_cloud_provider_config(
                 .unwrap_or_else(|| DEFAULT_SQRZL_BUCKET.to_string()),
         )
         .with_project_id("sqrzl")
-        .with_endpoint(
-                env_non_empty(read_env, "CASSIE_STORAGE_ENDPOINT")
-                    .unwrap_or_else(|| DEFAULT_SQRZL_ENDPOINT.to_string()),
-        )
+        .with_endpoint(sqrzl_loopback_endpoint(read_env, provider)?)
         .with_credentials(GcsCredentialSource::hmac_key(
             DEFAULT_SQRZL_ACCESS_KEY,
             DEFAULT_SQRZL_SECRET_KEY,
@@ -358,6 +396,43 @@ mod tests {
         assert_eq!(topology.wal().prefix(), "tenant/cassie");
         assert_eq!(topology.sst().prefix(), "tenant/cassie");
         assert_eq!(topology.control().prefix(), "tenant/cassie");
+    }
+
+    #[test]
+    fn should_accept_the_sqrzl_emulator_default_loopback_endpoint() {
+        // Arrange
+        let values = HashMap::from([
+            ("CASSIE_STORAGE_MODE", "cloud"),
+            ("CASSIE_STORAGE_PROVIDER", "sqrzl-s3"),
+        ]);
+
+        // Act
+        let options = open_config_from(Path::new("./unused"), &reader(values));
+
+        // Assert
+        assert!(options.is_ok(), "default sqrzl endpoint is loopback");
+    }
+
+    #[test]
+    fn should_reject_sqrzl_storage_providers_pointed_at_a_non_loopback_endpoint() {
+        // Arrange
+        for provider in ["sqrzl-s3", "sqrzl-azure", "sqrzl-gcs"] {
+            let values = HashMap::from([
+                ("CASSIE_STORAGE_MODE", "cloud"),
+                ("CASSIE_STORAGE_PROVIDER", provider),
+                ("CASSIE_STORAGE_ENDPOINT", "https://storage.example.com"),
+            ]);
+
+            // Act
+            let error = open_config_from(Path::new("./unused"), &reader(values))
+                .expect_err("non-loopback sqrzl endpoint must be rejected");
+
+            // Assert
+            assert!(
+                error.to_string().contains("loopback"),
+                "{provider}: {error}"
+            );
+        }
     }
 
     #[test]

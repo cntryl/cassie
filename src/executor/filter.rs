@@ -323,6 +323,24 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
     }
 }
 
+/// Casts a scalar to DATE/TIME/TIMESTAMP using the shared temporal parser,
+/// so a cast validates and canonicalizes the same way storage does instead
+/// of passing arbitrary strings through unchanged.
+fn cast_temporal_scalar(
+    value: &ScalarValue,
+    type_name: &str,
+    canonicalize: impl Fn(&str) -> Result<String, String>,
+) -> Result<ScalarValue, QueryError> {
+    let ScalarValue::Str(value) = value else {
+        return Err(QueryError::General(format!(
+            "cannot cast value to {type_name}"
+        )));
+    };
+    canonicalize(value)
+        .map(ScalarValue::Str)
+        .map_err(|error| QueryError::General(format!("cannot cast value to {type_name}: {error}")))
+}
+
 fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue, QueryError> {
     if matches!(value, ScalarValue::Null) {
         return Ok(ScalarValue::Null);
@@ -378,12 +396,17 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
                 .map_err(|_| QueryError::General("cannot cast value to UUID".to_string()))?;
             Ok(ScalarValue::Str(value.to_string()))
         }
-        DataType::Date | DataType::Time | DataType::Timestamp => match value {
-            ScalarValue::Str(value) => Ok(ScalarValue::Str(value.clone())),
-            _ => Err(QueryError::General(
-                "cannot cast value to timestamp/time/date type".to_string(),
-            )),
-        },
+        DataType::Date => {
+            cast_temporal_scalar(value, "DATE", crate::types::temporal::canonical_date)
+        }
+        DataType::Time => {
+            cast_temporal_scalar(value, "TIME", crate::types::temporal::canonical_time)
+        }
+        DataType::Timestamp => cast_temporal_scalar(
+            value,
+            "TIMESTAMP",
+            crate::types::temporal::canonical_timestamp,
+        ),
         DataType::Json => Ok(ScalarValue::Str(cast_json_text(value))),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),

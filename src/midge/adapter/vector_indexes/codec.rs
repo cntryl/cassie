@@ -251,11 +251,16 @@ pub(super) fn decode_hnsw_node(
     let magnitude = f64::from_bits(cursor.u64()?);
     let layer_count = usize::try_from(cursor.u32()?)
         .map_err(|_| CassieError::Parse("HNSW layer count overflow".to_string()))?;
-    let mut layers = Vec::with_capacity(layer_count);
+    // `layer_count` and each layer's neighbor `count` come straight from stored
+    // bytes and may be corrupt, so layers/neighbors are grown lazily (rather
+    // than pre-allocated to the claimed count) to keep allocation bounded by
+    // the bytes actually present instead of an attacker/corruption-controlled
+    // count; the cursor's own bounds checks below fail fast on truncation.
+    let mut layers = Vec::new();
     for _ in 0..layer_count {
         let count = usize::try_from(cursor.u32()?)
             .map_err(|_| CassieError::Parse("HNSW neighbor count overflow".to_string()))?;
-        let mut layer = Vec::with_capacity(count);
+        let mut layer = Vec::new();
         for _ in 0..count {
             let len = usize::try_from(cursor.u32()?)
                 .map_err(|_| CassieError::Parse("HNSW neighbor length overflow".to_string()))?;
@@ -501,5 +506,24 @@ mod tests {
         assert!(!encoded
             .windows(node.id.len())
             .any(|window| window == node.id.as_bytes()));
+    }
+
+    #[test]
+    fn should_reject_hnsw_node_with_unbounded_layer_count_without_large_allocation() {
+        // Arrange: a truncated record claiming an enormous layer count. Before
+        // the fix this drove `Vec::with_capacity(layer_count)` to request an
+        // allocation proportional to the claimed count (here ~50,000,000
+        // entries) rather than the bytes actually present.
+        let mut bytes = vec![HNSW_FORMAT];
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // vector_len = 0
+        bytes.extend_from_slice(&0.0f64.to_bits().to_be_bytes()); // magnitude
+        bytes.extend_from_slice(&50_000_000u32.to_be_bytes()); // layer_count
+                                                               // No further bytes: the first layer's neighbor count is truncated.
+
+        // Act
+        let result = decode_hnsw_node(&bytes, "node-1");
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::Parse(_))));
     }
 }

@@ -54,6 +54,10 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - The index rule applies to Cassie's scalar, full-text, vector, column, hybrid, and time-series index kinds.
 - Standalone `UPSERT`, `ON CONSTRAINT`, concurrent conflict arbitration, and partial or expression-index conflict inference are unsupported.
 
+## Expression Semantics
+
+- `LIKE` follows PostgreSQL matching: it is case-sensitive, `%` matches any sequence of zero or more characters anywhere in the pattern, and `_` matches exactly one character. A backslash escapes the next pattern character, so `'a\%c'` matches the literal text `a%c`; a pattern that ends with an unpaired backslash is an error. The same rules apply to `LIKE` in `CHECK` constraints. The `ESCAPE` clause, `ILIKE`, and `NOT LIKE` are not supported; use `NOT (expr LIKE pattern)` for negation.
+
 ## Errors and Cancellation
 
 Cassie emits PostgreSQL error responses with SQLSTATE codes where a stable mapping exists. Syntax errors use `42601`, unsupported features use `0A000`, undefined objects use their PostgreSQL-family codes, query cancellation and deadlines use `57014`, resource-limit failures use `54000`, and connection admission uses `53300`.

@@ -16,10 +16,13 @@ use uuid::Uuid;
 
 #[path = "filter/functions.rs"]
 mod functions;
+#[path = "filter/like.rs"]
+mod like;
 #[path = "filter/search.rs"]
 mod search;
 
 use functions::{evaluate_function, parse_vector_text};
+pub(crate) use like::like_matches;
 #[cfg(test)]
 pub(crate) use search::{prepare_query_terms, SingleFieldSearchContext};
 pub(crate) use search::{
@@ -508,7 +511,7 @@ fn binary_scalar(
         BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
         BinaryOp::Gt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_gt)),
         BinaryOp::Gte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_lt())),
-        BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())),
+        BinaryOp::Like => comparison_result(like_match(left.as_str(), right.as_str())?),
         BinaryOp::Add => checked_math_result(left, right, i64::checked_add, |a, b| a + b)?,
         BinaryOp::Sub => checked_math_result(left, right, i64::checked_sub, |a, b| a - b)?,
         BinaryOp::Mul => checked_math_result(left, right, i64::checked_mul, |a, b| a * b)?,
@@ -533,33 +536,13 @@ fn comparison_result(result: Option<bool>) -> ScalarValue {
     result.map_or(ScalarValue::Null, ScalarValue::Bool)
 }
 
-fn like_match(value: Option<&str>, pattern: Option<&str>) -> Option<bool> {
-    match (value, pattern) {
-        (Some(value), Some(pattern)) => {
-            let value = value.to_lowercase();
-            let pattern = pattern.to_lowercase();
-            if pattern == "%" {
-                return Some(true);
-            }
-            if !pattern.starts_with('%') && !pattern.ends_with('%') {
-                return Some(value == pattern);
-            }
-            if pattern.starts_with('%') && pattern.ends_with('%') {
-                let contains_expr = pattern.trim_matches('%');
-                return Some(value.contains(contains_expr));
-            }
-            if pattern.starts_with('%') {
-                let suffix = pattern.trim_start_matches('%');
-                return Some(value.ends_with(suffix));
-            }
-            if pattern.ends_with('%') {
-                let prefix = pattern.trim_end_matches('%');
-                return Some(value.starts_with(prefix));
-            }
-            Some(false)
-        }
-        _ => None,
-    }
+fn like_match(value: Option<&str>, pattern: Option<&str>) -> Result<Option<bool>, QueryError> {
+    let (Some(value), Some(pattern)) = (value, pattern) else {
+        return Ok(None);
+    };
+    like::like_matches(value, pattern)
+        .map(Some)
+        .map_err(|error| QueryError::General(error.to_string()))
 }
 
 fn math_result(

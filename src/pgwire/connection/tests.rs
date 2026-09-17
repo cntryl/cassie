@@ -63,3 +63,22 @@ fn should_flush_pgwire_simple_query_result_once_for_multiple_rows() {
         assert!(writer.bytes.contains(&b'C'));
     });
 }
+
+#[test]
+fn should_reject_binary_float8_for_integer_beyond_exact_range() {
+    // Arrange
+    let inexact = Value::Int64(9_007_199_254_740_993);
+    let exact = Value::Int64(-9_007_199_254_740_992);
+
+    // Act
+    let inexact_result = super::codecs::value_to_binary(inexact, 701);
+    let exact_result = super::codecs::value_to_binary(exact, 701);
+
+    // Assert
+    let error = inexact_result.expect_err("inexact int8 must not be rounded to float8");
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        exact_result.expect("exact int8 encodes as float8"),
+        (-9_007_199_254_740_992.0_f64).to_be_bytes().to_vec()
+    );
+}

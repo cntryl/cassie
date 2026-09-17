@@ -2759,6 +2759,7 @@ mod pgwire_portal_streaming {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn should_page_portal_from_one_result_when_delete_commits_during_staged_transaction() {
         // Arrange
         support::use_local_storage();
@@ -2855,19 +2856,19 @@ mod pgwire_portal_streaming {
 
             // Assert
             assert_eq!(first_page.len(), 3, "first page = {first_page:?}");
-            let mut served = first_page
+            let mut all_pages = first_page
                 .iter()
                 .chain(second_page.iter())
                 .cloned()
                 .collect::<Vec<_>>();
-            served.sort();
+            all_pages.sort();
             let mut expected = (0..6)
                 .map(|index| format!("value-{index:02}"))
                 .chain(std::iter::once("staged".to_string()))
                 .collect::<Vec<_>>();
             expected.sort();
             assert_eq!(
-                served, expected,
+                all_pages, expected,
                 "portal pages must come from one result; first={first_page:?} second={second_page:?}"
             );
 
@@ -2949,14 +2950,14 @@ mod pgwire_portal_streaming {
                 .unwrap_or_else(|| panic!("table_name column: {names:?} {first_frames:?}"));
             let first_page = support::data_rows(&first_frames);
             let second_page = support::data_rows(&second_frames);
-            let served = first_page
+            let table_names = first_page
                 .iter()
                 .chain(second_page.iter())
                 .filter_map(|row| row[table_name].clone())
                 .filter(|name| name.starts_with("portal_catalog_"))
                 .collect::<Vec<_>>();
             assert_eq!(
-                served,
+                table_names,
                 vec![
                     "portal_catalog_b".to_string(),
                     "portal_catalog_c".to_string(),

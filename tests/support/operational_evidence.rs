@@ -16,6 +16,8 @@ pub struct ThresholdMetricStats {
 struct BundleIdentity {
     fixture: String,
     midge_lock_checksum: String,
+    rust_toolchain: serde_json::Value,
+    runtime_config: serde_json::Value,
     image_digest: String,
     platform: String,
     core_count: u64,
@@ -32,6 +34,14 @@ impl BundleIdentity {
         Ok(Self {
             fixture: string_field(object, "fixture")?.to_string(),
             midge_lock_checksum: string_field(object, "midge_lock_checksum")?.to_string(),
+            rust_toolchain: object
+                .get("rust_toolchain")
+                .ok_or_else(|| "rust_toolchain is missing".to_string())?
+                .clone(),
+            runtime_config: object
+                .get("runtime_config")
+                .ok_or_else(|| "runtime_config is missing".to_string())?
+                .clone(),
             image_digest: string_field(object, "image_digest")?.to_string(),
             platform: string_field(object, "platform")?.to_string(),
             core_count: positive_u64_field(host, "core_count")?,
@@ -47,6 +57,12 @@ impl BundleIdentity {
         }
         if self.midge_lock_checksum != other.midge_lock_checksum {
             return Some("midge_lock_checksum");
+        }
+        if self.rust_toolchain != other.rust_toolchain {
+            return Some("rust_toolchain");
+        }
+        if self.runtime_config != other.runtime_config {
+            return Some("runtime_config");
         }
         if self.image_digest != other.image_digest {
             return Some("image_digest");
@@ -154,6 +170,8 @@ pub fn validate_threshold_evidence_bundle(
         let object = manifest
             .as_object()
             .ok_or_else(|| format!("bundle sample {index}: manifest must be an object"))?;
+        require_string(object, "schema_version", "cassie-operational-evidence.v2")
+            .map_err(|error| format!("bundle sample {index}: {error}; v1 is diagnostic only"))?;
 
         let profile = string_field(object, "deployment_profile")
             .map_err(|error| format!("bundle sample {index}: {error}"))?;
@@ -249,7 +267,7 @@ pub fn validate_operational_evidence_manifest(
         .as_object()
         .ok_or_else(|| "operational evidence manifest must be an object".to_string())?;
 
-    require_string(object, "schema_version", "cassie-operational-evidence.v1")?;
+    validate_schema_and_identity(object)?;
     require_string(object, "commit", expected_commit)?;
     for field in ["operator", "runner", "fixture"] {
         string_field(object, field)?;
@@ -349,6 +367,113 @@ pub fn validate_operational_evidence_manifest(
     }
 
     Ok(())
+}
+
+fn validate_schema_and_identity(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    match string_field(object, "schema_version")? {
+        "cassie-operational-evidence.v1" => Ok(()),
+        "cassie-operational-evidence.v2" => validate_v2_identity(object),
+        other => Err(format!("unsupported schema_version '{other}'")),
+    }
+}
+
+fn validate_v2_identity(object: &serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
+    let toolchain = identity_fields(
+        object,
+        "rust_toolchain",
+        &["rustc_verbose", "cargo_version"],
+    )?;
+    let rustc = string_field(toolchain, "rustc_verbose")
+        .map_err(|error| format!("rust_toolchain.{error}"))?;
+    if !rustc.starts_with("rustc ")
+        || !rustc.contains("\nrelease: ")
+        || !rustc.contains("\ncommit-hash: ")
+        || !rustc.contains("\nhost: ")
+    {
+        return Err(
+            "rust_toolchain.rustc_verbose must contain the complete compiler identity".to_string(),
+        );
+    }
+    validate_toolchain_host(object, rustc)?;
+    let cargo = string_field(toolchain, "cargo_version")
+        .map_err(|error| format!("rust_toolchain.{error}"))?;
+    if !cargo.starts_with("cargo ") {
+        return Err("rust_toolchain.cargo_version must identify Cargo".to_string());
+    }
+
+    let config = identity_fields(
+        object,
+        "runtime_config",
+        &[
+            "storage_mode",
+            "storage_path_kind",
+            "rest_transport",
+            "benchmark_profile",
+            "query_timeout_ms",
+            "embeddings_provider",
+            "soak_duration_seconds",
+        ],
+    )?;
+    for (field, expected) in [
+        ("storage_mode", "local"),
+        ("storage_path_kind", "isolated-local-disk"),
+        ("rest_transport", "private-hop-http"),
+        ("benchmark_profile", "release"),
+        ("embeddings_provider", "disabled"),
+    ] {
+        require_string(config, field, expected)
+            .map_err(|error| format!("runtime_config.{error}"))?;
+    }
+    positive_u64_field(config, "soak_duration_seconds")
+        .map_err(|error| format!("runtime_config.{error}"))?;
+    positive_u64_field(config, "query_timeout_ms")
+        .map_err(|error| format!("runtime_config.{error}"))?;
+    Ok(())
+}
+
+fn validate_toolchain_host(
+    object: &serde_json::Map<String, serde_json::Value>,
+    rustc_verbose: &str,
+) -> Result<(), String> {
+    let expected_host = match string_field(object, "platform")? {
+        "linux/amd64" => "x86_64-unknown-linux-gnu",
+        "linux/arm64" => "aarch64-unknown-linux-gnu",
+        other => {
+            return Err(format!(
+                "unsupported operational evidence platform '{other}'"
+            ))
+        }
+    };
+    if !rustc_verbose
+        .lines()
+        .any(|line| line == format!("host: {expected_host}"))
+    {
+        return Err("rust_toolchain host does not match platform".to_string());
+    }
+    Ok(())
+}
+
+fn identity_fields<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    name: &str,
+    expected: &[&str],
+) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
+    let fields = object
+        .get(name)
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("{name} must be an object"))?;
+    if fields.len() != expected.len()
+        || fields
+            .keys()
+            .any(|field| !expected.contains(&field.as_str()))
+    {
+        return Err(format!(
+            "{name} must contain only the normalized, secret-free identity fields"
+        ));
+    }
+    Ok(fields)
 }
 
 fn validate_host_resources(

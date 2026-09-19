@@ -63,6 +63,13 @@ type, and total and available bytes for the evidence volume. These fields make r
 comparable and diagnose capacity drift; a single host snapshot does not establish an SLA or a
 production threshold.
 
+Operational manifests use `cassie-operational-evidence.v2` for threshold proposals. They retain
+the full `rustc --version --verbose` output and Cargo version, plus a normalized allowlist of
+nonsecret runtime settings (storage mode and path kind, REST transport, query timeout, embeddings
+provider, benchmark profile, and soak duration). The compiler host must match the declared native
+Linux platform. The configured root password is never included.
+V1 manifests remain historical diagnostic evidence and cannot enter a threshold bundle.
+
 The benchmark owner validates schema and completeness; the release-readiness owner compares
 only artifacts with matching profile, fixture, toolchain, and commit contracts. Retain the
 latest complete manifest plus the prior complete manifest for comparison, and retain diagnostic

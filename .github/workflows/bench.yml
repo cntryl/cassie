@@ -15,9 +15,14 @@ on:
         required: true
         type: string
       deployment_profile:
-        description: "Registered deployment profile matching the runner"
+        description: "Both native profiles for a complete run, or one profile for diagnostics"
         required: true
-        type: string
+        default: both-native-linux-disk
+        type: choice
+        options:
+          - both-native-linux-disk
+          - native-linux-amd64-disk
+          - native-linux-arm64-disk
       soak_duration_seconds:
         description: "Tier 6 duration per scenario; use 3600 for canonical evidence"
         required: true
@@ -112,10 +117,13 @@ jobs:
             echo "run_id must be a bounded artifact-safe identifier" >&2
             exit 1
           fi
-          if [[ "${DEPLOYMENT_PROFILE}" != "native-linux-amd64-disk" ]]; then
-            echo "deployment_profile must be native-linux-amd64-disk" >&2
-            exit 1
-          fi
+          case "${DEPLOYMENT_PROFILE}" in
+            both-native-linux-disk|native-linux-amd64-disk|native-linux-arm64-disk) ;;
+            *)
+              echo "deployment_profile must select both native profiles or one registered native profile" >&2
+              exit 1
+              ;;
+          esac
           if [[ ! "${SOAK_DURATION_SECONDS}" =~ ^[1-9][0-9]*$ ]] || (( 10#${SOAK_DURATION_SECONDS} < 3600 )); then
             echo "soak_duration_seconds must be an integer of at least 3600" >&2
             exit 1
@@ -137,6 +145,10 @@ jobs:
               exit 1
             fi
           fi
+          if [[ "${SHARD}" == "all" && "${WORKLOAD}" == "all" && "${DEPLOYMENT_PROFILE}" != "both-native-linux-disk" ]]; then
+            echo "a complete Tier 1-6 run must select both native profiles" >&2
+            exit 1
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -146,7 +158,7 @@ jobs:
           DEPLOYMENT_PROFILE: ${{ inputs.deployment_profile }}
         run: |
           case "${DEPLOYMENT_PROFILE}" in
-            native-linux-amd64-disk) ;;
+            both-native-linux-disk|native-linux-amd64-disk|native-linux-arm64-disk) ;;
             *)
               echo "unsupported benchmark deployment profile '${DEPLOYMENT_PROFILE}'" >&2
               exit 1
@@ -167,51 +179,131 @@ jobs:
     needs: complete-contract
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 20
       matrix:
         include:
-          - tier: tier1
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier1
             command: "cargo bench --bench 'tier1_*' --locked"
-          - tier: tier2
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier2
             command: "cargo bench --bench 'tier2_*' --locked"
-          - tier: tier3
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier3
             command: "cargo bench --bench 'tier3_*' --locked"
-          - tier: tier4
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier4
             command: "cargo bench --bench 'tier4_*' --locked"
-          - tier: tier5-query
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier5-query
             command: "cargo bench --bench 'tier5_scaling_query' --locked"
-          - tier: tier5-retrieval
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier5-retrieval
             command: "cargo bench --bench 'tier5_scaling_retrieval' --locked"
-          - tier: tier5-lifecycle
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier5-lifecycle
             command: "cargo bench --bench 'tier5_scaling_lifecycle' --locked"
-          - tier: tier5-transport
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier5-transport
             command: "cargo bench --bench 'tier5_scaling_transport' --locked"
-          - tier: tier6-mixed
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier6-mixed
             command: "cargo bench --bench 'tier6_soak_mixed' --locked"
-          - tier: tier6-transport
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+            tier: tier6-transport
             command: "cargo bench --bench 'tier6_soak_transport' --locked"
-    runs-on: ubuntu-latest
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier1
+            command: "cargo bench --bench 'tier1_*' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier2
+            command: "cargo bench --bench 'tier2_*' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier3
+            command: "cargo bench --bench 'tier3_*' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier4
+            command: "cargo bench --bench 'tier4_*' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier5-query
+            command: "cargo bench --bench 'tier5_scaling_query' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier5-retrieval
+            command: "cargo bench --bench 'tier5_scaling_retrieval' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier5-lifecycle
+            command: "cargo bench --bench 'tier5_scaling_lifecycle' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier5-transport
+            command: "cargo bench --bench 'tier5_scaling_transport' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier6-mixed
+            command: "cargo bench --bench 'tier6_soak_mixed' --locked"
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+            tier: tier6-transport
+            command: "cargo bench --bench 'tier6_soak_transport' --locked"
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     steps:
       - name: Checkout repository
-        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
+        if: ${{ (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         uses: actions/checkout@v7
 
       - name: Update Rust toolchain
-        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
+        if: ${{ (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         run: rustup update stable
 
       - name: Cache Rust dependencies
-        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
+        if: ${{ (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "benchmark-evidence-${{ matrix.tier }}"
+          shared-key: "benchmark-evidence-${{ matrix.architecture }}-${{ matrix.tier }}"
 
       - name: Run selected owner shard
-        if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}
+        if: ${{ (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         env:
           CASSIE_BENCH_RUN_ID: ${{ inputs.run_id }}
-          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ inputs.deployment_profile }}
+          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}
           CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
@@ -225,7 +317,7 @@ jobs:
           ${{ matrix.command }}
 
       - name: Validate selected workload artifact
-        if: ${{ inputs.workload != 'all' && inputs.shard == matrix.tier }}
+        if: ${{ inputs.workload != 'all' && inputs.shard == matrix.tier && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         env:
           SELECTED_WORKLOAD: ${{ inputs.workload }}
         run: |
@@ -255,18 +347,28 @@ jobs:
           fi
 
       - name: Upload canonical shard artifacts
-        if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}
+        if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}
         uses: actions/upload-artifact@v7
         with:
-          name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}-${{ inputs.workload }}
+          name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.architecture }}-${{ matrix.tier }}-${{ inputs.workload }}
           path: target/stress/**/latest.json
-          if-no-files-found: ignore
+          if-no-files-found: ${{ inputs.workload == 'all' && 'error' || 'ignore' }}
           retention-days: 90
 
   complete-manifest:
     if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane && inputs.shard == 'all' && inputs.workload == 'all' }}
     needs: complete-shard
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-latest
+            profile: native-linux-amd64-disk
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+            profile: native-linux-arm64-disk
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       - name: Checkout repository
@@ -278,22 +380,53 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "benchmark-evidence-manifest"
+          shared-key: "benchmark-evidence-manifest-${{ matrix.architecture }}"
 
       - name: Download canonical shard artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: cassie-benchmark-shard-${{ inputs.run_id }}-*
+          pattern: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.architecture }}-*
           path: target/stress
           merge-multiple: true
 
+      - name: Verify native manifest identity
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_PROFILE: ${{ matrix.profile }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          case "${ARCHITECTURE}" in
+            amd64) expected_machine=x86_64 ;;
+            arm64) expected_machine=aarch64 ;;
+            *) echo "unsupported native architecture" >&2; exit 1 ;;
+          esac
+          if [[ "$(uname -m)" != "${expected_machine}" ]]; then
+            echo "manifest runner is not native ${ARCHITECTURE}" >&2
+            exit 1
+          fi
+          mapfile -d '' artifacts < <(find target/stress -type f -name latest.json -print0)
+          if (( ${#artifacts[@]} == 0 )); then
+            echo "complete manifest has no owner artifacts" >&2
+            exit 1
+          fi
+          for artifact in "${artifacts[@]}"; do
+            jq -e --arg profile "${EXPECTED_PROFILE}" --arg commit "${EXPECTED_COMMIT}" \
+              '.metadata.deployment_profile_id == $profile and .environment.git_commit == $commit' \
+              "${artifact}" >/dev/null || {
+                echo "artifact ${artifact} does not match the native profile and source commit" >&2
+                exit 1
+              }
+          done
+
       - name: Validate complete retained manifest
+        env:
+          CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}
         run: cargo test --locked --test bench_operations benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest -- --ignored --nocapture
 
       - name: Upload canonical owner artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cassie-benchmark-${{ inputs.run_id }}
+          name: cassie-benchmark-${{ inputs.run_id }}-${{ matrix.architecture }}
           path: target/stress/**/latest.json
           if-no-files-found: error
           retention-days: 90

@@ -56,6 +56,10 @@ jobs:
             artifact_suffix: linux-arm64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
+    env:
+      CASSIE_STORAGE_MODE: local
+      CASSIE_QUERY_TIMEOUT_MS: "30000"
+      CASSIE_EMBEDDINGS_PROVIDER: disabled
     steps:
       - name: Checkout exact source
         uses: actions/checkout@v7
@@ -77,6 +81,8 @@ jobs:
           midge_lock_checksum="${midge_lock_checksum%% *}"
           echo "${started_utc}" > operational-evidence/started-utc.txt
           echo "${midge_lock_checksum}" > operational-evidence/midge-lock-checksum.txt
+          rustc --version --verbose > operational-evidence/rustc-version-verbose.txt
+          cargo --version > operational-evidence/cargo-version.txt
           {
             echo "commit=${GITHUB_SHA}"
             echo "run_id=${{ inputs.run_id }}"
@@ -129,6 +135,9 @@ jobs:
             --platform '${{ matrix.platform }}' \
             --publish 127.0.0.1:18080:8080 \
             --env CASSIE_ROOT_PASSWORD \
+            --env CASSIE_STORAGE_MODE \
+            --env CASSIE_QUERY_TIMEOUT_MS \
+            --env CASSIE_EMBEDDINGS_PROVIDER \
             --env CASSIE_ALLOW_INSECURE_NON_LOOPBACK_LISTEN=1 \
             --env CASSIE_STORAGE_PATH=/data/midge \
             --volume "${container_data}:/data" \
@@ -349,6 +358,8 @@ jobs:
           image_revision=""
           started_utc=""
           midge_lock_checksum=""
+          rustc_verbose=""
+          cargo_version=""
           if [[ -f operational-evidence/image-revision.txt ]]; then
             image_revision="$(< operational-evidence/image-revision.txt)"
           fi
@@ -357,6 +368,12 @@ jobs:
           fi
           if [[ -f operational-evidence/midge-lock-checksum.txt ]]; then
             midge_lock_checksum="$(< operational-evidence/midge-lock-checksum.txt)"
+          fi
+          if [[ -f operational-evidence/rustc-version-verbose.txt ]]; then
+            rustc_verbose="$(< operational-evidence/rustc-version-verbose.txt)"
+          fi
+          if [[ -f operational-evidence/cargo-version.txt ]]; then
+            cargo_version="$(< operational-evidence/cargo-version.txt)"
           fi
           cpu_model="$(awk -F: '/model name|Hardware|Processor/ {sub(/^[[:space:]]+/, "", $2); print $2; exit}' /proc/cpuinfo)"
           if [[ -z "${cpu_model}" ]]; then
@@ -370,13 +387,15 @@ jobs:
           )
           finished_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           jq --null-input \
-            --arg schema_version "cassie-operational-evidence.v1" \
+            --arg schema_version "cassie-operational-evidence.v2" \
             --arg commit "${GITHUB_SHA}" \
             --arg run_id '${{ inputs.run_id }}' \
             --arg operator "${GITHUB_ACTOR}" \
             --arg runner "${RUNNER_NAME}" \
             --arg fixture "operational-rehearsal-single-row-indexed" \
             --arg midge_lock_checksum "${midge_lock_checksum}" \
+            --arg rustc_verbose "${rustc_verbose}" \
+            --arg cargo_version "${cargo_version}" \
             --arg started_utc "${started_utc}" \
             --arg finished_utc "${finished_utc}" \
             --arg platform '${{ matrix.platform }}' \
@@ -390,6 +409,10 @@ jobs:
             --arg image_digest '${{ inputs.image_digest }}' \
             --arg image_revision "${image_revision}" \
             --argjson shape_only '${{ inputs.shape_only }}' \
+            --arg storage_mode "${CASSIE_STORAGE_MODE}" \
+            --argjson query_timeout_ms "${CASSIE_QUERY_TIMEOUT_MS}" \
+            --arg embeddings_provider "${CASSIE_EMBEDDINGS_PROVIDER}" \
+            --argjson soak_duration_seconds 3600 \
             --arg container_outcome "${CONTAINER_OUTCOME}" \
             --arg snapshot_restore_outcome "${SNAPSHOT_RESTORE_OUTCOME}" \
             --arg projection_repair_outcome "${PROJECTION_REPAIR_OUTCOME}" \
@@ -403,6 +426,19 @@ jobs:
               runner: $runner,
               fixture: $fixture,
               midge_lock_checksum: $midge_lock_checksum,
+              rust_toolchain: {
+                rustc_verbose: $rustc_verbose,
+                cargo_version: $cargo_version
+              },
+              runtime_config: {
+                storage_mode: $storage_mode,
+                storage_path_kind: "isolated-local-disk",
+                rest_transport: "private-hop-http",
+                benchmark_profile: "release",
+                query_timeout_ms: $query_timeout_ms,
+                embeddings_provider: $embeddings_provider,
+                soak_duration_seconds: $soak_duration_seconds
+              },
               started_utc: $started_utc,
               finished_utc: $finished_utc,
               platform: $platform,

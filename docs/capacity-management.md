@@ -67,10 +67,12 @@ client/worker axes. Until those artifacts are retained with matching commit, too
 and profile identity, alerts are operator guidance rather than SLA or release gates.
 
 A bundle is comparable only when its samples are distinct runs (unique `run_id`), none are
-`shape_only`, and their fixture, lockfile checksum, image digest, platform, and host core count,
-memory, and filesystem all match. Reported variance is the sample standard deviation, so a
-proposed bound is never derived from a spread that the population estimator would have
-understated.
+`shape_only`, every manifest uses `cassie-operational-evidence.v2`, and their fixture, lockfile
+checksum, exact Rust compiler/Cargo identity, normalized secret-free runtime configuration,
+image digest, platform, and host core count, memory, and filesystem all match. Historical v1
+manifests remain valid diagnostic records but cannot support thresholds. Reported variance is the
+sample standard deviation, so a proposed bound is never derived from a spread that the population
+estimator would have understated.
 
 ### Value classification
 
@@ -136,6 +138,10 @@ derived from a bundle:
 - Any sample pinned to a commit other than the bundle's expected commit (mixed-revision): rejected.
 - Any sample whose `deployment_profile` does not match the bundle's declared profile (outside the
   declared profile): rejected.
+- Any v1 sample, missing v2 toolchain or runtime configuration field, or disagreement in those
+  identities: rejected. The runtime identity contains only allowlisted, nonsecret settings:
+  local storage mode and path kind, private-hop REST transport, query timeout, disabled embeddings,
+  release benchmark profile, and configured soak duration. The password itself is never retained.
 
 A bundle that passes returns per-metric sample count, mean, and standard deviation for every
 `elapsed_ns` field, satisfying "record sample count and observed variance" without asserting that

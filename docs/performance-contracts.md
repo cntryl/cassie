@@ -315,20 +315,23 @@ cargo bench --locked --bench '*'
 Run the artifact-manifest integration test against the artifacts produced by the final wildcard run. That final run is intentionally long because it includes both default one-hour Tier 6 scenarios.
 
 The scheduled [Bench workflow](../.github/workflows/bench.yml) exercises Tiers 1-4 and retains its
-stress artifacts using the shared Fitz workflow topology. A manual dispatch executes ten
-independent unfiltered shards: one each for Tiers 1-4, four for Tier 5, and two Tier 6 soak owners.
+stress artifacts using the shared Fitz workflow topology. A complete manual dispatch executes the
+ten unfiltered Tier 1-6 shards natively on each of `linux/amd64` and `linux/arm64` (20 shard jobs).
+Each architecture uses its registered disk-backed profile and distinct shard artifact names.
 Shards use one run ID, commit, toolchain channel, profile, and evidence contract; `fail-fast: false`
 lets every independent shard report its result when another shard fails, and each retains the
 established six-hour timeout ceiling so parallelism does not narrow the evidence envelope. A
-downstream job downloads the successful shard artifacts into one `target/stress` tree, applies the
-unchanged complete-suite validator, and retains the canonical `latest.json` owner artifacts only
-when the entire manifest passes. Dispatch it only on the commit being evidenced, with a unique run
-ID and a deployment profile matching the runner; a smoke duration remains diagnostic and cannot
+downstream validator job per architecture downloads only that profile's shard artifacts into one
+`target/stress` tree, checks the native machine architecture and every artifact's profile and
+source commit, applies the unchanged complete-suite validator, and retains profile-specific
+canonical `latest.json` owner artifacts only when its full manifest passes. The workflow fails if
+either native profile is incomplete. Dispatch `deployment_profile=both-native-linux-disk` only on
+the commit being evidenced, with a unique run ID; a smoke duration remains diagnostic and cannot
 pass the complete-suite validator.
 
-Manual dispatch may instead select one canonical shard when a feature issue owns evidence from
-that benchmark owner. The selected shard still runs its complete unfiltered release profile on the
-exact commit and retains its artifact for 90 days; the nine unselected shards perform no checkout,
+Manual dispatch may instead select one canonical shard and one native profile when a feature issue
+owns evidence from that benchmark owner. The selected shard still runs its complete unfiltered
+release profile on the exact commit and retains its artifact for 90 days; unselected shards perform no checkout,
 toolchain, cache, compilation, or benchmark work. A targeted artifact can satisfy only the named
 feature's evidence requirement. It is not a complete-suite manifest, does not run the downstream
 complete-manifest validator, and cannot support repository-wide readiness claims.

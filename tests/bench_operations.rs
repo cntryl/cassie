@@ -2815,6 +2815,30 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_use_indexed_tier_four_http_query_with_twenty_results() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-http-indexed-query", 2_000))
+            .expect("HTTP query fixture");
+
+        // Act
+        let query = workloads::HTTP_ADMIN_QUERY;
+        let result = context
+            .cassie
+            .execute_sql(&context.session, query, vec![])
+            .expect("execute HTTP benchmark query");
+
+        // Assert
+        assert_eq!(result.rows.len(), 20);
+        workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean HTTP query fixture");
+    }
+
+    #[test]
     fn should_keep_http_create_get_measurement_free_of_delete_maintenance() {
         // Arrange
         let workloads = include_str!("../benches/support/workloads/http.rs");

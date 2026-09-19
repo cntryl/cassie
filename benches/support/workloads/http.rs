@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use super::context::{BenchContext, QueryBreakdownMicros};
 
-pub const HTTP_ADMIN_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 20";
+pub const HTTP_ADMIN_QUERY: &str = "SELECT id, title FROM bench_documents WHERE score = 1 LIMIT 20";
 
 pub struct HttpBenchContext {
     base_url: String,

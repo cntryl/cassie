@@ -37,6 +37,9 @@ pub const PGWIRE_EXTENDED_QUERY: &str =
 pub const PGWIRE_MULTI_STATEMENT_COMPONENT_QUERY: &str =
     "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10";
 const PGWIRE_MULTI_STATEMENT_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10; SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 10";
+pub const TIER4_MULTI_STATEMENT_COMPONENT_QUERY: &str =
+    "SELECT id, title FROM bench_documents WHERE score = 1 LIMIT 10";
+const TIER4_MULTI_STATEMENT_QUERY: &str = "SELECT id, title FROM bench_documents WHERE score = 1 LIMIT 10; SELECT id, title FROM bench_documents WHERE score = 1 LIMIT 10";
 pub const PGWIRE_BINARY_QUERY: &str =
     "SELECT score, title FROM bench_documents WHERE score = $1 LIMIT 20";
 const PGWIRE_FIXTURE_ROWS: u64 = 10_000;
@@ -445,7 +448,18 @@ fn storage_reads(metrics: &serde_json::Value) -> u64 {
 }
 
 pub async fn pgwire_transport_multi_statement(ctx: &PgwireTransportBenchContext) -> usize {
-    let rows = pgwire_transport_simple_query(ctx, PGWIRE_MULTI_STATEMENT_QUERY).await;
+    pgwire_transport_multi_statement_sql(ctx, PGWIRE_MULTI_STATEMENT_QUERY).await
+}
+
+pub async fn pgwire_transport_tier4_multi_statement(ctx: &PgwireTransportBenchContext) -> usize {
+    pgwire_transport_multi_statement_sql(ctx, TIER4_MULTI_STATEMENT_QUERY).await
+}
+
+async fn pgwire_transport_multi_statement_sql(
+    ctx: &PgwireTransportBenchContext,
+    sql: &str,
+) -> usize {
+    let rows = pgwire_transport_simple_query(ctx, sql).await;
     assert_eq!(rows, 20, "multi-statement result cardinality");
     std::hint::black_box(2)
 }

@@ -33,17 +33,17 @@ fn main() {
     let pgwire_preflight = pgwire_enabled.then(|| {
         workloads::assert_explain_contains(
             &fixture,
-            workloads::PGWIRE_SIMPLE_QUERY,
+            workloads::TIER4_TRANSPORT_QUERY,
             vec![],
-            "access_path=collection_scan",
+            "access_path=index_seek",
         )
     });
     let http_preflight = http_enabled.then(|| {
         workloads::assert_explain_contains(
             &fixture,
-            workloads::HTTP_ADMIN_QUERY,
+            workloads::TIER4_TRANSPORT_QUERY,
             vec![],
-            "access_path=collection_scan",
+            "access_path=index_seek",
         )
     });
     let pgwire = pgwire_enabled.then(|| {
@@ -73,7 +73,7 @@ fn main() {
                 for _ in 0..QUERIES_PER_SAMPLE {
                     let rows = runtime.block_on(workloads::pgwire_transport_simple_query(
                         context,
-                        workloads::PGWIRE_SIMPLE_QUERY,
+                        workloads::TIER4_TRANSPORT_QUERY,
                     ));
                     assert_eq!(rows, 20, "comparison pgwire result cardinality");
                 }
@@ -94,7 +94,8 @@ fn main() {
             QUERIES_PER_SAMPLE,
             || {
                 for _ in 0..QUERIES_PER_SAMPLE {
-                    let completed = runtime.block_on(workloads::http_transport_query(context));
+                    let completed =
+                        runtime.block_on(workloads::http_transport_tier4_query(context));
                     assert_eq!(completed, 1, "comparison HTTP operation count");
                 }
                 20_u64

@@ -141,7 +141,7 @@ impl PgwireBenchmark<'_> {
                         .runtime
                         .block_on(workloads::pgwire_transport_simple_query(
                             self.transport,
-                            workloads::PGWIRE_SIMPLE_QUERY,
+                            workloads::TIER4_TRANSPORT_QUERY,
                         ));
                     assert_eq!(rows, 20, "simple query result cardinality");
                 }
@@ -248,10 +248,9 @@ impl PgwireBenchmark<'_> {
             MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2,
             || {
                 for _ in 0..MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE {
-                    let queries = u64::try_from(
-                        self.runtime
-                            .block_on(workloads::pgwire_transport_multi_statement(self.transport)),
-                    )
+                    let queries = u64::try_from(self.runtime.block_on(
+                        workloads::pgwire_transport_tier4_multi_statement(self.transport),
+                    ))
                     .expect("multi-statement query count should fit u64");
                     assert_eq!(queries, 2, "multi-statement query count");
                 }
@@ -317,9 +316,9 @@ impl PgwireQueryPreflights {
             simple: enabled[0].then(|| {
                 workloads::assert_explain_contains(
                     fixture,
-                    workloads::PGWIRE_SIMPLE_QUERY,
+                    workloads::TIER4_TRANSPORT_QUERY,
                     vec![],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
             extended: enabled[1].then(|| {
@@ -333,9 +332,9 @@ impl PgwireQueryPreflights {
             multi_statement: enabled[4].then(|| {
                 workloads::assert_explain_contains(
                     fixture,
-                    workloads::PGWIRE_MULTI_STATEMENT_COMPONENT_QUERY,
+                    workloads::TIER4_MULTI_STATEMENT_COMPONENT_QUERY,
                     vec![],
-                    "access_path=collection_scan",
+                    "access_path=index_seek",
                 )
             }),
             binary_extended: enabled[5].then(|| {

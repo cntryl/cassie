@@ -2823,7 +2823,7 @@ mod benchmark_harness_contract {
             .expect("HTTP query fixture");
 
         // Act
-        let query = workloads::HTTP_ADMIN_QUERY;
+        let query = workloads::TIER4_TRANSPORT_QUERY;
         let result = context
             .cassie
             .execute_sql(&context.session, query, vec![])
@@ -2836,6 +2836,79 @@ mod benchmark_harness_contract {
         context.cassie.shutdown();
         drop(context);
         std::fs::remove_dir_all(data_dir).expect("clean HTTP query fixture");
+    }
+
+    #[test]
+    fn should_share_indexed_query_across_tier_four_transports() {
+        // Arrange
+        let http_owner = include_str!("../benches/tier4_integration_http.rs");
+        let pgwire_owner = include_str!("../benches/tier4_integration_pgwire.rs");
+        let comparison_owner = include_str!("../benches/tier4_integration_protocol_compare.rs");
+
+        // Act
+        let http_uses_tier_four_query =
+            http_owner.contains("workloads::http_transport_tier4_query(&context)");
+        let pgwire_uses_tier_four_query = pgwire_owner.contains("workloads::TIER4_TRANSPORT_QUERY");
+        let pgwire_multi_uses_tier_four_query = pgwire_owner
+            .contains("workloads::pgwire_transport_tier4_multi_statement(self.transport)")
+            && pgwire_owner.contains("workloads::TIER4_MULTI_STATEMENT_COMPONENT_QUERY");
+        let comparison_uses_both = comparison_owner.contains("workloads::TIER4_TRANSPORT_QUERY")
+            && comparison_owner.contains("workloads::http_transport_tier4_query(context)");
+
+        // Assert
+        assert!(http_uses_tier_four_query);
+        assert!(pgwire_uses_tier_four_query);
+        assert!(pgwire_multi_uses_tier_four_query);
+        assert!(comparison_uses_both);
+    }
+
+    #[test]
+    fn should_fetch_nonnull_document_ids_from_benchmark_pgwire_portal() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-pgwire-portal-ids", 320))
+            .expect("portal fixture");
+        let transport = runtime
+            .block_on(workloads::pgwire_transport_for_context(&context))
+            .expect("pgwire transport");
+
+        // Act
+        let pages = runtime.block_on(workloads::pgwire_transport_portal_fetch(&transport));
+
+        // Assert
+        assert_eq!(pages, 2);
+        runtime
+            .block_on(transport.shutdown())
+            .expect("pgwire shutdown");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean portal fixture");
+    }
+
+    #[test]
+    fn should_use_indexed_tier_four_multi_statement_query() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-multi-statement-indexed", 2_000))
+            .expect("multi-statement fixture");
+
+        // Act
+        let query = workloads::TIER4_MULTI_STATEMENT_COMPONENT_QUERY;
+        let result = context
+            .cassie
+            .execute_sql(&context.session, query, vec![])
+            .expect("execute component query");
+
+        // Assert
+        assert_eq!(result.rows.len(), 10);
+        workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean multi-statement fixture");
     }
 
     #[test]
@@ -2971,7 +3044,7 @@ mod benchmark_harness_contract {
             && cancellation.contains("pgwire_transport_cancellation");
         let multi_preserves_query_units = multi_statement.contains("runner.measure_batch(")
             && multi_statement.contains("MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2")
-            && multi_statement.contains("pgwire_transport_multi_statement");
+            && multi_statement.contains("pgwire_transport_tier4_multi_statement");
         let binary_preserves_query_units = binary_extended.contains("runner.measure_batch(")
             && binary_extended.contains("BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE")
             && binary_extended.contains("pgwire_transport_binary_query");

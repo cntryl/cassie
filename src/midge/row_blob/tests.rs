@@ -528,3 +528,113 @@ fn should_reject_row_encoding_with_truncated_values() {
     // Assert
     assert!(result.is_err());
 }
+
+/// Directory entry layout inside an encoded blob: MAGIC, format version,
+/// schema version, max field id, bitmap length, presence, nulls, field
+/// count, then `field_count` entries of (`field_id`, `type_tag`, `offset`,
+/// `len`).
+fn directory_entry_offset(bitmap_len: usize, entry: usize) -> usize {
+    MAGIC.len() + 1 + 4 + 4 + 4 + bitmap_len + bitmap_len + 4 + entry * (4 + 1 + 4 + 4)
+}
+
+fn two_text_field_schema() -> RowSchema {
+    RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "left".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+            FieldSchema {
+                name: "right".to_string(),
+                data_type: DataType::Text,
+                nullable: true,
+            },
+        ],
+    })
+}
+
+#[test]
+fn should_reject_overlapping_row_blob_directory_entries() {
+    // Arrange
+    let schema = two_text_field_schema();
+    let mut encoded = encode_row(
+        &schema,
+        &serde_json::json!({"left": "aaaa", "right": "bbbb"}),
+    )
+    .unwrap();
+    // Point the first field at the second field's bytes. Both entries stay
+    // in bounds and the maximum end offset still equals the payload length.
+    // The old decoder accepts this row and returns "bbbb" for both fields.
+    let bitmap_len = 1;
+    let first = directory_entry_offset(bitmap_len, 0);
+    let offset_at = first + 4 + 1;
+    encoded[offset_at..offset_at + 4].copy_from_slice(&4_u32.to_be_bytes());
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("overlapping directory entries must be rejected");
+    assert!(
+        error.to_string().contains("partition the payload"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
+fn should_reject_a_row_blob_type_tag_that_contradicts_the_schema() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "score".to_string(),
+            data_type: DataType::Float,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"score": 1.5})).unwrap();
+    // TYPE_F64 (0x04) and TYPE_STRING (0x05) are one bit apart, and eight
+    // big-endian float bytes are also a valid eight-byte string payload, so
+    // this decodes as a plausible value unless the tag is checked.
+    let tag_at = directory_entry_offset(1, 0) + 4;
+    assert_eq!(encoded[tag_at], TYPE_F64);
+    encoded[tag_at] = TYPE_STRING;
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("a tag contradicting the schema must be rejected");
+    assert!(
+        error.to_string().contains("type tag"),
+        "unexpected error: {error}"
+    );
+}
+
+#[test]
+fn should_reject_a_row_blob_field_payload_that_decodes_short() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "flag".to_string(),
+            data_type: DataType::Boolean,
+            nullable: true,
+        }],
+    });
+    let mut encoded = encode_row(&schema, &serde_json::json!({"flag": true})).unwrap();
+    // A boolean consumes exactly one byte. Widening its declared length
+    // leaves trailing bytes the decoder would otherwise ignore.
+    let len_at = directory_entry_offset(1, 0) + 4 + 1 + 4;
+    encoded[len_at..len_at + 4].copy_from_slice(&2_u32.to_be_bytes());
+    encoded.push(0xFF);
+
+    // Act
+    let decoded = decode_row(&schema, &encoded);
+
+    // Assert
+    let error = decoded.expect_err("a partially consumed field payload must be rejected");
+    assert!(
+        error.to_string().contains("unconsumed bytes"),
+        "unexpected error: {error}"
+    );
+}

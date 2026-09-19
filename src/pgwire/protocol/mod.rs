@@ -150,6 +150,10 @@ impl ServerMessage {
 }
 
 #[must_use]
+/// Encodes one newline-delimited text frame.
+///
+/// Test and benchmark harness only (`tests/pgwire_core.rs`); the served
+/// path encodes binary frames in `pgwire::connection`.
 pub fn encode(message: &ServerMessage) -> Vec<u8> {
     let mut out = Vec::new();
     let text = message.as_wire();
@@ -158,6 +162,12 @@ pub fn encode(message: &ServerMessage) -> Vec<u8> {
     out
 }
 
+/// Decodes one newline-delimited text frame.
+///
+/// This is a line-oriented test and benchmark harness, not the live wire
+/// path: the server speaks the binary protocol through
+/// `pgwire::connection`, and `benches/support/workloads/pgwire.rs` is the
+/// only caller. Do not reach for it when implementing protocol behavior.
 pub fn decode(line: &str) -> ClientMessage {
     let trimmed = line.trim_end();
     if trimmed.starts_with("STARTUP") {

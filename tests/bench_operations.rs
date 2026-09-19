@@ -7442,7 +7442,7 @@ mod benchmark_deployment_profile_contract {
                 "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}",
             );
         let validates_only_complete_runs = workflow.contains(
-            "if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' && inputs.workload == 'all' }}",
+            "if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane && inputs.shard == 'all' && inputs.workload == 'all' }}",
         );
         let retains_targeted_artifacts = workflow.contains("retention-days: 90");
 
@@ -8133,6 +8133,30 @@ mod workflow_setup_contract {
 mod benchmark_tier3_mixed_storage {
     use super::workloads;
     use cassie::app::Cassie;
+
+    #[test]
+    fn should_dispatch_the_scheduled_bench_lane_for_validation() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+
+        // Act
+        let scheduled = workflow
+            .split_once("  bench:\n")
+            .expect("scheduled job")
+            .1
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .0;
+        let complete = workflow
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .1;
+
+        // Assert
+        assert!(workflow.contains("run_scheduled_lane:"));
+        assert!(scheduled.contains("inputs.run_scheduled_lane"));
+        assert!(complete.contains("!inputs.run_scheduled_lane"));
+    }
 
     #[test]
     fn should_reopen_mixed_fixture_from_scheduled_storage_environment() {

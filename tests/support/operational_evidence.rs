@@ -9,17 +9,136 @@ pub struct ThresholdMetricStats {
     pub stdev_ns: f64,
 }
 
+/// The parts of a manifest that must match across a bundle for its timings
+/// to be comparable. Commit and deployment profile are checked separately
+/// against caller-supplied expectations.
+#[derive(Debug, PartialEq, Eq)]
+struct BundleIdentity {
+    fixture: String,
+    midge_lock_checksum: String,
+    rust_toolchain: serde_json::Value,
+    runtime_config: serde_json::Value,
+    image_digest: String,
+    platform: String,
+    core_count: u64,
+    memory_total_bytes: u64,
+    filesystem: String,
+}
+
+impl BundleIdentity {
+    fn read(object: &serde_json::Map<String, serde_json::Value>) -> Result<Self, String> {
+        let host = object
+            .get("host")
+            .and_then(serde_json::Value::as_object)
+            .ok_or_else(|| "host must be an object".to_string())?;
+        Ok(Self {
+            fixture: string_field(object, "fixture")?.to_string(),
+            midge_lock_checksum: string_field(object, "midge_lock_checksum")?.to_string(),
+            rust_toolchain: object
+                .get("rust_toolchain")
+                .ok_or_else(|| "rust_toolchain is missing".to_string())?
+                .clone(),
+            runtime_config: object
+                .get("runtime_config")
+                .ok_or_else(|| "runtime_config is missing".to_string())?
+                .clone(),
+            image_digest: string_field(object, "image_digest")?.to_string(),
+            platform: string_field(object, "platform")?.to_string(),
+            core_count: positive_u64_field(host, "core_count")?,
+            memory_total_bytes: positive_u64_field(host, "memory_total_bytes")?,
+            filesystem: string_field(host, "filesystem")?.to_string(),
+        })
+    }
+
+    /// Names the first field that differs, for an error a reader can act on.
+    fn difference(&self, other: &Self) -> Option<&'static str> {
+        if self.fixture != other.fixture {
+            return Some("fixture");
+        }
+        if self.midge_lock_checksum != other.midge_lock_checksum {
+            return Some("midge_lock_checksum");
+        }
+        if self.rust_toolchain != other.rust_toolchain {
+            return Some("rust_toolchain");
+        }
+        if self.runtime_config != other.runtime_config {
+            return Some("runtime_config");
+        }
+        if self.image_digest != other.image_digest {
+            return Some("image_digest");
+        }
+        if self.platform != other.platform {
+            return Some("platform");
+        }
+        if self.core_count != other.core_count {
+            return Some("host.core_count");
+        }
+        if self.memory_total_bytes != other.memory_total_bytes {
+            return Some("host.memory_total_bytes");
+        }
+        if self.filesystem != other.filesystem {
+            return Some("host.filesystem");
+        }
+        None
+    }
+}
+
+/// Rejects a repeated run and a `shape_only` run, the two ways a bundle can
+/// meet its sample count without holding that many comparable measurements.
+fn check_distinct_full_run(
+    object: &serde_json::Map<String, serde_json::Value>,
+    seen_run_ids: &mut std::collections::BTreeSet<String>,
+) -> Result<(), String> {
+    let run_id = string_field(object, "run_id")?;
+    if !seen_run_ids.insert(run_id.to_string()) {
+        return Err(format!(
+            "run_id '{run_id}' is repeated; a bundle must hold distinct runs"
+        ));
+    }
+    let shape_only = object
+        .get("shape_only")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| "shape_only must be a boolean".to_string())?;
+    if shape_only {
+        return Err(
+            "shape_only runs prove workflow shape only and cannot support a threshold".to_string(),
+        );
+    }
+    Ok(())
+}
+
 /// Validates that a set of retained operational evidence manifests is
 /// comparable enough to support a production threshold proposal, and
 /// summarizes elapsed-time variance across the bundle.
 ///
 /// Fails closed when the bundle is incomplete (fewer than `min_samples`),
-/// any individual manifest is malformed or fails shape validation, any
-/// manifest is not pinned to `expected_commit` (mixed-revision), or any
+/// empty, any individual manifest is malformed or fails shape validation,
+/// any manifest is not pinned to `expected_commit` (mixed-revision), or any
 /// manifest's `deployment_profile` does not match `expected_profile`
-/// (outside the declared profile). A single measurement can never satisfy
-/// `min_samples > 1`, so it can never be promoted to an SLA by this
-/// function alone.
+/// (outside the declared profile).
+///
+/// Comparability is enforced beyond commit and profile, because a mean over
+/// runs that measured different work is not evidence:
+///
+/// - `run_id` must be unique across the bundle. Otherwise the same retained
+///   manifest submitted `min_samples` times satisfies the sample count and
+///   reports zero variance, which reads as perfect reproducibility while
+///   resting on one measurement.
+/// - `shape_only` runs are rejected. They skip the scale and soak owners and
+///   are documented as proving workflow shape only, so their timings do not
+///   measure the same work as a full run.
+/// - `fixture`, `midge_lock_checksum`, `image_digest`, `platform` and the
+///   host's `core_count`, `memory_total_bytes` and `filesystem` must be
+///   identical across samples, matching the "matching commit, toolchain,
+///   fixture, and profile identity" requirement in
+///   `docs/capacity-management.md`.
+/// - Every sample must report the same `elapsed_ns` metric keys, so a
+///   returned metric's `sample_count` is always the bundle size rather than
+///   a single run hiding among fully-sampled metrics.
+///
+/// `stdev_ns` is the sample standard deviation (Bessel-corrected), because
+/// these are samples of a larger population of possible runs and the
+/// population estimator would understate the spread a threshold must clear.
 pub fn validate_threshold_evidence_bundle(
     documents: &[String],
     expected_commit: &str,
@@ -32,9 +151,15 @@ pub fn validate_threshold_evidence_bundle(
             documents.len()
         ));
     }
+    if documents.is_empty() {
+        return Err("threshold evidence bundle is empty".to_string());
+    }
 
     let mut per_metric: std::collections::BTreeMap<String, Vec<f64>> =
         std::collections::BTreeMap::new();
+    let mut seen_run_ids = std::collections::BTreeSet::new();
+    let mut bundle_identity: Option<BundleIdentity> = None;
+    let mut bundle_metrics: Option<std::collections::BTreeSet<String>> = None;
 
     for (index, document) in documents.iter().enumerate() {
         validate_operational_evidence_manifest(document, expected_commit)
@@ -45,6 +170,8 @@ pub fn validate_threshold_evidence_bundle(
         let object = manifest
             .as_object()
             .ok_or_else(|| format!("bundle sample {index}: manifest must be an object"))?;
+        require_string(object, "schema_version", "cassie-operational-evidence.v2")
+            .map_err(|error| format!("bundle sample {index}: {error}; v1 is diagnostic only"))?;
 
         let profile = string_field(object, "deployment_profile")
             .map_err(|error| format!("bundle sample {index}: {error}"))?;
@@ -54,12 +181,42 @@ pub fn validate_threshold_evidence_bundle(
             ));
         }
 
+        check_distinct_full_run(object, &mut seen_run_ids)
+            .map_err(|error| format!("bundle sample {index}: {error}"))?;
+
+        let identity = BundleIdentity::read(object)
+            .map_err(|error| format!("bundle sample {index}: {error}"))?;
+        match &bundle_identity {
+            None => bundle_identity = Some(identity),
+            Some(expected) => {
+                if let Some(difference) = expected.difference(&identity) {
+                    return Err(format!(
+                        "bundle sample {index}: {difference} differs from the first sample; samples must be comparable"
+                    ));
+                }
+            }
+        }
+
         let elapsed = object
             .get("elapsed_ns")
             .and_then(serde_json::Value::as_object)
             .ok_or_else(|| format!("bundle sample {index}: elapsed_ns must be an object"))?;
+        let metrics = elapsed
+            .keys()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
+        match &bundle_metrics {
+            None => bundle_metrics = Some(metrics),
+            Some(expected) => {
+                if *expected != metrics {
+                    return Err(format!(
+                        "bundle sample {index}: elapsed_ns metrics differ from the first sample; every sample must report the same metrics"
+                    ));
+                }
+            }
+        }
         for (metric, value) in elapsed {
-            let value = value.as_u64().ok_or_else(|| {
+            let value = value.as_u64().filter(|value| *value > 0).ok_or_else(|| {
                 format!(
                     "bundle sample {index}: elapsed_ns.{metric} must be an exact positive integer"
                 )
@@ -72,26 +229,32 @@ pub fn validate_threshold_evidence_bundle(
 
     Ok(per_metric
         .into_iter()
-        .map(|(metric, samples)| {
-            let sample_count = samples.len();
-            #[allow(clippy::cast_precision_loss)]
-            let sample_count_f64 = sample_count as f64;
-            let mean_ns = samples.iter().sum::<f64>() / sample_count_f64;
-            let variance = samples
-                .iter()
-                .map(|value| (value - mean_ns).powi(2))
-                .sum::<f64>()
-                / sample_count_f64;
-            (
-                metric,
-                ThresholdMetricStats {
-                    sample_count,
-                    mean_ns,
-                    stdev_ns: variance.sqrt(),
-                },
-            )
-        })
+        .map(|(metric, samples)| (metric, summarize_metric(&samples)))
         .collect())
+}
+
+fn summarize_metric(samples: &[f64]) -> ThresholdMetricStats {
+    let sample_count = samples.len();
+    #[allow(clippy::cast_precision_loss)]
+    let sample_count_f64 = sample_count as f64;
+    let mean_ns = samples.iter().sum::<f64>() / sample_count_f64;
+    // Bessel-corrected: these are samples of the population of possible
+    // runs, and dividing by n would bias the spread low, toward a
+    // tighter-looking threshold.
+    let variance = if sample_count > 1 {
+        samples
+            .iter()
+            .map(|value| (value - mean_ns).powi(2))
+            .sum::<f64>()
+            / (sample_count_f64 - 1.0)
+    } else {
+        0.0
+    };
+    ThresholdMetricStats {
+        sample_count,
+        mean_ns,
+        stdev_ns: variance.sqrt(),
+    }
 }
 
 pub fn validate_operational_evidence_manifest(
@@ -104,7 +267,7 @@ pub fn validate_operational_evidence_manifest(
         .as_object()
         .ok_or_else(|| "operational evidence manifest must be an object".to_string())?;
 
-    require_string(object, "schema_version", "cassie-operational-evidence.v1")?;
+    validate_schema_and_identity(object)?;
     require_string(object, "commit", expected_commit)?;
     for field in ["operator", "runner", "fixture"] {
         string_field(object, field)?;
@@ -204,6 +367,113 @@ pub fn validate_operational_evidence_manifest(
     }
 
     Ok(())
+}
+
+fn validate_schema_and_identity(
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    match string_field(object, "schema_version")? {
+        "cassie-operational-evidence.v1" => Ok(()),
+        "cassie-operational-evidence.v2" => validate_v2_identity(object),
+        other => Err(format!("unsupported schema_version '{other}'")),
+    }
+}
+
+fn validate_v2_identity(object: &serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
+    let toolchain = identity_fields(
+        object,
+        "rust_toolchain",
+        &["rustc_verbose", "cargo_version"],
+    )?;
+    let rustc = string_field(toolchain, "rustc_verbose")
+        .map_err(|error| format!("rust_toolchain.{error}"))?;
+    if !rustc.starts_with("rustc ")
+        || !rustc.contains("\nrelease: ")
+        || !rustc.contains("\ncommit-hash: ")
+        || !rustc.contains("\nhost: ")
+    {
+        return Err(
+            "rust_toolchain.rustc_verbose must contain the complete compiler identity".to_string(),
+        );
+    }
+    validate_toolchain_host(object, rustc)?;
+    let cargo = string_field(toolchain, "cargo_version")
+        .map_err(|error| format!("rust_toolchain.{error}"))?;
+    if !cargo.starts_with("cargo ") {
+        return Err("rust_toolchain.cargo_version must identify Cargo".to_string());
+    }
+
+    let config = identity_fields(
+        object,
+        "runtime_config",
+        &[
+            "storage_mode",
+            "storage_path_kind",
+            "rest_transport",
+            "benchmark_profile",
+            "query_timeout_ms",
+            "embeddings_provider",
+            "soak_duration_seconds",
+        ],
+    )?;
+    for (field, expected) in [
+        ("storage_mode", "local"),
+        ("storage_path_kind", "isolated-local-disk"),
+        ("rest_transport", "private-hop-http"),
+        ("benchmark_profile", "release"),
+        ("embeddings_provider", "disabled"),
+    ] {
+        require_string(config, field, expected)
+            .map_err(|error| format!("runtime_config.{error}"))?;
+    }
+    positive_u64_field(config, "soak_duration_seconds")
+        .map_err(|error| format!("runtime_config.{error}"))?;
+    positive_u64_field(config, "query_timeout_ms")
+        .map_err(|error| format!("runtime_config.{error}"))?;
+    Ok(())
+}
+
+fn validate_toolchain_host(
+    object: &serde_json::Map<String, serde_json::Value>,
+    rustc_verbose: &str,
+) -> Result<(), String> {
+    let expected_host = match string_field(object, "platform")? {
+        "linux/amd64" => "x86_64-unknown-linux-gnu",
+        "linux/arm64" => "aarch64-unknown-linux-gnu",
+        other => {
+            return Err(format!(
+                "unsupported operational evidence platform '{other}'"
+            ))
+        }
+    };
+    if !rustc_verbose
+        .lines()
+        .any(|line| line == format!("host: {expected_host}"))
+    {
+        return Err("rust_toolchain host does not match platform".to_string());
+    }
+    Ok(())
+}
+
+fn identity_fields<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    name: &str,
+    expected: &[&str],
+) -> Result<&'a serde_json::Map<String, serde_json::Value>, String> {
+    let fields = object
+        .get(name)
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| format!("{name} must be an object"))?;
+    if fields.len() != expected.len()
+        || fields
+            .keys()
+            .any(|field| !expected.contains(&field.as_str()))
+    {
+        return Err(format!(
+            "{name} must contain only the normalized, secret-free identity fields"
+        ));
+    }
+    Ok(fields)
 }
 
 fn validate_host_resources(

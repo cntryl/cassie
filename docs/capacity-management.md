@@ -66,6 +66,14 @@ duration, disk growth, and sustained mixed-workload saturation at the declared f
 client/worker axes. Until those artifacts are retained with matching commit, toolchain, fixture,
 and profile identity, alerts are operator guidance rather than SLA or release gates.
 
+A bundle is comparable only when its samples are distinct runs (unique `run_id`), none are
+`shape_only`, every manifest uses `cassie-operational-evidence.v2`, and their fixture, lockfile
+checksum, exact Rust compiler/Cargo identity, normalized secret-free runtime configuration,
+image digest, platform, and host core count, memory, and filesystem all match. Historical v1
+manifests remain valid diagnostic records but cannot support thresholds. Reported variance is the
+sample standard deviation, so a proposed bound is never derived from a spread that the population
+estimator would have understated.
+
 ### Value classification
 
 Every value in this document falls into exactly one of three categories; treating one as another
@@ -75,7 +83,7 @@ misrepresents its support level:
 | --- | --- | --- | --- |
 | Advisory alert | Manual-operations starting point; not validated against repeated runs. | The disk headroom/cache/fallback values in the profile threshold matrix above. | None; tune per deployment before using as an alert. |
 | Release gate | A CI check that blocks merge/release on a missing or failing artifact, independent of the underlying number's SLA status. | PR #226's exact-digest operational evidence workflow failing closed on an incomplete manifest. | `validate_operational_evidence_manifest` and the `operational-readiness.yml` workflow. |
-| Supported production objective | A numeric bound backed by a retained, same-profile, multi-sample bundle with recorded variance. | None currently exist for any profile in the matrix above (`Pending`/`Diagnostic only`). | `validate_threshold_evidence_bundle` (see below) once a bundle is retained and reviewed. |
+| Supported production objective | A numeric bound backed by a retained, same-profile, multi-sample bundle with recorded variance. | None currently exist for any profile in the matrix above (`Pending`/`Diagnostic only`). | `validate_threshold_evidence_bundle` defines the comparability contract a bundle must satisfy. Unlike the release-gate row above, no workflow runs it against retained artifacts yet, so it is a reviewable contract rather than an active gate. |
 
 | Signal | Advisory threshold | Response |
 | --- | --- | --- |
@@ -130,6 +138,10 @@ derived from a bundle:
 - Any sample pinned to a commit other than the bundle's expected commit (mixed-revision): rejected.
 - Any sample whose `deployment_profile` does not match the bundle's declared profile (outside the
   declared profile): rejected.
+- Any v1 sample, missing v2 toolchain or runtime configuration field, or disagreement in those
+  identities: rejected. The runtime identity contains only allowlisted, nonsecret settings:
+  local storage mode and path kind, private-hop REST transport, query timeout, disabled embeddings,
+  release benchmark profile, and configured soak duration. The password itself is never retained.
 
 A bundle that passes returns per-metric sample count, mean, and standard deviation for every
 `elapsed_ns` field, satisfying "record sample count and observed variance" without asserting that

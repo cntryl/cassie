@@ -7483,14 +7483,14 @@ mod benchmark_deployment_profile_contract {
         let required_controls = [
             "  complete-shard:\n",
             "run_id must be a bounded artifact-safe identifier",
-            "deployment_profile must be native-linux-amd64-disk",
+            "a complete Tier 1-6 run must select both native profiles",
             "soak_duration_seconds must be an integer of at least 3600",
             "fail-fast: false",
             "command: \"cargo bench --bench 'tier1_*' --locked\"",
             "command: \"cargo bench --bench 'tier2_*' --locked\"",
             "command: \"cargo bench --bench 'tier3_*' --locked\"",
             "command: \"cargo bench --bench 'tier4_*' --locked\"",
-            "max-parallel: 10",
+            "max-parallel: 20",
             "command: \"cargo bench --bench 'tier5_scaling_query' --locked\"",
             "command: \"cargo bench --bench 'tier5_scaling_retrieval' --locked\"",
             "command: \"cargo bench --bench 'tier5_scaling_lifecycle' --locked\"",
@@ -7500,10 +7500,10 @@ mod benchmark_deployment_profile_contract {
             "timeout-minutes: 360",
             "CASSIE_BENCH_SOAK_DURATION_SECONDS: ${{ inputs.soak_duration_seconds }}",
             "${{ matrix.command }}",
-            "name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.tier }}",
+            "name: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.architecture }}-${{ matrix.tier }}",
             "  complete-manifest:\n",
             "needs: complete-shard",
-            "pattern: cassie-benchmark-shard-${{ inputs.run_id }}-*",
+            "pattern: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.architecture }}-*",
             "merge-multiple: true",
             "benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest",
             "path: target/stress/**/latest.json",
@@ -7522,6 +7522,101 @@ mod benchmark_deployment_profile_contract {
     }
 
     #[test]
+    fn should_run_complete_manual_bench_on_both_native_architectures() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let shards = workflow
+            .split_once("  complete-shard:\n")
+            .and_then(|(_, rest)| rest.split_once("  complete-manifest:\n"))
+            .map(|(job, _)| job)
+            .expect("manual shard job");
+        let manifest = workflow
+            .split_once("  complete-manifest:\n")
+            .map(|(_, job)| job)
+            .expect("manual manifest job");
+
+        // Act
+        let native_runners = [
+            (
+                "architecture: amd64",
+                "runner: ubuntu-latest",
+                "native-linux-amd64-disk",
+            ),
+            (
+                "architecture: arm64",
+                "runner: ubuntu-24.04-arm",
+                "native-linux-arm64-disk",
+            ),
+        ]
+        .into_iter()
+        .all(|(architecture, runner, profile)| {
+            shards.contains(architecture)
+                && shards.contains(runner)
+                && shards.contains(profile)
+                && manifest.contains(architecture)
+                && manifest.contains(runner)
+                && manifest.contains(profile)
+        });
+        let profiles_are_bound_to_shards = shards
+            .contains("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID: ${{ matrix.profile }}")
+            && shards.contains("runs-on: ${{ matrix.runner }}");
+
+        // Assert
+        assert!(native_runners);
+        assert!(profiles_are_bound_to_shards);
+    }
+
+    #[test]
+    fn should_fail_closed_on_either_incomplete_native_benchmark_manifest() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let manifest = workflow
+            .split_once("  complete-manifest:\n")
+            .map(|(_, job)| job)
+            .expect("manual manifest job");
+
+        // Act
+        let validates_each_profile = manifest.contains("runs-on: ${{ matrix.runner }}")
+            && manifest.contains(
+                "pattern: cassie-benchmark-shard-${{ inputs.run_id }}-${{ matrix.architecture }}-*",
+            )
+            && manifest.contains(
+                "benchmark_evidence_contract::should_validate_complete_benchmark_artifact_manifest",
+            )
+            && manifest
+                .contains("name: cassie-benchmark-${{ inputs.run_id }}-${{ matrix.architecture }}")
+            && manifest.contains("if-no-files-found: error");
+        let waits_for_every_shard = manifest.contains("needs: complete-shard");
+
+        // Assert
+        assert!(validates_each_profile);
+        assert!(waits_for_every_shard);
+    }
+
+    #[test]
+    fn should_pin_manual_manifest_to_native_identity() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+        let manifest = workflow
+            .split_once("  complete-manifest:\n")
+            .map(|(_, job)| job)
+            .expect("manual manifest job");
+
+        // Act
+        let verifies_native_architecture =
+            manifest.contains("uname -m") && manifest.contains("matrix.architecture");
+        let verifies_every_artifact_identity = manifest
+            .contains("EXPECTED_PROFILE: ${{ matrix.profile }}")
+            && manifest.contains("EXPECTED_COMMIT: ${{ github.sha }}")
+            && manifest.contains(".metadata.deployment_profile_id == $profile")
+            && manifest.contains(".environment.git_commit == $commit");
+
+        // Assert
+        assert!(verifies_native_architecture);
+        assert!(verifies_every_artifact_identity);
+    }
+
+    #[test]
     fn should_run_only_the_requested_retained_benchmark_shard() {
         // Arrange
         let workflow = include_str!("../.github/workflows/bench.yml");
@@ -7532,11 +7627,11 @@ mod benchmark_deployment_profile_contract {
             && workflow.contains("default: all")
             && workflow.contains("- tier5-lifecycle");
         let filters_matrix = workflow
-            .matches("if: ${{ inputs.shard == 'all' || inputs.shard == matrix.tier }}")
+            .matches("if: ${{ (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}")
             .count()
             == 4
             && workflow.contains(
-                "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}",
+                "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) && (inputs.deployment_profile == 'both-native-linux-disk' || inputs.deployment_profile == matrix.profile) }}",
             );
         let validates_only_complete_runs = workflow.contains(
             "if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane && inputs.shard == 'all' && inputs.workload == 'all' }}",
@@ -7677,7 +7772,9 @@ mod benchmark_deployment_profile_contract {
 // mixed-revision, or off-profile bundles before any threshold value is
 // derived, and report sample count/variance rather than a bare single value.
 mod threshold_evidence_bundle {
-    use super::support_operational_evidence::validate_threshold_evidence_bundle;
+    use super::support_operational_evidence::{
+        validate_operational_evidence_manifest, validate_threshold_evidence_bundle,
+    };
 
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
 
@@ -7687,15 +7784,33 @@ mod threshold_evidence_bundle {
         } else {
             "linux/amd64"
         };
+        let rustc_host = if platform == "linux/arm64" {
+            "aarch64-unknown-linux-gnu"
+        } else {
+            "x86_64-unknown-linux-gnu"
+        };
         format!(
             r#"{{
-                "schema_version": "cassie-operational-evidence.v1",
+                "schema_version": "cassie-operational-evidence.v2",
                 "commit": "{commit}",
                 "run_id": "{run_id}",
                 "operator": "release-owner",
                 "runner": "hosted-runner-1",
                 "fixture": "operational-rehearsal-single-row-indexed",
                 "midge_lock_checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "rust_toolchain": {{
+                    "rustc_verbose": "rustc 1.98.1 (48a229cea 2026-09-01)\nrelease: 1.98.1\ncommit-hash: 48a229cea\nhost: {rustc_host}",
+                    "cargo_version": "cargo 1.98.1 (4f4d80f 2026-08-25)"
+                }},
+                "runtime_config": {{
+                    "storage_mode": "local",
+                    "storage_path_kind": "isolated-local-disk",
+                    "rest_transport": "private-hop-http",
+                    "benchmark_profile": "release",
+                    "query_timeout_ms": 30000,
+                    "embeddings_provider": "disabled",
+                    "soak_duration_seconds": 3600
+                }},
                 "started_utc": "2026-09-15T00:00:00Z",
                 "finished_utc": "2026-09-15T00:05:00Z",
                 "platform": "{platform}",
@@ -7727,6 +7842,187 @@ mod threshold_evidence_bundle {
                 }}
             }}"#
         )
+    }
+
+    fn altered_manifest(
+        document: &str,
+        alter: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+    ) -> String {
+        let mut value: serde_json::Value = serde_json::from_str(document).expect("test manifest");
+        alter(value.as_object_mut().expect("test manifest object"));
+        serde_json::to_string(&value).expect("serialize altered test manifest")
+    }
+
+    #[test]
+    fn should_reject_v2_toolchain_host_outside_declared_platform() {
+        // Arrange
+        let document = altered_manifest(
+            &manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            |object| {
+                object["rust_toolchain"]["rustc_verbose"] = serde_json::json!(
+                    "rustc 1.98.1 (48a229cea 2026-09-01)\nrelease: 1.98.1\ncommit-hash: 48a229cea\nhost: aarch64-unknown-linux-gnu"
+                );
+            },
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&document, "expected-commit")
+            .expect_err("a cross-architecture toolchain cannot certify native evidence");
+
+        // Assert
+        assert!(
+            error.contains("rust_toolchain"),
+            "unexpected error: {error}"
+        );
+        assert!(error.contains("platform"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn should_reject_v1_operational_evidence_for_thresholds() {
+        // Arrange
+        let bundle = ["run-1", "run-2", "run-3"]
+            .into_iter()
+            .map(|run_id| {
+                manifest(run_id, NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000).replace(
+                    "cassie-operational-evidence.v2",
+                    "cassie-operational-evidence.v1",
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("historical v1 manifests cannot support thresholds");
+
+        // Assert
+        assert!(
+            error.contains("schema_version"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_without_toolchain_identity() {
+        // Arrange
+        let bundle = ["run-1", "run-2", "run-3"]
+            .into_iter()
+            .map(|run_id| {
+                altered_manifest(
+                    &manifest(run_id, NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+                    |object| {
+                        object.remove("rust_toolchain");
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("missing compiler identity must reject threshold evidence");
+
+        // Assert
+        assert!(
+            error.contains("rust_toolchain"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_with_mixed_toolchains() {
+        // Arrange
+        let mut bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050),
+        ];
+        bundle[1] = altered_manifest(&bundle[1], |object| {
+            object["rust_toolchain"]["cargo_version"] =
+                serde_json::json!("cargo 1.99.0 (different)");
+        });
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("mixed compiler identity must reject threshold evidence");
+
+        // Assert
+        assert!(
+            error.contains("rust_toolchain"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_without_runtime_config_identity() {
+        // Arrange
+        let bundle = ["run-1", "run-2", "run-3"]
+            .into_iter()
+            .map(|run_id| {
+                altered_manifest(
+                    &manifest(run_id, NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+                    |object| {
+                        object.remove("runtime_config");
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("missing runtime settings must reject threshold evidence");
+
+        // Assert
+        assert!(
+            error.contains("runtime_config"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_threshold_bundle_with_mixed_runtime_config() {
+        // Arrange
+        let mut bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050),
+        ];
+        bundle[2] = altered_manifest(&bundle[2], |object| {
+            object["runtime_config"]["soak_duration_seconds"] = serde_json::json!(7_200);
+        });
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("mixed runtime settings must reject threshold evidence");
+
+        // Assert
+        assert!(
+            error.contains("runtime_config"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]
@@ -7848,7 +8144,159 @@ mod threshold_evidence_bundle {
         // Assert
         assert_eq!(snapshot_restore.sample_count, 3);
         assert!((snapshot_restore.mean_ns - 1_050.0).abs() < f64::EPSILON);
-        assert!(snapshot_restore.stdev_ns > 0.0);
+        // Sample (Bessel-corrected) standard deviation of 1000/1100/1050 is
+        // exactly 50; the population estimator would give ~40.82, so this
+        // asserts which estimator backs a proposed threshold.
+        assert!(
+            (snapshot_restore.stdev_ns - 50.0).abs() < 1e-9,
+            "expected the sample standard deviation, got {}",
+            snapshot_restore.stdev_ns
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_that_repeats_one_run() {
+        // Arrange
+        // The same retained manifest three times: it satisfies the sample
+        // count and reports zero variance, the most reproducible-looking
+        // result the validator can emit, while resting on one measurement.
+        let sample = manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000);
+        let bundle = vec![sample.clone(), sample.clone(), sample];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a repeated run must not satisfy the sample count");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 1"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            error.contains("run_id 'run-1' is repeated"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_containing_shape_only_runs() {
+        // Arrange
+        let shape_only = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace("\"shape_only\": false", "\"shape_only\": true")
+            .replace(
+                "\"long_evidence\": {\"outcome\": \"success\"}",
+                "\"long_evidence\": {\"outcome\": \"skipped\"}",
+            );
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            shape_only,
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("shape-only evidence must not support a threshold");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 2"),
+            "unexpected error: {error}"
+        );
+        assert!(error.contains("shape_only"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_mixing_fixtures_or_host_shapes() {
+        // Arrange
+        let other_fixture = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace(
+                "operational-rehearsal-single-row-indexed",
+                "operational-rehearsal-wide-row",
+            );
+        let bigger_host = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace("\"core_count\": 4", "\"core_count\": 64");
+        let base = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+        ];
+
+        // Act
+        let mut fixture_bundle = base.clone();
+        fixture_bundle.push(other_fixture);
+        let fixture_error = validate_threshold_evidence_bundle(
+            &fixture_bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a different fixture is not comparable");
+
+        let mut host_bundle = base;
+        host_bundle.push(bigger_host);
+        let host_error = validate_threshold_evidence_bundle(
+            &host_bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("a different host shape is not comparable");
+
+        // Assert
+        assert!(
+            fixture_error.contains("fixture differs"),
+            "unexpected error: {fixture_error}"
+        );
+        assert!(
+            host_error.contains("host.core_count differs"),
+            "unexpected error: {host_error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_threshold_bundle_whose_samples_report_different_metrics() {
+        // Arrange
+        // An extra metric in one sample would otherwise yield a
+        // ThresholdMetricStats with sample_count 1 and zero variance,
+        // indistinguishable in the result from a fully-sampled metric.
+        let extra_metric = manifest("run-3", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_050)
+            .replace(
+                "\"container_snapshot_restore\": 50",
+                "\"container_snapshot_restore\": 50,\n                    \"long_evidence\": 60",
+            );
+        let bundle = vec![
+            manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            manifest("run-2", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_100),
+            extra_metric,
+        ];
+
+        // Act
+        let error = validate_threshold_evidence_bundle(
+            &bundle,
+            "expected-commit",
+            NATIVE_LINUX_PROFILE_ID,
+            3,
+        )
+        .expect_err("samples must report the same metric set");
+
+        // Assert
+        assert!(
+            error.contains("bundle sample 2"),
+            "unexpected error: {error}"
+        );
+        assert!(
+            error.contains("elapsed_ns metrics differ"),
+            "unexpected error: {error}"
+        );
     }
 }
 

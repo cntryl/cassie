@@ -8130,3 +8130,58 @@ mod workflow_setup_contract {
         assert!(!exposes_obsolete_outputs);
     }
 }
+mod benchmark_tier3_mixed_storage {
+    use super::workloads;
+    use cassie::app::Cassie;
+
+    #[test]
+    fn should_reopen_mixed_fixture_from_scheduled_storage_environment() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_mixed_load.rs");
+        assert!(owner.contains("workloads::mixed_system_context("));
+        if std::env::var_os("CASSIE_MIXED_FIXTURE_CHILD").is_none() {
+            let output =
+                std::process::Command::new(std::env::current_exe().expect("test executable"))
+                    .arg("should_reopen_mixed_fixture_from_scheduled_storage_environment")
+                    .arg("--nocapture")
+                    .env("CASSIE_MIXED_FIXTURE_CHILD", "1")
+                    .env("CASSIE_STORAGE_MODE", "memory")
+                    .env_remove("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
+                    .output()
+                    .expect("run scheduled benchmark fixture child");
+            // The child isolates the scheduled process environment.
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        workloads::configure_tier3_environment();
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::mixed_system_context(
+                "mixed-scheduled-reopen",
+                16,
+            ))
+            .expect("mixed fixture");
+        let path = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+
+        // Act
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let reopened = Cassie::new_with_data_dir(&path).expect("reopen disk fixture");
+        reopened.startup().expect("start reopened fixture");
+        let session = reopened.create_session("benchmark", None);
+        let result = reopened
+            .execute_sql(&session, "SELECT id FROM bench_documents", vec![])
+            .expect("read persisted mixed fixture");
+
+        // Assert
+        assert_eq!(result.rows.len(), 16);
+        reopened.shutdown();
+        std::fs::remove_dir_all(path).expect("clean mixed fixture");
+    }
+}

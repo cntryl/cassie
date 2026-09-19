@@ -8159,6 +8159,24 @@ mod benchmark_tier3_mixed_storage {
     }
 
     #[test]
+    fn should_allow_the_complete_scheduled_benchmark_lane_to_finish() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+
+        // Act
+        let scheduled = workflow
+            .split_once("  bench:\n")
+            .expect("scheduled job")
+            .1
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .0;
+
+        // Assert
+        assert!(scheduled.contains("timeout-minutes: 120"));
+    }
+
+    #[test]
     fn should_reopen_mixed_fixture_from_scheduled_storage_environment() {
         // Arrange
         let owner = include_str!("../benches/tier3_system_mixed_load.rs");

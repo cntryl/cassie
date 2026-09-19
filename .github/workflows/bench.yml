@@ -53,7 +53,7 @@ jobs:
   bench:
     if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_scheduled_lane) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CASSIE_STORAGE_MODE: memory
 

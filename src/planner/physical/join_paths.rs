@@ -105,6 +105,21 @@ fn equi_join_columns(expr: &Expr) -> Option<(String, String)> {
 
 pub(super) fn expr_contains_exists(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| expr_contains_exists(expr))
+                || branches
+                    .iter()
+                    .any(|(when, then)| expr_contains_exists(when) || expr_contains_exists(then))
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_contains_exists(expr))
+        }
         Expr::Exists(_) => true,
         Expr::Binary { left, right, .. } => {
             expr_contains_exists(left) || expr_contains_exists(right)
@@ -134,6 +149,22 @@ pub(super) fn expr_contains_not_exists(expr: &Expr) -> bool {
 
 fn expr_contains_not_exists_with_polarity(expr: &Expr, negated: bool) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| expr_contains_not_exists_with_polarity(expr, negated))
+                || branches.iter().any(|(when, then)| {
+                    expr_contains_not_exists_with_polarity(when, negated)
+                        || expr_contains_not_exists_with_polarity(then, negated)
+                })
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_contains_not_exists_with_polarity(expr, negated))
+        }
         Expr::Not { expr } => expr_contains_not_exists_with_polarity(expr, !negated),
         Expr::Exists(_) => negated,
         Expr::Binary { left, right, .. } => {

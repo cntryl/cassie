@@ -197,6 +197,11 @@ pub enum Expr {
     IntegerLiteral(i64),
     BoolLiteral(bool),
     Null,
+    Case {
+        operand: Option<Box<Expr>>,
+        branches: Vec<(Expr, Expr)>,
+        else_expr: Option<Box<Expr>>,
+    },
     Binary {
         left: Box<Expr>,
         op: BinaryOp,

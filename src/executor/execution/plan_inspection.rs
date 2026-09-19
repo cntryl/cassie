@@ -145,6 +145,21 @@ fn select_item_needs_user_functions(item: &SelectItem) -> bool {
 
 fn expr_needs_user_functions(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| expr_needs_user_functions(expr))
+                || branches.iter().any(|(when, then)| {
+                    expr_needs_user_functions(when) || expr_needs_user_functions(then)
+                })
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_needs_user_functions(expr))
+        }
         Expr::Binary { left, right, .. } => {
             expr_needs_user_functions(left) || expr_needs_user_functions(right)
         }

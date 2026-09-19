@@ -282,6 +282,7 @@ enum ProjectionOp {
 
 fn projection_expr_key(expr: &Expr) -> String {
     match expr {
+        Expr::Case { .. } => serde_json::to_string(expr).unwrap_or_default(),
         Expr::Column(name) => name.clone(),
         Expr::Param(index) => format!("${}", index + 1),
         Expr::Null => "null".to_string(),

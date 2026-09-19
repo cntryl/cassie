@@ -5,6 +5,10 @@ use super::{
 };
 use crate::catalog::name_matches;
 
+#[path = "validation_case.rs"]
+mod case;
+use case::{case_operand_family, validate_case_references};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OperandFamily {
     Numeric,
@@ -104,6 +108,16 @@ fn expression_operand_family(
         Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) => Ok(Some(OperandFamily::Numeric)),
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),
         Expr::Null | Expr::Param(_) | Expr::Exists(_) => Ok(None),
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => case_operand_family(
+            operand.as_deref(),
+            branches,
+            else_expr.as_deref(),
+            field_types,
+        ),
         Expr::Function(function) => {
             for argument in &function.args {
                 validate_expression_operand_families(argument, field_types)?;
@@ -409,6 +423,21 @@ pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
 pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| expr_contains_parameters(expr))
+                || branches.iter().any(|(when, then)| {
+                    expr_contains_parameters(when) || expr_contains_parameters(then)
+                })
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_contains_parameters(expr))
+        }
         Expr::Binary { left, right, .. } => {
             expr_contains_parameters(left) || expr_contains_parameters(right)
         }
@@ -676,26 +705,31 @@ pub(super) fn validate_expression(
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => validate_case_references(
+            operand.as_deref(),
+            branches,
+            else_expr.as_deref(),
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
         Expr::Column(name) => validate_column_reference(
             name,
             known_fields,
             projection_aliases,
             allow_projection_alias,
         ),
-        Expr::Binary { left, right, .. } => {
-            validate_expression(
-                left,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )?;
-            validate_expression(
-                right,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )
-        }
+        Expr::Binary { left, right, .. } => validate_expression_pair(
+            left,
+            right,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        ),
         Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
             validate_expression(
                 expr,
@@ -766,6 +800,23 @@ pub(super) fn validate_expression(
             Ok(())
         }
     }
+}
+
+fn validate_expression_pair(
+    left: &Expr,
+    right: &Expr,
+    known_fields: &HashSet<String>,
+    projection_aliases: &HashSet<String>,
+    allow_projection_alias: bool,
+) -> Result<(), CassieError> {
+    [left, right].into_iter().try_for_each(|expr| {
+        validate_expression(
+            expr,
+            known_fields,
+            projection_aliases,
+            allow_projection_alias,
+        )
+    })
 }
 
 pub(super) fn validate_aggregate_function_args(

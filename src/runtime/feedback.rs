@@ -455,11 +455,32 @@ enum NormalizedExprShape {
         expr: Box<NormalizedExprShape>,
         data_type: String,
     },
+    Case {
+        operand: Option<Box<NormalizedExprShape>>,
+        branches: Vec<(NormalizedExprShape, NormalizedExprShape)>,
+        else_expr: Option<Box<NormalizedExprShape>>,
+    },
 }
 
 impl From<&Expr> for NormalizedExprShape {
     fn from(expr: &Expr) -> Self {
         match expr {
+            Expr::Case {
+                operand,
+                branches,
+                else_expr,
+            } => Self::Case {
+                operand: operand
+                    .as_ref()
+                    .map(|expr| Box::new(Self::from(expr.as_ref()))),
+                branches: branches
+                    .iter()
+                    .map(|(when, then)| (Self::from(when), Self::from(then)))
+                    .collect(),
+                else_expr: else_expr
+                    .as_ref()
+                    .map(|expr| Box::new(Self::from(expr.as_ref()))),
+            },
             Expr::Column(name) => Self::Column(name.to_ascii_lowercase()),
             Expr::Param(_)
             | Expr::StringLiteral(_)

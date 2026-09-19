@@ -63,6 +63,21 @@ fn select_item_uses_vector(item: &SelectItem) -> bool {
 
 fn expr_uses_fulltext(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| expr_uses_fulltext(expr))
+                || branches
+                    .iter()
+                    .any(|(when, then)| expr_uses_fulltext(when) || expr_uses_fulltext(then))
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_uses_fulltext(expr))
+        }
         Expr::Function(function) => function_uses_fulltext(function),
         Expr::Binary { left, right, .. } => expr_uses_fulltext(left) || expr_uses_fulltext(right),
         Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
@@ -94,6 +109,19 @@ pub(super) fn function_uses_fulltext(function: &FunctionCall) -> bool {
 
 fn expr_uses_vector(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand.as_ref().is_some_and(|expr| expr_uses_vector(expr))
+                || branches
+                    .iter()
+                    .any(|(when, then)| expr_uses_vector(when) || expr_uses_vector(then))
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| expr_uses_vector(expr))
+        }
         Expr::Function(function) => function_uses_vector(function),
         Expr::Binary { left, op, right } => {
             matches!(

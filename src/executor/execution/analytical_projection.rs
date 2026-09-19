@@ -199,6 +199,22 @@ fn collect_expr_columns_from_slice(exprs: &[Expr], columns: &mut BTreeSet<String
 
 fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_expr_columns(operand, columns);
+            }
+            for (when, then) in branches {
+                collect_expr_columns(when, columns);
+                collect_expr_columns(then, columns);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_expr_columns(else_expr, columns);
+            }
+        }
         Expr::Column(name) => {
             if !projected_read::is_row_id_column(name) {
                 columns.insert(name.to_ascii_lowercase());

@@ -465,6 +465,22 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
 
 fn collect_expr_column_refs(expr: &Expr, fields: &mut BTreeSet<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_expr_column_refs(operand, fields);
+            }
+            for (when, then) in branches {
+                collect_expr_column_refs(when, fields);
+                collect_expr_column_refs(then, fields);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_expr_column_refs(else_expr, fields);
+            }
+        }
         Expr::Column(name) if is_row_id_column(name) => {}
         Expr::Column(name) => {
             fields.insert(name.to_ascii_lowercase());
@@ -554,6 +570,17 @@ fn collect_equality_filter_expressions(expr: &Expr, expressions: &mut BTreeSet<S
 
 fn expr_is_constant(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand.as_ref().is_none_or(|expr| expr_is_constant(expr))
+                && branches
+                    .iter()
+                    .all(|(when, then)| expr_is_constant(when) && expr_is_constant(then))
+                && else_expr.as_ref().is_none_or(|expr| expr_is_constant(expr))
+        }
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
@@ -577,6 +604,17 @@ fn expr_is_constant(expr: &Expr) -> bool {
 
 fn expr_has_column(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand.as_ref().is_some_and(|expr| expr_has_column(expr))
+                || branches
+                    .iter()
+                    .any(|(when, then)| expr_has_column(when) || expr_has_column(then))
+                || else_expr.as_ref().is_some_and(|expr| expr_has_column(expr))
+        }
         Expr::Column(_) => true,
         Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
         Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
@@ -779,7 +817,7 @@ fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Op
         Expr::Not { expr } | Expr::Cast { expr, .. } => {
             collect_projected_filter_columns(expr, fields)
         }
-        Expr::Function(_) | Expr::Exists(_) => None,
+        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
     }
 }
 
@@ -884,6 +922,24 @@ fn aggregate_functions_supported(plan: &LogicalPlan) -> bool {
 
 fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            let mut functions = Vec::new();
+            if let Some(operand) = operand {
+                functions.extend(aggregate_functions_in_expr(operand));
+            }
+            for (when, then) in branches {
+                functions.extend(aggregate_functions_in_expr(when));
+                functions.extend(aggregate_functions_in_expr(then));
+            }
+            if let Some(else_expr) = else_expr {
+                functions.extend(aggregate_functions_in_expr(else_expr));
+            }
+            functions
+        }
         Expr::Function(function) => {
             let mut functions = function
                 .args
@@ -931,6 +987,22 @@ fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
 
 fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_none_or(|expr| expr_supports_parallel_aggregation(expr))
+                && branches.iter().all(|(when, then)| {
+                    expr_supports_parallel_aggregation(when)
+                        && expr_supports_parallel_aggregation(then)
+                })
+                && else_expr
+                    .as_ref()
+                    .is_none_or(|expr| expr_supports_parallel_aggregation(expr))
+        }
         Expr::Function(function) => {
             if crate::sql::functions::is_aggregate_function(&function.name) {
                 matches!(

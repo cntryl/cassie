@@ -113,8 +113,10 @@ pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Op
     let mut bracket_depth = 0i32;
     let mut in_single = false;
     let mut in_double = false;
+    let mut case_depth = 0u32;
 
     for (idx, ch) in lower.char_indices() {
+        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
         if idx < start {
             match ch {
                 '\'' if !in_double => in_single = !in_single,
@@ -138,7 +140,7 @@ pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Op
             _ => {}
         }
 
-        if depth != 0 || bracket_depth != 0 || in_single || in_double {
+        if depth != 0 || bracket_depth != 0 || case_depth != 0 || in_single || in_double {
             continue;
         }
 
@@ -155,6 +157,35 @@ pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Op
     }
 
     None
+}
+
+pub(super) fn update_case_depth(
+    lower: &str,
+    idx: usize,
+    ch: char,
+    in_single: bool,
+    in_double: bool,
+    case_depth: &mut u32,
+) {
+    if in_single || in_double {
+        return;
+    }
+    let token = match ch {
+        'c' => "case",
+        'e' => "end",
+        _ => return,
+    };
+    let bytes = lower.as_bytes();
+    if bytes.get(idx..idx + token.len()) == Some(token.as_bytes())
+        && is_clause_boundary_before(bytes, idx)
+        && is_clause_boundary_after(bytes, idx + token.len())
+    {
+        if token == "case" {
+            *case_depth += 1;
+        } else {
+            *case_depth = case_depth.saturating_sub(1);
+        }
+    }
 }
 
 pub(super) fn is_clause_boundary_before(bytes: &[u8], index: usize) -> bool {
@@ -177,8 +208,10 @@ pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&
     let mut bracket_depth = 0i32;
     let mut in_single = false;
     let mut in_double = false;
+    let mut case_depth = 0u32;
 
     for &(idx, ch) in &chars {
+        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
         match ch {
             '\'' => {
                 if !in_double {
@@ -199,6 +232,7 @@ pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&
 
         if depth == 0
             && bracket_depth == 0
+            && case_depth == 0
             && !in_single
             && !in_double
             && idx + token.len() <= input.len()
@@ -224,9 +258,11 @@ pub(super) fn split_top_level_last<'a>(
     let mut bracket_depth = 0i32;
     let mut in_single = false;
     let mut in_double = false;
+    let mut case_depth = 0u32;
     let mut selected = None;
 
     for &(idx, ch) in &chars {
+        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
         match ch {
             '\'' => {
                 if !in_double {
@@ -247,6 +283,7 @@ pub(super) fn split_top_level_last<'a>(
 
         if depth == 0
             && bracket_depth == 0
+            && case_depth == 0
             && !in_single
             && !in_double
             && idx + token.len() <= input.len()

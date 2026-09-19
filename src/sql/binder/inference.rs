@@ -342,6 +342,26 @@ pub(crate) fn infer_expr_type(
 ) -> Option<DataType> {
     match expr {
         Expr::Column(name) => schema_field_type(source_schema, name),
+        Expr::Case {
+            branches,
+            else_expr,
+            ..
+        } => {
+            let mut result = DataType::Null;
+            for (_, value) in branches {
+                result = common_case_type(
+                    result,
+                    infer_expr_type(value, source_schema, user_functions, parameter_types)?,
+                )?;
+            }
+            if let Some(value) = else_expr {
+                result = common_case_type(
+                    result,
+                    infer_expr_type(value, source_schema, user_functions, parameter_types)?,
+                )?;
+            }
+            Some(result)
+        }
         Expr::Cast { data_type, .. } => Some(data_type.clone()),
         Expr::Function(function) => {
             infer_function_return_type(function, source_schema, user_functions, parameter_types)
@@ -393,6 +413,46 @@ pub(crate) fn infer_expr_type(
             }
         },
     }
+}
+
+pub(super) fn common_case_type(left: DataType, right: DataType) -> Option<DataType> {
+    if left == DataType::Null {
+        return Some(right);
+    }
+    if right == DataType::Null {
+        return Some(left);
+    }
+    if left == right {
+        return Some(left);
+    }
+    if matches!(
+        left,
+        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }
+    ) && matches!(
+        right,
+        DataType::Text | DataType::Char { .. } | DataType::Varchar { .. }
+    ) {
+        return Some(DataType::Text);
+    }
+    if matches!(
+        left,
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+    ) && matches!(
+        right,
+        DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+    ) {
+        if left == DataType::Float || right == DataType::Float {
+            return Some(DataType::Float);
+        }
+        if left == DataType::BigInt || right == DataType::BigInt {
+            return Some(DataType::BigInt);
+        }
+        if left == DataType::Int || right == DataType::Int {
+            return Some(DataType::Int);
+        }
+        return Some(DataType::SmallInt);
+    }
+    None
 }
 
 fn is_integer_type(data_type: &DataType) -> bool {

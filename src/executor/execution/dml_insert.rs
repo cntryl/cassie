@@ -681,6 +681,7 @@ fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Valu
             .ok_or_else(|| format!("missing bind parameter ${}", index + 1))
             .and_then(|value| value_to_json(value).map_err(|error| error.to_string())),
         Expr::Column(_)
+        | Expr::Case { .. }
         | Expr::Function(_)
         | Expr::IsNull { .. }
         | Expr::InList { .. }

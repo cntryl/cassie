@@ -201,6 +201,22 @@ fn rewrite_order_expr(order: &mut OrderExpr) {
 
 fn rewrite_expr(expr: &mut Expr) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                rewrite_expr(operand);
+            }
+            for (when, then) in branches {
+                rewrite_expr(when);
+                rewrite_expr(then);
+            }
+            if let Some(else_expr) = else_expr {
+                rewrite_expr(else_expr);
+            }
+        }
         Expr::Column(name) => {
             if is_reserved_id(name) {
                 *name = INTERNAL_IDENTITY.to_string();

@@ -107,6 +107,23 @@ pub(super) fn validate_index_expression(
     known_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                validate_index_expression(operand, known_fields)?;
+            }
+            for (when, then) in branches {
+                validate_index_expression(when, known_fields)?;
+                validate_index_expression(then, known_fields)?;
+            }
+            if let Some(else_expr) = else_expr {
+                validate_index_expression(else_expr, known_fields)?;
+            }
+            Ok(())
+        }
         Expr::Column(name) => {
             if known_fields.contains(name) {
                 Ok(())

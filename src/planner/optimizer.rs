@@ -212,6 +212,22 @@ fn predicate_relations(expr: &Expr) -> BTreeSet<String> {
 
 fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_predicate_relations(operand, relations);
+            }
+            for (when, then) in branches {
+                collect_predicate_relations(when, relations);
+                collect_predicate_relations(then, relations);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_predicate_relations(else_expr, relations);
+            }
+        }
         Expr::Column(column) => {
             if let Some((qualifier, _)) = column.rsplit_once('.') {
                 relations.insert(qualifier.to_ascii_lowercase());
@@ -343,6 +359,22 @@ fn collect_join_required_columns(source: &QuerySource, columns: &mut BTreeSet<St
 
 fn collect_expression_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_expression_columns(operand, columns);
+            }
+            for (when, then) in branches {
+                collect_expression_columns(when, columns);
+                collect_expression_columns(then, columns);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_expression_columns(else_expr, columns);
+            }
+        }
         Expr::Column(column) => {
             columns.insert(column.clone());
         }

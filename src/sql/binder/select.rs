@@ -133,6 +133,23 @@ fn canonicalize_typed_predicate_literals(
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<(), CassieError> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                canonicalize_typed_predicate_literals(operand, field_types)?;
+            }
+            for (when, then) in branches {
+                canonicalize_typed_predicate_literals(when, field_types)?;
+                canonicalize_typed_predicate_literals(then, field_types)?;
+            }
+            if let Some(else_expr) = else_expr {
+                canonicalize_typed_predicate_literals(else_expr, field_types)?;
+            }
+            Ok(())
+        }
         Expr::Binary { left, right, .. } => {
             canonicalize_column_literal_pair(left, right, field_types)?;
             canonicalize_typed_predicate_literals(left, field_types)?;
@@ -279,6 +296,24 @@ fn validate_grouped_projection(
 
 fn first_ungrouped_column<'a>(expr: &'a Expr, group_by: &[Expr]) -> Option<&'a str> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => operand
+            .as_ref()
+            .and_then(|expr| first_ungrouped_column(expr, group_by))
+            .or_else(|| {
+                branches.iter().find_map(|(when, then)| {
+                    first_ungrouped_column(when, group_by)
+                        .or_else(|| first_ungrouped_column(then, group_by))
+                })
+            })
+            .or_else(|| {
+                else_expr
+                    .as_ref()
+                    .and_then(|expr| first_ungrouped_column(expr, group_by))
+            }),
         Expr::Column(column) => (!group_by.iter().any(
             |grouped| matches!(grouped, Expr::Column(name) if name.eq_ignore_ascii_case(column)),
         ))

@@ -434,6 +434,32 @@ pub(super) fn resolve_exists_expr<'a>(
     expr: &'a Expr,
 ) -> ExprResolution<'a> {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            let operand = operand
+                .as_ref()
+                .map(|expr| resolve_exists_expr(context, expr).map(Box::new))
+                .transpose()?;
+            let mut resolved_branches = Vec::with_capacity(branches.len());
+            for (when, then) in branches {
+                resolved_branches.push((
+                    resolve_exists_expr(context, when)?,
+                    resolve_exists_expr(context, then)?,
+                ));
+            }
+            let else_expr = else_expr
+                .as_ref()
+                .map(|expr| resolve_exists_expr(context, expr).map(Box::new))
+                .transpose()?;
+            Ok(Expr::Case {
+                operand,
+                branches: resolved_branches,
+                else_expr,
+            })
+        }
         Expr::Binary { left, op, right } => resolve_binary_exists_expr(context, left, op, right),
         Expr::IsNull { expr, negated } => resolve_is_null_exists_expr(context, expr, *negated),
         Expr::InList {
@@ -706,6 +732,27 @@ fn select_item_expansion_weight(item: &SelectItem) -> usize {
 
 fn expression_expansion_weight(expr: &Expr) -> usize {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => operand
+            .as_ref()
+            .map_or(0, |expr| expression_expansion_weight(expr))
+            .saturating_add(
+                branches
+                    .iter()
+                    .map(|(when, then)| {
+                        expression_expansion_weight(when)
+                            .saturating_add(expression_expansion_weight(then))
+                    })
+                    .sum::<usize>(),
+            )
+            .saturating_add(
+                else_expr
+                    .as_ref()
+                    .map_or(0, |expr| expression_expansion_weight(expr)),
+            ),
         Expr::Function(function) => function
             .args
             .iter()

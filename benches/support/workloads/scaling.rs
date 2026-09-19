@@ -9,7 +9,7 @@ use serde_json::json;
 use super::context::{usize_mod_i64, BenchContext};
 
 pub const RELATIONAL_SCALING_SQL: &str =
-    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY score, id LIMIT 25";
+    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY score LIMIT 25";
 pub const JOIN_SCALING_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 pub const COLUMN_SCALING_SQL: &str =
     "SELECT title, score FROM bench_documents WHERE status = 'approved' AND score >= 90 LIMIT 1000";

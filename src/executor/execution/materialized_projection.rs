@@ -835,6 +835,22 @@ fn collect_functions_in_select_item(item: &SelectItem, out: &mut Vec<String>) {
 
 fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_functions_in_expr(operand, out);
+            }
+            for (when, then) in branches {
+                collect_functions_in_expr(when, out);
+                collect_functions_in_expr(then, out);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_functions_in_expr(else_expr, out);
+            }
+        }
         Expr::Function(function) => collect_functions_in_call(function, out),
         Expr::Binary { left, right, .. } => {
             collect_functions_in_expr(left, out);

@@ -1,9 +1,12 @@
-use super::clauses::{split_top_level, split_top_level_last, strip_parentheses};
+use super::clauses::{split_top_level, split_top_level_last, strip_parentheses, update_case_depth};
 use super::schema::{parse_data_type, starts_with_keyword};
 use super::{
     parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
     SortDirection, SqlError,
 };
+
+#[path = "expr_case.rs"]
+mod case;
 
 pub(super) fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
     let trimmed = input.trim();
@@ -45,9 +48,19 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut bracket_depth: i32 = 0;
     let mut in_single = false;
     let mut in_double = false;
+    let mut case_depth = 0u32;
     let mut start = 0;
+    let lower = s.to_ascii_lowercase();
 
     for (i, ch) in s.char_indices() {
+        update_case_depth(
+            &lower,
+            i,
+            ch.to_ascii_lowercase(),
+            in_single,
+            in_double,
+            &mut case_depth,
+        );
         match ch {
             '\'' if !in_double => {
                 in_single = !in_single;
@@ -63,7 +76,12 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
             ']' if !in_single && !in_double => {
                 bracket_depth = bracket_depth.saturating_sub(1);
             }
-            ',' if !in_single && !in_double && depth == 0 && bracket_depth == 0 => {
+            ',' if !in_single
+                && !in_double
+                && depth == 0
+                && bracket_depth == 0
+                && case_depth == 0 =>
+            {
                 out.push(&s[start..i]);
                 start = i + ch.len_utf8();
             }
@@ -368,7 +386,7 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Ok(Expr::Param(idx - 1));
     }
     if starts_with_keyword(raw, "case") {
-        return Err(SqlError::new("CASE expressions are not supported".into()));
+        return case::parse_case(raw);
     }
     if raw.eq_ignore_ascii_case("null") {
         return Ok(Expr::Null);

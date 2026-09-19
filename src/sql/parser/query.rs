@@ -91,6 +91,7 @@ pub(super) fn parse_projection_item(raw: &str) -> Result<SelectItem, SqlError> {
     Ok(match expr {
         Expr::Function(function) => SelectItem::Function { function, alias },
         Expr::Cast { .. }
+        | Expr::Case { .. }
         | Expr::Binary { .. }
         | Expr::BoolLiteral(_)
         | Expr::Null

@@ -241,6 +241,34 @@ mod pgwire_binary_codecs {
     }
 
     #[test]
+    fn should_describe_case_result_types_over_pgwire() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("case-result-types");
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+
+            // Act
+            let (frames, server) = start_extended_query(
+                cassie,
+                support::parse_frame("case_stmt", "SELECT CASE WHEN true THEN CAST(2 AS INT) ELSE CAST(3 AS BIGINT) END AS n, CASE WHEN false THEN 'x' ELSE 'y' END AS t, CASE WHEN true THEN CAST(2 AS INT) ELSE 3.5 END AS widened"),
+                support::bind_frame_with_formats("case_portal", "case_stmt", &[], &[], &[1]),
+                support::execute_frame("case_portal"),
+            ).await;
+
+            // Assert
+            let description = frames.iter().find(|frame| frame.0 == b'T').expect("row description");
+            let fields = support::parse_row_description(&description.1);
+            assert_eq!(fields.iter().map(|field| field.type_oid).collect::<Vec<_>>(), vec![20, 25, 701]);
+            let row = frames.iter().find(|frame| frame.0 == b'D').expect("data row");
+            assert_eq!(read_binary_row(&row.1), vec![Some(2_i64.to_be_bytes().to_vec()), Some(b"y".to_vec()), Some(2_f64.to_be_bytes().to_vec())]);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_encode_binary_result_codecs_with_exact_bytes() {
         // Arrange
         support::use_local_storage();

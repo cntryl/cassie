@@ -881,7 +881,7 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
                 && vector_prefilter_supported(low, schema)
                 && vector_prefilter_supported(high, schema)
         }
-        Expr::Function(_) | Expr::Exists(_) => false,
+        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => false,
     }
 }
 
@@ -898,6 +898,21 @@ pub(crate) fn vector_prefilter_fallback_reason(
 
 fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| contains_vector_field(expr, schema))
+                || branches.iter().any(|(when, then)| {
+                    contains_vector_field(when, schema) || contains_vector_field(then, schema)
+                })
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| contains_vector_field(expr, schema))
+        }
         Expr::Column(name) => schema.fields.iter().any(|field| {
             field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Vector(_))
         }),

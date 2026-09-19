@@ -209,6 +209,22 @@ pub(super) fn bind_call_procedure(
 pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool {
     let normalized = function_name.to_ascii_lowercase();
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_some_and(|expr| function_body_references(expr, function_name))
+                || branches.iter().any(|(when, then)| {
+                    function_body_references(when, function_name)
+                        || function_body_references(then, function_name)
+                })
+                || else_expr
+                    .as_ref()
+                    .is_some_and(|expr| function_body_references(expr, function_name))
+        }
         Expr::Function(function) => {
             function.name.eq_ignore_ascii_case(&normalized)
                 || function

@@ -297,6 +297,37 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         Expr::IntegerLiteral(value) => Ok(ScalarValue::Int(*value)),
         Expr::BoolLiteral(value) => Ok(ScalarValue::Bool(*value)),
         Expr::Null => Ok(ScalarValue::Null),
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            let operand_value = operand
+                .as_ref()
+                .map(|operand| eval_scalar_with_context(row, operand, context))
+                .transpose()?;
+            for (when, then) in branches {
+                let when_value = eval_scalar_with_context(row, when, context)?;
+                if operand_value.is_none()
+                    && !matches!(when_value, ScalarValue::Bool(_) | ScalarValue::Null)
+                {
+                    return Err(QueryError::General(
+                        "CASE WHEN condition must be BOOLEAN".to_string(),
+                    ));
+                }
+                let selected = if let Some(operand_value) = &operand_value {
+                    eq_value(operand_value, &when_value) == Some(true)
+                } else {
+                    matches!(when_value, ScalarValue::Bool(true))
+                };
+                if selected {
+                    return eval_scalar_with_context(row, then, context);
+                }
+            }
+            else_expr.as_ref().map_or(Ok(ScalarValue::Null), |expr| {
+                eval_scalar_with_context(row, expr, context)
+            })
+        }
         Expr::Param(index) => Ok(context
             .params
             .get(*index)

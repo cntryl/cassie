@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt::Write as _;
 
 use crate::catalog::qualifier_variants;
 use crate::catalog::virtual_views;
@@ -449,6 +450,26 @@ pub(crate) fn aggregate_signature(function: &FunctionCall) -> String {
 
 pub(crate) fn expr_key(expr: &Expr) -> String {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            let mut key = format!(
+                "case {}",
+                operand
+                    .as_ref()
+                    .map_or(String::new(), |expr| expr_key(expr))
+            );
+            for (when, then) in branches {
+                let _ = write!(key, " when {} then {}", expr_key(when), expr_key(then));
+            }
+            if let Some(else_expr) = else_expr {
+                let _ = write!(key, " else {}", expr_key(else_expr));
+            }
+            key.push_str(" end");
+            key
+        }
         Expr::Column(name) => name.clone(),
         Expr::Param(index) => format!("${}", index + 1),
         Expr::Null => "null".to_string(),

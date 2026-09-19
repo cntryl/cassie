@@ -287,6 +287,22 @@ fn expr_supports_parallel_aggregation(
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_ref()
+                .is_none_or(|expr| expr_supports_parallel_aggregation(expr, user_functions))
+                && branches.iter().all(|(when, then)| {
+                    expr_supports_parallel_aggregation(when, user_functions)
+                        && expr_supports_parallel_aggregation(then, user_functions)
+                })
+                && else_expr
+                    .as_ref()
+                    .is_none_or(|expr| expr_supports_parallel_aggregation(expr, user_functions))
+        }
         Expr::Function(function) => {
             let name = function.name.to_ascii_lowercase();
             if user_functions.contains_key(&name) {
@@ -391,6 +407,22 @@ fn register_aggregate_spec(
 
 fn collect_aggregate_specs_from_expr(expr: &Expr, specs: &mut Vec<AggregateSpec>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_aggregate_specs_from_expr(operand, specs);
+            }
+            for (when, then) in branches {
+                collect_aggregate_specs_from_expr(when, specs);
+                collect_aggregate_specs_from_expr(then, specs);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_aggregate_specs_from_expr(else_expr, specs);
+            }
+        }
         Expr::Function(function) => register_aggregate_spec(specs, function, None),
         Expr::Binary { left, right, .. } => {
             collect_aggregate_specs_from_expr(left, specs);
@@ -579,6 +611,22 @@ fn minmax_aggregate(
 
 pub(super) fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => Expr::Case {
+            operand: operand
+                .as_ref()
+                .map(|expr| Box::new(rewrite_aggregate_expr(expr))),
+            branches: branches
+                .iter()
+                .map(|(when, then)| (rewrite_aggregate_expr(when), rewrite_aggregate_expr(then)))
+                .collect(),
+            else_expr: else_expr
+                .as_ref()
+                .map(|expr| Box::new(rewrite_aggregate_expr(expr))),
+        },
         Expr::Function(function)
             if crate::sql::functions::is_aggregate_function(&function.name) =>
         {

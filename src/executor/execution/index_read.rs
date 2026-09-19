@@ -331,6 +331,22 @@ fn expression_index_read_spec(
 
 fn collect_expression_columns(expr: &Expr, fields: &mut Vec<String>) {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                collect_expression_columns(operand, fields);
+            }
+            for (when, then) in branches {
+                collect_expression_columns(when, fields);
+                collect_expression_columns(then, fields);
+            }
+            if let Some(else_expr) = else_expr {
+                collect_expression_columns(else_expr, fields);
+            }
+        }
         Expr::Column(name) => {
             if !projected_read::is_row_id_column(name)
                 && !fields.iter().any(|field| field.eq_ignore_ascii_case(name))
@@ -726,6 +742,17 @@ fn concrete_expression_constraint(
 
 fn expr_has_column(expr: &Expr) -> bool {
     match expr {
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand.as_ref().is_some_and(|expr| expr_has_column(expr))
+                || branches
+                    .iter()
+                    .any(|(when, then)| expr_has_column(when) || expr_has_column(then))
+                || else_expr.as_ref().is_some_and(|expr| expr_has_column(expr))
+        }
         Expr::Column(_) => true,
         Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
         Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {

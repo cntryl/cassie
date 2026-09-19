@@ -261,6 +261,28 @@ fn infer_parameter_type_oids_expr(
     oids: &mut [i32],
 ) {
     match expr {
+        ast::Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            if let Some(operand) = operand {
+                infer_parameter_type_oids_expr(operand, field_types, catalog, oids);
+            }
+            for (when, then) in branches {
+                if let Some(data_type) = operand
+                    .as_ref()
+                    .and_then(|operand| column_expr_type(operand, field_types))
+                {
+                    infer_parameter_type_from_expected_expr(when, data_type, oids);
+                }
+                infer_parameter_type_oids_expr(when, field_types, catalog, oids);
+                infer_parameter_type_oids_expr(then, field_types, catalog, oids);
+            }
+            if let Some(else_expr) = else_expr {
+                infer_parameter_type_oids_expr(else_expr, field_types, catalog, oids);
+            }
+        }
         ast::Expr::Binary { left, right, .. } => {
             if let Some(data_type) = column_expr_type(left, field_types) {
                 infer_parameter_type_from_expected_expr(right, data_type, oids);
@@ -622,6 +644,25 @@ fn parameter_count_function(function: &ast::FunctionCall) -> usize {
 
 fn parameter_count_expr(expr: &ast::Expr) -> usize {
     match expr {
+        ast::Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            let mut count = operand
+                .as_ref()
+                .map_or(0, |expr| parameter_count_expr(expr));
+            for (when, then) in branches {
+                count = count
+                    .max(parameter_count_expr(when))
+                    .max(parameter_count_expr(then));
+            }
+            count.max(
+                else_expr
+                    .as_ref()
+                    .map_or(0, |expr| parameter_count_expr(expr)),
+            )
+        }
         ast::Expr::Column(_)
         | ast::Expr::StringLiteral(_)
         | ast::Expr::NumberLiteral(_)

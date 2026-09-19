@@ -37,7 +37,10 @@ fn main() {
     let runtime = workloads::runtime();
     let setup_started = Instant::now();
     let context = runtime
-        .block_on(workloads::context("tier3-mixed-100k", FIXTURE_ROWS))
+        .block_on(workloads::mixed_system_context(
+            "tier3-mixed-100k",
+            FIXTURE_ROWS,
+        ))
         .expect("Tier 3 mixed fixture");
     workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-99999");
     workloads::prepare_mixed_fixture(&context);
@@ -61,5 +64,9 @@ fn main() {
         workloads::mixed_query_ingest_retrieval(&context, nonce)
     });
     workloads::assert_result_cache_disabled(&context);
+    let data_dir = context.data_dir.clone();
+    context.cassie.shutdown();
+    drop(context);
     runner.finish();
+    std::fs::remove_dir_all(data_dir).expect("clean up Tier 3 mixed fixture");
 }

@@ -30,22 +30,8 @@ fn main() {
             FIXTURE_ROWS,
         ))
         .expect("Tier 4 protocol comparison fixture");
-    let pgwire_preflight = pgwire_enabled.then(|| {
-        workloads::assert_explain_contains(
-            &fixture,
-            workloads::PGWIRE_SIMPLE_QUERY,
-            vec![],
-            "access_path=collection_scan",
-        )
-    });
-    let http_preflight = http_enabled.then(|| {
-        workloads::assert_explain_contains(
-            &fixture,
-            workloads::HTTP_ADMIN_QUERY,
-            vec![],
-            "access_path=collection_scan",
-        )
-    });
+    let pgwire_preflight = pgwire_enabled.then(|| indexed_query_preflight(&fixture));
+    let http_preflight = http_enabled.then(|| indexed_query_preflight(&fixture));
     let pgwire = pgwire_enabled.then(|| {
         runtime
             .block_on(workloads::pgwire_transport_for_context(&fixture))
@@ -73,7 +59,7 @@ fn main() {
                 for _ in 0..QUERIES_PER_SAMPLE {
                     let rows = runtime.block_on(workloads::pgwire_transport_simple_query(
                         context,
-                        workloads::PGWIRE_SIMPLE_QUERY,
+                        workloads::TIER4_TRANSPORT_QUERY,
                     ));
                     assert_eq!(rows, 20, "comparison pgwire result cardinality");
                 }
@@ -94,7 +80,8 @@ fn main() {
             QUERIES_PER_SAMPLE,
             || {
                 for _ in 0..QUERIES_PER_SAMPLE {
-                    let completed = runtime.block_on(workloads::http_transport_query(context));
+                    let completed =
+                        runtime.block_on(workloads::http_transport_tier4_query(context));
                     assert_eq!(completed, 1, "comparison HTTP operation count");
                 }
                 20_u64
@@ -114,6 +101,15 @@ fn main() {
     }
     cleanup_generated_http_tls(generated_http_tls);
     runner.finish();
+}
+
+fn indexed_query_preflight(fixture: &workloads::BenchContext) -> workloads::QueryPreflightEvidence {
+    workloads::assert_explain_contains(
+        fixture,
+        workloads::TIER4_TRANSPORT_QUERY,
+        vec![],
+        "access_path=index_seek",
+    )
 }
 
 fn configure_generated_http_tls(enabled: bool) -> Option<workloads::GeneratedHttpTlsMaterial> {

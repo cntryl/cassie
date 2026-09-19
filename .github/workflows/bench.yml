@@ -5,6 +5,11 @@ on:
     - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
+      run_scheduled_lane:
+        description: "Run the scheduled Tier 1–4 gate for validation"
+        required: false
+        default: false
+        type: boolean
       run_id:
         description: "Unique retained benchmark run ID"
         required: true
@@ -46,9 +51,9 @@ permissions:
 
 jobs:
   bench:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.run_scheduled_lane) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     env:
       CASSIE_STORAGE_MODE: memory
 
@@ -91,7 +96,7 @@ jobs:
           if-no-files-found: ignore
 
   complete-contract:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -158,7 +163,7 @@ jobs:
         run: cntryl-tools validate-benchmarks
 
   complete-shard:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane }}
     needs: complete-contract
     strategy:
       fail-fast: false
@@ -259,7 +264,7 @@ jobs:
           retention-days: 90
 
   complete-manifest:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' && inputs.workload == 'all' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane && inputs.shard == 'all' && inputs.workload == 'all' }}
     needs: complete-shard
     runs-on: ubuntu-latest
     timeout-minutes: 30

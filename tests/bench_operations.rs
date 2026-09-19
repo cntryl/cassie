@@ -2815,6 +2815,103 @@ mod benchmark_harness_contract {
     }
 
     #[test]
+    fn should_use_indexed_tier_four_http_query_with_twenty_results() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-http-indexed-query", 2_000))
+            .expect("HTTP query fixture");
+
+        // Act
+        let query = workloads::TIER4_TRANSPORT_QUERY;
+        let result = context
+            .cassie
+            .execute_sql(&context.session, query, vec![])
+            .expect("execute HTTP benchmark query");
+
+        // Assert
+        assert_eq!(result.rows.len(), 20);
+        workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean HTTP query fixture");
+    }
+
+    #[test]
+    fn should_share_indexed_query_across_tier_four_transports() {
+        // Arrange
+        let http_owner = include_str!("../benches/tier4_integration_http.rs");
+        let pgwire_owner = include_str!("../benches/tier4_integration_pgwire.rs");
+        let comparison_owner = include_str!("../benches/tier4_integration_protocol_compare.rs");
+
+        // Act
+        let http_uses_tier_four_query =
+            http_owner.contains("workloads::http_transport_tier4_query(&context)");
+        let pgwire_uses_tier_four_query = pgwire_owner.contains("workloads::TIER4_TRANSPORT_QUERY");
+        let pgwire_multi_uses_tier_four_query = pgwire_owner
+            .contains("workloads::pgwire_transport_tier4_multi_statement(self.transport)")
+            && pgwire_owner.contains("workloads::TIER4_MULTI_STATEMENT_COMPONENT_QUERY");
+        let comparison_uses_both = comparison_owner.contains("workloads::TIER4_TRANSPORT_QUERY")
+            && comparison_owner.contains("workloads::http_transport_tier4_query(context)");
+
+        // Assert
+        assert!(http_uses_tier_four_query);
+        assert!(pgwire_uses_tier_four_query);
+        assert!(pgwire_multi_uses_tier_four_query);
+        assert!(comparison_uses_both);
+    }
+
+    #[test]
+    fn should_fetch_nonnull_document_ids_from_benchmark_pgwire_portal() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-pgwire-portal-ids", 320))
+            .expect("portal fixture");
+        let transport = runtime
+            .block_on(workloads::pgwire_transport_for_context(&context))
+            .expect("pgwire transport");
+
+        // Act
+        let pages = runtime.block_on(workloads::pgwire_transport_portal_fetch(&transport));
+
+        // Assert
+        assert_eq!(pages, 2);
+        runtime
+            .block_on(transport.shutdown())
+            .expect("pgwire shutdown");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean portal fixture");
+    }
+
+    #[test]
+    fn should_use_indexed_tier_four_multi_statement_query() {
+        // Arrange
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::context("tier4-multi-statement-indexed", 2_000))
+            .expect("multi-statement fixture");
+
+        // Act
+        let query = workloads::TIER4_MULTI_STATEMENT_COMPONENT_QUERY;
+        let result = context
+            .cassie
+            .execute_sql(&context.session, query, vec![])
+            .expect("execute component query");
+
+        // Assert
+        assert_eq!(result.rows.len(), 10);
+        workloads::assert_explain_contains(&context, query, vec![], "access_path=index_seek");
+        let data_dir = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+        std::fs::remove_dir_all(data_dir).expect("clean multi-statement fixture");
+    }
+
+    #[test]
     fn should_keep_http_create_get_measurement_free_of_delete_maintenance() {
         // Arrange
         let workloads = include_str!("../benches/support/workloads/http.rs");
@@ -2947,7 +3044,7 @@ mod benchmark_harness_contract {
             && cancellation.contains("pgwire_transport_cancellation");
         let multi_preserves_query_units = multi_statement.contains("runner.measure_batch(")
             && multi_statement.contains("MULTI_STATEMENT_INVOCATIONS_PER_SAMPLE * 2")
-            && multi_statement.contains("pgwire_transport_multi_statement");
+            && multi_statement.contains("pgwire_transport_tier4_multi_statement");
         let binary_preserves_query_units = binary_extended.contains("runner.measure_batch(")
             && binary_extended.contains("BINARY_EXTENDED_INVOCATIONS_PER_SAMPLE")
             && binary_extended.contains("pgwire_transport_binary_query");
@@ -7442,7 +7539,7 @@ mod benchmark_deployment_profile_contract {
                 "if: ${{ always() && (inputs.shard == 'all' || inputs.shard == matrix.tier) }}",
             );
         let validates_only_complete_runs = workflow.contains(
-            "if: ${{ github.event_name == 'workflow_dispatch' && inputs.shard == 'all' && inputs.workload == 'all' }}",
+            "if: ${{ github.event_name == 'workflow_dispatch' && !inputs.run_scheduled_lane && inputs.shard == 'all' && inputs.workload == 'all' }}",
         );
         let retains_targeted_artifacts = workflow.contains("retention-days: 90");
 
@@ -8128,5 +8225,102 @@ mod workflow_setup_contract {
             "missing publish controls: {missing_publish_controls:?}"
         );
         assert!(!exposes_obsolete_outputs);
+    }
+}
+mod benchmark_tier3_mixed_storage {
+    use super::workloads;
+    use cassie::app::Cassie;
+
+    #[test]
+    fn should_dispatch_the_scheduled_bench_lane_for_validation() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+
+        // Act
+        let scheduled = workflow
+            .split_once("  bench:\n")
+            .expect("scheduled job")
+            .1
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .0;
+        let complete = workflow
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .1;
+
+        // Assert
+        assert!(workflow.contains("run_scheduled_lane:"));
+        assert!(scheduled.contains("inputs.run_scheduled_lane"));
+        assert!(complete.contains("!inputs.run_scheduled_lane"));
+    }
+
+    #[test]
+    fn should_allow_the_complete_scheduled_benchmark_lane_to_finish() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/bench.yml");
+
+        // Act
+        let scheduled = workflow
+            .split_once("  bench:\n")
+            .expect("scheduled job")
+            .1
+            .split_once("  complete-contract:\n")
+            .expect("complete contract job")
+            .0;
+
+        // Assert
+        assert!(scheduled.contains("timeout-minutes: 120"));
+    }
+
+    #[test]
+    fn should_reopen_mixed_fixture_from_scheduled_storage_environment() {
+        // Arrange
+        let owner = include_str!("../benches/tier3_system_mixed_load.rs");
+        assert!(owner.contains("workloads::mixed_system_context("));
+        if std::env::var_os("CASSIE_MIXED_FIXTURE_CHILD").is_none() {
+            let output =
+                std::process::Command::new(std::env::current_exe().expect("test executable"))
+                    .arg("should_reopen_mixed_fixture_from_scheduled_storage_environment")
+                    .arg("--nocapture")
+                    .env("CASSIE_MIXED_FIXTURE_CHILD", "1")
+                    .env("CASSIE_STORAGE_MODE", "memory")
+                    .env_remove("CASSIE_BENCH_DEPLOYMENT_PROFILE_ID")
+                    .output()
+                    .expect("run scheduled benchmark fixture child");
+            // The child isolates the scheduled process environment.
+            assert!(
+                output.status.success(),
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
+        workloads::configure_tier3_environment();
+        let runtime = workloads::runtime();
+        let context = runtime
+            .block_on(workloads::mixed_system_context(
+                "mixed-scheduled-reopen",
+                16,
+            ))
+            .expect("mixed fixture");
+        let path = context.data_dir.clone();
+        context.cassie.shutdown();
+        drop(context);
+
+        // Act
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let reopened = Cassie::new_with_data_dir(&path).expect("reopen disk fixture");
+        reopened.startup().expect("start reopened fixture");
+        let session = reopened.create_session("benchmark", None);
+        let result = reopened
+            .execute_sql(&session, "SELECT id FROM bench_documents", vec![])
+            .expect("read persisted mixed fixture");
+
+        // Assert
+        assert_eq!(result.rows.len(), 16);
+        reopened.shutdown();
+        std::fs::remove_dir_all(path).expect("clean mixed fixture");
     }
 }

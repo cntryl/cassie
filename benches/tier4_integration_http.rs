@@ -52,7 +52,8 @@ fn main() {
             HTTP_QUERY_INVOCATIONS_PER_SAMPLE,
             || {
                 for _ in 0..HTTP_QUERY_INVOCATIONS_PER_SAMPLE {
-                    let requests = runtime.block_on(workloads::http_transport_query(&context));
+                    let requests =
+                        runtime.block_on(workloads::http_transport_tier4_query(&context));
                     assert_eq!(requests, 1, "HTTP query request count");
                 }
                 20_u64

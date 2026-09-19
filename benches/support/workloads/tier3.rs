@@ -1,9 +1,19 @@
+use cassie::app::CassieError;
 use cassie::types::Value;
 use serde_json::json;
+use std::future::Ready;
 
 use super::context::{BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES};
 
 const MIXED_INGEST_COLLECTION: &str = "bench_mixed_ingest";
+
+pub fn mixed_system_context(label: &str, rows: usize) -> Ready<Result<BenchContext, CassieError>> {
+    super::context::disk_context_with_temp_budget(
+        label,
+        rows,
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    )
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QueryPreflightEvidence {

@@ -835,9 +835,11 @@ fn build_bench_documents_range(
                     .collect::<Vec<_>>()
             };
 
+            let id = format!("doc-{index}");
             (
-                Some(format!("doc-{index}")),
+                Some(id.clone()),
                 json!({
+                    "id": id,
                     "title": title,
                     "body": body,
                     "score": usize_mod_i64(index, 100),

@@ -31,6 +31,8 @@ use uuid::Uuid;
 use super::context::{BenchContext, QueryBreakdownMicros};
 
 pub const HTTP_ADMIN_QUERY: &str = "SELECT id, title FROM bench_documents ORDER BY id ASC LIMIT 20";
+pub const TIER4_TRANSPORT_QUERY: &str =
+    "SELECT id, title FROM bench_documents WHERE score = 1 LIMIT 20";
 
 pub struct HttpBenchContext {
     base_url: String,
@@ -363,12 +365,20 @@ async fn http_transport_create_get_document(ctx: &HttpBenchContext) -> String {
 }
 
 pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {
+    http_transport_query_sql(ctx, HTTP_ADMIN_QUERY).await
+}
+
+pub async fn http_transport_tier4_query(ctx: &HttpBenchContext) -> usize {
+    http_transport_query_sql(ctx, TIER4_TRANSPORT_QUERY).await
+}
+
+async fn http_transport_query_sql(ctx: &HttpBenchContext, sql: &str) -> usize {
     let response = ctx
         .authorize(
             ctx.client
                 .post(format!("{}/api/v1/admin/query/execute", ctx.base_url)),
         )
-        .json(&http_admin_query_body(&ctx.database))
+        .json(&http_admin_query_body_with_sql(&ctx.database, sql))
         .send()
         .await
         .expect("send HTTP query request")
@@ -386,9 +396,13 @@ pub async fn http_transport_query(ctx: &HttpBenchContext) -> usize {
 }
 
 pub fn http_admin_query_body(database: &str) -> serde_json::Value {
+    http_admin_query_body_with_sql(database, HTTP_ADMIN_QUERY)
+}
+
+fn http_admin_query_body_with_sql(database: &str, sql: &str) -> serde_json::Value {
     json!({
         "database": database,
-        "sql": HTTP_ADMIN_QUERY,
+        "sql": sql,
     })
 }
 

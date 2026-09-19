@@ -563,13 +563,13 @@ fn should_reject_overlapping_row_blob_directory_entries() {
         &serde_json::json!({"left": "aaaa", "right": "bbbb"}),
     )
     .unwrap();
-    // Point the second field at the first field's bytes. Both entries stay
-    // in bounds and the maximum end offset still equals the payload length,
-    // so only an overlap check rejects this.
+    // Point the first field at the second field's bytes. Both entries stay
+    // in bounds and the maximum end offset still equals the payload length.
+    // The old decoder accepts this row and returns "bbbb" for both fields.
     let bitmap_len = 1;
-    let second = directory_entry_offset(bitmap_len, 1);
-    let offset_at = second + 4 + 1;
-    encoded[offset_at..offset_at + 4].copy_from_slice(&0_u32.to_be_bytes());
+    let first = directory_entry_offset(bitmap_len, 0);
+    let offset_at = first + 4 + 1;
+    encoded[offset_at..offset_at + 4].copy_from_slice(&4_u32.to_be_bytes());
 
     // Act
     let decoded = decode_row(&schema, &encoded);

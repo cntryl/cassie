@@ -30,22 +30,8 @@ fn main() {
             FIXTURE_ROWS,
         ))
         .expect("Tier 4 protocol comparison fixture");
-    let pgwire_preflight = pgwire_enabled.then(|| {
-        workloads::assert_explain_contains(
-            &fixture,
-            workloads::TIER4_TRANSPORT_QUERY,
-            vec![],
-            "access_path=index_seek",
-        )
-    });
-    let http_preflight = http_enabled.then(|| {
-        workloads::assert_explain_contains(
-            &fixture,
-            workloads::TIER4_TRANSPORT_QUERY,
-            vec![],
-            "access_path=index_seek",
-        )
-    });
+    let pgwire_preflight = pgwire_enabled.then(|| indexed_query_preflight(&fixture));
+    let http_preflight = http_enabled.then(|| indexed_query_preflight(&fixture));
     let pgwire = pgwire_enabled.then(|| {
         runtime
             .block_on(workloads::pgwire_transport_for_context(&fixture))
@@ -115,6 +101,15 @@ fn main() {
     }
     cleanup_generated_http_tls(generated_http_tls);
     runner.finish();
+}
+
+fn indexed_query_preflight(fixture: &workloads::BenchContext) -> workloads::QueryPreflightEvidence {
+    workloads::assert_explain_contains(
+        fixture,
+        workloads::TIER4_TRANSPORT_QUERY,
+        vec![],
+        "access_path=index_seek",
+    )
 }
 
 fn configure_generated_http_tls(enabled: bool) -> Option<workloads::GeneratedHttpTlsMaterial> {

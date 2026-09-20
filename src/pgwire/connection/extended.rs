@@ -25,8 +25,8 @@ mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
 use portal_state::{
-    take_portal_execution, write_fresh_result, FreshPortalWriteRequest, PortalExecution,
-    PortalFetchWindow,
+    take_portal_execution, write_completed_portal, write_fresh_result, FreshPortalWriteRequest,
+    PortalExecution, PortalFetchWindow,
 };
 use portal_streaming::{
     execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
@@ -345,6 +345,7 @@ async fn handle_bind(
             result_formats,
             described: prepared.described,
             suspended: None,
+            completed_command: None,
         },
     );
     if !replaced_portal {
@@ -429,6 +430,9 @@ async fn handle_execute(
         )
         .await;
     }
+    if let Some(command) = portal.completed_command.as_deref() {
+        return write_completed_portal(write_half, command).await;
+    }
 
     let prepared = prepared_for_portal(state, &portal)?;
     if streamable_portal_query(&prepared, max_rows) {
@@ -459,6 +463,8 @@ async fn handle_execute(
     let cancellation = registration.begin_query();
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
+    let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
+    let transaction_session = session.clone();
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
             &session,
@@ -471,6 +477,14 @@ async fn handle_execute(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
+    if was_in_transaction
+        && !transaction_session.is_transaction_active()
+        && !transaction_session.is_transaction_failed()
+    {
+        // Transaction end closes every portal, including suspended cursors
+        // opened inside the transaction, matching the simple-query path.
+        state.clear_all_portals(runtime);
+    }
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.rows.len() {
         Some(cancellation.suspend())

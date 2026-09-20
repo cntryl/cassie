@@ -641,7 +641,7 @@ fn apply_aggregate_phase(
     ensure_query_memory_budget(env.controls, &batches)?;
     apply_having_phase(
         batches,
-        plan.having.as_ref(),
+        plan,
         env.params,
         env.search_context,
         env.user_functions,
@@ -652,17 +652,17 @@ fn apply_aggregate_phase(
 
 fn apply_having_phase(
     batches: Vec<Batch>,
-    having: Option<&Expr>,
+    plan: &LogicalPlan,
     params: &[Value],
     search_context: Option<&filter::SearchContext>,
     user_functions: &HashMap<String, FunctionMeta>,
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
-    let Some(having) = having else {
+    let Some(having) = plan.having.as_ref() else {
         return Ok(batches);
     };
-    let having = aggregate_exec::rewrite_aggregate_expr(having);
+    let having = aggregate_exec::rewrite_aggregate_expr(having, &plan.group_by);
     let _output_memory = ensure_query_memory_budget(controls, &batches)?;
     let batches = filter::filter_batches(
         batches,
@@ -754,11 +754,13 @@ fn apply_projection_phase(
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
-    let _output_memory =
-        reserve_projection_output_before_building(controls, &batches, &plan.projection)?;
+    let grouped_projection = plan_uses_aggregate(plan)
+        .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
+    let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
+    let _output_memory = reserve_projection_output_before_building(controls, &batches, projection)?;
     batches = projection::project_batches(
         batches,
-        &plan.projection,
+        projection,
         params,
         search_context,
         user_functions,

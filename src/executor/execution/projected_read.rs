@@ -11,16 +11,14 @@ mod specialized;
 
 pub(super) use breakdown::execute_projected_filtered_read_with_breakdown;
 
-/// `_id` is the only name that unconditionally means Cassie's reserved
-/// internal document identity here. A bare `id` reference only ever reaches
-/// this executor as `_id` when the target schema has no `id` field of its
-/// own: `crate::planner::logical::rewrite_reserved_id_references` rewrites
-/// it at the logical-plan level before physical planning runs, so by the
-/// time this function is consulted, `id` has already become an ordinary
-/// column name whenever it needs to be.
-pub(super) fn is_row_id_column(column: &str) -> bool {
-    column.eq_ignore_ascii_case("_id")
-}
+// `_id` is the only name that unconditionally means Cassie's reserved
+// internal document identity here. A bare `id` reference only ever reaches
+// this executor as `_id` when the target schema has no `id` field of its
+// own: `crate::planner::logical::rewrite_reserved_id_references` rewrites
+// it at the logical-plan level before physical planning runs, so by the
+// time this function is consulted, `id` has already become an ordinary
+// column name whenever it needs to be.
+pub(super) use crate::types::row_identity::is_row_identity_column as is_row_id_column;
 
 pub(super) fn json_to_query_value(value: &serde_json::Value) -> Value {
     if value.is_null() {
@@ -297,7 +295,7 @@ fn execute_projected_point_lookup_read(
         .runtime
         .record_read_path_point_lookup(&spec.collection, true);
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let row = scan::projected_document_to_row(document, &spec.scan_fields, schema.as_ref());
+    let row = scan::projected_document_to_row(&document, &spec.scan_fields, schema.as_ref());
     let mut batches = vec![vec![row]];
 
     finalize_projected_filtered_read(
@@ -612,6 +610,14 @@ pub(super) fn projected_scan_pushdown_filter(expr: &Expr) -> Option<scan::Projec
 
 fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
     match expr {
+        // Pushed-down equality compares raw JSON, which would miss rows whose
+        // timestamp names the same instant in the legacy `...SSZ` form; the
+        // filter operator compares those by instant instead.
+        Expr::StringLiteral(value)
+            if crate::types::temporal::is_canonical_timestamp_text(value) =>
+        {
+            None
+        }
         Expr::StringLiteral(value) => Some(Value::String(value.clone())),
         Expr::BoolLiteral(value) => Some(Value::Bool(*value)),
         _ => None,

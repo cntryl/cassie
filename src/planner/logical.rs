@@ -572,7 +572,7 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
             // column is an ordinary column (see
             // `planner::logical::reserved_id`) and drops like any other;
             // the binder reports it as unknown when undeclared.
-            if field.trim().eq_ignore_ascii_case("_id") {
+            if crate::types::row_identity::is_row_identity_column(field.trim()) {
                 return Err(CassieError::Planner(
                     "ALTER TABLE cannot drop reserved field '_id'".into(),
                 ));

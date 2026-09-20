@@ -1,4 +1,5 @@
 use crate::app::CassieError;
+use crate::types::numeric::i64_to_f64;
 
 use super::binary::{invalid, write_i64, write_u32, Reader};
 use super::bitpack;
@@ -151,21 +152,6 @@ pub(crate) fn scale_value_at(value: &serde_json::Value, scale: u8) -> Option<i64
 
 pub(crate) fn scaled_to_f64(value: i64, scale: u8) -> f64 {
     i64_to_f64(value) / scale_factor(scale)
-}
-
-fn i64_to_f64(value: i64) -> f64 {
-    const TWO_TO_32: f64 = 4_294_967_296.0;
-
-    let magnitude = value.unsigned_abs();
-    let high = u32::try_from(magnitude >> 32).expect("upper i64 bits should fit u32");
-    let low =
-        u32::try_from(magnitude & u64::from(u32::MAX)).expect("lower i64 bits should fit u32");
-    let converted = f64::from(high).mul_add(TWO_TO_32, f64::from(low));
-    if value.is_negative() {
-        -converted
-    } else {
-        converted
-    }
 }
 
 #[cfg(test)]

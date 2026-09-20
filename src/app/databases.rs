@@ -26,9 +26,9 @@ impl Cassie {
 
         self.midge.create_database(name, None)?;
         let database = self.midge.get_database(name)?.ok_or_else(|| {
-            CassieError::StorageRetryable(format!(
-                "database '{name}' metadata was unavailable after creation"
-            ))
+            CassieError::StorageRetryable(
+                format!("database '{name}' metadata was unavailable after creation").into(),
+            )
         })?;
         let public_schema = canonical_schema_name(&database.name, DEFAULT_SCHEMA);
         self.midge.create_namespace(&public_schema)?;

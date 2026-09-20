@@ -464,60 +464,12 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
 }
 
 fn collect_expr_column_refs(expr: &Expr, fields: &mut BTreeSet<String>) {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_expr_column_refs(operand, fields);
-            }
-            for (when, then) in branches {
-                collect_expr_column_refs(when, fields);
-                collect_expr_column_refs(then, fields);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_expr_column_refs(else_expr, fields);
-            }
-        }
-        Expr::Column(name) if is_row_id_column(name) => {}
-        Expr::Column(name) => {
+    if let Expr::Column(name) = expr {
+        if !is_row_id_column(name) {
             fields.insert(name.to_ascii_lowercase());
         }
-        Expr::Binary { left, right, .. } => {
-            collect_expr_column_refs(left, fields);
-            collect_expr_column_refs(right, fields);
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_expr_column_refs(expr, fields);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_expr_column_refs(expr, fields);
-            for value in values {
-                collect_expr_column_refs(value, fields);
-            }
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_expr_column_refs(expr, fields);
-            collect_expr_column_refs(low, fields);
-            collect_expr_column_refs(high, fields);
-        }
-        Expr::Function(function) => {
-            for arg in &function.args {
-                collect_expr_column_refs(arg, fields);
-            }
-        }
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => {}
     }
+    expr.for_each_child(|child| collect_expr_column_refs(child, fields));
 }
 
 fn equality_filter_fields(expr: &Expr) -> BTreeSet<String> {
@@ -570,71 +522,13 @@ fn collect_equality_filter_expressions(expr: &Expr, expressions: &mut BTreeSet<S
 
 fn expr_is_constant(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand.as_ref().is_none_or(|expr| expr_is_constant(expr))
-                && branches
-                    .iter()
-                    .all(|(when, then)| expr_is_constant(when) && expr_is_constant(then))
-                && else_expr.as_ref().is_none_or(|expr| expr_is_constant(expr))
-        }
-        Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => true,
         Expr::Column(_) | Expr::Exists(_) => false,
-        Expr::Binary { left, right, .. } => expr_is_constant(left) && expr_is_constant(right),
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expr_is_constant(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_is_constant(expr) && values.iter().all(expr_is_constant)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_is_constant(expr) && expr_is_constant(low) && expr_is_constant(high),
-        Expr::Function(function) => function.args.iter().all(expr_is_constant),
+        _ => expr.all_children(expr_is_constant),
     }
 }
 
 fn expr_has_column(expr: &Expr) -> bool {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand.as_ref().is_some_and(|expr| expr_has_column(expr))
-                || branches
-                    .iter()
-                    .any(|(when, then)| expr_has_column(when) || expr_has_column(then))
-                || else_expr.as_ref().is_some_and(|expr| expr_has_column(expr))
-        }
-        Expr::Column(_) => true,
-        Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expr_has_column(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_has_column(expr) || values.iter().any(expr_has_column)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_has_column(expr) || expr_has_column(low) || expr_has_column(high),
-        Expr::Function(function) => function.args.iter().any(expr_has_column),
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => false,
-    }
+    matches!(expr, Expr::Column(_)) || expr.any_child(expr_has_column)
 }
 
 fn collect_equality_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
@@ -775,50 +669,25 @@ fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Op
             if !fields.iter().any(|field| field.eq_ignore_ascii_case(name)) {
                 fields.push(name.clone());
             }
-            Some(())
+            return Some(());
         }
-        Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => Some(()),
-        Expr::Binary { left, op, right } => {
-            match op {
-                BinaryOp::Eq
-                | BinaryOp::NotEq
-                | BinaryOp::Lt
-                | BinaryOp::Lte
-                | BinaryOp::Gt
-                | BinaryOp::Gte
-                | BinaryOp::And
-                | BinaryOp::Or
-                | BinaryOp::Like => {}
-                _ => return None,
-            }
-            collect_projected_filter_columns(left, fields)?;
-            collect_projected_filter_columns(right, fields)
-        }
-        Expr::IsNull { expr, .. } => collect_projected_filter_columns(expr, fields),
-        Expr::InList { expr, values, .. } => {
-            collect_projected_filter_columns(expr, fields)?;
-            for value in values {
-                collect_projected_filter_columns(value, fields)?;
-            }
-            Some(())
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_projected_filter_columns(expr, fields)?;
-            collect_projected_filter_columns(low, fields)?;
-            collect_projected_filter_columns(high, fields)
-        }
-        Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_projected_filter_columns(expr, fields)
-        }
-        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => None,
+        Expr::Binary { op, .. } => match op {
+            BinaryOp::Eq
+            | BinaryOp::NotEq
+            | BinaryOp::Lt
+            | BinaryOp::Lte
+            | BinaryOp::Gt
+            | BinaryOp::Gte
+            | BinaryOp::And
+            | BinaryOp::Or
+            | BinaryOp::Like => {}
+            _ => return None,
+        },
+        Expr::Case { .. } | Expr::Function(_) | Expr::Exists(_) => return None,
+        _ => {}
     }
+    expr.try_visit_children(|child| collect_projected_filter_columns(child, fields).ok_or(()))
+        .ok()
 }
 
 fn filter_supports_predicate_pushdown(expr: &Expr) -> bool {
@@ -846,20 +715,15 @@ fn expr_is_pushdown_literal(expr: &Expr) -> bool {
     )
 }
 
-/// `_id` is the only name that unconditionally means Cassie's reserved
-/// internal document identity here. A bare `id` reference only ever reaches
-/// physical planning as `_id` when the target schema has no `id` field of
-/// its own: `crate::planner::logical::rewrite_reserved_id_references`
-/// rewrites it at the logical-plan level before physical planning runs, so
-/// by the time this function is consulted, `id` has already become an
-/// ordinary column name whenever it needs to be.
-fn is_row_id_column(field: &str) -> bool {
-    // Case-insensitive to match `execution::projected_read::is_row_id_column`;
-    // SQL identifiers are compared case-insensitively throughout, and the two
-    // must agree or a query takes one path in planning and another in
-    // execution.
-    field.eq_ignore_ascii_case("_id")
-}
+// `_id` is the only name that unconditionally means Cassie's reserved
+// internal document identity here. A bare `id` reference only ever reaches
+// physical planning as `_id` when the target schema has no `id` field of
+// its own: `crate::planner::logical::rewrite_reserved_id_references`
+// rewrites it at the logical-plan level before physical planning runs, so
+// by the time this function is consulted, `id` has already become an
+// ordinary column name whenever it needs to be. Shared with execution so a
+// query never takes one path in planning and another in execution.
+use crate::types::row_identity::is_row_identity_column as is_row_id_column;
 
 fn source_contains_join(source: &QuerySource) -> bool {
     match source {
@@ -921,128 +785,37 @@ fn aggregate_functions_supported(plan: &LogicalPlan) -> bool {
 }
 
 fn aggregate_functions_in_expr(expr: &Expr) -> Vec<&FunctionCall> {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            let mut functions = Vec::new();
-            if let Some(operand) = operand {
-                functions.extend(aggregate_functions_in_expr(operand));
-            }
-            for (when, then) in branches {
-                functions.extend(aggregate_functions_in_expr(when));
-                functions.extend(aggregate_functions_in_expr(then));
-            }
-            if let Some(else_expr) = else_expr {
-                functions.extend(aggregate_functions_in_expr(else_expr));
-            }
-            functions
+    let mut functions = Vec::new();
+    collect_aggregate_functions(expr, &mut functions);
+    functions
+}
+
+fn collect_aggregate_functions<'a>(expr: &'a Expr, functions: &mut Vec<&'a FunctionCall>) {
+    if let Expr::Function(function) = expr {
+        if crate::sql::functions::is_aggregate_function(&function.name) {
+            functions.push(function);
         }
-        Expr::Function(function) => {
-            let mut functions = function
-                .args
-                .iter()
-                .flat_map(aggregate_functions_in_expr)
-                .collect::<Vec<_>>();
-            if crate::sql::functions::is_aggregate_function(&function.name) {
-                functions.push(function);
-            }
-            functions
-        }
-        Expr::Binary { left, right, .. } => {
-            let mut functions = aggregate_functions_in_expr(left);
-            functions.extend(aggregate_functions_in_expr(right));
-            functions
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            aggregate_functions_in_expr(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            let mut functions = aggregate_functions_in_expr(expr);
-            for value in values {
-                functions.extend(aggregate_functions_in_expr(value));
-            }
-            functions
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            let mut functions = aggregate_functions_in_expr(expr);
-            functions.extend(aggregate_functions_in_expr(low));
-            functions.extend(aggregate_functions_in_expr(high));
-            functions
-        }
-        Expr::Exists(_)
-        | Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => Vec::new(),
     }
+    expr.for_each_child(|child| collect_aggregate_functions(child, functions));
 }
 
 fn expr_supports_parallel_aggregation(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_none_or(|expr| expr_supports_parallel_aggregation(expr))
-                && branches.iter().all(|(when, then)| {
-                    expr_supports_parallel_aggregation(when)
-                        && expr_supports_parallel_aggregation(then)
-                })
-                && else_expr
-                    .as_ref()
-                    .is_none_or(|expr| expr_supports_parallel_aggregation(expr))
-        }
+        Expr::Exists(_) => return false,
         Expr::Function(function) => {
-            if crate::sql::functions::is_aggregate_function(&function.name) {
-                matches!(
-                    function.name.to_ascii_lowercase().as_str(),
-                    "count" | "sum" | "avg" | "min" | "max"
-                ) && function.args.iter().all(expr_supports_parallel_aggregation)
+            let name = function.name.to_ascii_lowercase();
+            let supported = if crate::sql::functions::is_aggregate_function(&function.name) {
+                matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max")
             } else {
                 !function_uses_fulltext(function)
                     && !function_uses_vector(function)
-                    && !matches!(
-                        function.name.to_ascii_lowercase().as_str(),
-                        "hybrid_score" | "vector_score"
-                    )
-                    && function.args.iter().all(expr_supports_parallel_aggregation)
+                    && !matches!(name.as_str(), "hybrid_score" | "vector_score")
+            };
+            if !supported {
+                return false;
             }
         }
-        Expr::Binary { left, right, .. } => {
-            expr_supports_parallel_aggregation(left) && expr_supports_parallel_aggregation(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            expr_supports_parallel_aggregation(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_supports_parallel_aggregation(expr)
-                && values.iter().all(expr_supports_parallel_aggregation)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_supports_parallel_aggregation(expr)
-                && expr_supports_parallel_aggregation(low)
-                && expr_supports_parallel_aggregation(high)
-        }
-        Expr::Exists(_) => false,
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => true,
+        _ => {}
     }
+    expr.all_children(expr_supports_parallel_aggregation)
 }

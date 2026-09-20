@@ -343,8 +343,13 @@ jobs:
           STRESS_PROFILE: release
           STRESS_OUTPUT_DIR: target/stress
         run: |
+          soak_started=$(date -u +%s)
           cargo bench --locked --bench 'tier5_scaling_lifecycle'
           cargo bench --locked --bench 'tier6_soak_mixed'
+          # Record what the soak actually ran for. When this step is skipped
+          # (shape_only) the variable stays unset and the manifest records 0,
+          # so a manifest can never claim a soak that did not happen.
+          echo "SOAK_DURATION_SECONDS=$(( $(date -u +%s) - soak_started ))" >> "${GITHUB_ENV}"
 
       - name: Build operational evidence manifest
         if: always()
@@ -412,7 +417,7 @@ jobs:
             --arg storage_mode "${CASSIE_STORAGE_MODE}" \
             --argjson query_timeout_ms "${CASSIE_QUERY_TIMEOUT_MS}" \
             --arg embeddings_provider "${CASSIE_EMBEDDINGS_PROVIDER}" \
-            --argjson soak_duration_seconds 3600 \
+            --argjson soak_duration_seconds "${SOAK_DURATION_SECONDS:-0}" \
             --arg container_outcome "${CONTAINER_OUTCOME}" \
             --arg snapshot_restore_outcome "${SNAPSHOT_RESTORE_OUTCOME}" \
             --arg projection_repair_outcome "${PROJECTION_REPAIR_OUTCOME}" \

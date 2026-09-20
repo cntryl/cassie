@@ -1,3 +1,4 @@
+use crate::types::numeric::usize_to_f64;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -921,10 +922,6 @@ fn build_state(
         document_stats,
         postings,
     })
-}
-
-fn usize_to_f64(value: usize) -> f64 {
-    value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
 }
 
 #[cfg(test)]

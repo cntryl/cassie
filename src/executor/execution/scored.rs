@@ -659,7 +659,7 @@ fn scored_projection<'a>(
     let SelectItem::Column { name, alias } = &projection[0] else {
         return None;
     };
-    if !name.eq_ignore_ascii_case("id") && !name.eq_ignore_ascii_case("_id") {
+    if !crate::types::row_identity::is_row_identity_column(name) {
         return None;
     }
     let SelectItem::Function {
@@ -898,53 +898,10 @@ pub(crate) fn vector_prefilter_fallback_reason(
 
 fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| contains_vector_field(expr, schema))
-                || branches.iter().any(|(when, then)| {
-                    contains_vector_field(when, schema) || contains_vector_field(then, schema)
-                })
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| contains_vector_field(expr, schema))
-        }
         Expr::Column(name) => schema.fields.iter().any(|field| {
             field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Vector(_))
         }),
-        Expr::Binary { left, right, .. } => {
-            contains_vector_field(left, schema) || contains_vector_field(right, schema)
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            contains_vector_field(expr, schema)
-        }
-        Expr::InList { expr, values, .. } => {
-            contains_vector_field(expr, schema)
-                || values
-                    .iter()
-                    .any(|value| contains_vector_field(value, schema))
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            contains_vector_field(expr, schema)
-                || contains_vector_field(low, schema)
-                || contains_vector_field(high, schema)
-        }
-        Expr::Function(function) => function
-            .args
-            .iter()
-            .any(|arg| contains_vector_field(arg, schema)),
         Expr::Exists(_) => true,
-        Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => false,
+        _ => expr.any_child(|child| contains_vector_field(child, schema)),
     }
 }

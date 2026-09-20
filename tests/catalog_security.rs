@@ -13,6 +13,8 @@ mod support_local_storage;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/auth.rs.
 mod auth {
@@ -610,6 +612,7 @@ mod catalog_introspection {
     }
 
     fn data_dir(name: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-catalog-{name}-{}", Uuid::new_v4()))
     }
 
@@ -1725,6 +1728,7 @@ mod catalog_orm_metadata {
     }
 
     fn data_dir(name: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-catalog-orm-{name}-{}", Uuid::new_v4()))
     }
 
@@ -3981,6 +3985,7 @@ mod schema_epoch_safety {
     }
 
     fn data_dir(name: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-schema-epoch-{name}-{}", Uuid::new_v4()))
     }
 
@@ -5617,6 +5622,7 @@ mod views {
     }
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-view-{label}-{}", Uuid::new_v4()))
     }
 
@@ -5705,6 +5711,49 @@ mod views {
                 vec![vec![Value::String("alpha".to_string()), Value::Int64(7),]]
             );
             assert!(dropped.is_err());
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_drop_quoted_mixed_case_view_when_referenced_unquoted() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("mixed_case_drop");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            seed_view_docs(&cassie, "view_mixed_case_docs");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE VIEW \"MixedCaseView\" AS SELECT title FROM view_mixed_case_docs",
+                    vec![],
+                )
+                .unwrap();
+
+            // Act
+            let dropped = cassie.execute_sql(&session, "DROP VIEW mixedcaseview", vec![]);
+            let remaining = cassie
+                .catalog
+                .list_views()
+                .into_iter()
+                .map(|view| view.name)
+                .collect::<Vec<_>>();
+
+            // Assert
+            assert!(dropped.is_ok(), "DROP VIEW failed: {dropped:?}");
+            assert!(
+                remaining.is_empty(),
+                "view metadata remained after DROP VIEW: {remaining:?}"
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });

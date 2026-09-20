@@ -7,6 +7,8 @@ mod support_data_dir;
 mod support_local_storage;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
@@ -178,6 +180,7 @@ mod dml_statement_atomicity {
     use uuid::Uuid;
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-dml-atomicity-{label}-{}", Uuid::new_v4()))
     }
 
@@ -839,83 +842,144 @@ mod foreign_key_concurrency {
         }
     }
 
-    #[test]
-    fn should_not_commit_an_orphaned_child_when_copy_races_a_parent_delete() {
-        // Arrange
+    fn staged_parent_change_commit(
+        name: &str,
+        parent_changes: &[&str],
+        concurrent_child: fn(&Cassie, &cassie::app::CassieSession) -> Result<(), String>,
+    ) -> (
+        Result<String, cassie::app::CassieError>,
+        usize,
+        usize,
+        String,
+    ) {
         support::use_local_storage();
-        let path = support::data_dir("foreign_key_copy_concurrent_parent_delete");
-        let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(&path).expect("create Cassie"));
+        let path = support::data_dir(name);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         create_copy_tables(&cassie, &session);
-        let parent_collection = support::canonical_test_collection(&cassie, "fk_copy_parents");
-        let child_collection = support::canonical_test_collection(&cassie, "fk_copy_children");
-
-        for attempt in 0..64_u64 {
-            if attempt > 0 {
-                cassie
-                    .execute_sql(
-                        &session,
-                        "INSERT INTO fk_copy_parents (pid) VALUES (1)",
-                        vec![],
-                    )
-                    .expect("insert parent");
-            }
-            let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
-            let copy_cassie = std::sync::Arc::clone(&cassie);
-            let copy_barrier = std::sync::Arc::clone(&barrier);
-            let child_copy = std::thread::spawn(move || {
-                let session = copy_cassie.create_session("tester", None);
-                copy_barrier.wait();
-                std::thread::sleep(std::time::Duration::from_micros((attempt % 16) * 60));
-                copy_cassie.copy_from_csv_stdin(&session, &copy_child_statement(), b"1\n")
-            });
-            let delete_cassie = std::sync::Arc::clone(&cassie);
-            let delete_barrier = std::sync::Arc::clone(&barrier);
-            let parent_delete = std::thread::spawn(move || {
-                let session = delete_cassie.create_session("tester", None);
-                delete_barrier.wait();
-                delete_cassie.execute_sql(
-                    &session,
-                    "DELETE FROM fk_copy_parents WHERE pid = 1",
-                    vec![],
-                )
-            });
-            barrier.wait();
-
-            // Act
-            let child_result = child_copy.join().expect("child copy worker completed");
-            let parent_result = parent_delete
-                .join()
-                .expect("parent delete worker completed");
-            let parents = cassie
-                .midge
-                .scan_documents(&parent_collection)
-                .expect("scan parents");
-            let children = cassie
-                .midge
-                .scan_documents(&child_collection)
-                .expect("scan children");
-
-            // Assert
-            let no_rows_remain = parents.is_empty() && children.is_empty();
-            let parent_and_child_remain = parents.len() == 1 && children.len() == 1;
-            assert!(
-                no_rows_remain || parent_and_child_remain,
-                "attempt {attempt} committed an orphaned child via COPY: parents={} children={} copy={child_result:?} delete={:?}",
-                parents.len(),
-                children.len(),
-                parent_result.map(|result| result.command)
-            );
-
+        let writer = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin transaction");
+        for parent_change in parent_changes {
             cassie
-                .execute_sql(&session, "DELETE FROM fk_copy_children", vec![])
-                .expect("clear children");
-            cassie
-                .execute_sql(&session, "DELETE FROM fk_copy_parents", vec![])
-                .expect("clear parents");
+                .execute_sql(&session, parent_change, vec![])
+                .expect("stage parent change without children");
         }
+        concurrent_child(&cassie, &writer).expect("concurrent child write sees the parent");
+        let commit = cassie
+            .execute_sql(&session, "COMMIT", vec![])
+            .map(|result| result.command);
+        let parents = cassie
+            .midge
+            .scan_documents(&support::canonical_test_collection(
+                &cassie,
+                "fk_copy_parents",
+            ))
+            .expect("scan parents")
+            .into_iter()
+            .filter(|parent| parent.payload.get("pid") == Some(&serde_json::json!(1)))
+            .count();
+        let children = cassie
+            .midge
+            .scan_documents(&support::canonical_test_collection(
+                &cassie,
+                "fk_copy_children",
+            ))
+            .expect("scan children")
+            .len();
+        (commit, parents, children, path)
+    }
 
+    fn insert_child(cassie: &Cassie, session: &cassie::app::CassieSession) -> Result<(), String> {
+        cassie
+            .execute_sql(
+                session,
+                "INSERT INTO fk_copy_children (parent_pid) VALUES (1)",
+                vec![],
+            )
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    fn copy_child(cassie: &Cassie, session: &cassie::app::CassieSession) -> Result<(), String> {
+        cassie
+            .copy_from_csv_stdin(session, &copy_child_statement(), b"1\n")
+            .map(|_| ())
+            .map_err(|error| error.to_string())
+    }
+
+    fn assert_parent_change_rejected(
+        commit: &Result<String, cassie::app::CassieError>,
+        parents: usize,
+        children: usize,
+    ) {
+        assert!(
+            matches!(
+                commit,
+                Err(cassie::app::CassieError::ForeignKeyViolation { .. })
+            ),
+            "commit orphaning a concurrent child was not rejected with 23503: {commit:?}"
+        );
+        assert_eq!(
+            parents, 1,
+            "the referenced parent key must survive the rollback"
+        );
+        assert_eq!(children, 1, "the concurrently committed child must remain");
+    }
+
+    #[test]
+    fn should_reject_a_parent_delete_commit_after_a_concurrent_child_insert() {
+        // Arrange
+        let (commit, parents, children, path) = staged_parent_change_commit(
+            "foreign_key_staged_parent_delete_insert",
+            &["DELETE FROM fk_copy_parents WHERE pid = 1"],
+            insert_child,
+        );
+
+        // Act
+        let rejected = commit.is_err();
+
+        // Assert
+        assert!(rejected, "COMMIT unexpectedly succeeded");
+        assert_parent_change_rejected(&commit, parents, children);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_a_parent_delete_commit_after_a_concurrent_child_copy() {
+        // Arrange
+        let (commit, parents, children, path) = staged_parent_change_commit(
+            "foreign_key_staged_parent_delete_copy",
+            &["DELETE FROM fk_copy_parents WHERE pid = 1"],
+            copy_child,
+        );
+
+        // Act
+        let rejected = commit.is_err();
+
+        // Assert
+        assert!(rejected, "COMMIT unexpectedly succeeded");
+        assert_parent_change_rejected(&commit, parents, children);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_a_parent_key_update_commit_after_a_concurrent_child_insert() {
+        // Arrange
+        let (commit, parents, children, path) = staged_parent_change_commit(
+            "foreign_key_staged_parent_key_update_insert",
+            &["UPDATE fk_copy_parents SET pid = 2 WHERE pid = 1"],
+            insert_child,
+        );
+
+        // Act
+        let rejected = commit.is_err();
+
+        // Assert
+        assert!(rejected, "COMMIT unexpectedly succeeded");
+        assert_parent_change_rejected(&commit, parents, children);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -1016,6 +1080,40 @@ mod integration_sql_constraints {
 
     use super::support_sql as support;
     use support::*;
+
+    #[test]
+    fn should_report_malformed_like_pattern_in_check_constraint() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("check_like_malformed_pattern");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                r"CREATE TABLE check_like_pattern (code TEXT CHECK (code LIKE 'ab\'))",
+                vec![],
+            )
+            .unwrap();
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO check_like_pattern (code) VALUES ('abc')",
+            vec![],
+        );
+
+        // Assert
+        let error = inserted.expect_err("malformed LIKE pattern must surface");
+        assert!(
+            error
+                .to_string()
+                .contains("LIKE pattern must not end with escape character"),
+            "{error}"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     #[test]
     fn should_enforce_constraints_during_ingest() {
@@ -2557,6 +2655,7 @@ mod integration_sql_idempotent_ddl {
     use uuid::Uuid;
 
     fn data_dir(name: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-idempotent-ddl-{name}-{}", Uuid::new_v4()))
     }
 
@@ -3680,7 +3779,7 @@ mod integration_sql_insert_values {
             // Assert
             assert_eq!(
                 cast_offset.rows[0][0],
-                Value::String("2024-01-01T07:00:00Z".to_string())
+                Value::String("2024-01-01T07:00:00.000000Z".to_string())
             );
             assert!(
                 cast_invalid.is_err(),
@@ -5788,6 +5887,7 @@ mod integration_sql_upsert {
     use uuid::Uuid;
 
     fn data_dir(name: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-upsert-{name}-{}", Uuid::new_v4()))
     }
 
@@ -6649,6 +6749,100 @@ mod migration_ddl_sequences {
                 vec![vec![Value::Int64(1), Value::String("one".to_string())]]
             );
             assert!(dropped.is_ok(), "drop sequence failed: {dropped:?}");
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_qualify_serial_sequence_for_unqualified_table_in_search_path_schema() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_search_path_schema");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let public_session = cassie.create_session("tester", Some("postgres".to_string()));
+            execute_statement(&cassie, &public_session, "CREATE SCHEMA reporting");
+            execute_statement(
+                &cassie,
+                &public_session,
+                "CREATE TABLE metrics (metric_id SERIAL, label TEXT)",
+            );
+            let reporting_session = cassie.create_session("tester", Some("postgres".to_string()));
+            execute_statement(&cassie, &reporting_session, "SET search_path = reporting");
+
+            // Act
+            execute_statement(
+                &cassie,
+                &reporting_session,
+                "CREATE TABLE metrics (metric_id SERIAL, label TEXT)",
+            );
+            execute_statement(
+                &cassie,
+                &public_session,
+                "INSERT INTO metrics (label) VALUES ('public-one')",
+            );
+            execute_statement(
+                &cassie,
+                &reporting_session,
+                "INSERT INTO metrics (label) VALUES ('reporting-one')",
+            );
+            execute_statement(
+                &cassie,
+                &public_session,
+                "ALTER SCHEMA reporting RENAME TO analytics",
+            );
+            let renamed_insert = cassie.execute_sql(
+                &public_session,
+                "INSERT INTO analytics.metrics (label) VALUES ('analytics-two')",
+                vec![],
+            );
+            let sequence_names = cassie
+                .catalog
+                .list_sequences()
+                .into_iter()
+                .map(|sequence| sequence.name)
+                .collect::<Vec<_>>();
+            let analytics_rows = query_rows(
+                &cassie,
+                &public_session,
+                "SELECT metric_id, label FROM analytics.metrics ORDER BY metric_id",
+            );
+            let public_rows = query_rows(
+                &cassie,
+                &public_session,
+                "SELECT metric_id, label FROM public.metrics ORDER BY metric_id",
+            );
+
+            // Assert
+            assert!(
+                sequence_names.contains(&"postgres.analytics.metrics_metric_id_seq".to_string()),
+                "sequence was not qualified with the resolved schema: {sequence_names:?}"
+            );
+            assert!(
+                renamed_insert.is_ok(),
+                "insert after schema rename failed: {renamed_insert:?}"
+            );
+            assert_eq!(
+                analytics_rows,
+                vec![
+                    vec![Value::Int64(1), Value::String("reporting-one".to_string())],
+                    vec![Value::Int64(2), Value::String("analytics-two".to_string())],
+                ]
+            );
+            assert_eq!(
+                public_rows,
+                vec![vec![
+                    Value::Int64(1),
+                    Value::String("public-one".to_string())
+                ]]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });

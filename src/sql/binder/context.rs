@@ -159,7 +159,16 @@ pub fn resolve_relation_name(
         return Ok(resolved);
     }
     // Resolution matches names without regard to case; hand back the stored
-    // name so storage and catalog operations that use exact keys find it.
+    // name so storage and catalog operations that use exact keys find it. A
+    // reference that matches more than one stored relation is ambiguous rather
+    // than resolved to an arbitrary one.
+    let matches = catalog.matching_relation_names(&resolved);
+    if matches.len() > 1 {
+        return Err(CassieError::AmbiguousRelation(format!(
+            "relation reference '{resolved}' is ambiguous between {}",
+            matches.join(", ")
+        )));
+    }
     Ok(catalog.stored_relation_name(&resolved).unwrap_or(resolved))
 }
 
@@ -321,4 +330,50 @@ pub fn resolve_schema_name(
         kind: CatalogObjectKind::Schema,
         name,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_relation_name, BindingContext};
+    use crate::app::CassieError;
+    use crate::catalog::Catalog;
+    use crate::types::DataType;
+
+    fn catalog_with_collections(names: &[&str]) -> Catalog {
+        let catalog = Catalog::new();
+        for name in names {
+            catalog.register_collection(name, vec![("title".to_string(), DataType::Text)]);
+        }
+        catalog
+    }
+
+    #[test]
+    fn should_reject_an_unqualified_relation_matching_two_schemas() {
+        // Arrange
+        let catalog = catalog_with_collections(&["postgres.a.orders", "postgres.b.orders"]);
+        let context = BindingContext::unscoped("postgres", vec!["public".to_string()]);
+
+        // Act
+        let resolved = resolve_relation_name("orders", &catalog, &context);
+
+        // Assert
+        assert!(
+            matches!(&resolved, Err(CassieError::AmbiguousRelation(message))
+                if message.contains("postgres.a.orders") && message.contains("postgres.b.orders")),
+            "ambiguous relation reference was not rejected: {resolved:?}"
+        );
+    }
+
+    #[test]
+    fn should_resolve_an_unqualified_relation_matching_one_schema() {
+        // Arrange
+        let catalog = catalog_with_collections(&["postgres.a.orders", "postgres.b.invoices"]);
+        let context = BindingContext::unscoped("postgres", vec!["public".to_string()]);
+
+        // Act
+        let resolved = resolve_relation_name("orders", &catalog, &context);
+
+        // Assert
+        assert_eq!(resolved.ok().as_deref(), Some("postgres.a.orders"));
+    }
 }

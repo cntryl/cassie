@@ -505,7 +505,7 @@ fn fetch_hybrid_candidate_rows<'a>(
         let (document, mut document_memory) = document.into_parts();
         let row_bytes = projected_hybrid_row_bytes(&document, &fields);
         document_memory.try_grow(row_bytes)?;
-        let row = scan::projected_document_to_row(document, &fields, Some(request.context.schema));
+        let row = scan::projected_document_to_row(&document, &fields, Some(request.context.schema));
         retrieval_memory.push(document_memory);
         rows.push(row);
     }
@@ -583,7 +583,7 @@ fn prefilter_hybrid_rows(
         for document in accounted {
             let (document, mut reservation) = document.into_parts();
             reservation.try_grow(projected_hybrid_row_bytes(&document, &fields))?;
-            let row = scan::projected_document_to_row(document, &fields, Some(context.schema));
+            let row = scan::projected_document_to_row(&document, &fields, Some(context.schema));
             memory.push(reservation);
             rows.push(row);
         }
@@ -649,7 +649,7 @@ pub(super) fn hybrid_search_documents(
     rows.into_iter()
         .map(|row| TokenizedHybridDocument {
             id: row
-                .get("_id")
+                .get(crate::types::row_identity::ROW_IDENTITY_COLUMN)
                 .and_then(Value::as_str)
                 .unwrap_or_default()
                 .to_string(),

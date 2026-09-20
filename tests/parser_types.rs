@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/parser_core.rs.
 mod parser_core {
@@ -3531,6 +3533,7 @@ mod types {
     }
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         let mut path = std::env::temp_dir();
         path.push(format!("cassie-types-{label}"));
         path.push(Uuid::new_v4().to_string());
@@ -3654,7 +3657,10 @@ mod types {
         );
         assert_eq!(selected.rows[0][2], Value::String("2026-06-18".to_string()));
         assert_eq!(selected.rows[0][3], Value::String("12:34:56".to_string()));
-        assert_eq!(selected.rows[0][4], Value::String("2026-06-18T12:34:56Z".to_string()));
+        assert_eq!(
+            selected.rows[0][4],
+            Value::String("2026-06-18T12:34:56.000000Z".to_string())
+        );
         assert_eq!(
             selected.rows[0][5],
             Value::Json(serde_json::json!({"source": "types", "value": 1}))

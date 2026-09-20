@@ -11,6 +11,8 @@ pub use ast_schema::{AlterTableOperation, AlterTableStatement};
 
 #[path = "ast_query.rs"]
 mod ast_query;
+#[path = "ast_visit.rs"]
+mod ast_visit;
 pub use ast_query::{
     BinaryOp, Bm25Params, CommonTableExpression, CteQuery, Expr, FunctionCall, JoinKind,
     NullsOrder, OrderExpr, QuerySource, SelectItem, SelectSet, SelectStatement, SetOperator,

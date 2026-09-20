@@ -1,3 +1,4 @@
+use crate::types::numeric::i64_to_f64;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::catalog::{ColumnBatchFieldSummary, ColumnBatchNumericSum, ColumnBatchRow};
@@ -289,11 +290,4 @@ struct NumericSummary {
     integer_total: Option<i128>,
     integer_prefix_min: Option<i128>,
     integer_prefix_max: Option<i128>,
-}
-
-fn i64_to_f64(value: i64) -> f64 {
-    value
-        .to_string()
-        .parse::<f64>()
-        .expect("i64 should convert to finite f64")
 }

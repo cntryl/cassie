@@ -2,6 +2,7 @@ use std::mem::size_of;
 
 use super::{CassieError, ColumnBatchRow, DocumentRef};
 use crate::runtime::QueryMemoryReservation;
+use crate::types::row_identity::is_row_identity_column;
 
 const OBJECT_ENTRY_OVERHEAD: usize = 4 * size_of::<usize>();
 
@@ -41,7 +42,7 @@ fn projected_document_retained_bytes(
             checked_add(row.row_id.len(), size_of::<serde_json::Value>())?,
         )?,
         |bytes, field| {
-            if field.eq_ignore_ascii_case("id") || field.eq_ignore_ascii_case("_id") {
+            if is_row_identity_column(field) {
                 return Ok(bytes);
             }
             let value = projected_value(row, field);
@@ -59,7 +60,7 @@ fn projected_document_retained_bytes(
 fn project_column_batch_row(row: &ColumnBatchRow, fields: &[String]) -> serde_json::Value {
     let mut object = serde_json::Map::new();
     for field in fields {
-        if field.eq_ignore_ascii_case("id") || field.eq_ignore_ascii_case("_id") {
+        if is_row_identity_column(field) {
             continue;
         }
         object.insert(field.clone(), projected_value(row, field).clone());
@@ -138,7 +139,7 @@ mod tests {
         // Act
         let retained_bytes = super::projected_document_retained_bytes(
             &row,
-            &["id".to_string(), "label".to_string()],
+            &["_id".to_string(), "label".to_string()],
         )
         .expect("retained size");
         let result = reserve_before_projecting(Some(&mut memory), retained_bytes, || {

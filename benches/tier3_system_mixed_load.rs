@@ -7,6 +7,8 @@ const FIXTURE_ROWS: usize = 100_000;
 const MIXED_QUERY_SQL: &str =
     "SELECT id FROM bench_documents WHERE status = $1 AND score >= $2 ORDER BY score DESC LIMIT 20";
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -42,6 +44,8 @@ fn main() {
             FIXTURE_ROWS,
         ))
         .expect("Tier 3 mixed fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-99999");
     workloads::prepare_mixed_fixture(&context);
     let preflight = workloads::assert_explain_contains(

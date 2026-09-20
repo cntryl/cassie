@@ -128,6 +128,20 @@ impl Catalog {
             .collect()
     }
 
+    /// Returns the ids of every comparison report recorded for one projection.
+    #[must_use]
+    pub fn projection_comparison_report_ids(&self, projection: &str) -> Vec<String> {
+        let mut ids = self
+            .projection_comparison_reports
+            .read()
+            .values()
+            .filter(|report| report.target.eq_ignore_ascii_case(projection))
+            .map(|report| report.report_id.clone())
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
     /// Removes comparison reports by id from the catalog.
     pub fn unregister_projection_comparison_reports(&self, report_ids: &[String]) {
         let mut reports = self.projection_comparison_reports.write();

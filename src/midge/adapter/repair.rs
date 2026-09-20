@@ -1,4 +1,25 @@
+use std::cell::Cell;
+
 use super::{key_encoding, CassieError, Midge, StorageFamily};
+
+thread_local! {
+    static PROJECTION_REPORT_DELETION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Fails the next stored projection report deletion on this thread.
+#[doc(hidden)]
+pub fn set_projection_report_deletion_failure_point(enabled: bool) {
+    PROJECTION_REPORT_DELETION_FAILPOINT.set(enabled);
+}
+
+fn check_projection_report_deletion_failure_point() -> Result<(), CassieError> {
+    if PROJECTION_REPORT_DELETION_FAILPOINT.replace(false) {
+        return Err(CassieError::Execution(
+            "injected projection report deletion failure".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 impl Midge {
     /// # Errors
@@ -28,6 +49,7 @@ impl Midge {
         repair_report_ids: &[String],
         comparison_report_ids: &[String],
     ) -> Result<(), CassieError> {
+        check_projection_report_deletion_failure_point()?;
         if repair_report_ids.is_empty() && comparison_report_ids.is_empty() {
             return Ok(());
         }

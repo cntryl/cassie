@@ -133,7 +133,14 @@ pub(super) fn bind_create_table(
 }
 
 /// SERIAL sequence names are derived while parsing, before the table name is
-/// qualified, so rederive them from the bound table name for qualified tables.
+/// qualified, so rederive them from the bound table name.
+///
+/// An unqualified table in the default schema keeps its legacy bare sequence
+/// name, so catalogs written by earlier versions still resolve. Every other
+/// table, including an unqualified one resolved through a non-default
+/// `search_path` schema, gets a sequence in its own schema, which keeps
+/// same-named tables in different schemas apart and lets a schema rename carry
+/// the sequence with the table.
 fn requalify_serial_sequences(
     statement: &mut crate::sql::ast::CreateTableStatement,
     bound_table: &str,
@@ -141,7 +148,9 @@ fn requalify_serial_sequences(
     if matches!(
         crate::catalog::parse_name(statement.table.trim()).map_err(CassieError::Planner)?,
         crate::catalog::ParsedName::Unqualified(_)
-    ) {
+    ) && crate::catalog::relation_schema_name(bound_table)
+        .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
+    {
         return Ok(());
     }
     for field in &mut statement.fields {
@@ -506,7 +515,7 @@ pub(super) fn validate_alter_schema(
                     "ALTER TABLE RENAME COLUMN requires a target field".into(),
                 ));
             }
-            if to.eq_ignore_ascii_case("_id") {
+            if crate::types::row_identity::is_row_identity_column(to) {
                 return Err(CassieError::Planner(
                     "ALTER TABLE RENAME COLUMN cannot rename to reserved field '_id'".into(),
                 ));
@@ -555,7 +564,7 @@ pub(super) fn validate_alter_schema(
 /// `executor::scan::push_row_identity`); a field declared with that name
 /// would be a dead column no query can ever reach.
 fn validate_not_internal_identity_field(name: &str) -> Result<(), CassieError> {
-    if name.eq_ignore_ascii_case("_id") {
+    if crate::types::row_identity::is_row_identity_column(name) {
         return Err(CassieError::Planner(
             "field '_id' conflicts with Cassie's reserved internal document identity".into(),
         ));
@@ -624,7 +633,7 @@ fn validate_alter_drop_column(
     // `id` is an ordinary column when the table declares one, so it is
     // droppable like any other; when the table does not declare it, the
     // `existing_fields` check below reports it as unknown.
-    if name.eq_ignore_ascii_case("_id") {
+    if crate::types::row_identity::is_row_identity_column(name) {
         return Err(CassieError::Planner(format!(
             "ALTER TABLE DROP COLUMN cannot remove reserved field '{name}'"
         )));

@@ -10,6 +10,7 @@ use crate::catalog::{
 use crate::midge::adapter::{
     ColumnBatchAggregateDecision, ColumnBatchAggregateSpec, ControlledColumnBatchSummaryDecision,
 };
+use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use crate::types::semantic::compare_values;
 
 pub(super) fn try_execute_column_batch_aggregate(
@@ -551,17 +552,6 @@ fn merge_float_capable_summaries(
             "aggregate integer overflow".to_string(),
         )),
     }
-}
-
-fn usize_to_f64(value: usize) -> f64 {
-    value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
-}
-
-fn i64_to_f64(value: i64) -> f64 {
-    value
-        .to_string()
-        .parse::<f64>()
-        .expect("i64 should convert to finite f64")
 }
 
 fn i128_to_f64(value: i128) -> f64 {

@@ -1,3 +1,4 @@
+use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use std::collections::HashMap;
 
 use crate::app::CassieSession;
@@ -34,31 +35,62 @@ impl PartialAggregateGroup {
         }
     }
 
+    /// Folds `row` into the accumulators and reports how their retained
+    /// bytes changed.
     pub(super) fn update(
         &mut self,
         row: &BatchRow,
         specs: &[AggregateSpec],
         context: &AggregateExecutionContext<'_>,
-    ) -> Result<(), QueryError> {
+    ) -> Result<RetainedChange, QueryError> {
+        let mut change = RetainedChange::default();
         for (accumulator, spec) in self.accumulators.iter_mut().zip(specs) {
-            accumulator.update(
+            change.absorb(accumulator.update(
                 &spec.function,
                 row,
                 context.params,
                 context.search_context,
                 context.user_functions,
                 context.session,
-            )?;
+            )?);
         }
-        Ok(())
+        Ok(change)
     }
 
-    pub(super) fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
+    /// Merges `other` into this group and reports how the retained
+    /// accumulator bytes changed.
+    pub(super) fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
+        let mut change = RetainedChange::default();
         for (left, right) in self.accumulators.iter_mut().zip(&other.accumulators) {
-            left.merge(right)?;
+            change.absorb(left.merge(right)?);
         }
-        Ok(())
+        Ok(change)
     }
+}
+
+/// Retained accumulator bytes before and after an update or merge.
+#[derive(Clone, Copy, Default)]
+pub(super) struct RetainedChange {
+    pub(super) before: usize,
+    pub(super) after: usize,
+}
+
+impl RetainedChange {
+    fn replaced(before: Option<&Value>, after: &Value) -> Self {
+        Self {
+            before: before.map_or(0, value_retained_bytes),
+            after: value_retained_bytes(after),
+        }
+    }
+
+    fn absorb(&mut self, other: Self) {
+        self.before = self.before.saturating_add(other.before);
+        self.after = self.after.saturating_add(other.after);
+    }
+}
+
+fn value_retained_bytes(value: &Value) -> usize {
+    super::group_memory::json_bytes(value)
 }
 
 #[derive(Clone)]
@@ -70,6 +102,19 @@ pub(super) enum AggregateAccumulator {
 }
 
 impl AggregateAccumulator {
+    /// Accounted bytes for this accumulator, including a retained MIN/MAX
+    /// value whose size depends on the input (for example long text).
+    pub(super) fn retained_bytes(&self) -> usize {
+        let inline = std::mem::size_of::<Self>();
+        match self {
+            Self::MinMax {
+                selected: Some(value),
+                ..
+            } => inline.saturating_add(value_retained_bytes(value)),
+            _ => inline,
+        }
+    }
+
     fn new(function: &FunctionCall) -> Self {
         match function.name.to_ascii_lowercase().as_str() {
             "count" => Self::Count { count: 0 },
@@ -97,7 +142,7 @@ impl AggregateAccumulator {
         search_context: Option<&filter::SearchContext>,
         user_functions: &HashMap<String, FunctionMeta>,
         session: Option<&CassieSession>,
-    ) -> Result<(), QueryError> {
+    ) -> Result<RetainedChange, QueryError> {
         let value_context = AggregateValueContext {
             params,
             search_context,
@@ -113,13 +158,13 @@ impl AggregateAccumulator {
                 Self::update_avg(function, row, &value_context, sum, count)?;
             }
             Self::MinMax { selected, max } => {
-                Self::update_minmax(function, row, &value_context, selected, *max)?;
+                return Self::update_minmax(function, row, &value_context, selected, *max);
             }
         }
-        Ok(())
+        Ok(RetainedChange::default())
     }
 
-    fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
+    fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
         match (self, other) {
             (Self::Count { count }, Self::Count { count: other }) => {
                 *count = count
@@ -162,12 +207,14 @@ impl AggregateAccumulator {
                     }
                 });
                 if replace {
+                    let change = RetainedChange::replaced(selected.as_ref(), value);
                     *selected = Some(value.clone());
+                    return Ok(change);
                 }
             }
             _ => {}
         }
-        Ok(())
+        Ok(RetainedChange::default())
     }
 
     pub(super) fn finish(self) -> Value {
@@ -184,7 +231,7 @@ impl AggregateAccumulator {
                 if count == 0 {
                     Value::Null
                 } else {
-                    let count = usize_to_f64(count).expect("aggregate count should fit in f64");
+                    let count = usize_to_f64(count);
                     Value::Float64(sum / count)
                 }
             }
@@ -247,11 +294,11 @@ impl AggregateAccumulator {
                 *seen = true;
             }
             Value::Float64(value) => {
-                sum.add_float(value)?;
+                sum.add_float(value);
                 *seen = true;
             }
             Value::Null => {}
-            _ => sum.promote_to_float()?,
+            _ => sum.promote_to_float(),
         }
         Ok(())
     }
@@ -268,7 +315,7 @@ impl AggregateAccumulator {
         };
         match value {
             Value::Int64(value) => {
-                *sum += i64_to_f64(value)?;
+                *sum += i64_to_f64(value);
                 *count += 1;
             }
             Value::Float64(value) => {
@@ -286,12 +333,12 @@ impl AggregateAccumulator {
         context: &AggregateValueContext<'_>,
         selected: &mut Option<Value>,
         max: bool,
-    ) -> Result<(), QueryError> {
+    ) -> Result<RetainedChange, QueryError> {
         let Some(value) = Self::evaluate_input(function, row, context)? else {
-            return Ok(());
+            return Ok(RetainedChange::default());
         };
         if matches!(value, Value::Null) {
-            return Ok(());
+            return Ok(RetainedChange::default());
         }
         let replace = selected.as_ref().is_none_or(|current| {
             let ordering = compare_values(&value, current);
@@ -302,9 +349,11 @@ impl AggregateAccumulator {
             }
         });
         if replace {
+            let change = RetainedChange::replaced(selected.as_ref(), &value);
             *selected = Some(value);
+            return Ok(change);
         }
-        Ok(())
+        Ok(RetainedChange::default())
     }
 }
 
@@ -322,30 +371,31 @@ impl NumericSum {
                     QueryError::General(String::from("aggregate integer overflow"))
                 })?;
             }
-            Self::Float(sum) => *sum += i64_to_f64(value)?,
+            Self::Float(sum) => *sum += i64_to_f64(value),
         }
         Ok(())
     }
 
-    pub(super) fn add_float(&mut self, value: f64) -> Result<(), QueryError> {
-        self.promote_to_float()?;
+    pub(super) fn add_float(&mut self, value: f64) {
+        self.promote_to_float();
         if let Self::Float(sum) = self {
             *sum += value;
         }
-        Ok(())
     }
 
-    pub(super) fn promote_to_float(&mut self) -> Result<(), QueryError> {
+    pub(super) fn promote_to_float(&mut self) {
         if let Self::Int(sum) = self {
-            *self = Self::Float(i64_to_f64(*sum)?);
+            *self = Self::Float(i64_to_f64(*sum));
         }
-        Ok(())
     }
 
     fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
         match other {
             Self::Int(value) => self.add_int(*value),
-            Self::Float(value) => self.add_float(*value),
+            Self::Float(value) => {
+                self.add_float(*value);
+                Ok(())
+            }
         }
     }
 
@@ -355,18 +405,4 @@ impl NumericSum {
             Self::Float(sum) => Value::Float64(sum),
         }
     }
-}
-
-pub(super) fn i64_to_f64(value: i64) -> Result<f64, QueryError> {
-    value
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| QueryError::General(String::from("aggregate integer conversion failed")))
-}
-
-pub(super) fn usize_to_f64(value: usize) -> Result<f64, QueryError> {
-    value
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| QueryError::General(String::from("aggregate count conversion failed")))
 }

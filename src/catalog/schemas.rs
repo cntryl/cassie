@@ -27,4 +27,12 @@ impl CollectionSchema {
     pub fn field(&self, name: &str) -> Option<&FieldMeta> {
         self.fields.iter().find(|f| f.name == name)
     }
+
+    /// Whether this schema declares its own `id` column, which shadows the
+    /// legacy `id` alias for the internal row identity (see
+    /// [`crate::types::row_identity`]).
+    #[must_use]
+    pub fn declares_id(&self) -> bool {
+        crate::types::row_identity::declares_id(self.fields.iter().map(|field| field.name.as_str()))
+    }
 }

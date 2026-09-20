@@ -117,18 +117,58 @@ pub(super) fn drop_materialized_projection(
         )));
     };
 
+    // Storage and catalog removal use exact keys, so drop the stored projection
+    // name rather than the name as it was typed.
+    let projection = metadata.collection.clone();
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&projection), || {
+            drop_materialized_projection_gated(cassie, &projection, &metadata)
+        })?;
+    Ok(empty_command("DROP MATERIALIZED PROJECTION"))
+}
+
+/// Removes one materialized projection while holding its catalog gate, so the
+/// reports read from the catalog cannot change before they are deleted.
+///
+/// Stored reports go first: if their deletion fails, the projection, its
+/// versions, and its outputs are all still intact. Leftover output collections
+/// are recoverable, so they are dropped last and their failures are reported.
+fn drop_materialized_projection_gated(
+    cassie: &Cassie,
+    projection: &str,
+    metadata: &catalog::ProjectionMeta,
+) -> Result<(), QueryError> {
+    let repair_reports = cassie.catalog.projection_repair_report_ids(projection);
+    let comparison_reports = cassie.catalog.projection_comparison_report_ids(projection);
+    cassie
+        .midge
+        .delete_projection_reports(&repair_reports, &comparison_reports)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .midge
+        .delete_projection_metadata(projection)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie
+        .catalog
+        .unregister_projection_repair_reports(&repair_reports);
+    cassie
+        .catalog
+        .unregister_projection_comparison_reports(&comparison_reports);
+    cassie.catalog.unregister_projection_metadata(projection);
     for version in &metadata.versions {
-        let _ = cassie.midge.drop_collection(&version.output_collection);
+        if let Err(error) = cassie.midge.drop_collection(&version.output_collection) {
+            tracing::warn!(
+                collection = version.output_collection.as_str(),
+                error = error.to_string().as_str(),
+                "dropping a materialized projection left its version output collection behind"
+            );
+        }
         let _ = cassie
             .catalog
             .unregister_collection(&version.output_collection);
     }
-    cassie
-        .midge
-        .delete_projection_metadata(name)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_projection_metadata(name);
-    Ok(empty_command("DROP MATERIALIZED PROJECTION"))
+    Ok(())
 }
 
 pub(super) fn alter_materialized_projection(
@@ -835,55 +875,13 @@ fn collect_functions_in_select_item(item: &SelectItem, out: &mut Vec<String>) {
 
 fn collect_functions_in_expr(expr: &Expr, out: &mut Vec<String>) {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_functions_in_expr(operand, out);
-            }
-            for (when, then) in branches {
-                collect_functions_in_expr(when, out);
-                collect_functions_in_expr(then, out);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_functions_in_expr(else_expr, out);
-            }
-        }
         Expr::Function(function) => collect_functions_in_call(function, out),
-        Expr::Binary { left, right, .. } => {
-            collect_functions_in_expr(left, out);
-            collect_functions_in_expr(right, out);
-        }
-        Expr::Not { expr } | Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } => {
-            collect_functions_in_expr(expr, out);
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_functions_in_expr(expr, out);
-            collect_functions_in_expr(low, out);
-            collect_functions_in_expr(high, out);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_functions_in_expr(expr, out);
-            for value in values {
-                collect_functions_in_expr(value, out);
-            }
-        }
         Expr::Exists(statement) => {
             if let QueryStatement::Select(select) = &statement.statement {
                 out.extend(functions_in_select(select));
             }
         }
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => {}
+        _ => expr.for_each_child(|child| collect_functions_in_expr(child, out)),
     }
 }
 

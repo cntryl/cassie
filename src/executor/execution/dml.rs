@@ -5,6 +5,7 @@ use super::{
     Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
     QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
 };
+use crate::types::row_identity::{is_legacy_id_column, ROW_IDENTITY_COLUMN};
 
 #[path = "dml_delete.rs"]
 mod dml_delete;
@@ -90,7 +91,10 @@ fn inserted_row_to_batch_row(
     payload: &serde_json::Value,
 ) -> BatchRow {
     let mut row = Vec::with_capacity(schema.fields.len() + 1);
-    row.push(("_id".to_string(), Value::String(row_id.to_string())));
+    row.push((
+        ROW_IDENTITY_COLUMN.to_string(),
+        Value::String(row_id.to_string()),
+    ));
 
     for field in &schema.fields {
         let value = payload.get(&field.name).map_or(Value::Null, json_to_value);
@@ -106,12 +110,7 @@ fn dml_returning_columns(
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Vec<ColumnMeta> {
     let mut columns = aggregate::columns_from_projection(returning, schema, user_functions);
-    let schema_has_id = schema.is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case("id"))
-    });
+    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     // `aggregate::columns_from_projection` only synthesizes a metadata
     // column literally named "id" for the reserved internal identity when
     // the schema has no real "id" field of its own; relabel that one to
@@ -124,8 +123,8 @@ fn dml_returning_columns(
             .any(|item| matches!(item, SelectItem::Wildcard))
     {
         for column in &mut columns {
-            if column.name == "id" {
-                column.name = "_id".to_string();
+            if is_legacy_id_column(&column.name) {
+                column.name = ROW_IDENTITY_COLUMN.to_string();
                 break;
             }
         }
@@ -206,7 +205,7 @@ fn build_dml_result(
 }
 
 fn row_id_from_batch_row(row: &BatchRow) -> Result<String, QueryError> {
-    match row.get("_id") {
+    match row.get(ROW_IDENTITY_COLUMN) {
         Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
         _ => Err(QueryError::General(
             "scanned row is missing internal row id".to_string(),

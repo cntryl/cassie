@@ -661,7 +661,7 @@ impl Cassie {
                 let Some(value) = existing else {
                     continue;
                 };
-                if !Self::satisfies_check_constraint(value, check) {
+                if !Self::satisfies_check_constraint(value, check)? {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
                         column: check.field.clone(),
@@ -678,8 +678,11 @@ impl Cassie {
         self.validate_uniques(session, collection, object, constraints, exclude_id)
     }
 
-    fn satisfies_check_constraint(value: &serde_json::Value, check: &ConstraintCheck) -> bool {
-        match check.operator {
+    fn satisfies_check_constraint(
+        value: &serde_json::Value,
+        check: &ConstraintCheck,
+    ) -> Result<bool, CassieError> {
+        Ok(match check.operator {
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,
             ConstraintOperator::Lt => Self::compare_constraint_values(value, &check.value)
@@ -691,15 +694,13 @@ impl Cassie {
             ConstraintOperator::Gte => Self::compare_constraint_values(value, &check.value)
                 .is_some_and(std::cmp::Ordering::is_ge),
             ConstraintOperator::Like => {
-                let Some(value) = value.as_str() else {
-                    return false;
+                let (Some(value), Some(expected)) = (value.as_str(), check.value.as_str()) else {
+                    return Ok(false);
                 };
-                let Some(expected) = check.value.as_str() else {
-                    return false;
-                };
-                crate::executor::filter::like_matches(value, expected).unwrap_or(false)
+                crate::executor::filter::like_matches(value, expected)
+                    .map_err(|error| CassieError::Execution(error.to_string()))?
             }
-        }
+        })
     }
 
     fn compare_constraint_values(
@@ -711,9 +712,12 @@ impl Cassie {
                 .as_f64()
                 .and_then(|left| right.as_f64().map(|right| left.partial_cmp(&right)))
                 .flatten(),
-            (serde_json::Value::String(left), serde_json::Value::String(right)) => {
-                Some(left.cmp(right))
-            }
+            // Canonical timestamps are widened first so a CHECK bound written
+            // as `...SSZ` compares by instant against fixed-width values.
+            (serde_json::Value::String(left), serde_json::Value::String(right)) => Some(
+                crate::types::temporal::timestamp_order_text(left)
+                    .cmp(&crate::types::temporal::timestamp_order_text(right)),
+            ),
             (serde_json::Value::Bool(left), serde_json::Value::Bool(right)) => {
                 Some(left.cmp(right))
             }

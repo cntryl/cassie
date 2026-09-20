@@ -57,6 +57,7 @@ impl Cassie {
         let committed = if referential {
             self.midge.with_collection_write_gates(&collections, || {
                 self.validate_staged_foreign_keys(session)?;
+                self.validate_staged_parent_references(session)?;
                 self.apply_staged_write_batches(session, None)
             })
         } else {

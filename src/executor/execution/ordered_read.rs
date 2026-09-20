@@ -60,7 +60,7 @@ pub(super) fn execute_ordered_column_top_k(
                 .payload
                 .get(&spec.order_column)
                 .map_or(Value::Null, super::projected_read::json_to_query_value);
-            let values = ordered_projection_row(document, &spec.projection, schema.as_ref());
+            let values = ordered_projection_row(&document, &spec.projection, schema.as_ref());
             let candidate = OrderedColumnCandidate {
                 order_value,
                 id: document_id,
@@ -131,7 +131,7 @@ fn execute_ordered_row_id_page(
     let mut rows = documents
         .into_iter()
         .flatten()
-        .map(|document| ordered_projection_row(document, &spec.projection, schema.as_ref()))
+        .map(|document| ordered_projection_row(&document, &spec.projection, schema.as_ref()))
         .collect::<Vec<_>>();
 
     if spec.offset > 0 {
@@ -193,7 +193,7 @@ struct OrderedProjectionColumn {
 }
 
 fn ordered_projection_row(
-    document: DocumentRef,
+    document: &DocumentRef,
     projection: &[OrderedProjectionColumn],
     schema: Option<&CollectionSchema>,
 ) -> BatchRow {

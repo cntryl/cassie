@@ -62,6 +62,54 @@ pub(super) fn infer_select_schema_with_scope(
     Ok(fields)
 }
 
+/// Resolves the output schema of the CTE named `name`, as a collection schema
+/// for result metadata.
+///
+/// A CTE is not a catalog object, so `Catalog::get_schema` finds nothing for it
+/// and result metadata used to fall back to `text` for every column. Earlier
+/// CTEs are resolved first because a later one may select from them.
+///
+/// # Errors
+///
+/// Returns `None` when no CTE of that name is in scope, or when its body
+/// cannot be inferred; callers then keep their existing fallback.
+#[must_use]
+pub fn cte_collection_schema(
+    ctes: &[CommonTableExpression],
+    name: &str,
+    catalog: &Catalog,
+) -> Option<crate::catalog::CollectionSchema> {
+    let wanted = name.to_ascii_lowercase();
+    let user_functions = catalog
+        .list_functions()
+        .into_iter()
+        .map(|function| (function.name.to_ascii_lowercase(), function))
+        .collect::<HashMap<_, _>>();
+
+    let mut in_scope: HashMap<String, Schema> = HashMap::new();
+    for cte in ctes {
+        let schema = infer_cte_schema(cte, catalog, &in_scope, &user_functions).ok()?;
+        let cte_name = cte.name.to_ascii_lowercase();
+        if cte_name == wanted {
+            return Some(crate::catalog::CollectionSchema {
+                collection: name.to_string(),
+                fields: schema
+                    .fields
+                    .into_iter()
+                    .map(|field| crate::catalog::FieldMeta {
+                        name: field.name,
+                        data_type: field.data_type,
+                        is_indexed: false,
+                        boost: None,
+                    })
+                    .collect(),
+            });
+        }
+        in_scope.insert(cte_name, schema);
+    }
+    None
+}
+
 pub(super) fn infer_cte_schema(
     cte: &CommonTableExpression,
     catalog: &Catalog,
@@ -182,14 +230,10 @@ pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Sc
         .get_schema(name)
         .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
 
-    let schema_has_id = schema
-        .fields
-        .iter()
-        .any(|field| field.name.eq_ignore_ascii_case("id"));
     let mut fields = Vec::with_capacity(schema.fields.len() + 1);
-    if !schema_has_id {
+    if !schema.declares_id() {
         fields.push(FieldSchema {
-            name: "id".to_string(),
+            name: crate::types::row_identity::LEGACY_ID_COLUMN.to_string(),
             data_type: DataType::Text,
             nullable: true,
         });
@@ -260,12 +304,20 @@ pub(super) fn infer_projection_schema(
                 });
             }
             SelectItem::WindowFunction { function, alias } => {
+                let data_type = match function.name.to_ascii_lowercase().as_str() {
+                    "lag" | "lead" | "first_value" | "last_value" => function
+                        .args
+                        .first()
+                        .and_then(|arg| infer_expr_type(arg, source_schema, user_functions, &[]))
+                        .unwrap_or(DataType::Text),
+                    _ => DataType::BigInt,
+                };
                 fields.push(FieldSchema {
                     name: alias
                         .as_deref()
                         .unwrap_or(function.name.as_str())
                         .to_string(),
-                    data_type: DataType::BigInt,
+                    data_type,
                     nullable: false,
                 });
             }
@@ -303,6 +355,7 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::Float => Some(DataType::Float),
         crate::sql::functions::FunctionReturnType::Text => Some(DataType::Text),
         crate::sql::functions::FunctionReturnType::Int => Some(DataType::Int),
+        crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
         crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
         crate::sql::functions::FunctionReturnType::FirstNonNullArgument => function
@@ -368,7 +421,7 @@ pub(crate) fn infer_expr_type(
         }
         Expr::StringLiteral(_) => Some(DataType::Text),
         Expr::NumberLiteral(_) => Some(DataType::Float),
-        Expr::IntegerLiteral(_) => Some(DataType::BigInt),
+        Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
         Expr::BoolLiteral(_)
         | Expr::Exists(_)
         | Expr::IsNull { .. }
@@ -391,23 +444,19 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Gt
             | BinaryOp::Gte
             | BinaryOp::Like => Some(DataType::Boolean),
-            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul => {
+            BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
                 let left_type =
                     infer_expr_type(left, source_schema, user_functions, parameter_types);
                 let right_type =
                     infer_expr_type(right, source_schema, user_functions, parameter_types);
-                if arithmetic_result_is_integer(
-                    left_type.as_ref(),
-                    left,
-                    right_type.as_ref(),
-                    right,
-                ) {
+                if left_type.as_ref().is_some_and(is_integer_type)
+                    && right_type.as_ref().is_some_and(is_integer_type)
+                {
                     Some(DataType::BigInt)
                 } else {
                     Some(DataType::Float)
                 }
             }
-            BinaryOp::Div => Some(DataType::Float),
             BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                 Some(DataType::Float)
             }
@@ -462,31 +511,32 @@ fn is_integer_type(data_type: &DataType) -> bool {
     )
 }
 
-/// Matches the runtime coercion in `executor::filter::coerce_whole_number_literal`:
-/// a bare whole-number literal is declared `Float` in isolation (so
-/// `1 + 2` alone stays float, matching the table-free literal contract),
-/// but paired with a genuine integer operand it takes on integer semantics,
-/// so the declared column type agrees with the value `int_column + 1`
-/// actually produces.
-fn arithmetic_result_is_integer(
-    left_type: Option<&DataType>,
-    left_expr: &Expr,
-    right_type: Option<&DataType>,
-    right_expr: &Expr,
-) -> bool {
-    let left_is_int = left_type.is_some_and(is_integer_type);
-    let right_is_int = right_type.is_some_and(is_integer_type);
-    let left_ok = left_is_int || is_whole_number_literal(left_expr);
-    let right_ok = right_is_int || is_whole_number_literal(right_expr);
-    left_ok && right_ok && (left_is_int || right_is_int)
+/// PostgreSQL types an integer literal as `int4` when it fits and `int8`
+/// otherwise.
+pub(crate) fn integer_literal_type(value: i64) -> DataType {
+    if i32::try_from(value).is_ok() {
+        DataType::Int
+    } else {
+        DataType::BigInt
+    }
 }
 
-fn is_whole_number_literal(expr: &Expr) -> bool {
-    matches!(
-        expr,
-        Expr::NumberLiteral(value)
-            if value.fract() == 0.0 && value.abs() <= 9_007_199_254_740_992.0
-    )
+/// Returns the type of a column, cast, or literal expression without a
+/// resolved source schema; other expressions return `None`.
+pub(crate) fn known_expr_type(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Option<DataType> {
+    match expr {
+        Expr::Column(name) => crate::sql::field_type_for_column(field_types, name).cloned(),
+        Expr::Cast { data_type, .. } => Some(data_type.clone()),
+        Expr::StringLiteral(_) => Some(DataType::Text),
+        Expr::NumberLiteral(_) => Some(DataType::Float),
+        Expr::IntegerLiteral(value) => Some(integer_literal_type(*value)),
+        Expr::BoolLiteral(_) => Some(DataType::Boolean),
+        Expr::Null => Some(DataType::Null),
+        _ => None,
+    }
 }
 
 fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {

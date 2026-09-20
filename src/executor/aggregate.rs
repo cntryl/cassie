@@ -3,7 +3,8 @@ use std::hash::BuildHasher;
 
 use crate::catalog::{CollectionSchema, FunctionMeta};
 use crate::executor::ColumnMeta;
-use crate::sql::ast::SelectItem;
+use crate::sql::ast::{SelectItem, WindowFunctionCall};
+use crate::types::row_identity::{is_row_identity_column, LEGACY_ID_COLUMN};
 use crate::types::{DataType, FieldSchema, Schema};
 
 #[must_use]
@@ -50,13 +51,12 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
                     } else {
                         let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
                         let mut seen = HashSet::new();
-                        let schema_has_id = collection_schema
-                            .fields
-                            .iter()
-                            .any(|field| field.name.eq_ignore_ascii_case("id"));
-                        if !schema_has_id {
-                            seen.insert("id".to_string());
-                            columns.push(ColumnMeta::from_data_type("id", &DataType::Text));
+                        if !collection_schema.declares_id() {
+                            seen.insert(LEGACY_ID_COLUMN.to_string());
+                            columns.push(ColumnMeta::from_data_type(
+                                LEGACY_ID_COLUMN,
+                                &DataType::Text,
+                            ));
                         }
                         for field in &collection_schema.fields {
                             if seen.insert(field.name.to_ascii_lowercase()) {
@@ -80,16 +80,12 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
                 )]
             }
             SelectItem::Function { function, alias } => {
-                let data_type = if function.name.eq_ignore_ascii_case("count") {
-                    Some(DataType::BigInt)
-                } else {
-                    crate::sql::binder::infer_function_return_type(
-                        function,
-                        &source_schema,
-                        &user_functions,
-                        parameter_type_oids,
-                    )
-                }
+                let data_type = crate::sql::binder::infer_function_return_type(
+                    function,
+                    &source_schema,
+                    &user_functions,
+                    parameter_type_oids,
+                )
                 .unwrap_or(DataType::Text);
                 vec![ColumnMeta::from_data_type(
                     alias.clone().unwrap_or_else(|| function.name.clone()),
@@ -109,12 +105,43 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
                     &data_type,
                 )]
             }
-            SelectItem::WindowFunction { function, alias } => vec![ColumnMeta::from_data_type(
-                alias.clone().unwrap_or_else(|| function.name.clone()),
-                &DataType::BigInt,
-            )],
+            SelectItem::WindowFunction { function, alias } => {
+                let data_type = window_result_type(
+                    function,
+                    &source_schema,
+                    &user_functions,
+                    parameter_type_oids,
+                );
+                vec![ColumnMeta::from_data_type(
+                    alias.clone().unwrap_or_else(|| function.name.clone()),
+                    &data_type,
+                )]
+            }
         })
         .collect()
+}
+
+fn window_result_type(
+    function: &WindowFunctionCall,
+    source_schema: &Schema,
+    user_functions: &HashMap<String, FunctionMeta>,
+    parameter_type_oids: &[i32],
+) -> DataType {
+    match function.name.to_ascii_lowercase().as_str() {
+        "lag" | "lead" | "first_value" | "last_value" => function
+            .args
+            .first()
+            .and_then(|arg| {
+                crate::sql::binder::infer_expr_type(
+                    arg,
+                    source_schema,
+                    user_functions,
+                    parameter_type_oids,
+                )
+            })
+            .unwrap_or(DataType::Text),
+        _ => DataType::BigInt,
+    }
 }
 
 fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Schema {
@@ -122,14 +149,10 @@ fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Sch
         return Schema { fields: Vec::new() };
     };
 
-    let schema_has_id = collection_schema
-        .fields
-        .iter()
-        .any(|field| field.name.eq_ignore_ascii_case("id"));
     let mut fields = Vec::with_capacity(collection_schema.fields.len() + 1);
-    if !schema_has_id {
+    if !collection_schema.declares_id() {
         fields.push(FieldSchema {
-            name: "id".to_string(),
+            name: LEGACY_ID_COLUMN.to_string(),
             data_type: DataType::Text,
             nullable: true,
         });
@@ -143,7 +166,7 @@ fn projection_source_schema(collection_schema: Option<&CollectionSchema>) -> Sch
 }
 
 fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
-    if name.eq_ignore_ascii_case("_id") {
+    if is_row_identity_column(name) {
         return DataType::Text;
     }
 

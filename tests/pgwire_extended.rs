@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/pgwire_extended_control.rs.
 mod pgwire_extended_control {
@@ -1401,6 +1403,84 @@ mod pgwire_extended_metadata {
             assert_eq!(parse_row_description(&frames[8].1)[0].type_oid, OID_INT4);
             assert_eq!(parse_row_description(&frames[11].1)[0].type_oid, OID_TEXT);
             assert_eq!(frames[12].1, vec![b'I']);
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_infer_case_result_parameter_types_from_sibling_branches() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("infer_case_parameters");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            for statement in [
+                "CREATE TABLE pgwire_case_items (label TEXT, score INT)",
+                "INSERT INTO pgwire_case_items (label, score) VALUES ('item-7', 7)",
+                "INSERT INTO pgwire_case_items (label, score) VALUES ('item-0', 0)",
+            ] {
+                cassie
+                    .execute_sql(&session, statement, vec![])
+                    .expect(statement);
+            }
+            let server = spawn_server(cassie.clone()).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            write_frames(
+                &mut write_half,
+                vec![
+                    parse_frame(
+                        "case_params",
+                        "SELECT CASE WHEN score > 1 THEN $1 ELSE score END AS bucket, CASE WHEN score > 1 THEN label ELSE $2 END AS named FROM pgwire_case_items ORDER BY score",
+                    ),
+                    describe_statement_frame("case_params"),
+                    bind_frame("case_params_portal", "case_params", &["100", "low"]),
+                    execute_frame("case_params_portal"),
+                    sync_frame(),
+                ],
+            )
+            .await;
+            let frames = read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert_eq!(
+                frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+                vec![b'1', b't', b'T', b'2', b'D', b'D', b'C', b'Z']
+            );
+            assert_eq!(
+                parse_parameter_description(&frames[1].1),
+                vec![OID_INT4, OID_TEXT]
+            );
+            assert_eq!(
+                parse_row_description(&frames[2].1)
+                    .iter()
+                    .map(|column| column.type_oid)
+                    .collect::<Vec<_>>(),
+                vec![OID_INT4, OID_TEXT]
+            );
+            assert_eq!(
+                vec![parse_data_row(&frames[4].1), parse_data_row(&frames[5].1)],
+                vec![
+                    vec![Some("0".to_string()), Some("low".to_string())],
+                    vec![Some("100".to_string()), Some("item-7".to_string())],
+                ]
+            );
 
             drop(socket);
             server.stop().await;
@@ -2841,8 +2921,49 @@ mod pgwire_portal_streaming {
         });
     }
 
+    /// Seeds `count` rows of `{"payload": "value-NN"}` straight through the
+    /// storage adapter, bypassing SQL so the test only exercises paging.
+    fn seed_payload_rows(cassie: &Cassie, collection: &str, count: usize) {
+        for index in 0..count {
+            cassie
+                .midge
+                .put_document(
+                    collection,
+                    Some(format!("doc-{index:02}")),
+                    serde_json::json!({"payload": format!("value-{index:02}")}),
+                )
+                .expect("seed row");
+        }
+    }
+
+    /// Runs simple queries on an established connection, asserting none error.
+    async fn run_simple_queries(
+        reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+        write_half: &mut tokio::net::tcp::WriteHalf<'_>,
+        statements: &[&str],
+    ) {
+        for sql in statements {
+            support::write_frames(write_half, vec![support::simple_query_frame(sql)]).await;
+            let frames = support::read_frames_until_ready(reader).await;
+            assert!(frames.iter().all(|(tag, _)| *tag != b'E'), "{sql} failed");
+        }
+    }
+
+    /// Commits `sql` from a separate connection so the suspended portal under
+    /// test sees a concurrent write land between two Execute messages.
+    async fn commit_delete_from_second_connection(addr: std::net::SocketAddr, sql: &str) {
+        let mut socket = tokio::net::TcpStream::connect(addr)
+            .await
+            .expect("writer connection");
+        let (read_half, mut write_half) = socket.split();
+        let mut reader = BufReader::new(read_half);
+        support::complete_startup(&mut reader, &mut write_half).await;
+        support::write_frames(&mut write_half, vec![support::simple_query_frame(sql)]).await;
+        let frames = support::read_frames_until_ready(&mut reader).await;
+        assert!(frames.iter().all(|(tag, _)| *tag != b'E'), "delete failed");
+    }
+
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn should_page_portal_from_one_result_when_delete_commits_during_staged_transaction() {
         // Arrange
         support::use_local_storage();
@@ -2866,16 +2987,7 @@ mod pgwire_portal_streaming {
                     vec![],
                 )
                 .expect("create table");
-            for index in 0..6 {
-                cassie
-                    .midge
-                    .put_document(
-                        "portal_staged_rows",
-                        Some(format!("doc-{index:02}")),
-                        serde_json::json!({"payload": format!("value-{index:02}")}),
-                    )
-                    .expect("seed row");
-            }
+            seed_payload_rows(&cassie, "portal_staged_rows", 6);
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
                 .await
                 .expect("bind listener");
@@ -2893,12 +3005,12 @@ mod pgwire_portal_streaming {
             let (read_half, mut write_half) = reader_socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
-            for sql in ["BEGIN", "INSERT INTO portal_staged_rows (payload) VALUES ('staged')"] {
-                support::write_frames(&mut write_half, vec![support::simple_query_frame(sql)])
-                    .await;
-                let frames = support::read_frames_until_ready(&mut reader).await;
-                assert!(frames.iter().all(|(tag, _)| *tag != b'E'), "{sql} failed");
-            }
+            run_simple_queries(
+                &mut reader,
+                &mut write_half,
+                &["BEGIN", "INSERT INTO portal_staged_rows (payload) VALUES ('staged')"],
+            )
+            .await;
             support::write_frames(
                 &mut write_half,
                 vec![
@@ -2910,21 +3022,11 @@ mod pgwire_portal_streaming {
             )
             .await;
             let first_page = data_values(&support::read_frames_until_ready(&mut reader).await);
-            let mut writer_socket = tokio::net::TcpStream::connect(addr)
-                .await
-                .expect("writer connection");
-            let (writer_read_half, mut writer_write_half) = writer_socket.split();
-            let mut writer_reader = BufReader::new(writer_read_half);
-            support::complete_startup(&mut writer_reader, &mut writer_write_half).await;
-            support::write_frames(
-                &mut writer_write_half,
-                vec![support::simple_query_frame(
-                    "DELETE FROM portal_staged_rows WHERE payload = 'value-00'",
-                )],
+            commit_delete_from_second_connection(
+                addr,
+                "DELETE FROM portal_staged_rows WHERE payload = 'value-00'",
             )
             .await;
-            let deleted = support::read_frames_until_ready(&mut writer_reader).await;
-            assert!(deleted.iter().all(|(tag, _)| *tag != b'E'), "delete failed");
 
             // Act
             support::write_frames(
@@ -2956,7 +3058,6 @@ mod pgwire_portal_streaming {
             );
 
             drop(reader_socket);
-            drop(writer_socket);
             server.abort();
             let _ = server.await;
             let _ = std::fs::remove_dir_all(path);
@@ -3111,6 +3212,7 @@ mod pgwire_simple_query_batch {
     }
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         let mut path = std::env::temp_dir();
         path.push(format!("cassie-pgwire-simple-query-batch-{label}"));
         path.push(uuid::Uuid::new_v4().to_string());
@@ -3612,5 +3714,376 @@ mod pgwire_simple_query_batch {
         let _ = server.await;
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+}
+
+mod pgwire_portal_completion {
+    use cassie::app::Cassie;
+    use cassie::config::{CassieRuntimeConfig, ExecutionResultCacheEnabled};
+    use tokio::io::BufReader;
+
+    use super::support_pgwire as support;
+
+    type Frames = Vec<(u8, Vec<u8>)>;
+    type PortalPages = (Vec<String>, Vec<String>);
+
+    fn seeded_cassie(path: &str, table: &str, count: usize) -> Cassie {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        config.limits.parallel_scan_workers = 1;
+        let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                &format!("CREATE TABLE {table} (payload TEXT)"),
+                vec![],
+            )
+            .expect("create table");
+        for index in 0..count {
+            cassie
+                .midge
+                .put_document(
+                    table,
+                    Some(format!("doc-{index:02}")),
+                    serde_json::json!({"payload": format!("value-{index:02}")}),
+                )
+                .expect("seed row");
+        }
+        cassie
+    }
+
+    fn data_values(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'D')
+            .filter_map(|(_, payload)| {
+                support::parse_data_row(payload)
+                    .into_iter()
+                    .next()
+                    .flatten()
+            })
+            .collect()
+    }
+
+    fn command_tags(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
+        frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'C')
+            .map(|(_, payload)| {
+                String::from_utf8_lossy(payload)
+                    .trim_end_matches('\0')
+                    .to_string()
+            })
+            .collect()
+    }
+
+    fn error_code(frames: &[(u8, Vec<u8>)]) -> Option<String> {
+        let (_, payload) = frames.iter().find(|(tag, _)| *tag == b'E')?;
+        support::parse_error_fields(payload)
+            .into_iter()
+            .find_map(|(tag, value)| (tag == 'C').then_some(value))
+    }
+
+    async fn round_trip(
+        reader: &mut BufReader<tokio::net::tcp::ReadHalf<'_>>,
+        writer: &mut tokio::net::tcp::WriteHalf<'_>,
+        frames: Vec<Vec<u8>>,
+    ) -> Frames {
+        support::write_frames(writer, frames).await;
+        support::read_frames_until_ready(reader).await
+    }
+
+    /// Opens a transaction, suspends a streaming portal after two rows, stages
+    /// `staged_sql` in the same transaction, and resumes the portal.
+    fn resume_after_staged_write(label: &str, staged_sql: &str) -> PortalPages {
+        support::use_local_storage();
+        let path = support::data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let pages = runtime.block_on(async {
+            let cassie = seeded_cassie(&path, "portal_staged_resume", 6);
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            let begin = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![support::simple_query_frame("BEGIN")],
+            )
+            .await;
+            assert!(begin.iter().all(|(tag, _)| *tag != b'E'));
+            let first = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::parse_frame("resume_stmt", "SELECT payload FROM portal_staged_resume"),
+                    support::bind_frame("resume_portal", "resume_stmt", &[]),
+                    support::execute_limited_frame("resume_portal", 2),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert!(first.iter().any(|(tag, _)| *tag == b's'), "{first:?}");
+            let staged = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![support::simple_query_frame(staged_sql)],
+            )
+            .await;
+            assert!(
+                staged.iter().all(|(tag, _)| *tag != b'E'),
+                "{staged_sql} failed"
+            );
+            let second = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::execute_limited_frame("resume_portal", 100),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert!(second.iter().all(|(tag, _)| *tag != b'E'), "{second:?}");
+            drop(socket);
+            server.stop().await;
+            (data_values(&first), data_values(&second))
+        });
+        let _ = std::fs::remove_dir_all(path);
+        pages
+    }
+
+    fn original_rows() -> Vec<String> {
+        (0..6).map(|index| format!("value-{index:02}")).collect()
+    }
+
+    #[test]
+    fn should_resume_suspended_portal_from_original_result_after_staged_insert() {
+        // Arrange
+        let staged_sql = "INSERT INTO portal_staged_resume (payload) VALUES ('staged')";
+
+        // Act
+        let (first, second) = resume_after_staged_write("portal-staged-insert", staged_sql);
+
+        // Assert
+        assert_eq!(first, original_rows()[..2].to_vec());
+        assert_eq!(second, original_rows()[2..].to_vec());
+    }
+
+    #[test]
+    fn should_resume_suspended_portal_from_original_result_after_staged_delete() {
+        // Arrange
+        let staged_sql = "DELETE FROM portal_staged_resume WHERE payload = 'value-00'";
+
+        // Act
+        let (first, second) = resume_after_staged_write("portal-staged-delete", staged_sql);
+
+        // Assert
+        assert_eq!(first, original_rows()[..2].to_vec());
+        assert_eq!(second, original_rows()[2..].to_vec());
+    }
+
+    #[test]
+    fn should_return_select_zero_when_completed_select_portal_executes_again() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-completed-select");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = seeded_cassie(&path, "portal_completed_select", 3);
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            let first = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::parse_frame(
+                        "completed_select",
+                        "SELECT payload FROM portal_completed_select",
+                    ),
+                    support::bind_frame("completed_select_portal", "completed_select", &[]),
+                    support::execute_frame("completed_select_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert_eq!(data_values(&first).len(), 3);
+
+            // Act
+            let again = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::execute_frame("completed_select_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+
+            // Assert
+            assert!(data_values(&again).is_empty(), "{again:?}");
+            assert_eq!(command_tags(&again), vec!["SELECT 0".to_string()]);
+
+            drop(socket);
+            server.stop().await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_not_rerun_insert_when_completed_insert_portal_executes_again() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-completed-insert");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = seeded_cassie(&path, "portal_completed_insert", 0);
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            let first = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::parse_frame(
+                        "completed_insert",
+                        "INSERT INTO portal_completed_insert (payload) VALUES ('once')",
+                    ),
+                    support::bind_frame("completed_insert_portal", "completed_insert", &[]),
+                    support::execute_frame("completed_insert_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert_eq!(command_tags(&first), vec!["INSERT 0 1".to_string()]);
+
+            // Act
+            let again = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::execute_frame("completed_insert_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let selected = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![support::simple_query_frame(
+                    "SELECT payload FROM portal_completed_insert",
+                )],
+            )
+            .await;
+
+            // Assert
+            assert_eq!(command_tags(&again), vec!["INSERT 0 0".to_string()]);
+            assert_eq!(data_values(&selected), vec!["once".to_string()]);
+
+            drop(socket);
+            server.stop().await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_drop_suspended_portal_when_extended_commit_ends_transaction() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-extended-commit");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = seeded_cassie(&path, "portal_extended_commit", 4);
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            let _ = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![support::simple_query_frame("BEGIN")],
+            )
+            .await;
+            let first = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::parse_frame(
+                        "commit_select",
+                        "SELECT payload FROM portal_extended_commit",
+                    ),
+                    support::bind_frame("commit_portal", "commit_select", &[]),
+                    support::execute_limited_frame("commit_portal", 2),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert!(first.iter().any(|(tag, _)| *tag == b's'), "{first:?}");
+            let committed = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::parse_frame("commit_stmt", "COMMIT"),
+                    support::bind_frame("commit_stmt_portal", "commit_stmt", &[]),
+                    support::execute_frame("commit_stmt_portal"),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            assert!(
+                committed.iter().all(|(tag, _)| *tag != b'E'),
+                "{committed:?}"
+            );
+
+            // Act
+            let resumed = round_trip(
+                &mut reader,
+                &mut write_half,
+                vec![
+                    support::execute_limited_frame("commit_portal", 2),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+
+            // Assert
+            assert!(data_values(&resumed).is_empty(), "{resumed:?}");
+            assert_eq!(error_code(&resumed).as_deref(), Some("26000"));
+
+            drop(socket);
+            server.stop().await;
+        });
+        let _ = std::fs::remove_dir_all(path);
     }
 }

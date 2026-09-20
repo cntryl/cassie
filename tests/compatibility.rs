@@ -955,11 +955,14 @@ datasource db {
             .expect("recursive cte should succeed");
 
         // Assert
+        // The CTE column keeps the seed table's INT type, so a strictly typed
+        // client decodes it as an integer. It previously arrived as text,
+        // which is what this assertion used to read.
         let values = rows
             .into_iter()
-            .map(|row| row.try_get::<_, String>(0).expect("cte value"))
+            .map(|row| row.try_get::<_, i32>(0).expect("cte value"))
             .collect::<Vec<_>>();
-        assert_eq!(values, vec!["1".to_string(), "2".to_string()]);
+        assert_eq!(values, vec![1_i32, 2_i32]);
 
         drop(client);
         server.shutdown(connection).await;
@@ -1633,6 +1636,8 @@ mod compatibility_sqlx_contract {
 
 #[path = "support/desktop_trace.rs"]
 mod support_desktop_trace;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 mod desktop_client_trace_replay {
     use super::support_desktop_trace::{

@@ -207,58 +207,15 @@ pub(super) fn bind_call_procedure(
 }
 
 pub(super) fn function_body_references(expr: &Expr, function_name: &str) -> bool {
-    let normalized = function_name.to_ascii_lowercase();
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| function_body_references(expr, function_name))
-                || branches.iter().any(|(when, then)| {
-                    function_body_references(when, function_name)
-                        || function_body_references(then, function_name)
-                })
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| function_body_references(expr, function_name))
-        }
         Expr::Function(function) => {
-            function.name.eq_ignore_ascii_case(&normalized)
+            function.name.eq_ignore_ascii_case(function_name)
                 || function
                     .args
                     .iter()
                     .any(|arg| function_body_references(arg, function_name))
         }
-        Expr::Binary { left, right, .. } => {
-            function_body_references(left, function_name)
-                || function_body_references(right, function_name)
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            function_body_references(expr, function_name)
-        }
-        Expr::InList { expr, values, .. } => {
-            function_body_references(expr, function_name)
-                || values
-                    .iter()
-                    .any(|value| function_body_references(value, function_name))
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            function_body_references(expr, function_name)
-                || function_body_references(low, function_name)
-                || function_body_references(high, function_name)
-        }
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Param(_)
-        | Expr::Column(_)
-        | Expr::Null => false,
+        Expr::Exists(_) => false,
+        _ => expr.any_child(|child| function_body_references(child, function_name)),
     }
 }

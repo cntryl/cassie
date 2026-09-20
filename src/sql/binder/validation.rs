@@ -7,7 +7,7 @@ use crate::catalog::name_matches;
 
 #[path = "validation_case.rs"]
 mod case;
-use case::{case_operand_family, validate_case_references};
+use case::case_operand_family;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OperandFamily {
@@ -423,45 +423,8 @@ pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
 pub(super) fn expr_contains_parameters(expr: &Expr) -> bool {
     match expr {
         Expr::Param(_) => true,
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| expr_contains_parameters(expr))
-                || branches.iter().any(|(when, then)| {
-                    expr_contains_parameters(when) || expr_contains_parameters(then)
-                })
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_contains_parameters(expr))
-        }
-        Expr::Binary { left, right, .. } => {
-            expr_contains_parameters(left) || expr_contains_parameters(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            expr_contains_parameters(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_contains_parameters(expr) || values.iter().any(expr_contains_parameters)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_contains_parameters(expr)
-                || expr_contains_parameters(low)
-                || expr_contains_parameters(high)
-        }
         Expr::Exists(statement) => parsed_statement_contains_parameters(statement),
-        Expr::Function(function) => function.args.iter().any(expr_contains_parameters),
-        Expr::Column(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => false,
+        _ => expr.any_child(expr_contains_parameters),
     }
 }
 
@@ -492,6 +455,9 @@ pub(super) fn collect_projection_aliases(select: &SelectStatement) -> HashSet<St
                 alias: Some(alias), ..
             }
             | SelectItem::WindowFunction {
+                alias: Some(alias), ..
+            }
+            | SelectItem::Expr {
                 alias: Some(alias), ..
             } => {
                 aliases.insert(alias.to_ascii_lowercase());
@@ -687,7 +653,7 @@ fn validate_column_reference(
             "column reference '{name}' is ambiguous"
         )));
     }
-    if known_fields.contains("*") || name == "id" || known_fields.contains(&name) {
+    if known_fields.contains("*") || known_fields.contains(&name) {
         return Ok(());
     }
     if allow_projection_alias && projection_aliases.contains(&name) {
@@ -705,113 +671,25 @@ pub(super) fn validate_expression(
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => validate_case_references(
-            operand.as_deref(),
-            branches,
-            else_expr.as_deref(),
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
-        Expr::Column(name) => validate_column_reference(
-            name,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
-        Expr::Binary { left, right, .. } => validate_expression_pair(
-            left,
-            right,
-            known_fields,
-            projection_aliases,
-            allow_projection_alias,
-        ),
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            validate_expression(
-                expr,
+        Expr::Column(name) => {
+            return validate_column_reference(
+                name,
                 known_fields,
                 projection_aliases,
                 allow_projection_alias,
             )
         }
-        Expr::InList { expr, values, .. } => {
-            validate_expression(
-                expr,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )?;
-            for value in values {
-                validate_expression(
-                    value,
-                    known_fields,
-                    projection_aliases,
-                    allow_projection_alias,
-                )?;
-            }
-            Ok(())
+        Expr::Function(function)
+            if crate::sql::functions::is_aggregate_function(&function.name) =>
+        {
+            return validate_aggregate_function_args(function, known_fields)
         }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            validate_expression(
-                expr,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )?;
-            validate_expression(
-                low,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )?;
-            validate_expression(
-                high,
-                known_fields,
-                projection_aliases,
-                allow_projection_alias,
-            )
-        }
-        Expr::Exists(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => Ok(()),
-        Expr::Function(function) => {
-            if crate::sql::functions::is_aggregate_function(&function.name) {
-                validate_aggregate_function_args(function, known_fields)?;
-                return Ok(());
-            }
-            for arg in &function.args {
-                validate_expression(
-                    arg,
-                    known_fields,
-                    projection_aliases,
-                    allow_projection_alias,
-                )?;
-            }
-            Ok(())
-        }
+        Expr::Exists(_) => return Ok(()),
+        _ => {}
     }
-}
-
-fn validate_expression_pair(
-    left: &Expr,
-    right: &Expr,
-    known_fields: &HashSet<String>,
-    projection_aliases: &HashSet<String>,
-    allow_projection_alias: bool,
-) -> Result<(), CassieError> {
-    [left, right].into_iter().try_for_each(|expr| {
+    expr.try_visit_children(|child| {
         validate_expression(
-            expr,
+            child,
             known_fields,
             projection_aliases,
             allow_projection_alias,

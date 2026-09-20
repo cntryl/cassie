@@ -7,6 +7,8 @@ mod support_executor;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/admission_control.rs.
 mod admission_control {
@@ -23,6 +25,7 @@ mod admission_control {
     }
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         let mut path = std::env::temp_dir();
         path.push(format!("cassie-admission-{label}-{}", Uuid::new_v4()));
         path.to_string_lossy().to_string()
@@ -2479,7 +2482,7 @@ mod executor_parallel {
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fulltext WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 3",
+                "SELECT _id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fulltext WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 3",
                 vec![],
             )
             .expect("parallel scoring query should execute");
@@ -2535,7 +2538,7 @@ mod executor_parallel {
         let result = cassie
             .execute_sql(
                 &session,
-                "SELECT id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fallback WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
+                "SELECT _id, search_score(body, 'alpha') AS score FROM exec_parallel_scoring_fallback WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1",
                 vec![],
             )
             .expect("fallback scoring query should execute");

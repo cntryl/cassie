@@ -7,6 +7,8 @@ mod support_pgwire;
 mod support_relational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 mod relational_promotion_evidence {
     use super::support_relational_evidence::SeededRelationalFixture;
@@ -605,6 +607,167 @@ mod integration_sql_ctes {
         assert_eq!(rows, vec![1, 2]);
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+    #[test]
+    fn should_report_declared_column_types_when_selecting_from_a_cte() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cte_result_column_metadata");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE cte_typed_rows (label TEXT, score INT, ratio FLOAT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO cte_typed_rows (label, score, ratio) VALUES ('a', 7, 1.5)",
+                vec![],
+            )
+            .expect("insert row");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "WITH source AS (SELECT label, score, ratio FROM cte_typed_rows) \
+                 SELECT label, score, ratio FROM source",
+                vec![],
+            )
+            .expect("select from CTE");
+
+        // Assert
+        // A CTE's output columns keep the types of the query that defines it.
+        // Reporting every column as text makes a strictly typed client decode
+        // an integer as a string.
+        let types = result
+            .columns
+            .iter()
+            .map(|column| (column.name.as_str(), column.data_type.as_str()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            types,
+            vec![
+                ("label", "text"),
+                ("score", DataType::Int.type_name().as_str()),
+                ("ratio", DataType::Float.type_name().as_str()),
+            ]
+        );
+        assert_eq!(result.columns[1].type_oid, DataType::Int.type_oid());
+        assert_eq!(result.columns[2].type_oid, DataType::Float.type_oid());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_describe_cte_column_types_before_execution() {
+        // Arrange
+        // The extended protocol describes a statement without running it, so
+        // this path needs the CTE's types just as the result path does.
+        use_local_storage();
+        let path = data_dir("cte_describe_column_metadata");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE cte_described_rows (label TEXT, score INT)",
+                vec![],
+            )
+            .expect("create table");
+
+        // Act
+        let columns = cassie
+            .describe_sql(
+                "WITH source AS (SELECT label, score FROM cte_described_rows) \
+                 SELECT label, score FROM source",
+            )
+            .expect("describe CTE select");
+
+        // Assert
+        assert_eq!(columns.len(), 2);
+        assert_eq!(columns[0].data_type, "text");
+        assert_eq!(columns[1].type_oid, DataType::Int.type_oid());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_report_typed_aggregate_aliases_through_a_cte() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cte_aggregate_column_metadata");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE cte_aggregated_rows (label TEXT, score INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO cte_aggregated_rows (label, score) VALUES ('a', 7)",
+                vec![],
+            )
+            .expect("insert row");
+
+        // Act
+        // The CTE renames its output columns, so the alias list has to carry
+        // the underlying types too.
+        let result = cassie
+            .execute_sql(
+                &session,
+                "WITH totals (name, seen) AS \
+                 (SELECT label, COUNT(score) FROM cte_aggregated_rows GROUP BY label) \
+                 SELECT name, seen FROM totals",
+                vec![],
+            )
+            .expect("select aggregate from CTE");
+
+        // Assert
+        assert_eq!(result.columns[0].name, "name");
+        assert_eq!(result.columns[0].data_type, "text");
+        assert_eq!(result.columns[1].name, "seen");
+        assert_eq!(result.columns[1].type_oid, DataType::BigInt.type_oid());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_report_column_types_through_a_recursive_cte() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cte_recursive_column_metadata");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "WITH RECURSIVE counted (step) AS \
+                 (SELECT 1 UNION ALL SELECT step + 1 FROM counted WHERE step < 3) \
+                 SELECT step FROM counted",
+                vec![],
+            )
+            .expect("select from recursive CTE");
+
+        // Assert
+        assert_eq!(result.columns[0].name, "step");
+        assert_eq!(
+            result.columns[0].type_oid,
+            DataType::Int.type_oid(),
+            "a recursive CTE's anchor term types its output"
+        );
+        let _ = std::fs::remove_dir_all(path);
     }
 }
 
@@ -5592,7 +5755,7 @@ mod integration_sql_scalar_functions {
             assert!(overflow
                 .expect_err("reject an unrepresentable BIGINT magnitude")
                 .to_string()
-                .contains("integer overflow"));
+                .contains("bigint out of range"));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5836,7 +5999,7 @@ mod integration_sql_scalar_functions {
     fn should_evaluate_searched_case_literals() {
         // Arrange
         use_local_storage();
-        let path = data_dir("reject_case_expression");
+        let path = data_dir("searched_case_literals");
         let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
@@ -5884,8 +6047,8 @@ mod integration_sql_case {
                 Value::String("chosen".into()),
                 Value::String("two".into()),
                 Value::Null,
-                Value::Float64(3.0),
-                Value::Float64(1.0)
+                Value::Int64(3),
+                Value::Int64(1)
             ]]
         );
         let _ = std::fs::remove_dir_all(path);
@@ -5937,7 +6100,8 @@ mod integration_sql_case {
                 vec![Value::String("other".into())]
             ]
         );
-        assert_eq!(aggregate.rows, vec![vec![Value::Float64(2.0)]]);
+        assert_eq!(aggregate.rows, vec![vec![Value::Int64(2)]]);
+        assert_eq!(aggregate.columns[0].type_oid, 20);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -5975,6 +6139,335 @@ mod integration_sql_case {
             .unwrap_err()
             .to_string()
             .contains("CASE result"));
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// PostgreSQL-aligned numeric result typing: literal typing, CASE result
+// unification, COUNT, integer division, and overflow reporting.
+mod integration_sql_numeric_typing {
+    use super::support_sql::{data_dir, use_local_storage};
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+
+    const OID_INT8: i64 = 20;
+    const OID_INT4: i64 = 23;
+    const OID_FLOAT8: i64 = 701;
+
+    fn seeded(label: &str) -> (Cassie, CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE numeric_rows (score INT, big BIGINT, label TEXT)",
+            "INSERT INTO numeric_rows (score, big, label) VALUES (7, 1, 'a')",
+            "INSERT INTO numeric_rows (score, big, label) VALUES (-7, 2, 'b')",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .expect(statement);
+        }
+        (cassie, session, path)
+    }
+
+    fn first_value(cassie: &Cassie, session: &CassieSession, sql: &str) -> (Value, i64) {
+        let result = cassie.execute_sql(session, sql, vec![]).expect(sql);
+        (result.rows[0][0].clone(), result.columns[0].type_oid)
+    }
+
+    #[test]
+    fn should_type_integer_case_branches_as_integer() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_case_integer");
+
+        // Act
+        let summed = first_value(
+            &cassie,
+            &session,
+            "SELECT SUM(CASE WHEN score > 1 THEN score ELSE 0 END) AS total FROM numeric_rows",
+        );
+        let literal_branches = first_value(
+            &cassie,
+            &session,
+            "SELECT CASE WHEN true THEN 1 ELSE 0 END AS flag",
+        );
+        let mixed = first_value(
+            &cassie,
+            &session,
+            "SELECT CASE WHEN score > 1 THEN score ELSE 0.5 END AS mixed FROM numeric_rows WHERE label = 'a'",
+        );
+
+        // Assert
+        assert_eq!(summed, (Value::Int64(7), OID_INT8));
+        assert_eq!(literal_branches, (Value::Int64(1), OID_INT4));
+        assert_eq!(mixed, (Value::Float64(7.0), OID_FLOAT8));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_coerce_case_results_in_window_function_arguments() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_case_window");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT lag(CASE WHEN score > 0 THEN score ELSE 0.5 END) OVER (ORDER BY big) AS previous FROM numeric_rows ORDER BY big",
+                vec![],
+            )
+            .expect("execute CASE in window argument");
+
+        // Assert
+        assert_eq!(result.columns[0].type_oid, OID_FLOAT8);
+        assert_eq!(result.rows[0][0], Value::Null);
+        assert_eq!(result.rows[1][0], Value::Float64(7.0));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_case_with_incompatible_branch_families() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_case_text_int");
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "SELECT CASE WHEN score > 1 THEN label ELSE 0 END FROM numeric_rows",
+                vec![],
+            )
+            .expect_err("reject text and integer CASE branches");
+
+        // Assert
+        assert!(error.to_string().contains("CASE result"), "{error}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_report_count_as_int8_in_every_context() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_count_int8");
+
+        // Act
+        let top_level = first_value(
+            &cassie,
+            &session,
+            "SELECT COUNT(score) AS n FROM numeric_rows",
+        );
+        let coalesced = first_value(
+            &cassie,
+            &session,
+            "SELECT COALESCE(COUNT(score), 0) AS n FROM numeric_rows",
+        );
+        let cased = first_value(
+            &cassie,
+            &session,
+            "SELECT CASE WHEN COUNT(score) > 0 THEN COUNT(score) ELSE 0 END AS n FROM numeric_rows",
+        );
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE VIEW counted AS SELECT COUNT(score) AS n FROM numeric_rows",
+                vec![],
+            )
+            .expect("create view");
+        let derived = first_value(&cassie, &session, "SELECT n FROM counted");
+
+        // Assert
+        assert_eq!(top_level, (Value::Int64(2), OID_INT8));
+        assert_eq!(coalesced, (Value::Int64(2), OID_INT8));
+        assert_eq!(cased, (Value::Int64(2), OID_INT8));
+        assert_eq!(derived.1, OID_INT8);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_truncate_integer_division_toward_zero() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_integer_division");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT score / 2 AS half, score / 2.0 AS exact FROM numeric_rows ORDER BY big",
+                vec![],
+            )
+            .expect("integer division");
+        let literal = first_value(&cassie, &session, "SELECT 7 / 2 AS half");
+        let by_zero = cassie
+            .execute_sql(&session, "SELECT score / 0 FROM numeric_rows", vec![])
+            .expect_err("reject integer division by zero");
+
+        // Assert
+        assert_eq!(
+            result
+                .columns
+                .iter()
+                .map(|column| column.type_oid)
+                .collect::<Vec<_>>(),
+            vec![OID_INT8, OID_FLOAT8]
+        );
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::Int64(3), Value::Float64(3.5)],
+                vec![Value::Int64(-3), Value::Float64(-3.5)],
+            ]
+        );
+        assert_eq!(literal, (Value::Int64(3), OID_INT8));
+        assert!(
+            by_zero.to_string().contains("division by zero"),
+            "{by_zero}"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_bigint_division_overflow() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_division_overflow");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO numeric_rows (score, big, label) VALUES (0, $1, 'min')",
+                vec![Value::Int64(i64::MIN)],
+            )
+            .expect("insert minimum bigint");
+
+        // Act
+        let error = cassie
+            .execute_sql(
+                &session,
+                "SELECT big / -1 FROM numeric_rows WHERE label = 'min'",
+                vec![],
+            )
+            .expect_err("reject i64::MIN / -1");
+
+        // Assert
+        assert!(error.to_string().contains("bigint out of range"), "{error}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_type_integer_column_with_decimal_literal_as_float8() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_decimal_literal");
+
+        // Act
+        let decimal = first_value(
+            &cassie,
+            &session,
+            "SELECT score + 1.0 AS value FROM numeric_rows WHERE label = 'a'",
+        );
+        let integer = first_value(
+            &cassie,
+            &session,
+            "SELECT score + 1 AS value FROM numeric_rows WHERE label = 'a'",
+        );
+
+        // Assert
+        assert_eq!(decimal, (Value::Float64(8.0), OID_FLOAT8));
+        assert_eq!(integer, (Value::Int64(8), OID_INT8));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_report_bigint_out_of_range_for_scalar_overflow() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_scalar_overflow");
+
+        // Act
+        let error = cassie
+            .execute_sql(&session, "SELECT 9223372036854775807 + 1", vec![])
+            .expect_err("reject bigint overflow");
+
+        // Assert
+        assert!(error.to_string().contains("bigint out of range"), "{error}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_group_by_case_expression_regardless_of_identifier_case() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_group_by_case");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT CASE WHEN SCORE > 0 THEN 'positive' ELSE 'negative' END AS sign, COUNT(score) AS n FROM numeric_rows GROUP BY CASE WHEN score > 0 THEN 'positive' ELSE 'negative' END ORDER BY sign",
+                vec![],
+            )
+            .expect("GROUP BY CASE");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("negative".into()), Value::Int64(1)],
+                vec![Value::String("positive".into()), Value::Int64(1)],
+            ]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_allow_case_wrapping_grouped_aggregates() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_case_over_aggregates");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT label, CASE WHEN SUM(score) > 0 THEN label ELSE 'none' END AS kept FROM numeric_rows GROUP BY label ORDER BY label",
+                vec![],
+            )
+            .expect("CASE wrapping aggregates");
+        let ungrouped = cassie
+            .execute_sql(
+                &session,
+                "SELECT label, CASE WHEN score > 0 THEN 1 ELSE 0 END FROM numeric_rows GROUP BY label",
+                vec![],
+            )
+            .expect_err("reject ungrouped column inside CASE");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("a".into()), Value::String("a".into())],
+                vec![Value::String("b".into()), Value::String("none".into())],
+            ]
+        );
+        assert!(ungrouped.to_string().contains("GROUP BY"), "{ungrouped}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_filter_groups_with_case_in_having() {
+        // Arrange
+        let (cassie, session, path) = seeded("numeric_having_case");
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT label, SUM(CASE WHEN score > 0 THEN 1 ELSE 0 END) AS positives FROM numeric_rows GROUP BY label HAVING SUM(CASE WHEN score > 0 THEN 1 ELSE 0 END) > 0",
+                vec![],
+            )
+            .expect("HAVING with CASE");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::String("a".into()), Value::Int64(1)]]
+        );
+        assert_eq!(result.columns[1].type_oid, OID_INT8);
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -6465,23 +6958,25 @@ mod integration_sql_table_free {
                 .map(|column| (column.name.as_str(), column.type_oid))
                 .collect::<Vec<_>>(),
             vec![
-                ("one", 701),
+                ("one", 23),
                 ("label", 25),
                 ("enabled", 16),
                 ("missing", 705),
                 ("two", 23),
-                ("total", 701),
+                // int4 arithmetic is reported as bigint; see
+                // docs/postgres-compatibility.md.
+                ("total", 20),
             ]
         );
         assert_eq!(
             result.rows,
             vec![vec![
-                Value::Float64(1.0),
+                Value::Int64(1),
                 Value::String("alpha".to_string()),
                 Value::Bool(true),
                 Value::Null,
                 Value::Int64(2),
-                Value::Float64(3.0),
+                Value::Int64(3),
             ]]
         );
 
@@ -6510,7 +7005,7 @@ mod integration_sql_table_free {
         assert_eq!(result.columns[0].type_oid, 23);
         assert_eq!(
             result.rows,
-            vec![vec![Value::Float64(2.0)], vec![Value::Int64(7)]]
+            vec![vec![Value::Int64(2)], vec![Value::Int64(7)]]
         );
 
         let _ = std::fs::remove_dir_all(path);
@@ -8314,7 +8809,7 @@ mod sql_semantic_regressions {
             .expect("execute subtraction chain");
 
         // Assert
-        assert_eq!(result.rows, vec![vec![Value::Float64(5.0)]]);
+        assert_eq!(result.rows, vec![vec![Value::Int64(5)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -8348,10 +8843,7 @@ mod sql_semantic_regressions {
             .expect("execute mixed arithmetic chains");
 
         // Assert
-        assert_eq!(
-            result.rows,
-            vec![vec![Value::Float64(9.0), Value::Float64(20.0)]]
-        );
+        assert_eq!(result.rows, vec![vec![Value::Int64(9), Value::Int64(20)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -8420,11 +8912,11 @@ mod sql_semantic_regressions {
         assert_eq!(literal_plus_column.rows, vec![vec![Value::Int64(2)]]);
         assert_eq!(literal_plus_column.columns[0].type_oid, 20);
         assert_eq!(column_plus_column.rows, vec![vec![Value::Int64(2)]]);
-        // A literal-only expression with no integer operand keeps its
-        // existing float-by-default contract (see
+        // Integer literals are integers in PostgreSQL, so literal-only
+        // arithmetic stays exact (see
         // should_execute_table_free_literal_alias_cast_projection).
-        assert_eq!(pure_literal.rows, vec![vec![Value::Float64(3.0)]]);
-        assert_eq!(pure_literal.columns[0].type_oid, 701);
+        assert_eq!(pure_literal.rows, vec![vec![Value::Int64(3)]]);
+        assert_eq!(pure_literal.columns[0].type_oid, 20);
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -8448,7 +8940,7 @@ mod sql_semantic_regressions {
 
         // Assert
         for error in overflow_errors {
-            assert!(error.to_string().contains("integer overflow"));
+            assert!(error.to_string().contains("bigint out of range"), "{error}");
         }
         let _ = std::fs::remove_dir_all(path);
     }
@@ -9685,7 +10177,17 @@ mod type_cast_promotion_evidence {
             ),
             (
                 "CAST('2024-01-01T09:00:00+02:00' AS TIMESTAMP)",
-                Value::String("2024-01-01T07:00:00Z".to_string()),
+                Value::String("2024-01-01T07:00:00.000000Z".to_string()),
+            ),
+            // DATE and TIME appeared only in the rejection matrix, so nothing
+            // proved a valid value of either type casts at all.
+            (
+                "CAST('2024-01-01' AS DATE)",
+                Value::String("2024-01-01".to_string()),
+            ),
+            (
+                "CAST('23:59:59' AS TIME)",
+                Value::String("23:59:59".to_string()),
             ),
             ("CAST(NULL AS INT)", Value::Null),
         ];
@@ -9743,7 +10245,21 @@ mod type_cast_promotion_evidence {
 
         // Assert
         for (expr, result) in rejected_cases.iter().zip(results) {
-            assert!(result.is_err(), "{expr} should be rejected");
+            let error = result
+                .expect_err(&format!("{expr} should be rejected"))
+                .to_string();
+            // `is_err()` alone cannot tell a validated rejection from a cast
+            // that was never implemented or a target the parser stopped
+            // recognizing, which is exactly what this evidence row exists to
+            // distinguish.
+            assert!(
+                error.contains("cannot cast value to"),
+                "{expr} must be rejected by cast validation, got: {error}"
+            );
+            assert!(
+                !error.contains("unsupported feature"),
+                "{expr} must be validated, not reported as unimplemented: {error}"
+            );
         }
 
         let _ = std::fs::remove_dir_all(path);
@@ -10058,5 +10574,313 @@ mod reserved_id_payload_keys {
         // The dropped column's stored 42 must not resurface as the identity.
         assert_ne!(selected.rows[0][0], Value::Int64(42));
         assert_eq!(selected.rows[0][1], Value::String("alice".to_string()));
+    }
+}
+
+// `_id` is the documented, always-available name for the internal row
+// identity. A bare `id` means that identity only against a base table that
+// declares no `id` column of its own; a derived relation that does not
+// project `id` has no such column and must reject the reference.
+mod reserved_id_row_identity_column {
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
+        for statement in statements {
+            cassie
+                .execute_sql(session, statement, vec![])
+                .expect(statement);
+        }
+    }
+
+    fn metric(metrics: &serde_json::Value, key: &str) -> u64 {
+        metrics["read_paths"][key].as_u64().unwrap_or(0)
+    }
+
+    fn seed_underscore_tables(label: &str) -> (String, Cassie, CassieSession) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE underscore_declared (id INT, name TEXT)",
+                "CREATE TABLE underscore_undeclared (name TEXT)",
+                "INSERT INTO underscore_declared (id, name) VALUES (42, 'alice')",
+                "INSERT INTO underscore_undeclared (name) VALUES ('bob')",
+            ],
+        );
+        (path, cassie, session)
+    }
+
+    #[test]
+    fn should_select_underscore_id_beside_a_declared_id_column() {
+        // Arrange
+        let (path, cassie, session) = seed_underscore_tables("reserved_id_underscore_projection");
+        let undeclared_identity = cassie
+            .execute_sql(&session, "SELECT id FROM underscore_undeclared", vec![])
+            .expect("bare id on undeclared table")
+            .rows[0][0]
+            .clone();
+
+        // Act
+        let declared = cassie
+            .execute_sql(
+                &session,
+                "SELECT _id, id, name FROM underscore_declared ORDER BY _id",
+                vec![],
+            )
+            .expect("select _id beside a declared id");
+        let undeclared = cassie
+            .execute_sql(
+                &session,
+                "SELECT _id, name FROM underscore_undeclared ORDER BY _id",
+                vec![],
+            )
+            .expect("select _id on an undeclared table");
+
+        // Assert
+        let declared_identity = declared.rows[0][0].clone();
+        assert!(
+            matches!(&declared_identity, Value::String(identity) if !identity.is_empty()),
+            "expected the internal identity string, got {declared_identity:?}"
+        );
+        assert_eq!(declared.rows[0][1], Value::Int64(42));
+        assert_eq!(declared.rows[0][2], Value::String("alice".to_string()));
+        assert_eq!(
+            undeclared.rows,
+            vec![vec![undeclared_identity, Value::String("bob".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_filter_a_declared_id_table_on_underscore_id() {
+        // Arrange
+        let (path, cassie, session) = seed_underscore_tables("reserved_id_underscore_filter");
+        let identity = cassie
+            .execute_sql(&session, "SELECT _id FROM underscore_declared", vec![])
+            .expect("select the internal identity")
+            .rows[0][0]
+            .clone();
+
+        // Act
+        let filtered = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM underscore_declared WHERE _id = $1",
+                vec![identity],
+            )
+            .expect("filter on _id");
+
+        // Assert
+        assert_eq!(filtered.rows, vec![vec![Value::Int64(42)]]);
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_bare_id_against_a_derived_relation_that_does_not_project_it() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("reserved_id_derived_relation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE derived_source (name TEXT)",
+                "INSERT INTO derived_source (name) VALUES ('alice')",
+            ],
+        );
+
+        // Act
+        let bare = cassie.execute_sql(
+            &session,
+            "SELECT id FROM (SELECT name FROM derived_source) s",
+            vec![],
+        );
+        let reserved = cassie.execute_sql(
+            &session,
+            "SELECT _id FROM (SELECT name FROM derived_source) s",
+            vec![],
+        );
+
+        // Assert
+        let bare = bare
+            .expect_err("a derived relation without id must reject a bare id")
+            .to_string();
+        assert!(
+            bare.contains("unresolvable column reference 'id'"),
+            "unexpected error: {bare}"
+        );
+        let reserved = reserved
+            .expect_err("a derived relation must not synthesize the row identity")
+            .to_string();
+        assert!(
+            reserved.contains("unresolvable column reference '_id'"),
+            "unexpected error: {reserved}"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_use_scalar_index_order_with_underscore_id_tiebreak_on_declared_id_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("reserved_id_scalar_order_tiebreak");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE tiebreak_docs (id TEXT, title TEXT, score INT)",
+                "CREATE INDEX tiebreak_docs_score_idx ON tiebreak_docs USING btree (score)",
+            ],
+        );
+        for index in 0..12_i64 {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO tiebreak_docs (id, title, score) VALUES ($1, $2, $3)",
+                    vec![
+                        Value::String(format!("doc-{index}")),
+                        Value::String(format!("title-{index}")),
+                        Value::Int64(index % 3),
+                    ],
+                )
+                .expect("insert tiebreak row");
+        }
+        let mut expected = cassie
+            .execute_sql(
+                &session,
+                "SELECT score, _id, id, title FROM tiebreak_docs WHERE score >= 1",
+                vec![],
+            )
+            .expect("reference rows")
+            .rows;
+        expected.sort_by(|left, right| {
+            let key = |row: &Vec<Value>| match (&row[0], &row[1]) {
+                (Value::Int64(score), Value::String(identity)) => (*score, identity.clone()),
+                other => panic!("unexpected reference row shape {other:?}"),
+            };
+            key(left).cmp(&key(right))
+        });
+        let expected = expected
+            .into_iter()
+            .take(5)
+            .map(|row| vec![row[2].clone(), row[3].clone()])
+            .collect::<Vec<_>>();
+        let sql =
+            "SELECT id, title FROM tiebreak_docs WHERE score >= $1 ORDER BY score, _id LIMIT 5";
+        let before = cassie.metrics();
+
+        // Act
+        let result = cassie
+            .execute_sql(&session, sql, vec![Value::Int64(1)])
+            .expect("ordered tiebreak query");
+        let after = cassie.metrics();
+
+        // Assert
+        assert!(
+            metric(&after, "range_scans") + metric(&after, "ordered_bounded_scans")
+                > metric(&before, "range_scans") + metric(&before, "ordered_bounded_scans"),
+            "ORDER BY score, _id must use the scalar index: {}",
+            after["read_paths"]
+        );
+        assert_eq!(result.rows, expected);
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// `ALTER TABLE ... ADD COLUMN id` changes what a bare `id` means for the
+// table: the new ordinary column shadows the internal-identity alias, and
+// rows written before the change read back NULL for it. `_id` keeps naming
+// the identity throughout, and dropping the column restores the alias.
+mod reserved_id_alter_table_shadowing {
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
+        for statement in statements {
+            cassie
+                .execute_sql(session, statement, vec![])
+                .expect(statement);
+        }
+    }
+
+    #[test]
+    fn should_shadow_the_identity_alias_after_adding_an_id_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("reserved_id_alter_add_id_column");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE alter_shadow_docs (name TEXT)",
+                "INSERT INTO alter_shadow_docs (name) VALUES ('alice')",
+            ],
+        );
+        let identity = cassie
+            .execute_sql(&session, "SELECT id FROM alter_shadow_docs", vec![])
+            .expect("bare id before the alter")
+            .rows[0][0]
+            .clone();
+        assert!(
+            matches!(&identity, Value::String(value) if !value.is_empty()),
+            "expected the internal identity before the alter, got {identity:?}"
+        );
+
+        // Act
+        run(
+            &cassie,
+            &session,
+            &["ALTER TABLE alter_shadow_docs ADD COLUMN id INT"],
+        );
+        let shadowed = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, _id, name FROM alter_shadow_docs",
+                vec![],
+            )
+            .expect("bare id after the alter");
+        run(
+            &cassie,
+            &session,
+            &["ALTER TABLE alter_shadow_docs DROP COLUMN id"],
+        );
+        let restored = cassie
+            .execute_sql(&session, "SELECT id FROM alter_shadow_docs", vec![])
+            .expect("bare id after dropping the column");
+
+        // Assert
+        assert_eq!(shadowed.rows[0][0], Value::Null);
+        assert_eq!(shadowed.rows[0][1], identity.clone());
+        assert_eq!(shadowed.rows[0][2], Value::String("alice".to_string()));
+        assert_eq!(restored.rows, vec![vec![identity]]);
+
+        let _ = std::fs::remove_dir_all(path);
     }
 }

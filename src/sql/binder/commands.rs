@@ -137,10 +137,9 @@ fn validate_conflict_update(
             [name.clone(), format!("excluded.{name}")]
         })
         .collect::<HashSet<_>>();
-    known_fields.insert("_id".to_string());
-    known_fields.insert(format!("{table}._id").to_ascii_lowercase());
     let local_table = table.rsplit('.').next().unwrap_or(table);
-    known_fields.insert(format!("{local_table}._id").to_ascii_lowercase());
+    known_fields.extend(super::select::base_table_fields(table, schema));
+    known_fields.extend(super::select::base_table_fields(local_table, schema));
     for field in &schema.fields {
         known_fields.insert(format!("{table}.{}", field.name).to_ascii_lowercase());
         known_fields.insert(format!("{local_table}.{}", field.name).to_ascii_lowercase());
@@ -356,6 +355,8 @@ pub(super) fn bind_create_rollup(
         .iter()
         .map(|field| field.name.to_ascii_lowercase())
         .collect::<HashSet<_>>();
+    let mut expression_fields = known_fields.clone();
+    expression_fields.extend(super::select::base_table_fields(&source, &schema));
     if !known_fields.contains(&timestamp_field.to_ascii_lowercase()) {
         return Err(CassieError::Planner(format!(
             "rollup timestamp column '{timestamp_field}' does not exist in '{source}'"
@@ -391,13 +392,13 @@ pub(super) fn bind_create_rollup(
             && matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*"))
         {
             for arg in &function.args {
-                validate_expression(arg, &known_fields, &HashSet::new(), false)?;
+                validate_expression(arg, &expression_fields, &HashSet::new(), false)?;
             }
         }
     }
 
     if let Some(filter) = &statement.filter {
-        validate_expression(filter, &known_fields, &HashSet::new(), false)?;
+        validate_expression(filter, &expression_fields, &HashSet::new(), false)?;
     }
 
     statement.name = name;
@@ -529,7 +530,7 @@ fn validate_retention_duration(raw: &str) -> Result<(), CassieError> {
 }
 
 fn validate_retention_timestamp(raw: &str) -> Result<(), CassieError> {
-    time::OffsetDateTime::parse(raw, &time::format_description::well_known::Rfc3339)
+    crate::types::temporal::parse_timestamp_utc(raw)
         .map(|_| ())
         .map_err(|_| CassieError::Planner("retention enforcement AT must be RFC3339".into()))
 }
@@ -546,14 +547,14 @@ pub(super) fn validate_returning_items(
         .iter()
         .map(|field| field.name.to_ascii_lowercase())
         .collect::<HashSet<_>>();
-    known_fields.insert("_id".to_string());
+    known_fields.extend(super::select::base_table_fields(table, schema));
 
     let mut functions = Vec::new();
     for item in returning {
         match item {
             SelectItem::Wildcard => {}
             SelectItem::Column { name, .. } => {
-                if name == "_id" {
+                if crate::types::row_identity::is_row_identity_column(name) {
                     continue;
                 }
 

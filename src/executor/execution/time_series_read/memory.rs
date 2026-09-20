@@ -54,7 +54,7 @@ fn build_document_batches(
     let mut current = Vec::new();
     try_reserve(&mut current, remaining.min(DEFAULT_BATCH_SIZE))?;
     for document in documents {
-        current.push(super::document_to_row(document, fields, schema));
+        current.push(super::document_to_row(&document, fields, schema));
         remaining = remaining.saturating_sub(1);
         if current.len() == DEFAULT_BATCH_SIZE {
             batches.push(std::mem::take(&mut current));

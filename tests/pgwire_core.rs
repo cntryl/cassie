@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/pgwire.rs.
 mod pgwire {
@@ -1019,6 +1021,7 @@ mod pgwire_database_images {
     use uuid::Uuid;
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         let mut path = std::env::temp_dir();
         path.push(format!("cassie-pgwire-image-{label}-{}", Uuid::new_v4()));
         path.to_string_lossy().into_owned()
@@ -2737,6 +2740,54 @@ mod pgwire_simple_query {
             Some("temporary storage unavailable: pgwire blocking boundary test retryable failure")
         );
             assert_eq!(ready.1, vec![b'I']);
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_report_bigint_out_of_range_with_sqlstate_22003() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("bigint_out_of_range");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+
+            // Act
+            start_pgwire_session(&mut reader, &mut write_half).await;
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &simple_query_frame("SELECT 9223372036854775807 + 1"),
+            )
+            .await
+            .expect("write query");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush query");
+            let error = read_wire_frame(&mut reader).await;
+            let ready = read_wire_frame(&mut reader).await;
+            let error_fields = parse_error_fields(&error.1);
+
+            // Assert
+            assert_eq!(error.0, b'E');
+            assert_eq!(ready.0, b'Z');
+            assert_eq!(error_field(&error_fields, 'C'), Some("22003"));
+            assert_eq!(error_field(&error_fields, 'M'), Some("bigint out of range"));
 
             drop(socket);
             server.abort();

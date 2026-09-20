@@ -2,10 +2,15 @@
 //!
 //! This is the one parser used for DATE/TIME/TIMESTAMP values on every path
 //! that accepts them as strings: row storage, casts, the pgwire binary
-//! codec, `time_bucket`, and retention. Timestamps with an explicit offset
-//! are converted to UTC; offset-free timestamps are stored as given. Storing
-//! the canonical, zero-padded form means plain byte/string comparison
-//! (`ORDER BY`, equality) agrees with chronological order.
+//! codec, `time_bucket`, time-series indexes, and retention. Timestamps with
+//! an explicit offset are converted to UTC; offset-free timestamps are
+//! stored as given. The canonical TIMESTAMP form is fixed width
+//! (`YYYY-MM-DDTHH:MM:SS.ffffffZ`), so plain byte/string comparison agrees
+//! with chronological order. Values written before the fixed-width form
+//! (`...SSZ` for whole seconds) are ordered through
+//! [`timestamp_order_text`], which every executor comparison applies.
+
+use std::borrow::Cow;
 
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
 
@@ -29,10 +34,12 @@ pub fn canonical_time(value: &str) -> Result<String, String> {
 }
 
 /// Parses a TIMESTAMP string, converting any explicit offset to UTC, and
-/// re-serializes it into the canonical `YYYY-MM-DDTHH:MM:SS[.ffffff]Z` form.
-/// The trailing `Z` is always present (even for offset-free input, which is
-/// treated as already UTC) so every stored timestamp is both directly
-/// RFC3339-parseable and sorts correctly as plain text.
+/// re-serializes it into the canonical fixed-width
+/// `YYYY-MM-DDTHH:MM:SS.ffffffZ` form. The fraction and trailing `Z` are
+/// always present (offset-free input is treated as already UTC) so every
+/// stored timestamp is directly RFC3339-parseable and sorts chronologically
+/// as plain text: a variable-width form would put `12:00:00.5Z` before
+/// `12:00:00Z` because `.` sorts before `Z`.
 ///
 /// # Errors
 ///
@@ -40,11 +47,80 @@ pub fn canonical_time(value: &str) -> Result<String, String> {
 /// `YYYY-MM-DD[T ]HH:MM:SS[.ffffff]` timestamp.
 pub fn canonical_timestamp(value: &str) -> Result<String, String> {
     let datetime = parse_timestamp(value)?;
+    let time = datetime.time();
     Ok(format!(
-        "{}T{}Z",
+        "{}T{:02}:{:02}:{:02}.{:06}Z",
         format_date(datetime.date()),
-        format_time(datetime.time())
+        time.hour(),
+        time.minute(),
+        time.second(),
+        time.microsecond()
     ))
+}
+
+/// Returns the text that orders `value` chronologically against other
+/// canonical timestamps. A string shaped like a canonical UTC timestamp
+/// (`YYYY-MM-DDTHH:MM:SS[.f{1,6}]Z`, including the variable-width form
+/// written before timestamps became fixed width) is widened to the
+/// fixed-width `...SS.ffffffZ` form; any other string is returned unchanged.
+/// This is a pure text normalization, so it keeps comparisons total and
+/// cheap: already fixed-width values are borrowed without allocating.
+#[must_use]
+pub fn timestamp_order_text(value: &str) -> Cow<'_, str> {
+    const FIXED_WIDTH_LEN: usize = 27;
+    let Some(fraction) = canonical_timestamp_fraction(value) else {
+        return Cow::Borrowed(value);
+    };
+    if value.len() == FIXED_WIDTH_LEN {
+        return Cow::Borrowed(value);
+    }
+    let mut widened = String::with_capacity(FIXED_WIDTH_LEN);
+    widened.push_str(&value[..19]);
+    widened.push('.');
+    widened.push_str(fraction);
+    for _ in fraction.len()..6 {
+        widened.push('0');
+    }
+    widened.push('Z');
+    Cow::Owned(widened)
+}
+
+/// Returns true when `value` has the canonical UTC timestamp shape
+/// `YYYY-MM-DDTHH:MM:SS[.f{1,6}]Z` that [`timestamp_order_text`] widens.
+/// Byte-equality shortcuts must not be applied to such values, because the
+/// legacy `...SSZ` form and the fixed-width form name the same instant.
+#[must_use]
+pub fn is_canonical_timestamp_text(value: &str) -> bool {
+    canonical_timestamp_fraction(value).is_some()
+}
+
+/// Returns the fractional-second digits (possibly empty) when `value` has the
+/// canonical `YYYY-MM-DDTHH:MM:SS[.f{1,6}]Z` shape.
+fn canonical_timestamp_fraction(value: &str) -> Option<&str> {
+    const SHAPE: &[u8; 19] = b"0000-00-00T00:00:00";
+    let bytes = value.as_bytes();
+    if bytes.len() < 20 || bytes.last() != Some(&b'Z') {
+        return None;
+    }
+    let shape_matches = SHAPE.iter().zip(bytes).all(|(expected, actual)| {
+        if *expected == b'0' {
+            actual.is_ascii_digit()
+        } else {
+            actual == expected
+        }
+    });
+    if !shape_matches {
+        return None;
+    }
+    let suffix = &value[19..value.len() - 1];
+    if suffix.is_empty() {
+        return Some(suffix);
+    }
+    let digits = suffix.strip_prefix('.')?;
+    if digits.is_empty() || digits.len() > 6 || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    Some(digits)
 }
 
 /// # Errors
@@ -131,6 +207,18 @@ pub fn parse_timestamp(value: &str) -> Result<PrimitiveDateTime, String> {
     Ok(PrimitiveDateTime::new(parse_date(date)?, parse_time(time)?))
 }
 
+/// Parses a TIMESTAMP string with [`parse_timestamp`] and returns it as a UTC
+/// instant: explicit offsets are converted and offset-free input is treated
+/// as UTC, exactly as stored values are canonicalized.
+///
+/// # Errors
+///
+/// Returns an error when `value` is not a valid RFC3339 or
+/// `YYYY-MM-DD[T ]HH:MM:SS[.ffffff]` timestamp.
+pub fn parse_timestamp_utc(value: &str) -> Result<OffsetDateTime, String> {
+    parse_timestamp(value).map(PrimitiveDateTime::assume_utc)
+}
+
 #[must_use]
 pub fn format_date(date: Date) -> String {
     format!(
@@ -167,7 +255,12 @@ fn invalid(kind: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonical_date, canonical_time, canonical_timestamp};
+    use std::borrow::Cow;
+
+    use super::{
+        canonical_date, canonical_time, canonical_timestamp, parse_timestamp_utc,
+        timestamp_order_text,
+    };
 
     #[test]
     fn should_reject_an_invalid_timestamp_string() {
@@ -190,7 +283,7 @@ mod tests {
         let canonical = canonical_timestamp(value).expect("valid timestamp");
 
         // Assert
-        assert_eq!(canonical, "2024-01-01T07:00:00Z");
+        assert_eq!(canonical, "2024-01-01T07:00:00.000000Z");
     }
 
     #[test]
@@ -208,11 +301,102 @@ mod tests {
 
     #[test]
     fn should_reject_an_invalid_date_string() {
-        assert!(canonical_date("2024-13-40").is_err());
+        // Arrange
+        let value = "2024-13-40";
+
+        // Act
+        let result = canonical_date(value);
+
+        // Assert
+        assert!(result.is_err());
     }
 
     #[test]
     fn should_reject_an_invalid_time_string() {
-        assert!(canonical_time("25:00:00").is_err());
+        // Arrange
+        let value = "25:00:00";
+
+        // Act
+        let result = canonical_time(value);
+
+        // Assert
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_emit_fixed_width_canonical_timestamps_that_sort_chronologically() {
+        // Arrange
+        let whole = "2024-01-01T12:00:00Z";
+        let fractional = "2024-01-01T12:00:00.5Z";
+
+        // Act
+        let whole = canonical_timestamp(whole).expect("whole second");
+        let fractional = canonical_timestamp(fractional).expect("fractional second");
+
+        // Assert
+        assert_eq!(whole, "2024-01-01T12:00:00.000000Z");
+        assert_eq!(fractional, "2024-01-01T12:00:00.500000Z");
+        assert!(whole < fractional);
+    }
+
+    #[test]
+    fn should_widen_variable_width_canonical_timestamps_for_ordering() {
+        // Arrange
+        let legacy_whole = "2024-01-01T12:00:00Z";
+        let short_fraction = "2024-01-01T12:00:00.25Z";
+        let fixed_width = "2024-01-01T12:00:00.500000Z";
+
+        // Act
+        let legacy_whole = timestamp_order_text(legacy_whole);
+        let short_fraction = timestamp_order_text(short_fraction);
+        let fixed_width = timestamp_order_text(fixed_width);
+
+        // Assert
+        assert_eq!(legacy_whole, "2024-01-01T12:00:00.000000Z");
+        assert_eq!(short_fraction, "2024-01-01T12:00:00.250000Z");
+        assert!(matches!(fixed_width, Cow::Borrowed(_)));
+        assert!(legacy_whole < short_fraction && short_fraction < fixed_width);
+    }
+
+    #[test]
+    fn should_parse_offset_and_offset_free_timestamps_to_the_same_utc_instant() {
+        // Arrange
+        let offset = "2024-01-01T09:00:00.5+02:00";
+        let offset_free = "2024-01-01 07:00:00.5";
+        let fixed_width = "2024-01-01T07:00:00.500000Z";
+
+        // Act
+        let offset = parse_timestamp_utc(offset).expect("offset timestamp");
+        let offset_free = parse_timestamp_utc(offset_free).expect("offset-free timestamp");
+        let fixed_width = parse_timestamp_utc(fixed_width).expect("fixed-width timestamp");
+
+        // Assert
+        assert_eq!(offset, offset_free);
+        assert_eq!(offset, fixed_width);
+    }
+
+    #[test]
+    fn should_leave_non_timestamp_text_unchanged_for_ordering() {
+        // Arrange
+        let values = [
+            "2024-01-01 12:00:00",
+            "2024-01-01T12:00:00+02:00",
+            "2024-01-01T12:00:00.1234567Z",
+            "2024-01-01T12:00:00.Z",
+            "2024-01-01",
+            "hello",
+            "",
+        ];
+
+        for value in values {
+            // Act
+            let ordered = timestamp_order_text(value);
+
+            // Assert
+            assert!(
+                matches!(ordered, Cow::Borrowed(text) if text == value),
+                "{value}"
+            );
+        }
     }
 }

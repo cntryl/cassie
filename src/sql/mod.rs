@@ -282,6 +282,7 @@ fn infer_parameter_type_oids_expr(
             if let Some(else_expr) = else_expr {
                 infer_parameter_type_oids_expr(else_expr, field_types, catalog, oids);
             }
+            infer_case_result_parameter_types(branches, else_expr.as_deref(), field_types, oids);
         }
         ast::Expr::Binary { left, right, .. } => {
             if let Some(data_type) = column_expr_type(left, field_types) {
@@ -335,6 +336,26 @@ fn infer_parameter_type_oids_expr(
         | ast::Expr::IntegerLiteral(_)
         | ast::Expr::BoolLiteral(_)
         | ast::Expr::Null => {}
+    }
+}
+
+/// Types bare `$n` CASE results from the first sibling result whose type is
+/// known, mirroring PostgreSQL's CASE result unification.
+fn infer_case_result_parameter_types(
+    branches: &[(ast::Expr, ast::Expr)],
+    else_expr: Option<&ast::Expr>,
+    field_types: &FieldTypeMap,
+    oids: &mut [i32],
+) {
+    let results = || branches.iter().map(|(_, then)| then).chain(else_expr);
+    let Some(data_type) = results()
+        .filter_map(|result| binder::known_expr_type(result, field_types))
+        .find(|data_type| *data_type != DataType::Null)
+    else {
+        return;
+    };
+    for result in results() {
+        infer_parameter_type_from_expected_expr(result, &data_type, oids);
     }
 }
 

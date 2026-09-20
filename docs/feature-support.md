@@ -46,6 +46,12 @@ A table may declare its own `id` column. When it does, `id` is an ordinary colum
 
 This resolution is uniform across single-table reads, joins, set operations, derived tables, CTE references, and `INSERT ... SELECT`. A subquery or CTE that projects an explicit `id` output column passes that column to its consumer unchanged.
 
+`_id` can be named directly against a base table in a select list, `WHERE`, and `ORDER BY`, and always returns the internal identity, including on a table that declares its own `id`. `ORDER BY <indexed column>, _id` keeps the ordered scalar-index read path with the identity as a deterministic tiebreaker. A derived relation exposes only the columns it projects, so `id` or `_id` that its body does not project is an unresolvable column reference rather than NULL.
+
+Adding an `id` column with `ALTER TABLE ... ADD COLUMN id ...` switches a bare `id` on that table from the internal identity to the new column, which is NULL for rows written before the change; `_id` is unaffected.
+
+REST document endpoints report the internal identity as `"id"` in their JSON body. That field is the SQL `_id` of the row, not a declared `id` column.
+
 ## Mutation and Catalog
 
 | Capability | Behavior | Status |

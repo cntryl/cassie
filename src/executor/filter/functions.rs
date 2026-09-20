@@ -7,7 +7,7 @@ use super::{
 use crate::catalog::{name_matches, DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
-use time::{OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::{OffsetDateTime, UtcOffset};
 
 pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
     function: &FunctionCall,
@@ -505,7 +505,7 @@ pub(super) fn substring_text(value: &str, start: usize, length: Option<usize>) -
 pub(super) fn scalar_to_f64(value: &Value) -> f64 {
     match value {
         Value::Float64(v) => *v,
-        Value::Int64(v) => parse_i64_to_f64(*v).unwrap_or(0.0),
+        Value::Int64(v) => crate::types::numeric::i64_to_f64(*v),
         Value::Bool(v) => v.then_some(1.0).unwrap_or(0.0),
         Value::String(v) => v.parse().unwrap_or(0.0),
         _ => 0.0,
@@ -616,25 +616,9 @@ fn timestamp_arg_ns(name: &str, value: &Value) -> Result<i128, QueryError> {
 }
 
 fn parse_timestamp_utc(raw: &str) -> Result<i128, QueryError> {
-    if let Ok(value) = OffsetDateTime::parse(raw, &Rfc3339) {
-        return Ok(value.to_offset(UtcOffset::UTC).unix_timestamp_nanos());
-    }
-
-    let normalized = raw.trim().replace(' ', "T");
-    for format in [
-        "[year]-[month]-[day]T[hour]:[minute]:[second]",
-        "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond]",
-    ] {
-        let description = time::format_description::parse_owned::<2>(format)
-            .map_err(|error| QueryError::General(error.to_string()))?;
-        if let Ok(value) = PrimitiveDateTime::parse(&normalized, &description) {
-            return Ok(value.assume_utc().unix_timestamp_nanos());
-        }
-    }
-
-    Err(QueryError::General(
-        "invalid time_bucket timestamp".to_string(),
-    ))
+    crate::types::temporal::parse_timestamp_utc(raw.trim())
+        .map(OffsetDateTime::unix_timestamp_nanos)
+        .map_err(|_| QueryError::General("invalid time_bucket timestamp".to_string()))
 }
 
 fn floor_div(value: i128, divisor: i128) -> i128 {
@@ -775,7 +759,7 @@ fn evaluate_abs(name: &str, args: &[Value]) -> Result<Value, QueryError> {
         Value::Int64(v) => v
             .checked_abs()
             .map(Value::Int64)
-            .ok_or_else(|| QueryError::General("integer overflow".to_string())),
+            .ok_or_else(|| QueryError::General(super::BIGINT_OUT_OF_RANGE.to_string())),
         Value::Float64(v) => Ok(Value::Float64(v.abs())),
         _ => Err(QueryError::General(format!(
             "function '{name}' expects a numeric input"
@@ -850,10 +834,6 @@ fn merge_local_args(
     } else {
         locals
     }
-}
-
-fn parse_i64_to_f64(value: i64) -> Option<f64> {
-    value.to_string().parse::<f64>().ok()
 }
 
 fn parse_f64_to_i64(value: f64) -> Option<i64> {

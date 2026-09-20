@@ -290,13 +290,19 @@ pub(super) fn compare_projection(
             Some(state.to_string())
         },
     };
+    let gated_projection = report.target.clone();
     cassie
         .midge
-        .put_projection_comparison_report(&report)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .register_projection_comparison_report(report.clone());
+        .with_collection_gates(std::slice::from_ref(&gated_projection), || {
+            cassie
+                .midge
+                .put_projection_comparison_report(&report)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .register_projection_comparison_report(report.clone());
+            Ok::<(), QueryError>(())
+        })?;
     cassie
         .runtime
         .record_projection_integrity_verification(statement.target.name.clone(), state != "equal");

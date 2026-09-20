@@ -105,41 +105,12 @@ fn equi_join_columns(expr: &Expr) -> Option<(String, String)> {
 
 pub(super) fn expr_contains_exists(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| expr_contains_exists(expr))
-                || branches
-                    .iter()
-                    .any(|(when, then)| expr_contains_exists(when) || expr_contains_exists(then))
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_contains_exists(expr))
-        }
         Expr::Exists(_) => true,
-        Expr::Binary { left, right, .. } => {
-            expr_contains_exists(left) || expr_contains_exists(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => expr_contains_exists(expr),
-        Expr::InList { expr, values, .. } => {
-            expr_contains_exists(expr) || values.iter().any(expr_contains_exists)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_contains_exists(expr) || expr_contains_exists(low) || expr_contains_exists(high),
-        Expr::Not { .. }
-        | Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Function(_) => false,
+        // A negated EXISTS is an anti-join, handled by
+        // `expr_contains_not_exists`, and a function argument never carries a
+        // join-planning EXISTS.
+        Expr::Not { .. } | Expr::Function(_) => false,
+        _ => expr.any_child(expr_contains_exists),
     }
 }
 
@@ -149,51 +120,9 @@ pub(super) fn expr_contains_not_exists(expr: &Expr) -> bool {
 
 fn expr_contains_not_exists_with_polarity(expr: &Expr, negated: bool) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| expr_contains_not_exists_with_polarity(expr, negated))
-                || branches.iter().any(|(when, then)| {
-                    expr_contains_not_exists_with_polarity(when, negated)
-                        || expr_contains_not_exists_with_polarity(then, negated)
-                })
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_contains_not_exists_with_polarity(expr, negated))
-        }
         Expr::Not { expr } => expr_contains_not_exists_with_polarity(expr, !negated),
         Expr::Exists(_) => negated,
-        Expr::Binary { left, right, .. } => {
-            expr_contains_not_exists_with_polarity(left, negated)
-                || expr_contains_not_exists_with_polarity(right, negated)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-                || values
-                    .iter()
-                    .any(|value| expr_contains_not_exists_with_polarity(value, negated))
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_contains_not_exists_with_polarity(expr, negated)
-                || expr_contains_not_exists_with_polarity(low, negated)
-                || expr_contains_not_exists_with_polarity(high, negated)
-        }
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Function(_) => false,
+        Expr::Function(_) => false,
+        _ => expr.any_child(|child| expr_contains_not_exists_with_polarity(child, negated)),
     }
 }

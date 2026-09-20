@@ -6,6 +6,8 @@ use cassie::types::Value;
 const MIXED_LOOKUP_SQL: &str = "SELECT id FROM bench_documents WHERE title = $1 LIMIT 1";
 const TIER6_MAX_RESULT_ROWS: usize = 64;
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -26,7 +28,7 @@ fn main() {
         ),
         stress::OperationUnit::Operation,
     );
-    let data_dir = if runner.is_enabled(&case) {
+    if runner.is_enabled(&case) {
         std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let runtime = workloads::runtime();
         let setup_started = Instant::now();
@@ -37,6 +39,8 @@ fn main() {
                 TIER6_MAX_RESULT_ROWS,
             ))
             .expect("mixed soak fixture");
+        // Removes the fixture even when a later assertion panics.
+        let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
         workloads::prepare_mixed_soak_mutation_collection(&context);
         let preflight = workloads::assert_explain_contains(
             &context,
@@ -76,17 +80,9 @@ fn main() {
             Some(0)
         );
         context.cassie.shutdown();
-        let data_dir = context.data_dir.clone();
         drop(context);
-        Some(data_dir)
-    } else {
-        None
-    };
-    runner.finish();
-    if let Some(data_dir) = data_dir {
-        std::fs::remove_dir_all(&data_dir).expect("clean up mixed soak fixture");
-        assert!(!data_dir.exists(), "mixed soak fixture cleanup");
     }
+    runner.finish();
 }
 
 fn assert_result_cardinality_within_bound(cardinality: usize) -> usize {

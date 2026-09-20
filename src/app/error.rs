@@ -159,6 +159,9 @@ pub enum CassieError {
         name: String,
     },
 
+    #[error("relation reference is ambiguous: {0}")]
+    AmbiguousRelation(String),
+
     #[error("not found: {0}")]
     NotFound(String),
 
@@ -175,7 +178,7 @@ pub enum CassieError {
     StorageMissingFamily(String),
 
     #[error("temporary storage unavailable: {0}")]
-    StorageRetryable(String),
+    StorageRetryable(RetryableStorageError),
 }
 
 impl CassieError {
@@ -216,6 +219,7 @@ impl CassieError {
             Self::Unauthorized => unauthorized_descriptor(),
             Self::AuthenticationRateLimited => authentication_rate_limited_descriptor(),
             Self::InsufficientPrivilege => insufficient_privilege_descriptor(),
+            Self::AmbiguousRelation(message) => bad_request_descriptor("42P09", message.clone()),
             Self::NotFound(_) => not_found_descriptor(self.to_string()),
             Self::Unsupported(_) => unsupported_descriptor(self.to_string()),
             Self::StorageRetryable(_) => service_unavailable_descriptor("57P03", self.to_string()),
@@ -470,7 +474,7 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return bad_request_descriptor("22012", message.to_string());
     }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
-        || message.eq_ignore_ascii_case("integer overflow")
+        || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
     {
         return bad_request_descriptor("22003", message.to_string());
     }
@@ -590,7 +594,7 @@ const STORAGE_FENCED_PREFIX: &str = "midge fenced: ";
 
 /// Kind of a [`CassieError::StorageRetryable`] storage failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum StorageRetryKind {
+pub enum StorageRetryKind {
     /// Optimistic transaction conflict with another writer.
     WriteConflict,
     /// Storage backpressure while memtables flush or compaction catches up.
@@ -601,21 +605,69 @@ pub(crate) enum StorageRetryKind {
     Unavailable,
 }
 
+/// Payload of [`CassieError::StorageRetryable`]: the typed failure kind plus
+/// its message. It dereferences to the message text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetryableStorageError {
+    kind: StorageRetryKind,
+    message: String,
+}
+
+impl RetryableStorageError {
+    #[must_use]
+    pub fn new(kind: StorageRetryKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> StorageRetryKind {
+        self.kind
+    }
+}
+
+impl From<String> for RetryableStorageError {
+    fn from(message: String) -> Self {
+        Self::new(StorageRetryKind::Unavailable, message)
+    }
+}
+
+impl From<&str> for RetryableStorageError {
+    fn from(message: &str) -> Self {
+        Self::new(StorageRetryKind::Unavailable, message)
+    }
+}
+
+impl std::ops::Deref for RetryableStorageError {
+    type Target = str;
+
+    fn deref(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Display for RetryableStorageError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
 impl CassieError {
-    /// Classifies a retryable storage error produced by the Midge error mapping.
+    /// Returns the typed kind of a retryable storage error.
     pub(crate) fn storage_retry_kind(&self) -> Option<StorageRetryKind> {
-        let Self::StorageRetryable(message) = self else {
+        let Self::StorageRetryable(error) = self else {
             return None;
         };
-        Some(if message.starts_with(STORAGE_WRITE_CONFLICT_PREFIX) {
-            StorageRetryKind::WriteConflict
-        } else if message.starts_with(STORAGE_WRITE_STALL_PREFIX) {
-            StorageRetryKind::WriteStall
-        } else if message.starts_with(STORAGE_FENCED_PREFIX) {
-            StorageRetryKind::Fenced
-        } else {
-            StorageRetryKind::Unavailable
-        })
+        Some(error.kind())
+    }
+
+    fn storage_retryable(kind: StorageRetryKind, prefix: &str, message: &str) -> Self {
+        Self::StorageRetryable(RetryableStorageError::new(
+            kind,
+            format!("{prefix}{message}"),
+        ))
     }
 }
 
@@ -623,12 +675,16 @@ impl From<cntryl_midge::MidgeError> for CassieError {
     fn from(value: cntryl_midge::MidgeError) -> Self {
         let message = value.to_string();
         match value {
-            cntryl_midge::MidgeError::WriteStall(message) => {
-                CassieError::StorageRetryable(format!("{STORAGE_WRITE_STALL_PREFIX}{message}"))
-            }
-            cntryl_midge::MidgeError::Fenced(message) => {
-                CassieError::StorageRetryable(format!("{STORAGE_FENCED_PREFIX}{message}"))
-            }
+            cntryl_midge::MidgeError::WriteStall(message) => CassieError::storage_retryable(
+                StorageRetryKind::WriteStall,
+                STORAGE_WRITE_STALL_PREFIX,
+                &message,
+            ),
+            cntryl_midge::MidgeError::Fenced(message) => CassieError::storage_retryable(
+                StorageRetryKind::Fenced,
+                STORAGE_FENCED_PREFIX,
+                &message,
+            ),
             cntryl_midge::MidgeError::NotFound => {
                 CassieError::StorageMissingFamily("midge key not found".to_string())
             }
@@ -642,7 +698,11 @@ impl From<cntryl_midge::MidgeError> for CassieError {
                 }
             }
             _ if message.to_ascii_lowercase().contains("write conflict") => {
-                CassieError::StorageRetryable(format!("{STORAGE_WRITE_CONFLICT_PREFIX}{message}"))
+                CassieError::storage_retryable(
+                    StorageRetryKind::WriteConflict,
+                    STORAGE_WRITE_CONFLICT_PREFIX,
+                    &message,
+                )
             }
             _ => CassieError::Storage(message),
         }
@@ -693,12 +753,17 @@ mod tests {
             CassieError::Storage("disk".to_string()).storage_retry_kind(),
             None
         );
+        assert_eq!(
+            CassieError::StorageRetryable("midge write conflict: spoofed".into())
+                .storage_retry_kind(),
+            Some(StorageRetryKind::Unavailable)
+        );
     }
 
     #[test]
     fn should_map_scalar_integer_overflow_to_numeric_value_out_of_range() {
         // Arrange
-        let error = CassieError::Execution("integer overflow".to_string());
+        let error = CassieError::Execution("bigint out of range".to_string());
 
         // Act
         let descriptor = error.descriptor();

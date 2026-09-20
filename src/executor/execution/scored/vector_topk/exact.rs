@@ -89,7 +89,7 @@ pub(super) fn execute_exact_vector_top_k(
                 sort_value: candidate_sort_value(&spec.direction, score),
                 score,
                 id: candidate
-                    .get("_id")
+                    .get(crate::types::row_identity::ROW_IDENTITY_COLUMN)
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
@@ -195,7 +195,10 @@ fn document_matches_filter(
     // pushing `_id` here and letting the real payload (which only has an
     // `id` entry when the schema declares one) flow through unfiltered
     // resolves either case correctly without needing schema access here.
-    let mut entries = vec![("_id".to_string(), Value::String(document.id.clone()))];
+    let mut entries = vec![(
+        crate::types::row_identity::ROW_IDENTITY_COLUMN.to_string(),
+        Value::String(document.id.clone()),
+    )];
     if let Some(payload) = document.payload.as_object() {
         entries.extend(payload.iter().map(|(name, value)| {
             (

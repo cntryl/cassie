@@ -164,10 +164,7 @@ fn updated_payload_from_row(
         .as_object()
         .cloned()
         .ok_or_else(|| QueryError::General("stored row payload must be object".to_string()))?;
-    let schema_has_id = schema
-        .fields
-        .iter()
-        .any(|field| field.name.eq_ignore_ascii_case("id"));
+    let schema_has_id = schema.declares_id();
     for (field, expr) in assignments {
         let mut expr = expr.clone();
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);

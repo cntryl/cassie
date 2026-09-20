@@ -102,11 +102,19 @@ pub(super) fn repair_projection(
         post_verification_state: plan.post_verification_state.clone(),
         last_error: None,
     };
+    let gated_projection = report.projection_name.clone();
     cassie
         .midge
-        .put_projection_repair_report(&report)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_projection_repair_report(report);
+        .with_collection_gates(std::slice::from_ref(&gated_projection), || {
+            cassie
+                .midge
+                .put_projection_repair_report(&report)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .register_projection_repair_report(report.clone());
+            Ok::<(), QueryError>(())
+        })?;
 
     Ok(repair_result(
         "REPAIR PROJECTION",

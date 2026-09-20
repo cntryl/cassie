@@ -122,29 +122,35 @@ fn sqrzl_loopback_endpoint(
     Ok(endpoint)
 }
 
+/// Accepts only `http`/`https` endpoints whose host is exactly `localhost`,
+/// an address in `127.0.0.0/8`, or `[::1]`. The URL is parsed with the same
+/// WHATWG parser the storage clients use, so the host checked here is the
+/// host they connect to. Any userinfo (`user@host`) or percent-encoding in
+/// the authority is rejected outright: both let a string that looks like a
+/// loopback address resolve to a remote host.
 fn endpoint_is_loopback(endpoint: &str) -> bool {
-    let without_scheme = endpoint
-        .split_once("://")
-        .map_or(endpoint, |(_, rest)| rest);
-    let host_port = without_scheme
-        .split(['/', '?', '#'])
-        .next()
-        .unwrap_or(without_scheme);
-    let host = if let Some(bracketed) = host_port.strip_prefix('[') {
-        bracketed.split(']').next().unwrap_or(bracketed)
-    } else if host_port.matches(':').count() > 1 {
-        // A bare (unbracketed) IPv6 address with no port suffix.
-        host_port
-    } else {
-        host_port
-            .rsplit_once(':')
-            .map_or(host_port, |(host, _)| host)
+    let Ok(url) = url::Url::parse(endpoint) else {
+        return false;
     };
-    host.eq_ignore_ascii_case("localhost")
-        || host == "::1"
-        || host
-            .parse::<std::net::Ipv4Addr>()
-            .is_ok_and(|address| address.octets()[0] == 127)
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return false;
+    }
+    let Some((_, rest)) = endpoint.split_once("://") else {
+        return false;
+    };
+    let raw_authority = rest.split(['/', '?', '#', '\\']).next().unwrap_or(rest);
+    if raw_authority.contains(['@', '%']) {
+        return false;
+    }
+    match url.host() {
+        Some(url::Host::Domain(domain)) => domain == "localhost",
+        Some(url::Host::Ipv4(address)) => address.is_loopback(),
+        Some(url::Host::Ipv6(address)) => address == std::net::Ipv6Addr::LOCALHOST,
+        None => false,
+    }
 }
 
 fn build_cloud_provider_config(
@@ -367,7 +373,7 @@ mod tests {
 
     use cntryl_midge::{Storage, WriteOptions};
 
-    use super::open_config_from;
+    use super::{endpoint_is_loopback, open_config_from};
 
     fn reader(values: HashMap<&'static str, &'static str>) -> impl Fn(&str) -> Option<String> {
         move |key| values.get(key).map(ToString::to_string)
@@ -432,6 +438,76 @@ mod tests {
                 error.to_string().contains("loopback"),
                 "{provider}: {error}"
             );
+        }
+    }
+
+    #[test]
+    fn should_reject_sqrzl_endpoints_that_hide_a_remote_host_behind_userinfo() {
+        // Arrange
+        let endpoints = [
+            "http://localhost:9000@evil.com",
+            "http://127.0.0.1@evil.com:9000",
+            "http://[::1]@evil.com",
+            "http://admin:secret@127.0.0.1:9000",
+            "http://evil.com\\@localhost:9000",
+            "http://localhost%40evil.com:9000",
+            "http://%6c%6fcalhost:9000",
+            "http://127.0.0.1%2eevil.com:9000",
+        ];
+
+        for endpoint in endpoints {
+            // Act
+            let accepted = endpoint_is_loopback(endpoint);
+
+            // Assert
+            assert!(!accepted, "{endpoint} must not be treated as loopback");
+        }
+    }
+
+    #[test]
+    fn should_reject_sqrzl_endpoints_that_are_not_strict_loopback_hosts() {
+        // Arrange
+        let endpoints = [
+            "http://localhost.:9000",
+            "http://localhost.evil.com:9000",
+            "http://127.0.0.1.evil.com:9000",
+            "http://0.0.0.0:9000",
+            "http://[::]:9000",
+            "http://[::ffff:127.0.0.1]:9000",
+            "http://::1:9000",
+            "localhost:9000",
+            "file:///tmp/storage",
+            "",
+        ];
+
+        for endpoint in endpoints {
+            // Act
+            let accepted = endpoint_is_loopback(endpoint);
+
+            // Assert
+            assert!(!accepted, "{endpoint} must not be treated as loopback");
+        }
+    }
+
+    #[test]
+    fn should_accept_sqrzl_endpoints_on_strict_loopback_hosts() {
+        // Arrange
+        let endpoints = [
+            "http://127.0.0.1:9000",
+            "http://127.10.20.30:9000/bucket",
+            "http://localhost:9000",
+            "HTTP://LOCALHOST:9000",
+            "http://LocalHost",
+            "http://[::1]:9000",
+            "https://[0:0:0:0:0:0:0:1]/path?query#fragment",
+        ];
+
+        for endpoint in endpoints {
+            // Act
+            let accepted = endpoint_is_loopback(endpoint);
+
+            // Assert
+            assert!(accepted, "{endpoint} must be treated as loopback");
         }
     }
 

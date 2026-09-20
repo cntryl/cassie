@@ -23,6 +23,7 @@ pub fn use_local_storage() {
 }
 
 pub fn data_dir(label: &str) -> String {
+    crate::support_temp_dirs::sweep_stale_once();
     let mut dir = std::env::temp_dir();
     dir.push(format!("cassie-sql-{}-{}", label, Uuid::new_v4()));
     dir.to_string_lossy().to_string()

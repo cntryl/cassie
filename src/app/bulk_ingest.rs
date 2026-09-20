@@ -283,12 +283,13 @@ fn copy_columns(
         .iter()
         .map(|field| (field.name.to_ascii_lowercase(), field.clone()))
         .collect::<BTreeMap<_, _>>();
-    let has_id_field = fields_by_name.contains_key("id");
+    let has_id_field =
+        crate::types::row_identity::declares_id(fields.iter().map(|field| field.name.as_str()));
     let mut out = Vec::with_capacity(statement.columns.len());
 
     for column in &statement.columns {
         let normalized = column.to_ascii_lowercase();
-        if normalized == "_id" || (normalized == "id" && !has_id_field) {
+        if crate::types::row_identity::is_identity_reference(&normalized, has_id_field) {
             out.push(CopyColumn::RowId);
             continue;
         }

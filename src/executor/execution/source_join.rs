@@ -315,7 +315,7 @@ fn execute_nested_loop_join(
 }
 
 fn collection_join_columns(env: &SourceExecutionEnv<'_>, collection: &str) -> Option<Vec<String>> {
-    let mut columns = vec!["id".to_string()];
+    let mut columns = vec![crate::types::row_identity::LEGACY_ID_COLUMN.to_string()];
     columns.extend(collection_scan_fields(env, collection)?);
     Some(qualify_column_names(columns, collection))
 }

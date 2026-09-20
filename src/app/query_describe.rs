@@ -106,7 +106,14 @@ impl Cassie {
         let collection_schema = self
             .catalog
             .get_schema(&physical.logical.collection)
-            .or_else(|| virtual_view_collection_schema(&physical.logical.collection));
+            .or_else(|| virtual_view_collection_schema(&physical.logical.collection))
+            .or_else(|| {
+                crate::sql::binder::cte_collection_schema(
+                    &physical.logical.ctes,
+                    &physical.logical.collection,
+                    &self.catalog,
+                )
+            });
 
         if let Some(command) = physical.logical.command.as_ref() {
             let returning = match command {

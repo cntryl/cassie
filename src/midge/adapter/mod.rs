@@ -39,6 +39,7 @@ pub use column_batch_format_v2::{
     encode_plain_column_chunk_for_test, encode_row_id_chunk_for_test,
 };
 pub use core::Midge;
+pub use repair::set_projection_report_deletion_failure_point;
 
 thread_local! {
     static COLUMN_BATCH_MAINTENANCE_FAILPOINT: Cell<bool> = const { Cell::new(false) };

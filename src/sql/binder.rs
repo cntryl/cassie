@@ -22,6 +22,8 @@ use crate::types::{DataType, FieldSchema, Schema};
 
 type CteScope = HashMap<String, Vec<String>>;
 
+#[path = "binder/case_unify.rs"]
+mod case_unify;
 #[path = "binder/commands.rs"]
 mod commands;
 #[path = "binder/context.rs"]
@@ -50,8 +52,8 @@ pub use context::BindingContext;
 use context::{
     normalize_database_name, normalize_schema_name, resolve_relation_name, resolve_schema_name,
 };
-pub use inference::infer_select_schema;
-pub(crate) use inference::{infer_expr_type, infer_function_return_type};
+pub use inference::{cte_collection_schema, infer_select_schema};
+pub(crate) use inference::{infer_expr_type, infer_function_return_type, known_expr_type};
 use recursive::bind_recursive_cte_query;
 use routines::{
     bind_call_procedure, bind_create_function, bind_create_procedure, bind_drop_function,
@@ -953,21 +955,11 @@ fn bind_copy(
                 "COPY column list cannot include empty columns".into(),
             ));
         }
-        if column.eq_ignore_ascii_case("_id") {
-            continue;
-        }
-        if schema
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case(column))
-        {
-            continue;
-        }
-        if column.eq_ignore_ascii_case("id")
-            && !schema
+        if crate::types::row_identity::is_identity_reference(column, schema.declares_id())
+            || schema
                 .fields
                 .iter()
-                .any(|field| field.name.eq_ignore_ascii_case("id"))
+                .any(|field| field.name.eq_ignore_ascii_case(column))
         {
             continue;
         }

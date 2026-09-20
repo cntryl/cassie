@@ -113,6 +113,9 @@ pub struct Portal {
     pub result_formats: Vec<i16>,
     pub described: bool,
     pub suspended: Option<PortalSuspended>,
+    /// Command tag reported when a portal that already ran to completion is
+    /// executed again; the statement itself is never re-run.
+    pub completed_command: Option<String>,
 }
 
 #[derive(Debug)]

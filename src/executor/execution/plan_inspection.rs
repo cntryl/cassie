@@ -145,46 +145,9 @@ fn select_item_needs_user_functions(item: &SelectItem) -> bool {
 
 fn expr_needs_user_functions(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| expr_needs_user_functions(expr))
-                || branches.iter().any(|(when, then)| {
-                    expr_needs_user_functions(when) || expr_needs_user_functions(then)
-                })
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_needs_user_functions(expr))
-        }
-        Expr::Binary { left, right, .. } => {
-            expr_needs_user_functions(left) || expr_needs_user_functions(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            expr_needs_user_functions(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_needs_user_functions(expr) || values.iter().any(expr_needs_user_functions)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_needs_user_functions(expr)
-                || expr_needs_user_functions(low)
-                || expr_needs_user_functions(high)
-        }
         Expr::Exists(statement) => parsed_statement_needs_user_functions(statement),
         Expr::Function(function) => function_needs_user_functions(function),
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => false,
+        _ => expr.any_child(expr_needs_user_functions),
     }
 }
 

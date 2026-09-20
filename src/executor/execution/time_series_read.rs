@@ -8,7 +8,7 @@ use crate::midge::adapter::time_series_indexes::{
 };
 use crate::midge::adapter::DocumentRef;
 use crate::runtime::QueryMemoryReservation;
-use time::{Duration as TimeDuration, OffsetDateTime};
+use time::Duration as TimeDuration;
 
 use super::projected_read::json_to_query_value;
 
@@ -234,7 +234,7 @@ fn finish_time_series_rows(
 fn sort_time_series_documents(documents: &mut [DocumentRef], timestamp_field: &str) {
     documents.sort_unstable_by(|left, right| {
         timestamp_sort_key(&left.payload, timestamp_field)
-            .cmp(timestamp_sort_key(&right.payload, timestamp_field))
+            .cmp(&timestamp_sort_key(&right.payload, timestamp_field))
             .then_with(|| left.id.cmp(&right.id))
     });
 }
@@ -440,13 +440,13 @@ fn time_series_bucket_bounds(
         return (None, None);
     };
     let lower = range.lower.as_deref().and_then(|value| {
-        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        crate::types::temporal::parse_timestamp_utc(value)
             .ok()
             .map(|timestamp| timestamp.unix_timestamp().div_euclid(width))
             .map(|bucket| bucket.saturating_mul(width))
     });
     let upper = range.upper.as_deref().and_then(|value| {
-        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        crate::types::temporal::parse_timestamp_utc(value)
             .ok()
             .and_then(|timestamp| {
                 let seconds = timestamp.unix_timestamp();
@@ -577,14 +577,15 @@ fn prune_hits_for_range(
 ) -> Vec<crate::midge::adapter::time_series_indexes::TimeSeriesIndexScanHit> {
     hits.into_iter()
         .filter(|hit| {
+            let timestamp = crate::types::temporal::timestamp_order_text(&hit.timestamp);
             range
                 .lower
                 .as_ref()
-                .is_none_or(|lower| hit.timestamp.as_str() >= lower.as_str())
+                .is_none_or(|lower| timestamp.as_ref() >= lower.as_str())
                 && range
                     .upper
                     .as_ref()
-                    .is_none_or(|upper| hit.timestamp.as_str() <= upper.as_str())
+                    .is_none_or(|upper| timestamp.as_ref() <= upper.as_str())
         })
         .collect()
 }
@@ -684,12 +685,18 @@ fn is_timestamp_column(expr: &Expr, timestamp_field: &str) -> bool {
     matches!(expr, Expr::Column(field) if field.eq_ignore_ascii_case(timestamp_field))
 }
 
+/// Returns a range bound only for canonical-shaped timestamp text, widened to
+/// the fixed-width form. Bounds then order chronologically as text exactly as
+/// the filter operator compares them, so pruning never drops a row the
+/// residual filter would keep; any other literal leaves the range open.
 fn timestamp_literal(expr: &Expr, params: &[Value]) -> Option<String> {
-    match expr {
-        Expr::StringLiteral(value) => Some(value.clone()),
-        Expr::Param(index) => value_text(params.get(*index)?),
-        _ => None,
-    }
+    let text = match expr {
+        Expr::StringLiteral(value) => value.clone(),
+        Expr::Param(index) => value_text(params.get(*index)?)?,
+        _ => return None,
+    };
+    crate::types::temporal::is_canonical_timestamp_text(&text)
+        .then(|| crate::types::temporal::timestamp_order_text(&text).into_owned())
 }
 
 fn value_text(value: &Value) -> Option<String> {
@@ -817,18 +824,16 @@ fn selected_time_series_index(cassie: &Cassie, plan: &LogicalPlan) -> Option<cat
         .find(|index| index.name == selected && index.kind == catalog::IndexKind::TimeSeries)
 }
 
-#[allow(clippy::needless_pass_by_value)]
 fn document_to_row(
-    document: DocumentRef,
+    document: &DocumentRef,
     fields: &[String],
     schema: Option<&CollectionSchema>,
 ) -> BatchRow {
-    let schema_has_id = crate::executor::scan::schema_declares_id(schema);
+    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     let mut values = Vec::with_capacity(fields.len() + 2);
     crate::executor::scan::push_row_identity(&mut values, &document.id);
     for field in fields {
-        if field.eq_ignore_ascii_case("_id") || (field.eq_ignore_ascii_case("id") && !schema_has_id)
-        {
+        if crate::types::row_identity::is_identity_reference(field, schema_has_id) {
             continue;
         }
         let value = payload_field(&document.payload, field)
@@ -872,10 +877,15 @@ fn payload_field<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a 
     })
 }
 
-fn timestamp_sort_key<'a>(payload: &'a serde_json::Value, field: &str) -> &'a str {
-    payload_field(payload, field)
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
+fn timestamp_sort_key<'a>(
+    payload: &'a serde_json::Value,
+    field: &str,
+) -> std::borrow::Cow<'a, str> {
+    crate::types::temporal::timestamp_order_text(
+        payload_field(payload, field)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default(),
+    )
 }
 
 fn count_document_buckets(

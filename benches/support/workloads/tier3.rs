@@ -326,7 +326,7 @@ pub fn mixed_query_ingest_retrieval(context: &BenchContext, nonce: u64) -> usize
         .cassie
         .execute_sql(
             &context.session,
-            "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 5",
+            "SELECT _id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 5",
             vec![Value::String("alpha".to_string())],
         )
         .expect("Tier 3 mixed full-text retrieval");

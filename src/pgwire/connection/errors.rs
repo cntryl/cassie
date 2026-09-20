@@ -92,8 +92,7 @@ mod tests {
     #[test]
     fn should_map_retryable_storage_errors_to_cannot_connect_now_sqlstate() {
         // Arrange
-        let error =
-            CassieError::StorageRetryable("temporary storage unavailable: fenced".to_string());
+        let error = CassieError::StorageRetryable("temporary storage unavailable: fenced".into());
 
         // Act
         let pg_error = PgWireError::from_cassie_error(PgWireSeverity::Error, &error);

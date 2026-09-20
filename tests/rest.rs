@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/network_listener_authentication.rs.
 mod network_listener_authentication {
@@ -673,6 +675,7 @@ mod rest_admin_databases {
     }
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!(
             "cassie-rest-admin-databases-{label}-{}",
             Uuid::new_v4()
@@ -955,6 +958,7 @@ mod rest_admin_query {
     }
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!(
             "cassie-rest-admin-query-{label}-{}",
             Uuid::new_v4()
@@ -1910,6 +1914,7 @@ mod rest_admin_query_method_errors {
     }
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!(
             "cassie-rest-admin-query-{label}-{}",
             Uuid::new_v4()
@@ -3833,6 +3838,7 @@ mod rest_json_contract {
     }
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         let mut path = std::env::temp_dir();
         path.push(format!(
             "cassie-rest-json-contract-{label}-{}",
@@ -4582,6 +4588,7 @@ mod rest_sessions {
     }
 
     fn data_dir(label: &str) -> PathBuf {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir().join(format!("cassie-rest-sessions-{label}-{}", Uuid::new_v4()))
     }
 

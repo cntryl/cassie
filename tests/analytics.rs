@@ -5,6 +5,8 @@
 mod support_failpoints;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/aggregate_acceleration.rs.
 mod aggregate_acceleration {
@@ -4943,6 +4945,7 @@ mod projection_concurrency {
     use uuid::Uuid;
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::set_var("CASSIE_STORAGE_MODE", "local");
         std::env::temp_dir()
             .join(format!(
@@ -6280,7 +6283,7 @@ mod projection_lifecycle {
     use cassie::executor::set_projection_activation_failure_point;
     use cassie::midge::adapter::{
         set_projection_metadata_persistence_failure_point, set_projection_output_failure_point,
-        ProjectionOutputFailurePoint,
+        set_projection_report_deletion_failure_point, ProjectionOutputFailurePoint,
     };
     use cassie::sql::ast::{
         AlterMaterializedProjectionOperation, CopyFormat, CopyStatement, QueryStatement,
@@ -7347,6 +7350,226 @@ mod projection_lifecycle {
             assert_eq!(stored_repair_versions, vec![v1.clone(), v1]);
         });
         drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_drop_quoted_mixed_case_materialized_projection_referenced_unquoted() {
+        // Arrange
+        let (runtime, path, cassie, session, _projection) =
+            start_projection_version_fixture("projection_mixed_case_drop");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "CREATE MATERIALIZED PROJECTION \"MixedCaseProjection\" AS SELECT title FROM projection_version_docs",
+            );
+
+            // Act
+            let dropped = cassie.execute_sql(
+                &session,
+                "DROP MATERIALIZED PROJECTION mixedcaseprojection",
+                vec![],
+            );
+            let remaining = cassie
+                .catalog
+                .list_projection_metadata()
+                .into_iter()
+                .map(|projection| projection.collection)
+                .filter(|collection| collection.to_ascii_lowercase().contains("mixedcase"))
+                .collect::<Vec<_>>();
+
+            // Assert
+            assert!(
+                dropped.is_ok(),
+                "DROP MATERIALIZED PROJECTION failed: {dropped:?}"
+            );
+            assert!(
+                remaining.is_empty(),
+                "projection metadata remained after the drop: {remaining:?}"
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_projection_version_intact_when_report_deletion_fails() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_report_deletion_failure");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            execute_statement(
+                &cassie,
+                &session,
+                "COMPARE PROJECTION projection_versioned VERSION v2 WITH MANIFEST '{\"root_digest\":\"abc\"}'",
+            );
+            set_projection_report_deletion_failure_point(true);
+
+            // Act
+            let dropped = cassie.execute_sql(
+                &session,
+                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v2",
+                vec![],
+            );
+            set_projection_report_deletion_failure_point(false);
+            let versions = projection_version_rows(&cassie, &session, &projection);
+            let stored_report_versions = cassie
+                .midge
+                .list_projection_comparison_reports()
+                .unwrap()
+                .into_iter()
+                .map(|report| report.target_version_id)
+                .collect::<Vec<_>>();
+            let catalog_report_versions = cassie
+                .catalog
+                .list_projection_comparison_reports()
+                .into_iter()
+                .map(|report| report.target_version_id)
+                .collect::<Vec<_>>();
+            let version_output = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .expect("projection metadata")
+                .versions
+                .into_iter()
+                .find(|version| version.version_id == "v2")
+                .map(|version| version.output_collection);
+
+            // Assert
+            assert!(
+                dropped.is_err(),
+                "drop succeeded although report deletion failed: {dropped:?}"
+            );
+            assert_eq!(
+                versions,
+                vec![
+                    vec![
+                        Value::String("v1".to_string()),
+                        Value::String("active".to_string())
+                    ],
+                    vec![
+                        Value::String("v2".to_string()),
+                        Value::String("built".to_string())
+                    ],
+                ]
+            );
+            assert_eq!(stored_report_versions, vec![Some("v2".to_string())]);
+            assert_eq!(catalog_report_versions, vec![Some("v2".to_string())]);
+            let output = version_output.expect("v2 output collection");
+            assert!(
+                cassie.midge.collection_schema(&output).is_some(),
+                "version output collection was dropped: {output}"
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_projection_version_output_when_metadata_persistence_fails() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_version_persist_failure");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "ALTER MATERIALIZED PROJECTION projection_versioned BUILD VERSION",
+            );
+            set_projection_metadata_persistence_failure_point(true);
+
+            // Act
+            let dropped = cassie.execute_sql(
+                &session,
+                "DROP MATERIALIZED PROJECTION VERSION projection_versioned VERSION v2",
+                vec![],
+            );
+            set_projection_metadata_persistence_failure_point(false);
+            let versions = projection_version_rows(&cassie, &session, &projection);
+            let version_output = cassie
+                .catalog
+                .get_materialized_projection("projection_versioned")
+                .expect("projection metadata")
+                .versions
+                .into_iter()
+                .find(|version| version.version_id == "v2")
+                .map(|version| version.output_collection);
+
+            // Assert
+            assert!(
+                dropped.is_err(),
+                "drop succeeded although metadata persistence failed: {dropped:?}"
+            );
+            assert_eq!(versions.len(), 2, "version metadata changed: {versions:?}");
+            let output = version_output.expect("v2 output collection");
+            assert!(
+                cassie.midge.collection_schema(&output).is_some(),
+                "version output collection was dropped before its metadata: {output}"
+            );
+        });
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_delete_projection_reports_when_dropping_a_projection_before_restart() {
+        // Arrange
+        let (runtime, path, cassie, session, projection) =
+            start_projection_version_fixture("projection_drop_report_cleanup");
+        runtime.block_on(async {
+            execute_statement(
+                &cassie,
+                &session,
+                "COMPARE PROJECTION projection_versioned VERSION v1 WITH MANIFEST '{\"root_digest\":\"abc\"}'",
+            );
+            let report = cassie::catalog::ProjectionRepairReportMeta {
+                report_id: "repair-report-dropped".to_string(),
+                created_ms: 1,
+                projection_name: projection.clone(),
+                target: projection.clone(),
+                version_id: Some("v1".to_string()),
+                scope: "projection-version".to_string(),
+                action: "rebuild".to_string(),
+                state: "completed".to_string(),
+                executable: true,
+                affected_objects: Vec::new(),
+                source_report_state: "failed".to_string(),
+                source_mismatch_count: 0,
+                source_missing_count: 0,
+                source_stale_count: 0,
+                verification_required: "full".to_string(),
+                post_verification_state: "verified".to_string(),
+                last_error: None,
+            };
+            cassie.midge.put_projection_repair_report(&report).unwrap();
+            cassie.catalog.register_projection_repair_report(report);
+
+            // Act
+            execute_statement(
+                &cassie,
+                &session,
+                "DROP MATERIALIZED PROJECTION projection_versioned",
+            );
+        });
+        drop(cassie);
+        let restarted = Cassie::new_with_data_dir(&path).unwrap();
+        restarted.startup().unwrap();
+        let repair_reports = restarted.catalog.list_projection_repair_reports().len();
+        let comparison_reports = restarted.catalog.list_projection_comparison_reports().len();
+
+        // Assert
+        assert_eq!(
+            (repair_reports, comparison_reports),
+            (0, 0),
+            "reports of a dropped projection reloaded after restart"
+        );
+        drop(restarted);
         let _ = std::fs::remove_dir_all(path);
     }
 

@@ -14,6 +14,9 @@ use crate::sql::ast::{BinaryOp, Expr};
 use crate::types::{DataType, Value};
 use uuid::Uuid;
 
+/// PostgreSQL's message (SQLSTATE 22003) for an overflowing int8 result.
+pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
+
 #[path = "filter/functions.rs"]
 mod functions;
 #[path = "filter/like.rs"]
@@ -141,7 +144,7 @@ impl ScalarValue {
     pub(crate) fn to_f64(&self) -> Option<f64> {
         match self {
             ScalarValue::Float(v) => Some(*v),
-            ScalarValue::Int(v) => parse_i64_to_f64(*v),
+            ScalarValue::Int(v) => Some(crate::types::numeric::i64_to_f64(*v)),
             ScalarValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
             _ => None,
         }
@@ -573,7 +576,9 @@ fn binary_scalar(
             if right.to_f64().is_some_and(|value| value == 0.0) && left.to_f64().is_some() {
                 return Err(QueryError::General("division by zero".to_string()));
             }
-            math_result(left, right, |a, b| a / b)
+            // Integer operands divide with truncation toward zero, as in
+            // PostgreSQL; `i64::MIN / -1` is the one overflowing quotient.
+            checked_math_result(left, right, i64::checked_div, |a, b| a / b)?
         }
         BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
             if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
@@ -616,7 +621,7 @@ fn checked_math_result(
     if let (ScalarValue::Int(left), ScalarValue::Int(right)) = (left, right) {
         return int_op(*left, *right)
             .map(ScalarValue::Int)
-            .ok_or_else(|| QueryError::General("integer overflow".to_string()));
+            .ok_or_else(|| QueryError::General(BIGINT_OUT_OF_RANGE.to_string()));
     }
     Ok(math_result(left, right, float_op))
 }
@@ -634,8 +639,16 @@ fn ordered_cmp(
         _ => left
             .as_str()
             .zip(right.as_str())
-            .map(|(left, right)| cmp(left.cmp(right))),
+            .map(|(left, right)| cmp(compare_text(left, right))),
     }
+}
+
+/// Compares strings the way the executor orders them everywhere else:
+/// canonical timestamps written in the pre-fixed-width `...SSZ` form are
+/// widened first so whole and fractional seconds compare by instant.
+fn compare_text(left: &str, right: &str) -> std::cmp::Ordering {
+    use crate::types::temporal::timestamp_order_text;
+    timestamp_order_text(left).cmp(&timestamp_order_text(right))
 }
 
 fn binary_math(
@@ -681,7 +694,9 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
             ScalarValue::Int(_) | ScalarValue::Float(_),
         ) => compare_numeric_values(&left.to_value(), &right.to_value())
             .map(std::cmp::Ordering::is_eq),
-        (ScalarValue::Str(left), ScalarValue::Str(right)) => Some(left == right),
+        (ScalarValue::Str(left), ScalarValue::Str(right)) => {
+            Some(compare_text(left, right).is_eq())
+        }
         (ScalarValue::Bool(left), ScalarValue::Int(right)) => {
             Some((*left && *right != 0) || (!*left && *right == 0))
         }
@@ -747,46 +762,9 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
     right: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    let mut left_value = eval_scalar_with_context(row, left, context)?;
-    let mut right_value = eval_scalar_with_context(row, right, context)?;
-    coerce_literal_pair_to_matching_int(left, &mut left_value, right, &mut right_value);
+    let left_value = eval_scalar_with_context(row, left, context)?;
+    let right_value = eval_scalar_with_context(row, right, context)?;
     binary_scalar(&left_value, op, &right_value)
-}
-
-/// A bare numeric literal like `1` has no declared type of its own and
-/// defaults to float when it stands alone (`SELECT 1 + 2` stays float,
-/// matching the table-free literal contract). But paired with a genuine
-/// integer operand (a column or an out-of-f64-precision integer literal),
-/// an integral literal should behave as an integer rather than silently
-/// promoting exact integer arithmetic to float, e.g. `int_column + 1` must
-/// stay an integer rather than becoming `Float64`.
-fn coerce_literal_pair_to_matching_int(
-    left_expr: &Expr,
-    left: &mut ScalarValue,
-    right_expr: &Expr,
-    right: &mut ScalarValue,
-) {
-    match (&*left, &*right) {
-        (ScalarValue::Int(_), ScalarValue::Float(_)) => {
-            coerce_whole_number_literal(right_expr, right);
-        }
-        (ScalarValue::Float(_), ScalarValue::Int(_)) => {
-            coerce_whole_number_literal(left_expr, left);
-        }
-        _ => {}
-    }
-}
-
-fn coerce_whole_number_literal(expr: &Expr, value: &mut ScalarValue) {
-    let (Expr::NumberLiteral(_), ScalarValue::Float(number)) = (expr, &*value) else {
-        return;
-    };
-    if number.fract() != 0.0 || number.abs() > 9_007_199_254_740_992.0 {
-        return;
-    }
-    #[allow(clippy::cast_possible_truncation)]
-    let whole = *number as i64;
-    *value = ScalarValue::Int(whole);
 }
 
 fn eval_is_null_expr<R: RowAccess + ?Sized>(
@@ -876,10 +854,6 @@ fn eval_cast_expr<R: RowAccess + ?Sized>(
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
     cast_scalar(&value, data_type)
-}
-
-fn parse_i64_to_f64(value: i64) -> Option<f64> {
-    value.to_string().parse::<f64>().ok()
 }
 
 fn parse_f64_to_i64(value: f64) -> Option<i64> {

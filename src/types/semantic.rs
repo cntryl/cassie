@@ -100,7 +100,13 @@ impl SemanticValue {
             Value::Bool(value) => Self::Bool(*value),
             Value::Int64(value) => Self::Number(SemanticNumber::from_integer(*value)),
             Value::Float64(value) => Self::Number(SemanticNumber::from_float(*value)),
-            Value::String(value) => Self::String(value.clone()),
+            // Canonical timestamps written before the fixed-width form
+            // (`...SSZ`) are widened so they order, group, and compare equal
+            // by instant alongside fixed-width values, the same way numeric
+            // representations are normalized above.
+            Value::String(value) => {
+                Self::String(crate::types::temporal::timestamp_order_text(value).into_owned())
+            }
             Value::Vector(value) => {
                 Self::Vector(value.values.iter().map(|part| part.to_bits()).collect())
             }
@@ -294,5 +300,23 @@ mod tests {
         assert!(inserted_integer);
         assert!(!inserted_equal_float);
         assert_eq!(numeric_keys.len(), 1);
+    }
+
+    #[test]
+    fn should_order_equivalent_timestamp_formats_by_instant() {
+        // Arrange
+        let legacy_whole = Value::String("2024-01-01T12:00:00Z".to_string());
+        let fixed_whole = Value::String("2024-01-01T12:00:00.000000Z".to_string());
+        let fractional = Value::String("2024-01-01T12:00:00.500000Z".to_string());
+
+        // Act
+        let whole_before_fraction = compare_values(&legacy_whole, &fractional);
+        let fraction_after_whole = compare_values(&fractional, &legacy_whole);
+        let same_instant = SemanticKey::single(&legacy_whole) == SemanticKey::single(&fixed_whole);
+
+        // Assert
+        assert_eq!(whole_before_fraction, Ordering::Less);
+        assert_eq!(fraction_after_whole, Ordering::Greater);
+        assert!(same_instant);
     }
 }

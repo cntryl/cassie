@@ -646,12 +646,14 @@ impl Midge {
             .payload
             .expect("prepared put operation must include payload");
         // Existing payloads are decoded from row blobs and are already canonical.
-        let index_payload =
-            if context.scalar_indexes.is_empty() && context.unique_constraints.is_empty() {
-                std::borrow::Cow::Borrowed(&payload)
-            } else {
-                super::scalar_indexes::scalar_index_canonical_payload(&context.row_schema, &payload)
-            };
+        let index_payload = if context.scalar_indexes.is_empty()
+            && context.unique_constraints.is_empty()
+            && context.time_series_indexes.is_empty()
+        {
+            std::borrow::Cow::Borrowed(&payload)
+        } else {
+            super::scalar_indexes::scalar_index_canonical_payload(&context.row_schema, &payload)
+        };
         Self::sync_unique_reservations_for_document(
             tx,
             collection,

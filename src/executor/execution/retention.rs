@@ -1,4 +1,3 @@
-use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use super::{
@@ -237,12 +236,12 @@ fn parse_duration(raw: &str) -> Result<time::Duration, QueryError> {
 }
 
 fn parse_timestamp(raw: &str) -> Result<OffsetDateTime, QueryError> {
-    OffsetDateTime::parse(raw, &Rfc3339)
+    crate::types::temporal::parse_timestamp_utc(raw)
         .map_err(|_| QueryError::General("retention timestamp must be RFC3339".into()))
 }
 
 fn row_id(row: &BatchRow) -> Result<String, QueryError> {
-    match row.get("_id") {
+    match row.get(crate::types::row_identity::ROW_IDENTITY_COLUMN) {
         Some(Value::String(value)) if !value.is_empty() => Ok(value.clone()),
         _ => Err(QueryError::General(
             "scanned row is missing internal row id".to_string(),

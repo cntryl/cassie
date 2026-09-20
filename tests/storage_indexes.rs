@@ -9,6 +9,8 @@ mod support_executor;
 mod support_local_storage;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/index_publication_recovery.rs.
 mod index_publication_recovery {
@@ -700,6 +702,139 @@ mod integration_sql_scalar_index_lexkey {
                 panic!("expected textual plan");
             };
             assert!(plan.contains("index=scalar_lexkey_tenant_label_idx"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    fn seed_same_second_timestamp_tables(cassie: &Cassie, session: &cassie::app::CassieSession) {
+        for (table, indexed) in [
+            ("same_second_ts_baseline", false),
+            ("same_second_ts_indexed", true),
+        ] {
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("CREATE TABLE {table} (seq INT, ts TIMESTAMP)"),
+                    vec![],
+                )
+                .expect("create timestamp table");
+            if indexed {
+                cassie
+                    .execute_sql(
+                        session,
+                        &format!("CREATE INDEX same_second_ts_idx ON {table} USING btree (ts)"),
+                        vec![],
+                    )
+                    .expect("create timestamp scalar index");
+            }
+            // Chronological order is 5, 1, 3, 2, 4, 6: whole-second and
+            // fractional instants share the 12:00:00 second.
+            for (seq, ts) in [
+                (1, "2024-01-01T12:00:00Z"),
+                (2, "2024-01-01T12:00:00.500000Z"),
+                (3, "2024-01-01T12:00:00.25Z"),
+                (4, "2024-01-01T13:00:00.75+01:00"),
+                (5, "2024-01-01T11:59:59.999999Z"),
+                (6, "2024-01-01 12:00:01"),
+            ] {
+                cassie
+                    .execute_sql(
+                        session,
+                        &format!("INSERT INTO {table} (seq, ts) VALUES ({seq}, '{ts}')"),
+                        vec![],
+                    )
+                    .expect("insert timestamp row");
+            }
+        }
+    }
+
+    fn seq_column(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) -> Vec<i64> {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows
+            .into_iter()
+            .map(|row| match row.first() {
+                Some(Value::Int64(seq)) => *seq,
+                other => panic!("expected integer seq, got {other:?}"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn should_preserve_same_second_timestamp_order_across_index_paths() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_same_second_timestamps");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            seed_same_second_timestamp_tables(&cassie, &session);
+            let cases = [
+                ("ORDER BY ts ASC", vec![5, 1, 3, 2, 4, 6]),
+                ("ORDER BY ts DESC", vec![6, 4, 2, 3, 1, 5]),
+                ("ORDER BY ts ASC LIMIT 2", vec![5, 1]),
+                ("ORDER BY ts DESC LIMIT 2", vec![6, 4]),
+                ("WHERE ts > '2024-01-01T12:00:00Z' ORDER BY seq", vec![2, 3, 4, 6]),
+                ("WHERE ts >= '2024-01-01T12:00:00Z' ORDER BY seq", vec![1, 2, 3, 4, 6]),
+                ("WHERE ts < '2024-01-01T12:00:00.5Z' ORDER BY seq", vec![1, 3, 5]),
+                ("WHERE ts <= '2024-01-01T12:00:00Z' ORDER BY seq", vec![1, 5]),
+                ("WHERE ts = '2024-01-01T12:00:00Z' ORDER BY seq", vec![1]),
+                ("WHERE ts = '2024-01-01T12:00:00.25Z' ORDER BY seq", vec![3]),
+                (
+                    "WHERE ts > '2024-01-01T12:00:00Z' AND ts < '2024-01-01T12:00:01Z' ORDER BY seq",
+                    vec![2, 3, 4],
+                ),
+            ];
+
+            // Act
+            let mut mismatches = Vec::new();
+            for (clause, expected) in &cases {
+                for table in ["same_second_ts_baseline", "same_second_ts_indexed"] {
+                    let actual =
+                        seq_column(&cassie, &session, &format!("SELECT seq FROM {table} {clause}"));
+                    if &actual != expected {
+                        mismatches.push(format!("{table} {clause}: expected {expected:?}, got {actual:?}"));
+                    }
+                }
+            }
+            let min_max = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT MIN(ts), MAX(ts) FROM same_second_ts_baseline WHERE ts >= '2024-01-01T12:00:00Z' AND ts < '2024-01-01T12:00:01Z'",
+                    vec![],
+                )
+                .expect("min/max");
+            let explain = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT seq FROM same_second_ts_indexed WHERE ts > '2024-01-01T12:00:00Z'",
+                    vec![],
+                )
+                .expect("explain timestamp range");
+
+            // Assert
+            assert!(
+                mismatches.is_empty(),
+                "timestamp results are not chronological: {mismatches:#?}"
+            );
+            assert_eq!(
+                min_max.rows,
+                vec![vec![
+                    Value::String("2024-01-01T12:00:00.000000Z".to_string()),
+                    Value::String("2024-01-01T12:00:00.750000Z".to_string()),
+                ]]
+            );
+            let Value::String(plan) = &explain.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(plan.contains("index=same_second_ts_idx"), "{plan}");
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -1713,6 +1848,53 @@ mod integration_sql_scalar_indexes {
             assert!(
                 mismatches.is_empty(),
                 "indexed results diverge from full scan: {mismatches:#?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_the_scalar_index_for_a_non_finite_parameter_outside_the_filter() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_index_unused_non_finite_parameter");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            create_indexed_and_plain_tables(
+                &cassie,
+                &session,
+                ["unused_non_finite_indexed", "unused_non_finite_plain"],
+                "x FLOAT",
+                "x",
+                &[Value::Float64(5.5)],
+            );
+
+            // Act
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT x FROM unused_non_finite_indexed WHERE x > 4.5",
+                    vec![Value::Float64(f64::NAN)],
+                )
+                .expect("range query with an unbound non-finite parameter")
+                .rows;
+            let metrics = cassie.metrics();
+
+            // Assert
+            assert_eq!(rows, vec![vec![Value::Float64(5.5)]]);
+            assert!(
+                metrics["read_paths"]["last_index_scan_index"]
+                    .as_str()
+                    .is_some_and(|index| index.ends_with("unused_non_finite_indexed_idx")),
+                "a non-finite parameter outside the filter disabled the scalar index: {:?}",
+                metrics["read_paths"]
             );
 
             let _ = std::fs::remove_dir_all(path);
@@ -5826,5 +6008,96 @@ mod scalar_index_redundant_bounds {
 
             let _ = std::fs::remove_dir_all(path);
         });
+    }
+}
+
+// A user-declared `id` column is an ordinary stored field: only `_id` names
+// the internal row identity, so column-index coverage and projection must
+// treat a declared `id` like any other column.
+mod column_index_declared_id {
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn run(cassie: &Cassie, session: &CassieSession, statements: &[&str]) {
+        for statement in statements {
+            cassie
+                .execute_sql(session, statement, vec![])
+                .expect(statement);
+        }
+    }
+
+    #[test]
+    fn should_return_declared_id_when_column_index_covers_only_other_fields() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("column_index_declared_id_projection");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE declared_id_labels (id INT, label TEXT)",
+                "INSERT INTO declared_id_labels (id, label) VALUES (42, 'q')",
+                "INSERT INTO declared_id_labels (id, label) VALUES (7, 'r')",
+                "CREATE INDEX declared_id_labels_col ON declared_id_labels USING column (label)",
+            ],
+        );
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, label FROM declared_id_labels WHERE label = 'q'",
+                vec![],
+            )
+            .expect("select declared id through column index");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::Int64(42), Value::String("q".to_string())]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_filter_on_declared_id_through_column_index() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("column_index_declared_id_filter");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        run(
+            &cassie,
+            &session,
+            &[
+                "CREATE TABLE declared_id_filter (id INT, label TEXT)",
+                "INSERT INTO declared_id_filter (id, label) VALUES (42, 'q')",
+                "INSERT INTO declared_id_filter (id, label) VALUES (7, 'r')",
+                "CREATE INDEX declared_id_filter_col ON declared_id_filter USING column (id, label)",
+            ],
+        );
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT label FROM declared_id_filter WHERE id = 42",
+                vec![],
+            )
+            .expect("filter declared id through column index");
+
+        // Assert
+        assert_eq!(result.rows, vec![vec![Value::String("q".to_string())]]);
+
+        let _ = std::fs::remove_dir_all(path);
     }
 }

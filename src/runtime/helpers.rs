@@ -79,6 +79,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::InsufficientPrivilege => "insufficient_privilege",
         CassieError::CatalogObjectNotFound { .. } => "catalog_object_not_found",
         CassieError::CatalogObjectAlreadyExists { .. } => "catalog_object_already_exists",
+        CassieError::AmbiguousRelation(_) => "ambiguous_relation",
         CassieError::NotFound(_) => "not_found",
         CassieError::Unsupported(_) => "unsupported",
         CassieError::Storage(_) => "storage",

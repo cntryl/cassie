@@ -17,6 +17,7 @@ pub(super) struct PortalExecution {
     pub(super) params: Vec<Value>,
     pub(super) result_formats: Vec<i16>,
     pub(super) described: bool,
+    pub(super) completed_command: Option<String>,
 }
 
 impl From<&Portal> for PortalExecution {
@@ -28,6 +29,7 @@ impl From<&Portal> for PortalExecution {
             params: portal.params.clone(),
             result_formats: portal.result_formats.clone(),
             described: portal.described,
+            completed_command: portal.completed_command.clone(),
         }
     }
 }
@@ -189,6 +191,7 @@ pub(super) async fn write_materialized_result(
     .await
     .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
 
+    let completion_command = command.clone();
     let suspended = remains_suspended.then_some(PortalSuspended {
         columns,
         rows: remaining,
@@ -199,7 +202,13 @@ pub(super) async fn write_materialized_result(
         cancellation,
         portal_memory,
     });
-    store_portal_state(state, portal_name, row_description_sent, suspended);
+    store_portal_state(
+        state,
+        portal_name,
+        row_description_sent,
+        &completion_command,
+        suspended,
+    );
     Ok(())
 }
 
@@ -260,8 +269,15 @@ pub(super) async fn write_suspended_result(
         ));
     }
     let cancellation = suspended.cancellation.clone();
+    let command = suspended.command.clone();
     let suspended = remains_suspended.then_some(suspended);
-    store_portal_state(state, portal_name, row_description_sent, suspended);
+    store_portal_state(
+        state,
+        portal_name,
+        row_description_sent,
+        &command,
+        suspended,
+    );
     if !remains_suspended {
         clear_cancellation(state, cancellation.as_ref());
     }
@@ -324,6 +340,7 @@ pub(super) async fn write_streaming_result(
     .await
     .inspect_err(|_| clear_cancellation(state, cancellation.as_ref()))?;
 
+    let completion_command = command.clone();
     let suspended = has_more.then_some(PortalSuspended {
         columns,
         rows: Vec::new(),
@@ -334,7 +351,13 @@ pub(super) async fn write_streaming_result(
         cancellation,
         portal_memory,
     });
-    store_portal_state(state, portal_name, row_description_sent, suspended);
+    store_portal_state(
+        state,
+        portal_name,
+        row_description_sent,
+        &completion_command,
+        suspended,
+    );
     Ok(has_more)
 }
 
@@ -385,20 +408,47 @@ async fn write_portal_page_frames(
     Ok(row_description_sent)
 }
 
+/// Writes the reply for an `Execute` against a portal that already ran to
+/// completion: PostgreSQL reports an empty `CommandComplete` and never runs
+/// the statement again.
+pub(super) async fn write_completed_portal(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    command: &str,
+) -> Result<(), ExtendedQueryError> {
+    let mut frame = Vec::new();
+    append_command_complete_frame(&mut frame, command)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
+    write_frame(write_half, &frame).await
+}
+
 fn store_portal_state(
     state: &mut SessionState,
     portal_name: &str,
     row_description_sent: bool,
+    command: &str,
     suspended: Option<PortalSuspended>,
 ) {
     if let Some(portal) = state.portals.get_mut(portal_name) {
         portal.described |= row_description_sent;
+        if suspended.is_none() {
+            portal.completed_command = Some(exhausted_command_tag(command));
+        }
         portal.suspended = suspended;
     } else if let Some(cancellation) = suspended
         .as_ref()
         .and_then(|suspended| suspended.cancellation.as_ref())
     {
         state.clear_query_cancellation(cancellation);
+    }
+}
+
+/// Rewrites a completed command tag to report zero affected rows, e.g.
+/// `INSERT 0 1` becomes `INSERT 0 0` and `SELECT` becomes `SELECT 0`.
+fn exhausted_command_tag(command: &str) -> String {
+    match command.rsplit_once(' ') {
+        Some((prefix, count)) if count.parse::<u64>().is_ok() => format!("{prefix} 0"),
+        _ if command.eq_ignore_ascii_case("SELECT") => "SELECT 0".to_string(),
+        _ => command.to_string(),
     }
 }
 

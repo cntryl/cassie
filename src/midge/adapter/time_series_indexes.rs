@@ -1,6 +1,8 @@
 use cntryl_midge::Query;
 use time::{format_description::well_known::Rfc3339, Duration as TimeDuration, OffsetDateTime};
 
+use crate::types::temporal::parse_timestamp_utc;
+
 use super::{
     check_document_write_failure_point, collect_scan, decode_projected_row, decode_row, encode_row,
     key_encoding, CassieError, DocumentRef, DocumentWriteFailurePoint, Midge, RowDecode, Uuid,
@@ -808,11 +810,11 @@ impl Midge {
         let Some((partition_key, bucket_start)) = bucket_key.split_once('\t') else {
             return Ok(None);
         };
-        let bucket_start_seconds = OffsetDateTime::parse(bucket_start, &Rfc3339)
+        let bucket_start_seconds = parse_timestamp_utc(bucket_start)
             .ok()
             .map(OffsetDateTime::unix_timestamp)
             .ok_or_else(|| CassieError::Parse("invalid time-series bucket bound".to_string()))?;
-        let parsed_timestamp = OffsetDateTime::parse(timestamp, &Rfc3339).map_err(|error| {
+        let parsed_timestamp = parse_timestamp_utc(timestamp).map_err(|error| {
             CassieError::Parse(format!("invalid time-series timestamp: {error}"))
         })?;
         let key = key_encoding::time_series_index_entry_key(
@@ -844,7 +846,7 @@ fn bucket_key_for_timestamp(
     timestamp: &str,
 ) -> Option<String> {
     let duration = bucket_width_duration(index)?;
-    let timestamp = OffsetDateTime::parse(timestamp, &Rfc3339).ok()?;
+    let timestamp = parse_timestamp_utc(timestamp).ok()?;
     let width_ns = duration.whole_nanoseconds();
     if width_ns <= 0 {
         return None;

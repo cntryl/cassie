@@ -1,3 +1,4 @@
+use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use std::collections::BTreeSet;
 use std::time::Instant;
 
@@ -24,6 +25,7 @@ use crate::midge::adapter::column_batch_format_v2::{
     MANIFEST_SUMMARY_VERSION,
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+use crate::types::row_identity::is_row_identity_column;
 use crate::types::semantic::compare_values;
 use crate::types::Value;
 
@@ -148,7 +150,7 @@ impl DirectAggregateAccumulator {
                                     CassieError::Parse("aggregate integer overflow".to_string())
                                 })?;
                             }
-                            Some(Value::Float64(total)) => *total += int_to_f64(*next),
+                            Some(Value::Float64(total)) => *total += i64_to_f64(*next),
                             _ => {
                                 return Err(CassieError::Parse(
                                     "unsupported aggregate type".to_string(),
@@ -160,7 +162,7 @@ impl DirectAggregateAccumulator {
                                 *value = Some(Value::Float64(0.0));
                             }
                             if let Some(Value::Int64(total)) = value {
-                                *value = Some(Value::Float64(int_to_f64(*total)));
+                                *value = Some(Value::Float64(i64_to_f64(*total)));
                             }
                             if let Some(Value::Float64(total)) = value {
                                 *total += next;
@@ -180,7 +182,7 @@ impl DirectAggregateAccumulator {
                 for current in values {
                     match current {
                         Value::Int64(value) => {
-                            *sum += int_to_f64(*value);
+                            *sum += i64_to_f64(*value);
                             *count = count.checked_add(1).ok_or_else(|| {
                                 CassieError::Parse("aggregate row count overflow".to_string())
                             })?;
@@ -239,20 +241,6 @@ impl DirectAggregateAccumulator {
             Self::Min { value, .. } => value.unwrap_or(Value::Null),
         }
     }
-}
-
-fn int_to_f64(value: i64) -> f64 {
-    value
-        .to_string()
-        .parse::<f64>()
-        .expect("i64 converts to f64")
-}
-
-fn usize_to_f64(value: usize) -> f64 {
-    value
-        .to_string()
-        .parse::<f64>()
-        .expect("usize converts to f64")
 }
 
 impl ColumnBatchScanState {
@@ -805,7 +793,7 @@ impl Midge {
     ) -> Result<Option<IndexMeta>, CassieError> {
         let wanted = fields
             .iter()
-            .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
+            .filter(|field| !is_row_identity_column(field))
             .map(|field| field.to_ascii_lowercase())
             .collect::<BTreeSet<_>>();
         if wanted.is_empty() {
@@ -926,7 +914,7 @@ impl Midge {
 fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
-        .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
+        .filter(|field| !is_row_identity_column(field))
         .map(|field| field.to_ascii_lowercase())
         .collect()
 }

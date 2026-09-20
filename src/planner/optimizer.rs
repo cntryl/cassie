@@ -211,61 +211,12 @@ fn predicate_relations(expr: &Expr) -> BTreeSet<String> {
 }
 
 fn collect_predicate_relations(expr: &Expr, relations: &mut BTreeSet<String>) {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_predicate_relations(operand, relations);
-            }
-            for (when, then) in branches {
-                collect_predicate_relations(when, relations);
-                collect_predicate_relations(then, relations);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_predicate_relations(else_expr, relations);
-            }
+    if let Expr::Column(column) = expr {
+        if let Some((qualifier, _)) = column.rsplit_once('.') {
+            relations.insert(qualifier.to_ascii_lowercase());
         }
-        Expr::Column(column) => {
-            if let Some((qualifier, _)) = column.rsplit_once('.') {
-                relations.insert(qualifier.to_ascii_lowercase());
-            }
-        }
-        Expr::Binary { left, right, .. } => {
-            collect_predicate_relations(left, relations);
-            collect_predicate_relations(right, relations);
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_predicate_relations(expr, relations);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_predicate_relations(expr, relations);
-            for value in values {
-                collect_predicate_relations(value, relations);
-            }
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_predicate_relations(expr, relations);
-            collect_predicate_relations(low, relations);
-            collect_predicate_relations(high, relations);
-        }
-        Expr::Function(function) => {
-            for argument in &function.args {
-                collect_predicate_relations(argument, relations);
-            }
-        }
-        Expr::Exists(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => {}
     }
+    expr.for_each_child(|child| collect_predicate_relations(child, relations));
 }
 
 fn relation_set_contains(relations: &BTreeSet<String>, requested: &str) -> bool {
@@ -358,59 +309,10 @@ fn collect_join_required_columns(source: &QuerySource, columns: &mut BTreeSet<St
 }
 
 fn collect_expression_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_expression_columns(operand, columns);
-            }
-            for (when, then) in branches {
-                collect_expression_columns(when, columns);
-                collect_expression_columns(then, columns);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_expression_columns(else_expr, columns);
-            }
-        }
-        Expr::Column(column) => {
-            columns.insert(column.clone());
-        }
-        Expr::Binary { left, right, .. } => {
-            collect_expression_columns(left, columns);
-            collect_expression_columns(right, columns);
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_expression_columns(expr, columns);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_expression_columns(expr, columns);
-            for value in values {
-                collect_expression_columns(value, columns);
-            }
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_expression_columns(expr, columns);
-            collect_expression_columns(low, columns);
-            collect_expression_columns(high, columns);
-        }
-        Expr::Function(function) => {
-            for argument in &function.args {
-                collect_expression_columns(argument, columns);
-            }
-        }
-        Expr::Exists(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => {}
+    if let Expr::Column(column) = expr {
+        columns.insert(column.clone());
     }
+    expr.for_each_child(|child| collect_expression_columns(child, columns));
 }
 
 #[must_use]

@@ -107,66 +107,30 @@ pub(super) fn validate_index_expression(
     known_fields: &HashSet<String>,
 ) -> Result<(), CassieError> {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                validate_index_expression(operand, known_fields)?;
-            }
-            for (when, then) in branches {
-                validate_index_expression(when, known_fields)?;
-                validate_index_expression(then, known_fields)?;
-            }
-            if let Some(else_expr) = else_expr {
-                validate_index_expression(else_expr, known_fields)?;
-            }
-            Ok(())
-        }
         Expr::Column(name) => {
             if known_fields.contains(name) {
-                Ok(())
-            } else {
-                Err(CassieError::Planner(format!(
-                    "index expression references unknown field '{name}'"
-                )))
+                return Ok(());
             }
+            return Err(CassieError::Planner(format!(
+                "index expression references unknown field '{name}'"
+            )));
         }
-        Expr::Param(_) => Err(CassieError::Planner(
-            "index expressions cannot reference query parameters".into(),
-        )),
-        Expr::Exists(_) => Err(CassieError::Planner(
-            "index expressions cannot contain subqueries".into(),
-        )),
-        Expr::Function(function) => validate_index_expression_function(function, known_fields),
-        Expr::Binary { left, right, .. } => {
-            validate_index_expression(left, known_fields)?;
-            validate_index_expression(right, known_fields)
+        Expr::Param(_) => {
+            return Err(CassieError::Planner(
+                "index expressions cannot reference query parameters".into(),
+            ))
         }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            validate_index_expression(expr, known_fields)
+        Expr::Exists(_) => {
+            return Err(CassieError::Planner(
+                "index expressions cannot contain subqueries".into(),
+            ))
         }
-        Expr::InList { expr, values, .. } => {
-            validate_index_expression(expr, known_fields)?;
-            for value in values {
-                validate_index_expression(value, known_fields)?;
-            }
-            Ok(())
+        Expr::Function(function) => {
+            return validate_index_expression_function(function, known_fields)
         }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            validate_index_expression(expr, known_fields)?;
-            validate_index_expression(low, known_fields)?;
-            validate_index_expression(high, known_fields)
-        }
-        Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => Ok(()),
+        _ => {}
     }
+    expr.try_visit_children(|child| validate_index_expression(child, known_fields))
 }
 
 pub(super) fn parse_column_index_segment_size(

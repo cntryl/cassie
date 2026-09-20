@@ -228,7 +228,7 @@ fn vector_distance_projection(
     let SelectItem::Column { name, alias: _ } = &projection[0] else {
         return None;
     };
-    if !name.eq_ignore_ascii_case("id") && !name.eq_ignore_ascii_case("_id") {
+    if !crate::types::row_identity::is_row_identity_column(name) {
         return None;
     }
     let SelectItem::Function { function, alias } = &projection[1] else {

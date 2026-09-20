@@ -10,9 +10,9 @@ const FIXTURE_ROWS: usize = 100_000;
 const FIXTURE_ROWS_U64: u64 = 100_000;
 const RELATIONAL_SQL: &str = "SELECT id FROM bench_documents WHERE status = $1 AND score >= $2 ORDER BY status DESC, score ASC LIMIT 50";
 const COLUMN_SQL: &str = "SELECT COUNT(*) AS rows, SUM(score) AS score_sum, AVG(score) AS score_avg, MIN(score) AS score_min, MAX(score) AS score_max FROM bench_documents WHERE status = 'approved' AND score >= 90";
-const FULLTEXT_SQL: &str = "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
-const VECTOR_SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
-const HYBRID_SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
+const FULLTEXT_SQL: &str = "SELECT _id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
+const VECTOR_SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
+const HYBRID_SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
 const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE tenant = $1 AND event_at >= $2 AND event_at < $3 ORDER BY event_at LIMIT 512";
@@ -44,6 +44,8 @@ const IVFFLAT_TRAINING_SAMPLE_SIZE: usize = 4_096;
 const IVFFLAT_TRAINING_SEED: u64 = 42;
 const ANN_RECALL_FLOOR: f64 = 0.90;
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -76,6 +78,8 @@ fn main() {
             core_cases.fixture_indexes(),
         ))
         .expect("Tier 3 shared query fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     workloads::assert_fixture_boundaries(&context, &context.collection, "doc-0", "doc-99999");
     if core_cases.column.is_some() {
         execute_ddl(
@@ -589,6 +593,8 @@ fn bench_time_series_representatives(
                 width,
             ))
             .expect("Tier 3 time-series fixture");
+        // Removes the fixture even when a later assertion panics.
+        let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
         bench_time_series_width(
             runner,
             &context,

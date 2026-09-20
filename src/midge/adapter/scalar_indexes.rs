@@ -364,12 +364,15 @@ impl Midge {
     }
 }
 
-/// Returns the payload with integer-shaped `FLOAT` values stored as JSON floats.
+/// Returns the payload with each field in the form its row blob decodes to.
 ///
-/// Row blobs decode `FLOAT` columns as floats, so index backfill, delete-side
-/// maintenance, and index probes all encode those keys with the float tag.
-/// Incoming write payloads can still carry integer-shaped numbers for `FLOAT`
-/// columns; canonicalizing them keeps incrementally maintained keys identical.
+/// Row blobs decode `FLOAT` columns as floats and `DATE`/`TIME`/`TIMESTAMP`
+/// columns in their canonical text form, so index backfill, delete-side
+/// maintenance, and index probes all encode those keys canonically. Incoming
+/// write payloads can still carry integer-shaped numbers for `FLOAT` columns
+/// or non-canonical temporal text (offsets, short fractions, a space
+/// separator); canonicalizing them keeps incrementally maintained keys
+/// identical to the stored values.
 pub(crate) fn scalar_index_canonical_payload<'a>(
     row_schema: &RowSchema,
     payload: &'a serde_json::Value,
@@ -377,33 +380,47 @@ pub(crate) fn scalar_index_canonical_payload<'a>(
     let Some(object) = payload.as_object() else {
         return Cow::Borrowed(payload);
     };
-    let integer_shaped_float = |field: &str| {
-        object
-            .get(field)
-            .and_then(serde_json::Value::as_number)
-            .is_some_and(|number| !number.is_f64())
-    };
-    let float_fields = row_schema
+    let canonical_fields = row_schema
         .active_fields_by_id()
         .into_iter()
-        .filter(|field| field.data_type == DataType::Float && integer_shaped_float(&field.name))
-        .map(|field| field.name.as_str())
+        .filter_map(|field| {
+            let value = object.get(&field.name)?;
+            let canonical = canonical_field_value(&field.data_type, value)?;
+            (&canonical != value).then(|| (field.name.clone(), canonical))
+        })
         .collect::<Vec<_>>();
-    if float_fields.is_empty() {
+    if canonical_fields.is_empty() {
         return Cow::Borrowed(payload);
     }
 
     let mut canonical = object.clone();
-    for field in float_fields {
-        let float = canonical
-            .get(field)
-            .and_then(serde_json::Value::as_f64)
-            .and_then(serde_json::Number::from_f64);
-        if let Some(float) = float {
-            canonical.insert(field.to_string(), serde_json::Value::Number(float));
-        }
+    for (field, value) in canonical_fields {
+        canonical.insert(field, value);
     }
     Cow::Owned(serde_json::Value::Object(canonical))
+}
+
+fn canonical_field_value(
+    data_type: &DataType,
+    value: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let canonical_text = match data_type {
+        DataType::Float => {
+            return value
+                .as_number()
+                .filter(|number| !number.is_f64())
+                .and_then(serde_json::Number::as_f64)
+                .and_then(serde_json::Number::from_f64)
+                .map(serde_json::Value::Number);
+        }
+        DataType::Date => crate::types::temporal::canonical_date,
+        DataType::Time => crate::types::temporal::canonical_time,
+        DataType::Timestamp => crate::types::temporal::canonical_timestamp,
+        _ => return None,
+    };
+    canonical_text(value.as_str()?)
+        .ok()
+        .map(serde_json::Value::String)
 }
 
 fn payload_to_row(payload: &serde_json::Value) -> Vec<(String, Value)> {

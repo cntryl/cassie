@@ -15,6 +15,9 @@ use crate::app::PortalReadSpec;
 use crate::midge::adapter::RowDecode;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{QueryStatement, SelectItem};
+use crate::types::row_identity::{
+    is_identity_reference, is_row_identity_column, ROW_IDENTITY_COLUMN,
+};
 use crate::types::Value;
 
 pub(super) struct SuspendedPortalRequest<'a> {
@@ -108,13 +111,15 @@ pub(super) async fn execute_streaming_portal_page(
         }
     };
     if let Some(mut spec) = resolved {
-        if request.session.has_collection_changes(&spec.collection) {
-            request.state.portal_cursors.remove(request.portal_name);
+        // A suspended cursor keeps reading the snapshot it opened with, so it
+        // must not be abandoned for an OFFSET re-query when this session later
+        // stages writes: that would page over a different result.
+        let suspended_cursor = request.state.portal_cursors.remove(request.portal_name);
+        if suspended_cursor.is_none() && request.session.has_collection_changes(&spec.collection) {
             return execute_offset_portal_page(cassie, write_half, request).await;
         }
         if spec.includes_wildcard {
             let Some(schema) = cassie.catalog.get_schema(&spec.collection) else {
-                request.state.portal_cursors.remove(request.portal_name);
                 return execute_offset_portal_page(cassie, write_half, request).await;
             };
             for field in schema.fields.iter().map(|field| field.name.clone()) {
@@ -123,19 +128,15 @@ pub(super) async fn execute_streaming_portal_page(
                 }
             }
         }
-        let cursor = request
-            .state
-            .portal_cursors
-            .remove(request.portal_name)
-            .map_or_else(
-                || {
-                    cassie.midge.open_row_cursor(
-                        &spec.collection,
-                        RowDecode::ProjectedHistorical(spec.source_fields.clone()),
-                    )
-                },
-                |cursor| Ok(Some(cursor)),
-            );
+        let cursor = suspended_cursor.map_or_else(
+            || {
+                cassie.midge.open_row_cursor(
+                    &spec.collection,
+                    RowDecode::ProjectedHistorical(spec.source_fields.clone()),
+                )
+            },
+            |cursor| Ok(Some(cursor)),
+        );
         let cursor = match cursor {
             Ok(cursor) => cursor,
             Err(error) => {
@@ -350,12 +351,14 @@ fn portal_document_rows(
     // directly from the prepared statement's own (unrewritten) projection
     // instead of a rewritten `LogicalPlan`, so it resolves that mapping
     // itself rather than via `planner::logical::rewrite_reserved_id_references`.
-    let schema_has_id = crate::executor::scan::schema_declares_id(schema.as_ref());
+    let schema_has_id = schema
+        .as_ref()
+        .is_some_and(crate::catalog::CollectionSchema::declares_id);
     documents
         .into_iter()
         .map(|document| {
             let row = crate::executor::scan::projected_document_to_row(
-                document,
+                &document,
                 &spec.source_fields,
                 schema.as_ref(),
             );
@@ -366,7 +369,7 @@ fn portal_document_rows(
                     SelectItem::Wildcard => row
                         .entries()
                         .iter()
-                        .filter(|(name, _)| !schema_has_id || !name.eq_ignore_ascii_case("_id"))
+                        .filter(|(name, _)| !schema_has_id || !is_row_identity_column(name))
                         .map(|(_, value)| value.clone())
                         .collect::<Vec<_>>(),
                     SelectItem::Column { name, .. }
@@ -374,8 +377,8 @@ fn portal_document_rows(
                         expr: crate::sql::ast::Expr::Column(name),
                         ..
                     } => {
-                        let lookup_name = if !schema_has_id && name.eq_ignore_ascii_case("id") {
-                            "_id"
+                        let lookup_name = if is_identity_reference(name, schema_has_id) {
+                            ROW_IDENTITY_COLUMN
                         } else {
                             name.as_str()
                         };

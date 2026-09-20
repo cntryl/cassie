@@ -9,6 +9,8 @@ mod support_metrics;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/metrics_adaptive.rs.
 mod metrics_adaptive {

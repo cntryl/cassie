@@ -67,7 +67,17 @@ Operational manifests use `cassie-operational-evidence.v2` for threshold proposa
 the full `rustc --version --verbose` output and Cargo version, plus a normalized allowlist of
 nonsecret runtime settings (storage mode and path kind, REST transport, query timeout, embeddings
 provider, benchmark profile, and soak duration). The compiler host must match the declared native
-Linux platform. The configured root password is never included.
+Linux platform.
+
+The recorded toolchain is the runner's, which is the compiler for the `cargo test` and `cargo
+bench` evidence the workflow builds on the host. It is not the compiler that built the container
+image: that image is identified by `image_digest` and `image_revision` instead. Two samples whose
+toolchain differs are therefore not comparable for host-built evidence even when the image digest
+matches, and a rebuilt image is detected through its digest rather than through this field.
+
+`soak_duration_seconds` records how long the soak owners actually ran. A shape-only run skips them
+and records `0`; a full run records the measured elapsed seconds, so a retained manifest cannot
+claim a soak that never executed. The configured root password is never included.
 V1 manifests remain historical diagnostic evidence and cannot enter a threshold bundle.
 
 The benchmark owner validates schema and completeness; the release-readiness owner compares

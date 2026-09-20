@@ -9,6 +9,8 @@ mod support_pgwire;
 mod support_query_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/adaptive_promotion_evidence.rs.
 mod adaptive_promotion_evidence {

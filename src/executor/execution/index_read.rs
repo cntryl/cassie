@@ -64,7 +64,7 @@ pub(super) fn execute_scalar_index_read(
             document
         };
         rows.push(scan::projected_document_to_row(
-            document,
+            &document,
             &spec.scan_fields,
             schema.as_ref(),
         ));
@@ -172,8 +172,11 @@ fn scalar_index_read_spec(
         return Ok(None);
     };
     // Scalar-index keys cannot represent NaN or infinities, while the filter
-    // operator orders them above every finite value. Let the scan answer.
-    if params.iter().any(is_non_finite_float) {
+    // operator orders them above every finite value. Let the scan answer, but
+    // only when such a parameter is actually part of this read's predicate: a
+    // non-finite parameter elsewhere in the statement cannot change the keys the
+    // index has to answer for.
+    if filter_binds_non_finite_param(plan.filter.as_ref(), params) {
         return Ok(None);
     }
 
@@ -330,63 +333,14 @@ fn expression_index_read_spec(
 }
 
 fn collect_expression_columns(expr: &Expr, fields: &mut Vec<String>) {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_expression_columns(operand, fields);
-            }
-            for (when, then) in branches {
-                collect_expression_columns(when, fields);
-                collect_expression_columns(then, fields);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_expression_columns(else_expr, fields);
-            }
+    if let Expr::Column(name) = expr {
+        if !projected_read::is_row_id_column(name)
+            && !fields.iter().any(|field| field.eq_ignore_ascii_case(name))
+        {
+            fields.push(name.clone());
         }
-        Expr::Column(name) => {
-            if !projected_read::is_row_id_column(name)
-                && !fields.iter().any(|field| field.eq_ignore_ascii_case(name))
-            {
-                fields.push(name.clone());
-            }
-        }
-        Expr::Binary { left, right, .. } => {
-            collect_expression_columns(left, fields);
-            collect_expression_columns(right, fields);
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            collect_expression_columns(expr, fields);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_expression_columns(expr, fields);
-            for value in values {
-                collect_expression_columns(value, fields);
-            }
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_expression_columns(expr, fields);
-            collect_expression_columns(low, fields);
-            collect_expression_columns(high, fields);
-        }
-        Expr::Function(function) => {
-            for argument in &function.args {
-                collect_expression_columns(argument, fields);
-            }
-        }
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => {}
     }
+    expr.for_each_child(|child| collect_expression_columns(child, fields));
 }
 
 fn scalar_index_equality_prefix(
@@ -463,20 +417,20 @@ fn canonicalize_field_constraints(
     constraints: &mut BTreeMap<String, ConcreteConstraint>,
 ) {
     for (field, constraint) in constraints {
-        if !matches!(
-            cassie.catalog.field_type(collection, field),
-            Some(DataType::Float)
-        ) {
-            continue;
-        }
+        let canonicalize: fn(&mut serde_json::Value) =
+            match cassie.catalog.field_type(collection, field) {
+                Some(DataType::Float) => canonicalize_float_number,
+                Some(DataType::Timestamp) => canonicalize_timestamp_text,
+                _ => continue,
+            };
         if let Some(value) = constraint.equality.as_mut() {
-            canonicalize_float_number(value);
+            canonicalize(value);
         }
         if let Some(bound) = constraint.lower.as_mut() {
-            canonicalize_float_number(&mut bound.value);
+            canonicalize(&mut bound.value);
         }
         if let Some(bound) = constraint.upper.as_mut() {
-            canonicalize_float_number(&mut bound.value);
+            canonicalize(&mut bound.value);
         }
         refresh_constraint_satisfiability(constraint);
     }
@@ -490,11 +444,10 @@ pub(in crate::executor::execution) fn canonicalize_index_probe_value(
     field: &str,
     value: &mut serde_json::Value,
 ) {
-    if matches!(
-        cassie.catalog.field_type(collection, field),
-        Some(DataType::Float)
-    ) {
-        canonicalize_float_number(value);
+    match cassie.catalog.field_type(collection, field) {
+        Some(DataType::Float) => canonicalize_float_number(value),
+        Some(DataType::Timestamp) => canonicalize_timestamp_text(value),
+        _ => {}
     }
 }
 
@@ -518,6 +471,18 @@ pub(in crate::executor::execution) fn index_trailing_keys_not_null(
         .iter()
         .skip(1)
         .all(|field| not_null_fields.contains(&field.to_ascii_lowercase()))
+}
+
+/// Widens a canonical-shaped timestamp probe (`...SSZ`) to the fixed-width
+/// form stored keys use. This is the same text normalization the filter
+/// operator applies, so index probes and scans agree on every literal.
+fn canonicalize_timestamp_text(value: &mut serde_json::Value) {
+    let serde_json::Value::String(text) = value else {
+        return;
+    };
+    if let std::borrow::Cow::Owned(widened) = crate::types::temporal::timestamp_order_text(text) {
+        *text = widened;
+    }
 }
 
 fn canonicalize_float_number(value: &mut serde_json::Value) {
@@ -741,38 +706,7 @@ fn concrete_expression_constraint(
 }
 
 fn expr_has_column(expr: &Expr) -> bool {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand.as_ref().is_some_and(|expr| expr_has_column(expr))
-                || branches
-                    .iter()
-                    .any(|(when, then)| expr_has_column(when) || expr_has_column(then))
-                || else_expr.as_ref().is_some_and(|expr| expr_has_column(expr))
-        }
-        Expr::Column(_) => true,
-        Expr::Binary { left, right, .. } => expr_has_column(left) || expr_has_column(right),
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expr_has_column(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_has_column(expr) || values.iter().any(expr_has_column)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_has_column(expr) || expr_has_column(low) || expr_has_column(high),
-        Expr::Function(function) => function.args.iter().any(expr_has_column),
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => false,
-    }
+    matches!(expr, Expr::Column(_)) || expr.any_child(expr_has_column)
 }
 
 fn collect_concrete_constraints(
@@ -867,6 +801,66 @@ fn expr_to_json(expr: &Expr, params: &[Value]) -> Option<serde_json::Value> {
 
 fn is_non_finite_float(value: &Value) -> bool {
     matches!(value, Value::Float64(value) if !value.is_finite())
+}
+
+/// Reports whether the read's own predicate binds a NaN or infinite parameter.
+///
+/// A subquery is treated as binding one, because its predicates are not
+/// inspected here.
+fn filter_binds_non_finite_param(filter: Option<&Expr>, params: &[Value]) -> bool {
+    let Some(filter) = filter else {
+        return false;
+    };
+    match filter {
+        Expr::Param(index) => params.get(*index).is_some_and(is_non_finite_float),
+        Expr::Exists(_) => params.iter().any(is_non_finite_float),
+        Expr::Binary { left, right, .. } => {
+            filter_binds_non_finite_param(Some(left), params)
+                || filter_binds_non_finite_param(Some(right), params)
+        }
+        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
+            filter_binds_non_finite_param(Some(expr), params)
+        }
+        Expr::InList { expr, values, .. } => {
+            filter_binds_non_finite_param(Some(expr), params)
+                || values
+                    .iter()
+                    .any(|value| filter_binds_non_finite_param(Some(value), params))
+        }
+        Expr::Between {
+            expr, low, high, ..
+        } => {
+            filter_binds_non_finite_param(Some(expr), params)
+                || filter_binds_non_finite_param(Some(low), params)
+                || filter_binds_non_finite_param(Some(high), params)
+        }
+        Expr::Case {
+            operand,
+            branches,
+            else_expr,
+        } => {
+            operand
+                .as_deref()
+                .is_some_and(|operand| filter_binds_non_finite_param(Some(operand), params))
+                || branches.iter().any(|(when, then)| {
+                    filter_binds_non_finite_param(Some(when), params)
+                        || filter_binds_non_finite_param(Some(then), params)
+                })
+                || else_expr
+                    .as_deref()
+                    .is_some_and(|expr| filter_binds_non_finite_param(Some(expr), params))
+        }
+        Expr::Function(call) => call
+            .args
+            .iter()
+            .any(|arg| filter_binds_non_finite_param(Some(arg), params)),
+        Expr::Column(_)
+        | Expr::StringLiteral(_)
+        | Expr::NumberLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null => false,
+    }
 }
 
 fn value_to_json(value: &Value) -> Option<serde_json::Value> {

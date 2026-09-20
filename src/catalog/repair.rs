@@ -49,6 +49,20 @@ impl Catalog {
             .collect()
     }
 
+    /// Returns the ids of every repair report recorded for one projection.
+    #[must_use]
+    pub fn projection_repair_report_ids(&self, projection: &str) -> Vec<String> {
+        let mut ids = self
+            .projection_repair_reports
+            .read()
+            .values()
+            .filter(|report| report.projection_name.eq_ignore_ascii_case(projection))
+            .map(|report| report.report_id.clone())
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
     /// Removes repair reports by id from the catalog.
     pub fn unregister_projection_repair_reports(&self, report_ids: &[String]) {
         let mut reports = self.projection_repair_reports.write();

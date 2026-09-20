@@ -198,56 +198,10 @@ fn collect_expr_columns_from_slice(exprs: &[Expr], columns: &mut BTreeSet<String
 }
 
 fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_expr_columns(operand, columns);
-            }
-            for (when, then) in branches {
-                collect_expr_columns(when, columns);
-                collect_expr_columns(then, columns);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_expr_columns(else_expr, columns);
-            }
+    if let Expr::Column(name) = expr {
+        if !projected_read::is_row_id_column(name) {
+            columns.insert(name.to_ascii_lowercase());
         }
-        Expr::Column(name) => {
-            if !projected_read::is_row_id_column(name) {
-                columns.insert(name.to_ascii_lowercase());
-            }
-        }
-        Expr::Binary { left, right, .. } => {
-            collect_expr_columns(left, columns);
-            collect_expr_columns(right, columns);
-        }
-        Expr::Not { expr } | Expr::IsNull { expr, .. } => {
-            collect_expr_columns(expr, columns);
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_expr_columns(expr, columns);
-            collect_expr_columns(low, columns);
-            collect_expr_columns(high, columns);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_expr_columns(expr, columns);
-            collect_expr_columns_from_slice(values, columns);
-        }
-        Expr::Function(function) => {
-            collect_expr_columns_from_slice(function.args.as_slice(), columns);
-        }
-        Expr::Cast { expr, .. } => collect_expr_columns(expr, columns),
-        Expr::Exists(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Param(_) => {}
     }
+    expr.for_each_child(|child| collect_expr_columns(child, columns));
 }

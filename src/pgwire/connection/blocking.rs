@@ -23,7 +23,7 @@ where
     #[cfg(debug_assertions)]
     if let Some(message) = take_retryable_failure_for_test(&cassie) {
         runtime.record_pgwire_boundary_error(operation_name, started_at.elapsed());
-        return Err(CassieError::StorageRetryable(message));
+        return Err(CassieError::StorageRetryable(message.into()));
     }
 
     let result = task::spawn_blocking(move || operation(cassie)).await;
@@ -41,9 +41,9 @@ where
         },
         Err(error) => {
             runtime.record_pgwire_boundary_join_failed(operation_name, started_at.elapsed());
-            Err(CassieError::StorageRetryable(format!(
-                "pgwire blocking boundary '{operation_name}' failed: {error}"
-            )))
+            Err(CassieError::StorageRetryable(
+                format!("pgwire blocking boundary '{operation_name}' failed: {error}").into(),
+            ))
         }
     }
 }

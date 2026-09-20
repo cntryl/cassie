@@ -6,6 +6,7 @@ use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::executor::QueryError;
 use crate::sql::ast::{Expr, SelectItem};
+use crate::types::row_identity::{is_legacy_id_column, is_row_identity_column};
 use crate::types::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -58,9 +59,9 @@ where
                     let hide_internal_identity = row
                         .entries()
                         .iter()
-                        .any(|(name, _)| name.eq_ignore_ascii_case("id"));
+                        .any(|(name, _)| is_legacy_id_column(name));
                     projected.extend(row.entries().iter().filter_map(|(name, value)| {
-                        if hide_internal_identity && name.eq_ignore_ascii_case("_id") {
+                        if hide_internal_identity && is_row_identity_column(name) {
                             None
                         } else {
                             Some((name.clone(), value.clone()))
@@ -217,11 +218,10 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
                 // Same rule as `project_rows`' wildcard branch above; the two
                 // paths are chosen by plan shape alone and must produce
                 // identically wide rows for the same query.
-                let hide_internal_identity = entries
-                    .iter()
-                    .any(|(name, _)| name.eq_ignore_ascii_case("id"));
+                let hide_internal_identity =
+                    entries.iter().any(|(name, _)| is_legacy_id_column(name));
                 for (name, value) in &mut entries {
-                    if hide_internal_identity && name.eq_ignore_ascii_case("_id") {
+                    if hide_internal_identity && is_row_identity_column(name) {
                         continue;
                     }
                     let value = value.take().unwrap_or(Value::Null);

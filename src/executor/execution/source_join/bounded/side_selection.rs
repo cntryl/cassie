@@ -317,7 +317,7 @@ fn sample_join_keys(
         |document| {
             check_timeout(env.controls)?;
             let row = qualify_row(
-                scan::projected_document_to_row(document, scan_fields, schema.as_ref()),
+                scan::projected_document_to_row(&document, scan_fields, schema.as_ref()),
                 collection,
             );
             if let Some(join_key) = row_join_key(&row, key) {

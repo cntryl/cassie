@@ -63,7 +63,9 @@ pub(super) fn document_filter_row_bytes(id: &str, payload: &serde_json::Value) -
     );
     payload.as_object().map_or(inline, |object| {
         object.iter().fold(
-            inline.saturating_add("id".len()).saturating_add(id.len()),
+            inline
+                .saturating_add(crate::types::row_identity::ROW_IDENTITY_COLUMN.len())
+                .saturating_add(id.len()),
             |bytes, (name, value)| {
                 bytes
                     .saturating_add(name.len())

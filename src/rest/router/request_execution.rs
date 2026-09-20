@@ -367,7 +367,7 @@ fn finish_worker<T>(
         Err(error) => {
             runtime.record_rest_boundary_join_failed(operation_name, started_at.elapsed());
             Err(RestBlockingError::Engine(CassieError::StorageRetryable(
-                format!("rest blocking boundary '{operation_name}' failed: {error}"),
+                format!("rest blocking boundary '{operation_name}' failed: {error}").into(),
             )))
         }
     }

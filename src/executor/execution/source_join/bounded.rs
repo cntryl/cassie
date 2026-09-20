@@ -129,7 +129,7 @@ fn execute_indexed_bounded_inner_join(
             check_timeout(env.controls)?;
             let stream_row = qualify_row(
                 scan::projected_document_to_row(
-                    document,
+                    &document,
                     &plan.stream_scan_fields,
                     stream_schema.as_ref(),
                 ),
@@ -473,7 +473,7 @@ fn execute_dense_streaming_bounded_inner_join(
             check_timeout(env.controls)?;
             let left_row = qualify_row(
                 scan::projected_document_to_row(
-                    left_document,
+                    &left_document,
                     &spec.left_scan_fields,
                     left_schema.as_ref(),
                 ),
@@ -491,7 +491,7 @@ fn execute_dense_streaming_bounded_inner_join(
                     check_timeout(env.controls)?;
                     let right_row = qualify_row(
                         scan::projected_document_to_row(
-                            right_document,
+                            &right_document,
                             &right_scan_fields,
                             right_schema.as_ref(),
                         ),
@@ -630,7 +630,7 @@ fn stream_left_rows_against_right(
         |document| {
             check_timeout(env.controls)?;
             let left_row = qualify_row(
-                scan::projected_document_to_row(document, &spec.left_scan_fields, schema.as_ref()),
+                scan::projected_document_to_row(&document, &spec.left_scan_fields, schema.as_ref()),
                 spec.left_collection,
             );
             probe_rows += 1;
@@ -691,7 +691,11 @@ fn stream_right_rows_against_left(
         |document| {
             check_timeout(env.controls)?;
             let right_row = qualify_row(
-                scan::projected_document_to_row(document, &spec.right_scan_fields, schema.as_ref()),
+                scan::projected_document_to_row(
+                    &document,
+                    &spec.right_scan_fields,
+                    schema.as_ref(),
+                ),
                 spec.right_collection,
             );
             probe_rows += 1;
@@ -861,7 +865,7 @@ fn scan_indexed_join_rows(
             continue;
         };
         rows.push(qualify_row(
-            scan::projected_document_to_row(document, scan_fields, schema.as_ref()),
+            scan::projected_document_to_row(&document, scan_fields, schema.as_ref()),
             collection,
         ));
     }

@@ -8,6 +8,8 @@ mod support_graph_evidence;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/column_batch_controls.rs.
 mod column_batch_controls {
@@ -1849,6 +1851,7 @@ mod query_resource_controls {
     use super::support_pgwire as wire;
 
     fn data_dir(label: &str) -> String {
+        crate::support_temp_dirs::sweep_stale_once();
         std::env::temp_dir()
             .join(format!("cassie-query-controls-{label}-{}", Uuid::new_v4()))
             .to_string_lossy()

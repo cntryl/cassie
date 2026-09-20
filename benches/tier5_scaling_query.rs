@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use cassie::types::Value;
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -326,6 +328,8 @@ fn prepare_isolated_column_context(
             timeout,
         ))
         .expect("isolated column scaling fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     Some((context, setup_started.elapsed()))
 }
 
@@ -656,6 +660,8 @@ fn measure_isolated_recursive_cte(
             UPPER_BOUND,
         ))
         .expect("isolated recursive CTE scaling fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     measure_recursive_cte(
         runtime,
         runner,

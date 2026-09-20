@@ -40,8 +40,7 @@ use crate::sql::ast::{
     SelectStatement,
 };
 
-const RESERVED_ID: &str = "id";
-const INTERNAL_IDENTITY: &str = "_id";
+use crate::types::row_identity::{is_legacy_id_column as is_reserved_id, ROW_IDENTITY_COLUMN};
 
 /// Whether `collection`'s schema declares its own `id` field, i.e. whether
 /// a bare `id` reference against it means the user's field rather than
@@ -50,12 +49,9 @@ const INTERNAL_IDENTITY: &str = "_id";
 /// through a `LogicalPlan` (see `rewrite_expr_for_schema`).
 #[must_use]
 pub fn collection_declares_id(catalog: &Catalog, collection: &str) -> bool {
-    catalog.get_schema(collection).is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| is_reserved_id(&field.name))
-    })
+    catalog
+        .get_schema(collection)
+        .is_some_and(|schema| schema.declares_id())
 }
 
 /// Rewrites a single expression in place exactly as
@@ -177,7 +173,7 @@ fn rewrite_select_item(item: &mut SelectItem) {
                 if alias.is_none() {
                     *alias = Some(name.clone());
                 }
-                *name = INTERNAL_IDENTITY.to_string();
+                *name = ROW_IDENTITY_COLUMN.to_string();
             }
         }
         SelectItem::Function { function, .. } => {
@@ -219,7 +215,7 @@ fn rewrite_expr(expr: &mut Expr) {
         }
         Expr::Column(name) => {
             if is_reserved_id(name) {
-                *name = INTERNAL_IDENTITY.to_string();
+                *name = ROW_IDENTITY_COLUMN.to_string();
             }
         }
         Expr::Binary { left, right, .. } => {
@@ -257,10 +253,6 @@ fn rewrite_expr(expr: &mut Expr) {
         | Expr::BoolLiteral(_)
         | Expr::Null => {}
     }
-}
-
-fn is_reserved_id(name: &str) -> bool {
-    name.eq_ignore_ascii_case(RESERVED_ID)
 }
 
 #[cfg(test)]

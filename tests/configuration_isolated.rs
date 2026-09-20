@@ -7,6 +7,8 @@ mod support_environment;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 
 // Formerly tests/sprint01_runtime_baseline.rs.
 mod sprint01_runtime_baseline {

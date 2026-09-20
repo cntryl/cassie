@@ -78,7 +78,7 @@ fn should_roundtrip_binary_temporal_uuid_array_fields() {
         serde_json::json!({
             "id": "550e8400-e29b-41d4-a716-446655440000",
             "created_on": "2026-06-18",
-            "created_at": "2026-06-18T12:34:56Z",
+            "created_at": "2026-06-18T12:34:56.000000Z",
             "updated_at": "12:34:56",
             "ints": [1, 2, 3],
         })

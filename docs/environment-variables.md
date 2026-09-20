@@ -90,8 +90,11 @@ These are the only valid values for both `CASSIE_STORAGE_PROVIDER` and
 Any other provider identifier fails startup. The `sqrzl-*` providers are
 development emulators, not production provider choices: they always
 authenticate with the compiled-in `admin`/`sqrzl-secret` credentials, and
-startup fails if `CASSIE_STORAGE_ENDPOINT` is set to anything other than a
-loopback address (`127.0.0.1`, `localhost`, or `::1`).
+startup fails if `CASSIE_STORAGE_ENDPOINT` is set to anything other than an
+`http`/`https` URL whose host is exactly `localhost`, an address in
+`127.0.0.0/8`, or `[::1]`. Endpoints with userinfo (`user@host`) or
+percent-encoding in the authority are rejected, as are `localhost.`,
+`0.0.0.0`, and IPv4-mapped IPv6 addresses.
 
 All Cassie-owned bootstrap, schema, document, index, session, cache, recovery,
 and maintenance commits use the selected cloud durability. Local and memory

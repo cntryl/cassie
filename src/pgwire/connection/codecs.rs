@@ -602,20 +602,12 @@ fn parse_f64_to_i64(value: f64) -> io::Result<i64> {
 }
 
 fn parse_i64_to_f64(value: i64) -> io::Result<f64> {
-    // Round-trip through f64 and compare back exactly, rather than trusting the
-    // cast, since f64's 52-bit mantissa can't represent every i64 exactly.
-    #[allow(clippy::cast_precision_loss)]
-    let converted = value as f64;
-    #[allow(clippy::cast_possible_truncation)]
-    let round_trips = converted as i64 == value;
-    if round_trips {
-        Ok(converted)
-    } else {
-        Err(io::Error::new(
+    crate::types::numeric::exact_i64_to_f64(value).ok_or_else(|| {
+        io::Error::new(
             io::ErrorKind::InvalidData,
             "cannot encode int8 value to float8",
-        ))
-    }
+        )
+    })
 }
 
 fn encode_date(value: &str) -> io::Result<i32> {

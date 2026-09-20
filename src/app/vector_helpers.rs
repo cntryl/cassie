@@ -63,14 +63,26 @@ pub(super) fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
     Some(vector)
 }
 
+/// The leading column carries the internal row identity. It is labeled with
+/// the legacy `id` alias when the schema declares no `id` of its own, and
+/// with the reserved `_id` otherwise, so a declared `id` column is returned
+/// as an ordinary field instead of being shadowed by the identity.
 pub(super) fn vector_search_columns(schema: &CollectionSchema) -> Vec<ColumnMeta> {
+    use crate::types::row_identity::{
+        is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
+    };
+    let identity_label = if schema.declares_id() {
+        ROW_IDENTITY_COLUMN
+    } else {
+        LEGACY_ID_COLUMN
+    };
     let mut columns = Vec::with_capacity(schema.fields.len() + 1);
     columns.push(ColumnMeta::from_data_type(
-        "id".to_string(),
+        identity_label.to_string(),
         &crate::types::DataType::Text,
     ));
     for field in &schema.fields {
-        if field.name != "id" {
+        if !is_row_identity_column(&field.name) {
             columns.push(ColumnMeta::from_data_type(
                 field.name.clone(),
                 &field.data_type,
@@ -84,7 +96,7 @@ pub(super) fn vector_search_row(schema: &CollectionSchema, document: DocumentRef
     let mut row = Vec::with_capacity(schema.fields.len() + 1);
     row.push(Value::String(document.id));
     for field in &schema.fields {
-        if field.name == "id" {
+        if crate::types::row_identity::is_row_identity_column(&field.name) {
             continue;
         }
         let value = document
@@ -146,4 +158,82 @@ pub(super) fn project_payload_fields(
     }
 
     serde_json::Value::Object(projected)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{vector_search_columns, vector_search_row};
+    use crate::catalog::{CollectionSchema, FieldMeta};
+    use crate::midge::adapter::DocumentRef;
+    use crate::types::{DataType, Value};
+
+    fn schema(fields: &[(&str, DataType)]) -> CollectionSchema {
+        CollectionSchema {
+            collection: "docs".to_string(),
+            fields: fields
+                .iter()
+                .map(|(name, data_type)| FieldMeta {
+                    name: (*name).to_string(),
+                    data_type: data_type.clone(),
+                    is_indexed: false,
+                    boost: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn should_keep_declared_id_beside_row_identity_in_vector_search_rows() {
+        // Arrange
+        let schema = schema(&[("ID", DataType::Int), ("title", DataType::Text)]);
+        let document = DocumentRef {
+            id: "row-1".to_string(),
+            payload: serde_json::json!({"ID": 42, "title": "alpha"}),
+        };
+
+        // Act
+        let columns = vector_search_columns(&schema)
+            .into_iter()
+            .map(|column| column.name)
+            .collect::<Vec<_>>();
+        let row = vector_search_row(&schema, document);
+
+        // Assert
+        assert_eq!(columns, vec!["_id", "ID", "title"]);
+        assert_eq!(
+            row,
+            vec![
+                Value::String("row-1".to_string()),
+                Value::Int64(42),
+                Value::String("alpha".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_label_row_identity_as_id_without_a_declared_id() {
+        // Arrange
+        let schema = schema(&[("title", DataType::Text)]);
+        let document = DocumentRef {
+            id: "row-1".to_string(),
+            payload: serde_json::json!({"title": "alpha"}),
+        };
+
+        // Act
+        let columns = vector_search_columns(&schema)
+            .into_iter()
+            .map(|column| column.name)
+            .collect::<Vec<_>>();
+        let row = vector_search_row(&schema, document);
+
+        // Assert
+        assert_eq!(columns, vec!["id", "title"]);
+        assert_eq!(
+            row,
+            vec![
+                Value::String("row-1".to_string()),
+                Value::String("alpha".to_string()),
+            ]
+        );
+    }
 }

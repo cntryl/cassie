@@ -82,3 +82,22 @@ fn should_reject_binary_float8_for_integer_beyond_exact_range() {
         (-9_007_199_254_740_992.0_f64).to_be_bytes().to_vec()
     );
 }
+
+#[test]
+fn should_reject_binary_float8_for_i64_max() {
+    // Arrange
+    let saturating = Value::Int64(i64::MAX);
+    let minimum = Value::Int64(i64::MIN);
+
+    // Act
+    let saturating_result = super::codecs::value_to_binary(saturating, 701);
+    let minimum_result = super::codecs::value_to_binary(minimum, 701);
+
+    // Assert
+    let error = saturating_result.expect_err("i64::MAX has no exact float8 representation");
+    assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    assert_eq!(
+        minimum_result.expect("i64::MIN is an exact power of two"),
+        (-9_223_372_036_854_775_808.0_f64).to_be_bytes().to_vec()
+    );
+}

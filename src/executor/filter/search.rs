@@ -1,5 +1,6 @@
 use super::{AnalyzerConfig, Deserialize, HashMap, HashSet, Serialize, Value};
 use crate::executor::batch::RowAccess;
+use crate::types::numeric::usize_to_f64;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SearchContext {
@@ -439,10 +440,6 @@ pub(super) fn simple_search_score(haystack: &str, query: &str) -> f64 {
         }
     }
     hits / usize_to_f64(query_tokens.len())
-}
-
-fn usize_to_f64(value: usize) -> f64 {
-    value.to_string().parse::<f64>().unwrap_or(f64::INFINITY)
 }
 
 pub(super) fn token_counts(tokens: &[String]) -> HashMap<String, usize> {

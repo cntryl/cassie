@@ -6,6 +6,8 @@ const TRANSPORT_QUERY_SQL: &str =
     "SELECT id, title FROM bench_documents WHERE title = $1 ORDER BY id ASC LIMIT 20";
 const TIER6_MAX_RESULT_ROWS: usize = 64;
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -46,6 +48,8 @@ fn main() {
             TIER6_MAX_RESULT_ROWS,
         ))
         .expect("transport soak fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     let preflight = workloads::assert_explain_contains(
         &context,
         TRANSPORT_QUERY_SQL,

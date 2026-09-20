@@ -406,16 +406,12 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     {
         return Ok(Expr::StringLiteral(value.replace("''", "'")));
     }
+    // Integer tokens keep integer typing (PostgreSQL types them int4/int8);
+    // only tokens with a decimal point or exponent become float literals.
     if is_integer_literal(raw) {
         let value = raw
             .parse::<i64>()
             .map_err(|_| SqlError::new(format!("numeric literal out of range '{raw}'")))?;
-        if (-9_007_199_254_740_992..=9_007_199_254_740_992).contains(&value) {
-            let value = raw
-                .parse::<f64>()
-                .map_err(|_| SqlError::new(format!("invalid number '{raw}'")))?;
-            return Ok(Expr::NumberLiteral(value));
-        }
         return Ok(Expr::IntegerLiteral(value));
     }
     if let Ok(value) = raw.parse::<f64>() {

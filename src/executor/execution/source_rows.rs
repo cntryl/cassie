@@ -420,10 +420,14 @@ pub(super) fn plan_uses_aggregate(plan: &LogicalPlan) -> bool {
         || plan.projection.iter().any(|item| match item {
             SelectItem::Function { function, .. } => {
                 crate::sql::functions::is_aggregate_function(&function.name)
+                    || function
+                        .args
+                        .iter()
+                        .any(super::aggregate_exec::contains_aggregate)
             }
+            SelectItem::Expr { expr, .. } => super::aggregate_exec::contains_aggregate(expr),
             SelectItem::Wildcard
             | SelectItem::Column { .. }
-            | SelectItem::Expr { .. }
             | SelectItem::WindowFunction { .. } => false,
         })
 }

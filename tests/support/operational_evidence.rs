@@ -145,14 +145,14 @@ pub fn validate_threshold_evidence_bundle(
     expected_profile: &str,
     min_samples: usize,
 ) -> Result<std::collections::BTreeMap<String, ThresholdMetricStats>, String> {
+    if documents.is_empty() {
+        return Err("threshold evidence bundle is empty".to_string());
+    }
     if documents.len() < min_samples {
         return Err(format!(
             "threshold evidence bundle has {} sample(s), fewer than the required minimum {min_samples}",
             documents.len()
         ));
-    }
-    if documents.is_empty() {
-        return Err("threshold evidence bundle is empty".to_string());
     }
 
     let mut per_metric: std::collections::BTreeMap<String, Vec<f64>> =
@@ -221,8 +221,7 @@ pub fn validate_threshold_evidence_bundle(
                     "bundle sample {index}: elapsed_ns.{metric} must be an exact positive integer"
                 )
             })?;
-            #[allow(clippy::cast_precision_loss)]
-            let value_ns = value as f64;
+            let value_ns = u64_to_f64(value);
             per_metric.entry(metric.clone()).or_default().push(value_ns);
         }
     }
@@ -233,10 +232,17 @@ pub fn validate_threshold_evidence_bundle(
         .collect())
 }
 
+/// Converts without a lossy `as` cast: each 32-bit half is exact in `f64`,
+/// so the only rounding is the single final addition.
+fn u64_to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
+    let low = u32::try_from(value & u64::from(u32::MAX)).unwrap_or(u32::MAX);
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
+}
+
 fn summarize_metric(samples: &[f64]) -> ThresholdMetricStats {
     let sample_count = samples.len();
-    #[allow(clippy::cast_precision_loss)]
-    let sample_count_f64 = sample_count as f64;
+    let sample_count_f64 = u64_to_f64(u64::try_from(sample_count).unwrap_or(u64::MAX));
     let mean_ns = samples.iter().sum::<f64>() / sample_count_f64;
     // Bessel-corrected: these are samples of the population of possible
     // runs, and dividing by n would bias the spread low, toward a
@@ -369,6 +375,24 @@ pub fn validate_operational_evidence_manifest(
     Ok(())
 }
 
+/// The `rust_toolchain` fields a v2 manifest must carry.
+///
+/// The workflow that emits manifests and the validator that reads them are
+/// separate files; `should_emit_every_v2_identity_field_from_the_workflow`
+/// asserts the emitter against these same names so neither can drift.
+pub const V2_TOOLCHAIN_FIELDS: &[&str] = &["rustc_verbose", "cargo_version"];
+
+/// The `runtime_config` fields a v2 manifest must carry.
+pub const V2_RUNTIME_CONFIG_FIELDS: &[&str] = &[
+    "storage_mode",
+    "storage_path_kind",
+    "rest_transport",
+    "benchmark_profile",
+    "query_timeout_ms",
+    "embeddings_provider",
+    "soak_duration_seconds",
+];
+
 fn validate_schema_and_identity(
     object: &serde_json::Map<String, serde_json::Value>,
 ) -> Result<(), String> {
@@ -380,11 +404,7 @@ fn validate_schema_and_identity(
 }
 
 fn validate_v2_identity(object: &serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
-    let toolchain = identity_fields(
-        object,
-        "rust_toolchain",
-        &["rustc_verbose", "cargo_version"],
-    )?;
+    let toolchain = identity_fields(object, "rust_toolchain", V2_TOOLCHAIN_FIELDS)?;
     let rustc = string_field(toolchain, "rustc_verbose")
         .map_err(|error| format!("rust_toolchain.{error}"))?;
     if !rustc.starts_with("rustc ")
@@ -403,19 +423,7 @@ fn validate_v2_identity(object: &serde_json::Map<String, serde_json::Value>) -> 
         return Err("rust_toolchain.cargo_version must identify Cargo".to_string());
     }
 
-    let config = identity_fields(
-        object,
-        "runtime_config",
-        &[
-            "storage_mode",
-            "storage_path_kind",
-            "rest_transport",
-            "benchmark_profile",
-            "query_timeout_ms",
-            "embeddings_provider",
-            "soak_duration_seconds",
-        ],
-    )?;
+    let config = identity_fields(object, "runtime_config", V2_RUNTIME_CONFIG_FIELDS)?;
     for (field, expected) in [
         ("storage_mode", "local"),
         ("storage_path_kind", "isolated-local-disk"),
@@ -426,11 +434,42 @@ fn validate_v2_identity(object: &serde_json::Map<String, serde_json::Value>) -> 
         require_string(config, field, expected)
             .map_err(|error| format!("runtime_config.{error}"))?;
     }
-    positive_u64_field(config, "soak_duration_seconds")
-        .map_err(|error| format!("runtime_config.{error}"))?;
+    validate_soak_duration(object, config)?;
     positive_u64_field(config, "query_timeout_ms")
         .map_err(|error| format!("runtime_config.{error}"))?;
     Ok(())
+}
+
+/// A shape-only run skips the soak owners entirely, so the only honest
+/// duration it can record is zero. Accepting any positive number here is what
+/// let a skipped soak be retained as a completed one-hour run.
+fn validate_soak_duration(
+    manifest: &serde_json::Map<String, serde_json::Value>,
+    config: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
+    let shape_only = manifest
+        .get("shape_only")
+        .and_then(serde_json::Value::as_bool)
+        .ok_or_else(|| "shape_only must be a boolean".to_string())?;
+    let seconds = config
+        .get("soak_duration_seconds")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            "runtime_config.soak_duration_seconds must be an exact non-negative integer".to_string()
+        })?;
+    match (shape_only, seconds) {
+        (true, 0) => Ok(()),
+        (true, _) => Err(format!(
+            "runtime_config.soak_duration_seconds must be 0 when shape_only is true, found {seconds}"
+        )),
+        (false, 0) => {
+            Err(
+                "runtime_config.soak_duration_seconds must be positive when shape_only is false"
+                    .to_string(),
+            )
+        }
+        (false, _) => Ok(()),
+    }
 }
 
 fn validate_toolchain_host(

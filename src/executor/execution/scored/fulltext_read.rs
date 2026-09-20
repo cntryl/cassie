@@ -771,7 +771,10 @@ fn document_filter_row(id: &str, payload: &serde_json::Value) -> BatchRow {
     // only has an `id` entry when the schema declares one) flow through
     // unfiltered resolves either case correctly without needing schema
     // access here.
-    let mut entries = vec![("_id".to_string(), Value::String(id.to_string()))];
+    let mut entries = vec![(
+        crate::types::row_identity::ROW_IDENTITY_COLUMN.to_string(),
+        Value::String(id.to_string()),
+    )];
     if let Some(object) = payload.as_object() {
         entries.extend(
             object

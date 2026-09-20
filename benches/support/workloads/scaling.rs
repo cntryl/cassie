@@ -8,15 +8,19 @@ use serde_json::json;
 
 use super::context::{usize_mod_i64, BenchContext};
 
+// `bench_documents` declares its own `id` column, so ordering by it would sort
+// on that ordinary column and fall back to a full scan plus sort. `_id` is the
+// internal row identity, which keeps the ordered scalar-index read path while
+// still making the result deterministic across equal scores.
 pub const RELATIONAL_SCALING_SQL: &str =
-    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY score LIMIT 25";
+    "SELECT id, title FROM bench_documents WHERE score >= $1 ORDER BY score, _id LIMIT 25";
 pub const JOIN_SCALING_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
 pub const COLUMN_SCALING_SQL: &str =
     "SELECT title, score FROM bench_documents WHERE status = 'approved' AND score >= 90 LIMIT 1000";
 pub const WORKER_SCALING_SQL: &str = "SELECT status, COUNT(*) AS total, SUM(score) AS score_sum FROM bench_documents GROUP BY status ORDER BY status";
-pub const FULLTEXT_SCALING_SQL: &str = "SELECT id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
-pub const VECTOR_SCALING_SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
-pub const HYBRID_SCALING_SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
+pub const FULLTEXT_SCALING_SQL: &str = "SELECT _id, search_score(body, $1) AS score FROM bench_documents WHERE search(body, $1) ORDER BY score DESC LIMIT 20";
+pub const VECTOR_SCALING_SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
+pub const HYBRID_SCALING_SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 pub const PROJECTION_REPLAY_EVENTS_PER_BATCH: usize = 64;
 pub const PREPARED_PROJECTION_REPLAY_BATCH_COUNT: usize = 4_096;
 

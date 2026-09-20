@@ -83,23 +83,23 @@ pub(super) fn drop_view(
     cassie: &Cassie,
     statement: &DropViewStatement,
 ) -> Result<QueryResult, QueryError> {
-    let view = cassie.catalog.get_view(&statement.name);
-    if statement.if_exists && view.is_none() {
-        return Ok(empty_command("DROP VIEW"));
-    }
-
-    if view.is_none() {
+    let Some(view) = cassie.catalog.get_view(&statement.name) else {
+        if statement.if_exists {
+            return Ok(empty_command("DROP VIEW"));
+        }
         return Err(QueryError::General(format!(
             "view '{}' does not exist",
             statement.name
         )));
-    }
+    };
 
+    // Storage and catalog removal use exact keys, so drop the stored view name
+    // rather than the name as it was typed.
     cassie
         .midge
-        .defer_drop_view(&statement.name, cassie.runtime.schema_epoch())
+        .defer_drop_view(&view.name, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_view(&statement.name);
+    cassie.catalog.unregister_view(&view.name);
 
     Ok(empty_command("DROP VIEW"))
 }

@@ -12,6 +12,8 @@ mod support_data_dir;
 mod support_operational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 #[path = "../benches/support/workloads.rs"]
 mod workloads;
 
@@ -4411,7 +4413,7 @@ mod benchmark_kernels {
     #[test]
     fn should_record_exact_vector_metrics_given_tier3_query_shape() {
         // Arrange
-        const SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
+        const SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
         workloads::configure_tier3_environment();
         let runtime = workloads::runtime();
         let context = runtime
@@ -4448,7 +4450,7 @@ mod benchmark_kernels {
     #[test]
     fn should_report_verified_vector_access_paths_given_persisted_state() {
         // Arrange
-        const SQL: &str = "SELECT id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
+        const SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
         workloads::configure_tier3_environment();
         let runtime = workloads::runtime();
         let context = runtime
@@ -4529,7 +4531,7 @@ mod benchmark_kernels {
         // Arrange
         const EXPECTED_CANDIDATE_BOUND: usize = 20 * 64;
         const FIXTURE_ROWS: usize = EXPECTED_CANDIDATE_BOUND + 1;
-        const SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
+        const SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
         const _: () = assert!(FIXTURE_ROWS > EXPECTED_CANDIDATE_BOUND);
         let expected_candidate_bound =
             u64::try_from(EXPECTED_CANDIDATE_BOUND).expect("candidate bound fits u64");
@@ -4599,7 +4601,7 @@ mod benchmark_kernels {
     #[test]
     fn should_record_hybrid_fallback_given_missing_ann_state() {
         // Arrange
-        const SQL: &str = "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
+        const SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
         workloads::configure_tier3_environment();
         let runtime = workloads::runtime();
         let context = runtime
@@ -7774,6 +7776,7 @@ mod benchmark_deployment_profile_contract {
 mod threshold_evidence_bundle {
     use super::support_operational_evidence::{
         validate_operational_evidence_manifest, validate_threshold_evidence_bundle,
+        V2_RUNTIME_CONFIG_FIELDS, V2_TOOLCHAIN_FIELDS,
     };
 
     const NATIVE_LINUX_PROFILE_ID: &str = "native-linux-amd64-disk";
@@ -8213,6 +8216,101 @@ mod threshold_evidence_bundle {
             "unexpected error: {error}"
         );
         assert!(error.contains("shape_only"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn should_emit_every_v2_identity_field_from_the_workflow() {
+        // Arrange
+        // The validator and the workflow that produces manifests live in
+        // different files, so the validator can only assert its own constants
+        // back at itself. Reading the emitter here is what makes a dropped
+        // field fail CI instead of silently making v2 unsatisfiable.
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+        let manifest_program = workflow
+            .split_once("Build operational evidence manifest")
+            .expect("manifest step")
+            .1;
+
+        // Act
+        let missing = V2_TOOLCHAIN_FIELDS
+            .iter()
+            .chain(V2_RUNTIME_CONFIG_FIELDS.iter())
+            .filter(|field| !manifest_program.contains(**field))
+            .copied()
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            missing.is_empty(),
+            "workflow must emit every v2 identity field, missing {missing:?}"
+        );
+        assert!(
+            manifest_program.contains("cassie-operational-evidence.v2"),
+            "workflow must emit v2 manifests; a silent revert to v1 would skip identity validation"
+        );
+        assert!(
+            manifest_program.contains("rest_transport: \"private-hop-http\""),
+            "workflow must declare the transport the validator requires"
+        );
+    }
+
+    #[test]
+    fn should_record_a_measured_soak_duration_rather_than_a_fixed_literal() {
+        // Arrange
+        let workflow = include_str!("../.github/workflows/operational-readiness.yml");
+
+        // Act
+        let emits_measured_duration =
+            workflow.contains("--argjson soak_duration_seconds \"${SOAK_DURATION_SECONDS:-0}\"");
+        let records_elapsed = workflow.contains("SOAK_DURATION_SECONDS=$(( $(date -u +%s)");
+
+        // Assert
+        assert!(
+            emits_measured_duration,
+            "a shape-only run skips the soak, so the manifest must not carry a fixed duration"
+        );
+        assert!(
+            records_elapsed,
+            "the soak step must record how long it actually ran"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_shape_only_manifest_claiming_a_completed_soak() {
+        // Arrange
+        let claimed_soak = manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000)
+            .replace("\"shape_only\": false", "\"shape_only\": true");
+
+        // Act
+        let error = validate_operational_evidence_manifest(&claimed_soak, "expected-commit")
+            .expect_err("a skipped soak must not be retained as a completed one");
+
+        // Assert
+        assert!(
+            error.contains("soak_duration_seconds must be 0 when shape_only is true"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn should_reject_a_full_manifest_without_a_soak_duration() {
+        // Arrange
+        let no_soak = altered_manifest(
+            &manifest("run-1", NATIVE_LINUX_PROFILE_ID, "expected-commit", 1_000),
+            |object| {
+                object["runtime_config"]["soak_duration_seconds"] = serde_json::json!(0);
+            },
+        );
+
+        // Act
+        let error = validate_operational_evidence_manifest(&no_soak, "expected-commit")
+            .expect_err("a full run must record the soak it performed");
+
+        // Assert
+        assert!(
+            error.contains("soak_duration_seconds must be positive when shape_only is false"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

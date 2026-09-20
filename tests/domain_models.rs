@@ -7,6 +7,8 @@ mod support_graph;
 mod support_graph_neighbors;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
 #[path = "support/time_series_evidence.rs"]
 mod support_time_series_evidence;
 
@@ -1872,6 +1874,106 @@ mod time_series_indexes {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    fn same_second_event_amounts(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        sql: &str,
+    ) -> Vec<i64> {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect(sql)
+            .rows
+            .into_iter()
+            .map(|row| match row.first() {
+                Some(Value::Int64(amount)) => *amount,
+                other => panic!("expected integer amount, got {other:?}"),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn should_range_scan_same_second_timestamps_chronologically_through_time_series_index() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("time_series_same_second_range");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            for (table, indexed) in [("ts_same_second_baseline", false), ("ts_same_second_indexed", true)] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE {table} (tenant TEXT, event_at TIMESTAMP, amount INT)"),
+                        vec![],
+                    )
+                    .unwrap();
+                // Chronological amount order is 5, 1, 3, 2, 4.
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "INSERT INTO {table} (tenant, event_at, amount) VALUES \
+                             ('acme', '2026-01-01T12:00:00Z', 1), \
+                             ('acme', '2026-01-01T12:00:00.5Z', 2), \
+                             ('acme', '2026-01-01T12:00:00.25Z', 3), \
+                             ('acme', '2026-01-01T12:00:01Z', 4), \
+                             ('acme', '2026-01-01T11:59:59.75Z', 5)"
+                        ),
+                        vec![],
+                    )
+                    .unwrap();
+                if indexed {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!("CREATE INDEX idx_ts_same_second ON {table} USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)"),
+                            vec![],
+                        )
+                        .unwrap();
+                }
+            }
+            let cases = [
+                ("WHERE event_at > '2026-01-01T12:00:00Z' ORDER BY event_at", vec![3, 2, 4]),
+                ("WHERE event_at >= '2026-01-01T12:00:00Z' ORDER BY event_at DESC", vec![4, 2, 3, 1]),
+                ("WHERE event_at < '2026-01-01T12:00:00.5Z' ORDER BY event_at", vec![5, 1, 3]),
+                ("WHERE event_at <= '2026-01-01T12:00:00Z' ORDER BY event_at", vec![5, 1]),
+            ];
+            let before = cassie.metrics();
+
+            // Act
+            let mut mismatches = Vec::new();
+            for (clause, expected) in &cases {
+                for table in ["ts_same_second_baseline", "ts_same_second_indexed"] {
+                    let actual = same_second_event_amounts(
+                        &cassie,
+                        &session,
+                        &format!("SELECT amount FROM {table} {clause}"),
+                    );
+                    if &actual != expected {
+                        mismatches.push(format!("{table} {clause}: expected {expected:?}, got {actual:?}"));
+                    }
+                }
+            }
+            let after = cassie.metrics();
+
+            // Assert
+            assert!(
+                mismatches.is_empty(),
+                "time-series results are not chronological: {mismatches:#?}"
+            );
+            let scans = |metrics: &serde_json::Value| metrics["time_series"]["scans"].as_u64().unwrap_or(0);
+            assert_eq!(scans(&after) - scans(&before), 4);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 

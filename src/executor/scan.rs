@@ -10,6 +10,9 @@ use crate::midge::adapter::{
 use crate::runtime::{
     column_batch_metrics::ColumnBatchScanMetrics, QueryExecutionControls, QueryMemoryReservation,
 };
+use crate::types::row_identity::{
+    is_identity_reference, is_row_identity_column, ROW_IDENTITY_COLUMN,
+};
 use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
@@ -464,7 +467,7 @@ pub(crate) fn record_streamed_column_batch_fallback(
 fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String]) -> bool {
     let wanted = fields
         .iter()
-        .filter(|field| !field.eq_ignore_ascii_case("id") && !field.eq_ignore_ascii_case("_id"))
+        .filter(|field| !is_row_identity_column(field))
         .map(|field| field.to_ascii_lowercase())
         .collect::<HashSet<_>>();
     !wanted.is_empty()
@@ -555,7 +558,7 @@ fn document_batches_to_rows(
 }
 
 fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&CollectionSchema>) -> Batch {
-    let schema_has_id = schema_declares_id(schema);
+    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     documents
         .into_iter()
         .map(|document| {
@@ -565,7 +568,7 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                 if let Some(schema) = schema.as_ref() {
                     let mut seen = HashSet::new();
                     for field in &schema.fields {
-                        if field.name.eq_ignore_ascii_case("_id") {
+                        if is_row_identity_column(&field.name) {
                             continue;
                         }
                         let value = obj.get(&field.name).map_or(Value::Null, |value| {
@@ -575,7 +578,7 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                         seen.insert(field.name.clone());
                     }
                     for (k, v) in obj {
-                        if seen.contains(k) || k.eq_ignore_ascii_case("_id") {
+                        if seen.contains(k) || is_row_identity_column(k) {
                             continue;
                         }
                         // When the schema declares no `id` field, `id` names
@@ -585,14 +588,14 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                         // key, but a payload from another write path could;
                         // dropping it keeps the row from being one value
                         // wider than its own column list.
-                        if !schema_has_id && k.eq_ignore_ascii_case("id") {
+                        if is_identity_reference(k, schema_has_id) {
                             continue;
                         }
                         row.push((k.clone(), json_to_value(v)));
                     }
                 } else {
                     for (k, v) in obj {
-                        if k.eq_ignore_ascii_case("id") || k.eq_ignore_ascii_case("_id") {
+                        if is_identity_reference(k, false) {
                             continue;
                         }
                         row.push((k.clone(), json_to_value(v)));
@@ -627,16 +630,10 @@ pub(crate) fn push_row_identity(row: &mut Vec<(String, Value)>, document_id: &st
     // separately at the final result boundary (see
     // `execution::result::build_select_result`) instead of paying for a
     // second copy of the value in every row.
-    row.push(("_id".to_string(), Value::String(document_id.to_string())));
-}
-
-pub(crate) fn schema_declares_id(schema: Option<&CollectionSchema>) -> bool {
-    schema.is_some_and(|schema| {
-        schema
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case("id"))
-    })
+    row.push((
+        ROW_IDENTITY_COLUMN.to_string(),
+        Value::String(document_id.to_string()),
+    ));
 }
 
 fn projected_document_batches_to_rows(
@@ -736,28 +733,21 @@ fn projected_document_batch_to_rows(
             document_filter
                 .is_none_or(|filter| projected_document_matches(&document.payload, filter))
         })
-        .map(|document| projected_document_to_row(document, fields, schema))
+        .map(|document| projected_document_to_row(&document, fields, schema))
         .collect::<Batch>()
 }
 
-// `document` is taken by value to match this function's ~14 existing call
-// sites, most of which already own it there; borrowing here alone isn't
-// worth changing every caller's ownership shape for.
-#[allow(clippy::needless_pass_by_value)]
 pub(crate) fn projected_document_to_row(
-    document: DocumentRef,
+    document: &DocumentRef,
     fields: &[String],
     schema: Option<&CollectionSchema>,
 ) -> BatchRow {
-    let schema_has_id = schema_declares_id(schema);
+    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
     let mut row = Vec::with_capacity(fields.len() + 2);
     push_row_identity(&mut row, &document.id);
     let object = document.payload.as_object();
     for field in fields {
-        if field.eq_ignore_ascii_case("_id") {
-            continue;
-        }
-        if field.eq_ignore_ascii_case("id") && !schema_has_id {
+        if is_identity_reference(field, schema_has_id) {
             continue;
         }
         let value = object

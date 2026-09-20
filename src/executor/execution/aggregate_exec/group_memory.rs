@@ -10,36 +10,37 @@ type Reservation = crate::runtime::QueryMemoryReservation;
 
 /// Tracks the accounted bytes of in-flight aggregate groups.
 ///
-/// Group sizes never change after insertion, so callers add only the bytes of
-/// newly buffered rows or groups. This keeps accounting linear in input rows
-/// instead of re-measuring every retained group and row on each update.
-pub(super) struct GroupMemory<'a> {
-    controls: &'a QueryExecutionControls,
-    bytes: usize,
-    reservation: Option<Reservation>,
+/// Callers add only the bytes of newly buffered rows or groups, plus the
+/// growth of a retained accumulator value, so accounting stays linear in input
+/// rows. Growth reserves only the delta on the existing reservation: bytes
+/// already held are never released and re-requested, so a worker sharing the
+/// query tracker cannot claim them in between and trigger a spurious limit.
+pub(super) struct GroupMemory {
+    reservation: Reservation,
 }
 
-impl<'a> GroupMemory<'a> {
-    pub(super) fn new(controls: &'a QueryExecutionControls) -> Result<Self, QueryError> {
+impl GroupMemory {
+    pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
         let reservation = controls.reserve_query_memory(0).map_err(QueryError::from)?;
-        Ok(Self {
-            controls,
-            bytes: 0,
-            reservation: Some(reservation),
-        })
+        Ok(Self { reservation })
     }
 
     pub(super) fn add(&mut self, bytes: usize) -> Result<(), QueryError> {
         if bytes == 0 {
             return Ok(());
         }
-        self.bytes = self.bytes.saturating_add(bytes);
-        drop(self.reservation.take());
-        self.reservation = Some(
-            self.controls
-                .reserve_query_memory(self.bytes)
-                .map_err(QueryError::from)?,
-        );
+        self.reservation.try_grow(bytes).map_err(QueryError::from)
+    }
+
+    /// Re-accounts a retained value that changed from `before` to `after`
+    /// bytes. Shrinking releases at most what this reservation holds.
+    pub(super) fn resize(&mut self, before: usize, after: usize) -> Result<(), QueryError> {
+        if after >= before {
+            return self.add(after - before);
+        }
+        let held = self.reservation.bytes();
+        self.reservation
+            .shrink_to(held.saturating_sub(before - after));
         Ok(())
     }
 }
@@ -61,12 +62,13 @@ pub(super) fn partial_group_bytes(signature: &SemanticKey, group: &PartialAggreg
         .saturating_add(
             group
                 .accumulators
-                .len()
-                .saturating_mul(std::mem::size_of::<AggregateAccumulator>()),
+                .iter()
+                .map(AggregateAccumulator::retained_bytes)
+                .fold(0, usize::saturating_add),
         )
 }
 
-fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {
+pub(super) fn json_bytes<T: serde::Serialize + ?Sized>(value: &T) -> usize {
     serde_json::to_vec(value)
         .map(|bytes| bytes.len())
         .unwrap_or_default()

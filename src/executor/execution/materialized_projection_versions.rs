@@ -144,7 +144,7 @@ pub(super) fn drop_materialized_projection_version(
     name: &str,
     version_id: &str,
 ) -> Result<QueryResult, QueryError> {
-    let mut metadata = cassie
+    let metadata = cassie
         .catalog
         .get_materialized_projection(name)
         .ok_or_else(|| {
@@ -165,12 +165,34 @@ pub(super) fn drop_materialized_projection_version(
         )));
     };
     let projection = metadata.collection.clone();
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&projection), || {
+            drop_materialized_projection_version_gated(cassie, metadata, index, &projection)
+        })?;
+    Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
+}
+
+/// Removes one projection version while holding the projection's catalog gate,
+/// so the report ids read from the catalog cannot change before deletion.
+///
+/// Stored reports go first: if their deletion fails, the version, its output,
+/// and its metadata are all still intact. The metadata is persisted before the
+/// output collection is dropped, because a leftover output collection is
+/// recoverable while a version whose output is gone is not.
+fn drop_materialized_projection_version_gated(
+    cassie: &Cassie,
+    mut metadata: catalog::ProjectionMeta,
+    index: usize,
+    projection: &str,
+) -> Result<(), QueryError> {
+    let version_id = metadata.versions[index].version_id.clone();
     let repair_reports = cassie
         .catalog
-        .projection_repair_report_ids_for_version(&projection, version_id);
+        .projection_repair_report_ids_for_version(projection, &version_id);
     let comparison_reports = cassie
         .catalog
-        .projection_comparison_report_ids_for_version(&projection, version_id);
+        .projection_comparison_report_ids_for_version(projection, &version_id);
     // Delete the stored reports first: if that fails, the version, its output,
     // and its metadata are still intact.
     cassie
@@ -184,10 +206,16 @@ pub(super) fn drop_materialized_projection_version(
         .catalog
         .unregister_projection_comparison_reports(&comparison_reports);
     let version = metadata.versions.remove(index);
-    let _ = cassie.midge.drop_collection(&version.output_collection);
+    persist_projection_metadata(cassie, metadata)?;
+    if let Err(error) = cassie.midge.drop_collection(&version.output_collection) {
+        tracing::warn!(
+            collection = version.output_collection.as_str(),
+            error = error.to_string().as_str(),
+            "dropping a projection version left its output collection behind"
+        );
+    }
     let _ = cassie
         .catalog
         .unregister_collection(&version.output_collection);
-    persist_projection_metadata(cassie, metadata)?;
-    Ok(empty_command("DROP MATERIALIZED PROJECTION VERSION"))
+    Ok(())
 }

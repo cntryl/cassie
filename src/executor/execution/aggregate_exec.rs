@@ -16,14 +16,20 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+#[path = "aggregate_exec/rewrite.rs"]
+mod rewrite;
 #[path = "aggregate_exec/state.rs"]
 mod state;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
 
+use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use group_memory::GroupMemory;
-use state::{i64_to_f64, usize_to_f64, NumericSum, PartialAggregateGroup};
+pub(super) use rewrite::{
+    contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_projection,
+};
+use state::{NumericSum, PartialAggregateGroup};
 
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
@@ -129,54 +135,25 @@ fn aggregate_query_batches_parallel(
     context: &AggregateExecutionContext<'_>,
     workers: usize,
 ) -> Result<Vec<Batch>, QueryError> {
-    let chunk_size = rows.len().div_ceil(workers).max(1);
-    let mut partials = thread::scope(|scope| {
-        rows.chunks(chunk_size)
-            .map(|chunk| {
-                scope.spawn(move || {
-                    let mut groups = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
-                    let mut group_memory = GroupMemory::new(context.controls)?;
-                    for row in chunk {
-                        check_timeout(context.controls)?;
-                        let group_values = aggregate_group_values(row, context)?;
-                        let signature = aggregate_group_signature(&group_values);
-                        let group = match groups.entry(signature) {
-                            Entry::Occupied(entry) => entry.into_mut(),
-                            Entry::Vacant(entry) => {
-                                let group = PartialAggregateGroup::new(group_values, specs);
-                                group_memory
-                                    .add(group_memory::partial_group_bytes(entry.key(), &group))?;
-                                entry.insert(group)
-                            }
-                        };
-                        group.update(row, specs, context)?;
-                    }
-                    Ok::<_, QueryError>(groups)
-                })
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-            .map(|handle| {
-                crate::executor::worker::join_scoped_worker(
-                    handle,
-                    "parallel aggregation worker panicked",
-                )?
-            })
-            .collect::<Result<Vec<_>, QueryError>>()
-    })?;
+    let partials = aggregate_partitions(rows, specs, context, workers)?;
 
     let partitions = partials.len();
     let input_rows = rows.len();
     let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
+    // Worker reservations stay alive until the merged output is built: groups
+    // moved into `merged` are still accounted by the partition that built
+    // them, so only growth that happens during the merge is charged here.
+    let mut partition_memory = Vec::with_capacity(partitions);
     let mut merged_memory = GroupMemory::new(context.controls)?;
-    for partial in partials.drain(..) {
-        for (signature, group) in partial {
+    for partial in partials {
+        partition_memory.push(partial.memory);
+        for (signature, group) in partial.groups {
             match merged.entry(signature) {
                 Entry::Occupied(mut entry) => {
-                    entry.get_mut().merge(&group)?;
+                    let change = entry.get_mut().merge(&group)?;
+                    merged_memory.add(change.after.saturating_sub(change.before))?;
                 }
                 Entry::Vacant(entry) => {
-                    merged_memory.add(group_memory::partial_group_bytes(entry.key(), &group))?;
                     entry.insert(group);
                 }
             }
@@ -203,11 +180,71 @@ fn aggregate_query_batches_parallel(
         out.push(BatchRow::new(values));
     }
     drop(merged_memory);
+    drop(partition_memory);
 
     cassie
         .runtime
         .record_parallel_aggregation(workers, partitions, input_rows, group_count);
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+}
+
+type PartialGroups = BTreeMap<SemanticKey, PartialAggregateGroup>;
+
+/// One worker's partial groups together with the reservation that accounts
+/// for them; the reservation must outlive the groups it covers.
+struct PartialAggregation {
+    groups: PartialGroups,
+    memory: GroupMemory,
+}
+
+fn aggregate_partitions(
+    rows: &[BatchRow],
+    specs: &[AggregateSpec],
+    context: &AggregateExecutionContext<'_>,
+    workers: usize,
+) -> Result<Vec<PartialAggregation>, QueryError> {
+    let chunk_size = rows.len().div_ceil(workers).max(1);
+    thread::scope(|scope| {
+        rows.chunks(chunk_size)
+            .map(|chunk| scope.spawn(move || aggregate_partition(chunk, specs, context)))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|handle| {
+                crate::executor::worker::join_scoped_worker(
+                    handle,
+                    "parallel aggregation worker panicked",
+                )?
+            })
+            .collect::<Result<Vec<_>, QueryError>>()
+    })
+}
+
+fn aggregate_partition(
+    chunk: &[BatchRow],
+    specs: &[AggregateSpec],
+    context: &AggregateExecutionContext<'_>,
+) -> Result<PartialAggregation, QueryError> {
+    let mut groups = PartialGroups::new();
+    let mut group_memory = GroupMemory::new(context.controls)?;
+    for row in chunk {
+        check_timeout(context.controls)?;
+        let group_values = aggregate_group_values(row, context)?;
+        let signature = aggregate_group_signature(&group_values);
+        let group = match groups.entry(signature) {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                let group = PartialAggregateGroup::new(group_values, specs);
+                group_memory.add(group_memory::partial_group_bytes(entry.key(), &group))?;
+                entry.insert(group)
+            }
+        };
+        let change = group.update(row, specs, context)?;
+        group_memory.resize(change.before, change.after)?;
+    }
+    Ok(PartialAggregation {
+        groups,
+        memory: group_memory,
+    })
 }
 
 fn aggregate_group_values(
@@ -287,22 +324,6 @@ fn expr_supports_parallel_aggregation(
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_none_or(|expr| expr_supports_parallel_aggregation(expr, user_functions))
-                && branches.iter().all(|(when, then)| {
-                    expr_supports_parallel_aggregation(when, user_functions)
-                        && expr_supports_parallel_aggregation(then, user_functions)
-                })
-                && else_expr
-                    .as_ref()
-                    .is_none_or(|expr| expr_supports_parallel_aggregation(expr, user_functions))
-        }
         Expr::Function(function) => {
             let name = function.name.to_ascii_lowercase();
             if user_functions.contains_key(&name) {
@@ -324,47 +345,31 @@ fn expr_supports_parallel_aggregation(
             {
                 return false;
             }
-            function
-                .args
-                .iter()
-                .all(|expr| expr_supports_parallel_aggregation(expr, user_functions))
         }
-        Expr::Binary { left, right, .. } => {
-            expr_supports_parallel_aggregation(left, user_functions)
-                && expr_supports_parallel_aggregation(right, user_functions)
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            expr_supports_parallel_aggregation(expr, user_functions)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_supports_parallel_aggregation(expr, user_functions)
-                && values
-                    .iter()
-                    .all(|value| expr_supports_parallel_aggregation(value, user_functions))
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_supports_parallel_aggregation(expr, user_functions)
-                && expr_supports_parallel_aggregation(low, user_functions)
-                && expr_supports_parallel_aggregation(high, user_functions)
-        }
-        Expr::Exists(_) => false,
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => true,
+        Expr::Exists(_) => return false,
+        _ => {}
     }
+    expr.all_children(|child| expr_supports_parallel_aggregation(child, user_functions))
 }
 
 fn aggregate_specs(plan: &LogicalPlan) -> Vec<AggregateSpec> {
     let mut specs = Vec::<AggregateSpec>::new();
     for item in &plan.projection {
-        if let SelectItem::Function { function, alias } = item {
-            register_aggregate_spec(&mut specs, function, alias.clone());
+        match item {
+            SelectItem::Function { function, alias }
+                if crate::sql::functions::is_aggregate_function(&function.name) =>
+            {
+                register_aggregate_spec(&mut specs, function, alias.clone());
+            }
+            SelectItem::Function { function, .. } => {
+                for arg in &function.args {
+                    collect_aggregate_specs_from_expr(arg, &mut specs);
+                }
+            }
+            SelectItem::Expr { expr, .. } => collect_aggregate_specs_from_expr(expr, &mut specs),
+            SelectItem::Wildcard
+            | SelectItem::Column { .. }
+            | SelectItem::WindowFunction { .. } => {}
         }
     }
     if let Some(having) = &plan.having {
@@ -396,8 +401,10 @@ fn register_aggregate_spec(
         return;
     }
     let mut output_names = vec![function.name.clone()];
-    if !output_names.contains(&output_name) {
-        output_names.push(output_name);
+    for name in [output_name, signature] {
+        if !output_names.contains(&name) {
+            output_names.push(name);
+        }
     }
     specs.push(AggregateSpec {
         function: function.clone(),
@@ -407,52 +414,13 @@ fn register_aggregate_spec(
 
 fn collect_aggregate_specs_from_expr(expr: &Expr, specs: &mut Vec<AggregateSpec>) {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            if let Some(operand) = operand {
-                collect_aggregate_specs_from_expr(operand, specs);
-            }
-            for (when, then) in branches {
-                collect_aggregate_specs_from_expr(when, specs);
-                collect_aggregate_specs_from_expr(then, specs);
-            }
-            if let Some(else_expr) = else_expr {
-                collect_aggregate_specs_from_expr(else_expr, specs);
-            }
+        Expr::Function(function)
+            if crate::sql::functions::is_aggregate_function(&function.name) =>
+        {
+            register_aggregate_spec(specs, function, None);
         }
-        Expr::Function(function) => register_aggregate_spec(specs, function, None),
-        Expr::Binary { left, right, .. } => {
-            collect_aggregate_specs_from_expr(left, specs);
-            collect_aggregate_specs_from_expr(right, specs);
-        }
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } => {
-            collect_aggregate_specs_from_expr(expr, specs);
-        }
-        Expr::InList { expr, values, .. } => {
-            collect_aggregate_specs_from_expr(expr, specs);
-            for value in values {
-                collect_aggregate_specs_from_expr(value, specs);
-            }
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => {
-            collect_aggregate_specs_from_expr(expr, specs);
-            collect_aggregate_specs_from_expr(low, specs);
-            collect_aggregate_specs_from_expr(high, specs);
-        }
-        Expr::Not { expr } => collect_aggregate_specs_from_expr(expr, specs),
-        Expr::Exists(_)
-        | Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => {}
+        Expr::Exists(_) => {}
+        _ => expr.for_each_child(|child| collect_aggregate_specs_from_expr(child, specs)),
     }
 }
 
@@ -521,12 +489,12 @@ fn sum_aggregate(
                 seen = true;
             }
             Value::Float64(value) => {
-                sum.add_float(value)?;
+                sum.add_float(value);
                 seen = true;
             }
             Value::Null => {}
             _ => {
-                sum.promote_to_float()?;
+                sum.promote_to_float();
             }
         }
     }
@@ -554,7 +522,7 @@ fn avg_aggregate(
             None,
         )? {
             Value::Int64(value) => {
-                sum += i64_to_f64(value)?;
+                sum += i64_to_f64(value);
                 count += 1;
             }
             Value::Float64(value) => {
@@ -567,10 +535,7 @@ fn avg_aggregate(
     if count == 0 {
         Ok(Value::Null)
     } else {
-        Ok(Value::Float64(
-            sum / usize_to_f64(count)
-                .map_err(|_| QueryError::General(String::from("aggregate count overflow")))?,
-        ))
+        Ok(Value::Float64(sum / usize_to_f64(count)))
     }
 }
 
@@ -607,77 +572,6 @@ fn minmax_aggregate(
         }
     }
     Ok(selected.unwrap_or(Value::Null))
-}
-
-pub(super) fn rewrite_aggregate_expr(expr: &Expr) -> Expr {
-    match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => Expr::Case {
-            operand: operand
-                .as_ref()
-                .map(|expr| Box::new(rewrite_aggregate_expr(expr))),
-            branches: branches
-                .iter()
-                .map(|(when, then)| (rewrite_aggregate_expr(when), rewrite_aggregate_expr(then)))
-                .collect(),
-            else_expr: else_expr
-                .as_ref()
-                .map(|expr| Box::new(rewrite_aggregate_expr(expr))),
-        },
-        Expr::Function(function)
-            if crate::sql::functions::is_aggregate_function(&function.name) =>
-        {
-            Expr::Column(function.name.clone())
-        }
-        Expr::Binary { left, op, right } => Expr::Binary {
-            left: Box::new(rewrite_aggregate_expr(left)),
-            op: op.clone(),
-            right: Box::new(rewrite_aggregate_expr(right)),
-        },
-        Expr::IsNull { expr, negated } => Expr::IsNull {
-            expr: Box::new(rewrite_aggregate_expr(expr)),
-            negated: *negated,
-        },
-        Expr::InList {
-            expr,
-            values,
-            negated,
-        } => Expr::InList {
-            expr: Box::new(rewrite_aggregate_expr(expr)),
-            values: values.iter().map(rewrite_aggregate_expr).collect(),
-            negated: *negated,
-        },
-        Expr::Between {
-            expr,
-            low,
-            high,
-            negated,
-        } => Expr::Between {
-            expr: Box::new(rewrite_aggregate_expr(expr)),
-            low: Box::new(rewrite_aggregate_expr(low)),
-            high: Box::new(rewrite_aggregate_expr(high)),
-            negated: *negated,
-        },
-        Expr::Not { expr } => Expr::Not {
-            expr: Box::new(rewrite_aggregate_expr(expr)),
-        },
-        Expr::Cast { expr, data_type } => Expr::Cast {
-            expr: Box::new(rewrite_aggregate_expr(expr)),
-            data_type: data_type.clone(),
-        },
-        Expr::Exists(_)
-        | Expr::Function(_)
-        | Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::Null
-        | Expr::BoolLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::StringLiteral(_) => expr.clone(),
-    }
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

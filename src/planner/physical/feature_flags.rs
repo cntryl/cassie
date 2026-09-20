@@ -63,40 +63,8 @@ fn select_item_uses_vector(item: &SelectItem) -> bool {
 
 fn expr_uses_fulltext(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand
-                .as_ref()
-                .is_some_and(|expr| expr_uses_fulltext(expr))
-                || branches
-                    .iter()
-                    .any(|(when, then)| expr_uses_fulltext(when) || expr_uses_fulltext(then))
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_uses_fulltext(expr))
-        }
         Expr::Function(function) => function_uses_fulltext(function),
-        Expr::Binary { left, right, .. } => expr_uses_fulltext(left) || expr_uses_fulltext(right),
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expr_uses_fulltext(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_uses_fulltext(expr) || values.iter().any(expr_uses_fulltext)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_uses_fulltext(expr) || expr_uses_fulltext(low) || expr_uses_fulltext(high),
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Exists(_) => false,
+        _ => expr.any_child(expr_uses_fulltext),
     }
 }
 
@@ -109,44 +77,12 @@ pub(super) fn function_uses_fulltext(function: &FunctionCall) -> bool {
 
 fn expr_uses_vector(expr: &Expr) -> bool {
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => {
-            operand.as_ref().is_some_and(|expr| expr_uses_vector(expr))
-                || branches
-                    .iter()
-                    .any(|(when, then)| expr_uses_vector(when) || expr_uses_vector(then))
-                || else_expr
-                    .as_ref()
-                    .is_some_and(|expr| expr_uses_vector(expr))
-        }
         Expr::Function(function) => function_uses_vector(function),
-        Expr::Binary { left, op, right } => {
-            matches!(
-                op,
-                BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot
-            ) || expr_uses_vector(left)
-                || expr_uses_vector(right)
-        }
-        Expr::IsNull { expr, .. } | Expr::Not { expr } | Expr::Cast { expr, .. } => {
-            expr_uses_vector(expr)
-        }
-        Expr::InList { expr, values, .. } => {
-            expr_uses_vector(expr) || values.iter().any(expr_uses_vector)
-        }
-        Expr::Between {
-            expr, low, high, ..
-        } => expr_uses_vector(expr) || expr_uses_vector(low) || expr_uses_vector(high),
-        Expr::Column(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Exists(_) => false,
+        Expr::Binary {
+            op: BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot,
+            ..
+        } => true,
+        _ => expr.any_child(expr_uses_vector),
     }
 }
 

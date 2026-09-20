@@ -3,6 +3,8 @@ use std::time::Instant;
 
 use cassie::app::Cassie;
 
+#[path = "support/fixture_dir.rs"]
+mod fixture_dir;
 #[path = "support/performance_benchmarks.rs"]
 pub mod performance_benchmarks;
 #[path = "support/stress.rs"]
@@ -123,6 +125,8 @@ fn measure_scale(
             workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
         ))
         .expect("lifecycle scaling fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     let replay_context = cases
         .replay
         .as_ref()
@@ -220,6 +224,8 @@ fn measure_isolated_time_series(
             workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
         ))
         .expect("isolated time-series lifecycle fixture");
+    // Removes the fixture even when a later assertion panics.
+    let _fixture_dir = fixture_dir::FixtureDir::new(context.data_dir.clone());
     let time_series = workloads::prepare_time_series_lifecycle_context(&context, rows);
     let setup_time_ns = setup_started.elapsed().as_nanos().to_string();
     let operation_count = u64::try_from(rows).expect("lifecycle source rows should fit u64");

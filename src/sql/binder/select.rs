@@ -7,6 +7,9 @@ use super::{
     FieldSchema, FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem,
     SelectSet, SelectStatement,
 };
+use crate::types::row_identity::{
+    is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
+};
 
 pub(super) fn bind_select(
     select: SelectStatement,
@@ -106,10 +109,11 @@ pub(super) fn bind_select_with_lateral_fields(
     select.source = source;
     select.ctes = bound_ctes;
 
+    let field_types = crate::sql::source_field_type_map(&select.source, catalog);
     if let Some(filter) = select.filter.as_mut() {
-        let field_types = crate::sql::source_field_type_map(&select.source, catalog);
         canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
+    super::case_unify::unify_select_case_results(&mut select, &field_types);
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
@@ -279,12 +283,6 @@ fn validate_grouped_projection(
             SelectItem::Expr { expr, .. } => expr.clone(),
             SelectItem::WindowFunction { .. } => continue,
         };
-        if group_by
-            .iter()
-            .any(|grouped| format!("{grouped:?}") == format!("{expression:?}"))
-        {
-            continue;
-        }
         if let Some(column) = first_ungrouped_column(&expression, group_by) {
             return Err(CassieError::Planner(format!(
                 "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
@@ -294,61 +292,21 @@ fn validate_grouped_projection(
     Ok(())
 }
 
+/// Returns the first column that is neither grouped nor inside an aggregate.
+/// Sub-expressions that structurally match a `GROUP BY` expression (such as
+/// a grouped CASE) count as grouped.
 fn first_ungrouped_column<'a>(expr: &'a Expr, group_by: &[Expr]) -> Option<&'a str> {
+    if group_by.iter().any(|grouped| grouped.structurally_eq(expr)) {
+        return None;
+    }
     match expr {
-        Expr::Case {
-            operand,
-            branches,
-            else_expr,
-        } => operand
-            .as_ref()
-            .and_then(|expr| first_ungrouped_column(expr, group_by))
-            .or_else(|| {
-                branches.iter().find_map(|(when, then)| {
-                    first_ungrouped_column(when, group_by)
-                        .or_else(|| first_ungrouped_column(then, group_by))
-                })
-            })
-            .or_else(|| {
-                else_expr
-                    .as_ref()
-                    .and_then(|expr| first_ungrouped_column(expr, group_by))
-            }),
-        Expr::Column(column) => (!group_by.iter().any(
-            |grouped| matches!(grouped, Expr::Column(name) if name.eq_ignore_ascii_case(column)),
-        ))
-        .then_some(column),
+        Expr::Column(column) => Some(column),
         Expr::Function(function)
             if crate::sql::functions::is_aggregate_function(&function.name) =>
         {
             None
         }
-        Expr::Function(function) => function
-            .args
-            .iter()
-            .find_map(|argument| first_ungrouped_column(argument, group_by)),
-        Expr::Binary { left, right, .. } => first_ungrouped_column(left, group_by)
-            .or_else(|| first_ungrouped_column(right, group_by)),
-        Expr::IsNull { expr, .. } | Expr::Cast { expr, .. } | Expr::Not { expr } => {
-            first_ungrouped_column(expr, group_by)
-        }
-        Expr::InList { expr, values, .. } => first_ungrouped_column(expr, group_by).or_else(|| {
-            values
-                .iter()
-                .find_map(|value| first_ungrouped_column(value, group_by))
-        }),
-        Expr::Between {
-            expr, low, high, ..
-        } => first_ungrouped_column(expr, group_by)
-            .or_else(|| first_ungrouped_column(low, group_by))
-            .or_else(|| first_ungrouped_column(high, group_by)),
-        Expr::Exists(_)
-        | Expr::Param(_)
-        | Expr::StringLiteral(_)
-        | Expr::NumberLiteral(_)
-        | Expr::IntegerLiteral(_)
-        | Expr::BoolLiteral(_)
-        | Expr::Null => None,
+        _ => expr.find_map_child(|child| first_ungrouped_column(child, group_by)),
     }
 }
 
@@ -644,13 +602,7 @@ pub(super) fn source_fields(
                 let schema = catalog
                     .get_schema(name)
                     .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
-                Ok(qualified_fields(
-                    name,
-                    schema
-                        .fields
-                        .iter()
-                        .map(|field| field.name.to_ascii_lowercase()),
-                ))
+                Ok(base_table_fields(name, &schema))
             }
         }
         QuerySource::Cte(name) => scope
@@ -672,9 +624,18 @@ pub(super) fn source_fields(
         QuerySource::Join { left, right, .. } => {
             let mut fields = source_fields(catalog, left, scope)?;
             let right_fields = source_fields(catalog, right, scope)?;
+            // Both sides of a join resolve the internal identity the same way
+            // (see `planner::logical::reserved_id`), so `_id`, and a bare `id`
+            // that means the identity on either side, are never ambiguous.
+            let id_is_identity = fields.contains(IDENTITY_ALIAS_MARKER)
+                || right_fields.contains(IDENTITY_ALIAS_MARKER);
             let ambiguous = fields
                 .intersection(&right_fields)
                 .filter(|field| !field.contains('.') && !field.starts_with("__cassie_ambiguous__."))
+                .filter(|field| {
+                    !(is_row_identity_column(field)
+                        || (id_is_identity && is_legacy_id_column(field)))
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             for field in ambiguous {
@@ -684,6 +645,35 @@ pub(super) fn source_fields(
             Ok(fields)
         }
     }
+}
+
+/// Marks a field set whose bare `id` is the internal-identity alias rather
+/// than a declared column. Never a valid user identifier.
+const IDENTITY_ALIAS_MARKER: &str = "__cassie_identity__.id";
+
+/// The names a base table exposes: its declared fields, the reserved `_id`
+/// row identity, and, only when the table declares no `id` of its own, the
+/// legacy bare `id` alias for that identity. Derived relations never get
+/// these implicitly; they expose only what they project.
+pub(super) fn base_table_fields(
+    qualifier: &str,
+    schema: &crate::catalog::CollectionSchema,
+) -> HashSet<String> {
+    let mut names = schema
+        .fields
+        .iter()
+        .map(|field| field.name.to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    names.push(ROW_IDENTITY_COLUMN.to_string());
+    let alias_is_identity = !schema.declares_id();
+    if alias_is_identity {
+        names.push(LEGACY_ID_COLUMN.to_string());
+    }
+    let mut fields = qualified_fields(qualifier, names);
+    if alias_is_identity {
+        fields.insert(IDENTITY_ALIAS_MARKER.to_string());
+    }
+    fields
 }
 
 fn validate_graph_table_function(

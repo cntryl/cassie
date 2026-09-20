@@ -1,4 +1,6 @@
+pub mod numeric;
 pub mod row;
+pub mod row_identity;
 pub mod schema;
 pub(crate) mod semantic;
 pub mod temporal;

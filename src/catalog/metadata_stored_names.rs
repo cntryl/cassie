@@ -24,6 +24,27 @@ impl Catalog {
             })
     }
 
+    /// Returns every stored table, view, or materialized projection key that
+    /// matches `name`, sorted. More than one entry means the reference is
+    /// ambiguous and cannot be resolved.
+    #[must_use]
+    pub fn matching_relation_names(&self, name: &str) -> Vec<String> {
+        let collections = matching_keys(&self.collections.read(), name, |_| true);
+        if collections.len() == 1 && collections[0] == name {
+            return collections;
+        }
+        let mut matches = collections;
+        matches.extend(matching_keys(&self.views.read(), name, |_| true));
+        matches.extend(matching_keys(
+            &self.projections.read(),
+            name,
+            |projection| projection.kind == ProjectionKind::Materialized,
+        ));
+        matches.sort();
+        matches.dedup();
+        matches
+    }
+
     /// Returns the stored namespace key for `namespace`, using the same
     /// matching as `namespace_exists`.
     #[must_use]
@@ -32,18 +53,35 @@ impl Catalog {
     }
 }
 
+/// Returns the single stored key matching `requested`, or `None` when nothing
+/// matches or when more than one stored key matches. Resolution never picks an
+/// arbitrary match: an ambiguous reference resolves to nothing.
 fn stored_key<V>(
     entries: &HashMap<String, V>,
     requested: &str,
     eligible: impl Fn(&V) -> bool,
 ) -> Option<String> {
+    let mut matches = matching_keys(entries, requested, eligible);
+    (matches.len() == 1).then(|| matches.remove(0))
+}
+
+/// Returns every stored key matching `requested`, sorted, or just the exact key
+/// when one exists.
+fn matching_keys<V>(
+    entries: &HashMap<String, V>,
+    requested: &str,
+    eligible: impl Fn(&V) -> bool,
+) -> Vec<String> {
     if entries.get(requested).is_some_and(&eligible) {
-        return Some(requested.to_string());
+        return vec![requested.to_string()];
     }
-    entries
+    let mut matches = entries
         .iter()
-        .find(|(stored, value)| eligible(value) && name_matches(stored, requested))
+        .filter(|(stored, value)| eligible(value) && name_matches(stored, requested))
         .map(|(stored, _)| stored.clone())
+        .collect::<Vec<_>>();
+    matches.sort();
+    matches
 }
 
 #[cfg(test)]

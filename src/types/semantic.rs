@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn should_order_legacy_and_fixed_width_timestamps_by_instant() {
+    fn should_order_equivalent_timestamp_formats_by_instant() {
         // Arrange
         let legacy_whole = Value::String("2024-01-01T12:00:00Z".to_string());
         let fixed_whole = Value::String("2024-01-01T12:00:00.000000Z".to_string());

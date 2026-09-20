@@ -359,7 +359,7 @@ mod tests {
     }
 
     #[test]
-    fn should_parse_offset_and_offset_free_timestamps_to_the_same_utc_instant() {
+    fn should_parse_equivalent_timestamp_formats_to_the_same_utc_instant() {
         // Arrange
         let offset = "2024-01-01T09:00:00.5+02:00";
         let offset_free = "2024-01-01 07:00:00.5";

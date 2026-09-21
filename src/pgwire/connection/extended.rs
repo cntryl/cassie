@@ -678,6 +678,7 @@ fn decode_text_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQu
     match oid {
         OID_BOOL => parse_bool(text).map(Value::Bool),
         OID_INT2 | OID_INT4 | OID_INT8 => text
+            .trim()
             .parse::<i64>()
             .map(Value::Int64)
             .map_err(|_| ExtendedQueryError::protocol("invalid integer bind parameter")),
@@ -698,9 +699,9 @@ fn decode_binary_parameter(parameter: &[u8], oid: i32) -> Result<Value, Extended
 }
 
 fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "t" | "1" => Ok(true),
-        "false" | "f" | "0" => Ok(false),
+    match text.trim().to_ascii_lowercase().as_str() {
+        "true" | "t" | "tr" | "tru" | "1" | "yes" | "y" | "ye" | "on" => Ok(true),
+        "false" | "f" | "fa" | "fal" | "fals" | "0" | "no" | "n" | "off" | "of" => Ok(false),
         _ => Err(ExtendedQueryError::protocol(
             "invalid boolean bind parameter",
         )),

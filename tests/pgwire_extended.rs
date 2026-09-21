@@ -1820,9 +1820,9 @@ mod pgwire_extended_prepared {
 
     use pgwire_support::{
         bind_frame, cancel_request_frame, data_dir, describe_statement_frame, execute_frame,
-        parse_data_row, parse_error_fields, parse_frame, parse_parameter_description,
-        read_frames_until_ready, read_until_ready, read_wire_frame, startup_frame, sync_frame,
-        use_local_storage,
+        parse_data_row, parse_error_fields, parse_frame, parse_frame_with_types,
+        parse_parameter_description, read_frames_until_ready, read_until_ready, read_wire_frame,
+        startup_frame, sync_frame, use_local_storage,
     };
 
     fn password_frame(password: &str) -> Vec<u8> {
@@ -2066,6 +2066,106 @@ mod pgwire_extended_prepared {
             let second_values = parse_data_row(&frames[7].1);
             assert_eq!(first_values, vec![Some("1".to_string())]);
             assert_eq!(second_values, vec![Some("2".to_string())]);
+
+            drop(write_half);
+            shutdown_pgwire_server(server).await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_accept_postgres_text_spellings_for_bool_and_integer_bind_parameters() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("postgres_text_bind_spellings");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+            config.password = "postgres".to_string();
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE pgwire_text_bindings (score INT, active BOOLEAN)",
+                    vec![],
+                )
+                .expect("create table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO pgwire_text_bindings (score, active) VALUES (1, TRUE)",
+                    vec![],
+                )
+                .expect("insert row");
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let (mut reader, mut write_half) = connect_authenticated_pgwire(addr).await;
+
+            // Act
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &parse_frame_with_types(
+                    "text_integer",
+                    "SELECT score FROM pgwire_text_bindings WHERE score = $1",
+                    &[23],
+                ),
+            )
+            .await
+            .expect("write integer parse");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &bind_frame("text_integer_portal", "text_integer", &[" 1 "]),
+            )
+            .await
+            .expect("write integer bind");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &execute_frame("text_integer_portal"),
+            )
+            .await
+            .expect("write integer execute");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &parse_frame_with_types(
+                    "text_bool",
+                    "SELECT active FROM pgwire_text_bindings WHERE active = $1",
+                    &[16],
+                ),
+            )
+            .await
+            .expect("write bool parse");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &bind_frame("text_bool_portal", "text_bool", &[" YeS "]),
+            )
+            .await
+            .expect("write bool bind");
+            tokio::io::AsyncWriteExt::write_all(
+                &mut write_half,
+                &execute_frame("text_bool_portal"),
+            )
+            .await
+            .expect("write bool execute");
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, &sync_frame())
+                .await
+                .expect("write sync");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush frames");
+            let frames = read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert_eq!(
+                frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+                vec![b'1', b'2', b'T', b'D', b'C', b'1', b'2', b'T', b'D', b'C', b'Z']
+            );
+            assert_eq!(parse_data_row(&frames[3].1), vec![Some("1".to_string())]);
+            assert_eq!(parse_data_row(&frames[8].1), vec![Some("true".to_string())]);
 
             drop(write_half);
             shutdown_pgwire_server(server).await;

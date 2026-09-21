@@ -630,6 +630,165 @@ mod integration_sql_scalar_index_lexkey {
     }
 
     #[test]
+    fn should_match_full_scan_for_fractional_bounds_on_integer_scalar_indexes() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_fractional_integer");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for table in ["fractional_int_baseline", "fractional_int_indexed"] {
+                cassie
+                    .execute_sql(&session, &format!("CREATE TABLE {table} (n INT)"), vec![])
+                    .expect("create integer table");
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("INSERT INTO {table} (n) VALUES (1), (5), (6), (100)"),
+                        vec![],
+                    )
+                    .expect("insert integer rows");
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX fractional_int_n_idx ON fractional_int_indexed USING btree (n)",
+                    vec![],
+                )
+                .expect("create integer scalar index");
+
+            let predicates = [
+                "n > 5.5",
+                "n >= 5.5",
+                "n < 5.5",
+                "n <= 5.5",
+                "n > 5.0",
+                "n >= 5.0",
+                "n BETWEEN 1.5 AND 5.5",
+                "n = 5.5",
+                "n = 5.0",
+            ];
+
+            // Act
+            let mut divergent = Vec::new();
+            for predicate in predicates {
+                let baseline = cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "SELECT n FROM fractional_int_baseline WHERE {predicate} ORDER BY n"
+                        ),
+                        vec![],
+                    )
+                    .expect("query unindexed integer column");
+                let indexed = cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "SELECT n FROM fractional_int_indexed WHERE {predicate} ORDER BY n"
+                        ),
+                        vec![],
+                    )
+                    .expect("query indexed integer column");
+                if baseline.rows != indexed.rows {
+                    divergent.push(format!(
+                        "{predicate}: unindexed {:?} but indexed {:?}",
+                        baseline.rows, indexed.rows
+                    ));
+                }
+            }
+
+            // Assert
+            assert!(
+                divergent.is_empty(),
+                "index-backed reads must agree with full scans: {divergent:?}"
+            );
+        });
+    }
+
+    #[test]
+    fn should_match_full_scan_for_large_integral_float_bounds_on_bigint_indexes() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_large_float_bigint");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            let boundary = 1_i64 << 62;
+            let float_boundary = 4_611_686_018_427_387_904.0;
+            for table in ["large_float_baseline", "large_float_indexed"] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE {table} (n BIGINT)"),
+                        vec![],
+                    )
+                    .expect("create BIGINT table");
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "INSERT INTO {table} (n) VALUES ({}), ({boundary}), ({})",
+                            boundary - 1,
+                            boundary + 1
+                        ),
+                        vec![],
+                    )
+                    .expect("insert BIGINT rows");
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX large_float_n_idx ON large_float_indexed USING btree (n)",
+                    vec![],
+                )
+                .expect("create BIGINT scalar index");
+
+            // Act
+            let mut divergent = Vec::new();
+            for predicate in ["n > $1", "n < $1"] {
+                let parameter = vec![Value::Float64(float_boundary)];
+                let baseline = cassie
+                    .execute_sql(
+                        &session,
+                        &format!("SELECT n FROM large_float_baseline WHERE {predicate} ORDER BY n"),
+                        parameter.clone(),
+                    )
+                    .expect("query unindexed BIGINT column");
+                let indexed = cassie
+                    .execute_sql(
+                        &session,
+                        &format!("SELECT n FROM large_float_indexed WHERE {predicate} ORDER BY n"),
+                        parameter,
+                    )
+                    .expect("query indexed BIGINT column");
+                if baseline.rows != indexed.rows {
+                    divergent.push(format!(
+                        "{predicate}: unindexed {:?} but indexed {:?}",
+                        baseline.rows, indexed.rows
+                    ));
+                }
+            }
+
+            // Assert
+            assert!(
+                divergent.is_empty(),
+                "index-backed reads must agree with full scans: {divergent:?}"
+            );
+        });
+    }
+
+    #[test]
     fn should_scan_composite_scalar_index_with_embedded_nul_text() {
         // Arrange
         use_local_storage();

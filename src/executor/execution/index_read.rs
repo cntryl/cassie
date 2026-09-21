@@ -421,6 +421,11 @@ fn canonicalize_field_constraints(
             match cassie.catalog.field_type(collection, field) {
                 Some(DataType::Float) => canonicalize_float_number,
                 Some(DataType::Timestamp) => canonicalize_timestamp_text,
+                Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => {
+                    canonicalize_integer_constraint(constraint);
+                    refresh_constraint_satisfiability(constraint);
+                    continue;
+                }
                 _ => continue,
             };
         if let Some(value) = constraint.equality.as_mut() {
@@ -493,6 +498,170 @@ fn canonicalize_float_number(value: &mut serde_json::Value) {
         return;
     };
     *value = serde_json::Value::Number(number);
+}
+
+/// How a float-shaped probe or bound on an integer-typed column rewrites.
+#[derive(Debug, Clone, Copy)]
+enum IntegerRewrite {
+    /// The integer-shaped value the bound narrows to.
+    Value(i64),
+    /// Every stored integer satisfies the bound, so it can be dropped.
+    Unbounded,
+    /// No stored integer can satisfy the bound.
+    Unsatisfiable,
+    /// Already integer-shaped, so the stored key shape already matches.
+    Unchanged,
+}
+
+/// Narrows a float-shaped constraint on an integer-typed column to the integer
+/// shape scalar-index keys use.
+///
+/// `append_scalar_value` tags integer keys `0x30` and float keys `0x40`, so
+/// every stored integer key sorts below any float-shaped bound: without this,
+/// an index range scan returns no rows for `n > 5.5` and every row for
+/// `n < 5.5`, while a full scan of the same table returns the correct rows.
+/// Narrowing is exact over the integers (`n > 5.5` is `n >= 6`, `n < 5.5` is
+/// `n <= 5`), so the bounds stay exact and the residual filter can still be
+/// skipped.
+fn canonicalize_integer_constraint(constraint: &mut ConcreteConstraint) {
+    if let Some(equality) = constraint.equality.as_mut() {
+        match integer_equality(equality) {
+            IntegerRewrite::Value(value) => *equality = serde_json::Value::Number(value.into()),
+            IntegerRewrite::Unsatisfiable => constraint.unsatisfiable = true,
+            IntegerRewrite::Unbounded | IntegerRewrite::Unchanged => {}
+        }
+    }
+    narrow_integer_bound(
+        &mut constraint.lower,
+        &mut constraint.unsatisfiable,
+        integer_lower_bound,
+    );
+    narrow_integer_bound(
+        &mut constraint.upper,
+        &mut constraint.unsatisfiable,
+        integer_upper_bound,
+    );
+}
+
+fn narrow_integer_bound(
+    bound: &mut Option<ConcreteBound>,
+    unsatisfiable: &mut bool,
+    rewrite: fn(&ConcreteBound) -> IntegerRewrite,
+) {
+    let Some(current) = bound.as_ref() else {
+        return;
+    };
+    match rewrite(current) {
+        IntegerRewrite::Value(value) => {
+            *bound = Some(ConcreteBound {
+                value: serde_json::Value::Number(value.into()),
+                inclusive: true,
+            });
+        }
+        IntegerRewrite::Unbounded => *bound = None,
+        IntegerRewrite::Unsatisfiable => *unsatisfiable = true,
+        IntegerRewrite::Unchanged => {}
+    }
+}
+
+/// Returns the finite float a JSON number carries when it is float-shaped.
+/// Integer-shaped numbers already match the stored key shape.
+fn float_shaped_number(value: &serde_json::Value) -> Option<f64> {
+    let serde_json::Value::Number(number) = value else {
+        return None;
+    };
+    if number.as_i64().is_some() || number.as_u64().is_some() {
+        return None;
+    }
+    number.as_f64().filter(|float| float.is_finite())
+}
+
+fn integral_to_i64(value: f64) -> Option<i64> {
+    format!("{value:.0}").parse::<i64>().ok()
+}
+
+fn integer_equality(value: &serde_json::Value) -> IntegerRewrite {
+    let Some(float) = float_shaped_number(value) else {
+        return IntegerRewrite::Unchanged;
+    };
+    if float.fract() != 0.0 {
+        return IntegerRewrite::Unsatisfiable;
+    }
+    integral_to_i64(float).map_or(IntegerRewrite::Unsatisfiable, IntegerRewrite::Value)
+}
+
+fn integer_lower_bound(bound: &ConcreteBound) -> IntegerRewrite {
+    let Some(float) = float_shaped_number(&bound.value) else {
+        return IntegerRewrite::Unchanged;
+    };
+    if !bound.inclusive && float.fract() == 0.0 {
+        return integral_to_i64(float).map_or_else(
+            || {
+                if float.is_sign_positive() {
+                    IntegerRewrite::Unsatisfiable
+                } else {
+                    IntegerRewrite::Unbounded
+                }
+            },
+            |value| {
+                value
+                    .checked_add(1)
+                    .map_or(IntegerRewrite::Unsatisfiable, IntegerRewrite::Value)
+            },
+        );
+    }
+    let smallest = if bound.inclusive {
+        float.ceil()
+    } else {
+        float.floor() + 1.0
+    };
+    integral_to_i64(smallest).map_or_else(
+        || {
+            if smallest.is_sign_positive() {
+                IntegerRewrite::Unsatisfiable
+            } else {
+                IntegerRewrite::Unbounded
+            }
+        },
+        IntegerRewrite::Value,
+    )
+}
+
+fn integer_upper_bound(bound: &ConcreteBound) -> IntegerRewrite {
+    let Some(float) = float_shaped_number(&bound.value) else {
+        return IntegerRewrite::Unchanged;
+    };
+    if !bound.inclusive && float.fract() == 0.0 {
+        return integral_to_i64(float).map_or_else(
+            || {
+                if float.is_sign_positive() {
+                    IntegerRewrite::Unbounded
+                } else {
+                    IntegerRewrite::Unsatisfiable
+                }
+            },
+            |value| {
+                value
+                    .checked_sub(1)
+                    .map_or(IntegerRewrite::Unsatisfiable, IntegerRewrite::Value)
+            },
+        );
+    }
+    let largest = if bound.inclusive {
+        float.floor()
+    } else {
+        float.ceil() - 1.0
+    };
+    integral_to_i64(largest).map_or_else(
+        || {
+            if largest.is_sign_positive() {
+                IntegerRewrite::Unbounded
+            } else {
+                IntegerRewrite::Unsatisfiable
+            }
+        },
+        IntegerRewrite::Value,
+    )
 }
 
 fn intersect_lower_bound(

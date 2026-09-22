@@ -315,7 +315,10 @@ async fn route_request_with_admin_ui(
                 }
             };
 
-        if !authenticated_role.is_admin && !is_read_only_sql_route(&method, segments.as_slice()) {
+        if !authenticated_role.is_admin
+            && !is_read_only_sql_route(&method, segments.as_slice())
+            && !is_self_service_auth_route(&method, segments.as_slice())
+        {
             cassie.runtime.record_rest_request(
                 method.as_str(),
                 &path,
@@ -822,6 +825,13 @@ fn is_read_only_sql_route(method: &Method, segments: &[&str]) -> bool {
                 "query-executions" | "query-validations" | "query-explanations"
             ]
         ) | ("DELETE", ["api", "v1", "admin", "query-operations", _])
+    )
+}
+
+fn is_self_service_auth_route(method: &Method, segments: &[&str]) -> bool {
+    matches!(
+        (method.as_str(), segments),
+        ("GET", ["api", "v1", "auth", "session"]) | ("POST", ["api", "v1", "auth", "logout"])
     )
 }
 

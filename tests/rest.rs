@@ -4740,6 +4740,107 @@ mod rest_sessions {
     }
 
     #[test]
+    fn should_revoke_a_non_admin_rest_session_on_logout() {
+        // Arrange
+        use_local_storage();
+        let data_dir = data_dir("non-admin-session-lifecycle");
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        let root = cassie
+            .authenticate_role("root", Some("postgres"), None)
+            .expect("root session");
+        cassie
+            .execute_sql(
+                &root,
+                "CREATE ROLE reader LOGIN PASSWORD 'reader-secret'",
+                Vec::new(),
+            )
+            .expect("create reader");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+            let client = Client::new();
+            let login = client
+                .post(format!("{base_url}/api/v1/auth/login"))
+                .json(&serde_json::json!({
+                    "username": "reader",
+                    "password": "reader-secret"
+                }))
+                .send()
+                .await
+                .expect("reader login response");
+            let session_cookie = cookie(&login);
+
+            // Act
+            let current = client
+                .get(format!("{base_url}/api/v1/auth/session"))
+                .header("cookie", &session_cookie)
+                .send()
+                .await
+                .expect("current reader session response");
+            let rejected_cross_origin_logout = client
+                .post(format!("{base_url}/api/v1/auth/logout"))
+                .header("cookie", &session_cookie)
+                .header("origin", "https://untrusted.example")
+                .send()
+                .await
+                .expect("cross-origin reader logout response");
+            let after_rejected_cross_origin = client
+                .get(format!("{base_url}/api/v1/auth/session"))
+                .header("cookie", &session_cookie)
+                .send()
+                .await
+                .expect("post-rejected-cross-origin reader session response");
+            let logout = client
+                .post(format!("{base_url}/api/v1/auth/logout"))
+                .header("cookie", &session_cookie)
+                .send()
+                .await
+                .expect("reader logout response");
+            let after_logout = client
+                .get(format!("{base_url}/api/v1/auth/session"))
+                .header("cookie", &session_cookie)
+                .send()
+                .await
+                .expect("post-logout reader session response");
+
+            // Assert
+            assert_eq!(login.status(), StatusCode::OK);
+            assert_eq!(current.status(), StatusCode::OK);
+            assert_eq!(
+                current
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("current reader session"),
+                serde_json::json!({"user": "reader", "role": "reader"})
+            );
+            assert_eq!(rejected_cross_origin_logout.status(), StatusCode::FORBIDDEN);
+            assert_eq!(after_rejected_cross_origin.status(), StatusCode::OK);
+            assert_eq!(
+                after_rejected_cross_origin
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("reader session after rejected cross-origin logout"),
+                serde_json::json!({"user": "reader", "role": "reader"})
+            );
+            assert_eq!(logout.status(), StatusCode::OK);
+            assert!(logout
+                .headers()
+                .get("set-cookie")
+                .expect("clear cookie")
+                .to_str()
+                .expect("clear cookie value")
+                .contains("Max-Age=0"));
+            assert_eq!(after_logout.status(), StatusCode::UNAUTHORIZED);
+            stop_rest_server(shutdown, server).await;
+            let _ = std::fs::remove_dir_all(data_dir);
+        });
+    }
+
+    #[test]
     fn should_reject_password_bearing_bearer_credentials() {
         // Arrange
         use_local_storage();

@@ -344,8 +344,15 @@ mod network_listener_authentication {
 
 // Formerly tests/rest.rs.
 mod rest {
-    use cassie::app::Cassie;
-    use cassie::catalog::canonical_relation_name;
+    use std::sync::{mpsc, Arc, Barrier};
+    use std::time::Duration;
+
+    use cassie::app::{Cassie, CassieError, CatalogObjectKind};
+    use cassie::catalog::{canonical_relation_name, FieldConstraint};
+    use cassie::midge::adapter::{
+        schema_write_conflict_test_guard, schema_write_conflict_worker_guard,
+        set_schema_write_commit_barriers, SchemaWritePausePoint,
+    };
     use cassie::rest::{collections, documents};
     use uuid::Uuid;
 
@@ -367,6 +374,7 @@ mod rest {
         runtime.block_on(async {
             let body = serde_json::json!({
                 "name": collection,
+                "description": "REST collection fixture",
                 "fields": [
                     {"name": "title", "type": "text"},
                     {"name": "payload", "type": "json"},
@@ -393,6 +401,25 @@ mod rest {
             // Assert
             assert_eq!(create["collection"], collection);
             assert!(list.contains(&canonical_relation_name("postgres", "public", collection)));
+            assert_eq!(
+                cassie
+                    .midge
+                    .collection_metadata(collection)
+                    .expect("collection metadata")
+                    .expect("stored collection metadata")
+                    .description
+                    .as_deref(),
+                Some("REST collection fixture")
+            );
+            assert_eq!(
+                cassie
+                    .catalog
+                    .get_collection(collection)
+                    .expect("catalog collection metadata")
+                    .description
+                    .as_deref(),
+                Some("REST collection fixture")
+            );
             assert_eq!(got["title"], "hello");
             assert_eq!(removed["deleted"], serde_json::Value::Bool(true));
 
@@ -657,6 +684,427 @@ mod rest {
 
         let _ = std::fs::remove_dir_all(path);
     }
+
+    fn assert_relation_already_exists(result: &Result<serde_json::Value, CassieError>) {
+        assert!(matches!(
+            result,
+            Err(CassieError::CatalogObjectAlreadyExists {
+                kind: CatalogObjectKind::Relation,
+                ..
+            })
+        ));
+    }
+
+    fn assert_table_integrity_constraints(constraints: &[FieldConstraint]) {
+        assert!(constraints.iter().any(|constraint| constraint.primary_key));
+        assert!(constraints
+            .iter()
+            .any(|constraint| constraint.references_table.is_some()));
+        assert!(constraints
+            .iter()
+            .any(|constraint| constraint.check.is_some()));
+        assert!(constraints.iter().any(|constraint| constraint.not_null));
+        assert!(constraints
+            .iter()
+            .any(|constraint| constraint.default_value.is_some()));
+    }
+
+    #[test]
+    fn should_reject_rest_collection_creation_that_reuses_an_existing_table() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("collection-create-existing-table");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_collection_parent (parent_id INT PRIMARY KEY)",
+                vec![],
+            )
+            .expect("create parent table");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE RestExisting (id INT PRIMARY KEY, parent_id INT NOT NULL REFERENCES rest_collection_parent(parent_id), score INT CHECK (score >= 18), status TEXT DEFAULT 'pending')",
+                vec![],
+            )
+            .expect("create table");
+        let collection = canonical_relation_name("postgres", "public", "RestExisting");
+        let original_schema = serde_json::to_value(
+            cassie
+                .catalog
+                .get_schema(&collection)
+                .expect("original catalog schema"),
+        )
+        .expect("serialize original catalog schema");
+        let original_storage_schema = serde_json::to_value(
+            cassie
+                .midge
+                .collection_schema(&collection)
+                .expect("original storage schema"),
+        )
+        .expect("serialize original storage schema");
+        let original_constraints = cassie.catalog.get_constraints(&collection);
+
+        // Act
+        let exact_name = collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": "RestExisting",
+                "fields": [{"name": "replacement", "type": "text"}]
+            })
+            .to_string()
+            .as_bytes(),
+        );
+        let case_variant = collections::create(
+            &cassie,
+            serde_json::json!({
+                "name": "restexisting",
+                "fields": [{"name": "replacement", "type": "text"}]
+            })
+            .to_string()
+            .as_bytes(),
+        );
+
+        // Assert
+        assert_relation_already_exists(&exact_name);
+        assert_relation_already_exists(&case_variant);
+        assert_eq!(
+            serde_json::to_value(
+                cassie
+                    .catalog
+                    .get_schema(&collection)
+                    .expect("catalog schema after rejected requests"),
+            )
+            .expect("serialize catalog schema after rejected requests"),
+            original_schema
+        );
+        assert_eq!(
+            serde_json::to_value(
+                cassie
+                    .midge
+                    .collection_schema(&collection)
+                    .expect("storage schema after rejected requests"),
+            )
+            .expect("serialize storage schema after rejected requests"),
+            original_storage_schema
+        );
+        assert_eq!(
+            cassie.catalog.get_constraints(&collection),
+            original_constraints
+        );
+        assert_table_integrity_constraints(&original_constraints);
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_rest_collection_creation_that_reuses_an_existing_view() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("collection-create-existing-view");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_collection_view_source (id INT)",
+                vec![],
+            )
+            .expect("create source table");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE VIEW rest_collection_view AS SELECT id FROM rest_collection_view_source",
+                vec![],
+            )
+            .expect("create view");
+        let body = serde_json::json!({
+            "name": "rest_collection_view",
+            "fields": [{"name": "id", "type": "int"}]
+        });
+
+        // Act
+        let result = collections::create(&cassie, body.to_string().as_bytes());
+
+        // Assert
+        assert!(
+            result.is_err(),
+            "REST collection creation must not create a table behind a view"
+        );
+        assert_eq!(
+            cassie.midge.list_collections(),
+            vec![canonical_relation_name(
+                "postgres",
+                "public",
+                "rest_collection_view_source"
+            )]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_noncanonical_rest_collection_names_before_persisting_them() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("collection-create-invalid-name");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let requests = ["", "   ", "other.public.events", "a b", "my.table", "x/y"];
+
+        // Act
+        let results = requests
+            .iter()
+            .map(|name| {
+                collections::create(
+                    &cassie,
+                    serde_json::json!({
+                        "name": name,
+                        "fields": [{"name": "value", "type": "text"}]
+                    })
+                    .to_string()
+                    .as_bytes(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            results.iter().all(Result::is_err),
+            "REST collection creation accepted a noncanonical name: {results:?}"
+        );
+        assert!(
+            cassie.midge.list_collections().is_empty(),
+            "invalid collection names must not be persisted"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_invalid_rest_collection_fields_before_persisting_them() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("collection-create-invalid-fields");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let requests = [
+            serde_json::json!({
+                "name": "rest_duplicate_fields",
+                "fields": [
+                    {"name": "Title", "type": "text"},
+                    {"name": "title", "type": "int"}
+                ]
+            }),
+            serde_json::json!({
+                "name": "rest_empty_field",
+                "fields": [{"name": "   ", "type": "text"}]
+            }),
+            serde_json::json!({
+                "name": "rest_reserved_identity",
+                "fields": [{"name": "_id", "type": "text"}]
+            }),
+            serde_json::json!({
+                "name": "rest_reserved_identity_case",
+                "fields": [{"name": "_ID", "type": "text"}]
+            }),
+            serde_json::json!({"name": "rest_empty_definition", "fields": []}),
+            serde_json::json!({"name": "rest_missing_definition"}),
+        ];
+
+        // Act
+        let results = requests
+            .iter()
+            .map(|request| collections::create(&cassie, request.to_string().as_bytes()))
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert!(
+            results.iter().all(Result::is_err),
+            "REST collection creation accepted an invalid field definition: {results:?}"
+        );
+        assert!(
+            cassie.midge.list_collections().is_empty(),
+            "a rejected collection definition must not be persisted"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_concurrent_rest_collection_creation_when_sql_table_claims_name() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let _test_guard = schema_write_conflict_test_guard();
+        let path = data_dir("collection-create-sql-race");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+        cassie.startup().expect("startup");
+        let ready = Arc::new(Barrier::new(2));
+        let resume = Arc::new(Barrier::new(2));
+        set_schema_write_commit_barriers(
+            Some(SchemaWritePausePoint::CollectionCreate),
+            Some(Arc::clone(&ready)),
+            Some(Arc::clone(&resume)),
+        );
+        let (rest_tx, rest_rx) = mpsc::channel();
+        let rest_cassie = Arc::clone(&cassie);
+        let rest_worker = std::thread::spawn(move || {
+            let _worker_guard = schema_write_conflict_worker_guard();
+            let result = collections::create(
+                &rest_cassie,
+                serde_json::json!({
+                    "name": "RestConcurrent",
+                    "fields": [{"name": "rest_value", "type": "text"}]
+                })
+                .to_string()
+                .as_bytes(),
+            );
+            rest_tx.send(result).expect("report REST creation");
+        });
+        ready.wait();
+        set_schema_write_commit_barriers(None, None, None);
+        let (sql_tx, sql_rx) = mpsc::channel();
+        let sql_cassie = Arc::clone(&cassie);
+        let sql_worker = std::thread::spawn(move || {
+            let session = sql_cassie.create_session("root", None);
+            let result = sql_cassie.execute_sql(
+                &session,
+                "CREATE TABLE restconcurrent (sql_value INT PRIMARY KEY)",
+                vec![],
+            );
+            sql_tx.send(result).expect("report SQL creation");
+        });
+
+        // Act
+        let early_sql_result = sql_rx.recv_timeout(Duration::from_millis(100)).ok();
+        let sql_blocked = early_sql_result.is_none();
+        resume.wait();
+        let rest_result = rest_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("REST creation should finish");
+        let sql_result = early_sql_result.unwrap_or_else(|| {
+            sql_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("SQL creation should finish")
+        });
+        rest_worker.join().expect("join REST worker");
+        sql_worker.join().expect("join SQL worker");
+
+        // Assert
+        assert!(
+            sql_blocked,
+            "SQL creation must wait until the REST relation publication completes"
+        );
+        assert!(rest_result.is_ok(), "REST creation failed: {rest_result:?}");
+        assert!(matches!(
+            sql_result,
+            Err(CassieError::CatalogObjectAlreadyExists {
+                kind: CatalogObjectKind::Relation,
+                ..
+            })
+        ));
+        let collection = canonical_relation_name("postgres", "public", "RestConcurrent");
+        let catalog_schema = cassie
+            .catalog
+            .get_schema(&collection)
+            .expect("catalog schema");
+        assert_eq!(catalog_schema.fields.len(), 1);
+        assert_eq!(catalog_schema.fields[0].name, "rest_value");
+        assert!(cassie.catalog.get_constraints(&collection).is_empty());
+        let storage_schema = cassie
+            .midge
+            .collection_schema(&collection)
+            .expect("storage schema");
+        assert_eq!(storage_schema.fields.len(), 1);
+        assert_eq!(storage_schema.fields[0].name, "rest_value");
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_concurrent_rest_collection_creation_when_sql_view_claims_name() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let _test_guard = schema_write_conflict_test_guard();
+        let path = data_dir("collection-create-view-race");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("cassie"));
+        cassie.startup().expect("startup");
+        let setup_session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &setup_session,
+                "CREATE TABLE rest_view_race_source (id INT)",
+                vec![],
+            )
+            .expect("create view source");
+        let ready = Arc::new(Barrier::new(2));
+        let resume = Arc::new(Barrier::new(2));
+        set_schema_write_commit_barriers(
+            Some(SchemaWritePausePoint::CollectionCreate),
+            Some(Arc::clone(&ready)),
+            Some(Arc::clone(&resume)),
+        );
+        let (rest_tx, rest_rx) = mpsc::channel();
+        let rest_cassie = Arc::clone(&cassie);
+        let rest_worker = std::thread::spawn(move || {
+            let _worker_guard = schema_write_conflict_worker_guard();
+            let result = collections::create(
+                &rest_cassie,
+                serde_json::json!({
+                    "name": "RestViewRace",
+                    "fields": [{"name": "rest_value", "type": "text"}]
+                })
+                .to_string()
+                .as_bytes(),
+            );
+            rest_tx.send(result).expect("report REST creation");
+        });
+        ready.wait();
+        set_schema_write_commit_barriers(None, None, None);
+        let (view_tx, view_rx) = mpsc::channel();
+        let view_cassie = Arc::clone(&cassie);
+        let view_worker = std::thread::spawn(move || {
+            let session = view_cassie.create_session("root", None);
+            let result = view_cassie.execute_sql(
+                &session,
+                "CREATE VIEW restviewrace AS SELECT id FROM rest_view_race_source",
+                vec![],
+            );
+            view_tx.send(result).expect("report view creation");
+        });
+
+        // Act
+        let early_view_result = view_rx.recv_timeout(Duration::from_millis(100)).ok();
+        let view_blocked = early_view_result.is_none();
+        resume.wait();
+        let rest_result = rest_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("REST creation should finish");
+        let view_result = early_view_result.unwrap_or_else(|| {
+            view_rx
+                .recv_timeout(Duration::from_secs(2))
+                .expect("view creation should finish")
+        });
+        rest_worker.join().expect("join REST worker");
+        view_worker.join().expect("join view worker");
+
+        // Assert
+        assert!(
+            view_blocked,
+            "view creation must wait until the REST relation publication completes"
+        );
+        assert!(rest_result.is_ok(), "REST creation failed: {rest_result:?}");
+        assert!(view_result.is_err(), "view creation unexpectedly succeeded");
+        let collection = canonical_relation_name("postgres", "public", "RestViewRace");
+        assert!(cassie.catalog.get_view(&collection).is_none());
+        assert!(cassie.midge.collection_schema(&collection).is_some());
+
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/rest_admin_databases.rs.
@@ -837,6 +1285,59 @@ mod rest_admin_databases {
                     .await
                     .expect("duplicate error")["error"],
                 "database 'analytics' already exists"
+            );
+
+            stop_rest_server(shutdown, server).await;
+        });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_return_conflict_when_rest_collection_already_exists() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("duplicate-collection");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+            let client = Client::new();
+            let cookie = login_cookie(&client, &base_url, "root", "postgres").await;
+            let body = serde_json::json!({
+                "name": "rest_route_duplicate",
+                "fields": [{"name": "value", "type": "text"}]
+            });
+            let first = client
+                .post(format!("{base_url}/api/v1/collections"))
+                .header("cookie", &cookie)
+                .json(&body)
+                .send()
+                .await
+                .expect("first create collection");
+            assert_eq!(first.status(), StatusCode::OK);
+
+            // Act
+            let duplicate = client
+                .post(format!("{base_url}/api/v1/collections"))
+                .header("cookie", cookie)
+                .json(&body)
+                .send()
+                .await
+                .expect("duplicate create collection");
+
+            // Assert
+            assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+            assert_eq!(
+                duplicate
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("duplicate error")["error"],
+                "relation 'postgres.public.rest_route_duplicate' already exists"
             );
 
             stop_rest_server(shutdown, server).await;

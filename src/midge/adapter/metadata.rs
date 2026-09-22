@@ -1,3 +1,4 @@
+use super::index_publication::PendingIndexPublication;
 use super::{
     check_index_drop_failure_point, check_index_publication_failure_point, collect_scan,
     key_encoding, payload_contains_index_membership, payload_contains_vector_membership,
@@ -39,6 +40,31 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_index(&self, metadata: &IndexMeta) -> Result<(), CassieError> {
+        self.prepare_index_for_publication(metadata)?;
+        check_index_publication_failure_point()?;
+        self.replay_pending_index_publications()
+    }
+
+    /// Publishes an index while the caller owns the index collection's canonical write gate.
+    ///
+    /// This does not acquire the referential gate or replay other pending index publications.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub(crate) fn put_index_with_held_collection_gate(
+        &self,
+        metadata: &IndexMeta,
+    ) -> Result<(), CassieError> {
+        let publication = self.prepare_index_for_publication(metadata)?;
+        check_index_publication_failure_point()?;
+        self.publish_prepared_index_locked(publication)
+    }
+
+    fn prepare_index_for_publication(
+        &self,
+        metadata: &IndexMeta,
+    ) -> Result<PendingIndexPublication, CassieError> {
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let relation_id = self
@@ -58,9 +84,7 @@ impl Midge {
                 id
             };
         metadata.set_storage_ids(relation_id, storage_id);
-        self.prepare_index_publication(&metadata)?;
-        check_index_publication_failure_point()?;
-        self.replay_pending_index_publications()
+        self.prepare_index_publication(&metadata)
     }
 
     /// # Errors

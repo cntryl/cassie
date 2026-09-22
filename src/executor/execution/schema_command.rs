@@ -1,4 +1,5 @@
 use super::{catalog, virtual_views, Cassie, FieldSchema, QueryError, QueryResult, QueryStatement};
+use crate::app::{CassieError, CatalogObjectKind};
 use crate::sql::ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CreateDatabaseStatement, CreateGraphStatement, CreateSchemaStatement, CreateViewStatement,
@@ -48,11 +49,31 @@ pub(super) fn create_view(
     cassie: &Cassie,
     statement: &CreateViewStatement,
 ) -> Result<QueryResult, QueryError> {
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&statement.name), || {
+            create_view_gated(cassie, statement)
+        })
+}
+
+fn create_view_gated(
+    cassie: &Cassie,
+    statement: &CreateViewStatement,
+) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists
         && (cassie.catalog.relation_exists(&statement.name)
             || virtual_views::schema(&statement.name).is_some())
     {
         return Ok(empty_command("CREATE VIEW"));
+    }
+    if cassie.catalog.relation_exists(&statement.name)
+        || virtual_views::schema(&statement.name).is_some()
+    {
+        return Err(CassieError::CatalogObjectAlreadyExists {
+            kind: CatalogObjectKind::Relation,
+            name: statement.name.clone(),
+        }
+        .into());
     }
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)

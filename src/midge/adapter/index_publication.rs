@@ -8,7 +8,7 @@ enum IndexPublicationState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-struct PendingIndexPublication {
+pub(super) struct PendingIndexPublication {
     state: IndexPublicationState,
     index: IndexMeta,
     target_generation: u64,
@@ -29,7 +29,10 @@ impl Midge {
         Ok(())
     }
 
-    pub(super) fn prepare_index_publication(&self, index: &IndexMeta) -> Result<(), CassieError> {
+    pub(super) fn prepare_index_publication(
+        &self,
+        index: &IndexMeta,
+    ) -> Result<PendingIndexPublication, CassieError> {
         let pending = PendingIndexPublication {
             state: IndexPublicationState::Prepared,
             index: index.clone(),
@@ -43,7 +46,8 @@ impl Midge {
         )
         .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
-            .map_err(CassieError::from)
+            .map_err(CassieError::from)?;
+        Ok(pending)
     }
 
     /// Rebuilds prepared data-family index state and atomically publishes its schema metadata.
@@ -87,7 +91,7 @@ impl Midge {
         })
     }
 
-    fn publish_prepared_index_locked(
+    pub(super) fn publish_prepared_index_locked(
         &self,
         mut publication: PendingIndexPublication,
     ) -> Result<(), CassieError> {

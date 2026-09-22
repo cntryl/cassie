@@ -509,6 +509,7 @@ async fn handle_simple_query(
         && simple_query::is_streaming_copy(&statements[0])
         && cassie.ensure_session_database_access(&session).is_err()
     {
+        session.mark_transaction_failed();
         let error = cassie_pg_error(&CassieError::InsufficientPrivilege);
         if write_error_response(write_half, &error).await.is_err()
             || write_ready_for_query(write_half, &session).await.is_err()
@@ -623,6 +624,13 @@ async fn execute_simple_statement(
             Err(error) if writers::is_backend_frame_too_large(&error) => {
                 let resource_limit = CassieError::ResourceLimit(error.to_string());
                 write_error_response(write_half, &cassie_pg_error(&resource_limit))
+                    .await
+                    .map(|()| false)
+                    .map_err(|_| ())
+            }
+            Err(error) if writers::is_row_shape_mismatch(&error) => {
+                session.mark_transaction_failed();
+                write_error_response(write_half, &PgWireError::internal(error.to_string()))
                     .await
                     .map(|()| false)
                     .map_err(|_| ())

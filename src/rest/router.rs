@@ -460,16 +460,23 @@ async fn dispatch_admin_routes(
     }
 
     match (context.method.as_str(), context.segments) {
-        ("GET", ["api", "v1", "admin", "databases"]) => run_rest_blocking_route(
-            cassie,
-            context.method,
-            context.path,
-            context.started_at,
-            "rest_list_databases",
-            |cassie| crate::rest::databases::list(&cassie),
-        )
-        .await
-        .map(|databases| Some(json_response(StatusCode::OK, &databases))),
+        ("GET", ["api", "v1", "admin", "databases"]) => {
+            let authenticated_user = context
+                .request_context
+                .role
+                .as_ref()
+                .map(|role| role.name.clone());
+            run_rest_blocking_route(
+                cassie,
+                context.method,
+                context.path,
+                context.started_at,
+                "rest_list_databases",
+                move |cassie| crate::rest::databases::list(&cassie, authenticated_user.as_deref()),
+            )
+            .await
+            .map(|databases| Some(json_response(StatusCode::OK, &databases)))
+        }
         ("POST", ["api", "v1", "admin", "databases"]) => {
             let body = body.clone();
             run_rest_blocking_route(

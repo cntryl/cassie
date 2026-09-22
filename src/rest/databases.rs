@@ -1,5 +1,5 @@
 use crate::app::{Cassie, CassieError};
-use crate::catalog::DatabaseMeta;
+use crate::catalog::{normalize_role_name, DatabaseMeta, RoleMeta};
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -24,8 +24,20 @@ impl From<DatabaseMeta> for DatabaseSummary {
     }
 }
 
-pub(crate) fn list(cassie: &Cassie) -> Result<Vec<DatabaseSummary>, CassieError> {
+pub(crate) fn list(
+    cassie: &Cassie,
+    authenticated_user: Option<&str>,
+) -> Result<Vec<DatabaseSummary>, CassieError> {
     let mut databases = cassie.midge.list_databases()?;
+    if let Some(authenticated_user) = authenticated_user {
+        let normalized = normalize_role_name(authenticated_user);
+        let role = cassie.lookup_role(&normalized)?.or_else(|| {
+            (normalized == normalize_role_name(&cassie.auth_user))
+                .then(|| RoleMeta::bootstrap_admin(&cassie.auth_user, None))
+        });
+        let role = role.ok_or(CassieError::Unauthorized)?;
+        databases.retain(|database| role.can_access_database(&database.name));
+    }
     databases.sort_by_key(|database| database.name.to_ascii_lowercase());
     Ok(databases.into_iter().map(DatabaseSummary::from).collect())
 }

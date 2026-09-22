@@ -8277,4 +8277,71 @@ mod foreign_key_ddl_lifecycle {
             );
         });
     }
+
+    #[test]
+    fn should_keep_enforcing_foreign_key_when_both_referencing_columns_are_renamed() {
+        with_cassie("fk-ddl-rename-both-columns", |path| {
+            // Arrange
+            let (cassie, session) = start(path);
+            exec_all(&cassie, &session, &PARENT_CHILD);
+
+            // Act
+            exec_all(
+                &cassie,
+                &session,
+                &[
+                    "ALTER TABLE c RENAME COLUMN PID TO parent_id",
+                    "ALTER TABLE p RENAME COLUMN ID TO key_id",
+                ],
+            );
+            drop(cassie);
+            let (cassie, session) = start(path);
+
+            // Assert
+            let restricted_delete = run(&cassie, &session, "DELETE FROM p WHERE key_id = 1");
+            assert_foreign_key_error(restricted_delete, "restricted parent delete");
+            run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, parent_id) VALUES (11, 1)",
+            )
+            .expect("child of existing parent");
+            let orphan_insert = run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, parent_id) VALUES (12, 999)",
+            );
+            assert_foreign_key_error(orphan_insert, "orphan child insert");
+        });
+    }
+
+    #[test]
+    fn should_report_the_declared_foreign_key_name_when_a_transaction_violates_it() {
+        with_cassie("fk-ddl-declared-name-transaction", |path| {
+            // Arrange
+            let (cassie, session) = start(path);
+            exec_all(
+                &cassie,
+                &session,
+                &[
+                    "CREATE TABLE p (id INT PRIMARY KEY)",
+                    "CREATE TABLE c (cid INT PRIMARY KEY, pid INT, CONSTRAINT my_named_fk FOREIGN KEY (pid) REFERENCES p(id))",
+                    "BEGIN",
+                ],
+            );
+
+            // Act
+            let error = run(
+                &cassie,
+                &session,
+                "INSERT INTO c (cid, pid) VALUES (1, 999)",
+            )
+            .and_then(|_| run(&cassie, &session, "COMMIT"))
+            .expect_err("orphan child in transaction")
+            .to_string();
+
+            // Assert
+            assert!(error.contains("'my_named_fk'"), "transaction error {error}");
+        });
+    }
 }

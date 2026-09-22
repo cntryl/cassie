@@ -8,6 +8,8 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "schema_foreign_keys.rs"]
+mod schema_foreign_keys;
 #[path = "schema_graph_rename.rs"]
 mod schema_graph_rename;
 #[path = "schema_sequence_rename.rs"]
@@ -450,12 +452,7 @@ fn alter_table_drop_constraint(
             constraint.foreign_key_name.as_ref(),
             name,
         ) {
-            constraint.references_table = None;
-            constraint.references_field = None;
-            constraint.foreign_key_name = None;
-            constraint.foreign_key_ordinal = None;
-            constraint.foreign_key_on_delete = None;
-            constraint.foreign_key_on_update = None;
+            constraint.clear_foreign_key();
             found = true;
         }
     }
@@ -468,7 +465,12 @@ fn alter_table_drop_constraint(
         )));
     }
 
-    reject_referenced_constraint_drop(cassie, table, name, &constrained_unique_fields)?;
+    schema_foreign_keys::reject_referenced_constraint_drop(
+        cassie,
+        table,
+        name,
+        &constrained_unique_fields,
+    )?;
     constraints.retain(constraint_is_populated);
     cassie
         .midge
@@ -508,34 +510,6 @@ fn constraint_name_matches(
                 .eq_ignore_ascii_case(requested_name))
 }
 
-fn reject_referenced_constraint_drop(
-    cassie: &Cassie,
-    table: &str,
-    name: &str,
-    fields: &[String],
-) -> Result<(), QueryError> {
-    for collection in cassie.catalog.list_collections_canonical() {
-        for constraint in cassie.catalog.get_constraints(&collection.name) {
-            if constraint
-                .references_table
-                .as_ref()
-                .is_some_and(|target| target.eq_ignore_ascii_case(table))
-                && constraint.references_field.as_ref().is_some_and(|field| {
-                    fields
-                        .iter()
-                        .any(|candidate| candidate.eq_ignore_ascii_case(field))
-                })
-            {
-                return Err(QueryError::General(format!(
-                    "cannot drop constraint '{name}' because foreign key on '{}' depends on it",
-                    collection.name
-                )));
-            }
-        }
-    }
-    Ok(())
-}
-
 fn constraint_is_populated(constraint: &crate::catalog::FieldConstraint) -> bool {
     constraint.primary_key
         || constraint.unique
@@ -554,11 +528,13 @@ fn alter_table_drop_column(
     is_column_store: bool,
 ) -> Result<(), QueryError> {
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE DROP COLUMN")?;
+    schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     cassie
         .midge
         .alter_collection_drop_column(table, field)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.remove_collection_field(table, field);
+    schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 
@@ -575,6 +551,7 @@ fn alter_table_rename_column(
         .alter_collection_rename_column(table, from, to)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.rename_collection_field(table, from, to);
+    schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 
@@ -595,7 +572,8 @@ fn alter_table_rename_table(
     cassie
         .catalog
         .rename_collection(table, next_table)
-        .map_err(|error| QueryError::General(error.to_string()))
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
 
 fn ensure_row_store_alter_supported(

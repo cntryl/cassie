@@ -15,7 +15,7 @@ mod schema_index_options;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
 use super::schema_sequences::validate_alter_column_operation;
-use schema_alter_constraints::validate_alter_constraint_targets;
+use schema_alter_constraints::{bind_alter_constraint_targets, bind_foreign_key_reference};
 
 pub(super) fn bind_create_table(
     mut statement: crate::sql::ast::CreateTableStatement,
@@ -75,53 +75,7 @@ pub(super) fn bind_create_table(
                 }
                 primary_key_field = Some(field_name.to_string());
             }
-            if let (Some(table), Some(reference_field)) = (
-                constraint.references_table.as_deref(),
-                constraint.references_field.as_deref(),
-            ) {
-                let table = resolve_relation_name(table, catalog, context)?;
-                constraint.references_table = Some(table.clone());
-                if !catalog.exists(&table) {
-                    return Err(CassieError::CollectionNotFound(table.clone()));
-                }
-                let referenced_schema = catalog
-                    .get_schema(&table)
-                    .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
-                if !referenced_schema
-                    .fields
-                    .iter()
-                    .any(|entry| entry.name.eq_ignore_ascii_case(reference_field))
-                {
-                    return Err(CassieError::Planner(format!(
-                        "foreign key on '{field_name}' references missing field '{reference_field}' on '{table}'"
-                    )));
-                }
-
-                let references_supported =
-                    catalog
-                        .get_constraints(&table)
-                        .into_iter()
-                        .any(|candidate| {
-                            candidate.field.eq_ignore_ascii_case(reference_field)
-                                && (candidate.primary_key || candidate.unique)
-                        })
-                        || catalog
-                            .list_indexes(&table)
-                            .into_iter()
-                            .filter(|index| {
-                                index.unique && index.kind == crate::catalog::IndexKind::Scalar
-                            })
-                            .any(|index| {
-                                let fields = index.normalized_fields();
-                                fields.len() == 1 && fields[0].eq_ignore_ascii_case(reference_field)
-                            });
-
-                if !references_supported {
-                    return Err(CassieError::Planner(format!(
-                        "foreign key on '{field_name}' must reference a primary or unique key on '{table}.{reference_field}'"
-                    )));
-                }
-            }
+            bind_foreign_key_reference(constraint, field_name, catalog, context)?;
         }
 
         field.name = field_name.to_string();
@@ -462,7 +416,7 @@ pub(super) fn bind_alter_table(
 
     let existing_fields = schema
         .fields
-        .into_iter()
+        .iter()
         .map(|field| field.name.to_ascii_lowercase())
         .collect::<HashSet<_>>();
 
@@ -470,7 +424,7 @@ pub(super) fn bind_alter_table(
         *target = normalize_relation_name(target.trim(), context)?;
     }
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
-    validate_alter_constraint_targets(&statement.operation, catalog)?;
+    bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
 
     statement.table = table;
     Ok(statement)

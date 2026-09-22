@@ -129,13 +129,7 @@ impl Cassie {
                 }
                 if self.child_references_any(session, &child_table, &constraint.field, &orphaned)? {
                     return Err(CassieError::ForeignKeyViolation {
-                        constraint: constraint.foreign_key_name.clone().unwrap_or_else(|| {
-                            crate::catalog::generated_constraint_name(
-                                &child_table,
-                                &constraint.field,
-                                "FOREIGN KEY",
-                            )
-                        }),
+                        constraint: constraint.foreign_key_constraint_name(&child_table),
                         table: child_table,
                         column: constraint.field.clone(),
                         referenced_table: collection,

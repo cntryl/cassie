@@ -448,10 +448,9 @@ mod application_pipeline_schema {
             .catalog
             .get_constraints("pipeline_status_history")
             .iter()
-            .any(
-                |constraint| constraint.references_table.as_deref() == Some("pipeline_statuses")
-                    && constraint.references_field.as_deref() == Some("id")
-            ));
+            .any(|constraint| constraint.references_table.as_deref()
+                == Some("postgres.public.pipeline_statuses")
+                && constraint.references_field.as_deref() == Some("id")));
 
         let _ = std::fs::remove_dir_all(path_for_cleanup);
     }

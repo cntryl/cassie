@@ -301,6 +301,14 @@ Compatibility notes:
 - Primary key, unique, not-null, check, and default behavior should stay PostgreSQL-like for supported syntax.
 - Foreign key and generated-column behavior should be documented with explicit limits because Cassie is a projection/read-model database, not a full OLTP PostgreSQL replacement.
 
+Foreign key DDL lifecycle:
+
+- Constraint column lists match declared columns without regard to ASCII case and are stored with the declared spelling.
+- `ALTER TABLE ... ADD CONSTRAINT ... REFERENCES` resolves the referenced relation through `search_path` exactly as `CREATE TABLE` does.
+- `ALTER TABLE ... RENAME TO` and `ALTER TABLE ... RENAME COLUMN` carry every foreign key that references the renamed table or column.
+- `ALTER TABLE ... DROP COLUMN` is refused while a foreign key on another column references the dropped column; a foreign key declared on the dropped column is removed with it.
+- Foreign key violations name the constraint as declared, or as generated when it is unnamed, matching `information_schema.table_constraints`.
+
 ## Benchmark Expectations
 
 Performance-sensitive index work should include benchmark or metrics evidence before being called production-ready.

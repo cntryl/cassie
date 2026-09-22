@@ -177,7 +177,7 @@ fn find_delete_restriction(
             ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {}
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
                 return Ok(Some(referenced_row_error(
-                    &constraint.field,
+                    &constraint.foreign_key_constraint_name(&child_table),
                     &child_table,
                     table,
                     reference_field,
@@ -353,7 +353,7 @@ fn apply_delete_actions(
             }
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
                 return Err(referenced_row_error(
-                    &constraint.field,
+                    &constraint.foreign_key_constraint_name(&child_table),
                     &child_table,
                     table,
                     reference_field,
@@ -412,7 +412,7 @@ fn assert_referenced_values_can_change(
             | ForeignKeyAction::SetDefault => {}
             ForeignKeyAction::NoAction | ForeignKeyAction::Restrict => {
                 return Err(referenced_row_error(
-                    &constraint.field,
+                    &constraint.foreign_key_constraint_name(&child_table),
                     &child_table,
                     table,
                     reference_field,
@@ -652,12 +652,12 @@ fn set_child_reference_values(
 }
 
 fn referenced_row_error(
-    child_field: &str,
+    constraint_name: &str,
     child_table: &str,
     table: &str,
     reference_field: &str,
 ) -> QueryError {
     QueryError::General(format!(
-        "foreign key constraint '{child_field}' on '{child_table}' still references '{table}.{reference_field}'"
+        "foreign key constraint '{constraint_name}' on '{child_table}' still references '{table}.{reference_field}'"
     ))
 }

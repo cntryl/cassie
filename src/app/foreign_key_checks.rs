@@ -7,6 +7,7 @@ const REFERENCE_SCAN_BATCH_SIZE: usize = 1024;
 #[derive(Debug, Clone)]
 struct ForeignKeyReference {
     column: String,
+    constraint_name: Option<String>,
     referenced_table: String,
     referenced_column: String,
     value: serde_json::Value,
@@ -48,6 +49,7 @@ impl ForeignKeyReferences {
             if self.seen.insert(key) {
                 self.references.push(ForeignKeyReference {
                     column: constraint.field.clone(),
+                    constraint_name: constraint.foreign_key_name.clone(),
                     referenced_table: table.to_string(),
                     referenced_column: field.to_string(),
                     value: value.clone(),
@@ -133,11 +135,13 @@ impl Cassie {
         Err(CassieError::ForeignKeyViolation {
             table: collection.to_string(),
             column: missing.column.clone(),
-            constraint: crate::catalog::generated_constraint_name(
-                collection,
-                &missing.column,
-                "FOREIGN KEY",
-            ),
+            constraint: missing.constraint_name.clone().unwrap_or_else(|| {
+                crate::catalog::generated_constraint_name(
+                    collection,
+                    &missing.column,
+                    "FOREIGN KEY",
+                )
+            }),
             referenced_table: missing.referenced_table.clone(),
             referenced_column: missing.referenced_column.clone(),
         })

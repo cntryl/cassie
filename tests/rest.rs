@@ -4819,6 +4819,13 @@ mod rest_sessions {
             );
             assert_eq!(rejected_cross_origin_logout.status(), StatusCode::FORBIDDEN);
             assert_eq!(after_rejected_cross_origin.status(), StatusCode::OK);
+            assert_eq!(
+                after_rejected_cross_origin
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("reader session after rejected cross-origin logout"),
+                serde_json::json!({"user": "reader", "role": "reader"})
+            );
             assert_eq!(logout.status(), StatusCode::OK);
             assert!(logout
                 .headers()

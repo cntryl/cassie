@@ -30,7 +30,7 @@ pub(super) fn apply_table_constraints(
     fields: &mut [FieldDefinition],
     constraints: Vec<FieldConstraint>,
 ) -> Result<(), SqlError> {
-    for constraint in constraints {
+    for mut constraint in constraints {
         let Some(field) = fields
             .iter_mut()
             .find(|field| field.name.eq_ignore_ascii_case(&constraint.field))
@@ -41,6 +41,7 @@ pub(super) fn apply_table_constraints(
             )));
         };
 
+        constraint.use_declared_field_spelling(&field.name);
         merge_field_constraint(field, constraint);
     }
 

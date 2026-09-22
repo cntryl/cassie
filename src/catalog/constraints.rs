@@ -159,6 +159,43 @@ impl FieldConstraint {
             references_field: None,
         }
     }
+
+    /// Rewrites a constraint written against `declared` in a different ASCII
+    /// case to the column's declared spelling, which is the key that stored
+    /// payloads use.
+    pub fn use_declared_field_spelling(&mut self, declared: &str) {
+        if !self.field.eq_ignore_ascii_case(declared) {
+            return;
+        }
+        if let Some(check) = self
+            .check
+            .as_mut()
+            .filter(|check| check.field.eq_ignore_ascii_case(declared))
+        {
+            check.field = declared.to_string();
+        }
+        self.field = declared.to_string();
+    }
+
+    /// The FOREIGN KEY's name as declared, or the generated name that
+    /// `information_schema` reports for an unnamed one.
+    #[must_use]
+    pub fn foreign_key_constraint_name(&self, collection: &str) -> String {
+        self.foreign_key_name
+            .clone()
+            .unwrap_or_else(|| generated_constraint_name(collection, &self.field, "FOREIGN KEY"))
+    }
+
+    /// Removes the FOREIGN KEY this entry carries, keeping its other
+    /// constraints.
+    pub fn clear_foreign_key(&mut self) {
+        self.references_table = None;
+        self.references_field = None;
+        self.foreign_key_name = None;
+        self.foreign_key_ordinal = None;
+        self.foreign_key_on_delete = None;
+        self.foreign_key_on_update = None;
+    }
 }
 
 #[must_use]

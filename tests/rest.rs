@@ -935,6 +935,63 @@ mod rest_admin_databases {
 
         let _ = std::fs::remove_dir_all(path);
     }
+
+    #[test]
+    fn should_scope_admin_database_listing_to_granted_databases() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("grant-scoped-listing");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let root = cassie
+            .authenticate_role("root", Some("postgres"), None)
+            .expect("root session");
+        for statement in [
+            "CREATE DATABASE analytics",
+            "CREATE DATABASE secrets",
+            "CREATE ROLE reader LOGIN PASSWORD 'reader-secret'",
+            "GRANT CONNECT ON DATABASE analytics TO reader",
+        ] {
+            cassie
+                .execute_sql(&root, statement, Vec::new())
+                .expect("grant-scoped database fixture");
+        }
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+            let client = Client::new();
+            let reader_cookie = login_cookie(&client, &base_url, "reader", "reader-secret").await;
+
+            // Act
+            let response = client
+                .get(format!("{base_url}/api/v1/admin/databases"))
+                .header("cookie", reader_cookie)
+                .send()
+                .await
+                .expect("grant-scoped database listing");
+
+            // Assert
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response
+                    .json::<serde_json::Value>()
+                    .await
+                    .expect("grant-scoped database json"),
+                serde_json::json!([
+                    { "name": "analytics" },
+                    { "name": "postgres" },
+                ])
+            );
+
+            stop_rest_server(shutdown, server).await;
+        });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/rest_admin_query.rs.

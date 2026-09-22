@@ -1,4 +1,5 @@
 use super::{catalog, primary_key_indexes, Cassie, FieldSchema, QueryError, QueryResult, Schema};
+use crate::app::{CassieError, CatalogObjectKind};
 use crate::sql::ast::{CreateIndexStatement, CreateTableStatement};
 
 pub(super) struct CreationOutcome {
@@ -26,8 +27,26 @@ pub(super) fn create_table(
     cassie: &Cassie,
     statement: &CreateTableStatement,
 ) -> Result<CreationOutcome, QueryError> {
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&statement.table), || {
+            create_table_gated(cassie, statement)
+        })
+}
+
+fn create_table_gated(
+    cassie: &Cassie,
+    statement: &CreateTableStatement,
+) -> Result<CreationOutcome, QueryError> {
     if statement.if_not_exists && cassie.catalog.relation_exists(&statement.table) {
         return Ok(CreationOutcome::unchanged("CREATE TABLE"));
+    }
+    if cassie.catalog.relation_exists(&statement.table) {
+        return Err(CassieError::CatalogObjectAlreadyExists {
+            kind: CatalogObjectKind::Relation,
+            name: statement.table.clone(),
+        }
+        .into());
     }
 
     let schema = Schema {
@@ -66,7 +85,7 @@ pub(super) fn create_table(
     for index in &primary_key_indexes {
         cassie
             .midge
-            .put_index(index)
+            .put_index_with_held_collection_gate(index)
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
     super::sequence_command::persist_created_sequences(cassie, table_sequences)?;

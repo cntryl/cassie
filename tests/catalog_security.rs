@@ -5964,11 +5964,11 @@ mod schema_write_conflicts {
         let statements = [
             (
                 "schema_conflict_alpha",
-                "CREATE TABLE schema_conflict_alpha (value TEXT)",
+                "CREATE TABLE schema_conflict_alpha (id INT PRIMARY KEY, value TEXT)",
             ),
             (
                 "schema_conflict_beta",
-                "CREATE TABLE schema_conflict_beta (value TEXT)",
+                "CREATE TABLE schema_conflict_beta (id INT PRIMARY KEY, value TEXT)",
             ),
         ];
         let workers = statements.map(|(table, sql)| {

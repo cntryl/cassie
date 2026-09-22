@@ -49,7 +49,38 @@ impl Midge {
         schema: &Schema,
         metadata: &CollectionMeta,
     ) -> Result<(), CassieError> {
+        self.create_collection_with_meta_inner(name, schema, metadata, false)
+            .map(|_| ())
+    }
+
+    /// Creates a collection only when no case-insensitive storage relation with
+    /// the same name exists.
+    ///
+    /// Returns `true` when this call created the collection and `false` when an
+    /// existing relation owns the name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub(crate) fn create_collection_with_meta_if_absent(
+        &self,
+        name: &str,
+        schema: &Schema,
+        metadata: &CollectionMeta,
+    ) -> Result<bool, CassieError> {
+        self.create_collection_with_meta_inner(name, schema, metadata, true)
+    }
+
+    fn create_collection_with_meta_inner(
+        &self,
+        name: &str,
+        schema: &Schema,
+        metadata: &CollectionMeta,
+        require_absent: bool,
+    ) -> Result<bool, CassieError> {
         let name = self.canonical_collection_name(name);
+        let write_gate = self.collection_write_gate(&name);
+        let _write_guard = write_gate.lock();
         let mut metadata = metadata.clone();
         metadata.name.clone_from(&name);
         if let Some(database) = crate::catalog::relation_database_name(&name) {
@@ -58,13 +89,19 @@ impl Midge {
         let mut tx = self.begin_schema_rw_tx()?;
 
         let schema_key = Self::collection_schema_key(&name);
-        if tx.get(&schema_key).map_err(CassieError::from)?.is_none() {
+        let schema_exists = tx.get(&schema_key).map_err(CassieError::from)?.is_some();
+        let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
+        let storage_name_exists = Self::storage_relation_exists_case_insensitively(&tx, &name)?;
+        if require_absent && (schema_exists || existing_metadata.is_some() || storage_name_exists) {
+            return Ok(false);
+        }
+
+        if !schema_exists {
             let schema_bytes = serde_json::to_vec(schema)
                 .map_err(|error| CassieError::Parse(error.to_string()))?;
             tx.put(schema_key, schema_bytes, None)
                 .map_err(CassieError::from)?;
         }
-        let existing_metadata = Self::load_collection_metadata_from_tx(&tx, &name)?;
         let storage_id = if let Some(existing) = existing_metadata.as_ref() {
             existing.storage_id
         } else {
@@ -117,7 +154,30 @@ impl Midge {
         );
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
-        Ok(())
+        Ok(!schema_exists && existing_metadata.is_none())
+    }
+
+    fn storage_relation_exists_case_insensitively(
+        tx: &cntryl_midge::Transaction,
+        name: &str,
+    ) -> Result<bool, CassieError> {
+        let collections = Self::load_collections(tx)?;
+        if collections
+            .iter()
+            .any(|stored| stored.eq_ignore_ascii_case(name))
+        {
+            return Ok(true);
+        }
+
+        let schema_prefix = Self::schema_collection_prefix();
+        let schema_entries = collect_scan(
+            tx.scan(&Query::new().prefix(schema_prefix.clone().into()))
+                .map_err(CassieError::from)?,
+        )?;
+        Ok(schema_entries.iter().any(|(key, _)| {
+            key_encoding::utf8_suffix_after_prefix(key, &schema_prefix)
+                .is_some_and(|stored| stored.eq_ignore_ascii_case(name))
+        }))
     }
 
     /// # Errors

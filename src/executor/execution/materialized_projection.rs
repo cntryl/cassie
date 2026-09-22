@@ -58,11 +58,32 @@ pub(super) fn create_materialized_projection(
         definition_fingerprint: stable_projection_fingerprint(&statement.query),
         created_ms: now_ms(),
     });
-    cassie
-        .midge
-        .put_projection_metadata(&metadata)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_projection_metadata(metadata);
+    let created = cassie.midge.with_collection_gates(
+        std::slice::from_ref(&statement.name),
+        || -> Result<bool, QueryError> {
+            if statement.if_not_exists && cassie.catalog.relation_exists(&statement.name) {
+                return Ok(false);
+            }
+            if cassie.catalog.relation_exists(&statement.name)
+                || virtual_views::schema(&statement.name).is_some()
+            {
+                return Err(QueryError::General(format!(
+                    "relation '{}' already exists",
+                    statement.name
+                )));
+            }
+
+            cassie
+                .midge
+                .put_projection_metadata(&metadata)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_projection_metadata(metadata);
+            Ok(true)
+        },
+    )?;
+    if !created {
+        return Ok(empty_command("CREATE MATERIALIZED PROJECTION"));
+    }
     refresh_materialized_projection(cassie, session, &statement.name, user_functions, controls)?;
     Ok(empty_command("CREATE MATERIALIZED PROJECTION"))
 }

@@ -465,6 +465,7 @@ mod executor_commands {
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
     use cassie::embeddings::{openai::OpenAiConfig, DistanceMetric, DEFAULT_EMBEDDING_MODEL};
     use cassie::executor;
+    use cassie::midge::adapter::set_index_publication_failure_point;
     use cassie::planner::logical::LogicalPlan;
     use cassie::planner::physical::{
         AdaptivePlanDiagnostics, OperatorFeedbackPlanDiagnostics, PhysicalAggregatePlan,
@@ -811,6 +812,48 @@ mod executor_commands {
 
             let _ = std::fs::remove_dir_all(path);
         });
+    }
+
+    #[test]
+    fn should_retry_table_creation_after_primary_key_publication_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("create-table-primary-key-retry");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        let table = "create_table_primary_key_retry";
+        let statement = format!("CREATE TABLE {table} (id INT PRIMARY KEY)");
+        set_index_publication_failure_point(true);
+
+        // Act
+        let failed = cassie.execute_sql(&session, &statement, vec![]);
+        let retried = cassie.execute_sql(&session, &statement, vec![]);
+
+        // Assert
+        assert!(
+            failed.is_err(),
+            "the injected primary-key publication must fail"
+        );
+        assert_eq!(
+            retried
+                .expect("retry should complete collection recovery")
+                .command,
+            "CREATE TABLE"
+        );
+        assert!(cassie.catalog.exists(table));
+        assert!(cassie
+            .catalog
+            .get_constraints(table)
+            .iter()
+            .any(|constraint| constraint.primary_key));
+        assert!(cassie
+            .midge
+            .get_index(table, &format!("{table}_pkey"))
+            .expect("stored primary key index")
+            .is_some());
+
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

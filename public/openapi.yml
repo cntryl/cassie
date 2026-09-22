@@ -809,16 +809,18 @@ components:
       properties:
         name:
           type: string
-          description: Local collection name to create under the default database and `public` schema.
+          description: Local unqualified SQL identifier to create under the default database and `public` schema. Surrounding whitespace is trimmed; the remaining name must begin with an ASCII letter or underscore and may contain ASCII letters, digits, underscores, and `$`. Empty, qualified, path-like, and embedded-whitespace names are rejected.
         description:
           type: string
+          description: Optional operator-facing collection description persisted with the collection metadata.
         fields:
           type: array
+          minItems: 1
           items:
             $ref: '#/components/schemas/FieldSpec'
     FieldSpec:
       type: object
-      description: Column definition for collection creation.
+      description: Column definition for collection creation. Field names are trimmed, must be nonempty, are unique case-insensitively, and cannot be the reserved `_id` identity field.
       required:
         - name
         - type

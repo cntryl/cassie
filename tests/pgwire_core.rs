@@ -1235,7 +1235,7 @@ mod pgwire_copy_protocol {
     }
 
     #[test]
-    fn should_ignore_flush_and_sync_during_copy_in() {
+    fn should_ignore_synchronization_messages_during_copy_in() {
         // Arrange
         let (cassie, path) = configured_cassie("copy-flush-sync");
         let observer = cassie.clone();

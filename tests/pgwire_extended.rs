@@ -327,7 +327,7 @@ mod pgwire_extended_control {
     }
 
     #[test]
-    fn should_reject_copy_data_message_with_unsupported_error() {
+    fn should_silently_drop_copy_data_message_outside_copy_mode() {
         // Arrange
         use_local_storage();
         let path = data_dir("copy_data");
@@ -376,25 +376,14 @@ mod pgwire_extended_control {
                 .await
                 .expect("flush copy data batch");
 
-            let error = read_wire_frame(&mut reader).await;
             let ready = read_wire_frame(&mut reader).await;
 
             // Assert
             assert_eq!(
-                error.0, b'E',
-                "copy data should be rejected with an error frame"
+                ready.0, b'Z',
+                "a stray CopyData outside copy mode is dropped without an error"
             );
-            assert_eq!(ready.0, b'Z', "sync after copy rejection should recover");
             assert_eq!(ready.1, vec![b'I']);
-            let error_fields = parse_error_fields(&error.1);
-            assert_eq!(
-                error_fields
-                    .iter()
-                    .find(|(field, _)| *field == 'C')
-                    .map(|(_, value)| value.as_str()),
-                Some("0A000"),
-                "copy data should return an unsupported-feature SQLSTATE"
-            );
 
             drop(socket);
             server.abort();
@@ -4085,5 +4074,154 @@ mod pgwire_portal_completion {
             server.stop().await;
         });
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// DataRow framing must agree with the RowDescription sent for the same result.
+mod pgwire_result_framing {
+    use std::time::Duration;
+
+    use cassie::app::Cassie;
+
+    use super::support_pgwire as support;
+
+    const ANSWER_LIMIT: Duration = Duration::from_secs(10);
+    const OID_BOOL: i32 = 16;
+
+    type Frames = Vec<(u8, Vec<u8>)>;
+
+    fn configured_cassie(label: &str, setup: &[&str]) -> (Cassie, String) {
+        support::use_local_storage();
+        let path = support::data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in setup {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect("setup sql");
+        }
+        (cassie, path)
+    }
+
+    /// Runs one Parse/Bind/Describe/Execute/Sync cycle requesting binary
+    /// results and returns every frame through `ReadyForQuery`.
+    fn binary_round_trip(cassie: Cassie, path: String, sql: &str) -> Frames {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let frames = runtime.block_on(async {
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut writer).await;
+            support::write_frames(
+                &mut writer,
+                vec![
+                    support::parse_frame("", sql),
+                    support::bind_frame_with_formats("", "", &[], &[], &[1]),
+                    support::describe_portal_frame(""),
+                    support::execute_frame(""),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready_within(&mut reader, ANSWER_LIMIT).await;
+            server.stop().await;
+            frames
+        });
+        let _ = std::fs::remove_dir_all(path);
+        frames
+    }
+
+    fn data_row_field_lengths(payload: &[u8]) -> Vec<i32> {
+        let count = i16::from_be_bytes([payload[0], payload[1]]);
+        let mut cursor = 2_usize;
+        let mut lengths = Vec::new();
+        for _ in 0..count {
+            let length = i32::from_be_bytes(
+                payload[cursor..cursor + 4]
+                    .try_into()
+                    .expect("field length"),
+            );
+            cursor += 4 + usize::try_from(length.max(0)).expect("non-negative length");
+            lengths.push(length);
+        }
+        assert_eq!(cursor, payload.len(), "DataRow body must be fully consumed");
+        lengths
+    }
+
+    #[test]
+    fn should_answer_with_error_given_binary_row_wider_than_row_description() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "binary-set-operation-width",
+            &[
+                "CREATE TABLE framing_left (a INT)",
+                "CREATE TABLE framing_right (a INT, b INT)",
+                "INSERT INTO framing_right (a, b) VALUES (1, 2)",
+            ],
+        );
+
+        // Act
+        let frames = binary_round_trip(
+            cassie,
+            path,
+            "SELECT a FROM framing_left UNION SELECT a, b FROM framing_right",
+        );
+
+        // Assert
+        let description = frames
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .map(|frame| support::parse_row_description(&frame.1));
+        for (_, payload) in frames.iter().filter(|frame| frame.0 == b'D') {
+            let width = data_row_field_lengths(payload).len();
+            assert_eq!(Some(width), description.as_ref().map(Vec::len));
+        }
+        assert!(frames
+            .iter()
+            .any(|frame| frame.0 == b'E' || frame.0 == b'C'));
+        assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+    }
+
+    #[test]
+    fn should_encode_catalog_bool_columns_as_declared_binary_bool() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "catalog-binary-bool",
+            &[
+                "CREATE TABLE framing_flags (id INT NOT NULL, flag BOOLEAN)",
+                "CREATE INDEX framing_flags_id ON framing_flags (id)",
+            ],
+        );
+
+        // Act
+        let frames = binary_round_trip(
+            cassie,
+            path,
+            "SELECT indisunique, indisprimary FROM pg_catalog.pg_index",
+        );
+
+        // Assert
+        let description = frames
+            .iter()
+            .find(|frame| frame.0 == b'T')
+            .map(|frame| support::parse_row_description(&frame.1))
+            .expect("RowDescription");
+        assert!(description
+            .iter()
+            .all(|field| field.type_oid == OID_BOOL && field.format_code == 1));
+        let rows = frames
+            .iter()
+            .filter(|frame| frame.0 == b'D')
+            .map(|frame| data_row_field_lengths(&frame.1))
+            .collect::<Vec<_>>();
+        assert!(!rows.is_empty());
+        assert!(rows.iter().flatten().all(|length| *length == 1));
     }
 }

@@ -105,6 +105,17 @@ pub fn copy_done_frame() -> Vec<u8> {
     frontend_frame(b'c', &[])
 }
 
+pub fn copy_fail_frame(message: &str) -> Vec<u8> {
+    let mut payload = Vec::with_capacity(message.len() + 1);
+    payload.extend_from_slice(message.as_bytes());
+    payload.push(0);
+    frontend_frame(b'f', &payload)
+}
+
+pub fn flush_frame() -> Vec<u8> {
+    frontend_frame(b'H', &[])
+}
+
 pub fn password_message(password: &str) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(password.as_bytes());
@@ -344,6 +355,29 @@ pub async fn read_frames_until_ready(reader: &mut (impl AsyncRead + Unpin)) -> V
             return frames;
         }
     }
+}
+
+/// Reads frames through `ReadyForQuery`, panicking instead of hanging when the
+/// backend stops answering (a desynchronised connection never sends `Z`).
+pub async fn read_frames_until_ready_within(
+    reader: &mut (impl AsyncRead + Unpin),
+    limit: Duration,
+) -> Vec<(u8, Vec<u8>)> {
+    tokio::time::timeout(limit, read_frames_until_ready(reader))
+        .await
+        .expect("backend should answer with ReadyForQuery before the timeout")
+}
+
+pub fn error_code(frames: &[(u8, Vec<u8>)]) -> Option<String> {
+    frames
+        .iter()
+        .find(|(tag, _)| *tag == b'E')
+        .and_then(|(_, payload)| {
+            parse_error_fields(payload)
+                .into_iter()
+                .find(|(kind, _)| *kind == 'C')
+                .map(|(_, code)| code)
+        })
 }
 
 pub fn parse_row_description(payload: &[u8]) -> Vec<RowDescription> {

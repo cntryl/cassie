@@ -82,6 +82,9 @@ pub(super) async fn handle_frontend_message(
             if error.record_protocol_error {
                 runtime.record_pgwire_protocol_error();
             }
+            if error.aborts_transaction {
+                session.mark_transaction_failed();
+            }
             let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
             state.invalidate_portals_on_sync |= invalidate_portals_on_error;
             *awaiting_sync = true;
@@ -166,9 +169,11 @@ async fn dispatch_message(
         }
         FrontendMessage::Terminate => return Ok(DispatchOutcome::Break),
         FrontendMessage::CopyData(_) | FrontendMessage::CopyDone | FrontendMessage::CopyFail(_) => {
-            return Err(ExtendedQueryError::unsupported(
-                "COPY sub-protocol is not active for this connection",
-            ));
+            // A COPY that already failed has sent ErrorResponse and
+            // ReadyForQuery while the client may still be streaming. The
+            // protocol requires these late copy messages to be dropped
+            // silently, exactly as PostgreSQL's main loop does.
+            runtime.record_pgwire_message("copy_discarded");
         }
         FrontendMessage::FunctionCall => {
             return Err(ExtendedQueryError::unsupported(
@@ -719,6 +724,7 @@ fn missing_portal_error(name: &str) -> ExtendedQueryError {
 pub(super) struct ExtendedQueryError {
     pg_error: Box<PgWireError>,
     record_protocol_error: bool,
+    aborts_transaction: bool,
 }
 
 impl ExtendedQueryError {
@@ -726,6 +732,7 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::protocol(message)),
             record_protocol_error: true,
+            aborts_transaction: false,
         }
     }
 
@@ -733,6 +740,7 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::invalid_sql_statement_name(message)),
             record_protocol_error: true,
+            aborts_transaction: false,
         }
     }
 
@@ -745,12 +753,20 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::from_cassie_error(PgWireSeverity::Error, error)),
             record_protocol_error: false,
+            aborts_transaction: false,
         }
     }
 
     fn protocol_from_io(error: &io::Error) -> Self {
         if super::writers::is_backend_frame_too_large(error) {
             return Self::cassie(&CassieError::ResourceLimit(error.to_string()));
+        }
+        if super::writers::is_row_shape_mismatch(error) {
+            return Self {
+                pg_error: Box::new(PgWireError::internal(error.to_string())),
+                record_protocol_error: false,
+                aborts_transaction: true,
+            };
         }
         if error.kind() == io::ErrorKind::Unsupported {
             return Self::unsupported(error.to_string());
@@ -764,6 +780,7 @@ impl ExtendedQueryError {
                 "failed to write pgwire response: {error}"
             ))),
             record_protocol_error: true,
+            aborts_transaction: false,
         }
     }
 }

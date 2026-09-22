@@ -55,6 +55,10 @@ impl PgWireError {
         Self::new(PgWireSeverity::Error, "08P01", message)
     }
 
+    pub(super) fn internal(message: impl Into<String>) -> Self {
+        Self::new(PgWireSeverity::Error, "XX000", message)
+    }
+
     pub(super) fn fatal_protocol(message: impl Into<String>) -> Self {
         Self::new(PgWireSeverity::Fatal, "08P01", message)
     }

@@ -60,27 +60,15 @@ pub(super) async fn try_handle_simple_copy_query(
         Ok(Some(statement)) => statement,
         Ok(None) => return SimpleCopyOutcome::NotCopy,
         Err(error) => {
-            let pg_error = cassie_pg_error(&error);
-            if write_error_response(write_half, &pg_error).await.is_err()
-                || write_ready_for_query(write_half, &session).await.is_err()
-            {
-                return SimpleCopyOutcome::ConnectionClosed;
-            }
-            return SimpleCopyOutcome::Handled;
+            return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
         }
     };
 
     if session.is_transaction_failed() {
-        let error = PgWireError::from_cassie_error(
-            PgWireSeverity::Error,
-            &CassieError::Execution("transaction is failed; rollback required".to_string()),
-        );
-        if write_error_response(write_half, &error).await.is_err()
-            || write_ready_for_query(write_half, &session).await.is_err()
-        {
-            return SimpleCopyOutcome::ConnectionClosed;
-        }
-        return SimpleCopyOutcome::Handled;
+        let error = cassie_pg_error(&CassieError::Execution(
+            "transaction is failed; rollback required".to_string(),
+        ));
+        return write_copy_error(write_half, &session, &error).await;
     }
 
     let column_count = copy_response_column_count(&cassie, &statement);
@@ -157,32 +145,15 @@ async fn handle_database_copy(
         .get_role(&session.user)
         .is_some_and(|role| role.can_access_database(database));
     if !can_access_database || session.is_authenticated_read_only() {
-        let error = PgWireError::from_cassie_error(
-            PgWireSeverity::Error,
-            &crate::app::CassieError::InsufficientPrivilege,
-        );
-        if write_error_response(write_half, &error).await.is_err()
-            || write_ready_for_query(write_half, &session).await.is_err()
-        {
-            return SimpleCopyOutcome::ConnectionClosed;
-        }
-        return SimpleCopyOutcome::Handled;
+        let error = cassie_pg_error(&CassieError::InsufficientPrivilege);
+        return write_copy_error(write_half, &session, &error).await;
     }
     if session.is_transaction_failed() || session.is_transaction_active() {
-        session.mark_transaction_failed();
-        let error = PgWireError::from_cassie_error(
-            PgWireSeverity::Error,
-            &crate::app::CassieError::Unsupported(
-                "database backup and restore are not supported inside an explicit transaction"
-                    .to_string(),
-            ),
-        );
-        if write_error_response(write_half, &error).await.is_err()
-            || write_ready_for_query(write_half, &session).await.is_err()
-        {
-            return SimpleCopyOutcome::ConnectionClosed;
-        }
-        return SimpleCopyOutcome::Handled;
+        let error = cassie_pg_error(&CassieError::Unsupported(
+            "database backup and restore are not supported inside an explicit transaction"
+                .to_string(),
+        ));
+        return write_copy_error(write_half, &session, &error).await;
     }
 
     match command {
@@ -192,6 +163,27 @@ async fn handle_database_copy(
         DatabaseCopyCommand::Restore { target } => {
             handle_database_restore(cassie, session, target, reader, write_half).await
         }
+    }
+}
+
+/// Ends a COPY-family statement with `ErrorResponse` + `ReadyForQuery`.
+///
+/// Any statement error aborts an open explicit transaction, so the status byte
+/// reports `E` and `COMMIT` cannot apply work issued after the failure. Copy
+/// messages the client is still streaming are dropped by the main message
+/// loop, as the protocol requires once the backend has left copy-in mode.
+async fn write_copy_error(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    session: &CassieSession,
+    error: &PgWireError,
+) -> SimpleCopyOutcome {
+    session.mark_transaction_failed();
+    if write_error_response(write_half, error).await.is_err()
+        || write_ready_for_query(write_half, session).await.is_err()
+    {
+        SimpleCopyOutcome::ConnectionClosed
+    } else {
+        SimpleCopyOutcome::Handled
     }
 }
 
@@ -210,16 +202,11 @@ async fn handle_database_backup(
     let mut stream = match stream {
         Ok(stream) => stream,
         Err(error) => {
-            let pg_error = cassie_pg_error(&error);
-            if write_error_response(write_half, &pg_error).await.is_err()
-                || write_ready_for_query(write_half, &session).await.is_err()
-            {
-                return SimpleCopyOutcome::ConnectionClosed;
-            }
-            return SimpleCopyOutcome::Handled;
+            return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
         }
     };
-    if write_copy_out_response(write_half).await.is_err() {
+    // The backup image is streamed as a single text-format column.
+    if write_copy_out_response(write_half, 1).await.is_err() {
         return SimpleCopyOutcome::ConnectionClosed;
     }
     loop {
@@ -246,13 +233,7 @@ async fn handle_database_backup(
                 return SimpleCopyOutcome::Handled;
             }
             Err(error) => {
-                let pg_error = cassie_pg_error(&error);
-                if write_error_response(write_half, &pg_error).await.is_err()
-                    || write_ready_for_query(write_half, &session).await.is_err()
-                {
-                    return SimpleCopyOutcome::ConnectionClosed;
-                }
-                return SimpleCopyOutcome::Handled;
+                return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await;
             }
         }
     }
@@ -274,13 +255,7 @@ async fn handle_database_restore(
     let restore = match restore {
         Ok(restore) => restore,
         Err(error) => {
-            let pg_error = cassie_pg_error(&error);
-            if write_error_response(write_half, &pg_error).await.is_err()
-                || write_ready_for_query(write_half, &session).await.is_err()
-            {
-                return SimpleCopyOutcome::ConnectionClosed;
-            }
-            return SimpleCopyOutcome::Handled;
+            return write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
         }
     };
     if write_copy_in_response(write_half, 1).await.is_err() {
@@ -298,24 +273,32 @@ async fn consume_database_restore(
     write_half: &mut (impl AsyncWrite + Unpin),
 ) -> SimpleCopyOutcome {
     loop {
-        match read_frontend_message(reader).await {
+        let error = match read_frontend_message(reader).await {
             Ok(FrontendMessage::CopyData(chunk)) => {
                 match push_database_restore_chunk(cassie.clone(), restore, chunk).await {
-                    Ok(Ok(next_restore)) => restore = next_restore,
+                    Ok(Ok(next_restore)) => {
+                        restore = next_restore;
+                        continue;
+                    }
                     Ok(Err((next_restore, error))) => {
                         let _ = abort_database_restore(cassie.clone(), next_restore).await;
-                        return write_restore_error(write_half, &session, error).await;
+                        cassie_pg_error(&error)
                     }
-                    Err(error) => {
-                        return write_restore_error(write_half, &session, error).await;
-                    }
+                    Err(error) => cassie_pg_error(&error),
                 }
             }
+            // The protocol ignores Flush and Sync while in copy-in mode.
+            Ok(FrontendMessage::Flush | FrontendMessage::Sync) => continue,
             Ok(FrontendMessage::CopyDone) => {
                 return finish_database_restore(cassie, session, restore, write_half).await;
             }
             Ok(FrontendMessage::CopyFail(message)) => {
-                return fail_database_restore(cassie, session, restore, message, write_half).await;
+                let _ = abort_database_restore(cassie, restore).await;
+                PgWireError::new(
+                    PgWireSeverity::Error,
+                    "57014",
+                    format!("RESTORE failed: {message}"),
+                )
             }
             Ok(FrontendMessage::Terminate) | Err(HandshakeError::Closed) => {
                 let _ = abort_database_restore(cassie, restore).await;
@@ -323,17 +306,10 @@ async fn consume_database_restore(
             }
             Ok(_) | Err(HandshakeError::Invalid(_)) => {
                 let _ = abort_database_restore(cassie, restore).await;
-                let error = PgWireError::protocol(
-                    "unexpected frontend message during RESTORE FROM STDIN".to_string(),
-                );
-                if write_error_response(write_half, &error).await.is_err()
-                    || write_ready_for_query(write_half, &session).await.is_err()
-                {
-                    return SimpleCopyOutcome::ConnectionClosed;
-                }
-                return SimpleCopyOutcome::Handled;
+                PgWireError::protocol("unexpected frontend message during RESTORE FROM STDIN")
             }
-        }
+        };
+        return write_copy_error(write_half, &session, &error).await;
     }
 }
 
@@ -374,59 +350,22 @@ async fn finish_database_restore(
         },
     )
     .await;
-    match result {
+    let error = match result {
         Ok((_, Ok(()))) => {
             if write_command_complete(write_half, "RESTORE").await.is_err()
                 || write_ready_for_query(write_half, &session).await.is_err()
             {
-                SimpleCopyOutcome::ConnectionClosed
-            } else {
-                SimpleCopyOutcome::Handled
+                return SimpleCopyOutcome::ConnectionClosed;
             }
+            return SimpleCopyOutcome::Handled;
         }
         Ok((restore, Err(error))) => {
             let _ = abort_database_restore(cassie, restore).await;
-            write_restore_error(write_half, &session, error).await
+            error
         }
-        Err(error) => write_restore_error(write_half, &session, error).await,
-    }
-}
-
-async fn fail_database_restore(
-    cassie: Arc<Cassie>,
-    session: CassieSession,
-    restore: crate::app::DatabaseRestoreSession,
-    message: String,
-    write_half: &mut (impl AsyncWrite + Unpin),
-) -> SimpleCopyOutcome {
-    let _ = abort_database_restore(cassie, restore).await;
-    let error = PgWireError::new(
-        PgWireSeverity::Error,
-        "57014",
-        format!("RESTORE failed: {message}"),
-    );
-    if write_error_response(write_half, &error).await.is_err()
-        || write_ready_for_query(write_half, &session).await.is_err()
-    {
-        SimpleCopyOutcome::ConnectionClosed
-    } else {
-        SimpleCopyOutcome::Handled
-    }
-}
-
-async fn write_restore_error(
-    write_half: &mut (impl AsyncWrite + Unpin),
-    session: &CassieSession,
-    error: CassieError,
-) -> SimpleCopyOutcome {
-    let pg_error = cassie_pg_error(&error);
-    if write_error_response(write_half, &pg_error).await.is_err()
-        || write_ready_for_query(write_half, session).await.is_err()
-    {
-        SimpleCopyOutcome::ConnectionClosed
-    } else {
-        SimpleCopyOutcome::Handled
-    }
+        Err(error) => error,
+    };
+    write_copy_error(write_half, &session, &cassie_pg_error(&error)).await
 }
 
 async fn abort_database_restore(
@@ -449,6 +388,12 @@ fn copy_response_column_count(cassie: &Cassie, statement: &CopyStatement) -> usi
         .map_or(0, |schema| schema.fields.len())
 }
 
+/// Buffers one `COPY ... FROM STDIN` stream and ingests it at `CopyDone`.
+///
+/// The whole stream is applied as one atomic batch, so the buffered payload
+/// is bounded by `MAX_FRONTEND_MESSAGE_BYTES`; exceeding it is a resource
+/// limit (`54000`), not a protocol violation. Returns `false` when the
+/// connection must close.
 async fn handle_simple_copy_from_stdin(
     cassie: Arc<Cassie>,
     session: CassieSession,
@@ -459,96 +404,80 @@ async fn handle_simple_copy_from_stdin(
 ) -> bool {
     let mut payload = Vec::new();
 
-    loop {
+    let error = loop {
         match read_frontend_message(reader).await {
             Ok(FrontendMessage::CopyData(chunk)) => {
-                let Some(next_len) = payload.len().checked_add(chunk.len()) else {
-                    let error = PgWireError::protocol("COPY payload exceeds supported bounds");
-                    if write_error_response(write_half, &error).await.is_err() {
-                        return false;
-                    }
-                    return write_ready_for_query(write_half, &session).await.is_ok();
-                };
-                if next_len > MAX_FRONTEND_MESSAGE_BYTES {
-                    if session.is_transaction_active() {
-                        session.mark_transaction_failed();
-                    }
-                    let error = PgWireError::protocol("COPY payload exceeds supported bounds");
-                    if write_error_response(write_half, &error).await.is_err() {
-                        return false;
-                    }
-                    return write_ready_for_query(write_half, &session).await.is_ok();
+                if payload.len().saturating_add(chunk.len()) > MAX_FRONTEND_MESSAGE_BYTES {
+                    break cassie_pg_error(&CassieError::ResourceLimit(format!(
+                        "COPY FROM STDIN payload exceeds {MAX_FRONTEND_MESSAGE_BYTES} bytes"
+                    )));
                 }
                 payload.extend_from_slice(&chunk);
             }
+            // The protocol ignores Flush and Sync while in copy-in mode.
+            Ok(FrontendMessage::Flush | FrontendMessage::Sync) => {}
             Ok(FrontendMessage::CopyDone) => {
-                let session_for_copy = session.clone();
-                let statement_for_copy = statement.clone();
-                let result =
-                    run_pgwire_blocking(cassie.clone(), "pgwire_copy_from_stdin", move |cassie| {
-                        execute_copy_payload(
-                            &cassie,
-                            &session_for_copy,
-                            &statement_for_copy,
-                            &payload,
-                            cancellation.as_ref(),
-                        )
-                    })
-                    .await;
-
-                match result {
-                    Ok(command) => {
-                        if write_command_complete(write_half, &command).await.is_err() {
-                            return false;
-                        }
-                    }
-                    Err(error) => {
-                        let pg_error = cassie_pg_error(&error);
-                        if write_error_response(write_half, &pg_error).await.is_err() {
-                            return false;
-                        }
-                    }
-                }
-                return write_ready_for_query(write_half, &session).await.is_ok();
+                return finish_simple_copy(
+                    cassie,
+                    session,
+                    statement,
+                    payload,
+                    cancellation,
+                    write_half,
+                )
+                .await;
             }
             Ok(FrontendMessage::CopyFail(message)) => {
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-                let error = PgWireError::new(
+                break PgWireError::new(
                     PgWireSeverity::Error,
                     "57014",
                     format!("COPY failed: {message}"),
                 );
-                if write_error_response(write_half, &error).await.is_err() {
-                    return false;
-                }
-                return write_ready_for_query(write_half, &session).await.is_ok();
             }
             Ok(FrontendMessage::Terminate) | Err(HandshakeError::Closed) => return false,
             Ok(_) => {
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-                let error = PgWireError::protocol(
-                    "unexpected frontend message during COPY FROM STDIN".to_string(),
-                );
-                if write_error_response(write_half, &error).await.is_err() {
-                    return false;
-                }
-                return write_ready_for_query(write_half, &session).await.is_ok();
+                break PgWireError::protocol("unexpected frontend message during COPY FROM STDIN");
             }
             Err(HandshakeError::Invalid(error)) => {
-                if session.is_transaction_active() {
-                    session.mark_transaction_failed();
-                }
-                let error = PgWireError::protocol(format!("invalid COPY message: {error}"));
-                if write_error_response(write_half, &error).await.is_err() {
-                    return false;
-                }
-                return write_ready_for_query(write_half, &session).await.is_ok();
+                break PgWireError::protocol(format!("invalid COPY message: {error}"));
             }
         }
+    };
+    drop(payload);
+    matches!(
+        write_copy_error(write_half, &session, &error).await,
+        SimpleCopyOutcome::Handled
+    )
+}
+
+async fn finish_simple_copy(
+    cassie: Arc<Cassie>,
+    session: CassieSession,
+    statement: CopyStatement,
+    payload: Vec<u8>,
+    cancellation: Option<crate::runtime::QueryCancellationHandle>,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> bool {
+    let session_for_copy = session.clone();
+    let result = run_pgwire_blocking(cassie, "pgwire_copy_from_stdin", move |cassie| {
+        execute_copy_payload(
+            &cassie,
+            &session_for_copy,
+            &statement,
+            &payload,
+            cancellation.as_ref(),
+        )
+    })
+    .await;
+    match result {
+        Ok(command) => {
+            write_command_complete(write_half, &command).await.is_ok()
+                && write_ready_for_query(write_half, &session).await.is_ok()
+        }
+        Err(error) => matches!(
+            write_copy_error(write_half, &session, &cassie_pg_error(&error)).await,
+            SimpleCopyOutcome::Handled
+        ),
     }
 }
 

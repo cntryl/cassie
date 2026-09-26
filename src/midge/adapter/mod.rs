@@ -50,6 +50,7 @@ thread_local! {
     static COLLECTION_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static INDEX_PUBLICATION_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static INDEX_DROP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
+    static UNIQUE_CONSTRAINT_CLEANUP_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static COLLECTION_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_ADD_FAILPOINT: Cell<bool> = const { Cell::new(false) };
     static FIELD_RENAME_FAILPOINT: Cell<bool> = const { Cell::new(false) };
@@ -210,6 +211,20 @@ pub(crate) fn check_index_drop_failure_point() -> Result<(), CassieError> {
 }
 
 #[doc(hidden)]
+pub fn set_unique_constraint_cleanup_failure_point(enabled: bool) {
+    UNIQUE_CONSTRAINT_CLEANUP_FAILPOINT.set(enabled);
+}
+
+pub(crate) fn check_unique_constraint_cleanup_failure_point() -> Result<(), CassieError> {
+    if UNIQUE_CONSTRAINT_CLEANUP_FAILPOINT.replace(false) {
+        return Err(CassieError::Execution(
+            "injected test failure during unique constraint cleanup".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+#[doc(hidden)]
 pub fn set_collection_rename_failure_point(enabled: bool) {
     COLLECTION_RENAME_FAILPOINT.set(enabled);
 }
@@ -297,6 +312,7 @@ use layout::{
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
 mod maintenance;
+mod unique_constraint_cleanup;
 mod unique_constraint_publication;
 pub use maintenance::{
     set_fulltext_maintenance_failure_point,

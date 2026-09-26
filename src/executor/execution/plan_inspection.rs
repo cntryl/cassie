@@ -24,32 +24,40 @@ pub(super) fn fulltext_query_fields(plan: &LogicalPlan) -> HashSet<String> {
     fields
 }
 
-pub(super) fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> bool {
-    if let Some(filter) = &plan.filter {
-        if expr_uses_function(filter, function_name) {
-            return true;
-        }
-    }
-
-    if plan
-        .order
-        .iter()
-        .any(|order| expr_uses_function(&order.expr, function_name))
-    {
-        return true;
-    }
-
-    if plan
-        .projection
-        .iter()
-        .any(|item| select_item_uses_function(item, function_name))
-    {
-        return true;
-    }
-
-    plan.ctes
-        .iter()
-        .any(|cte| cte_uses_function(cte, function_name))
+pub(crate) fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> bool {
+    query_source_uses_function(&plan.source, function_name)
+        || plan
+            .projection
+            .iter()
+            .any(|item| select_item_uses_function(item, function_name))
+        || plan
+            .filter
+            .as_ref()
+            .is_some_and(|expr| expr_uses_function(expr, function_name))
+        || plan
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_function(expr, function_name))
+        || plan
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_function(expr, function_name))
+        || plan
+            .having
+            .as_ref()
+            .is_some_and(|expr| expr_uses_function(expr, function_name))
+        || plan
+            .order
+            .iter()
+            .any(|order| expr_uses_function(&order.expr, function_name))
+        || plan
+            .ctes
+            .iter()
+            .any(|cte| cte_uses_function(cte, function_name))
+        || plan
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_function(&set.right, function_name))
 }
 
 pub(crate) fn plan_needs_user_functions(plan: &LogicalPlan) -> bool {
@@ -331,12 +339,25 @@ fn parsed_statement_uses_function(
 }
 
 fn select_uses_function(select: &crate::sql::ast::SelectStatement, function_name: &str) -> bool {
-    select
-        .projection
-        .iter()
-        .any(|item| select_item_uses_function(item, function_name))
+    query_source_uses_function(&select.source, function_name)
+        || select
+            .projection
+            .iter()
+            .any(|item| select_item_uses_function(item, function_name))
         || select
             .filter
+            .as_ref()
+            .is_some_and(|expr| expr_uses_function(expr, function_name))
+        || select
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_function(expr, function_name))
+        || select
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_function(expr, function_name))
+        || select
+            .having
             .as_ref()
             .is_some_and(|expr| expr_uses_function(expr, function_name))
         || select
@@ -347,6 +368,27 @@ fn select_uses_function(select: &crate::sql::ast::SelectStatement, function_name
             .ctes
             .iter()
             .any(|cte| cte_uses_function(cte, function_name))
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_uses_function(&set.right, function_name))
+}
+
+fn query_source_uses_function(source: &QuerySource, function_name: &str) -> bool {
+    match source {
+        QuerySource::TableFunction { function, .. } => {
+            function_uses_function(function, function_name)
+        }
+        QuerySource::Subquery { select, .. } => select_uses_function(select, function_name),
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            query_source_uses_function(left, function_name)
+                || query_source_uses_function(right, function_name)
+                || expr_uses_function(on, function_name)
+        }
+        QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
 }
 
 fn select_item_uses_function(item: &crate::sql::ast::SelectItem, function_name: &str) -> bool {
@@ -354,35 +396,35 @@ fn select_item_uses_function(item: &crate::sql::ast::SelectItem, function_name: 
         crate::sql::ast::SelectItem::Function { function, .. } => {
             function_uses_function(function, function_name)
         }
-        _ => false,
+        crate::sql::ast::SelectItem::Expr { expr, .. } => expr_uses_function(expr, function_name),
+        crate::sql::ast::SelectItem::WindowFunction { function, .. } => {
+            function.name.eq_ignore_ascii_case(function_name)
+                || function
+                    .args
+                    .iter()
+                    .any(|expr| expr_uses_function(expr, function_name))
+                || function
+                    .partition_by
+                    .iter()
+                    .any(|expr| expr_uses_function(expr, function_name))
+                || function
+                    .order_by
+                    .iter()
+                    .any(|order| expr_uses_function(&order.expr, function_name))
+        }
+        crate::sql::ast::SelectItem::Column { .. } | crate::sql::ast::SelectItem::Wildcard => false,
     }
 }
 
 fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool {
     match expr {
-        crate::sql::ast::Expr::Binary { left, right, .. } => {
-            expr_uses_function(left, function_name) || expr_uses_function(right, function_name)
-        }
         crate::sql::ast::Expr::Function(function) => {
             function_uses_function(function, function_name)
         }
-        crate::sql::ast::Expr::IsNull { expr, .. } | crate::sql::ast::Expr::Cast { expr, .. } => {
-            expr_uses_function(expr, function_name)
+        crate::sql::ast::Expr::Exists(statement) => {
+            parsed_statement_uses_function(statement, function_name)
         }
-        crate::sql::ast::Expr::InList { expr, values, .. } => {
-            expr_uses_function(expr, function_name)
-                || values
-                    .iter()
-                    .any(|value| expr_uses_function(value, function_name))
-        }
-        crate::sql::ast::Expr::Between {
-            expr, low, high, ..
-        } => {
-            expr_uses_function(expr, function_name)
-                || expr_uses_function(low, function_name)
-                || expr_uses_function(high, function_name)
-        }
-        _ => false,
+        _ => expr.any_child(|child| expr_uses_function(child, function_name)),
     }
 }
 

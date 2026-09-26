@@ -85,6 +85,7 @@ const FAMILY_VIEW: &[u8] = b"view";
 const FAMILY_ROLE: &[u8] = b"role";
 const FAMILY_SEQUENCE: &[u8] = b"sequence";
 const FAMILY_CONSTRAINTS: &[u8] = b"constraints";
+const FAMILY_UNIQUE_CONSTRAINT_PUBLICATION: &[u8] = b"unique-constraint-publication";
 const FAMILY_NAMESPACE: &[u8] = b"namespace";
 const FAMILY_NAMESPACES: &[u8] = b"namespaces";
 const FAMILY_SCHEMA_EPOCH: &[u8] = b"schema-epoch";
@@ -534,6 +535,14 @@ pub(super) fn sequence_prefix() -> Vec<u8> {
 
 pub(super) fn constraints_key(collection: &str) -> Vec<u8> {
     scoped_key(FAMILY_CONSTRAINTS, collection, &[])
+}
+
+pub(super) fn unique_constraint_publication_key(collection: &str) -> Vec<u8> {
+    scoped_key(FAMILY_UNIQUE_CONSTRAINT_PUBLICATION, collection, &[])
+}
+
+pub(super) fn unique_constraint_publication_prefix() -> Vec<u8> {
+    prefix(FAMILY_UNIQUE_CONSTRAINT_PUBLICATION, &[])
 }
 
 pub(super) fn namespace_key(namespace: &str) -> Vec<u8> {

@@ -388,7 +388,7 @@ fn alter_table_add_constraint(
     crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
     cassie
         .midge
-        .save_constraints(table, merged.as_slice())
+        .save_constraints_with_unique_reservations(table, merged.as_slice())
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_constraints(table, merged);
     Ok(())

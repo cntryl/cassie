@@ -297,6 +297,7 @@ use layout::{
 pub use layout::{StorageFamily, StorageLayout};
 mod index_publication;
 mod maintenance;
+mod unique_constraint_publication;
 pub use maintenance::{
     set_fulltext_maintenance_failure_point,
     set_materialized_projection_debt_persistence_failure_point,
@@ -638,7 +639,7 @@ impl Midge {
         key_encoding::role_prefix()
     }
 
-    fn constraints_key(collection: &str) -> Vec<u8> {
+    pub(super) fn constraints_key(collection: &str) -> Vec<u8> {
         key_encoding::constraints_key(collection)
     }
 

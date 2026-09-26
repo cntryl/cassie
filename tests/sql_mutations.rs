@@ -7811,6 +7811,200 @@ mod transaction_staging {
     }
 }
 
+mod unique_ddl_reservations {
+    use cassie::app::Cassie;
+    use cassie::types::Value;
+
+    use super::support_sql as support;
+
+    #[test]
+    fn should_backfill_float_reservations_after_adding_unique_constraint() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("alter_unique_constraint_float_backfill");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE alter_unique_constraint_float (k FLOAT, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO alter_unique_constraint_float (k, v) VALUES ($1, 1)",
+                vec![Value::Float64(1.0)],
+            )
+            .expect("insert preexisting row");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE alter_unique_constraint_float ADD CONSTRAINT alter_unique_constraint_float_k_unique UNIQUE (k)",
+                vec![],
+            )
+            .expect("add unique constraint");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO alter_unique_constraint_float (k, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT k, v FROM alter_unique_constraint_float ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_backfill_timestamp_reservations_after_creating_unique_index() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("create_unique_index_timestamp_backfill");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE create_unique_index_timestamp (at TIMESTAMP, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO create_unique_index_timestamp (at, v) VALUES ('2024-01-01T00:00:00Z', 1)",
+                vec![],
+            )
+            .expect("insert preexisting row");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE UNIQUE INDEX create_unique_index_timestamp_at_uq ON create_unique_index_timestamp (at)",
+                vec![],
+            )
+            .expect("create unique index");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO create_unique_index_timestamp (at, v) VALUES ('2024-01-01 00:00:00', 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT at, v FROM create_unique_index_timestamp ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(
+            rows.rows,
+            vec![vec![
+                Value::String("2024-01-01T00:00:00.000000Z".to_string()),
+                Value::Int64(1)
+            ]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_unique_constraint_when_preexisting_rows_duplicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("alter_unique_constraint_existing_duplicates");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE alter_unique_constraint_duplicates (k FLOAT, v INT)",
+            "INSERT INTO alter_unique_constraint_duplicates (k, v) VALUES (1.0, 1)",
+            "INSERT INTO alter_unique_constraint_duplicates (k, v) VALUES (1, 2)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE alter_unique_constraint_duplicates ADD CONSTRAINT alter_unique_constraint_duplicates_k_unique UNIQUE (k)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            added.is_err(),
+            "constraint creation accepted duplicate rows"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT k, v FROM alter_unique_constraint_duplicates ORDER BY v",
+                vec![],
+            )
+            .expect("read existing rows");
+        assert_eq!(rows.rows.len(), 2);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_unique_index_when_preexisting_rows_duplicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("create_unique_index_existing_duplicates");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE create_unique_index_duplicates (at TIMESTAMP, v INT)",
+            "INSERT INTO create_unique_index_duplicates (at, v) VALUES ('2024-01-01T00:00:00Z', 1)",
+            "INSERT INTO create_unique_index_duplicates (at, v) VALUES ('2024-01-01 00:00:00', 2)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let created = cassie.execute_sql(
+            &session,
+            "CREATE UNIQUE INDEX create_unique_index_duplicates_at_uq ON create_unique_index_duplicates (at)",
+            vec![],
+        );
+
+        // Assert
+        assert!(created.is_err(), "unique index accepted duplicate rows");
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT at, v FROM create_unique_index_duplicates ORDER BY v",
+                vec![],
+            )
+            .expect("read existing rows");
+        assert_eq!(rows.rows.len(), 2);
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
 // Formerly tests/unique_reservations.rs.
 mod unique_reservations {
     use cassie::app::Cassie;

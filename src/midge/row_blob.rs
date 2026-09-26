@@ -143,19 +143,28 @@ impl RowSchema {
             )));
         }
 
-        let Some(field) = self
+        let Some(field_index) = self
             .fields
-            .iter_mut()
-            .find(|entry| entry.name.eq_ignore_ascii_case(current) && !entry.retired)
+            .iter()
+            .position(|entry| entry.name.eq_ignore_ascii_case(current) && !entry.retired)
         else {
             return Err(CassieError::Unsupported(format!(
                 "field '{current}' not found"
             )));
         };
 
+        let next_normalized = next.to_ascii_lowercase();
+        for (index, entry) in self.fields.iter_mut().enumerate() {
+            if index != field_index {
+                entry
+                    .aliases
+                    .retain(|alias| !alias.eq_ignore_ascii_case(&next_normalized));
+            }
+        }
+        let field = &mut self.fields[field_index];
         push_field_alias(field, field.name.clone());
         field.name = next.to_string();
-        field.normalized_name = next.to_ascii_lowercase();
+        field.normalized_name = next_normalized;
         self.schema_version += 1;
         Ok(())
     }

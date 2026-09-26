@@ -535,6 +535,10 @@ fn alter_table_drop_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.remove_collection_field(table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
+    cassie
+        .bump_schema_epoch_and_invalidate_query_cache()
+        .map_err(QueryError::Cassie)?;
+    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 
@@ -552,6 +556,10 @@ fn alter_table_rename_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.rename_collection_field(table, from, to);
     schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
+    cassie
+        .bump_schema_epoch_and_invalidate_query_cache()
+        .map_err(QueryError::Cassie)?;
+    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 

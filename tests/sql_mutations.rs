@@ -7933,13 +7933,19 @@ mod unique_reservations {
         );
 
         // Assert
-        assert!(inserted.is_ok(), "{inserted:?}");
+        assert!(
+            inserted.is_ok(),
+            "expected the dropped-column value to be reusable"
+        );
         let archived_duplicate = cassie.execute_sql(
             &session,
             "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r3', 'another@example.com', 'archive@example.com')",
             vec![],
         );
-        assert!(archived_duplicate.is_err(), "{archived_duplicate:?}");
+        assert!(
+            archived_duplicate.is_err(),
+            "expected the sibling UNIQUE value to remain reserved"
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7970,7 +7976,10 @@ mod unique_reservations {
         );
 
         // Assert
-        assert!(inserted.is_ok(), "{inserted:?}");
+        assert!(
+            inserted.is_ok(),
+            "expected the dropped-index value to be reusable"
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 }

@@ -32,6 +32,7 @@ pub(super) fn clear_pending_field_drop(
 pub(super) struct PendingFieldDrop {
     pub(super) collection: String,
     pub(super) field: String,
+    pub(super) target_generation: u64,
     #[serde(default)]
     pub(super) column_names: Vec<String>,
     #[serde(default)]

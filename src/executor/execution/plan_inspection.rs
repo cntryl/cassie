@@ -60,6 +60,220 @@ pub(crate) fn plan_uses_function(plan: &LogicalPlan, function_name: &str) -> boo
             .is_some_and(|set| select_uses_function(&set.right, function_name))
 }
 
+pub(crate) fn plan_uses_function_including_views(
+    plan: &LogicalPlan,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+) -> bool {
+    let mut visited_views = HashSet::new();
+    plan_uses_function(plan, function_name)
+        || logical_plan_uses_view_function(plan, function_name, catalog, &mut visited_views)
+}
+
+fn logical_plan_uses_view_function(
+    plan: &LogicalPlan,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    query_source_uses_view_function(&plan.source, function_name, catalog, visited_views)
+        || plan
+            .projection
+            .iter()
+            .any(|item| select_item_uses_view_function(item, function_name, catalog, visited_views))
+        || plan.filter.as_ref().is_some_and(|expr| {
+            expr_uses_view_function(expr, function_name, catalog, visited_views)
+        })
+        || plan
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+        || plan
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+        || plan.having.as_ref().is_some_and(|expr| {
+            expr_uses_view_function(expr, function_name, catalog, visited_views)
+        })
+        || plan.order.iter().any(|order| {
+            expr_uses_view_function(&order.expr, function_name, catalog, visited_views)
+        })
+        || plan
+            .ctes
+            .iter()
+            .any(|cte| cte_uses_view_function(cte, function_name, catalog, visited_views))
+        || plan.set.as_ref().is_some_and(|set| {
+            select_uses_view_function(&set.right, function_name, catalog, visited_views)
+        })
+}
+
+fn cte_uses_view_function(
+    cte: &CommonTableExpression,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match &cte.query {
+        CteQuery::Simple(statement) => {
+            parsed_statement_uses_view_function(statement, function_name, catalog, visited_views)
+        }
+        CteQuery::Recursive {
+            base, recursive, ..
+        } => {
+            parsed_statement_uses_view_function(base, function_name, catalog, visited_views)
+                || parsed_statement_uses_view_function(
+                    recursive,
+                    function_name,
+                    catalog,
+                    visited_views,
+                )
+        }
+    }
+}
+
+fn parsed_statement_uses_view_function(
+    statement: &crate::sql::ast::ParsedStatement,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match &statement.statement {
+        QueryStatement::Select(select) => {
+            select_uses_view_function(select, function_name, catalog, visited_views)
+        }
+        _ => false,
+    }
+}
+
+fn select_uses_view_function(
+    select: &SelectStatement,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    query_source_uses_view_function(&select.source, function_name, catalog, visited_views)
+        || select
+            .projection
+            .iter()
+            .any(|item| select_item_uses_view_function(item, function_name, catalog, visited_views))
+        || select.filter.as_ref().is_some_and(|expr| {
+            expr_uses_view_function(expr, function_name, catalog, visited_views)
+        })
+        || select
+            .distinct_on
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+        || select
+            .group_by
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+        || select.having.as_ref().is_some_and(|expr| {
+            expr_uses_view_function(expr, function_name, catalog, visited_views)
+        })
+        || select.order.iter().any(|order| {
+            expr_uses_view_function(&order.expr, function_name, catalog, visited_views)
+        })
+        || select
+            .ctes
+            .iter()
+            .any(|cte| cte_uses_view_function(cte, function_name, catalog, visited_views))
+        || select.set.as_ref().is_some_and(|set| {
+            select_uses_view_function(&set.right, function_name, catalog, visited_views)
+        })
+}
+
+fn select_item_uses_view_function(
+    item: &SelectItem,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match item {
+        SelectItem::Function { function, .. } => function
+            .args
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
+        SelectItem::Expr { expr, .. } => {
+            expr_uses_view_function(expr, function_name, catalog, visited_views)
+        }
+        SelectItem::WindowFunction { function, .. } => {
+            function
+                .args
+                .iter()
+                .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views))
+                || function.partition_by.iter().any(|expr| {
+                    expr_uses_view_function(expr, function_name, catalog, visited_views)
+                })
+                || function.order_by.iter().any(|order| {
+                    expr_uses_view_function(&order.expr, function_name, catalog, visited_views)
+                })
+        }
+        SelectItem::Column { .. } | SelectItem::Wildcard => false,
+    }
+}
+
+fn query_source_uses_view_function(
+    source: &QuerySource,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match source {
+        QuerySource::Collection(name) => {
+            let Some(view) = catalog.get_view(name) else {
+                return false;
+            };
+            let key = view.name.to_ascii_lowercase();
+            if !visited_views.insert(key.clone()) {
+                return false;
+            }
+            let uses_function = crate::sql::parser::parse_statement(&view.query)
+                .ok()
+                .and_then(|parsed| match parsed.statement {
+                    QueryStatement::Select(select) => Some(select),
+                    _ => None,
+                })
+                .is_some_and(|select| {
+                    select_uses_function(&select, function_name)
+                        || select_uses_view_function(&select, function_name, catalog, visited_views)
+                });
+            visited_views.remove(&key);
+            uses_function
+        }
+        QuerySource::Subquery { select, .. } => {
+            select_uses_view_function(select, function_name, catalog, visited_views)
+        }
+        QuerySource::Join {
+            left, right, on, ..
+        } => {
+            query_source_uses_view_function(left, function_name, catalog, visited_views)
+                || query_source_uses_view_function(right, function_name, catalog, visited_views)
+                || expr_uses_view_function(on, function_name, catalog, visited_views)
+        }
+        QuerySource::TableFunction { function, .. } => function
+            .args
+            .iter()
+            .any(|expr| expr_uses_view_function(expr, function_name, catalog, visited_views)),
+        QuerySource::Cte(_) | QuerySource::SingleRow => false,
+    }
+}
+
+fn expr_uses_view_function(
+    expr: &Expr,
+    function_name: &str,
+    catalog: &crate::catalog::Catalog,
+    visited_views: &mut HashSet<String>,
+) -> bool {
+    match expr {
+        Expr::Exists(statement) => {
+            parsed_statement_uses_view_function(statement, function_name, catalog, visited_views)
+        }
+        _ => expr.any_child(|child| {
+            expr_uses_view_function(child, function_name, catalog, visited_views)
+        }),
+    }
+}
+
 pub(crate) fn plan_needs_user_functions(plan: &LogicalPlan) -> bool {
     query_source_needs_user_functions(&plan.source)
         || plan.projection.iter().any(select_item_needs_user_functions)

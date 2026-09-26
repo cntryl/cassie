@@ -571,6 +571,13 @@ impl Cassie {
         if logical_plan_uses_virtual_catalog(&physical.logical) {
             return Some("virtual_catalog");
         }
+        if crate::executor::plan_uses_function_including_views(
+            &physical.logical,
+            "pg_backend_pid",
+            &self.catalog,
+        ) {
+            return Some("connection_dependent_function");
+        }
         if crate::executor::plan_needs_user_functions(&physical.logical) {
             let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
                 metadata.volatility != crate::catalog::Volatility::Immutable

@@ -2910,7 +2910,7 @@ mod midge_layout_bootstrap {
             assert!(legacy_schema_entries.is_empty());
             assert!(schema_entries
                 .iter()
-                .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v1"));
+                .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v2"));
             assert!(
                 temp_entries.is_empty(),
                 "temp family should start empty in bootstrap state"
@@ -3000,7 +3000,7 @@ mod midge_layout_bootstrap {
             assert!(
                 error
                     .to_string()
-                    .contains("incompatible cassie-midge-layout-v1 storage layout"),
+                    .contains("incompatible cassie-midge-layout-v2 storage layout"),
                 "unexpected error: {error}"
             );
 
@@ -3021,7 +3021,7 @@ mod midge_layout_bootstrap {
                 .unwrap()
                 .into_iter()
                 .find_map(|(key, value)| {
-                    (value.as_slice() == b"cassie-midge-layout-v1").then_some(key)
+                    (value.as_slice() == b"cassie-midge-layout-v2").then_some(key)
                 })
                 .expect("baseline layout marker key");
             let mut tx = cassie.midge.schema_tx(TransactionMode::ReadWrite).unwrap();
@@ -3043,7 +3043,7 @@ mod midge_layout_bootstrap {
             "unexpected error: {diagnostic}"
         );
         assert!(
-            diagnostic.contains("expected baseline marker 'cassie-midge-layout-v1'"),
+            diagnostic.contains("expected baseline marker 'cassie-midge-layout-v2'"),
             "unexpected error: {diagnostic}"
         );
 
@@ -3256,7 +3256,7 @@ mod midge_legacy_migration {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v1 storage layout"),
+                .contains("incompatible cassie-midge-layout-v2 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -3278,7 +3278,7 @@ mod midge_legacy_migration {
         assert!(
             error
                 .to_string()
-                .contains("incompatible cassie-midge-layout-v1 storage layout"),
+                .contains("incompatible cassie-midge-layout-v2 storage layout"),
             "unexpected error: {error}"
         );
 
@@ -3867,7 +3867,7 @@ mod midge_metadata_stats {
             assert!(
                 error
                     .to_string()
-                    .contains("incompatible cassie-midge-layout-v1 storage layout"),
+                    .contains("incompatible cassie-midge-layout-v2 storage layout"),
                 "unexpected error: {error}"
             );
 
@@ -4026,7 +4026,7 @@ mod midge_namespace_hydration {
             assert!(
                 error
                     .to_string()
-                    .contains("incompatible cassie-midge-layout-v1 storage layout"),
+                    .contains("incompatible cassie-midge-layout-v2 storage layout"),
                 "unexpected error: {error}"
             );
 

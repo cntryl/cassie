@@ -1,6 +1,6 @@
 use super::{
-    append_scalar_value, data_scoped_key, data_scoped_prefix, encoded_u64_component, key, prefix,
-    CassieError, LexKey, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION,
+    append_scalar_value, data_scoped_prefix, encoded_u64_component, key, prefix, CassieError,
+    LexKey, FAMILY_COLUMN_BATCH, FAMILY_SCALAR_INDEX, FAMILY_UNIQUE_RESERVATION,
 };
 
 pub(crate) fn scalar_index_collection_prefix(relation_id: u64) -> Vec<u8> {
@@ -29,7 +29,7 @@ pub(crate) fn unique_constraint_reservation_key(
     field: &str,
     value: &serde_json::Value,
 ) -> Result<Vec<u8>, CassieError> {
-    let mut key = data_scoped_key(
+    let mut key = data_scoped_prefix(
         FAMILY_UNIQUE_RESERVATION,
         collection,
         &[b"c", field.as_bytes()],
@@ -43,7 +43,7 @@ pub(crate) fn unique_scalar_index_reservation_key(
     index_name: &str,
     values: &[serde_json::Value],
 ) -> Result<Vec<u8>, CassieError> {
-    let mut key = data_scoped_key(
+    let mut key = data_scoped_prefix(
         FAMILY_UNIQUE_RESERVATION,
         collection,
         &[b"i", index_name.as_bytes()],

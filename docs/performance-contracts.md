@@ -80,7 +80,7 @@ Time-series index records, graph adjacency records, and column metadata and summ
 
 ## Storage Layout and Amplification
 
-Query-hot Cassie records use the `cassie-midge-layout-v1` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
+Query-hot Cassie records use the `cassie-midge-layout-v2` baseline. Hot keys use compact family tags and persistent numeric object identifiers. Names and JSON wrappers are reserved for low-frequency catalog or operational metadata.
 
 Fresh materialized-projection versions write output rows and their row hashes in transactions of at most 1,000 rows, independent of the 256-row integrity range-segment size. The owning data family is flushed after every committed row batch so large rebuilds cannot accumulate write pressure behind the fixed storage response deadline. Range and root hashes commit in one final transaction only after every row batch is durable, and projection write-flush metrics include that final publication transaction. Projection metadata activates the version only after the root is available. A failed partial build remains unpublished; an explicit retry drops the incomplete output collection before rebuilding it.
 
@@ -107,7 +107,7 @@ Cassie follows the `cntryl-stress` Tier 1-6 taxonomy. Tiers 1-4 are the normal d
 
 | Tier | Measures | Cassie ownership |
 | --- | --- | --- |
-| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row and layout codecs, canonical column scalar codec encode/decode, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
+| 1 - Hot path | One production kernel | Binary `cassie-midge-layout-v1` row codec and `cassie-midge-layout-v2` key layout, canonical column scalar codec encode/decode, key encoding, predicate and value operations, tokenization and BM25 kernels, vector distances, top-k maintenance, and row serialization. Runtime, storage, async work, the SQL pipeline, synthetic stand-ins, `lexkey-v2`, and JSON row or key wrappers are excluded. Parameter binding and HNSW candidate search belong to Tier 2. |
 | 2 - Subsystem | One subsystem operation | Parser, binder, planner, caches, physical operators, selective encoded column scans, posting merge, ANN candidate or probe selection, hybrid fusion, protocol codecs, and one projection write or replay batch over at most 2,048 rows. Full listeners, concurrency, and scale loops are excluded. |
 | 3 - System | Embedded end-to-end behavior | Fixed-duration execution of one representative 100k case for each access-path family: relational/index, join, column analytics, full-text, exact/HNSW/IVF vector, hybrid, graph, time-series, lifecycle/startup, and short mixed load. Additional sizes and saturation loops belong to Tier 5. |
 | 4 - Integration | A real external boundary | Authenticated loopback pgwire and HTTP servers with real clients, normally sharing a reusable 10k fixture. This tier owns persistent-connection simple and extended queries, portals, cancellation, HTTP operations, and protocol comparison. Client sweeps and sustained connection churn belong to Tier 5. |

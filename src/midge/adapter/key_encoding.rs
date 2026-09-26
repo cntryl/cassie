@@ -46,8 +46,8 @@ pub(super) use vector::{
     ivfflat_membership_prefix, ivfflat_source_summary_key,
 };
 
-pub(super) const LAYOUT_VERSION: &str = "cassie-midge-layout-v1";
-pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-layout-v1";
+pub(super) const LAYOUT_VERSION: &str = "cassie-midge-layout-v2";
+pub(super) const LAYOUT_MARKER_VALUE: &[u8] = b"cassie-midge-layout-v2";
 
 const ROOT: &[u8] = b"cassie";
 const BASELINE: &[u8] = b"\x01";

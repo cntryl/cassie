@@ -7819,6 +7819,41 @@ mod unique_reservations {
     use super::support_sql as support;
 
     #[test]
+    fn should_allow_distinct_unique_columns_with_colliding_legacy_key_bytes() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_field_value_collision");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_reservation_field_value_collision (id TEXT PRIMARY KEY, a BIGINT UNIQUE, a0ab TEXT UNIQUE)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_reservation_field_value_collision (id, a) VALUES ('r1', -2206112389093773006)",
+                vec![],
+            )
+            .expect("insert first unique value");
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_field_value_collision (id, a0ab) VALUES ('r2', 'xyz12')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "distinct unique columns must not collide");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_whole_number_float_duplicates_in_unique_reservations() {
         // Arrange
         support::use_local_storage();

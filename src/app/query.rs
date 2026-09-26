@@ -572,12 +572,9 @@ impl Cassie {
             return Some("virtual_catalog");
         }
         if crate::executor::plan_needs_user_functions(&physical.logical) {
-            let encoded = serde_json::to_string(&physical.logical).unwrap_or_default();
             let has_non_immutable = self.catalog.list_functions().iter().any(|metadata| {
-                let serialized_name =
-                    serde_json::to_string(&metadata.name.to_ascii_lowercase()).unwrap_or_default();
-                encoded.contains(&format!("\"name\":{serialized_name}"))
-                    && metadata.volatility != crate::catalog::Volatility::Immutable
+                metadata.volatility != crate::catalog::Volatility::Immutable
+                    && crate::executor::plan_uses_function(&physical.logical, &metadata.name)
             });
             if has_non_immutable {
                 return Some("non_immutable_function");

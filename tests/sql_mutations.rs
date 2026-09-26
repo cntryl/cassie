@@ -8008,6 +8008,7 @@ mod unique_ddl_reservations {
 // Formerly tests/unique_reservations.rs.
 mod unique_reservations {
     use cassie::app::Cassie;
+    use cassie::midge::adapter::set_field_rename_failure_point;
     use cassie::types::Value;
 
     use super::support_sql as support;
@@ -8209,6 +8210,111 @@ mod unique_reservations {
             inserted.is_ok(),
             "expected the dropped-index value to be reusable"
         );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_duplicate_unique_value_after_column_rename() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_rename_column");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_reservation_rename_column (k FLOAT UNIQUE, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_reservation_rename_column (k, v) VALUES ($1, 1)",
+                vec![Value::Float64(1.0)],
+            )
+            .expect("insert original row");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE unique_reservation_rename_column RENAME COLUMN k TO kk",
+                vec![],
+            )
+            .expect("rename unique column");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_rename_column (kk, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT kk, v FROM unique_reservation_rename_column ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_unique_reservations_after_interrupted_column_rename() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_rename_column_recovery");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_reservation_rename_recovery (k FLOAT UNIQUE, v INT)",
+            "INSERT INTO unique_reservation_rename_recovery (k, v) VALUES (1.0, 1)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        set_field_rename_failure_point(true);
+
+        // Act
+        let interrupted = cassie.execute_sql(
+            &session,
+            "ALTER TABLE unique_reservation_rename_recovery RENAME COLUMN k TO kk",
+            vec![],
+        );
+        drop(cassie);
+        let recovered = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        recovered.startup().expect("replay field rename");
+        let session = recovered.create_session("tester", None);
+        let duplicate = recovered.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_rename_recovery (kk, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            interrupted.is_err(),
+            "failure point did not interrupt rename"
+        );
+        assert!(
+            duplicate.is_err(),
+            "recovered rename lost unique reservation"
+        );
+        let rows = recovered
+            .execute_sql(
+                &session,
+                "SELECT kk, v FROM unique_reservation_rename_recovery ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 }

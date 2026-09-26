@@ -917,7 +917,7 @@ mod analytical_projection_schema_invalidation {
     }
 
     #[test]
-    fn should_fall_back_after_dropping_and_reusing_projected_column_name() {
+    fn should_fall_back_after_projected_column_name_is_reused() {
         // Arrange
         use_local_storage();
         let path = data_dir("analytical_projection_column_drop_invalidation");

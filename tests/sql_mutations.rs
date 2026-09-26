@@ -7907,6 +7907,72 @@ mod unique_reservations {
 
         let _ = std::fs::remove_dir_all(path);
     }
+
+    #[test]
+    fn should_release_unique_reservation_when_unique_column_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_drop_column");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_reservation_drop_column (id TEXT PRIMARY KEY, email TEXT UNIQUE, email_archive TEXT UNIQUE)",
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r1', 'reuse@example.com', 'archive@example.com')",
+            "ALTER TABLE unique_reservation_drop_column DROP COLUMN email",
+            "ALTER TABLE unique_reservation_drop_column ADD COLUMN email TEXT UNIQUE",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r2', 'reuse@example.com', 'new-archive@example.com')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "{inserted:?}");
+        let archived_duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r3', 'another@example.com', 'archive@example.com')",
+            vec![],
+        );
+        assert!(archived_duplicate.is_err(), "{archived_duplicate:?}");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_unique_index_reservations_when_index_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_index_reservation_drop");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_index_reservation_drop (id TEXT PRIMARY KEY, email TEXT)",
+            "INSERT INTO unique_index_reservation_drop (id, email) VALUES ('r1', 'original@example.com')",
+            "CREATE UNIQUE INDEX email_idx ON unique_index_reservation_drop (email)",
+            "DROP INDEX email_idx ON unique_index_reservation_drop",
+            "UPDATE unique_index_reservation_drop SET email = 'changed@example.com' WHERE id = 'r1'",
+            "CREATE UNIQUE INDEX email_idx ON unique_index_reservation_drop (email)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_index_reservation_drop (id, email) VALUES ('r2', 'original@example.com')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "{inserted:?}");
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 mod foreign_key_ddl_lifecycle {

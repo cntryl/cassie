@@ -236,6 +236,46 @@ fn should_use_compact_internal_markers_for_frequently_used_path_components() {
 }
 
 #[test]
+fn should_build_unique_reservation_prefixes_that_match_their_keys() {
+    // Arrange
+    let collection = "events";
+    let constraint_prefix = unique_constraint_reservation_field_prefix(collection, "email");
+    let index_prefix = unique_scalar_index_reservation_prefix(collection, "email_idx");
+    let constraint_sibling =
+        unique_constraint_reservation_key(collection, "email_archive", &json!("reuse@example.com"))
+            .unwrap();
+    let index_sibling = unique_scalar_index_reservation_key(
+        collection,
+        "email_archive_idx",
+        &[json!("reuse@example.com")],
+    )
+    .unwrap();
+    let values = [
+        json!(null),
+        json!(false),
+        json!(1),
+        json!(1.5),
+        json!("reuse@example.com"),
+    ];
+
+    // Act
+    let constraints_match = values.iter().all(|value| {
+        unique_constraint_reservation_key(collection, "email", value)
+            .is_ok_and(|key| key.starts_with(&constraint_prefix))
+    });
+    let indexes_match = values.iter().all(|value| {
+        unique_scalar_index_reservation_key(collection, "email_idx", std::slice::from_ref(value))
+            .is_ok_and(|key| key.starts_with(&index_prefix))
+    });
+
+    // Assert
+    assert!(constraints_match);
+    assert!(indexes_match);
+    assert!(!constraint_sibling.starts_with(&constraint_prefix));
+    assert!(!index_sibling.starts_with(&index_prefix));
+}
+
+#[test]
 fn should_encode_time_series_bucket_bounds_as_ordered_integers() {
     // Arrange
     let before = time_series_index_entry_key(7, 9, "tenant", -1, -1, 0, "a");

@@ -119,7 +119,8 @@ pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::a
 }
 pub(crate) use execution::resolve_transaction_conflict_intents;
 pub(crate) use execution::{
-    plan_needs_user_functions, plan_uses_function, run_with_session_controls,
+    plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,
+    run_with_session_controls,
 };
 pub use execution::{
     run, run_with_controls, run_with_execution_breakdown, ColumnMeta, ExecutionBreakdownMicros,

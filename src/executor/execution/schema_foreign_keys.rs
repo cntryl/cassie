@@ -80,7 +80,7 @@ pub(super) fn drop_foreign_keys_on_column(
     if !changed {
         return Ok(());
     }
-    constraints.retain(super::constraint_is_populated);
+    constraints.retain(super::schema_constraint_helpers::constraint_is_populated);
     save_constraints(cassie, table, constraints)
 }
 

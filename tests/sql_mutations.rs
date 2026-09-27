@@ -2040,6 +2040,7 @@ mod integration_sql_delete {
 // Formerly tests/integration_sql_drop_constraint.rs.
 mod integration_sql_drop_constraint {
     use cassie::app::Cassie;
+    use cassie::midge::adapter::set_unique_constraint_cleanup_failure_point;
 
     use super::support_sql as support;
 
@@ -2129,6 +2130,116 @@ mod integration_sql_drop_constraint {
             )
             .expect("duplicate accepted");
 
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reuse_unique_value_after_constraint_removal() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_readd_unique_reservation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_readd_unique (email TEXT, CONSTRAINT email_key UNIQUE (email))",
+            "INSERT INTO drop_readd_unique (email) VALUES ('a@x')",
+            "ALTER TABLE drop_readd_unique DROP CONSTRAINT email_key",
+            "DELETE FROM drop_readd_unique",
+            "ALTER TABLE drop_readd_unique ADD CONSTRAINT email_uq UNIQUE (email)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO drop_readd_unique (email) VALUES ('a@x')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "dropped constraint reservation leaked");
+        let rows = cassie
+            .execute_sql(&session, "SELECT email FROM drop_readd_unique", vec![])
+            .expect("read rows");
+        assert_eq!(rows.rows.len(), 1);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_reservation_when_primary_key_remains_after_unique_drop() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_keep_primary_reservation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_unique_keep_primary (id TEXT, CONSTRAINT id_pk PRIMARY KEY (id), CONSTRAINT id_uq UNIQUE (id))",
+            "INSERT INTO drop_unique_keep_primary (id) VALUES ('same')",
+            "ALTER TABLE drop_unique_keep_primary DROP CONSTRAINT id_uq",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO drop_unique_keep_primary (id) VALUES ('same')",
+            vec![],
+        );
+
+        // Assert
+        assert!(duplicate.is_err(), "primary key reservation was removed");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_unique_reservation_cleanup_after_interrupted_constraint_drop() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_reservation_recovery");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_unique_recovery (email TEXT, CONSTRAINT email_key UNIQUE (email))",
+            "INSERT INTO drop_unique_recovery (email) VALUES ('a@x')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        set_unique_constraint_cleanup_failure_point(true);
+
+        // Act
+        let interrupted = cassie.execute_sql(
+            &session,
+            "ALTER TABLE drop_unique_recovery DROP CONSTRAINT email_key",
+            vec![],
+        );
+        drop(cassie);
+        let recovered = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        recovered.startup().expect("replay reservation cleanup");
+        let session = recovered.create_session("tester", None);
+        for sql in [
+            "DELETE FROM drop_unique_recovery",
+            "ALTER TABLE drop_unique_recovery ADD CONSTRAINT email_uq UNIQUE (email)",
+        ] {
+            recovered.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        let inserted = recovered.execute_sql(
+            &session,
+            "INSERT INTO drop_unique_recovery (email) VALUES ('a@x')",
+            vec![],
+        );
+
+        // Assert
+        assert!(interrupted.is_err(), "failure point did not interrupt drop");
+        assert!(inserted.is_ok(), "recovered drop left a stale reservation");
+        let rows = recovered
+            .execute_sql(&session, "SELECT email FROM drop_unique_recovery", vec![])
+            .expect("read rows");
+        assert_eq!(rows.rows.len(), 1);
         let _ = std::fs::remove_dir_all(path);
     }
 

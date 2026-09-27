@@ -2709,6 +2709,48 @@ mod database_scope {
         cassie.execute_sql(session, sql, vec![]).unwrap().rows
     }
 
+    fn seed_projection_catalog_filtering_fixtures(
+        cassie: &Cassie,
+        postgres: &cassie::app::CassieSession,
+        tenant: &cassie::app::CassieSession,
+    ) {
+        for sql in [
+            "CREATE TABLE public.payroll_events (event_at TIMESTAMP)",
+            "CREATE RETENTION POLICY payroll_keep ON payroll_events USING event_at RETAIN FOR '7 days'",
+            "CREATE TABLE public.rollup_events (event_at TIMESTAMP, tenant TEXT)",
+            "CREATE ROLLUP payroll_hourly ON rollup_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total",
+            "CREATE TABLE public.projection_events (title TEXT)",
+            "CREATE MATERIALIZED PROJECTION payroll_projection AS SELECT title FROM projection_events",
+        ] {
+            cassie.execute_sql(postgres, sql, vec![]).unwrap();
+        }
+        cassie
+            .execute_sql(
+                tenant,
+                "CREATE TABLE public.tenant_events (title TEXT)",
+                vec![],
+            )
+            .unwrap();
+        for (assignment_id, projection_id) in [
+            ("postgres-assignment", "payroll_events"),
+            ("tenant-assignment", "tenant_events"),
+        ] {
+            cassie
+                .put_operational_assignment(cassie::catalog::OperationalAssignmentMeta {
+                    assignment_id: assignment_id.to_string(),
+                    node_id: "node-a".to_string(),
+                    projection_id: projection_id.to_string(),
+                    tenant: Some("tenant-a".to_string()),
+                    partition_key: Some("tenant-a:0".to_string()),
+                    generation: 1,
+                    state: cassie::catalog::OperationalAssignmentState::Claimed,
+                    routing_hint: None,
+                    updated_ms: 1,
+                })
+                .unwrap();
+        }
+    }
+
     #[test]
     fn should_bootstrap_default_database_with_public_schema_on_fresh_startup() {
         // Arrange
@@ -2886,6 +2928,97 @@ mod database_scope {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_filter_projection_catalog_views_to_current_database() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("runtime_catalog_database_filter");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let postgres = cassie.create_session("tester", Some("postgres".to_string()));
+            cassie
+                .execute_sql(&postgres, "CREATE DATABASE tenant_b", vec![])
+                .unwrap();
+            let tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
+            seed_projection_catalog_filtering_fixtures(&cassie, &postgres, &tenant);
+
+            // Act
+            let policies = query_rows(
+                &cassie,
+                &tenant,
+                "SELECT collection FROM pg_catalog.pg_retention_policies",
+            );
+            let rollups = query_rows(
+                &cassie,
+                &tenant,
+                "SELECT source_collection FROM pg_catalog.pg_rollups",
+            );
+            let projections = query_rows(
+                &cassie,
+                &tenant,
+                "SELECT projection_name FROM pg_catalog.pg_materialized_projections",
+            );
+            let checkpoints = query_rows(
+                &cassie,
+                &tenant,
+                "SELECT collection FROM pg_catalog.pg_projection_checkpoints",
+            );
+            let tenant_assignments = query_rows(
+                &cassie,
+                &tenant,
+                "SELECT assignment_id FROM pg_catalog.pg_operational_assignments",
+            );
+            let owner_policies = query_rows(
+                &cassie,
+                &postgres,
+                "SELECT collection FROM pg_catalog.pg_retention_policies",
+            );
+            let owner_rollups = query_rows(
+                &cassie,
+                &postgres,
+                "SELECT source_collection FROM pg_catalog.pg_rollups",
+            );
+            let owner_projections = query_rows(
+                &cassie,
+                &postgres,
+                "SELECT projection_name FROM pg_catalog.pg_materialized_projections",
+            );
+            let owner_assignments = query_rows(
+                &cassie,
+                &postgres,
+                "SELECT assignment_id FROM pg_catalog.pg_operational_assignments",
+            );
+
+            // Assert
+            assert!(policies.is_empty());
+            assert!(rollups.is_empty());
+            assert!(projections.is_empty());
+            assert!(!checkpoints.is_empty());
+            assert!(checkpoints.iter().all(|row| {
+                matches!(&row[0], Value::String(collection) if collection.starts_with("tenant_b."))
+            }));
+            assert_eq!(
+                tenant_assignments,
+                vec![vec![Value::String("tenant-assignment".to_string())]]
+            );
+            assert_eq!(owner_policies.len(), 1);
+            assert_eq!(owner_rollups.len(), 1);
+            assert_eq!(owner_projections.len(), 1);
+            assert_eq!(
+                owner_assignments,
+                vec![vec![Value::String("postgres-assignment".to_string())]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]

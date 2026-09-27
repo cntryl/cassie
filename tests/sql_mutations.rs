@@ -7465,7 +7465,7 @@ mod migration_ddl_sequences {
             }
 
             // Act
-            let renamed_rows = query_rows(&cassie, &session, "SELECT k FROM t2");
+            let renamed_rows = query_rows(&cassie, &session, "SELECT k FROM t2 ORDER BY k");
             let recreated_rows = query_rows(&cassie, &session, "SELECT k FROM t");
 
             // Assert

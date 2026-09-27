@@ -347,9 +347,84 @@ fn pg_catalog_rows_for(
     name: &str,
     current_database: Option<&str>,
 ) -> Option<Vec<VirtualRow>> {
-    pg_catalog_core_rows(catalog, name, current_database)
+    let rows = pg_catalog_core_rows(catalog, name, current_database)
         .or_else(|| pg_catalog_projection_rows(catalog, name))
-        .or_else(|| pg_catalog_runtime_rows(catalog, name))
+        .or_else(|| pg_catalog_runtime_rows(catalog, name))?;
+    Some(filter_pg_catalog_rows(
+        catalog,
+        name,
+        current_database,
+        rows,
+    ))
+}
+
+fn filter_pg_catalog_rows(
+    catalog: &Catalog,
+    name: &str,
+    current_database: Option<&str>,
+    rows: Vec<VirtualRow>,
+) -> Vec<VirtualRow> {
+    let Some(database) = current_database else {
+        return rows;
+    };
+    let projection_ids = if matches!(
+        name,
+        "pg_catalog.pg_projection_consistency_reports" | "pg_catalog.pg_operational_assignments"
+    ) {
+        let mut ids = catalog
+            .list_projection_metadata()
+            .into_iter()
+            .filter(|projection| relation_belongs_to_database(&projection.collection, database))
+            .map(|projection| projection.projection_id().to_string())
+            .collect::<std::collections::HashSet<_>>();
+        for collection in catalog.list_collections_canonical() {
+            if relation_belongs_to_database(&collection.name, database) {
+                ids.insert(collection.name.clone());
+                ids.insert(local_name(&collection.name));
+            }
+        }
+        ids
+    } else {
+        std::collections::HashSet::new()
+    };
+
+    rows.into_iter()
+        .filter(|row| match name {
+            "pg_catalog.pg_rollups" => row_relation_belongs_to_database(row, "source_collection", database),
+            "pg_catalog.pg_maintenance_debt"
+            | "pg_catalog.pg_retention_policies"
+            | "pg_catalog.pg_projection_checkpoints" => {
+                row_relation_belongs_to_database(row, "collection", database)
+            }
+            "pg_catalog.pg_materialized_projections"
+            | "pg_catalog.pg_projection_versions"
+            | "pg_catalog.pg_projection_operations"
+            | "pg_catalog.pg_projection_hashes"
+            | "pg_catalog.pg_projection_integrity_reports"
+            | "pg_catalog.pg_projection_repair_reports" => {
+                row_relation_belongs_to_database(row, "projection_name", database)
+            }
+            "pg_catalog.pg_projection_comparison_reports" => {
+                row_relation_belongs_to_database(row, "target", database)
+            }
+            "pg_catalog.pg_projection_consistency_reports"
+            | "pg_catalog.pg_operational_assignments" => row
+                .iter()
+                .find(|(column, _)| column == "projection_id")
+                .is_some_and(|(_, value)| {
+                    matches!(value, Value::String(projection_id) if projection_ids.contains(projection_id))
+                }),
+            _ => true,
+        })
+        .collect()
+}
+
+fn row_relation_belongs_to_database(row: &VirtualRow, column: &str, database: &str) -> bool {
+    row.iter()
+        .find(|(name, _)| name == column)
+        .is_some_and(|(_, value)| {
+            matches!(value, Value::String(relation) if relation_belongs_to_database(relation, database))
+        })
 }
 
 fn pg_catalog_core_rows(

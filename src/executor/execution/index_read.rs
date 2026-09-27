@@ -441,21 +441,6 @@ fn canonicalize_field_constraints(
     }
 }
 
-/// Canonicalizes an equality probe value for `field` the way scalar-index keys
-/// are stored, so integer-shaped probes match whole-number `FLOAT` keys.
-pub(in crate::executor::execution) fn canonicalize_index_probe_value(
-    cassie: &Cassie,
-    collection: &str,
-    field: &str,
-    value: &mut serde_json::Value,
-) {
-    match cassie.catalog.field_type(collection, field) {
-        Some(DataType::Float) => canonicalize_float_number(value),
-        Some(DataType::Timestamp) => canonicalize_timestamp_text(value),
-        _ => {}
-    }
-}
-
 /// Returns true when an equality probe on the first key field of `index`
 /// reaches every row with that value. Rows whose later key fields are NULL are
 /// not indexed, so those fields must be NOT NULL.
@@ -490,7 +475,7 @@ fn canonicalize_timestamp_text(value: &mut serde_json::Value) {
     }
 }
 
-fn canonicalize_float_number(value: &mut serde_json::Value) {
+pub(super) fn canonicalize_float_number(value: &mut serde_json::Value) {
     let serde_json::Value::Number(number) = value else {
         return;
     };

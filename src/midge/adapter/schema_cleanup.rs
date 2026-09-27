@@ -1,4 +1,4 @@
-use super::{CassieError, IndexKind, Midge, StorageFamily, Uuid};
+use super::{key_encoding, CassieError, IndexKind, Midge, StorageFamily, Uuid};
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PendingSchemaCleanup {
@@ -201,7 +201,8 @@ impl Midge {
     }
 
     fn complete_drop_index_cleanup(&self, table: &str, index: &str) -> Result<(), CassieError> {
-        if let Some(metadata) = self.get_index(table, index)? {
+        let metadata = self.get_index(table, index)?;
+        if let Some(metadata) = metadata.as_ref() {
             if matches!(metadata.kind, IndexKind::Vector) {
                 self.delete_vector_index(&metadata.collection, &metadata.field)?;
             }
@@ -209,6 +210,13 @@ impl Midge {
                 self.delete_column_batches(&metadata.collection, &metadata.name)?;
             }
         }
+        let (collection, index_name) = metadata.map_or_else(
+            || (self.canonical_collection_name(table), index.to_string()),
+            |metadata| (metadata.collection, metadata.name),
+        );
+        let reservation_prefix =
+            key_encoding::unique_scalar_index_reservation_prefix(&collection, &index_name);
+        self.delete_data_keys_with_prefix_in_batches(&collection, &reservation_prefix)?;
         self.delete_index(table, index)
     }
 

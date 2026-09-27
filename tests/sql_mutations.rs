@@ -8527,9 +8527,90 @@ mod transaction_staging {
 
 mod unique_ddl_reservations {
     use cassie::app::Cassie;
+    use cassie::midge::adapter::StorageFamily;
     use cassie::types::Value;
+    use std::collections::HashSet;
 
     use super::support_sql as support;
+
+    #[test]
+    fn should_delete_unique_index_storage_when_index_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_index_storage");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE drop_unique_index_storage (id TEXT PRIMARY KEY, email TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO drop_unique_index_storage (id, email) VALUES ('r1', 'a@example.com')",
+                vec![],
+            )
+            .expect("insert unique value");
+        let keys_before_index = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan before index")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE UNIQUE INDEX drop_unique_index_storage_email ON drop_unique_index_storage (email)",
+                vec![],
+            )
+            .expect("create unique index");
+        let keys_after_index = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan after index")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+        let index_keys = keys_after_index
+            .difference(&keys_before_index)
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert!(
+            !index_keys.is_empty(),
+            "unique index should create storage entries"
+        );
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "DROP INDEX drop_unique_index_storage_email ON drop_unique_index_storage",
+                vec![],
+            )
+            .expect("drop unique index");
+        let keys_after_drop = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan after drop")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+
+        // Assert
+        assert!(
+            index_keys.is_disjoint(&keys_after_drop),
+            "unique index storage entries remained after DROP INDEX: {:x?}",
+            index_keys
+                .intersection(&keys_after_drop)
+                .collect::<Vec<_>>()
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     #[test]
     fn should_not_restore_dropped_column_values_after_readding_the_name() {

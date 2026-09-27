@@ -9075,6 +9075,59 @@ mod foreign_key_ddl_lifecycle {
     }
 
     #[test]
+    fn should_reject_adding_a_foreign_key_when_existing_rows_have_no_parent() {
+        with_cassie("fk-ddl-existing-orphan", |path| {
+            // Arrange
+            let (cassie, session) = start(path);
+            exec_all(
+                &cassie,
+                &session,
+                &[
+                    "CREATE TABLE p (id INT PRIMARY KEY)",
+                    "CREATE TABLE ch (cid INT PRIMARY KEY, pid INT)",
+                    "INSERT INTO p (id) VALUES (1)",
+                    "INSERT INTO ch (cid, pid) VALUES (9, 1)",
+                    "INSERT INTO ch (cid, pid) VALUES (10, 999)",
+                ],
+            );
+
+            // Act
+            let add_constraint = run(
+                &cassie,
+                &session,
+                "ALTER TABLE ch ADD CONSTRAINT ch_fk FOREIGN KEY (pid) REFERENCES p(id)",
+            );
+            let later_orphan = run(
+                &cassie,
+                &session,
+                "INSERT INTO ch (cid, pid) VALUES (11, 999)",
+            );
+            let delete_first_orphan = run(&cassie, &session, "DELETE FROM ch WHERE cid = 10");
+            let delete_second_orphan = run(&cassie, &session, "DELETE FROM ch WHERE cid = 11");
+            let add_after_orphans_removed = run(
+                &cassie,
+                &session,
+                "ALTER TABLE ch ADD CONSTRAINT ch_fk FOREIGN KEY (pid) REFERENCES p(id)",
+            );
+            let orphan_after_successful_add = run(
+                &cassie,
+                &session,
+                "INSERT INTO ch (cid, pid) VALUES (12, 999)",
+            );
+            let child_rows = rows(&cassie, &session, "SELECT cid, pid FROM ch ORDER BY cid");
+
+            // Assert
+            assert_foreign_key_error(add_constraint, "adding foreign key over an orphan row");
+            later_orphan.expect("failed DDL must not persist the foreign key");
+            delete_first_orphan.expect("remove first orphan");
+            delete_second_orphan.expect("remove second orphan");
+            add_after_orphans_removed.expect("add foreign key over valid existing rows");
+            assert_foreign_key_error(orphan_after_successful_add, "orphan insert after DDL");
+            assert_eq!(child_rows, vec![vec![Value::Int64(9), Value::Int64(1)]]);
+        });
+    }
+
+    #[test]
     fn should_report_the_declared_foreign_key_name_on_violation() {
         with_cassie("fk-ddl-declared-name", |path| {
             // Arrange

@@ -157,7 +157,7 @@ impl Midge {
         let row_schema = self.row_schema(&index.collection)?;
         if index.unique {
             self.validate_unique_index_rows(index, &rows)?;
-            self.delete_prepared_scalar_index_data_in_batches(
+            self.delete_data_keys_with_prefix_in_batches(
                 &index.collection,
                 &key_encoding::unique_scalar_index_reservation_prefix(
                     &index.collection,
@@ -238,7 +238,7 @@ impl Midge {
         Ok(())
     }
 
-    fn delete_prepared_scalar_index_data_in_batches(
+    pub(super) fn delete_data_keys_with_prefix_in_batches(
         &self,
         collection: &str,
         prefix: &[u8],
@@ -272,6 +272,14 @@ impl Midge {
                 batches_since_flush = 0;
             }
         }
+    }
+
+    fn delete_prepared_scalar_index_data_in_batches(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+    ) -> Result<(), CassieError> {
+        self.delete_data_keys_with_prefix_in_batches(collection, prefix)
     }
 
     pub(crate) fn delete_scalar_index_data(

@@ -2,7 +2,7 @@ use tokio::io::AsyncWrite;
 
 use super::super::writers::{
     append_command_complete_frame, append_data_row_frame, append_portal_suspended_frame,
-    append_row_description_frame,
+    append_row_description_frame, ensure_row_widths,
 };
 use super::{
     write_frame, CassieError, ExtendedQueryError, Portal, PortalSuspended, PreparedStatement,
@@ -382,6 +382,8 @@ async fn write_portal_page_frames(
         row_description_already_sent,
         remains_suspended,
     } = page;
+    ensure_row_widths(&rows, columns)
+        .map_err(|error| ExtendedQueryError::protocol_from_io(&error))?;
     let mut frame = Vec::new();
     let mut row_description_sent = row_description_already_sent;
     if !row_description_sent && !columns.is_empty() {

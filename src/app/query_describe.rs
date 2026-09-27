@@ -106,7 +106,9 @@ impl Cassie {
         let collection_schema = self
             .catalog
             .get_schema(&physical.logical.collection)
-            .or_else(|| virtual_view_collection_schema(&physical.logical.collection))
+            .or_else(|| {
+                crate::catalog::CollectionSchema::virtual_view(&physical.logical.collection)
+            })
             .or_else(|| {
                 crate::sql::binder::cte_collection_schema(
                     &physical.logical.ctes,
@@ -151,20 +153,4 @@ impl Cassie {
             ),
         )
     }
-}
-
-fn virtual_view_collection_schema(collection: &str) -> Option<crate::catalog::CollectionSchema> {
-    let fields = crate::catalog::virtual_views::schema(collection)?;
-    Some(crate::catalog::CollectionSchema {
-        collection: collection.to_string(),
-        fields: fields
-            .into_iter()
-            .map(|(name, data_type)| crate::catalog::FieldMeta {
-                name,
-                data_type,
-                is_indexed: false,
-                boost: None,
-            })
-            .collect(),
-    })
 }

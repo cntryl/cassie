@@ -23,6 +23,25 @@ impl CollectionSchema {
         }
     }
 
+    /// The declared schema of a built-in `information_schema`/`pg_catalog`
+    /// view, so Describe and execution type its columns identically.
+    #[must_use]
+    pub fn virtual_view(collection: &str) -> Option<Self> {
+        let fields = crate::catalog::virtual_views::schema(collection)?;
+        Some(Self {
+            collection: collection.to_string(),
+            fields: fields
+                .into_iter()
+                .map(|(name, data_type)| FieldMeta {
+                    name,
+                    data_type,
+                    is_indexed: false,
+                    boost: None,
+                })
+                .collect(),
+        })
+    }
+
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&FieldMeta> {
         self.fields.iter().find(|f| f.name == name)

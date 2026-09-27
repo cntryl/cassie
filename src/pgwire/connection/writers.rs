@@ -124,6 +124,7 @@ pub(super) async fn write_simple_query_result(
     } = result;
 
     if !columns.is_empty() {
+        ensure_row_widths(&rows, &columns)?;
         let mut frame = Vec::new();
         append_row_description_frame(&mut frame, &columns, &[])?;
         write_half.write_all(&frame).await?;
@@ -222,6 +223,7 @@ pub(super) fn append_data_row_frame(
     result_formats: &[i16],
 ) -> io::Result<()> {
     validate_result_formats(columns, result_formats)?;
+    ensure_row_width(&row, columns)?;
 
     let mut payload = Vec::new();
     payload.extend_from_slice(
@@ -234,11 +236,7 @@ pub(super) fn append_data_row_frame(
         match value {
             Value::Null => payload.extend_from_slice(&(-1_i32).to_be_bytes()),
             other => {
-                let format_code = match result_formats.len() {
-                    0 => 0,
-                    1 => result_formats[0],
-                    _ => result_formats[index],
-                };
+                let format_code = result_format_for_index(result_formats, index);
                 let bytes = if format_code == 0 {
                     value_to_text(other).into_bytes()
                 } else if format_code == 1 {
@@ -264,6 +262,54 @@ pub(super) fn append_data_row_frame(
     append_backend_frame(frame, b'D', &payload)
 }
 
+/// A result row whose width differs from its `RowDescription`. Encoding it
+/// would either index past the column list or emit a `DataRow` that clients
+/// reject, so the statement fails with an `ErrorResponse` instead.
+#[derive(Debug)]
+struct RowShapeMismatch {
+    row_width: usize,
+    column_count: usize,
+}
+
+impl std::fmt::Display for RowShapeMismatch {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "result row has {} values but its row description declares {} columns",
+            self.row_width, self.column_count
+        )
+    }
+}
+
+impl std::error::Error for RowShapeMismatch {}
+
+pub(super) fn is_row_shape_mismatch(error: &io::Error) -> bool {
+    error
+        .get_ref()
+        .is_some_and(<dyn std::error::Error + Send + Sync>::is::<RowShapeMismatch>)
+}
+
+pub(super) fn ensure_row_widths(
+    rows: &[Vec<Value>],
+    columns: &[crate::executor::ColumnMeta],
+) -> io::Result<()> {
+    rows.iter()
+        .try_for_each(|row| ensure_row_width(row, columns))
+}
+
+fn ensure_row_width(row: &[Value], columns: &[crate::executor::ColumnMeta]) -> io::Result<()> {
+    if row.len() == columns.len() {
+        return Ok(());
+    }
+    Err(io::Error::new(
+        io::ErrorKind::InvalidData,
+        RowShapeMismatch {
+            row_width: row.len(),
+            column_count: columns.len(),
+        },
+    ))
+}
+
 pub(super) async fn write_command_complete(
     write_half: &mut (impl AsyncWrite + Unpin),
     command: &str,
@@ -279,7 +325,22 @@ pub(super) async fn write_copy_in_response(
     write_half: &mut (impl AsyncWrite + Unpin),
     column_count: usize,
 ) -> io::Result<()> {
-    let mut payload = Vec::new();
+    let payload = copy_response_payload(column_count)?;
+    write_backend_frame(write_half, b'G', &payload).await
+}
+
+pub(super) async fn write_copy_out_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+    column_count: usize,
+) -> io::Result<()> {
+    let payload = copy_response_payload(column_count)?;
+    write_backend_frame(write_half, b'H', &payload).await
+}
+
+/// `CopyInResponse`/`CopyOutResponse` body: Int8 overall format (text),
+/// Int16 column count, then one Int16 text format code per column.
+fn copy_response_payload(column_count: usize) -> io::Result<Vec<u8>> {
+    let mut payload = Vec::with_capacity(3 + 2 * column_count);
     payload.push(0);
     payload.extend_from_slice(
         &i16::try_from(column_count)
@@ -289,14 +350,7 @@ pub(super) async fn write_copy_in_response(
     for _ in 0..column_count {
         payload.extend_from_slice(&0_i16.to_be_bytes());
     }
-    write_backend_frame(write_half, b'G', &payload).await
-}
-
-pub(super) async fn write_copy_out_response(
-    write_half: &mut (impl AsyncWrite + Unpin),
-) -> io::Result<()> {
-    let payload = [0_u8, 0_u8, 0_u8, 1_u8, 0_u8, 0_u8];
-    write_backend_frame(write_half, b'H', &payload).await
+    Ok(payload)
 }
 
 pub(super) async fn write_copy_data(

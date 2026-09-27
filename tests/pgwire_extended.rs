@@ -4307,9 +4307,9 @@ mod pgwire_result_framing {
             let width = data_row_field_lengths(payload).len();
             assert_eq!(Some(width), description.as_ref().map(Vec::len));
         }
-        assert!(frames
-            .iter()
-            .any(|frame| frame.0 == b'E' || frame.0 == b'C'));
+        assert!(frames.iter().any(|frame| frame.0 == b'E'));
+        assert!(!frames.iter().any(|frame| frame.0 == b'D'));
+        assert!(!frames.iter().any(|frame| frame.0 == b'C'));
         assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
     }
 

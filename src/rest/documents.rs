@@ -63,7 +63,7 @@ pub fn delete_with_cancellation(
     cancellation: &QueryCancellationHandle,
 ) -> Result<Value, CassieError> {
     let collection = resolve_collection(cassie, collection)?;
-    let removed = cassie.delete_document_with_cancellation(&collection, id, cancellation)?;
+    let removed = cassie.delete_document_with_referential_actions(&collection, id, cancellation)?;
 
     Ok(serde_json::json!({"deleted": removed}))
 }

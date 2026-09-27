@@ -193,6 +193,28 @@ impl Cassie {
         })
     }
 
+    pub(crate) fn delete_document_with_referential_actions(
+        &self,
+        collection: &str,
+        id: &str,
+        cancellation: &crate::runtime::QueryCancellationHandle,
+    ) -> Result<bool, CassieError> {
+        let collections = self.referential_write_collections(collection);
+        self.midge.with_collection_write_gates(&collections, || {
+            controlled::check_document_cancellation(Some(cancellation))?;
+            let Some(document) = self.get_document_for_session(None, collection, id)? else {
+                return Ok(false);
+            };
+            crate::executor::delete_document_with_referential_actions(
+                self,
+                collection,
+                id,
+                &document.payload,
+                cancellation.clone(),
+            )
+        })
+    }
+
     fn delete_document_for_session_with_held_collection_gates(
         &self,
         session: Option<&CassieSession>,

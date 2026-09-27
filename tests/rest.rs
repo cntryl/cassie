@@ -471,6 +471,50 @@ mod rest {
     }
 
     #[test]
+    fn should_create_rest_collection_for_session_database_scope() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("rest_collection_session_scope");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let default_session = cassie.create_session("root", Some("postgres".to_string()));
+        cassie
+            .execute_sql(&default_session, "CREATE DATABASE analytics", Vec::new())
+            .expect("create analytics database");
+        let session = cassie.create_session("root", Some("analytics".to_string()));
+        cassie
+            .execute_sql(&session, "CREATE SCHEMA tenant", Vec::new())
+            .expect("create tenant schema");
+        session.set_search_path(vec!["tenant".to_string(), "public".to_string()]);
+        let body = serde_json::json!({
+            "name": "rest_made",
+            "fields": [{"name": "x", "type": "int"}],
+        });
+
+        // Act
+        let result =
+            collections::create_for_session(&cassie, &session, body.to_string().as_bytes());
+
+        // Assert
+        assert!(result.is_ok(), "collection creation failed: {result:?}");
+        assert!(cassie
+            .midge
+            .collection_metadata("analytics.tenant.rest_made")
+            .expect("scoped collection lookup")
+            .is_some());
+        assert!(cassie
+            .midge
+            .collection_metadata("postgres.public.rest_made")
+            .expect("default collection lookup")
+            .is_none());
+        let query = cassie
+            .execute_sql(&session, "SELECT x FROM rest_made", Vec::new())
+            .expect("query newly created collection from session");
+        assert_eq!(query.columns[0].name, "x");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_invalid_vector_dimensions_through_rest() {
         // Arrange
         std::env::set_var("CASSIE_STORAGE_MODE", "local");

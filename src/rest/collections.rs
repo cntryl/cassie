@@ -31,6 +31,34 @@ pub fn list(cassie: &Cassie) -> Vec<String> {
 ///
 /// Returns an error when validation, storage, or execution fails.
 pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
+    create_in_namespace(cassie, &cassie.default_database, DEFAULT_SCHEMA, body)
+}
+
+/// Creates a collection in the current database and first schema on a session's search path.
+///
+/// # Errors
+///
+/// Returns an error when database access, request validation, storage, or catalog registration fails.
+pub fn create_for_session(
+    cassie: &Cassie,
+    session: &crate::app::CassieSession,
+    body: &[u8],
+) -> Result<Value, CassieError> {
+    cassie.ensure_session_database_access(session)?;
+    let database = session
+        .current_database()
+        .unwrap_or(cassie.default_database.as_str());
+    let search_path = session.search_path();
+    let schema = search_path.first().map_or(DEFAULT_SCHEMA, String::as_str);
+    create_in_namespace(cassie, database, schema, body)
+}
+
+fn create_in_namespace(
+    cassie: &Cassie,
+    database: &str,
+    schema_name: &str,
+    body: &[u8],
+) -> Result<Value, CassieError> {
     let request: CreateCollectionRequest =
         serde_json::from_slice(body).map_err(|e| CassieError::Parse(e.to_string()))?;
 
@@ -76,7 +104,7 @@ pub fn create(cassie: &Cassie, body: &[u8]) -> Result<Value, CassieError> {
     let schema = Schema {
         fields: schema_fields,
     };
-    let collection = canonical_relation_name(&cassie.default_database, DEFAULT_SCHEMA, &name);
+    let collection = canonical_relation_name(database, schema_name, &name);
     let metadata = CollectionMeta::new(&collection, description);
     cassie
         .midge

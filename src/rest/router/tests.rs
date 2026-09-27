@@ -334,3 +334,56 @@ fn should_allow_empty_jsonless_delete_requests() {
     // Assert
     assert!(result.is_ok());
 }
+
+#[test]
+fn should_create_rest_collection_in_the_request_session_database() {
+    // Arrange
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    let data_dir = std::env::temp_dir().join(format!(
+        "cassie-router-collection-database-{}",
+        uuid::Uuid::new_v4()
+    ));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&data_dir).expect("cassie"));
+    cassie.startup().expect("startup");
+    let default_session = cassie.create_session("root", Some("postgres".to_string()));
+    cassie
+        .execute_sql(&default_session, "CREATE DATABASE analytics", Vec::new())
+        .expect("create analytics database");
+    let request_context = RestRequestContext {
+        session: CassieSession::new("root".to_string(), Some("analytics".to_string())),
+        role: None,
+        token: None,
+    };
+    let method = Method::POST;
+    let segments = ["api", "v1", "collections"];
+    let body = Bytes::from_static(br#"{"name":"rest_made","fields":[{"name":"x","type":"int"}]}"#);
+
+    // Act
+    let result = runtime.block_on(dispatch_collection_routes(
+        &method,
+        &segments,
+        Arc::clone(&cassie),
+        &request_context,
+        &body,
+        "/api/v1/collections",
+        Instant::now(),
+    ));
+
+    // Assert
+    let response = result
+        .expect("collection route")
+        .expect("matched collection route");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        cassie
+            .midge
+            .collection_metadata("analytics.public.rest_made")
+            .expect("analytics collection lookup")
+            .is_some(),
+        "collection must be created in the request session database"
+    );
+    let _ = std::fs::remove_dir_all(data_dir);
+}

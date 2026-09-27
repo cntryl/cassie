@@ -8872,6 +8872,62 @@ mod sql_semantic_regressions {
     }
 
     #[test]
+    fn should_parse_keyword_prefix_identifiers_as_columns() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("keyword_prefix_identifiers");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE keyword_prefix_columns (id INT, _deleted BOOLEAN, not_deleted BOOLEAN, case_id INT, exists_flag BOOLEAN, cast_value INT, unique_key TEXT, primary_contact TEXT, check_sum INT, foreign_id TEXT, constraint_name TEXT)",
+                vec![],
+            )
+            .expect("keyword-prefixed column names should be valid identifiers");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO keyword_prefix_columns VALUES (1, true, true, 11, true, 12, 'unique', 'primary', 13, 'foreign', 'constraint'), (2, false, false, 22, false, 23, 'key', 'contact', 24, 'id', 'name')",
+                vec![],
+            )
+            .expect("insert keyword-prefixed values");
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, _deleted, not_deleted, case_id, exists_flag, cast_value, unique_key, primary_contact, check_sum, foreign_id, constraint_name FROM keyword_prefix_columns ORDER BY id",
+                vec![],
+            )
+            .expect("select keyword-prefixed columns");
+        let matching = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM keyword_prefix_columns WHERE not_deleted = true",
+                vec![],
+            )
+            .expect("filter by keyword-prefixed identifier");
+
+        // Assert
+        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(selected.rows[0][0], Value::Int64(1));
+        assert_eq!(selected.rows[0][1], Value::Bool(true));
+        assert_eq!(selected.rows[0][2], Value::Bool(true));
+        assert_eq!(selected.rows[0][3], Value::Int64(11));
+        assert_eq!(selected.rows[0][4], Value::Bool(true));
+        assert_eq!(selected.rows[0][5], Value::Int64(12));
+        assert_eq!(selected.rows[0][6], Value::String("unique".to_string()));
+        assert_eq!(selected.rows[0][7], Value::String("primary".to_string()));
+        assert_eq!(selected.rows[0][8], Value::Int64(13));
+        assert_eq!(selected.rows[0][9], Value::String("foreign".to_string()));
+        assert_eq!(
+            selected.rows[0][10],
+            Value::String("constraint".to_string())
+        );
+        assert_eq!(selected.rows[1][2], Value::Bool(false));
+        assert_eq!(matching.rows, vec![vec![Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_evaluate_subtraction_chains_left_to_right() {
         // Arrange
         let (cassie, session, path) = cassie_for("left_associative_subtraction");

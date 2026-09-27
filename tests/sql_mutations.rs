@@ -1112,6 +1112,68 @@ mod integration_sql_constraints {
     }
 
     #[test]
+    fn should_reject_altered_check_constraint_when_existing_row_violates_it() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_check_existing_violation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE check_existing (n INT)", vec![])
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO check_existing (n) VALUES (-5)",
+                vec![],
+            )
+            .expect("insert violating row");
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE check_existing ADD CONSTRAINT positive_n CHECK (n > 0)",
+            vec![],
+        );
+
+        // Assert
+        assert!(added.is_err(), "CHECK was added over a violating row");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_altered_primary_key_when_existing_row_has_null_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_primary_key_existing_null");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE primary_existing (id INT)", vec![])
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO primary_existing (id) VALUES (NULL)",
+                vec![],
+            )
+            .expect("insert null key");
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE primary_existing ADD CONSTRAINT primary_existing_pk PRIMARY KEY (id)",
+            vec![],
+        );
+
+        // Assert
+        assert!(added.is_err(), "PRIMARY KEY was added over a null key");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_bind_altered_unique_constraint_to_declared_column_case() {
         // Arrange
         use_local_storage();

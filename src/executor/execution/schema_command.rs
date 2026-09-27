@@ -396,6 +396,7 @@ fn alter_table_add_constraint(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
+            cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
             let mut merged = cassie.catalog.get_constraints(table);
             crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());

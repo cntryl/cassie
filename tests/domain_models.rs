@@ -2586,6 +2586,89 @@ mod time_series_rollups {
     }
 
     #[test]
+    fn should_not_rewrite_to_a_rollup_after_a_grouped_column_name_is_reused() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("rollup_column_rename_name_reuse");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE rollup_column_rename_events (tenant TEXT, other TEXT, event_at TEXT, amount INT)",
+                    vec![],
+                )
+                .expect("create source");
+            for sql in [
+                "INSERT INTO rollup_column_rename_events (tenant, other, event_at, amount) VALUES ('a', 'X', '2026-01-01T00:05:00Z', 1)",
+                "INSERT INTO rollup_column_rename_events (tenant, other, event_at, amount) VALUES ('b', 'Y', '2026-01-01T01:05:00Z', 2)",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("insert source row");
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE ROLLUP rollup_column_rename_hourly ON rollup_column_rename_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+                    vec![],
+                )
+                .expect("create rollup");
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "ALTER TABLE rollup_column_rename_events RENAME COLUMN tenant TO tmpname",
+                    vec![],
+                )
+                .expect("rename original grouping column");
+            cassie
+                .execute_sql(
+                    &session,
+                    "ALTER TABLE rollup_column_rename_events RENAME COLUMN other TO tenant",
+                    vec![],
+                )
+                .expect("reuse grouping column name");
+            let query = "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, COUNT(*) AS total, SUM(amount) AS amount_sum FROM rollup_column_rename_events GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY bucket, tenant";
+            let selected = cassie
+                .execute_sql(&session, query, vec![])
+                .expect("query after rename");
+            let explain = cassie
+                .execute_sql(&session, &format!("EXPLAIN {query}"), vec![])
+                .expect("explain query after rename");
+
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![
+                    vec![
+                        Value::String("2026-01-01T00:00:00Z".to_string()),
+                        Value::String("X".to_string()),
+                        Value::Int64(1),
+                        Value::Int64(1),
+                    ],
+                    vec![
+                        Value::String("2026-01-01T01:00:00Z".to_string()),
+                        Value::String("Y".to_string()),
+                        Value::Int64(1),
+                        Value::Int64(2),
+                    ],
+                ]
+            );
+            assert!(matches!(
+                &explain.rows[0][0],
+                Value::String(plan) if plan.contains("rollup_rewrite=none")
+            ));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_reject_rollup_with_mismatched_source_generation() {
         // Arrange
         use_local_storage();

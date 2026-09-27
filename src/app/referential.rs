@@ -1,13 +1,19 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::foreign_key_checks::ForeignKeyReferences;
+use super::foreign_key_checks::{foreign_key_value_key, ForeignKeyReferences};
 use super::{Cassie, CassieError, CassieSession, FieldConstraint, TransactionRowChange};
 
 const REFERENCE_SCAN_BATCH_SIZE: usize = 1024;
 
 /// Referenced key values a transaction removes from one parent collection,
 /// grouped by the child constraint that could still reference them.
-type RemovedParentKeys = BTreeMap<(String, String), (FieldConstraint, BTreeSet<String>)>;
+type RemovedParentKeys = BTreeMap<
+    (String, String),
+    (
+        FieldConstraint,
+        BTreeSet<crate::types::semantic::SemanticKey>,
+    ),
+>;
 
 impl Cassie {
     fn canonical_referential_name(&self, name: &str) -> String {
@@ -201,7 +207,9 @@ impl Cassie {
                 let key_removed = match &change {
                     TransactionRowChange::Delete => true,
                     TransactionRowChange::Upsert(payload) => {
-                        payload.get(referenced_column) != Some(old_value)
+                        payload.get(referenced_column).is_none_or(|value| {
+                            foreign_key_value_key(value) != foreign_key_value_key(old_value)
+                        })
                     }
                 };
                 if key_removed {
@@ -209,7 +217,7 @@ impl Cassie {
                         .entry((child_table.clone(), constraint.field.clone()))
                         .or_insert_with(|| (constraint.clone(), BTreeSet::new()))
                         .1
-                        .insert(old_value.to_string());
+                        .insert(foreign_key_value_key(old_value));
                 }
             }
         }
@@ -223,7 +231,7 @@ impl Cassie {
         session: &CassieSession,
         collection: &str,
         removed: &RemovedParentKeys,
-    ) -> Result<BTreeSet<(String, String)>, CassieError> {
+    ) -> Result<BTreeSet<(String, crate::types::semantic::SemanticKey)>, CassieError> {
         let columns = removed
             .values()
             .filter_map(|(constraint, _)| constraint.references_field.clone())
@@ -237,7 +245,7 @@ impl Cassie {
         for document in batches.into_iter().flatten() {
             for column in &columns {
                 if let Some(value) = document.payload.get(column) {
-                    remaining.insert((column.clone(), value.to_string()));
+                    remaining.insert((column.clone(), foreign_key_value_key(value)));
                 }
             }
         }
@@ -249,7 +257,7 @@ impl Cassie {
         session: &CassieSession,
         child_table: &str,
         child_field: &str,
-        values: &BTreeSet<String>,
+        values: &BTreeSet<crate::types::semantic::SemanticKey>,
     ) -> Result<bool, CassieError> {
         let batches = self.scan_documents_batched_for_session(
             Some(session),
@@ -260,7 +268,7 @@ impl Cassie {
             document
                 .payload
                 .get(child_field)
-                .is_some_and(|value| values.contains(&value.to_string()))
+                .is_some_and(|value| values.contains(&foreign_key_value_key(value)))
         }))
     }
 }

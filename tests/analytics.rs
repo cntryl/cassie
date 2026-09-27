@@ -705,6 +705,72 @@ mod analytical_projections {
     }
 
     #[test]
+    fn should_match_staged_transaction_rows_in_analytical_projection_reads() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("analytical_projection_transaction_overlay");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE ap_tx_source (tenant TEXT, amount INT)",
+                "INSERT INTO ap_tx_source VALUES ('acme', 10), ('acme', 11)",
+                "CREATE MATERIALIZED PROJECTION ap_tx WITH (analytical = true) AS SELECT tenant, amount FROM ap_tx_source",
+                "BEGIN",
+                "INSERT INTO ap_tx_source VALUES ('acme', 20)",
+            ] {
+                cassie.execute_sql(&session, sql, Vec::new()).expect("setup SQL");
+            }
+
+            // Act
+            let after_insert = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT tenant, amount FROM ap_tx_source ORDER BY amount",
+                    Vec::new(),
+                )
+                .expect("read after staged insert");
+            cassie
+                .execute_sql(&session, "DELETE FROM ap_tx_source WHERE amount = 11", Vec::new())
+                .expect("stage delete");
+            let after_delete = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT tenant, amount FROM ap_tx_source ORDER BY amount",
+                    Vec::new(),
+                )
+                .expect("read after staged delete");
+
+            // Assert
+            assert_eq!(
+                after_insert.rows,
+                vec![
+                    vec![Value::String("acme".to_string()), Value::Int64(10)],
+                    vec![Value::String("acme".to_string()), Value::Int64(11)],
+                    vec![Value::String("acme".to_string()), Value::Int64(20)],
+                ]
+            );
+            assert_eq!(
+                after_delete.rows,
+                vec![
+                    vec![Value::String("acme".to_string()), Value::Int64(10)],
+                    vec![Value::String("acme".to_string()), Value::Int64(20)],
+                ]
+            );
+            cassie
+                .execute_sql(&session, "ROLLBACK", Vec::new())
+                .expect("rollback transaction");
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_fallback_to_source_when_analytical_projection_is_stale() {
         // Arrange
         use_local_storage();

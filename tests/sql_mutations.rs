@@ -6955,7 +6955,7 @@ mod migration_ddl_sequences {
         vec![
             vec![
                 Value::String("seq_id".to_string()),
-                Value::String("nextval('order_ids'::regclass)".to_string()),
+                Value::String("nextval('postgres.public.order_ids'::regclass)".to_string()),
                 Value::String("YES".to_string()),
             ],
             vec![
@@ -6970,7 +6970,7 @@ mod migration_ddl_sequences {
         vec![vec![
             Value::String("migration_orders".to_string()),
             Value::Int64(1),
-            Value::String("nextval('order_ids'::regclass)".to_string()),
+            Value::String("nextval('postgres.public.order_ids'::regclass)".to_string()),
         ]]
     }
 
@@ -7332,6 +7332,61 @@ mod migration_ddl_sequences {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+    #[test]
+    fn should_bind_bare_explicit_sequence_defaults_to_table_schema() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("explicit-sequence-default-schema");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE SCHEMA aa",
+                "CREATE SCHEMA bb",
+                "CREATE SEQUENCE aa.s",
+                "CREATE SEQUENCE bb.s",
+                "CREATE SEQUENCE aa.altered",
+                "CREATE SEQUENCE bb.altered",
+                "CREATE TABLE bb.t (v INT, n INT DEFAULT nextval('s'))",
+                "CREATE TABLE bb.altered_t (v INT, n INT)",
+                "ALTER TABLE bb.altered_t ALTER COLUMN n SET DEFAULT nextval('altered')",
+                "INSERT INTO bb.t (v) VALUES (1), (2)",
+                "INSERT INTO bb.altered_t (v) VALUES (1), (2)",
+                "DROP SEQUENCE aa.s",
+                "DROP SEQUENCE aa.altered",
+                "INSERT INTO bb.t (v) VALUES (3), (4)",
+                "INSERT INTO bb.altered_t (v) VALUES (3), (4)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let rows = query_rows(&cassie, &session, "SELECT v, n FROM bb.t ORDER BY v");
+            let altered_rows = query_rows(
+                &cassie,
+                &session,
+                "SELECT v, n FROM bb.altered_t ORDER BY v",
+            );
+
+            // Assert
+            let expected_rows = vec![
+                vec![Value::Int64(1), Value::Int64(1)],
+                vec![Value::Int64(2), Value::Int64(2)],
+                vec![Value::Int64(3), Value::Int64(3)],
+                vec![Value::Int64(4), Value::Int64(4)],
+            ];
+            assert_eq!(altered_rows, expected_rows);
+            assert_eq!(rows, expected_rows);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 

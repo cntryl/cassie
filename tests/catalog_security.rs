@@ -2731,8 +2731,16 @@ mod database_scope {
                 vec![],
             )
             .unwrap();
+        cassie
+            .execute_sql(
+                tenant,
+                "CREATE TABLE public.payroll_events (event_at TIMESTAMP)",
+                vec![],
+            )
+            .unwrap();
         for (assignment_id, projection_id) in [
-            ("postgres-assignment", "payroll_events"),
+            ("postgres-assignment", "postgres.public.payroll_events"),
+            ("ambiguous-assignment", "payroll_events"),
             ("tenant-assignment", "tenant_events"),
         ] {
             cassie

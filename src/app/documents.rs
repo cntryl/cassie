@@ -678,7 +678,7 @@ impl Cassie {
         self.validate_uniques(session, collection, object, constraints, exclude_id)
     }
 
-    fn satisfies_check_constraint(
+    pub(super) fn satisfies_check_constraint(
         value: &serde_json::Value,
         check: &ConstraintCheck,
     ) -> Result<bool, CassieError> {

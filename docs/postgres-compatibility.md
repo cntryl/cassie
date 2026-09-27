@@ -28,6 +28,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 
 - `current_user`, `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` reflect session state.
 - Startup parameters, `SET`, `SHOW`, `current_setting`, `set_config`, `pg_settings`, and `pg_show_all_settings()` share one validated settings contract.
+- `set_config` accepts boolean values for `is_local`; true requests are rejected because transaction-local settings are unsupported, while false applies the setting to the session. Invalid boolean text and non-boolean values are errors.
 - Mutable settings are `search_path`, `application_name`, and `client_min_messages`. Cassie validates fixed PostgreSQL-facing values for server and client encoding, date style, time zone, standard strings, integer datetimes, bytea output, extra float digits, and the advertised server version.
 - Unsupported setting names and incompatible fixed values are errors; Cassie does not silently accept arbitrary PostgreSQL GUCs.
 - Unqualified relations resolve through `search_path` inside the current database.

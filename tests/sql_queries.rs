@@ -5631,6 +5631,79 @@ mod integration_sql_scalar_functions {
 
     use support::*;
 
+    #[test]
+    fn should_reject_text_true_for_transaction_local_set_config() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("set_config_transaction_local_text");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT set_config('application_name', 'baseline', 'false')",
+                    vec![],
+                )
+                .expect("false text should remain session-scoped");
+
+            // Act
+            let literal_true = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'literal_true', 'true')",
+                vec![],
+            );
+            let literal_on = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'literal_on', 'on')",
+                vec![],
+            );
+            let bound_true = cassie.execute_sql(
+                &session,
+                "SELECT set_config($1, $2, $3)",
+                vec![
+                    Value::String("application_name".to_string()),
+                    Value::String("bound_true".to_string()),
+                    Value::String("true".to_string()),
+                ],
+            );
+            let numeric_flag = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'numeric_flag', 1)",
+                vec![],
+            );
+            let setting = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT current_setting('application_name')",
+                    vec![],
+                )
+                .expect("read application_name");
+
+            // Assert
+            for result in [literal_true, literal_on, bound_true] {
+                let error = result.expect_err("true is_local must be rejected as unsupported");
+                assert!(error
+                    .to_string()
+                    .contains("transaction-local settings are not supported"));
+            }
+            let error = numeric_flag.expect_err("numeric is_local must be rejected");
+            assert!(error.to_string().contains("is_local must be a boolean"));
+            assert_eq!(
+                setting.rows,
+                vec![vec![Value::String("baseline".to_string())]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     // should_execute_text_scalar_functions_query removed: strictly subsumed by
     // scalar_functions.rs::should_execute_string_scalar_functions_in_query_path,
     // which covers the same lower/upper/trim/substring/concat/length assertions

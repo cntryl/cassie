@@ -39,13 +39,16 @@ pub(super) async fn dispatch_collection_routes(
         }
         ("POST", ["api", "v1", "collections"]) => {
             let body = body.clone();
+            let session = request_context.session.clone();
             run_rest_blocking_route(
                 cassie,
                 method,
                 path,
                 started_at,
                 "rest_route",
-                move |cassie| crate::rest::collections::create(&cassie, body.as_ref()),
+                move |cassie| {
+                    crate::rest::collections::create_for_session(&cassie, &session, body.as_ref())
+                },
             )
             .await
             .map(|value| Some(json_response(StatusCode::OK, &value)))

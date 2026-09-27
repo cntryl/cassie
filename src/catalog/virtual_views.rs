@@ -1,7 +1,7 @@
 use crate::app::CassieSession;
 use crate::catalog::{
-    local_name, relation_belongs_to_database, relation_schema_name, schema_belongs_to_database,
-    Catalog, DatabaseMeta, FieldConstraint,
+    local_name, relation_belongs_to_database, relation_database_name, relation_schema_name,
+    schema_belongs_to_database, Catalog, DatabaseMeta, FieldConstraint,
 };
 use crate::types::{DataType, Value};
 
@@ -347,9 +347,114 @@ fn pg_catalog_rows_for(
     name: &str,
     current_database: Option<&str>,
 ) -> Option<Vec<VirtualRow>> {
-    pg_catalog_core_rows(catalog, name, current_database)
+    let rows = pg_catalog_core_rows(catalog, name, current_database)
         .or_else(|| pg_catalog_projection_rows(catalog, name))
-        .or_else(|| pg_catalog_runtime_rows(catalog, name))
+        .or_else(|| pg_catalog_runtime_rows(catalog, name))?;
+    Some(filter_pg_catalog_rows(
+        catalog,
+        name,
+        current_database,
+        rows,
+    ))
+}
+
+fn filter_pg_catalog_rows(
+    catalog: &Catalog,
+    name: &str,
+    current_database: Option<&str>,
+    rows: Vec<VirtualRow>,
+) -> Vec<VirtualRow> {
+    let Some(database) = current_database else {
+        return rows;
+    };
+    let projection_ids = if matches!(
+        name,
+        "pg_catalog.pg_projection_consistency_reports" | "pg_catalog.pg_operational_assignments"
+    ) {
+        database_scoped_projection_ids(catalog, database)
+    } else {
+        std::collections::HashSet::new()
+    };
+
+    rows.into_iter()
+        .filter(|row| match name {
+            "pg_catalog.pg_rollups" => row_relation_belongs_to_database(row, "source_collection", database),
+            "pg_catalog.pg_maintenance_debt"
+            | "pg_catalog.pg_retention_policies"
+            | "pg_catalog.pg_projection_checkpoints" => {
+                row_relation_belongs_to_database(row, "collection", database)
+            }
+            "pg_catalog.pg_materialized_projections"
+            | "pg_catalog.pg_projection_versions"
+            | "pg_catalog.pg_projection_operations"
+            | "pg_catalog.pg_projection_hashes"
+            | "pg_catalog.pg_projection_integrity_reports"
+            | "pg_catalog.pg_projection_repair_reports" => {
+                row_relation_belongs_to_database(row, "projection_name", database)
+            }
+            "pg_catalog.pg_projection_comparison_reports" => {
+                row_relation_belongs_to_database(row, "target", database)
+            }
+            "pg_catalog.pg_projection_consistency_reports"
+            | "pg_catalog.pg_operational_assignments" => row
+                .iter()
+                .find(|(column, _)| column == "projection_id")
+                .is_some_and(|(_, value)| {
+                    matches!(value, Value::String(projection_id) if projection_ids.contains(&projection_id.to_ascii_lowercase()))
+                }),
+            _ => true,
+        })
+        .collect()
+}
+
+fn database_scoped_projection_ids(
+    catalog: &Catalog,
+    database: &str,
+) -> std::collections::HashSet<String> {
+    let mut owners_by_id =
+        std::collections::HashMap::<String, std::collections::HashSet<String>>::new();
+    for collection in catalog.list_collections_canonical() {
+        if let Some(owner) = relation_database_name(&collection.name) {
+            add_projection_id_owner(&mut owners_by_id, &collection.name, &owner);
+        }
+    }
+    for projection in catalog.list_projection_metadata() {
+        if let Some(owner) = relation_database_name(&projection.collection) {
+            add_projection_id_owner(&mut owners_by_id, &projection.collection, &owner);
+            add_projection_id_owner(&mut owners_by_id, projection.projection_id(), &owner);
+        }
+    }
+    let database = database.to_ascii_lowercase();
+    owners_by_id
+        .into_iter()
+        .filter_map(|(projection_id, owners)| {
+            (owners.len() == 1 && owners.contains(&database)).then_some(projection_id)
+        })
+        .collect()
+}
+
+fn add_projection_id_owner(
+    owners_by_id: &mut std::collections::HashMap<String, std::collections::HashSet<String>>,
+    projection_id: &str,
+    owner: &str,
+) {
+    let owner = owner.to_ascii_lowercase();
+    owners_by_id
+        .entry(projection_id.to_ascii_lowercase())
+        .or_default()
+        .insert(owner.clone());
+    owners_by_id
+        .entry(local_name(projection_id).to_ascii_lowercase())
+        .or_default()
+        .insert(owner);
+}
+
+fn row_relation_belongs_to_database(row: &VirtualRow, column: &str, database: &str) -> bool {
+    row.iter()
+        .find(|(name, _)| name == column)
+        .is_some_and(|(_, value)| {
+            matches!(value, Value::String(relation) if relation_belongs_to_database(relation, database))
+        })
 }
 
 fn pg_catalog_core_rows(

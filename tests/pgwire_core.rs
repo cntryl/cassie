@@ -2409,6 +2409,13 @@ mod pgwire_simple_query {
     type PgwireWriter<'a> = tokio::net::tcp::WriteHalf<'a>;
     type PgwireServer = tokio::task::JoinHandle<Result<(), cassie::app::CassieError>>;
 
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+    }
+
     fn read_cstring(payload: &[u8], cursor: &mut usize) -> String {
         let tail = payload
             .get(*cursor..)
@@ -2593,6 +2600,96 @@ mod pgwire_simple_query {
             .await
             .expect("flush query");
         read_ready_frames(reader).await
+    }
+
+    #[test]
+    fn should_return_connection_backend_pid_without_reusing_another_sessions_result() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("backend-pid-result-cache");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let setup = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &setup,
+                "CREATE VIEW backend_pid_view AS SELECT pg_backend_pid() AS pid",
+                vec![],
+            )
+            .expect("create backend pid view");
+
+        runtime().block_on(async {
+            let server = pgwire_support::spawn_server(cassie).await;
+            let mut first_socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect first client");
+            let mut second_socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect second client");
+            let (first_read, mut first_writer) = first_socket.split();
+            let (second_read, mut second_writer) = second_socket.split();
+            let mut first_reader = tokio::io::BufReader::new(first_read);
+            let mut second_reader = tokio::io::BufReader::new(second_read);
+            let (first_pid, _) = pgwire_support::complete_startup_with_backend_key(
+                &mut first_reader,
+                &mut first_writer,
+            )
+            .await;
+            let (second_pid, _) = pgwire_support::complete_startup_with_backend_key(
+                &mut second_reader,
+                &mut second_writer,
+            )
+            .await;
+
+            // Act
+            let first_direct = write_simple_query_and_read_frames(
+                &mut first_reader,
+                &mut first_writer,
+                "SELECT pg_backend_pid()",
+            )
+            .await;
+            let second_direct = write_simple_query_and_read_frames(
+                &mut second_reader,
+                &mut second_writer,
+                "SELECT pg_backend_pid()",
+            )
+            .await;
+            let first_view = write_simple_query_and_read_frames(
+                &mut first_reader,
+                &mut first_writer,
+                "SELECT pid FROM backend_pid_view",
+            )
+            .await;
+            let second_view = write_simple_query_and_read_frames(
+                &mut second_reader,
+                &mut second_writer,
+                "SELECT pid FROM backend_pid_view",
+            )
+            .await;
+
+            // Assert
+            assert_ne!(first_pid, second_pid);
+            assert_eq!(
+                pgwire_support::data_rows(&first_direct),
+                vec![vec![Some(first_pid.to_string())]]
+            );
+            assert_eq!(
+                pgwire_support::data_rows(&second_direct),
+                vec![vec![Some(second_pid.to_string())]]
+            );
+            assert_eq!(
+                pgwire_support::data_rows(&first_view),
+                vec![vec![Some(first_pid.to_string())]]
+            );
+            assert_eq!(
+                pgwire_support::data_rows(&second_view),
+                vec![vec![Some(second_pid.to_string())]]
+            );
+
+            server.stop().await;
+        });
+
+        let _ = std::fs::remove_dir_all(path);
     }
 
     async fn request_copy_from_stdin(reader: &mut PgwireReader<'_>, writer: &mut PgwireWriter<'_>) {

@@ -348,6 +348,77 @@ mod execution_result_cache {
     }
 
     #[test]
+    fn should_bypass_volatile_user_functions_after_startup_qualifies_catalog_names() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("started-volatile-udf");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("alice", None);
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE FUNCTION volatile_echo(x TEXT) RETURNS TEXT VOLATILE AS "x""#,
+                vec![],
+            )
+            .expect("create function");
+
+        // Act
+        let first = cassie
+            .execute_sql(&session, "SELECT volatile_echo('value')", vec![])
+            .expect("first query");
+        let second = cassie
+            .execute_sql(&session, "SELECT volatile_echo('value')", vec![])
+            .expect("second query");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(first.rows, second.rows);
+        assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(0));
+        assert_eq!(
+            metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
+            Some(2)
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_bypass_volatile_user_functions_called_with_different_identifier_case() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("volatile-udf-case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        let session = cassie.create_session("alice", None);
+        cassie
+            .execute_sql(
+                &session,
+                r#"CREATE FUNCTION volatile_echo(x TEXT) RETURNS TEXT VOLATILE AS "x""#,
+                vec![],
+            )
+            .expect("create function");
+
+        // Act
+        let first = cassie
+            .execute_sql(&session, "SELECT VOLATILE_ECHO('value')", vec![])
+            .expect("first query");
+        let second = cassie
+            .execute_sql(&session, "SELECT VOLATILE_ECHO('value')", vec![])
+            .expect("second query");
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert_eq!(first.rows, second.rows);
+        assert_eq!(
+            metrics["execution_result_cache"]["bypass_reasons"]["non_immutable_function"].as_u64(),
+            Some(2)
+        );
+        assert_eq!(metrics["execution_result_cache"]["hits"].as_u64(), Some(0));
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_cache_immutable_user_functions() {
         // Arrange
         use_local_storage();

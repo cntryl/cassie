@@ -1,6 +1,6 @@
 # Per-Database Midge Column Families
 
-Cassie's `cassie-midge-layout-v1` baseline uses one physical Midge column family for each logical
+Cassie's `cassie-midge-layout-v2` baseline uses one physical Midge column family for each logical
 database:
 
 | Family | Ownership |

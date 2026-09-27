@@ -5631,6 +5631,79 @@ mod integration_sql_scalar_functions {
 
     use support::*;
 
+    #[test]
+    fn should_reject_text_true_for_transaction_local_set_config() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("set_config_transaction_local_text");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "SELECT set_config('application_name', 'baseline', 'false')",
+                    vec![],
+                )
+                .expect("false text should remain session-scoped");
+
+            // Act
+            let literal_true = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'literal_true', 'true')",
+                vec![],
+            );
+            let literal_on = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'literal_on', 'on')",
+                vec![],
+            );
+            let bound_true = cassie.execute_sql(
+                &session,
+                "SELECT set_config($1, $2, $3)",
+                vec![
+                    Value::String("application_name".to_string()),
+                    Value::String("bound_true".to_string()),
+                    Value::String("true".to_string()),
+                ],
+            );
+            let numeric_flag = cassie.execute_sql(
+                &session,
+                "SELECT set_config('application_name', 'numeric_flag', 1)",
+                vec![],
+            );
+            let setting = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT current_setting('application_name')",
+                    vec![],
+                )
+                .expect("read application_name");
+
+            // Assert
+            for result in [literal_true, literal_on, bound_true] {
+                let error = result.expect_err("true is_local must be rejected as unsupported");
+                assert!(error
+                    .to_string()
+                    .contains("transaction-local settings are not supported"));
+            }
+            let error = numeric_flag.expect_err("numeric is_local must be rejected");
+            assert!(error.to_string().contains("is_local must be a boolean"));
+            assert_eq!(
+                setting.rows,
+                vec![vec![Value::String("baseline".to_string())]]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     // should_execute_text_scalar_functions_query removed: strictly subsumed by
     // scalar_functions.rs::should_execute_string_scalar_functions_in_query_path,
     // which covers the same lower/upper/trim/substring/concat/length assertions
@@ -8796,6 +8869,62 @@ mod sql_semantic_regressions {
         cassie.startup().expect("start Cassie");
         let session = cassie.create_session("tester", None);
         (cassie, session, path)
+    }
+
+    #[test]
+    fn should_parse_keyword_prefix_identifiers_as_columns() {
+        // Arrange
+        let (cassie, session, path) = cassie_for("keyword_prefix_identifiers");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE keyword_prefix_columns (id INT, _deleted BOOLEAN, not_deleted BOOLEAN, case_id INT, exists_flag BOOLEAN, cast_value INT, unique_key TEXT, primary_contact TEXT, check_sum INT, foreign_id TEXT, constraint_name TEXT)",
+                vec![],
+            )
+            .expect("keyword-prefixed column names should be valid identifiers");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO keyword_prefix_columns VALUES (1, true, true, 11, true, 12, 'unique', 'primary', 13, 'foreign', 'constraint'), (2, false, false, 22, false, 23, 'key', 'contact', 24, 'id', 'name')",
+                vec![],
+            )
+            .expect("insert keyword-prefixed values");
+
+        // Act
+        let selected = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, _deleted, not_deleted, case_id, exists_flag, cast_value, unique_key, primary_contact, check_sum, foreign_id, constraint_name FROM keyword_prefix_columns ORDER BY id",
+                vec![],
+            )
+            .expect("select keyword-prefixed columns");
+        let matching = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM keyword_prefix_columns WHERE not_deleted = true",
+                vec![],
+            )
+            .expect("filter by keyword-prefixed identifier");
+
+        // Assert
+        assert_eq!(selected.rows.len(), 2);
+        assert_eq!(selected.rows[0][0], Value::Int64(1));
+        assert_eq!(selected.rows[0][1], Value::Bool(true));
+        assert_eq!(selected.rows[0][2], Value::Bool(true));
+        assert_eq!(selected.rows[0][3], Value::Int64(11));
+        assert_eq!(selected.rows[0][4], Value::Bool(true));
+        assert_eq!(selected.rows[0][5], Value::Int64(12));
+        assert_eq!(selected.rows[0][6], Value::String("unique".to_string()));
+        assert_eq!(selected.rows[0][7], Value::String("primary".to_string()));
+        assert_eq!(selected.rows[0][8], Value::Int64(13));
+        assert_eq!(selected.rows[0][9], Value::String("foreign".to_string()));
+        assert_eq!(
+            selected.rows[0][10],
+            Value::String("constraint".to_string())
+        );
+        assert_eq!(selected.rows[1][2], Value::Bool(false));
+        assert_eq!(matching.rows, vec![vec![Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

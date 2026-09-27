@@ -6,6 +6,8 @@ use super::{
     Query, RetentionPolicyMeta, RowSchema, Schema,
 };
 
+#[path = "schema_ops_field_maintenance.rs"]
+mod schema_ops_field_maintenance;
 #[path = "schema_ops_helpers.rs"]
 mod schema_ops_helpers;
 use schema_ops_helpers::PendingFieldDrop;
@@ -28,6 +30,7 @@ struct PendingFieldRename {
     collection: String,
     current_name: String,
     next_name: String,
+    target_generation: u64,
 }
 
 impl Midge {
@@ -480,6 +483,7 @@ impl Midge {
         let collection = collection_storage.as_str();
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -522,6 +526,7 @@ impl Midge {
         let pending = PendingFieldDrop {
             collection: collection.to_string(),
             field: field.to_string(),
+            target_generation,
             column_names: dropped_indexes.columns.clone(),
             column_storage_ids: dropped_indexes.column_storage_ids.clone(),
             scalar_names: dropped_indexes.scalars.clone(),
@@ -542,7 +547,7 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_field_drop_failure_point()?;
-        self.complete_field_drop_data(&pending)?;
+        schema_ops_field_maintenance::complete_field_drop_data(self, &pending)?;
         schema_ops_helpers::clear_pending_field_drop(self, collection, field)
     }
 
@@ -559,6 +564,7 @@ impl Midge {
         let collection = collection_storage.as_str();
         let write_gate = self.collection_write_gate(collection);
         let _write_guard = write_gate.lock();
+        let target_generation = self.collection_generation(collection)?.saturating_add(1);
         let mut tx = self.begin_schema_rw_tx()?;
         let schema_key = Self::collection_schema_key(collection);
         let schema_raw = tx.get(&schema_key).map_err(CassieError::from)?;
@@ -618,6 +624,7 @@ impl Midge {
             collection: collection.to_string(),
             current_name: current_name.to_string(),
             next_name: next_name.to_string(),
+            target_generation,
         };
         tx.put(
             Self::field_rename_operation_key(collection, current_name, next_name),
@@ -629,7 +636,7 @@ impl Midge {
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)?;
         check_field_rename_failure_point()?;
-        self.complete_field_rename_data(collection, current_name, next_name)?;
+        schema_ops_field_maintenance::complete_field_rename_data(self, &pending)?;
         self.clear_pending_field_rename(collection, current_name, next_name)
     }
 
@@ -880,20 +887,6 @@ impl Midge {
             .map_err(CassieError::from)
     }
 
-    fn complete_field_rename_data(
-        &self,
-        collection: &str,
-        current: &str,
-        next: &str,
-    ) -> Result<(), CassieError> {
-        schema_ops_helpers::rename_normalized_vector_records(self, collection, current, next);
-        self.rebuild_scalar_indexes_for_collection(collection)?;
-        self.rebuild_time_series_indexes_for_collection(collection)?;
-        let _ = self.rebuild_column_batches_for_collection(collection)?;
-        self.rebuild_projection_hashes(collection)?;
-        Ok(())
-    }
-
     fn replay_pending_field_renames(&self) -> Result<(), CassieError> {
         let tx = self.begin_schema_readonly_tx()?;
         let entries = collect_scan(
@@ -922,11 +915,7 @@ impl Midge {
                                 .any(|field| field.name.eq_ignore_ascii_case(&rename.current_name))
                     });
             if schema_rename_committed {
-                self.complete_field_rename_data(
-                    &rename.collection,
-                    &rename.current_name,
-                    &rename.next_name,
-                )?;
+                schema_ops_field_maintenance::complete_field_rename_data(self, &rename)?;
             }
             self.clear_pending_field_rename(
                 &rename.collection,
@@ -948,30 +937,6 @@ impl Midge {
             .map_err(CassieError::from)?;
         tx.commit(self.write_options_sync())
             .map_err(CassieError::from)
-    }
-
-    fn complete_field_drop_data(&self, pending: &PendingFieldDrop) -> Result<(), CassieError> {
-        schema_ops_helpers::delete_dropped_field_data(
-            self,
-            &pending.collection,
-            &pending.field,
-            &schema_ops_helpers::DroppedCollectionIndexes {
-                columns: pending.column_names.clone(),
-                column_storage_ids: pending.column_storage_ids.clone(),
-                scalars: pending.scalar_names.clone(),
-                scalar_storage_ids: pending.scalar_storage_ids.clone(),
-                time_series: pending.time_series_names.clone(),
-                time_series_storage_ids: pending.time_series_storage_ids.clone(),
-                fulltext: pending.fulltext_names.clone(),
-                fulltext_storage_ids: pending.fulltext_storage_ids.clone(),
-                vectors: pending.vector_names.clone(),
-            },
-        )?;
-        self.rebuild_scalar_indexes_for_collection(&pending.collection)?;
-        self.rebuild_time_series_indexes_for_collection(&pending.collection)?;
-        let _ = self.rebuild_column_batches_for_collection(&pending.collection)?;
-        self.rebuild_projection_hashes(&pending.collection)?;
-        Ok(())
     }
 
     fn replay_pending_field_drops(&self) -> Result<(), CassieError> {
@@ -998,7 +963,7 @@ impl Midge {
                         .any(|entry| entry.name.eq_ignore_ascii_case(&drop.field))
                 });
             if committed {
-                self.complete_field_drop_data(&drop)?;
+                schema_ops_field_maintenance::complete_field_drop_data(self, &drop)?;
             }
             schema_ops_helpers::clear_pending_field_drop(self, &drop.collection, &drop.field)?;
         }

@@ -8,6 +8,8 @@ use crate::sql::ast::{
 };
 use crate::types::DataType;
 
+#[path = "schema_constraint_helpers.rs"]
+mod schema_constraint_helpers;
 #[path = "schema_foreign_keys.rs"]
 mod schema_foreign_keys;
 #[path = "schema_graph_rename.rs"]
@@ -139,6 +141,7 @@ pub(super) fn drop_table(
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
+    schema_sequence_rename::drop_owned_table_sequences(cassie, &statement.table)?;
     cassie
         .catalog
         .unregister_collection(&statement.table)
@@ -384,14 +387,26 @@ fn alter_table_add_constraint(
     table: &str,
     constraints: &[crate::catalog::FieldConstraint],
 ) -> Result<(), QueryError> {
-    let mut merged = cassie.catalog.get_constraints(table);
-    crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+    let mut gated_collections = vec![table.to_string()];
+    gated_collections.extend(
+        constraints
+            .iter()
+            .filter_map(|constraint| constraint.references_table.clone()),
+    );
     cassie
         .midge
-        .save_constraints(table, merged.as_slice())
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_constraints(table, merged);
-    Ok(())
+        .with_collection_write_gates(&gated_collections, || {
+            cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
+            cassie.validate_existing_foreign_key_rows(table, constraints)?;
+            let mut merged = cassie.catalog.get_constraints(table);
+            crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+            cassie
+                .midge
+                .save_constraints_with_unique_reservations(table, merged.as_slice())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_constraints(table, merged);
+            Ok(())
+        })
 }
 
 fn alter_table_drop_constraint(
@@ -400,125 +415,7 @@ fn alter_table_drop_constraint(
     name: &str,
     if_exists: bool,
 ) -> Result<(), QueryError> {
-    let mut constraints = cassie.catalog.get_constraints(table);
-    let mut constrained_unique_fields = Vec::new();
-    let mut found = false;
-    for constraint in &mut constraints {
-        if constraint_name_matches(
-            table,
-            &constraint.field,
-            "PRIMARY KEY",
-            constraint.primary_key_name.as_ref(),
-            name,
-        ) {
-            constrained_unique_fields.push(constraint.field.clone());
-            constraint.primary_key = false;
-            constraint.primary_key_name = None;
-            constraint.primary_key_ordinal = None;
-            if !constraint.not_null_ownership.is_explicit() {
-                constraint.not_null = false;
-            }
-            constraint.not_null_ownership = constraint.not_null_ownership.without_primary_key();
-            found = true;
-        }
-        if constraint_name_matches(
-            table,
-            &constraint.field,
-            "UNIQUE",
-            constraint.unique_name.as_ref(),
-            name,
-        ) {
-            constrained_unique_fields.push(constraint.field.clone());
-            constraint.unique = false;
-            constraint.unique_name = None;
-            constraint.unique_ordinal = None;
-            found = true;
-        }
-        if constraint_name_matches(
-            table,
-            &constraint.field,
-            "CHECK",
-            constraint.check_name.as_ref(),
-            name,
-        ) {
-            constraint.check = None;
-            constraint.check_name = None;
-            found = true;
-        }
-        if constraint_name_matches(
-            table,
-            &constraint.field,
-            "FOREIGN KEY",
-            constraint.foreign_key_name.as_ref(),
-            name,
-        ) {
-            constraint.clear_foreign_key();
-            found = true;
-        }
-    }
-    if !found {
-        if if_exists {
-            return Ok(());
-        }
-        return Err(QueryError::General(format!(
-            "constraint '{name}' does not exist on collection '{table}'"
-        )));
-    }
-
-    schema_foreign_keys::reject_referenced_constraint_drop(
-        cassie,
-        table,
-        name,
-        &constrained_unique_fields,
-    )?;
-    constraints.retain(constraint_is_populated);
-    cassie
-        .midge
-        .save_constraints(table, &constraints)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .register_constraints(table, constraints.clone());
-
-    if !constraints.iter().any(|constraint| constraint.primary_key) {
-        let primary_index_name = format!("{table}_pkey");
-        if cassie
-            .catalog
-            .get_index(table, &primary_index_name)
-            .is_some()
-        {
-            cassie
-                .midge
-                .defer_drop_index(table, &primary_index_name, cassie.runtime.schema_epoch())
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_index(table, &primary_index_name);
-        }
-    }
-    Ok(())
-}
-
-fn constraint_name_matches(
-    table: &str,
-    field: &str,
-    kind: &str,
-    explicit_name: Option<&String>,
-    requested_name: &str,
-) -> bool {
-    explicit_name.is_some_and(|name| name.eq_ignore_ascii_case(requested_name))
-        || (explicit_name.is_none()
-            && crate::catalog::generated_constraint_name(table, field, kind)
-                .eq_ignore_ascii_case(requested_name))
-}
-
-fn constraint_is_populated(constraint: &crate::catalog::FieldConstraint) -> bool {
-    constraint.primary_key
-        || constraint.unique
-        || constraint.not_null
-        || constraint.default_value.is_some()
-        || constraint.default_expression.is_some()
-        || constraint.default_sequence.is_some()
-        || constraint.check.is_some()
-        || constraint.references_table.is_some()
+    schema_constraint_helpers::alter_table_drop_constraint(cassie, table, name, if_exists)
 }
 
 fn alter_table_drop_column(
@@ -535,6 +432,10 @@ fn alter_table_drop_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.remove_collection_field(table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
+    cassie
+        .bump_schema_epoch_and_invalidate_query_cache()
+        .map_err(QueryError::Cassie)?;
+    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 
@@ -552,6 +453,10 @@ fn alter_table_rename_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.rename_collection_field(table, from, to);
     schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
+    cassie
+        .bump_schema_epoch_and_invalidate_query_cache()
+        .map_err(QueryError::Cassie)?;
+    super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
 }
 
@@ -573,6 +478,7 @@ fn alter_table_rename_table(
         .catalog
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
 

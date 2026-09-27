@@ -1082,6 +1082,193 @@ mod integration_sql_constraints {
     use support::*;
 
     #[test]
+    fn should_bind_altered_check_constraint_to_declared_column_case() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_constraint_column_case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE check_case (Age INT, v INT)", vec![])
+            .expect("create check table");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE check_case ADD CONSTRAINT age_positive CHECK (age > 0)",
+                vec![],
+            )
+            .expect("add check constraint");
+        // Act
+        let invalid_check = cassie.execute_sql(
+            &session,
+            "INSERT INTO check_case (Age, v) VALUES (-5, 1)",
+            vec![],
+        );
+
+        // Assert
+        assert!(invalid_check.is_err(), "case-mismatched CHECK was skipped");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_altered_check_constraint_when_existing_row_violates_it() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_check_existing_violation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE check_existing (n INT)", vec![])
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO check_existing (n) VALUES (-5)",
+                vec![],
+            )
+            .expect("insert violating row");
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE check_existing ADD CONSTRAINT positive_n CHECK (n > 0)",
+            vec![],
+        );
+
+        // Assert
+        assert!(added.is_err(), "CHECK was added over a violating row");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_altered_primary_key_when_existing_row_has_null_key() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_primary_key_existing_null");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE primary_existing (id INT)", vec![])
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO primary_existing (id) VALUES (NULL)",
+                vec![],
+            )
+            .expect("insert null key");
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE primary_existing ADD CONSTRAINT primary_existing_pk PRIMARY KEY (id)",
+            vec![],
+        );
+
+        // Assert
+        assert!(added.is_err(), "PRIMARY KEY was added over a null key");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_bind_altered_unique_constraint_to_declared_column_case() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_unique_constraint_column_case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_case (Age INT, v INT)",
+                vec![],
+            )
+            .expect("create unique table");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE unique_case ADD CONSTRAINT age_unique UNIQUE (age)",
+                vec![],
+            )
+            .expect("add unique constraint");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_case (Age, v) VALUES (5, 1)",
+                vec![],
+            )
+            .expect("insert first unique row");
+
+        // Act
+        let duplicate_unique = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_case (Age, v) VALUES (5, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate_unique.is_err(),
+            "case-mismatched UNIQUE was skipped"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_altered_primary_key_writable_given_a_differently_cased_column_name() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_primary_key_column_case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE primary_key_case (id INT, amount INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE primary_key_case ADD CONSTRAINT primary_key_case_pk PRIMARY KEY (ID)",
+                vec![],
+            )
+            .expect("add primary key");
+
+        // Act
+        let first_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_case (id, amount) VALUES (1, 5)",
+            vec![],
+        );
+        let duplicate_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_case (id, amount) VALUES (1, 6)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            first_insert.is_ok(),
+            "case-mismatched PRIMARY KEY made the table unwritable"
+        );
+        assert!(
+            matches!(
+                duplicate_insert,
+                Err(cassie::app::CassieError::UniqueViolation { .. })
+            ),
+            "case-mismatched PRIMARY KEY did not reject a duplicate"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_report_malformed_like_pattern_in_check_constraint() {
         // Arrange
         use_local_storage();
@@ -2040,6 +2227,7 @@ mod integration_sql_delete {
 // Formerly tests/integration_sql_drop_constraint.rs.
 mod integration_sql_drop_constraint {
     use cassie::app::Cassie;
+    use cassie::midge::adapter::set_unique_constraint_cleanup_failure_point;
 
     use super::support_sql as support;
 
@@ -2129,6 +2317,116 @@ mod integration_sql_drop_constraint {
             )
             .expect("duplicate accepted");
 
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reuse_unique_value_after_constraint_removal() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_readd_unique_reservation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_readd_unique (email TEXT, CONSTRAINT email_key UNIQUE (email))",
+            "INSERT INTO drop_readd_unique (email) VALUES ('a@x')",
+            "ALTER TABLE drop_readd_unique DROP CONSTRAINT email_key",
+            "DELETE FROM drop_readd_unique",
+            "ALTER TABLE drop_readd_unique ADD CONSTRAINT email_uq UNIQUE (email)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO drop_readd_unique (email) VALUES ('a@x')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "dropped constraint reservation leaked");
+        let rows = cassie
+            .execute_sql(&session, "SELECT email FROM drop_readd_unique", vec![])
+            .expect("read rows");
+        assert_eq!(rows.rows.len(), 1);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_reservation_when_primary_key_remains_after_unique_drop() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_keep_primary_reservation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_unique_keep_primary (id TEXT, CONSTRAINT id_pk PRIMARY KEY (id), CONSTRAINT id_uq UNIQUE (id))",
+            "INSERT INTO drop_unique_keep_primary (id) VALUES ('same')",
+            "ALTER TABLE drop_unique_keep_primary DROP CONSTRAINT id_uq",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO drop_unique_keep_primary (id) VALUES ('same')",
+            vec![],
+        );
+
+        // Assert
+        assert!(duplicate.is_err(), "primary key reservation was removed");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_unique_reservation_cleanup_after_interrupted_constraint_drop() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_reservation_recovery");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE drop_unique_recovery (email TEXT, CONSTRAINT email_key UNIQUE (email))",
+            "INSERT INTO drop_unique_recovery (email) VALUES ('a@x')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        set_unique_constraint_cleanup_failure_point(true);
+
+        // Act
+        let interrupted = cassie.execute_sql(
+            &session,
+            "ALTER TABLE drop_unique_recovery DROP CONSTRAINT email_key",
+            vec![],
+        );
+        drop(cassie);
+        let recovered = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        recovered.startup().expect("replay reservation cleanup");
+        let session = recovered.create_session("tester", None);
+        for sql in [
+            "DELETE FROM drop_unique_recovery",
+            "ALTER TABLE drop_unique_recovery ADD CONSTRAINT email_uq UNIQUE (email)",
+        ] {
+            recovered.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        let inserted = recovered.execute_sql(
+            &session,
+            "INSERT INTO drop_unique_recovery (email) VALUES ('a@x')",
+            vec![],
+        );
+
+        // Assert
+        assert!(interrupted.is_err(), "failure point did not interrupt drop");
+        assert!(inserted.is_ok(), "recovered drop left a stale reservation");
+        let rows = recovered
+            .execute_sql(&session, "SELECT email FROM drop_unique_recovery", vec![])
+            .expect("read rows");
+        assert_eq!(rows.rows.len(), 1);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2308,6 +2606,95 @@ mod integration_sql_foreign_keys {
 
     use super::support_sql as support;
     use support::*;
+
+    fn run_sql(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        sql: &str,
+    ) -> Result<(), cassie::app::CassieError> {
+        cassie.execute_sql(session, sql, vec![]).map(|_| ())
+    }
+
+    #[test]
+    fn should_match_float_foreign_keys_across_all_write_paths() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_float_numeric_equivalence");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_float_parents (id FLOAT PRIMARY KEY)",
+                "CREATE TABLE fk_float_children (cid INT PRIMARY KEY, parent_id FLOAT REFERENCES fk_float_parents(id))",
+                "INSERT INTO fk_float_parents VALUES (20.0)",
+            ] {
+                run_sql(&cassie, &session, sql).unwrap_or_else(|error| panic!("{sql}: {error}"));
+            }
+
+            // Act
+            let literal_decimal =
+                run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (1, 20.0)");
+            let literal_integer =
+                run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (2, 20)");
+            let bound_parameter = cassie.execute_sql(
+                &session,
+                "INSERT INTO fk_float_children VALUES (3, $1)",
+                vec![Value::Float64(20.0)],
+            ).map(|_| ());
+            let updated_child = run_sql(
+                &cassie,
+                &session,
+                "UPDATE fk_float_children SET parent_id = 20.0 WHERE cid = 3",
+            );
+            let delete_referenced_parent =
+                run_sql(&cassie, &session, "DELETE FROM fk_float_parents WHERE id = 20.0");
+            run_sql(&cassie, &session, "BEGIN").expect("begin transaction");
+            let staged_parent = run_sql(&cassie, &session, "INSERT INTO fk_float_parents VALUES (30.0)");
+            let staged_child = run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (10, 30.0)");
+            let committed = run_sql(&cassie, &session, "COMMIT");
+            let post_commit_child = run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (11, 30.0)");
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT cid FROM fk_float_children ORDER BY cid",
+                    vec![],
+                )
+                .expect("read children");
+
+            // Assert
+            literal_decimal.expect("decimal literal must match the FLOAT parent key");
+            literal_integer.expect("integer literal must match the FLOAT parent key");
+            bound_parameter.expect("bound parameter must match the FLOAT parent key");
+            updated_child.expect("updated child key must match the FLOAT parent key");
+            assert!(delete_referenced_parent
+                .expect_err("referenced FLOAT parent must not be deleted")
+                .to_string()
+                .contains("foreign key constraint"));
+            staged_parent.expect("insert parent inside transaction");
+            staged_child.expect("transactional child key must match staged parent key");
+            committed.expect("commit transaction");
+            post_commit_child.expect("committed parent key must remain referenceable");
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(1)],
+                    vec![Value::Int64(2)],
+                    vec![Value::Int64(3)],
+                    vec![Value::Int64(10)],
+                    vec![Value::Int64(11)],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     #[test]
     fn should_reject_insert_when_foreign_key_parent_is_missing() {
         // Arrange
@@ -2644,6 +3031,165 @@ mod integration_sql_foreign_keys {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_cascade_referenced_key_update_through_a_two_level_chain() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_update_cascade_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_chain_a (code TEXT PRIMARY KEY)",
+                "CREATE TABLE fk_chain_b (code TEXT PRIMARY KEY, CONSTRAINT fk_chain_b_a FOREIGN KEY (code) REFERENCES fk_chain_a(code) ON UPDATE CASCADE)",
+                "CREATE TABLE fk_chain_c (id INT PRIMARY KEY, bcode TEXT, CONSTRAINT fk_chain_c_b FOREIGN KEY (bcode) REFERENCES fk_chain_b(code) ON UPDATE CASCADE)",
+                "INSERT INTO fk_chain_a VALUES ('x')",
+                "INSERT INTO fk_chain_b VALUES ('x')",
+                "INSERT INTO fk_chain_c VALUES (1, 'x')",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare two-level foreign key chain");
+            }
+
+            // Act
+            cassie
+                .execute_sql(&session, "UPDATE fk_chain_a SET code = 'y'", vec![])
+                .expect("update root key");
+            let grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read cascaded grandchild key");
+            cassie
+                .execute_sql(&session, "BEGIN", vec![])
+                .expect("begin transaction");
+            cassie
+                .execute_sql(&session, "UPDATE fk_chain_a SET code = 'z'", vec![])
+                .expect("update root key in transaction");
+            let staged_grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read staged cascaded grandchild key");
+            cassie
+                .execute_sql(&session, "COMMIT", vec![])
+                .expect("commit recursive cascade");
+            let committed_grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read committed cascaded grandchild key");
+
+            // Assert
+            assert_eq!(
+                grandchild.rows,
+                vec![vec![Value::String("y".to_string())]],
+                "a cascaded child update must recurse to its own dependents"
+            );
+            assert_eq!(
+                staged_grandchild.rows,
+                vec![vec![Value::String("z".to_string())]],
+                "recursive cascades must remain visible in the updating transaction"
+            );
+            assert_eq!(
+                committed_grandchild.rows,
+                vec![vec![Value::String("z".to_string())]],
+                "the transaction must commit the entire recursive cascade"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_propagate_set_null_after_parent_key_update() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_set_null_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_setnull_update_a (id INT PRIMARY KEY)",
+                "CREATE TABLE fk_setnull_update_b (id INT PRIMARY KEY, code INT UNIQUE, CONSTRAINT fk_setnull_update_b_a FOREIGN KEY (code) REFERENCES fk_setnull_update_a(id) ON UPDATE SET NULL)",
+                "CREATE TABLE fk_setnull_update_c (id INT PRIMARY KEY, code INT, CONSTRAINT fk_setnull_update_c_b FOREIGN KEY (code) REFERENCES fk_setnull_update_b(code) ON UPDATE SET NULL)",
+                "INSERT INTO fk_setnull_update_a VALUES (1)",
+                "INSERT INTO fk_setnull_update_b VALUES (10, 1)",
+                "INSERT INTO fk_setnull_update_c VALUES (100, 1)",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare SET NULL foreign key chains");
+            }
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "UPDATE fk_setnull_update_a SET id = 2",
+                    vec![],
+                )
+                .expect("update parent with SET NULL action");
+            let updated_grandchild = cassie
+                .execute_sql(&session, "SELECT code FROM fk_setnull_update_c", vec![])
+                .expect("read update grandchild");
+
+            // Assert
+            assert_eq!(updated_grandchild.rows, vec![vec![Value::Null]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_propagate_set_null_after_parent_delete() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_delete_set_null_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_setnull_delete_a (id INT PRIMARY KEY)",
+                "CREATE TABLE fk_setnull_delete_b (id INT PRIMARY KEY, code INT UNIQUE, CONSTRAINT fk_setnull_delete_b_a FOREIGN KEY (code) REFERENCES fk_setnull_delete_a(id) ON DELETE SET NULL)",
+                "CREATE TABLE fk_setnull_delete_c (id INT PRIMARY KEY, code INT, CONSTRAINT fk_setnull_delete_c_b FOREIGN KEY (code) REFERENCES fk_setnull_delete_b(code) ON UPDATE SET NULL)",
+                "INSERT INTO fk_setnull_delete_a VALUES (1)",
+                "INSERT INTO fk_setnull_delete_b VALUES (10, 1)",
+                "INSERT INTO fk_setnull_delete_c VALUES (100, 1)",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare SET NULL foreign key chain");
+            }
+
+            // Act
+            cassie
+                .execute_sql(&session, "DELETE FROM fk_setnull_delete_a", vec![])
+                .expect("delete parent with SET NULL action");
+            let grandchild = cassie
+                .execute_sql(&session, "SELECT code FROM fk_setnull_delete_c", vec![])
+                .expect("read delete grandchild");
+
+            // Assert
+            assert_eq!(grandchild.rows, vec![vec![Value::Null]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 
@@ -5408,6 +5954,105 @@ mod integration_sql_update {
     use support::*;
 
     #[test]
+    fn should_not_apply_column_defaults_during_update_or_upsert() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("update_does_not_apply_defaults");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE update_default_rows (id INT PRIMARY KEY, a INT, b INT)",
+                "CREATE SEQUENCE update_default_seq",
+                "INSERT INTO update_default_rows (id, a) VALUES (1, 1)",
+                "ALTER TABLE update_default_rows ALTER COLUMN b SET DEFAULT nextval('update_default_seq')",
+                "UPDATE update_default_rows SET a = 2 WHERE id = 1",
+                "INSERT INTO update_default_rows (id, a) VALUES (2, 2)",
+                "INSERT INTO update_default_rows (id, a) VALUES (1, 3) ON CONFLICT (id) DO UPDATE SET a = excluded.a",
+                "INSERT INTO update_default_rows (id, a) VALUES (3, 3)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+
+            // Act
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT id, a, b FROM update_default_rows ORDER BY id",
+                    vec![],
+                )
+                .expect("read rows");
+
+            // Assert
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(1), Value::Int64(3), Value::Null],
+                    vec![Value::Int64(2), Value::Int64(2), Value::Int64(1)],
+                    vec![Value::Int64(3), Value::Int64(3), Value::Int64(2)],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_not_apply_column_defaults_during_foreign_key_cascade_updates() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cascade_update_does_not_apply_defaults");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE default_cascade_parents (id INT PRIMARY KEY)",
+                "CREATE SEQUENCE cascade_update_default_seq",
+                "CREATE TABLE default_cascade_children (parent_id INT, marker INT, CONSTRAINT default_cascade_children_fkey FOREIGN KEY (parent_id) REFERENCES default_cascade_parents(id) ON UPDATE CASCADE)",
+                "INSERT INTO default_cascade_parents VALUES (1), (2)",
+                "INSERT INTO default_cascade_children (parent_id) VALUES (1)",
+                "ALTER TABLE default_cascade_children ALTER COLUMN marker SET DEFAULT nextval('cascade_update_default_seq')",
+                "UPDATE default_cascade_parents SET id = 3 WHERE id = 1",
+                "INSERT INTO default_cascade_children (parent_id) VALUES (2)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+
+            // Act
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id, marker FROM default_cascade_children ORDER BY parent_id",
+                    vec![],
+                )
+                .expect("read cascaded child rows");
+
+            // Assert
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(2), Value::Int64(1)],
+                    vec![Value::Int64(3), Value::Null],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_reject_non_finite_float_values_on_write_paths() {
         // Arrange
         use_local_storage();
@@ -5893,6 +6538,61 @@ mod integration_sql_upsert {
 
     fn use_local_storage() {
         std::env::set_var("CASSIE_STORAGE_MODE", "local");
+    }
+
+    #[test]
+    fn should_upsert_when_conflict_key_has_a_noncanonical_input_shape() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("canonical_conflict_keys");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE canonical_float (k FLOAT UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "CREATE TABLE canonical_date (k DATE UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "CREATE TABLE canonical_timestamp (k TIMESTAMP UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1.0, 1)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-01-01', 1)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01T00:00:00Z', 1)", vec![]).unwrap();
+
+            // Act
+            let float_update = cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1, 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+            let date_update = cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-1-1', 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+            let timestamp_update = cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01 00:00:00', 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+
+            // Assert
+            assert!(float_update.is_ok(), "FLOAT conflict should update");
+            assert!(date_update.is_ok(), "DATE conflict should update");
+            assert!(timestamp_update.is_ok(), "TIMESTAMP conflict should update");
+            for table in ["canonical_float", "canonical_date", "canonical_timestamp"] {
+                let rows = cassie
+                    .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
+                    .unwrap();
+                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+            }
+            let float_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1, 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(float_nothing.is_ok(), "FLOAT DO NOTHING should suppress conflict");
+            let date_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-1-1', 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(date_nothing.is_ok(), "DATE DO NOTHING should suppress conflict");
+            let timestamp_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01 00:00:00', 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(timestamp_nothing.is_ok(), "TIMESTAMP DO NOTHING should suppress conflict");
+            assert_eq!(float_nothing.unwrap().command, "INSERT 0 0");
+            assert_eq!(date_nothing.unwrap().command, "INSERT 0 0");
+            assert_eq!(timestamp_nothing.unwrap().command, "INSERT 0 0");
+            for table in ["canonical_float", "canonical_date", "canonical_timestamp"] {
+                let rows = cassie
+                    .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
+                    .unwrap();
+                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+            }
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -6630,7 +7330,7 @@ mod migration_ddl_sequences {
         vec![
             vec![
                 Value::String("seq_id".to_string()),
-                Value::String("nextval('order_ids'::regclass)".to_string()),
+                Value::String("nextval('postgres.public.order_ids'::regclass)".to_string()),
                 Value::String("YES".to_string()),
             ],
             vec![
@@ -6645,7 +7345,7 @@ mod migration_ddl_sequences {
         vec![vec![
             Value::String("migration_orders".to_string()),
             Value::Int64(1),
-            Value::String("nextval('order_ids'::regclass)".to_string()),
+            Value::String("nextval('postgres.public.order_ids'::regclass)".to_string()),
         ]]
     }
 
@@ -6733,11 +7433,7 @@ mod migration_ddl_sequences {
                 "SELECT entry_id, label FROM ledger.entries",
             );
             execute_statement(&cassie, &session, "DROP TABLE ledger.entries");
-            let dropped = cassie.execute_sql(
-                &session,
-                "DROP SEQUENCE ledger.entries_entry_id_seq",
-                vec![],
-            );
+            let remaining_sequences = cassie.catalog.list_sequences();
 
             // Assert
             assert_eq!(
@@ -6748,7 +7444,7 @@ mod migration_ddl_sequences {
                 rows,
                 vec![vec![Value::Int64(1), Value::String("one".to_string())]]
             );
-            assert!(dropped.is_ok(), "drop sequence failed: {dropped:?}");
+            assert!(remaining_sequences.is_empty());
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -6909,6 +7605,81 @@ mod migration_ddl_sequences {
     }
 
     #[test]
+    fn should_release_serial_sequence_when_dropping_its_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_sequence_table_drop");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE SCHEMA sx",
+                "CREATE TABLE sx.t (k SERIAL, v INT)",
+                "INSERT INTO sx.t (v) VALUES (1)",
+                "DROP TABLE sx.t",
+                "DROP SCHEMA sx",
+                "CREATE SCHEMA sx",
+                "CREATE TABLE sx.t (k SERIAL, v INT)",
+                "INSERT INTO sx.t (v) VALUES (2)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let rows = query_rows(&cassie, &session, "SELECT k FROM sx.t");
+
+            // Assert
+            assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_rename_serial_sequence_when_renaming_its_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_sequence_table_rename");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE t (k SERIAL, v INT)",
+                "INSERT INTO t (v) VALUES (1)",
+                "ALTER TABLE t RENAME TO t2",
+                "INSERT INTO t2 (v) VALUES (2)",
+                "CREATE TABLE t (k SERIAL, v INT)",
+                "INSERT INTO t (v) VALUES (3)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let renamed_rows = query_rows(&cassie, &session, "SELECT k FROM t2 ORDER BY k");
+            let recreated_rows = query_rows(&cassie, &session, "SELECT k FROM t");
+
+            // Assert
+            assert_eq!(
+                renamed_rows,
+                vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+            );
+            assert_eq!(recreated_rows, vec![vec![Value::Int64(1)]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_desugar_serial_columns_to_sequence_backed_integer_defaults() {
         // Arrange
         use_local_storage();
@@ -7007,6 +7778,61 @@ mod migration_ddl_sequences {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+    #[test]
+    fn should_bind_bare_explicit_sequence_defaults_to_table_schema() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("explicit-sequence-default-schema");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE SCHEMA aa",
+                "CREATE SCHEMA bb",
+                "CREATE SEQUENCE aa.s",
+                "CREATE SEQUENCE bb.s",
+                "CREATE SEQUENCE aa.altered",
+                "CREATE SEQUENCE bb.altered",
+                "CREATE TABLE bb.t (v INT, n INT DEFAULT nextval('s'))",
+                "CREATE TABLE bb.altered_t (v INT, n INT)",
+                "ALTER TABLE bb.altered_t ALTER COLUMN n SET DEFAULT nextval('altered')",
+                "INSERT INTO bb.t (v) VALUES (1), (2)",
+                "INSERT INTO bb.altered_t (v) VALUES (1), (2)",
+                "DROP SEQUENCE aa.s",
+                "DROP SEQUENCE aa.altered",
+                "INSERT INTO bb.t (v) VALUES (3), (4)",
+                "INSERT INTO bb.altered_t (v) VALUES (3), (4)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let rows = query_rows(&cassie, &session, "SELECT v, n FROM bb.t ORDER BY v");
+            let altered_rows = query_rows(
+                &cassie,
+                &session,
+                "SELECT v, n FROM bb.altered_t ORDER BY v",
+            );
+
+            // Assert
+            let expected_rows = vec![
+                vec![Value::Int64(1), Value::Int64(1)],
+                vec![Value::Int64(2), Value::Int64(2)],
+                vec![Value::Int64(3), Value::Int64(3)],
+                vec![Value::Int64(4), Value::Int64(4)],
+            ];
+            assert_eq!(altered_rows, expected_rows);
+            assert_eq!(rows, expected_rows);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 
@@ -7811,12 +8637,546 @@ mod transaction_staging {
     }
 }
 
+mod unique_ddl_reservations {
+    use cassie::app::Cassie;
+    use cassie::midge::adapter::StorageFamily;
+    use cassie::types::Value;
+    use std::collections::HashSet;
+
+    use super::support_sql as support;
+
+    #[test]
+    fn should_not_resolve_a_renamed_column_alias_after_adding_its_old_name() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("renamed_column_alias_reuse");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE renamed_column_alias_reuse (a INT, b INT)",
+            "INSERT INTO renamed_column_alias_reuse (a, b) VALUES (1, 42)",
+            "ALTER TABLE renamed_column_alias_reuse RENAME COLUMN b TO c",
+            "ALTER TABLE renamed_column_alias_reuse ADD COLUMN b TEXT",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let explicit = cassie
+            .execute_sql(
+                &session,
+                "SELECT a, b, c FROM renamed_column_alias_reuse",
+                vec![],
+            )
+            .expect("select explicit columns");
+        let wildcard = cassie
+            .execute_sql(&session, "SELECT * FROM renamed_column_alias_reuse", vec![])
+            .expect("select wildcard columns");
+        let stale_alias = cassie
+            .execute_sql(
+                &session,
+                "SELECT a FROM renamed_column_alias_reuse WHERE b = '42'",
+                vec![],
+            )
+            .expect("filter by newly added column");
+
+        // Assert
+        assert_eq!(
+            explicit.rows,
+            vec![vec![Value::Int64(1), Value::Null, Value::Int64(42)]]
+        );
+        assert_eq!(wildcard.rows.len(), 1);
+        let column_position = |name: &str| {
+            wildcard
+                .columns
+                .iter()
+                .position(|column| column.name == name)
+                .expect("wildcard column")
+        };
+        assert_eq!(wildcard.rows[0][column_position("a")], Value::Int64(1));
+        assert_eq!(wildcard.rows[0][column_position("b")], Value::Null);
+        assert_eq!(wildcard.rows[0][column_position("c")], Value::Int64(42));
+        assert!(stale_alias.rows.is_empty());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_delete_unique_index_storage_when_index_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("drop_unique_index_storage");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE drop_unique_index_storage (id TEXT PRIMARY KEY, email TEXT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO drop_unique_index_storage (id, email) VALUES ('r1', 'a@example.com')",
+                vec![],
+            )
+            .expect("insert unique value");
+        let keys_before_index = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan before index")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE UNIQUE INDEX drop_unique_index_storage_email ON drop_unique_index_storage (email)",
+                vec![],
+            )
+            .expect("create unique index");
+        let keys_after_index = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan after index")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+        let index_keys = keys_after_index
+            .difference(&keys_before_index)
+            .cloned()
+            .collect::<HashSet<_>>();
+        assert!(
+            !index_keys.is_empty(),
+            "unique index should create storage entries"
+        );
+
+        // Act
+        cassie
+            .execute_sql(
+                &session,
+                "DROP INDEX drop_unique_index_storage_email ON drop_unique_index_storage",
+                vec![],
+            )
+            .expect("drop unique index");
+        let keys_after_drop = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, b"")
+            .expect("scan after drop")
+            .into_iter()
+            .map(|(key, _)| key)
+            .collect::<HashSet<_>>();
+
+        // Assert
+        assert!(
+            index_keys.is_disjoint(&keys_after_drop),
+            "unique index storage entries remained after DROP INDEX: {:x?}",
+            index_keys
+                .intersection(&keys_after_drop)
+                .collect::<Vec<_>>()
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_not_restore_dropped_column_values_after_readding_the_name() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("dropped_column_value_resurrection");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE dropped_column_values (id TEXT PRIMARY KEY, note TEXT, renamed_source TEXT)",
+            "INSERT INTO dropped_column_values (id, note, renamed_source) VALUES ('r1', 'secret', 'renamed secret')",
+            "ALTER TABLE dropped_column_values DROP COLUMN note",
+            "ALTER TABLE dropped_column_values ADD COLUMN note TEXT",
+            "ALTER TABLE dropped_column_values RENAME COLUMN renamed_source TO renamed_current",
+            "ALTER TABLE dropped_column_values DROP COLUMN renamed_current",
+            "ALTER TABLE dropped_column_values ADD COLUMN renamed_source TEXT",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let explicit = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, note, renamed_source FROM dropped_column_values",
+                vec![],
+            )
+            .expect("select re-added columns");
+        let wildcard = cassie
+            .execute_sql(&session, "SELECT * FROM dropped_column_values", vec![])
+            .expect("select all re-added columns");
+        let predicate = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM dropped_column_values WHERE note = 'secret' OR renamed_source = 'renamed secret'",
+                vec![],
+            )
+            .expect("filter re-added columns");
+
+        // Assert
+        assert_eq!(
+            explicit.rows,
+            vec![vec![
+                Value::String("r1".to_string()),
+                Value::Null,
+                Value::Null,
+            ]]
+        );
+        assert_eq!(wildcard.rows, explicit.rows);
+        assert!(predicate.rows.is_empty());
+
+        drop(cassie);
+        let reopened = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        reopened.startup().expect("restart Cassie");
+        let reopened_session = reopened.create_session("tester", None);
+        let after_restart = reopened
+            .execute_sql(
+                &reopened_session,
+                "SELECT id, note, renamed_source FROM dropped_column_values",
+                vec![],
+            )
+            .expect("select re-added columns after restart");
+        assert_eq!(after_restart.rows, explicit.rows);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_backfill_float_reservations_after_adding_unique_constraint() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("alter_unique_constraint_float_backfill");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE alter_unique_constraint_float (k FLOAT, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO alter_unique_constraint_float (k, v) VALUES ($1, 1)",
+                vec![Value::Float64(1.0)],
+            )
+            .expect("insert preexisting row");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE alter_unique_constraint_float ADD CONSTRAINT alter_unique_constraint_float_k_unique UNIQUE (k)",
+                vec![],
+            )
+            .expect("add unique constraint");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO alter_unique_constraint_float (k, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT k, v FROM alter_unique_constraint_float ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_backfill_timestamp_reservations_after_creating_unique_index() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("create_unique_index_timestamp_backfill");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE create_unique_index_timestamp (at TIMESTAMP, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO create_unique_index_timestamp (at, v) VALUES ('2024-01-01T00:00:00Z', 1)",
+                vec![],
+            )
+            .expect("insert preexisting row");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE UNIQUE INDEX create_unique_index_timestamp_at_uq ON create_unique_index_timestamp (at)",
+                vec![],
+            )
+            .expect("create unique index");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO create_unique_index_timestamp (at, v) VALUES ('2024-01-01 00:00:00', 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT at, v FROM create_unique_index_timestamp ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(
+            rows.rows,
+            vec![vec![
+                Value::String("2024-01-01T00:00:00.000000Z".to_string()),
+                Value::Int64(1)
+            ]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_unique_constraint_when_preexisting_rows_duplicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("alter_unique_constraint_existing_duplicates");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE alter_unique_constraint_duplicates (k FLOAT, v INT)",
+            "INSERT INTO alter_unique_constraint_duplicates (k, v) VALUES (1.0, 1)",
+            "INSERT INTO alter_unique_constraint_duplicates (k, v) VALUES (1, 2)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let added = cassie.execute_sql(
+            &session,
+            "ALTER TABLE alter_unique_constraint_duplicates ADD CONSTRAINT alter_unique_constraint_duplicates_k_unique UNIQUE (k)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            added.is_err(),
+            "constraint creation accepted duplicate rows"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT k, v FROM alter_unique_constraint_duplicates ORDER BY v",
+                vec![],
+            )
+            .expect("read existing rows");
+        assert_eq!(rows.rows.len(), 2);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_unique_index_when_preexisting_rows_duplicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("create_unique_index_existing_duplicates");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE create_unique_index_duplicates (at TIMESTAMP, v INT)",
+            "INSERT INTO create_unique_index_duplicates (at, v) VALUES ('2024-01-01T00:00:00Z', 1)",
+            "INSERT INTO create_unique_index_duplicates (at, v) VALUES ('2024-01-01 00:00:00', 2)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let created = cassie.execute_sql(
+            &session,
+            "CREATE UNIQUE INDEX create_unique_index_duplicates_at_uq ON create_unique_index_duplicates (at)",
+            vec![],
+        );
+
+        // Assert
+        assert!(created.is_err(), "unique index accepted duplicate rows");
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT at, v FROM create_unique_index_duplicates ORDER BY v",
+                vec![],
+            )
+            .expect("read existing rows");
+        assert_eq!(rows.rows.len(), 2);
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
 // Formerly tests/unique_reservations.rs.
 mod unique_reservations {
     use cassie::app::Cassie;
+    use cassie::midge::adapter::set_field_rename_failure_point;
     use cassie::types::Value;
 
     use super::support_sql as support;
+
+    #[test]
+    fn should_allow_duplicate_keys_outside_partial_unique_index_predicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("partial_unique_index_predicate");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE partial_unique_active (email TEXT, active BOOLEAN)",
+            "CREATE UNIQUE INDEX partial_unique_active_email ON partial_unique_active (email) WHERE active",
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', true)",
+            "CREATE TABLE partial_unique_inactive (email TEXT, active BOOLEAN)",
+            "CREATE UNIQUE INDEX partial_unique_inactive_email ON partial_unique_inactive (email) WHERE active",
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE partial_unique_backfill (email TEXT, active BOOLEAN)",
+                vec![],
+            )
+            .expect("create table for partial unique index backfill");
+        for _ in 0..2 {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO partial_unique_backfill (email, active) VALUES ('c@x', false)",
+                    vec![],
+                )
+                .expect("insert duplicate rows outside future index predicate");
+        }
+
+        // Act
+        let inactive_with_active_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', false)",
+            vec![],
+        );
+        let repeated_inactive_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+            vec![],
+        );
+        let duplicate_active_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', true)",
+            vec![],
+        );
+        let activate_duplicate_key = cassie.execute_sql(
+            &session,
+            "UPDATE partial_unique_active SET active = true WHERE active = false",
+            vec![],
+        );
+        let active_rows = cassie
+            .execute_sql(&session, "SELECT email FROM partial_unique_active", vec![])
+            .expect("read rows with one active match");
+        let inactive_rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT email FROM partial_unique_inactive",
+                vec![],
+            )
+            .expect("read rows outside predicate");
+        let partial_index_creation = cassie.execute_sql(
+            &session,
+            "CREATE UNIQUE INDEX partial_unique_backfill_email ON partial_unique_backfill (email) WHERE active",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            inactive_with_active_key.is_ok(),
+            "a row outside the predicate may share a key with an indexed row"
+        );
+        assert!(
+            repeated_inactive_key.is_ok(),
+            "rows outside the predicate may repeat a key"
+        );
+        assert!(
+            duplicate_active_key.is_err(),
+            "rows matching the predicate must still enforce uniqueness"
+        );
+        assert!(
+            activate_duplicate_key.is_err(),
+            "an update entering the predicate must enforce uniqueness"
+        );
+        assert_eq!(active_rows.rows.len(), 2);
+        assert_eq!(inactive_rows.rows.len(), 3);
+        assert!(
+            partial_index_creation.is_ok(),
+            "index backfill ignores duplicate rows outside its predicate"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_allow_distinct_unique_columns_with_colliding_legacy_key_bytes() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_field_value_collision");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_reservation_field_value_collision (id TEXT PRIMARY KEY, a BIGINT UNIQUE, a0ab TEXT UNIQUE)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_reservation_field_value_collision (id, a) VALUES ('r1', -2206112389093773006)",
+                vec![],
+            )
+            .expect("insert first unique value");
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_field_value_collision (id, a0ab) VALUES ('r2', 'xyz12')",
+            vec![],
+        );
+
+        // Assert
+        assert!(inserted.is_ok(), "distinct unique columns must not collide");
+        let _ = std::fs::remove_dir_all(path);
+    }
 
     #[test]
     fn should_reject_whole_number_float_duplicates_in_unique_reservations() {
@@ -7905,6 +9265,186 @@ mod unique_reservations {
             vec![vec![Value::String("reuse@example.com".to_string())]]
         );
 
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_unique_reservation_when_unique_column_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_drop_column");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_reservation_drop_column (id TEXT PRIMARY KEY, email TEXT UNIQUE, email_archive TEXT UNIQUE)",
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r1', 'reuse@example.com', 'archive@example.com')",
+            "ALTER TABLE unique_reservation_drop_column DROP COLUMN email",
+            "ALTER TABLE unique_reservation_drop_column ADD COLUMN email TEXT UNIQUE",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r2', 'reuse@example.com', 'new-archive@example.com')",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            inserted.is_ok(),
+            "expected the dropped-column value to be reusable"
+        );
+        let archived_duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_drop_column (id, email, email_archive) VALUES ('r3', 'another@example.com', 'archive@example.com')",
+            vec![],
+        );
+        assert!(
+            archived_duplicate.is_err(),
+            "expected the sibling UNIQUE value to remain reserved"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_unique_index_reservations_when_index_is_dropped() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_index_reservation_drop");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_index_reservation_drop (id TEXT PRIMARY KEY, email TEXT)",
+            "INSERT INTO unique_index_reservation_drop (id, email) VALUES ('r1', 'original@example.com')",
+            "CREATE UNIQUE INDEX email_idx ON unique_index_reservation_drop (email)",
+            "DROP INDEX email_idx ON unique_index_reservation_drop",
+            "UPDATE unique_index_reservation_drop SET email = 'changed@example.com' WHERE id = 'r1'",
+            "CREATE UNIQUE INDEX email_idx ON unique_index_reservation_drop (email)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let inserted = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_index_reservation_drop (id, email) VALUES ('r2', 'original@example.com')",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            inserted.is_ok(),
+            "expected the dropped-index value to be reusable"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_duplicate_unique_value_after_column_rename() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_rename_column");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_reservation_rename_column (k FLOAT UNIQUE, v INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO unique_reservation_rename_column (k, v) VALUES ($1, 1)",
+                vec![Value::Float64(1.0)],
+            )
+            .expect("insert original row");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE unique_reservation_rename_column RENAME COLUMN k TO kk",
+                vec![],
+            )
+            .expect("rename unique column");
+
+        // Act
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_rename_column (kk, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            duplicate.is_err(),
+            "duplicate insert unexpectedly succeeded"
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT kk, v FROM unique_reservation_rename_column ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_unique_reservations_after_interrupted_column_rename() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_rename_column_recovery");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_reservation_rename_recovery (k FLOAT UNIQUE, v INT)",
+            "INSERT INTO unique_reservation_rename_recovery (k, v) VALUES (1.0, 1)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        set_field_rename_failure_point(true);
+
+        // Act
+        let interrupted = cassie.execute_sql(
+            &session,
+            "ALTER TABLE unique_reservation_rename_recovery RENAME COLUMN k TO kk",
+            vec![],
+        );
+        drop(cassie);
+        let recovered = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        recovered.startup().expect("replay field rename");
+        let session = recovered.create_session("tester", None);
+        let duplicate = recovered.execute_sql(
+            &session,
+            "INSERT INTO unique_reservation_rename_recovery (kk, v) VALUES (1, 2)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            interrupted.is_err(),
+            "failure point did not interrupt rename"
+        );
+        assert!(
+            duplicate.is_err(),
+            "recovered rename lost unique reservation"
+        );
+        let rows = recovered
+            .execute_sql(
+                &session,
+                "SELECT kk, v FROM unique_reservation_rename_recovery ORDER BY v",
+                vec![],
+            )
+            .expect("read rows");
+        assert_eq!(rows.rows, vec![vec![Value::Float64(1.0), Value::Int64(1)]]);
         let _ = std::fs::remove_dir_all(path);
     }
 }
@@ -8235,6 +9775,59 @@ mod foreign_key_ddl_lifecycle {
             assert_foreign_key_error(orphan_insert, "orphan child insert");
             cascade_delete.expect("cascade delete");
             assert!(rows(&cassie, &session, "SELECT cid FROM app.ch").is_empty());
+        });
+    }
+
+    #[test]
+    fn should_reject_adding_a_foreign_key_when_existing_rows_have_no_parent() {
+        with_cassie("fk-ddl-existing-orphan", |path| {
+            // Arrange
+            let (cassie, session) = start(path);
+            exec_all(
+                &cassie,
+                &session,
+                &[
+                    "CREATE TABLE p (id INT PRIMARY KEY)",
+                    "CREATE TABLE ch (cid INT PRIMARY KEY, pid INT)",
+                    "INSERT INTO p (id) VALUES (1)",
+                    "INSERT INTO ch (cid, pid) VALUES (9, 1)",
+                    "INSERT INTO ch (cid, pid) VALUES (10, 999)",
+                ],
+            );
+
+            // Act
+            let add_constraint = run(
+                &cassie,
+                &session,
+                "ALTER TABLE ch ADD CONSTRAINT ch_fk FOREIGN KEY (pid) REFERENCES p(id)",
+            );
+            let later_orphan = run(
+                &cassie,
+                &session,
+                "INSERT INTO ch (cid, pid) VALUES (11, 999)",
+            );
+            let delete_first_orphan = run(&cassie, &session, "DELETE FROM ch WHERE cid = 10");
+            let delete_second_orphan = run(&cassie, &session, "DELETE FROM ch WHERE cid = 11");
+            let add_after_orphans_removed = run(
+                &cassie,
+                &session,
+                "ALTER TABLE ch ADD CONSTRAINT ch_fk FOREIGN KEY (pid) REFERENCES p(id)",
+            );
+            let orphan_after_successful_add = run(
+                &cassie,
+                &session,
+                "INSERT INTO ch (cid, pid) VALUES (12, 999)",
+            );
+            let child_rows = rows(&cassie, &session, "SELECT cid, pid FROM ch ORDER BY cid");
+
+            // Assert
+            assert_foreign_key_error(add_constraint, "adding foreign key over an orphan row");
+            later_orphan.expect("failed DDL must not persist the foreign key");
+            delete_first_orphan.expect("remove first orphan");
+            delete_second_orphan.expect("remove second orphan");
+            add_after_orphans_removed.expect("add foreign key over valid existing rows");
+            assert_foreign_key_error(orphan_after_successful_add, "orphan insert after DDL");
+            assert_eq!(child_rows, vec![vec![Value::Int64(9), Value::Int64(1)]]);
         });
     }
 

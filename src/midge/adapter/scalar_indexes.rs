@@ -154,6 +154,17 @@ impl Midge {
         }
 
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
+        let row_schema = self.row_schema(&index.collection)?;
+        if index.unique {
+            self.validate_unique_index_rows(index, &rows)?;
+            self.delete_data_keys_with_prefix_in_batches(
+                &index.collection,
+                &key_encoding::unique_scalar_index_reservation_prefix(
+                    &index.collection,
+                    &index.name,
+                ),
+            )?;
+        }
         let (relation_id, index_id) = Self::scalar_index_storage_ids(index)?;
         let prefix = Self::scalar_index_data_prefix(relation_id, index_id);
         self.delete_prepared_scalar_index_data_in_batches(&index.collection, &prefix)?;
@@ -162,8 +173,24 @@ impl Midge {
         for (batch_index, range) in scalar_index_build_ranges(rows.len()).enumerate() {
             let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
             for row in &rows[range] {
-                if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &row.payload)?
+                let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
+                let reservation_values = if index.unique
+                    && Self::payload_matches_scalar_index_predicate(index, &canonical)?
                 {
+                    Self::scalar_index_key_values(index, &canonical)?
+                } else {
+                    None
+                };
+                if let Some(values) = reservation_values {
+                    let reservation = key_encoding::unique_scalar_index_reservation_key(
+                        &index.collection,
+                        &index.name,
+                        &values,
+                    )?;
+                    tx.put(reservation, row.id.as_bytes().to_vec(), None)
+                        .map_err(CassieError::from)?;
+                }
+                if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &canonical)? {
                     tx.put(key, value, None).map_err(CassieError::from)?;
                 }
             }
@@ -176,7 +203,42 @@ impl Midge {
         Ok(())
     }
 
-    fn delete_prepared_scalar_index_data_in_batches(
+    fn validate_unique_index_rows(
+        &self,
+        index: &IndexMeta,
+        rows: &[crate::midge::adapter::DocumentRef],
+    ) -> Result<(), CassieError> {
+        let mut owners = HashMap::<Vec<u8>, String>::new();
+        let row_schema = self.row_schema(&index.collection)?;
+        for row in rows {
+            let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
+            if !Self::payload_matches_scalar_index_predicate(index, &canonical)? {
+                continue;
+            }
+            let Some(values) = Self::scalar_index_key_values(index, &canonical)? else {
+                continue;
+            };
+            let key = key_encoding::unique_scalar_index_reservation_key(
+                &index.collection,
+                &index.name,
+                &values,
+            )?;
+            if owners.insert(key, row.id.clone()).is_some() {
+                return Err(CassieError::UniqueViolation {
+                    table: index.collection.clone(),
+                    column: index
+                        .normalized_fields()
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| index.name.clone()),
+                    constraint: index.name.clone(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) fn delete_data_keys_with_prefix_in_batches(
         &self,
         collection: &str,
         prefix: &[u8],
@@ -210,6 +272,14 @@ impl Midge {
                 batches_since_flush = 0;
             }
         }
+    }
+
+    fn delete_prepared_scalar_index_data_in_batches(
+        &self,
+        collection: &str,
+        prefix: &[u8],
+    ) -> Result<(), CassieError> {
+        self.delete_data_keys_with_prefix_in_batches(collection, prefix)
     }
 
     pub(crate) fn delete_scalar_index_data(
@@ -339,7 +409,7 @@ impl Midge {
         fields
     }
 
-    fn payload_matches_scalar_index_predicate(
+    pub(crate) fn payload_matches_scalar_index_predicate(
         index: &IndexMeta,
         payload: &serde_json::Value,
     ) -> Result<bool, CassieError> {

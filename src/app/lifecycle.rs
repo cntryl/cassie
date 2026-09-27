@@ -114,6 +114,16 @@ impl Cassie {
             .replay_pending_schema_operations()
             .map_err(|error| CassieError::Storage(format!("schema operation recovery: {error}")))?;
         self.midge
+            .replay_pending_unique_constraint_cleanups()
+            .map_err(|error| {
+                CassieError::Storage(format!("unique constraint cleanup recovery: {error}"))
+            })?;
+        self.midge
+            .replay_pending_unique_constraint_publications()
+            .map_err(|error| {
+                CassieError::Storage(format!("unique constraint recovery: {error}"))
+            })?;
+        self.midge
             .replay_pending_index_publications()
             .map_err(|error| {
                 CassieError::Storage(format!("index publication recovery: {error}"))

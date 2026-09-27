@@ -640,13 +640,19 @@ fn set_child_reference_values(
                 session,
                 child_table,
                 payload,
-                true,
+                false,
                 Some(&child.id),
             )
             .map_err(QueryError::from)?;
-        cassie
-            .put_prepared_document_for_session(session, child_table, child.id, payload)
-            .map_err(QueryError::from)?;
+        update_existing_row(
+            cassie,
+            session,
+            child_table,
+            &child.id,
+            &child.payload,
+            payload,
+            controls,
+        )?;
     }
     Ok(())
 }

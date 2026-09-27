@@ -678,7 +678,7 @@ impl Cassie {
         self.validate_uniques(session, collection, object, constraints, exclude_id)
     }
 
-    fn satisfies_check_constraint(
+    pub(super) fn satisfies_check_constraint(
         value: &serde_json::Value,
         check: &ConstraintCheck,
     ) -> Result<bool, CassieError> {
@@ -800,6 +800,12 @@ impl Cassie {
                 continue;
             }
 
+            if !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
+                &index, payload,
+            )? {
+                continue;
+            }
+
             let fields = index.normalized_fields();
             let mut values = Vec::with_capacity(fields.len());
             for field in &fields {
@@ -818,7 +824,30 @@ impl Cassie {
                 continue;
             }
 
-            if self.values_exist_for_collection_fields(session, collection, &values, exclude_id)? {
+            let mut duplicate_exists = false;
+            for document in self
+                .scan_documents_batched_for_session(session, collection, 1024)?
+                .into_iter()
+                .flatten()
+            {
+                if exclude_id.is_some_and(|id| document.id == id)
+                    || !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
+                        &index,
+                        &document.payload,
+                    )?
+                {
+                    continue;
+                }
+
+                if values
+                    .iter()
+                    .all(|(field, value)| document.payload.get(*field) == Some(*value))
+                {
+                    duplicate_exists = true;
+                    break;
+                }
+            }
+            if duplicate_exists {
                 return Err(CassieError::InvalidVector(format!(
                     "unique index '{}' failed",
                     index.name
@@ -847,33 +876,6 @@ impl Cassie {
             }
 
             if document.payload.get(field) == Some(value) {
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
-    }
-
-    pub(crate) fn values_exist_for_collection_fields(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        values: &[(&str, &serde_json::Value)],
-        exclude_id: Option<&str>,
-    ) -> Result<bool, CassieError> {
-        for document in self
-            .scan_documents_batched_for_session(session, collection, 1024)?
-            .into_iter()
-            .flatten()
-        {
-            if exclude_id.is_some_and(|id| document.id == id) {
-                continue;
-            }
-
-            if values
-                .iter()
-                .all(|(field, value)| document.payload.get(*field) == Some(*value))
-            {
                 return Ok(true);
             }
         }

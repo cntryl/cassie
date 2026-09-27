@@ -77,7 +77,18 @@ fn find_insert_conflict_row_id(
     let Some(on_conflict) = statement.on_conflict.as_ref() else {
         return Ok(None);
     };
-    let object = payload
+    let mut canonical_payload = payload.clone();
+    if let Some(object) = canonical_payload.as_object_mut() {
+        for (field, value) in object {
+            crate::executor::execution::index_probe_canonicalization::canonicalize_index_probe_value(
+                cassie,
+                &statement.table,
+                field,
+                value,
+            );
+        }
+    }
+    let object = canonical_payload
         .as_object()
         .ok_or_else(|| QueryError::General("document payload must be an object".to_string()))?;
 
@@ -517,7 +528,7 @@ fn execute_insert_conflict_update(
             context.session,
             &context.statement.table,
             serde_json::Value::Object(merged_payload),
-            true,
+            false,
             Some(conflict_id),
         )
         .map_err(QueryError::from)?;

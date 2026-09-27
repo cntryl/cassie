@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Cassie, CassieError, CassieSession, FieldConstraint};
 
@@ -19,7 +19,7 @@ struct ForeignKeyReference {
 /// it was first seen, so a batch of child rows checks every parent key only once.
 #[derive(Debug, Default)]
 pub(crate) struct ForeignKeyReferences {
-    seen: BTreeSet<(String, String, String)>,
+    seen: BTreeSet<(String, String, crate::types::semantic::SemanticKey)>,
     references: Vec<ForeignKeyReference>,
 }
 
@@ -45,7 +45,11 @@ impl ForeignKeyReferences {
             if value.is_null() {
                 continue;
             }
-            let key = (table.to_string(), field.to_string(), value.to_string());
+            let key = (
+                table.to_string(),
+                field.to_string(),
+                foreign_key_value_key(value),
+            );
             if self.seen.insert(key) {
                 self.references.push(ForeignKeyReference {
                     column: constraint.field.clone(),
@@ -69,6 +73,30 @@ impl ForeignKeyReferences {
 }
 
 impl Cassie {
+    /// Validates existing rows against newly added FOREIGN KEY constraints.
+    pub(crate) fn validate_existing_foreign_key_rows(
+        &self,
+        collection: &str,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        if constraints
+            .iter()
+            .all(|constraint| constraint.references_table.is_none())
+        {
+            return Ok(());
+        }
+
+        let mut references = ForeignKeyReferences::default();
+        for document in self
+            .scan_documents_batched_for_session(None, collection, REFERENCE_SCAN_BATCH_SIZE)?
+            .into_iter()
+            .flatten()
+        {
+            references.collect(constraints, &document.payload)?;
+        }
+        self.validate_foreign_key_references(None, collection, &references)
+    }
+
     /// Checks that every collected reference has a matching referenced row.
     ///
     /// Pending references are grouped by referenced table and keyed by
@@ -86,14 +114,17 @@ impl Cassie {
         if references.is_empty() {
             return Ok(());
         }
-        let mut pending_by_table = BTreeMap::<&str, HashMap<(&str, String), Vec<usize>>>::new();
+        let mut pending_by_table = BTreeMap::<
+            &str,
+            BTreeMap<(&str, crate::types::semantic::SemanticKey), Vec<usize>>,
+        >::new();
         for (index, reference) in references.references.iter().enumerate() {
             pending_by_table
                 .entry(reference.referenced_table.as_str())
                 .or_default()
                 .entry((
                     reference.referenced_column.as_str(),
-                    reference.value.to_string(),
+                    foreign_key_value_key(&reference.value),
                 ))
                 .or_default()
                 .push(index);
@@ -112,7 +143,7 @@ impl Cassie {
                     let Some(value) = document.payload.get(*column) else {
                         continue;
                     };
-                    if let Some(hits) = pending.remove(&(*column, value.to_string())) {
+                    if let Some(hits) = pending.remove(&(*column, foreign_key_value_key(value))) {
                         for index in hits {
                             found[index] = true;
                         }
@@ -146,6 +177,30 @@ impl Cassie {
             referenced_column: missing.referenced_column.clone(),
         })
     }
+}
+
+pub(super) fn foreign_key_value_key(
+    value: &serde_json::Value,
+) -> crate::types::semantic::SemanticKey {
+    let value = match value {
+        serde_json::Value::Null => crate::types::Value::Null,
+        serde_json::Value::Bool(value) => crate::types::Value::Bool(*value),
+        serde_json::Value::Number(value) => value
+            .as_i64()
+            .or_else(|| value.as_u64().and_then(|value| i64::try_from(value).ok()))
+            .map_or_else(
+                || {
+                    value.as_f64().map_or_else(
+                        || crate::types::Value::Json(serde_json::Value::Number(value.clone())),
+                        crate::types::Value::Float64,
+                    )
+                },
+                crate::types::Value::Int64,
+            ),
+        serde_json::Value::String(value) => crate::types::Value::String(value.clone()),
+        value => crate::types::Value::Json(value.clone()),
+    };
+    crate::types::semantic::SemanticKey::single(&value)
 }
 
 #[cfg(test)]

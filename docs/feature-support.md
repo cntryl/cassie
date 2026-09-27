@@ -16,7 +16,7 @@ Midge owns persistence, durability, and recovery mechanics. Cassie owns logical 
 
 Cassie is permanently a single-node query engine. Distributed SQL, cluster membership or management, replication, consensus, sharding and rebalancing, cross-node transactions, multi-node planning, remote query forwarding, and automatic cross-node repair are product non-goals. External systems may route to independent nodes, but that does not expand Cassie's execution or coordination boundary.
 
-The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v1`. A directory without that marker is rejected with a recreate diagnostic. There is no migration or legacy reader.
+The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v2`. A directory without that marker is rejected with a recreate diagnostic. There is no migration or legacy reader; recreating a directory created by an earlier layout version is required.
 
 ## Relational SQL
 

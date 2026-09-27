@@ -175,7 +175,7 @@ fn evaluate_set_config(
     session: Option<&CassieSession>,
 ) -> Result<Value, QueryError> {
     require_arg_count(name, args, 3)?;
-    if matches!(args.get(2), Some(Value::Bool(true))) {
+    if parse_set_config_local(args.get(2))? {
         return Err(QueryError::Cassie(crate::app::CassieError::Unsupported(
             "transaction-local settings are not supported".to_string(),
         )));
@@ -184,6 +184,38 @@ fn evaluate_set_config(
         session.ok_or_else(|| QueryError::General("set_config requires a session".to_string()))?;
     let value = session.set_setting(&to_text(&args[0]), &to_text(&args[1]))?;
     Ok(Value::String(value))
+}
+
+fn parse_set_config_local(value: Option<&Value>) -> Result<bool, QueryError> {
+    let invalid = || {
+        QueryError::Cassie(crate::app::CassieError::InvalidParameterValue(
+            "set_config is_local must be a boolean".to_string(),
+        ))
+    };
+    match value {
+        Some(Value::Bool(value)) => Ok(*value),
+        Some(Value::String(value)) => {
+            let value = value.trim().to_ascii_lowercase();
+            if value == "1" {
+                return Ok(true);
+            }
+            if value == "0" {
+                return Ok(false);
+            }
+            let true_match = ["true", "yes", "on"]
+                .iter()
+                .any(|word| word.starts_with(&value));
+            let false_match = ["false", "no", "off"]
+                .iter()
+                .any(|word| word.starts_with(&value));
+            match (true_match, false_match) {
+                (true, false) => Ok(true),
+                (false, true) => Ok(false),
+                _ => Err(invalid()),
+            }
+        }
+        _ => Err(invalid()),
+    }
 }
 
 fn pg_table_is_visible<R: RowAccess + ?Sized>(

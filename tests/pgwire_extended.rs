@@ -3156,6 +3156,130 @@ mod pgwire_portal_streaming {
         });
     }
 
+    #[test]
+    fn should_page_limited_portal_over_user_view() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-user-view-limited-page");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE portal_view_docs (title TEXT, score FLOAT)",
+                "INSERT INTO portal_view_docs (title, score) VALUES ('alpha', 3.0), ('bravo', 4.0), ('charlie', 5.0), ('hidden', 1.0)",
+                "CREATE VIEW portal_view_high AS SELECT title FROM portal_view_docs WHERE score > 2.0",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect("seed view");
+            }
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("user_view_stmt", "SELECT title FROM portal_view_high"),
+                    support::bind_frame("user_view_portal", "user_view_stmt", &[]),
+                    support::execute_limited_frame("user_view_portal", 2),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert_eq!(
+                frames.iter().filter(|(tag, _)| *tag == b'E').count(),
+                0,
+                "limited portal over a user view must not error: {frames:?}"
+            );
+            assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'D').count(), 2);
+            assert!(frames.iter().any(|(tag, _)| *tag == b's'));
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_page_limited_portal_over_virtual_view_column() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("portal-virtual-view-limited-page");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE portal_catalog_limited (payload TEXT)",
+                    vec![],
+                )
+                .expect("create table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE portal_catalog_limited_second (payload TEXT)",
+                    vec![],
+                )
+                .expect("create second table");
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame(
+                        "virtual_view_stmt",
+                        "SELECT table_name FROM information_schema.tables",
+                    ),
+                    support::bind_frame("virtual_view_portal", "virtual_view_stmt", &[]),
+                    support::execute_limited_frame("virtual_view_portal", 1),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            assert_eq!(
+                frames.iter().filter(|(tag, _)| *tag == b'E').count(),
+                0,
+                "limited portal over a virtual view must not error: {frames:?}"
+            );
+            assert_eq!(frames.iter().filter(|(tag, _)| *tag == b'D').count(), 1);
+            assert!(frames.iter().any(|(tag, _)| *tag == b's'));
+
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     fn declared_id_table(path: &str, table: &str) -> (Cassie, String) {
         let cassie = Cassie::new_with_data_dir(path).expect("cassie");
         cassie.startup().expect("startup");

@@ -640,7 +640,7 @@ fn set_child_reference_values(
                 session,
                 child_table,
                 payload,
-                true,
+                false,
                 Some(&child.id),
             )
             .map_err(QueryError::from)?;

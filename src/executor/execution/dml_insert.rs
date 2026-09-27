@@ -528,7 +528,7 @@ fn execute_insert_conflict_update(
             context.session,
             &context.statement.table,
             serde_json::Value::Object(merged_payload),
-            true,
+            false,
             Some(conflict_id),
         )
         .map_err(QueryError::from)?;

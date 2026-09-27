@@ -2494,6 +2494,95 @@ mod integration_sql_foreign_keys {
 
     use super::support_sql as support;
     use support::*;
+
+    fn run_sql(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+        sql: &str,
+    ) -> Result<(), cassie::app::CassieError> {
+        cassie.execute_sql(session, sql, vec![]).map(|_| ())
+    }
+
+    #[test]
+    fn should_match_float_foreign_keys_across_all_write_paths() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_float_numeric_equivalence");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_float_parents (id FLOAT PRIMARY KEY)",
+                "CREATE TABLE fk_float_children (cid INT PRIMARY KEY, parent_id FLOAT REFERENCES fk_float_parents(id))",
+                "INSERT INTO fk_float_parents VALUES (20.0)",
+            ] {
+                run_sql(&cassie, &session, sql).unwrap_or_else(|error| panic!("{sql}: {error}"));
+            }
+
+            // Act
+            let literal_decimal =
+                run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (1, 20.0)");
+            let literal_integer =
+                run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (2, 20)");
+            let bound_parameter = cassie.execute_sql(
+                &session,
+                "INSERT INTO fk_float_children VALUES (3, $1)",
+                vec![Value::Float64(20.0)],
+            ).map(|_| ());
+            let updated_child = run_sql(
+                &cassie,
+                &session,
+                "UPDATE fk_float_children SET parent_id = 20.0 WHERE cid = 3",
+            );
+            let delete_referenced_parent =
+                run_sql(&cassie, &session, "DELETE FROM fk_float_parents WHERE id = 20.0");
+            run_sql(&cassie, &session, "BEGIN").expect("begin transaction");
+            let staged_parent = run_sql(&cassie, &session, "INSERT INTO fk_float_parents VALUES (30.0)");
+            let staged_child = run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (10, 30.0)");
+            let committed = run_sql(&cassie, &session, "COMMIT");
+            let post_commit_child = run_sql(&cassie, &session, "INSERT INTO fk_float_children VALUES (11, 30.0)");
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT cid FROM fk_float_children ORDER BY cid",
+                    vec![],
+                )
+                .expect("read children");
+
+            // Assert
+            literal_decimal.expect("decimal literal must match the FLOAT parent key");
+            literal_integer.expect("integer literal must match the FLOAT parent key");
+            bound_parameter.expect("bound parameter must match the FLOAT parent key");
+            updated_child.expect("updated child key must match the FLOAT parent key");
+            assert!(delete_referenced_parent
+                .expect_err("referenced FLOAT parent must not be deleted")
+                .to_string()
+                .contains("foreign key constraint"));
+            staged_parent.expect("insert parent inside transaction");
+            staged_child.expect("transactional child key must match staged parent key");
+            committed.expect("commit transaction");
+            post_commit_child.expect("committed parent key must remain referenceable");
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(1)],
+                    vec![Value::Int64(2)],
+                    vec![Value::Int64(3)],
+                    vec![Value::Int64(10)],
+                    vec![Value::Int64(11)],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     #[test]
     fn should_reject_insert_when_foreign_key_parent_is_missing() {
         // Arrange

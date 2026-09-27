@@ -643,7 +643,8 @@ fn expr_uses_function(expr: &crate::sql::ast::Expr, function_name: &str) -> bool
 }
 
 fn function_uses_function(function: &crate::sql::ast::FunctionCall, function_name: &str) -> bool {
-    function.name.eq_ignore_ascii_case(function_name)
+    // Catalog names are qualified after startup, while plan calls may be unqualified.
+    crate::catalog::scope::name_matches(function_name, &function.name)
         || function
             .args
             .iter()

@@ -1157,6 +1157,56 @@ mod integration_sql_constraints {
     }
 
     #[test]
+    fn should_keep_altered_primary_key_writable_given_a_differently_cased_column_name() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("alter_primary_key_column_case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE primary_key_case (id INT, amount INT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "ALTER TABLE primary_key_case ADD CONSTRAINT primary_key_case_pk PRIMARY KEY (ID)",
+                vec![],
+            )
+            .expect("add primary key");
+
+        // Act
+        let first_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_case (id, amount) VALUES (1, 5)",
+            vec![],
+        );
+        let duplicate_insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO primary_key_case (id, amount) VALUES (1, 6)",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            first_insert.is_ok(),
+            "case-mismatched PRIMARY KEY made the table unwritable"
+        );
+        assert!(
+            matches!(
+                duplicate_insert,
+                Err(cassie::app::CassieError::UniqueViolation { .. })
+            ),
+            "case-mismatched PRIMARY KEY did not reject a duplicate"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_report_malformed_like_pattern_in_check_constraint() {
         // Arrange
         use_local_storage();

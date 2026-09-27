@@ -1,3 +1,4 @@
+use super::clauses::is_identifier_byte;
 use super::expr::split_csv;
 use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
@@ -829,8 +830,8 @@ pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
         return false;
     }
 
-    let suffix = lower.chars().nth(keyword.len()).unwrap_or(' ');
-    !suffix.is_ascii_alphanumeric()
+    let suffix = lower.as_bytes().get(keyword.len()).copied().unwrap_or(b' ');
+    !is_identifier_byte(suffix)
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {

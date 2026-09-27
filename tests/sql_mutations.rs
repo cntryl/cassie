@@ -6007,6 +6007,61 @@ mod integration_sql_upsert {
     }
 
     #[test]
+    fn should_upsert_when_conflict_key_has_a_noncanonical_input_shape() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("canonical_conflict_keys");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie.execute_sql(&session, "CREATE TABLE canonical_float (k FLOAT UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "CREATE TABLE canonical_date (k DATE UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "CREATE TABLE canonical_timestamp (k TIMESTAMP UNIQUE, v INT)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1.0, 1)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-01-01', 1)", vec![]).unwrap();
+            cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01T00:00:00Z', 1)", vec![]).unwrap();
+
+            // Act
+            let float_update = cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1, 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+            let date_update = cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-1-1', 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+            let timestamp_update = cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01 00:00:00', 2) ON CONFLICT (k) DO UPDATE SET v = excluded.v", vec![]);
+
+            // Assert
+            assert!(float_update.is_ok(), "FLOAT conflict should update");
+            assert!(date_update.is_ok(), "DATE conflict should update");
+            assert!(timestamp_update.is_ok(), "TIMESTAMP conflict should update");
+            for table in ["canonical_float", "canonical_date", "canonical_timestamp"] {
+                let rows = cassie
+                    .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
+                    .unwrap();
+                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+            }
+            let float_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_float VALUES (1, 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(float_nothing.is_ok(), "FLOAT DO NOTHING should suppress conflict");
+            let date_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_date VALUES ('2024-1-1', 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(date_nothing.is_ok(), "DATE DO NOTHING should suppress conflict");
+            let timestamp_nothing = cassie.execute_sql(&session, "INSERT INTO canonical_timestamp VALUES ('2024-01-01 00:00:00', 3) ON CONFLICT (k) DO NOTHING", vec![]);
+            assert!(timestamp_nothing.is_ok(), "TIMESTAMP DO NOTHING should suppress conflict");
+            assert_eq!(float_nothing.unwrap().command, "INSERT 0 0");
+            assert_eq!(date_nothing.unwrap().command, "INSERT 0 0");
+            assert_eq!(timestamp_nothing.unwrap().command, "INSERT 0 0");
+            for table in ["canonical_float", "canonical_date", "canonical_timestamp"] {
+                let rows = cassie
+                    .execute_sql(&session, &format!("SELECT v FROM {table}"), vec![])
+                    .unwrap();
+                assert_eq!(rows.rows, vec![vec![Value::Int64(2)]], "table {table}");
+            }
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_update_conflicting_row_given_parameters_excluded_filter_and_returning() {
         // Arrange
         use_local_storage();

@@ -668,7 +668,7 @@ fn scalar_prefilter_ids(
     else {
         return Ok(None);
     };
-    super::super::index_read::canonicalize_index_probe_value(
+    super::super::index_probe_canonicalization::canonicalize_index_probe_value(
         cassie,
         &spec.collection,
         &field,

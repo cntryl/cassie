@@ -8532,6 +8532,72 @@ mod unique_ddl_reservations {
     use super::support_sql as support;
 
     #[test]
+    fn should_not_restore_dropped_column_values_after_readding_the_name() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("dropped_column_value_resurrection");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE dropped_column_values (id TEXT PRIMARY KEY, note TEXT, renamed_source TEXT)",
+            "INSERT INTO dropped_column_values (id, note, renamed_source) VALUES ('r1', 'secret', 'renamed secret')",
+            "ALTER TABLE dropped_column_values DROP COLUMN note",
+            "ALTER TABLE dropped_column_values ADD COLUMN note TEXT",
+            "ALTER TABLE dropped_column_values RENAME COLUMN renamed_source TO renamed_current",
+            "ALTER TABLE dropped_column_values DROP COLUMN renamed_current",
+            "ALTER TABLE dropped_column_values ADD COLUMN renamed_source TEXT",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let explicit = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, note, renamed_source FROM dropped_column_values",
+                vec![],
+            )
+            .expect("select re-added columns");
+        let wildcard = cassie
+            .execute_sql(&session, "SELECT * FROM dropped_column_values", vec![])
+            .expect("select all re-added columns");
+        let predicate = cassie
+            .execute_sql(
+                &session,
+                "SELECT id FROM dropped_column_values WHERE note = 'secret' OR renamed_source = 'renamed secret'",
+                vec![],
+            )
+            .expect("filter re-added columns");
+
+        // Assert
+        assert_eq!(
+            explicit.rows,
+            vec![vec![
+                Value::String("r1".to_string()),
+                Value::Null,
+                Value::Null,
+            ]]
+        );
+        assert_eq!(wildcard.rows, explicit.rows);
+        assert!(predicate.rows.is_empty());
+
+        drop(cassie);
+        let reopened = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        reopened.startup().expect("restart Cassie");
+        let reopened_session = reopened.create_session("tester", None);
+        let after_restart = reopened
+            .execute_sql(
+                &reopened_session,
+                "SELECT id, note, renamed_source FROM dropped_column_values",
+                vec![],
+            )
+            .expect("select re-added columns after restart");
+        assert_eq!(after_restart.rows, explicit.rows);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_backfill_float_reservations_after_adding_unique_constraint() {
         // Arrange
         support::use_local_storage();

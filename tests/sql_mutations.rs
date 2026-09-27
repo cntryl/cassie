@@ -8180,6 +8180,107 @@ mod unique_reservations {
     use super::support_sql as support;
 
     #[test]
+    fn should_allow_duplicate_keys_outside_partial_unique_index_predicate() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("partial_unique_index_predicate");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE partial_unique_active (email TEXT, active BOOLEAN)",
+            "CREATE UNIQUE INDEX partial_unique_active_email ON partial_unique_active (email) WHERE active",
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', true)",
+            "CREATE TABLE partial_unique_inactive (email TEXT, active BOOLEAN)",
+            "CREATE UNIQUE INDEX partial_unique_inactive_email ON partial_unique_inactive (email) WHERE active",
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE partial_unique_backfill (email TEXT, active BOOLEAN)",
+                vec![],
+            )
+            .expect("create table for partial unique index backfill");
+        for _ in 0..2 {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO partial_unique_backfill (email, active) VALUES ('c@x', false)",
+                    vec![],
+                )
+                .expect("insert duplicate rows outside future index predicate");
+        }
+
+        // Act
+        let inactive_with_active_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', false)",
+            vec![],
+        );
+        let repeated_inactive_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_inactive (email, active) VALUES ('b@x', false)",
+            vec![],
+        );
+        let duplicate_active_key = cassie.execute_sql(
+            &session,
+            "INSERT INTO partial_unique_active (email, active) VALUES ('a@x', true)",
+            vec![],
+        );
+        let activate_duplicate_key = cassie.execute_sql(
+            &session,
+            "UPDATE partial_unique_active SET active = true WHERE active = false",
+            vec![],
+        );
+        let active_rows = cassie
+            .execute_sql(&session, "SELECT email FROM partial_unique_active", vec![])
+            .expect("read rows with one active match");
+        let inactive_rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT email FROM partial_unique_inactive",
+                vec![],
+            )
+            .expect("read rows outside predicate");
+        let partial_index_creation = cassie.execute_sql(
+            &session,
+            "CREATE UNIQUE INDEX partial_unique_backfill_email ON partial_unique_backfill (email) WHERE active",
+            vec![],
+        );
+
+        // Assert
+        assert!(
+            inactive_with_active_key.is_ok(),
+            "a row outside the predicate may share a key with an indexed row"
+        );
+        assert!(
+            repeated_inactive_key.is_ok(),
+            "rows outside the predicate may repeat a key"
+        );
+        assert!(
+            duplicate_active_key.is_err(),
+            "rows matching the predicate must still enforce uniqueness"
+        );
+        assert!(
+            activate_duplicate_key.is_err(),
+            "an update entering the predicate must enforce uniqueness"
+        );
+        assert_eq!(active_rows.rows.len(), 2);
+        assert_eq!(inactive_rows.rows.len(), 3);
+        assert!(
+            partial_index_creation.is_ok(),
+            "index backfill ignores duplicate rows outside its predicate"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_allow_distinct_unique_columns_with_colliding_legacy_key_bytes() {
         // Arrange
         support::use_local_storage();

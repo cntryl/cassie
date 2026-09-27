@@ -174,16 +174,21 @@ impl Midge {
             let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
             for row in &rows[range] {
                 let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
-                if index.unique {
-                    if let Some(values) = Self::scalar_index_key_values(index, &canonical)? {
-                        let reservation = key_encoding::unique_scalar_index_reservation_key(
-                            &index.collection,
-                            &index.name,
-                            &values,
-                        )?;
-                        tx.put(reservation, row.id.as_bytes().to_vec(), None)
-                            .map_err(CassieError::from)?;
-                    }
+                let reservation_values = if index.unique
+                    && Self::payload_matches_scalar_index_predicate(index, &canonical)?
+                {
+                    Self::scalar_index_key_values(index, &canonical)?
+                } else {
+                    None
+                };
+                if let Some(values) = reservation_values {
+                    let reservation = key_encoding::unique_scalar_index_reservation_key(
+                        &index.collection,
+                        &index.name,
+                        &values,
+                    )?;
+                    tx.put(reservation, row.id.as_bytes().to_vec(), None)
+                        .map_err(CassieError::from)?;
                 }
                 if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &canonical)? {
                     tx.put(key, value, None).map_err(CassieError::from)?;
@@ -207,6 +212,9 @@ impl Midge {
         let row_schema = self.row_schema(&index.collection)?;
         for row in rows {
             let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
+            if !Self::payload_matches_scalar_index_predicate(index, &canonical)? {
+                continue;
+            }
             let Some(values) = Self::scalar_index_key_values(index, &canonical)? else {
                 continue;
             };
@@ -393,7 +401,7 @@ impl Midge {
         fields
     }
 
-    fn payload_matches_scalar_index_predicate(
+    pub(crate) fn payload_matches_scalar_index_predicate(
         index: &IndexMeta,
         payload: &serde_json::Value,
     ) -> Result<bool, CassieError> {

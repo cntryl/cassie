@@ -900,6 +900,9 @@ impl Midge {
         }
 
         for index in unique_indexes {
+            if !Self::payload_matches_scalar_index_predicate(index, payload)? {
+                continue;
+            }
             let Some(values) = Self::scalar_index_key_values(index, payload)? else {
                 continue;
             };

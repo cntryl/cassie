@@ -1,6 +1,22 @@
 pub mod aggregate;
 pub mod batch;
 mod execution;
+
+pub(crate) fn delete_document_with_referential_actions(
+    cassie: &crate::app::Cassie,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    cancellation: crate::runtime::QueryCancellationHandle,
+) -> Result<bool, crate::app::CassieError> {
+    execution::delete_document_with_referential_actions(
+        cassie,
+        table,
+        row_id,
+        payload,
+        cancellation,
+    )
+}
 pub mod filter;
 pub mod projection;
 pub mod scan;

@@ -428,6 +428,49 @@ mod rest {
     }
 
     #[test]
+    fn should_reject_rest_delete_of_referenced_parent_row() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("rest_referenced_parent_delete");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        for sql in [
+            "CREATE TABLE rest_fk_parent (pid INT PRIMARY KEY)",
+            "CREATE TABLE rest_fk_child (cid INT PRIMARY KEY, pid INT REFERENCES rest_fk_parent(pid))",
+            "INSERT INTO rest_fk_parent VALUES (1)",
+            "INSERT INTO rest_fk_child VALUES (10, 1)",
+        ] {
+            cassie.execute_sql(&session, sql, Vec::new()).expect("setup SQL");
+        }
+        let parent_id = cassie
+            .midge
+            .scan_documents("postgres.public.rest_fk_parent")
+            .expect("scan parent")
+            .into_iter()
+            .next()
+            .expect("parent row")
+            .id;
+
+        // Act
+        let result = documents::delete(&cassie, "rest_fk_parent", &parent_id);
+
+        // Assert
+        let error = result.expect_err("REST must reject a referenced parent deletion");
+        assert!(
+            error.to_string().contains("still references"),
+            "expected a referential restriction, got {error}"
+        );
+        let parent = cassie
+            .midge
+            .get_document("postgres.public.rest_fk_parent", &parent_id)
+            .expect("read parent")
+            .expect("restricted parent survives");
+        assert_eq!(parent.payload["pid"], 1);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_invalid_vector_dimensions_through_rest() {
         // Arrange
         std::env::set_var("CASSIE_STORAGE_MODE", "local");

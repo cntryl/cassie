@@ -2,6 +2,26 @@ use std::collections::BTreeSet;
 
 use super::{check_timeout, Cassie, CassieSession, QueryError, QueryExecutionControls};
 
+pub(super) fn delete_document_with_referential_actions(
+    cassie: &Cassie,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    cancellation: crate::runtime::QueryCancellationHandle,
+) -> Result<bool, crate::app::CassieError> {
+    let controls = QueryExecutionControls::with_cancellation(
+        &cassie.runtime.limits(),
+        std::time::Instant::now(),
+        cancellation,
+    );
+    match delete_existing_row(cassie, None, table, row_id, payload, &controls)
+        .map_err(crate::app::CassieError::from)?
+    {
+        DeleteOutcome::Deleted(deleted) => Ok(deleted),
+        DeleteOutcome::Restricted(error) => Err(error.into()),
+    }
+}
+
 pub(super) enum DeleteOutcome {
     Deleted(bool),
     Restricted(QueryError),

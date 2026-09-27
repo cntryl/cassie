@@ -78,6 +78,22 @@ mod dml;
 pub(crate) use dml::resolve_transaction_conflict_intents;
 mod dml_command;
 mod dml_referential_actions;
+
+pub(crate) fn delete_document_with_referential_actions(
+    cassie: &crate::app::Cassie,
+    table: &str,
+    row_id: &str,
+    payload: &serde_json::Value,
+    cancellation: crate::runtime::QueryCancellationHandle,
+) -> Result<bool, crate::app::CassieError> {
+    dml_referential_actions::delete_document_with_referential_actions(
+        cassie,
+        table,
+        row_id,
+        payload,
+        cancellation,
+    )
+}
 mod graph_command;
 mod materialized_projection;
 mod materialized_projection_maintenance;

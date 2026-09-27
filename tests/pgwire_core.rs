@@ -1128,6 +1128,7 @@ mod pgwire_copy_protocol {
             assert_eq!(body[0], 0);
             assert_eq!(columns, 1);
             assert_eq!(body.len(), 3 + 2 * columns);
+            assert_eq!(body.as_slice(), &[0, 0, 1, 0, 0]);
             assert!(backup.iter().any(|frame| frame.0 == b'c'));
             assert_eq!(ready_status(&backup), b'I');
         });

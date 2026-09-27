@@ -7232,11 +7232,7 @@ mod migration_ddl_sequences {
                 "SELECT entry_id, label FROM ledger.entries",
             );
             execute_statement(&cassie, &session, "DROP TABLE ledger.entries");
-            let dropped = cassie.execute_sql(
-                &session,
-                "DROP SEQUENCE ledger.entries_entry_id_seq",
-                vec![],
-            );
+            let remaining_sequences = cassie.catalog.list_sequences();
 
             // Assert
             assert_eq!(
@@ -7247,7 +7243,7 @@ mod migration_ddl_sequences {
                 rows,
                 vec![vec![Value::Int64(1), Value::String("one".to_string())]]
             );
-            assert!(dropped.is_ok(), "drop sequence failed: {dropped:?}");
+            assert!(remaining_sequences.is_empty());
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -7403,6 +7399,81 @@ mod migration_ddl_sequences {
                 ]
             );
 
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_release_serial_sequence_when_dropping_its_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_sequence_table_drop");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE SCHEMA sx",
+                "CREATE TABLE sx.t (k SERIAL, v INT)",
+                "INSERT INTO sx.t (v) VALUES (1)",
+                "DROP TABLE sx.t",
+                "DROP SCHEMA sx",
+                "CREATE SCHEMA sx",
+                "CREATE TABLE sx.t (k SERIAL, v INT)",
+                "INSERT INTO sx.t (v) VALUES (2)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let rows = query_rows(&cassie, &session, "SELECT k FROM sx.t");
+
+            // Assert
+            assert_eq!(rows, vec![vec![Value::Int64(1)]]);
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_rename_serial_sequence_when_renaming_its_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("serial_sequence_table_rename");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE t (k SERIAL, v INT)",
+                "INSERT INTO t (v) VALUES (1)",
+                "ALTER TABLE t RENAME TO t2",
+                "INSERT INTO t2 (v) VALUES (2)",
+                "CREATE TABLE t (k SERIAL, v INT)",
+                "INSERT INTO t (v) VALUES (3)",
+            ] {
+                execute_statement(&cassie, &session, sql);
+            }
+
+            // Act
+            let renamed_rows = query_rows(&cassie, &session, "SELECT k FROM t2");
+            let recreated_rows = query_rows(&cassie, &session, "SELECT k FROM t");
+
+            // Assert
+            assert_eq!(
+                renamed_rows,
+                vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+            );
+            assert_eq!(recreated_rows, vec![vec![Value::Int64(1)]]);
             let _ = std::fs::remove_dir_all(path);
         });
     }

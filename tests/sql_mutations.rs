@@ -2756,6 +2756,165 @@ mod integration_sql_foreign_keys {
         let _ = std::fs::remove_dir_all(path);
     });
     }
+
+    #[test]
+    fn should_cascade_referenced_key_update_through_a_two_level_chain() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_update_cascade_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_chain_a (code TEXT PRIMARY KEY)",
+                "CREATE TABLE fk_chain_b (code TEXT PRIMARY KEY, CONSTRAINT fk_chain_b_a FOREIGN KEY (code) REFERENCES fk_chain_a(code) ON UPDATE CASCADE)",
+                "CREATE TABLE fk_chain_c (id INT PRIMARY KEY, bcode TEXT, CONSTRAINT fk_chain_c_b FOREIGN KEY (bcode) REFERENCES fk_chain_b(code) ON UPDATE CASCADE)",
+                "INSERT INTO fk_chain_a VALUES ('x')",
+                "INSERT INTO fk_chain_b VALUES ('x')",
+                "INSERT INTO fk_chain_c VALUES (1, 'x')",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare two-level foreign key chain");
+            }
+
+            // Act
+            cassie
+                .execute_sql(&session, "UPDATE fk_chain_a SET code = 'y'", vec![])
+                .expect("update root key");
+            let grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read cascaded grandchild key");
+            cassie
+                .execute_sql(&session, "BEGIN", vec![])
+                .expect("begin transaction");
+            cassie
+                .execute_sql(&session, "UPDATE fk_chain_a SET code = 'z'", vec![])
+                .expect("update root key in transaction");
+            let staged_grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read staged cascaded grandchild key");
+            cassie
+                .execute_sql(&session, "COMMIT", vec![])
+                .expect("commit recursive cascade");
+            let committed_grandchild = cassie
+                .execute_sql(&session, "SELECT bcode FROM fk_chain_c WHERE id = 1", vec![])
+                .expect("read committed cascaded grandchild key");
+
+            // Assert
+            assert_eq!(
+                grandchild.rows,
+                vec![vec![Value::String("y".to_string())]],
+                "a cascaded child update must recurse to its own dependents"
+            );
+            assert_eq!(
+                staged_grandchild.rows,
+                vec![vec![Value::String("z".to_string())]],
+                "recursive cascades must remain visible in the updating transaction"
+            );
+            assert_eq!(
+                committed_grandchild.rows,
+                vec![vec![Value::String("z".to_string())]],
+                "the transaction must commit the entire recursive cascade"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_propagate_set_null_after_parent_key_update() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_set_null_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_setnull_update_a (id INT PRIMARY KEY)",
+                "CREATE TABLE fk_setnull_update_b (id INT PRIMARY KEY, code INT UNIQUE, CONSTRAINT fk_setnull_update_b_a FOREIGN KEY (code) REFERENCES fk_setnull_update_a(id) ON UPDATE SET NULL)",
+                "CREATE TABLE fk_setnull_update_c (id INT PRIMARY KEY, code INT, CONSTRAINT fk_setnull_update_c_b FOREIGN KEY (code) REFERENCES fk_setnull_update_b(code) ON UPDATE SET NULL)",
+                "INSERT INTO fk_setnull_update_a VALUES (1)",
+                "INSERT INTO fk_setnull_update_b VALUES (10, 1)",
+                "INSERT INTO fk_setnull_update_c VALUES (100, 1)",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare SET NULL foreign key chains");
+            }
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "UPDATE fk_setnull_update_a SET id = 2",
+                    vec![],
+                )
+                .expect("update parent with SET NULL action");
+            let updated_grandchild = cassie
+                .execute_sql(&session, "SELECT code FROM fk_setnull_update_c", vec![])
+                .expect("read update grandchild");
+
+            // Assert
+            assert_eq!(updated_grandchild.rows, vec![vec![Value::Null]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_propagate_set_null_after_parent_delete() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("foreign_key_delete_set_null_two_levels");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE fk_setnull_delete_a (id INT PRIMARY KEY)",
+                "CREATE TABLE fk_setnull_delete_b (id INT PRIMARY KEY, code INT UNIQUE, CONSTRAINT fk_setnull_delete_b_a FOREIGN KEY (code) REFERENCES fk_setnull_delete_a(id) ON DELETE SET NULL)",
+                "CREATE TABLE fk_setnull_delete_c (id INT PRIMARY KEY, code INT, CONSTRAINT fk_setnull_delete_c_b FOREIGN KEY (code) REFERENCES fk_setnull_delete_b(code) ON UPDATE SET NULL)",
+                "INSERT INTO fk_setnull_delete_a VALUES (1)",
+                "INSERT INTO fk_setnull_delete_b VALUES (10, 1)",
+                "INSERT INTO fk_setnull_delete_c VALUES (100, 1)",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("prepare SET NULL foreign key chain");
+            }
+
+            // Act
+            cassie
+                .execute_sql(&session, "DELETE FROM fk_setnull_delete_a", vec![])
+                .expect("delete parent with SET NULL action");
+            let grandchild = cassie
+                .execute_sql(&session, "SELECT code FROM fk_setnull_delete_c", vec![])
+                .expect("read delete grandchild");
+
+            // Assert
+            assert_eq!(grandchild.rows, vec![vec![Value::Null]]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/integration_sql_idempotent_ddl.rs.

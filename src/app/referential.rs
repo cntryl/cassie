@@ -20,37 +20,48 @@ impl Cassie {
         let canonical_name = |name: &str| self.canonical_referential_name(name);
         let collection = canonical_name(collection);
         let mut collections = vec![collection.clone()];
-        for constraint in self.catalog.get_constraints(&collection) {
-            if let Some(referenced_table) = constraint.references_table {
-                collections.push(canonical_name(&referenced_table));
+        let mut pending = vec![collection];
+        let mut visited = BTreeSet::new();
+        while let Some(current) = pending.pop() {
+            if !visited.insert(current.clone()) {
+                continue;
             }
-        }
-        for candidate in self.catalog.list_collections_canonical() {
-            if self
-                .catalog
-                .get_constraints(&candidate.name)
-                .iter()
-                .any(|constraint| {
-                    constraint
-                        .references_table
-                        .as_deref()
-                        .is_some_and(|referenced| {
-                            canonical_name(referenced).eq_ignore_ascii_case(&collection)
-                        })
-                })
-            {
-                collections.push(candidate.name);
+
+            for constraint in self.catalog.get_constraints(&current) {
+                if let Some(referenced_table) = constraint.references_table {
+                    let referenced_table = canonical_name(&referenced_table);
+                    collections.push(referenced_table.clone());
+                    pending.push(referenced_table);
+                }
+            }
+            for candidate in self.catalog.list_collections_canonical() {
+                if self
+                    .catalog
+                    .get_constraints(&candidate.name)
+                    .iter()
+                    .any(|constraint| {
+                        constraint
+                            .references_table
+                            .as_deref()
+                            .is_some_and(|referenced| {
+                                canonical_name(referenced).eq_ignore_ascii_case(&current)
+                            })
+                    })
+                {
+                    collections.push(candidate.name.clone());
+                    pending.push(candidate.name);
+                }
             }
         }
         collections
     }
 
-    /// Returns the collections to gate for a transaction commit, and whether any
-    /// staged collection takes part in a FOREIGN KEY in either direction.
+    /// Returns the full FOREIGN KEY-connected collection set for a transaction
+    /// commit, and whether any staged collection takes part in a FOREIGN KEY.
     ///
     /// `referential_write_collections` returns only the collection itself when it
-    /// neither references nor is referenced by another table (a self-reference
-    /// lists it twice), so a longer list means the commit needs the referential gate.
+    /// has no foreign keys. A self-reference also adds the collection again, so a
+    /// longer list means the commit needs the referential gate.
     pub(crate) fn transaction_commit_write_gates(
         &self,
         session: &CassieSession,

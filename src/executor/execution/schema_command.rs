@@ -141,6 +141,7 @@ pub(super) fn drop_table(
         .midge
         .defer_drop_collection(&statement.table, cassie.runtime.schema_epoch())
         .map_err(|error| QueryError::General(error.to_string()))?;
+    schema_sequence_rename::drop_owned_table_sequences(cassie, &statement.table)?;
     cassie
         .catalog
         .unregister_collection(&statement.table)
@@ -476,6 +477,7 @@ fn alter_table_rename_table(
         .catalog
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
 

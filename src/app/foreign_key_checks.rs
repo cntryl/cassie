@@ -69,6 +69,30 @@ impl ForeignKeyReferences {
 }
 
 impl Cassie {
+    /// Validates existing rows against newly added FOREIGN KEY constraints.
+    pub(crate) fn validate_existing_foreign_key_rows(
+        &self,
+        collection: &str,
+        constraints: &[FieldConstraint],
+    ) -> Result<(), CassieError> {
+        if constraints
+            .iter()
+            .all(|constraint| constraint.references_table.is_none())
+        {
+            return Ok(());
+        }
+
+        let mut references = ForeignKeyReferences::default();
+        for document in self
+            .scan_documents_batched_for_session(None, collection, REFERENCE_SCAN_BATCH_SIZE)?
+            .into_iter()
+            .flatten()
+        {
+            references.collect(constraints, &document.payload)?;
+        }
+        self.validate_foreign_key_references(None, collection, &references)
+    }
+
     /// Checks that every collected reference has a matching referenced row.
     ///
     /// Pending references are grouped by referenced table and keyed by

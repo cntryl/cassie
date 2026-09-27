@@ -386,14 +386,25 @@ fn alter_table_add_constraint(
     table: &str,
     constraints: &[crate::catalog::FieldConstraint],
 ) -> Result<(), QueryError> {
-    let mut merged = cassie.catalog.get_constraints(table);
-    crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+    let mut gated_collections = vec![table.to_string()];
+    gated_collections.extend(
+        constraints
+            .iter()
+            .filter_map(|constraint| constraint.references_table.clone()),
+    );
     cassie
         .midge
-        .save_constraints_with_unique_reservations(table, merged.as_slice())
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.register_constraints(table, merged);
-    Ok(())
+        .with_collection_write_gates(&gated_collections, || {
+            cassie.validate_existing_foreign_key_rows(table, constraints)?;
+            let mut merged = cassie.catalog.get_constraints(table);
+            crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+            cassie
+                .midge
+                .save_constraints_with_unique_reservations(table, merged.as_slice())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.register_constraints(table, merged);
+            Ok(())
+        })
 }
 
 fn alter_table_drop_constraint(

@@ -115,6 +115,12 @@ pub(super) async fn execute_streaming_portal_page(
         // must not be abandoned for an OFFSET re-query when this session later
         // stages writes: that would page over a different result.
         let suspended_cursor = request.state.portal_cursors.remove(request.portal_name);
+        if suspended_cursor.is_none()
+            && (crate::catalog::virtual_views::schema(&spec.collection).is_some()
+                || cassie.catalog.get_view(&spec.collection).is_some())
+        {
+            return execute_offset_portal_page(cassie, write_half, request).await;
+        }
         if suspended_cursor.is_none() && request.session.has_collection_changes(&spec.collection) {
             return execute_offset_portal_page(cassie, write_half, request).await;
         }

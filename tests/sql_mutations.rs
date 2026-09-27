@@ -5678,6 +5678,105 @@ mod integration_sql_update {
     use support::*;
 
     #[test]
+    fn should_not_apply_column_defaults_during_update_or_upsert() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("update_does_not_apply_defaults");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE update_default_rows (id INT PRIMARY KEY, a INT, b INT)",
+                "CREATE SEQUENCE update_default_seq",
+                "INSERT INTO update_default_rows (id, a) VALUES (1, 1)",
+                "ALTER TABLE update_default_rows ALTER COLUMN b SET DEFAULT nextval('update_default_seq')",
+                "UPDATE update_default_rows SET a = 2 WHERE id = 1",
+                "INSERT INTO update_default_rows (id, a) VALUES (2, 2)",
+                "INSERT INTO update_default_rows (id, a) VALUES (1, 3) ON CONFLICT (id) DO UPDATE SET a = excluded.a",
+                "INSERT INTO update_default_rows (id, a) VALUES (3, 3)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+
+            // Act
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT id, a, b FROM update_default_rows ORDER BY id",
+                    vec![],
+                )
+                .expect("read rows");
+
+            // Assert
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(1), Value::Int64(3), Value::Null],
+                    vec![Value::Int64(2), Value::Int64(2), Value::Int64(1)],
+                    vec![Value::Int64(3), Value::Int64(3), Value::Int64(2)],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_not_apply_column_defaults_during_foreign_key_cascade_updates() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("cascade_update_does_not_apply_defaults");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE default_cascade_parents (id INT PRIMARY KEY)",
+                "CREATE SEQUENCE cascade_update_default_seq",
+                "CREATE TABLE default_cascade_children (parent_id INT, marker INT, CONSTRAINT default_cascade_children_fkey FOREIGN KEY (parent_id) REFERENCES default_cascade_parents(id) ON UPDATE CASCADE)",
+                "INSERT INTO default_cascade_parents VALUES (1), (2)",
+                "INSERT INTO default_cascade_children (parent_id) VALUES (1)",
+                "ALTER TABLE default_cascade_children ALTER COLUMN marker SET DEFAULT nextval('cascade_update_default_seq')",
+                "UPDATE default_cascade_parents SET id = 3 WHERE id = 1",
+                "INSERT INTO default_cascade_children (parent_id) VALUES (2)",
+            ] {
+                cassie.execute_sql(&session, sql, vec![]).expect(sql);
+            }
+
+            // Act
+            let rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT parent_id, marker FROM default_cascade_children ORDER BY parent_id",
+                    vec![],
+                )
+                .expect("read cascaded child rows");
+
+            // Assert
+            assert_eq!(
+                rows.rows,
+                vec![
+                    vec![Value::Int64(2), Value::Int64(1)],
+                    vec![Value::Int64(3), Value::Null],
+                ]
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_reject_non_finite_float_values_on_write_paths() {
         // Arrange
         use_local_storage();

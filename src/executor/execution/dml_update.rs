@@ -140,7 +140,7 @@ fn prepare_update_row(
             context.session,
             &context.statement.table,
             payload,
-            true,
+            false,
             Some(&row_id),
         )
         .map_err(QueryError::from)?;

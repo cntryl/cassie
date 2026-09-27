@@ -8534,6 +8534,62 @@ mod unique_ddl_reservations {
     use super::support_sql as support;
 
     #[test]
+    fn should_not_resolve_a_renamed_column_alias_after_adding_its_old_name() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("renamed_column_alias_reuse");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE renamed_column_alias_reuse (a INT, b INT)",
+            "INSERT INTO renamed_column_alias_reuse (a, b) VALUES (1, 42)",
+            "ALTER TABLE renamed_column_alias_reuse RENAME COLUMN b TO c",
+            "ALTER TABLE renamed_column_alias_reuse ADD COLUMN b TEXT",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        let explicit = cassie
+            .execute_sql(
+                &session,
+                "SELECT a, b, c FROM renamed_column_alias_reuse",
+                vec![],
+            )
+            .expect("select explicit columns");
+        let wildcard = cassie
+            .execute_sql(&session, "SELECT * FROM renamed_column_alias_reuse", vec![])
+            .expect("select wildcard columns");
+        let stale_alias = cassie
+            .execute_sql(
+                &session,
+                "SELECT a FROM renamed_column_alias_reuse WHERE b = '42'",
+                vec![],
+            )
+            .expect("filter by newly added column");
+
+        // Assert
+        assert_eq!(
+            explicit.rows,
+            vec![vec![Value::Int64(1), Value::Null, Value::Int64(42)]]
+        );
+        assert_eq!(wildcard.rows.len(), 1);
+        let column_position = |name: &str| {
+            wildcard
+                .columns
+                .iter()
+                .position(|column| column.name == name)
+                .expect("wildcard column")
+        };
+        assert_eq!(wildcard.rows[0][column_position("a")], Value::Int64(1));
+        assert_eq!(wildcard.rows[0][column_position("b")], Value::Null);
+        assert_eq!(wildcard.rows[0][column_position("c")], Value::Int64(42));
+        assert!(stale_alias.rows.is_empty());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_delete_unique_index_storage_when_index_is_dropped() {
         // Arrange
         support::use_local_storage();

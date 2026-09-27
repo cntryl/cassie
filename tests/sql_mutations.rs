@@ -9269,6 +9269,56 @@ mod unique_reservations {
     }
 
     #[test]
+    fn should_commit_transactional_unique_value_reuse_after_delete() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_transaction_delete_insert");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE unique_reservation_transaction_delete_insert (email TEXT UNIQUE)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .midge
+            .put_document(
+                "postgres.public.unique_reservation_transaction_delete_insert",
+                Some("ffffffff-ffff-4fff-bfff-ffffffffffff".to_string()),
+                serde_json::json!({"email": "reuse@example.com"}),
+            )
+            .expect("seed row with lexicographically maximal generated-ID shape");
+
+        // Act
+        for sql in [
+            "BEGIN",
+            "DELETE FROM unique_reservation_transaction_delete_insert WHERE email = 'reuse@example.com'",
+            "INSERT INTO unique_reservation_transaction_delete_insert (email) VALUES ('reuse@example.com')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+
+        // Assert
+        assert!(commit.is_ok(), "transactional value reuse failed");
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT email FROM unique_reservation_transaction_delete_insert",
+                vec![],
+            )
+            .expect("read committed row");
+        assert_eq!(
+            rows.rows,
+            vec![vec![Value::String("reuse@example.com".to_string())]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_release_unique_reservation_when_unique_column_is_dropped() {
         // Arrange
         support::use_local_storage();

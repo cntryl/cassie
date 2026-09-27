@@ -155,13 +155,17 @@ fn transaction_write_batches(session: &CassieSession) -> BTreeMap<String, Vec<Do
         .transaction_writes()
         .into_iter()
         .filter_map(|(collection, collection_writes)| {
-            let write_ops = collection_writes
+            let mut write_ops = collection_writes
                 .into_iter()
                 .map(|(id, change)| match change {
                     TransactionRowChange::Upsert(payload) => DocumentWriteOp::Put { id, payload },
                     TransactionRowChange::Delete => DocumentWriteOp::Delete { id },
                 })
                 .collect::<Vec<_>>();
+            write_ops.sort_by_key(|operation| match operation {
+                DocumentWriteOp::Delete { .. } => 0,
+                DocumentWriteOp::Put { .. } => 1,
+            });
             (!write_ops.is_empty()).then_some((collection, write_ops))
         })
         .collect()

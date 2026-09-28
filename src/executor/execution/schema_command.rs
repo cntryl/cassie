@@ -835,6 +835,18 @@ fn database_is_empty(cassie: &Cassie, database: &str) -> bool {
             .any(|sequence| crate::catalog::relation_belongs_to_database(&sequence.name, database))
         && !cassie
             .catalog
+            .list_functions()
+            .into_iter()
+            .any(|function| crate::catalog::relation_belongs_to_database(&function.name, database))
+        && !cassie
+            .catalog
+            .list_procedures()
+            .into_iter()
+            .any(|procedure| {
+                crate::catalog::relation_belongs_to_database(&procedure.name, database)
+            })
+        && !cassie
+            .catalog
             .list_graphs()
             .into_iter()
             .any(|graph| crate::catalog::relation_belongs_to_database(&graph.name, database))

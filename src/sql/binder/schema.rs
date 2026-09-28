@@ -453,6 +453,7 @@ pub(super) fn bind_alter_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<AlterTableStatement, CassieError> {
+    let source_table = statement.table.clone();
     let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
@@ -488,6 +489,19 @@ pub(super) fn bind_alter_table(
         *default_expression = Some(crate::catalog::canonical_nextval_expression(&resolved));
         *sequence = resolved;
     }
+    if let AlterTableOperation::AddColumn {
+        field, constraints, ..
+    } = &mut statement.operation
+    {
+        requalify_alter_add_column_sequences(
+            &source_table,
+            &table,
+            field,
+            constraints,
+            catalog,
+            context,
+        )?;
+    }
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
 
@@ -505,6 +519,7 @@ pub(super) fn validate_alter_schema(
         AlterTableOperation::AddColumn {
             field,
             data_type: _,
+            constraints: _,
         } => {
             validate_alter_add_column(table, field, existing_fields)?;
         }
@@ -576,6 +591,38 @@ pub(super) fn validate_alter_schema(
         }
     }
 
+    Ok(())
+}
+
+fn requalify_alter_add_column_sequences(
+    source_table: &str,
+    bound_table: &str,
+    field: &str,
+    constraints: &mut [crate::catalog::FieldConstraint],
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let preserve_legacy_name = matches!(
+        crate::catalog::parse_name(source_table.trim()).map_err(CassieError::Planner)?,
+        crate::catalog::ParsedName::Unqualified(_)
+    ) && crate::catalog::relation_schema_name(bound_table)
+        .eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA);
+    for constraint in constraints {
+        let Some(sequence) = constraint.default_sequence.as_deref() else {
+            continue;
+        };
+        let sequence = if constraint.default_sequence_owned.is_owned() {
+            if preserve_legacy_name {
+                continue;
+            }
+            crate::catalog::serial_sequence_name(bound_table, field)
+        } else {
+            resolve_default_sequence(sequence, bound_table, catalog, context)?
+        };
+        constraint.default_expression =
+            Some(crate::catalog::canonical_nextval_expression(&sequence));
+        constraint.default_sequence = Some(sequence);
+    }
     Ok(())
 }
 

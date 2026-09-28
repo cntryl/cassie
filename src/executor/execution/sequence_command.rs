@@ -76,6 +76,35 @@ pub(super) fn prepare_create_table_sequences(
     Ok(created)
 }
 
+pub(super) fn prepare_add_column_sequences(
+    cassie: &Cassie,
+    data_type: &crate::types::DataType,
+    constraints: &[crate::catalog::FieldConstraint],
+) -> Result<Vec<crate::catalog::SequenceMeta>, QueryError> {
+    let mut created = Vec::new();
+    for constraint in constraints {
+        let Some(sequence) = constraint.default_sequence.as_deref() else {
+            continue;
+        };
+        if constraint.default_sequence_owned.is_owned() {
+            if cassie.catalog.sequence_exists(sequence) {
+                return Err(QueryError::General(format!(
+                    "sequence '{sequence}' already exists"
+                )));
+            }
+            created.push(crate::catalog::SequenceMeta::new(
+                sequence,
+                data_type.clone(),
+            ));
+        } else if !cassie.catalog.sequence_exists(sequence) {
+            return Err(QueryError::General(format!(
+                "sequence '{sequence}' does not exist"
+            )));
+        }
+    }
+    Ok(created)
+}
+
 pub(super) fn persist_created_sequences(
     cassie: &Cassie,
     sequences: Vec<crate::catalog::SequenceMeta>,

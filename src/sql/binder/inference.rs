@@ -12,11 +12,30 @@ pub fn infer_select_schema(
     select: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<Schema, CassieError> {
-    let user_functions = catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function))
-        .collect::<HashMap<_, _>>();
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        "postgres",
+        &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+        false,
+    );
+
+    infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions)
+}
+
+/// # Errors
+///
+/// Returns an error when validation, storage, or execution fails.
+pub fn infer_select_schema_with_context(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    context: &super::BindingContext,
+) -> Result<Schema, CassieError> {
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
 
     infer_select_schema_with_scope(select, catalog, &HashMap::new(), &user_functions)
 }
@@ -79,16 +98,30 @@ pub fn cte_collection_schema(
     name: &str,
     catalog: &Catalog,
 ) -> Option<crate::catalog::CollectionSchema> {
+    let functions = catalog.list_functions();
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &functions,
+        "postgres",
+        &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+        false,
+    );
+
+    cte_collection_schema_with_functions(ctes, name, catalog, &user_functions)
+}
+
+/// Infers a CTE-backed collection schema with the caller's visible functions.
+#[must_use]
+pub(crate) fn cte_collection_schema_with_functions(
+    ctes: &[CommonTableExpression],
+    name: &str,
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Option<crate::catalog::CollectionSchema> {
     let wanted = name.to_ascii_lowercase();
-    let user_functions = catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function))
-        .collect::<HashMap<_, _>>();
 
     let mut in_scope: HashMap<String, Schema> = HashMap::new();
     for cte in ctes {
-        let schema = infer_cte_schema(cte, catalog, &in_scope, &user_functions).ok()?;
+        let schema = infer_cte_schema(cte, catalog, &in_scope, user_functions).ok()?;
         let cte_name = cte.name.to_ascii_lowercase();
         if cte_name == wanted {
             return Some(crate::catalog::CollectionSchema {
@@ -342,11 +375,7 @@ pub(crate) fn infer_function_return_type(
     parameter_types: &[i32],
 ) -> Option<DataType> {
     let name = function.name.to_ascii_lowercase();
-    if let Some(metadata) = user_functions.get(&name).or_else(|| {
-        user_functions
-            .values()
-            .find(|metadata| name_matches(&metadata.name, &function.name))
-    }) {
+    if let Some(metadata) = user_functions.get(&name) {
         return Some(metadata.return_type.clone());
     }
 

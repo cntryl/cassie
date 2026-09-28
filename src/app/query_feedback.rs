@@ -5,7 +5,7 @@ use super::{
 use crate::runtime::RuntimeFeedbackMutation;
 
 impl Cassie {
-    fn binding_context_for_session(
+    pub(crate) fn binding_context_for_session(
         &self,
         session: Option<&CassieSession>,
     ) -> binder::BindingContext {
@@ -21,6 +21,19 @@ impl Cassie {
         } else {
             binder::BindingContext::unscoped(database.to_string(), search_path)
         }
+    }
+
+    pub(crate) fn user_functions_for_session(
+        &self,
+        session: Option<&CassieSession>,
+    ) -> std::collections::HashMap<String, crate::catalog::FunctionMeta> {
+        let context = self.binding_context_for_session(session);
+        crate::catalog::function_resolution::functions_for_scope(
+            &self.catalog.list_functions(),
+            &context.database,
+            &context.search_path,
+            context.scopes_database_objects(),
+        )
     }
 
     pub(crate) fn feedback_keys_for_plan(

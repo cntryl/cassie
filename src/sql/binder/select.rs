@@ -127,7 +127,7 @@ pub(super) fn bind_select_with_lateral_fields(
         }));
     }
 
-    validate_functions(&select, catalog)?;
+    validate_functions(&select, catalog, context)?;
 
     Ok(select)
 }
@@ -317,6 +317,7 @@ pub(super) fn validate_recursive_cte_shape(
     outer_scope: &CteScope,
     cte_name: &str,
     aliases: &[String],
+    context: &BindingContext,
 ) -> Result<(), CassieError> {
     let QueryStatement::Select(base_select) = &base.statement else {
         return Err(CassieError::Planner(
@@ -334,11 +335,12 @@ pub(super) fn validate_recursive_cte_shape(
         )));
     }
 
-    let user_functions = catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function))
-        .collect::<HashMap<_, _>>();
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
     let outer_schemas = outer_scope
         .iter()
         .map(|(name, aliases)| {

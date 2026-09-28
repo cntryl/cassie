@@ -51,17 +51,19 @@ pub(super) fn create_graph(
 
 pub(super) fn create_view(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     statement: &CreateViewStatement,
 ) -> Result<QueryResult, QueryError> {
     cassie
         .midge
         .with_collection_gates(std::slice::from_ref(&statement.name), || {
-            create_view_gated(cassie, statement)
+            create_view_gated(cassie, session, statement)
         })
 }
 
 fn create_view_gated(
     cassie: &Cassie,
+    session: Option<&crate::app::CassieSession>,
     statement: &CreateViewStatement,
 ) -> Result<QueryResult, QueryError> {
     if statement.if_not_exists
@@ -82,7 +84,8 @@ fn create_view_gated(
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let bound = crate::sql::binder::bind(parsed, &cassie.catalog)
+    let context = cassie.binding_context_for_session(session);
+    let bound = crate::sql::binder::bind_with_context(parsed, &cassie.catalog, &context)
         .map_err(|error| QueryError::General(error.to_string()))?;
     let QueryStatement::Select(select) = &bound.statement.statement else {
         return Err(QueryError::General(
@@ -90,8 +93,9 @@ fn create_view_gated(
         ));
     };
 
-    let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let schema =
+        crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, &context)
+            .map_err(|error| QueryError::General(error.to_string()))?;
     let metadata =
         crate::catalog::ViewMeta::new(statement.name.clone(), statement.query.clone(), schema);
 

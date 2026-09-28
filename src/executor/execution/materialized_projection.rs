@@ -643,8 +643,9 @@ fn plan_projection_query(
             "materialized projection definition must be a SELECT".into(),
         ));
     };
-    let schema = crate::sql::binder::infer_select_schema(select, &cassie.catalog)
-        .map_err(|error| QueryError::General(error.to_string()))?;
+    let schema =
+        crate::sql::binder::infer_select_schema_with_context(select, &cassie.catalog, context)
+            .map_err(|error| QueryError::General(error.to_string()))?;
     let source_collections = collect_source_collections(&select.source);
     let mut logical = crate::planner::logical::plan(&bound)
         .map_err(|error| QueryError::General(error.to_string()))?;

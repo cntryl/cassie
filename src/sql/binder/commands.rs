@@ -61,7 +61,40 @@ pub(super) fn bind_insert(
         *column = column_name;
     }
 
-    if let Some(on_conflict) = &mut statement.on_conflict {
+    bind_on_conflict(
+        statement.on_conflict.as_mut(),
+        &schema,
+        &table,
+        catalog,
+        context,
+    )?;
+
+    if let InsertSource::Select(select) = statement.source {
+        let source = bind_select(*select, catalog, &HashMap::new(), context)?;
+        statement.source = InsertSource::Select(Box::new(source));
+    }
+
+    validate_returning_items(
+        &statement.returning,
+        &schema,
+        &table,
+        "INSERT",
+        catalog,
+        context,
+    )?;
+
+    statement.table = table;
+    Ok(statement)
+}
+
+fn bind_on_conflict(
+    on_conflict: Option<&mut crate::sql::ast::InsertConflictClause>,
+    schema: &CollectionSchema,
+    table: &str,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    if let Some(on_conflict) = on_conflict {
         let mut normalized_target = Vec::with_capacity(on_conflict.target_fields.len());
         for field in &on_conflict.target_fields {
             let field_name = field.trim();
@@ -94,7 +127,7 @@ pub(super) fn bind_insert(
         }
 
         if !on_conflict.target_fields.is_empty()
-            && !conflict_target_supported(catalog, &table, &on_conflict.target_fields)
+            && !conflict_target_supported(catalog, table, &on_conflict.target_fields)
         {
             return Err(CassieError::Planner(format!(
                 "ON CONFLICT target {:?} does not match a unique or primary key on '{table}'",
@@ -107,19 +140,17 @@ pub(super) fn bind_insert(
             filter,
         } = &mut on_conflict.action
         {
-            validate_conflict_update(assignments, filter.as_ref(), &schema, &table, catalog)?;
+            validate_conflict_update(
+                assignments,
+                filter.as_ref(),
+                schema,
+                table,
+                catalog,
+                context,
+            )?;
         }
     }
-
-    if let InsertSource::Select(select) = statement.source {
-        let source = bind_select(*select, catalog, &HashMap::new(), context)?;
-        statement.source = InsertSource::Select(Box::new(source));
-    }
-
-    validate_returning_items(&statement.returning, &schema, &table, "INSERT", catalog)?;
-
-    statement.table = table;
-    Ok(statement)
+    Ok(())
 }
 
 fn validate_conflict_update(
@@ -128,6 +159,7 @@ fn validate_conflict_update(
     schema: &CollectionSchema,
     table: &str,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<(), CassieError> {
     let mut known_fields = schema
         .fields
@@ -171,7 +203,7 @@ fn validate_conflict_update(
         validate_expression(filter, &known_fields, &HashSet::new(), false)?;
         super::collect_expr(filter, &mut functions);
     }
-    validate_function_calls(functions, catalog)
+    validate_function_calls(functions, catalog, context)
 }
 
 fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[String]) -> bool {
@@ -266,7 +298,14 @@ pub(super) fn bind_update(
         *field = normalized_field;
     }
 
-    validate_returning_items(&statement.returning, &schema, &table, "UPDATE", catalog)?;
+    validate_returning_items(
+        &statement.returning,
+        &schema,
+        &table,
+        "UPDATE",
+        catalog,
+        context,
+    )?;
 
     statement.table = table;
     Ok(statement)
@@ -299,7 +338,14 @@ pub(super) fn bind_delete(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
-    validate_returning_items(&statement.returning, &schema, &table, "DELETE", catalog)?;
+    validate_returning_items(
+        &statement.returning,
+        &schema,
+        &table,
+        "DELETE",
+        catalog,
+        context,
+    )?;
 
     statement.table = table;
     Ok(statement)
@@ -541,6 +587,7 @@ pub(super) fn validate_returning_items(
     table: &str,
     operation: &str,
     catalog: &Catalog,
+    context: &BindingContext,
 ) -> Result<(), CassieError> {
     let mut known_fields = schema
         .fields
@@ -588,5 +635,5 @@ pub(super) fn validate_returning_items(
         }
     }
 
-    validate_function_calls(functions, catalog)
+    validate_function_calls(functions, catalog, context)
 }

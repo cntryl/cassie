@@ -2,6 +2,7 @@ pub mod cardinality;
 pub mod collections;
 pub mod consistency;
 pub mod constraints;
+pub mod function_resolution;
 pub mod graphs;
 pub mod indexes;
 pub mod maintenance;

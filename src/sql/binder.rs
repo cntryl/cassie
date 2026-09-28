@@ -52,7 +52,8 @@ pub use context::BindingContext;
 use context::{
     normalize_database_name, normalize_schema_name, resolve_relation_name, resolve_schema_name,
 };
-pub use inference::{cte_collection_schema, infer_select_schema};
+pub(crate) use inference::cte_collection_schema_with_functions;
+pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, infer_function_return_type, known_expr_type};
 use recursive::bind_recursive_cte_query;
 use routines::{

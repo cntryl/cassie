@@ -5122,7 +5122,7 @@ mod integration_sql_transaction_visibility {
 // Formerly tests/integration_sql_transactions.rs.
 mod integration_sql_transactions {
     #![allow(unused_imports, dead_code)]
-    use cassie::app::Cassie;
+    use cassie::app::{Cassie, CassieSession};
     use cassie::config::{
         CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig, OpenAiRuntimeConfig,
     };
@@ -5140,6 +5140,40 @@ mod integration_sql_transactions {
 
     use super::support_sql as support;
     use support::*;
+
+    fn setup_search_path_rollback_tables(cassie: &Cassie, session: &CassieSession) {
+        cassie
+            .execute_sql(session, "CREATE SCHEMA other_schema", vec![])
+            .unwrap();
+        cassie
+            .execute_sql(
+                session,
+                "CREATE TABLE public.transaction_search_path (value INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                session,
+                "CREATE TABLE other_schema.transaction_search_path (value INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                session,
+                "INSERT INTO public.transaction_search_path VALUES (1)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                session,
+                "INSERT INTO other_schema.transaction_search_path VALUES (2)",
+                vec![],
+            )
+            .unwrap();
+    }
 
     #[test]
     fn should_transition_session_state_for_transaction_control() {
@@ -5195,6 +5229,99 @@ mod integration_sql_transactions {
             // Assert
             assert_eq!(rollback.command, "ROLLBACK");
             assert_eq!(after, "idle");
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_restore_search_path_after_transaction_rollback() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("transaction_rollback_search_path");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            setup_search_path_rollback_tables(&cassie, &session);
+            cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "SET application_name TO 'before_savepoint'",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(&session, "SAVEPOINT before_setting_change", vec![])
+                .unwrap();
+            cassie
+                .execute_sql(
+                    &session,
+                    "SET application_name TO 'after_savepoint'",
+                    vec![],
+                )
+                .unwrap();
+            cassie
+                .execute_sql(&session, "SET search_path TO other_schema", vec![])
+                .unwrap();
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "ROLLBACK TO SAVEPOINT before_setting_change",
+                    vec![],
+                )
+                .unwrap();
+            let savepoint_path = cassie
+                .execute_sql(&session, "SHOW search_path", vec![])
+                .unwrap();
+            let savepoint_application_name = cassie
+                .execute_sql(&session, "SHOW application_name", vec![])
+                .unwrap();
+            cassie
+                .execute_sql(&session, "SET search_path TO other_schema", vec![])
+                .unwrap();
+
+            cassie.execute_sql(&session, "ROLLBACK", vec![]).unwrap();
+            let search_path = cassie
+                .execute_sql(&session, "SHOW search_path", vec![])
+                .unwrap();
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT value FROM transaction_search_path",
+                    vec![],
+                )
+                .unwrap();
+            let application_name = cassie
+                .execute_sql(&session, "SHOW application_name", vec![])
+                .unwrap();
+
+            // Assert
+            assert_eq!(
+                savepoint_path.rows,
+                vec![vec![Value::String("public".to_string())]]
+            );
+            assert_eq!(
+                savepoint_application_name.rows,
+                vec![vec![Value::String("before_savepoint".to_string())]]
+            );
+            assert_eq!(
+                search_path.rows,
+                vec![vec![Value::String("public".to_string())]]
+            );
+            assert_eq!(
+                application_name.rows,
+                vec![vec![Value::String(String::new())]]
+            );
+            assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
 
             let _ = std::fs::remove_dir_all(path);
         });

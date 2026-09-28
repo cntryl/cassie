@@ -37,6 +37,13 @@ struct SessionTransactionState {
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
     savepoints: Vec<SessionSavepoint>,
+    session_state: Option<SessionStateSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+struct SessionStateSnapshot {
+    search_path: Vec<String>,
+    settings: SessionSettings,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +51,7 @@ struct SessionSavepoint {
     name: String,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
+    session_state: SessionStateSnapshot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,6 +201,7 @@ impl CassieSession {
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
                 savepoints: Vec::new(),
+                session_state: None,
             })),
             procedure_calls: Arc::new(Mutex::new(Vec::new())),
         }
@@ -232,6 +241,7 @@ impl CassieSession {
                 writes: base_writes.clone(),
                 conflict_intents,
                 savepoints: Vec::new(),
+                session_state: None,
             })),
             procedure_calls: Arc::new(Mutex::new(self.procedure_calls.lock().clone())),
         };
@@ -338,6 +348,18 @@ impl CassieSession {
         *self.search_path.lock() = normalized;
     }
 
+    fn session_state_snapshot(&self) -> SessionStateSnapshot {
+        SessionStateSnapshot {
+            search_path: self.search_path(),
+            settings: self.settings.lock().clone(),
+        }
+    }
+
+    fn restore_session_state(&self, state: SessionStateSnapshot) {
+        *self.search_path.lock() = state.search_path;
+        *self.settings.lock() = state.settings;
+    }
+
     /// Returns the normalized value of a supported session setting.
     ///
     /// # Errors
@@ -378,6 +400,7 @@ impl CassieSession {
         &self,
         isolation: Option<TransactionIsolation>,
     ) -> Result<(), CassieError> {
+        let session_state = self.session_state_snapshot();
         let mut transaction = self.transaction.lock();
         if transaction.status != SessionTransactionStatus::Idle {
             return Err(CassieError::Unsupported(
@@ -398,6 +421,7 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.session_state = Some(session_state);
         Ok(())
     }
 
@@ -408,15 +432,20 @@ impl CassieSession {
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        transaction.session_state = None;
     }
 
     pub(crate) fn rollback_transaction(&self) {
         let mut transaction = self.transaction.lock();
+        let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;
         transaction.isolation = None;
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
         transaction.savepoints.clear();
+        if let Some(session_state) = session_state {
+            self.restore_session_state(session_state);
+        }
     }
 
     pub(crate) fn create_savepoint(&self, name: &str) -> Result<(), CassieError> {
@@ -438,6 +467,7 @@ impl CassieSession {
             name: name.to_ascii_lowercase(),
             writes,
             conflict_intents,
+            session_state: self.session_state_snapshot(),
         });
         Ok(())
     }
@@ -466,9 +496,11 @@ impl CassieSession {
 
         transaction.writes = transaction.savepoints[index].writes.clone();
         let conflict_intents = transaction.savepoints[index].conflict_intents.clone();
+        let session_state = transaction.savepoints[index].session_state.clone();
         transaction.conflict_intents = conflict_intents;
         transaction.savepoints.truncate(index + 1);
         transaction.status = SessionTransactionStatus::InTransaction;
+        self.restore_session_state(session_state);
         Ok(())
     }
 

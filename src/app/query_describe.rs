@@ -95,11 +95,7 @@ impl Cassie {
         };
 
         let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
-            self.catalog
-                .list_functions()
-                .into_iter()
-                .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-                .collect::<HashMap<String, _>>()
+            self.user_functions_for_session(session)
         } else {
             HashMap::new()
         };
@@ -110,10 +106,11 @@ impl Cassie {
                 crate::catalog::CollectionSchema::virtual_view(&physical.logical.collection)
             })
             .or_else(|| {
-                crate::sql::binder::cte_collection_schema(
+                crate::sql::binder::cte_collection_schema_with_functions(
                     &physical.logical.ctes,
                     &physical.logical.collection,
                     &self.catalog,
+                    &user_functions,
                 )
             });
 

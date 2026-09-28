@@ -1,5 +1,5 @@
 use super::{
-    bind_select, bm25, infer_select_schema, is_reserved_namespace, local_name,
+    bind_select, bm25, infer_select_schema_with_context, is_reserved_namespace, local_name,
     normalize_relation_name, normalize_schema_name, resolve_relation_name, resolve_schema_name,
     select_contains_parameters, virtual_views, AlterSchemaOperation, AlterSchemaStatement,
     AlterTableOperation, AlterTableStatement, BindingContext, CassieError, Catalog,
@@ -211,7 +211,7 @@ pub(super) fn bind_create_view(
         ));
     }
 
-    let _schema = infer_select_schema(&bound, catalog)?;
+    let _schema = infer_select_schema_with_context(&bound, catalog, context)?;
 
     statement.name = name;
     statement.query = raw_sql;

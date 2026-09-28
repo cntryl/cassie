@@ -1,9 +1,7 @@
 use super::{
     BinaryOp, CassieError, Catalog, CommonTableExpression, CteQuery, DataType, Expr, FunctionCall,
-    HashMap, HashSet, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem,
-    SelectStatement,
+    HashSet, OrderExpr, ParsedStatement, QuerySource, QueryStatement, SelectItem, SelectStatement,
 };
-use crate::catalog::name_matches;
 
 #[path = "validation_case.rs"]
 mod case;
@@ -471,26 +469,24 @@ pub(super) fn collect_projection_aliases(select: &SelectStatement) -> HashSet<St
 pub(super) fn validate_functions(
     statement: &SelectStatement,
     catalog: &Catalog,
+    context: &super::BindingContext,
 ) -> Result<(), CassieError> {
     let mut seen = Vec::new();
     collect_functions(statement, &mut seen);
-    validate_function_calls(seen, catalog)
+    validate_function_calls(seen, catalog, context)
 }
 
 pub(super) fn validate_function_calls(
     functions: Vec<FunctionCall>,
     catalog: &Catalog,
+    context: &super::BindingContext,
 ) -> Result<(), CassieError> {
-    let user_functions = catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| {
-            (
-                function.name.to_ascii_lowercase(),
-                crate::sql::functions::FunctionArity::Exact(function.args.len()),
-            )
-        })
-        .collect::<HashMap<_, _>>();
+    let user_functions = crate::catalog::function_resolution::functions_for_scope(
+        &catalog.list_functions(),
+        &context.database,
+        &context.search_path,
+        context.scopes_database_objects(),
+    );
 
     for function in functions {
         if function.name.eq_ignore_ascii_case("cast") {
@@ -517,22 +513,17 @@ pub(super) fn validate_function_calls(
             continue;
         }
         let lookup = function.name.to_ascii_lowercase();
-        let Some(arity) = user_functions.get(&lookup).or_else(|| {
-            user_functions
-                .iter()
-                .find(|(candidate, _)| name_matches(candidate, &function.name))
-                .map(|(_, arity)| arity)
-        }) else {
+        let Some(metadata) = user_functions.get(&lookup) else {
             return Err(CassieError::Planner(format!(
                 "unsupported function '{}'",
                 function.name
             )));
         };
-        if !arity.matches(function.args.len()) {
+        if function.args.len() != metadata.args.len() {
             return Err(CassieError::Planner(format!(
                 "function '{}' expects {}, got {}",
                 function.name,
-                arity.describe(),
+                metadata.args.len(),
                 function.args.len()
             )));
         }

@@ -63,6 +63,7 @@ pub(super) fn bind_recursive_cte_query(
         outer_scope,
         cte_name,
         &recursive_aliases,
+        context,
     )?;
 
     Ok(CteQuery::Recursive {

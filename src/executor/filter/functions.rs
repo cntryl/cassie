@@ -4,7 +4,7 @@ use super::{
     CassieSession, DataType, EvalContext, Expr, FunctionCall, FunctionMeta, HashMap, QueryError,
     Value,
 };
-use crate::catalog::{name_matches, DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
+use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
@@ -347,12 +347,6 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
         .user_functions
         .get(name)
         .or_else(|| context.user_functions.get(&lookup))
-        .or_else(|| {
-            context
-                .user_functions
-                .values()
-                .find(|metadata| name_matches(&metadata.name, name))
-        })
     else {
         return Err(QueryError::General(format!(
             "unsupported function '{name}'"

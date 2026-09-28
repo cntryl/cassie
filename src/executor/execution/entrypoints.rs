@@ -50,7 +50,7 @@ fn run_with_execution_breakdown_controls(
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
     let params = params.into_boxed_slice();
-    let user_functions = user_functions_for_plan(cassie, &plan.logical);
+    let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
         let started = Instant::now();
@@ -100,7 +100,7 @@ pub(crate) fn run_with_session_controls(
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
     let params = params.into_boxed_slice();
-    let user_functions = user_functions_for_plan(cassie, &plan.logical);
+    let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
         return dml_command::execute_command(
@@ -132,12 +132,19 @@ pub(crate) fn refresh_rollups_for_source_external(
     source: &str,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
-    let user_functions = cassie
-        .catalog
-        .list_functions()
-        .into_iter()
-        .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-        .collect::<HashMap<_, _>>();
+    let functions = cassie.catalog.list_functions();
+    let user_functions = if cassie.database_catalog_enforced() {
+        let database = crate::catalog::relation_database_name(source)
+            .unwrap_or_else(|| cassie.default_database.clone());
+        crate::catalog::function_resolution::functions_for_database(&functions, &database)
+    } else {
+        crate::catalog::function_resolution::functions_for_scope(
+            &functions,
+            &cassie.default_database,
+            &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+            false,
+        )
+    };
     rollups::refresh_rollups_for_source(cassie, source, &user_functions, controls)
 }
 
@@ -160,14 +167,13 @@ pub(crate) fn rollup_rewrite_name_for_plan(cassie: &Cassie, plan: &LogicalPlan) 
     rollups::rewrite_name_for_plan(cassie, plan)
 }
 
-fn user_functions_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> HashMap<String, FunctionMeta> {
+fn user_functions_for_plan(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+) -> HashMap<String, FunctionMeta> {
     if plan.command.is_some() || plan_needs_user_functions(plan) {
-        cassie
-            .catalog
-            .list_functions()
-            .into_iter()
-            .map(|metadata| (metadata.name.to_ascii_lowercase(), metadata))
-            .collect::<HashMap<String, FunctionMeta>>()
+        cassie.user_functions_for_session(session)
     } else {
         HashMap::new()
     }

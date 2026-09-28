@@ -227,7 +227,7 @@ fn execute_schema_object_group(
             super::schema_command::drop_database(cassie, session, statement),
         )),
         LogicalCommand::CreateView(statement) => Some(CommandExecution::invalidating(
-            super::schema_command::create_view(cassie, statement),
+            super::schema_command::create_view(cassie, session, statement),
         )),
         LogicalCommand::DropView(statement) => Some(CommandExecution::invalidating(
             super::schema_command::drop_view(cassie, statement),

@@ -253,12 +253,19 @@ fn execute_projection_version_repair(cassie: &Cassie, plan: &RepairPlan) -> Resu
     if let Some(materialized) = metadata.materialized.as_ref() {
         gated_collections.extend(materialized.source_collections.iter().cloned());
     }
-    let user_functions = cassie
-        .catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function))
-        .collect::<std::collections::HashMap<_, _>>();
+    let functions = cassie.catalog.list_functions();
+    let user_functions = if cassie.database_catalog_enforced() {
+        let database = crate::catalog::relation_database_name(&plan.target_collection)
+            .unwrap_or_else(|| cassie.default_database.clone());
+        crate::catalog::function_resolution::functions_for_database(&functions, &database)
+    } else {
+        crate::catalog::function_resolution::functions_for_scope(
+            &functions,
+            &cassie.default_database,
+            &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+            false,
+        )
+    };
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
     cassie
         .midge
@@ -288,12 +295,19 @@ fn execute_full_rebuild_repair(cassie: &Cassie, plan: &RepairPlan) -> Result<(),
     if let Some(materialized) = metadata.materialized.as_ref() {
         gated_collections.extend(materialized.source_collections.iter().cloned());
     }
-    let user_functions = cassie
-        .catalog
-        .list_functions()
-        .into_iter()
-        .map(|function| (function.name.to_ascii_lowercase(), function))
-        .collect::<std::collections::HashMap<_, _>>();
+    let functions = cassie.catalog.list_functions();
+    let user_functions = if cassie.database_catalog_enforced() {
+        let database = crate::catalog::relation_database_name(&plan.target_collection)
+            .unwrap_or_else(|| cassie.default_database.clone());
+        crate::catalog::function_resolution::functions_for_database(&functions, &database)
+    } else {
+        crate::catalog::function_resolution::functions_for_scope(
+            &functions,
+            &cassie.default_database,
+            &[crate::catalog::DEFAULT_SCHEMA.to_string()],
+            false,
+        )
+    };
     let controls = cassie.runtime.query_controls(std::time::Instant::now());
     cassie
         .midge

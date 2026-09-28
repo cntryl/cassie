@@ -23,10 +23,11 @@ pub(super) fn build_select_result(
         // A CTE is not a catalog object, so without this its columns would all
         // be reported as text.
         .or_else(|| {
-            crate::sql::binder::cte_collection_schema(
+            crate::sql::binder::cte_collection_schema_with_functions(
                 &plan.logical.ctes,
                 &plan.logical.collection,
                 &cassie.catalog,
+                user_functions,
             )
         });
     let columns = aggregate::columns_from_projection(

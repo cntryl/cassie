@@ -9135,7 +9135,10 @@ mod unique_ddl_reservations {
 // Formerly tests/unique_reservations.rs.
 mod unique_reservations {
     use cassie::app::Cassie;
-    use cassie::midge::adapter::set_field_rename_failure_point;
+    use cassie::midge::adapter::{
+        document_write_failure_point_test_guard, set_document_write_failure_point,
+        set_field_rename_failure_point, DocumentWriteFailurePoint,
+    };
     use cassie::types::Value;
 
     use super::support_sql as support;
@@ -9412,6 +9415,208 @@ mod unique_reservations {
         assert_eq!(
             rows.rows,
             vec![vec![Value::String("reuse@example.com".to_string())]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_commit_transactional_unique_value_rotation_across_updates() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_transaction_rotation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_rotation (id INT PRIMARY KEY, code TEXT UNIQUE)",
+            "INSERT INTO unique_rotation (id, code) VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        for sql in [
+            "BEGIN",
+            "UPDATE unique_rotation SET code = 'tmp' WHERE id = 1",
+            "UPDATE unique_rotation SET code = 'a' WHERE id = 2",
+            "UPDATE unique_rotation SET code = 'b' WHERE id = 1",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        let rows_in_transaction = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, code FROM unique_rotation ORDER BY id",
+                vec![],
+            )
+            .expect("read final transaction state");
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+        assert!(commit.is_ok(), "valid unique rotation must commit");
+        let duplicate_b = cassie.execute_sql(
+            &session,
+            "UPDATE unique_rotation SET code = 'b' WHERE id = 3",
+            vec![],
+        );
+        let duplicate_a = cassie.execute_sql(
+            &session,
+            "UPDATE unique_rotation SET code = 'a' WHERE id = 3",
+            vec![],
+        );
+        let rows_after_commit = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, code FROM unique_rotation ORDER BY id",
+                vec![],
+            )
+            .expect("read committed rows");
+
+        // Assert
+        assert_eq!(
+            rows_in_transaction.rows,
+            vec![
+                vec![Value::Int64(1), Value::String("b".to_string())],
+                vec![Value::Int64(2), Value::String("a".to_string())],
+                vec![Value::Int64(3), Value::String("c".to_string())],
+            ]
+        );
+        assert!(
+            duplicate_b.is_err(),
+            "rotation must retain the 'b' reservation"
+        );
+        assert!(
+            duplicate_a.is_err(),
+            "rotation must retain the 'a' reservation"
+        );
+        assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_commit_transactional_unique_index_value_rotation_across_updates() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("unique_index_transaction_rotation");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_index_rotation (id INT PRIMARY KEY, code TEXT)",
+            "CREATE UNIQUE INDEX unique_index_rotation_code ON unique_index_rotation (code)",
+            "INSERT INTO unique_index_rotation (id, code) VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        for sql in [
+            "BEGIN",
+            "UPDATE unique_index_rotation SET code = 'tmp' WHERE id = 1",
+            "UPDATE unique_index_rotation SET code = 'a' WHERE id = 2",
+            "UPDATE unique_index_rotation SET code = 'b' WHERE id = 1",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+        let rows_in_transaction = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, code FROM unique_index_rotation ORDER BY id",
+                vec![],
+            )
+            .expect("read final transaction state");
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+        assert!(commit.is_ok(), "valid unique-index rotation must commit");
+        let duplicate_b = cassie.execute_sql(
+            &session,
+            "UPDATE unique_index_rotation SET code = 'b' WHERE id = 3",
+            vec![],
+        );
+        let duplicate_a = cassie.execute_sql(
+            &session,
+            "UPDATE unique_index_rotation SET code = 'a' WHERE id = 3",
+            vec![],
+        );
+        let rows_after_commit = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, code FROM unique_index_rotation ORDER BY id",
+                vec![],
+            )
+            .expect("read committed rows");
+
+        // Assert
+        assert_eq!(
+            rows_in_transaction.rows,
+            vec![
+                vec![Value::Int64(1), Value::String("b".to_string())],
+                vec![Value::Int64(2), Value::String("a".to_string())],
+                vec![Value::Int64(3), Value::String("c".to_string())],
+            ]
+        );
+        assert!(
+            duplicate_b.is_err(),
+            "rotation must retain the 'b' index reservation"
+        );
+        assert!(
+            duplicate_a.is_err(),
+            "rotation must retain the 'a' index reservation"
+        );
+        assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_rollback_unique_reservations_when_transaction_rotation_commit_fails() {
+        // Arrange
+        let _failpoint_guard = document_write_failure_point_test_guard();
+        support::use_local_storage();
+        let path = support::data_dir("unique_reservation_transaction_rotation_failure");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE unique_rotation_failure (id INT PRIMARY KEY, code TEXT UNIQUE)",
+            "INSERT INTO unique_rotation_failure (id, code) VALUES (1, 'a'), (2, 'b'), (3, 'c')",
+            "BEGIN",
+            "UPDATE unique_rotation_failure SET code = 'tmp' WHERE id = 1",
+            "UPDATE unique_rotation_failure SET code = 'a' WHERE id = 2",
+            "UPDATE unique_rotation_failure SET code = 'b' WHERE id = 1",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect(sql);
+        }
+
+        // Act
+        set_document_write_failure_point(Some(DocumentWriteFailurePoint::Row));
+        let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
+        set_document_write_failure_point(None);
+        cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .expect("rollback failed commit");
+        let duplicate = cassie.execute_sql(
+            &session,
+            "UPDATE unique_rotation_failure SET code = 'b' WHERE id = 3",
+            vec![],
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT id, code FROM unique_rotation_failure ORDER BY id",
+                vec![],
+            )
+            .expect("read rows after rollback");
+
+        // Assert
+        assert!(commit.is_err(), "the row failpoint must reject COMMIT");
+        assert!(
+            duplicate.is_err(),
+            "rollback must preserve unique reservations"
+        );
+        assert_eq!(
+            rows.rows,
+            vec![
+                vec![Value::Int64(1), Value::String("a".to_string())],
+                vec![Value::Int64(2), Value::String("b".to_string())],
+                vec![Value::Int64(3), Value::String("c".to_string())],
+            ]
         );
         let _ = std::fs::remove_dir_all(path);
     }

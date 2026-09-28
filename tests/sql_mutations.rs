@@ -9451,7 +9451,7 @@ mod unique_reservations {
             )
             .expect("read final transaction state");
         let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
-        assert!(commit.is_ok(), "valid unique rotation failed: {commit:?}");
+        assert!(commit.is_ok(), "valid unique rotation must commit");
         let duplicate_b = cassie.execute_sql(
             &session,
             "UPDATE unique_rotation SET code = 'b' WHERE id = 3",
@@ -9524,10 +9524,7 @@ mod unique_reservations {
             )
             .expect("read final transaction state");
         let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
-        assert!(
-            commit.is_ok(),
-            "valid unique-index rotation failed: {commit:?}"
-        );
+        assert!(commit.is_ok(), "valid unique-index rotation must commit");
         let duplicate_b = cassie.execute_sql(
             &session,
             "UPDATE unique_index_rotation SET code = 'b' WHERE id = 3",

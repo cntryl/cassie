@@ -27,6 +27,10 @@ pub(super) fn catalog_entry_belongs_to_database(key: &[u8], value: &[u8], databa
                 .any(|value| catalog_name_belongs_to_database(value, database))
         });
     }
+    if matches!(family, "function" | "procedure") {
+        return program_catalog_name(value)
+            .is_some_and(|name| catalog_name_belongs_to_database(&name, database));
+    }
     is_database_scoped_catalog_family(family)
         && database_name_component(key)
             .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
@@ -50,15 +54,23 @@ pub(crate) fn validate_database_catalog_entry(
         {
             return Ok(());
         }
-    } else if is_database_scoped_catalog_family(family)
-        && database_name_component(key)
-            .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes()))
+    } else if (matches!(family, "function" | "procedure")
+        && program_catalog_name(value)
+            .is_some_and(|name| catalog_name_belongs_to_database(&name, database)))
+        || (is_database_scoped_catalog_family(family)
+            && database_name_component(key)
+                .is_some_and(|component| component.eq_ignore_ascii_case(database.as_bytes())))
     {
         return Ok(());
     }
     Err(CassieError::Unsupported(format!(
         "database image catalog family '{family}' is not scoped to database '{database}'"
     )))
+}
+
+fn program_catalog_name(value: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(value).ok()?;
+    value.get("name")?.as_str().map(str::to_string)
 }
 
 fn is_database_scoped_catalog_family(family: &str) -> bool {
@@ -71,6 +83,8 @@ fn is_database_scoped_catalog_family(family: &str) -> bool {
             | "index"
             | "view"
             | "sequence"
+            | "function"
+            | "procedure"
             | "constraints"
             | "namespace"
             | "cardinality"
@@ -84,11 +98,15 @@ fn is_database_scoped_catalog_family(family: &str) -> bool {
 }
 
 pub(super) fn catalog_name_belongs_to_database(name: &str, database: &str) -> bool {
-    name.eq_ignore_ascii_case(database)
+    catalog_name_component_belongs_to_database(name.as_bytes(), database)
+}
+
+fn catalog_name_component_belongs_to_database(name: &[u8], database: &str) -> bool {
+    name.eq_ignore_ascii_case(database.as_bytes())
         || name
             .get(..database.len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(database))
-            && name.as_bytes().get(database.len()) == Some(&b'.')
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(database.as_bytes()))
+            && name.get(database.len()) == Some(&b'.')
 }
 
 pub(super) fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> Vec<u8> {
@@ -98,9 +116,15 @@ pub(super) fn rewrite_key_component(key: &[u8], source: &str, target: &str) -> V
             rewritten.push(cntryl_lexkey::LexKey::SEPARATOR);
         }
         if index == DATABASE_NAME_COMPONENT_INDEX
-            && component.eq_ignore_ascii_case(source.as_bytes())
+            && catalog_name_component_belongs_to_database(component, source)
         {
+            let suffix = if component.len() > source.len() {
+                &component[source.len()..]
+            } else {
+                &[]
+            };
             rewritten.extend_from_slice(target.as_bytes());
+            rewritten.extend_from_slice(suffix);
         } else {
             rewritten.extend_from_slice(component);
         }
@@ -123,7 +147,7 @@ pub(super) fn rewrite_catalog_value(
             rewrite_fields(&mut value, &["collection"], source, target);
         }
         "index" => rewrite_fields(&mut value, &["collection", "name"], source, target),
-        "view" | "sequence" | "namespace" | "collection-meta" => {
+        "view" | "sequence" | "function" | "procedure" | "namespace" | "collection-meta" => {
             rewrite_fields(&mut value, &["name"], source, target);
         }
         "constraints" => rewrite_constraints(&mut value, source, target),

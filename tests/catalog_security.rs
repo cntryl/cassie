@@ -2585,7 +2585,9 @@ mod database_connect_network {
 mod database_images {
     use super::support_executor as support;
     use cassie::app::Cassie;
-    use cassie::catalog::canonical_relation_name;
+    use cassie::catalog::{
+        canonical_relation_name, FunctionArgMeta, FunctionMeta, ProcedureMeta, Volatility,
+    };
     use cassie::types::{DataType, FieldSchema, Schema};
     use support::*;
 
@@ -2658,6 +2660,94 @@ mod database_images {
             .get_document(&source_collection, "row-1")
             .expect("source row lookup")
             .is_some());
+
+        let _ = std::fs::remove_dir_all(source_path);
+    }
+
+    #[test]
+    fn should_round_trip_program_catalog_metadata() {
+        // Arrange
+        let source_path = data_dir("program_image_source");
+        let cassie = Cassie::new_with_data_dir(&source_path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        cassie
+            .midge
+            .create_database("analytics", None)
+            .expect("create source database");
+        cassie
+            .midge
+            .create_namespace("analytics.public")
+            .expect("create source namespace");
+        cassie
+            .midge
+            .put_function(&FunctionMeta {
+                name: canonical_relation_name("analytics", "public", "marker_function"),
+                args: vec![FunctionArgMeta {
+                    name: "x".to_string(),
+                    data_type: DataType::Int,
+                }],
+                return_type: DataType::Int,
+                volatility: Volatility::Immutable,
+                body: "x * 2".to_string(),
+            })
+            .expect("store source function");
+        cassie
+            .midge
+            .put_procedure(&ProcedureMeta {
+                name: canonical_relation_name("analytics", "public", "marker_procedure"),
+                args: vec![],
+                body: "SELECT 1".to_string(),
+            })
+            .expect("store source procedure");
+
+        let mut backup = cassie
+            .begin_database_backup("analytics")
+            .expect("begin backup");
+        let mut image = Vec::new();
+        while let Some(chunk) = backup.next_chunk().expect("backup chunk") {
+            image.extend_from_slice(&chunk);
+        }
+
+        // Act
+        let mut restore = cassie
+            .begin_database_restore("restored")
+            .expect("begin restore");
+        for chunk in image.chunks(3) {
+            restore.push_chunk(chunk).expect("restore chunk");
+        }
+        restore.finish().expect("finish restore");
+        cassie.hydrate_catalog().expect("hydrate restored catalog");
+        let restored_function = cassie
+            .midge
+            .get_function("restored.public.marker_function")
+            .expect("read restored function");
+        let restored_procedure = cassie
+            .midge
+            .get_procedure("restored.public.marker_procedure")
+            .expect("read restored procedure");
+
+        // Assert
+        assert_eq!(
+            restored_function,
+            Some(FunctionMeta {
+                name: canonical_relation_name("restored", "public", "marker_function"),
+                args: vec![FunctionArgMeta {
+                    name: "x".to_string(),
+                    data_type: DataType::Int,
+                }],
+                return_type: DataType::Int,
+                volatility: Volatility::Immutable,
+                body: "x * 2".to_string(),
+            })
+        );
+        assert_eq!(
+            restored_procedure,
+            Some(ProcedureMeta {
+                name: canonical_relation_name("restored", "public", "marker_procedure"),
+                args: vec![],
+                body: "SELECT 1".to_string(),
+            })
+        );
 
         let _ = std::fs::remove_dir_all(source_path);
     }
@@ -5730,6 +5820,114 @@ mod schema_scope_storage {
             assert!(non_empty_error
                 .to_string()
                 .contains("database 'tenant_b' is not empty"));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_keep_database_when_user_program_metadata_exists() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("drop_database_user_programs");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let postgres = cassie.create_session("tester", Some("postgres".to_string()));
+            cassie
+                .execute_sql(&postgres, "CREATE DATABASE tenant_b", vec![])
+                .expect("create tenant database");
+            let tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
+            cassie
+                .execute_sql(
+                    &tenant,
+                    "CREATE FUNCTION tb_double(x INT) RETURNS INT AS \"x * 2\"",
+                    vec![],
+                )
+                .expect("create tenant function");
+            cassie
+                .execute_sql(
+                    &tenant,
+                    "CREATE PROCEDURE tb_proc() AS \"SELECT 1\"",
+                    vec![],
+                )
+                .expect("create tenant procedure");
+
+            // Act
+            let database_drop = cassie.execute_sql(&postgres, "DROP DATABASE tenant_b", vec![]);
+            if database_drop.is_ok() {
+                cassie
+                    .execute_sql(&postgres, "CREATE DATABASE tenant_b", vec![])
+                    .expect("recreate dropped tenant database");
+            }
+            let reopened_tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
+            let function_call =
+                cassie.execute_sql(&reopened_tenant, "SELECT tb_double(21)", vec![]);
+            let procedure_call = cassie.execute_sql(&reopened_tenant, "CALL tb_proc()", vec![]);
+
+            // Assert
+            assert!(
+                database_drop.is_err(),
+                "DROP DATABASE must reject function and procedure metadata"
+            );
+            assert_eq!(
+                function_call
+                    .expect("tenant function remains available")
+                    .rows,
+                vec![vec![Value::Int64(42)]]
+            );
+            assert!(procedure_call.is_ok(), "tenant procedure remains available");
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_low_level_database_drop_with_user_program_metadata() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("midge_drop_database_user_programs");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let postgres = cassie.create_session("tester", Some("postgres".to_string()));
+            cassie
+                .execute_sql(&postgres, "CREATE DATABASE tenant_direct", vec![])
+                .expect("create tenant database");
+            let tenant = cassie.create_session("tester", Some("tenant_direct".to_string()));
+            cassie
+                .execute_sql(
+                    &tenant,
+                    "CREATE FUNCTION direct_double(x INT) RETURNS INT AS \"x * 2\"",
+                    vec![],
+                )
+                .expect("create tenant function");
+            cassie
+                .execute_sql(
+                    &tenant,
+                    "CREATE PROCEDURE direct_proc() AS \"SELECT 1\"",
+                    vec![],
+                )
+                .expect("create tenant procedure");
+
+            // Act
+            let database_drop = cassie.midge.drop_database("tenant_direct");
+
+            // Assert
+            assert!(
+                database_drop.is_err(),
+                "Midge must reject dropping a database with function and procedure catalog rows"
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });

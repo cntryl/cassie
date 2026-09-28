@@ -582,9 +582,12 @@ fn graph_meta(
     env: &source::SourceExecutionEnv<'_>,
     graph_name: &str,
 ) -> Result<crate::catalog::GraphMeta, QueryError> {
+    let context = env.cassie.binding_context_for_session(env.session);
+    let graph_name = crate::sql::binder::normalize_relation_name(graph_name, &context)
+        .map_err(|error| QueryError::General(error.to_string()))?;
     env.cassie
         .catalog
-        .get_graph(graph_name)
+        .get_graph_exact(&graph_name)
         .ok_or_else(|| QueryError::General(format!("graph '{graph_name}' does not exist")))
 }
 

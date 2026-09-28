@@ -276,11 +276,12 @@ impl Midge {
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_graph(&self, metadata: &crate::catalog::GraphMeta) -> Result<(), CassieError> {
         let mut metadata = metadata.clone();
-        metadata.storage_id = if let Some(existing) = self
-            .list_graphs()?
-            .into_iter()
-            .find(|graph| name_matches(&graph.name, &metadata.name))
-        {
+        let canonical_name = self.canonical_collection_name(&metadata.name);
+        metadata.storage_id = if let Some(existing) =
+            self.list_graphs()?.into_iter().find(|graph| {
+                self.canonical_collection_name(&graph.name)
+                    .eq_ignore_ascii_case(&canonical_name)
+            }) {
             existing.storage_id
         } else if metadata.storage_id != 0 {
             metadata.storage_id

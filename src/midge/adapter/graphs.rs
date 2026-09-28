@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 use super::{check_document_write_failure_point, DocumentWriteFailurePoint};
 
 use super::{encode_row, CassieError, Midge, Uuid};
-use crate::catalog::name_matches;
 
 #[path = "graphs/reconcile.rs"]
 mod reconcile;
@@ -182,8 +181,8 @@ impl Midge {
         collection: &str,
     ) -> Result<Option<crate::catalog::GraphMeta>, CassieError> {
         Ok(self.list_graphs()?.into_iter().find(|graph| {
-            name_matches(&graph.edge_collection, collection)
-                || name_matches(collection, &graph.edge_collection)
+            self.canonical_collection_name(&graph.edge_collection)
+                .eq_ignore_ascii_case(&self.canonical_collection_name(collection))
         }))
     }
 

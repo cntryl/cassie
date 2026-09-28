@@ -22,7 +22,7 @@ pub(super) fn create_graph(
     statement: &CreateGraphStatement,
 ) -> Result<QueryResult, QueryError> {
     let graph = catalog::GraphMeta::new(&statement.name);
-    if statement.if_not_exists && cassie.catalog.graph_exists(&statement.name) {
+    if statement.if_not_exists && cassie.catalog.graph_exists_exact(&statement.name) {
         return Ok(empty_command("CREATE GRAPH"));
     }
 

@@ -181,7 +181,10 @@ impl Cassie {
             CassieError::Storage(format!("list graphs: {error}"))
         })?;
         self.runtime.record_storage_access("schema", false, true);
-        for graph in graphs {
+        for mut graph in graphs {
+            graph.name = self.midge.canonical_collection_name(&graph.name);
+            graph.node_collection = self.midge.canonical_collection_name(&graph.node_collection);
+            graph.edge_collection = self.midge.canonical_collection_name(&graph.edge_collection);
             self.catalog.register_graph(graph);
         }
 

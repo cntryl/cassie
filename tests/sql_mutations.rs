@@ -9452,9 +9452,14 @@ mod unique_reservations {
             .expect("read final transaction state");
         let commit = cassie.execute_sql(&session, "COMMIT", vec![]);
         assert!(commit.is_ok(), "valid unique rotation failed: {commit:?}");
-        let duplicate = cassie.execute_sql(
+        let duplicate_b = cassie.execute_sql(
             &session,
             "UPDATE unique_rotation SET code = 'b' WHERE id = 3",
+            vec![],
+        );
+        let duplicate_a = cassie.execute_sql(
+            &session,
+            "UPDATE unique_rotation SET code = 'a' WHERE id = 3",
             vec![],
         );
         let rows_after_commit = cassie
@@ -9475,8 +9480,12 @@ mod unique_reservations {
             ]
         );
         assert!(
-            duplicate.is_err(),
-            "rotation must retain the new reservation"
+            duplicate_b.is_err(),
+            "rotation must retain the 'b' reservation"
+        );
+        assert!(
+            duplicate_a.is_err(),
+            "rotation must retain the 'a' reservation"
         );
         assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
         let _ = std::fs::remove_dir_all(path);
@@ -9519,9 +9528,14 @@ mod unique_reservations {
             commit.is_ok(),
             "valid unique-index rotation failed: {commit:?}"
         );
-        let duplicate = cassie.execute_sql(
+        let duplicate_b = cassie.execute_sql(
             &session,
             "UPDATE unique_index_rotation SET code = 'b' WHERE id = 3",
+            vec![],
+        );
+        let duplicate_a = cassie.execute_sql(
+            &session,
+            "UPDATE unique_index_rotation SET code = 'a' WHERE id = 3",
             vec![],
         );
         let rows_after_commit = cassie
@@ -9542,8 +9556,12 @@ mod unique_reservations {
             ]
         );
         assert!(
-            duplicate.is_err(),
-            "rotation must retain the new index reservation"
+            duplicate_b.is_err(),
+            "rotation must retain the 'b' index reservation"
+        );
+        assert!(
+            duplicate_a.is_err(),
+            "rotation must retain the 'a' index reservation"
         );
         assert_eq!(rows_after_commit.rows, rows_in_transaction.rows);
         let _ = std::fs::remove_dir_all(path);

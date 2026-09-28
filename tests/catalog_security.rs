@@ -5355,7 +5355,7 @@ mod udf_database_scope {
             // Assert
             assert!(
                 result.is_err(),
-                "tenant_b must not resolve tenant_a's rate function: {result:?}"
+                "tenant_b must not resolve tenant_a's rate function"
             );
 
             let own_function = cassie

@@ -316,9 +316,18 @@ fn execute_alter_table_operation(
     is_column_store: bool,
 ) -> Result<(), QueryError> {
     match &statement.operation {
-        AlterTableOperation::AddColumn { field, data_type } => {
-            alter_table_add_column(cassie, &statement.table, field, data_type, is_column_store)
-        }
+        AlterTableOperation::AddColumn {
+            field,
+            data_type,
+            constraints,
+        } => alter_table_add_column(
+            cassie,
+            &statement.table,
+            field,
+            data_type,
+            constraints,
+            is_column_store,
+        ),
         AlterTableOperation::AddConstraint { constraints } => {
             alter_table_add_constraint(cassie, &statement.table, constraints)
         }
@@ -364,22 +373,49 @@ fn alter_table_add_column(
     table: &str,
     field: &str,
     data_type: &DataType,
+    constraints: &[crate::catalog::FieldConstraint],
     is_column_store: bool,
 ) -> Result<(), QueryError> {
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE ADD COLUMN")?;
-    let field = FieldSchema {
-        name: field.to_string(),
-        data_type: data_type.clone(),
-        nullable: true,
-    };
+    let sequences =
+        super::sequence_command::prepare_add_column_sequences(cassie, data_type, constraints)?;
+    let mut gated_collections = vec![table.to_string()];
+    gated_collections.extend(
+        constraints
+            .iter()
+            .filter_map(|constraint| constraint.references_table.clone()),
+    );
     cassie
         .midge
-        .alter_collection_add_column(table, field.clone())
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie
-        .catalog
-        .add_collection_field(table, field.name, field.data_type.clone());
-    refresh_table_cardinality_stats(cassie, table)
+        .with_collection_write_gates(&gated_collections, || {
+            cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
+            cassie.validate_existing_foreign_key_rows(table, constraints)?;
+
+            let field_schema = FieldSchema {
+                name: field.to_string(),
+                data_type: data_type.clone(),
+                nullable: true,
+            };
+            cassie
+                .midge
+                .alter_collection_add_column(table, field_schema.clone())
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie
+                .catalog
+                .add_collection_field(table, field_schema.name, field_schema.data_type);
+
+            super::sequence_command::persist_created_sequences(cassie, sequences)?;
+            if !constraints.is_empty() {
+                let mut merged = cassie.catalog.get_constraints(table);
+                crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+                cassie
+                    .midge
+                    .save_constraints_with_unique_reservations(table, merged.as_slice())
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+                cassie.catalog.register_constraints(table, merged);
+            }
+            refresh_table_cardinality_stats(cassie, table)
+        })
 }
 
 fn alter_table_add_constraint(

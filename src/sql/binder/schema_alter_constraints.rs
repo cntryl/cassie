@@ -14,12 +14,18 @@ pub(super) fn bind_alter_constraint_targets(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
-    let AlterTableOperation::AddConstraint { constraints } = operation else {
-        return Ok(());
+    let (constraints, new_field) = match operation {
+        AlterTableOperation::AddConstraint { constraints } => (constraints, None),
+        AlterTableOperation::AddColumn {
+            field, constraints, ..
+        } => (constraints, Some(field.as_str())),
+        _ => return Ok(()),
     };
 
     for constraint in constraints {
-        if let Some(declared) = schema
+        if let Some(field) = new_field {
+            constraint.use_declared_field_spelling(field);
+        } else if let Some(declared) = schema
             .fields
             .iter()
             .find(|field| field.name.eq_ignore_ascii_case(constraint.field.trim()))

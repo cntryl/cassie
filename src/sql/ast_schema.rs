@@ -14,6 +14,8 @@ pub enum AlterTableOperation {
     AddColumn {
         field: String,
         data_type: DataType,
+        #[serde(default)]
+        constraints: Vec<FieldConstraint>,
     },
     AddConstraint {
         constraints: Vec<FieldConstraint>,

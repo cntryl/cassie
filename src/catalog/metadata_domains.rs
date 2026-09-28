@@ -54,8 +54,18 @@ impl Catalog {
     }
 
     #[must_use]
+    pub(crate) fn get_graph_exact(&self, name: &str) -> Option<GraphMeta> {
+        self.graphs.read().get(&name.to_ascii_lowercase()).cloned()
+    }
+
+    #[must_use]
     pub fn graph_exists(&self, name: &str) -> bool {
         self.get_graph(name).is_some()
+    }
+
+    #[must_use]
+    pub(crate) fn graph_exists_exact(&self, name: &str) -> bool {
+        self.get_graph_exact(name).is_some()
     }
 
     #[must_use]

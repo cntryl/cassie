@@ -505,7 +505,8 @@ pub(super) fn bind_query_source_with_lateral_fields(
         } => {
             validate_graph_table_function(&function, lateral_fields)?;
             if let Some(graph_name) = literal_string_arg(&function, 0) {
-                if !catalog.graph_exists(&graph_name) {
+                let graph_name = super::normalize_relation_name(&graph_name, context)?;
+                if !catalog.graph_exists_exact(&graph_name) {
                     return Err(CassieError::Planner(format!(
                         "graph '{graph_name}' does not exist"
                     )));

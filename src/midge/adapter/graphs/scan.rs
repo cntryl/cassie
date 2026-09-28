@@ -94,9 +94,13 @@ impl Midge {
         if graph.storage_id != 0 {
             return Ok(graph.clone());
         }
+        let graph_name = self.canonical_collection_name(&graph.name);
         self.list_graphs()?
             .into_iter()
-            .find(|stored| crate::catalog::name_matches(&stored.name, &graph.name))
+            .find(|stored| {
+                self.canonical_collection_name(&stored.name)
+                    .eq_ignore_ascii_case(&graph_name)
+            })
             .ok_or_else(|| CassieError::Parse(format!("graph '{}' not found", graph.name)))
     }
 

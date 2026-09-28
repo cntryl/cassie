@@ -249,9 +249,9 @@ pub(super) fn bind_drop_view(
 pub(super) fn bind_create_graph(
     mut statement: crate::sql::ast::CreateGraphStatement,
     catalog: &Catalog,
-    _context: &BindingContext,
+    context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateGraphStatement, CassieError> {
-    statement.name = normalize_graph_name(statement.name.trim())?;
+    statement.name = normalize_relation_name(statement.name.trim(), context)?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE GRAPH requires a graph name".into(),
@@ -261,9 +261,9 @@ pub(super) fn bind_create_graph(
     let node_table = format!("{}_nodes", statement.name);
     let edge_table = format!("{}_edges", statement.name);
     if !statement.if_not_exists
-        && (catalog.graph_exists(&statement.name)
-            || catalog.relation_exists(&node_table)
-            || catalog.relation_exists(&edge_table)
+        && (catalog.graph_exists_exact(&statement.name)
+            || relation_exists_exact(catalog, &node_table)
+            || relation_exists_exact(catalog, &edge_table)
             || virtual_views::schema(&node_table).is_some()
             || virtual_views::schema(&edge_table).is_some())
     {
@@ -278,14 +278,11 @@ pub(super) fn bind_create_graph(
     Ok(statement)
 }
 
-fn normalize_graph_name(raw: &str) -> Result<String, CassieError> {
-    match crate::catalog::parse_name(raw).map_err(CassieError::Planner)? {
-        crate::catalog::ParsedName::Unqualified(name)
-        | crate::catalog::ParsedName::SchemaQualified { name, .. } => Ok(name),
-        crate::catalog::ParsedName::DatabaseQualified { .. } => Err(CassieError::Unsupported(
-            "cross-database graph references are not supported".to_string(),
-        )),
-    }
+fn relation_exists_exact(catalog: &Catalog, name: &str) -> bool {
+    catalog
+        .matching_relation_names(name)
+        .iter()
+        .any(|stored| stored.eq_ignore_ascii_case(name))
 }
 
 pub(super) fn bind_create_index(

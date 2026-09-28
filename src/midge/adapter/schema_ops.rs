@@ -326,14 +326,16 @@ impl Midge {
         name: &str,
         relation_id: u64,
     ) -> Result<(), CassieError> {
+        let canonical_name = self.canonical_collection_name(name);
         let graph_adjacency_prefixes = self
             .list_graphs()?
             .into_iter()
             .filter(|graph| {
-                crate::catalog::name_matches(&graph.node_collection, name)
-                    || crate::catalog::name_matches(name, &graph.node_collection)
-                    || crate::catalog::name_matches(&graph.edge_collection, name)
-                    || crate::catalog::name_matches(name, &graph.edge_collection)
+                self.canonical_collection_name(&graph.node_collection)
+                    .eq_ignore_ascii_case(&canonical_name)
+                    || self
+                        .canonical_collection_name(&graph.edge_collection)
+                        .eq_ignore_ascii_case(&canonical_name)
             })
             .map(|graph| Self::graph_adjacency_prefix(graph.storage_id))
             .collect::<Vec<_>>();

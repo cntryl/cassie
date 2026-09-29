@@ -224,15 +224,7 @@ impl Midge {
                 &values,
             )?;
             if owners.insert(key, row.id.clone()).is_some() {
-                return Err(CassieError::UniqueViolation {
-                    table: index.collection.clone(),
-                    column: index
-                        .normalized_fields()
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| index.name.clone()),
-                    constraint: index.name.clone(),
-                });
+                return Err(index.unique_violation(&index.collection));
             }
         }
         Ok(())

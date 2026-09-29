@@ -774,19 +774,10 @@ impl Cassie {
                 value,
                 exclude_id,
             )? {
-                let kind = if constraint.primary_key {
-                    "PRIMARY KEY"
-                } else {
-                    "UNIQUE"
-                };
                 return Err(CassieError::UniqueViolation {
                     table: collection.to_string(),
                     column: constraint.field.clone(),
-                    constraint: crate::catalog::generated_constraint_name(
-                        collection,
-                        &constraint.field,
-                        kind,
-                    ),
+                    constraint: constraint.unique_constraint_name(collection),
                 });
             }
         }
@@ -870,10 +861,7 @@ impl Cassie {
                 }
             }
             if duplicate_exists {
-                return Err(CassieError::InvalidVector(format!(
-                    "unique index '{}' failed",
-                    index.name
-                )));
+                return Err(index.unique_violation(collection));
             }
         }
 

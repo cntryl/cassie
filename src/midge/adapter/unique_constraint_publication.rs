@@ -170,17 +170,7 @@ impl Midge {
                     return Err(CassieError::UniqueViolation {
                         table: publication.collection.clone(),
                         column: constraint.field.clone(),
-                        constraint: constraint.unique_name.clone().unwrap_or_else(|| {
-                            crate::catalog::generated_constraint_name(
-                                &publication.collection,
-                                &constraint.field,
-                                if constraint.primary_key {
-                                    "PRIMARY KEY"
-                                } else {
-                                    "UNIQUE"
-                                },
-                            )
-                        }),
+                        constraint: constraint.unique_constraint_name(&publication.collection),
                     });
                 }
             }

@@ -470,7 +470,7 @@ pub(crate) fn scalar_index_canonical_payload<'a>(
     Cow::Owned(serde_json::Value::Object(canonical))
 }
 
-fn canonical_field_value(
+pub(crate) fn canonical_field_value(
     data_type: &DataType,
     value: &serde_json::Value,
 ) -> Option<serde_json::Value> {

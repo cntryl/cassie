@@ -97,6 +97,25 @@ impl Cassie {
         self.validate_foreign_key_references(None, collection, &references)
     }
 
+    /// The child's value in the stored form of the referenced column, so it
+    /// compares equal to parent keys the row encoder canonicalized on write
+    /// (for example TIMESTAMP text or a whole-number FLOAT).
+    fn canonical_referenced_value(&self, reference: &ForeignKeyReference) -> serde_json::Value {
+        self.catalog
+            .get_schema(&reference.referenced_table)
+            .and_then(|schema| {
+                schema.fields.into_iter().find(|field| {
+                    field
+                        .name
+                        .eq_ignore_ascii_case(&reference.referenced_column)
+                })
+            })
+            .and_then(|field| {
+                crate::midge::adapter::canonical_field_value(&field.data_type, &reference.value)
+            })
+            .unwrap_or_else(|| reference.value.clone())
+    }
+
     /// Checks that every collected reference has a matching referenced row.
     ///
     /// Pending references are grouped by referenced table and keyed by
@@ -119,12 +138,13 @@ impl Cassie {
             BTreeMap<(&str, crate::types::semantic::SemanticKey), Vec<usize>>,
         >::new();
         for (index, reference) in references.references.iter().enumerate() {
+            let value = self.canonical_referenced_value(reference);
             pending_by_table
                 .entry(reference.referenced_table.as_str())
                 .or_default()
                 .entry((
                     reference.referenced_column.as_str(),
-                    foreign_key_value_key(&reference.value),
+                    foreign_key_value_key(&value),
                 ))
                 .or_default()
                 .push(index);

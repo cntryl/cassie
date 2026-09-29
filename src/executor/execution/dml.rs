@@ -42,6 +42,20 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
     })
 }
 
+fn value_to_json_for_field(
+    field: &str,
+    value: &Value,
+    data_type: &DataType,
+) -> Result<serde_json::Value, QueryError> {
+    if let (DataType::Json, Value::String(text)) = (data_type, value) {
+        return serde_json::from_str(text).map_err(|error| {
+            crate::app::CassieError::Parse(format!("field '{field}' expects JSON: {error}")).into()
+        });
+    }
+
+    value_to_json(value)
+}
+
 fn update_assignment_to_json(
     field: &str,
     value: &Value,
@@ -80,6 +94,14 @@ fn update_assignment_to_json(
                 }
             }
         }
+    }
+
+    if let Some(field_meta) = schema
+        .fields
+        .iter()
+        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+    {
+        return value_to_json_for_field(field, value, &field_meta.data_type);
     }
 
     value_to_json(value)

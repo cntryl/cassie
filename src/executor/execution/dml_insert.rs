@@ -1,9 +1,9 @@
 use super::{
     build_dml_result, check_timeout, dml_referential_actions, execute_plan, filter,
     inserted_row_to_batch_row, integral_json_number, json_to_value, update_assignment_to_json,
-    value_to_json, BatchRow, Cassie, CassieSession, CollectionSchema, CteContext, DmlResultContext,
-    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
-    QueryExecutionControls, QueryResult, QuerySource, Value,
+    value_to_json, value_to_json_for_field, BatchRow, Cassie, CassieSession, CollectionSchema,
+    CteContext, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap, InsertSource,
+    LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
 };
 
 pub(in crate::executor::execution) fn execute_insert(
@@ -282,7 +282,10 @@ fn payload_from_insert_row(
 ) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
     let mut payload = serde_json::Map::with_capacity(target_fields.len());
     for (field, value) in target_fields.iter().zip(source_row.iter()) {
-        payload.insert(field.name.clone(), value_to_json(value)?);
+        payload.insert(
+            field.name.clone(),
+            value_to_json_for_field(&field.name, value, &field.data_type)?,
+        );
     }
     Ok(payload)
 }

@@ -172,7 +172,7 @@ impl Cassie {
                 true,
                 None,
             )?;
-            references.collect(&constraints, &prepared)?;
+            references.collect(&statement.table, &constraints, &prepared)?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
         }
@@ -186,6 +186,9 @@ impl Cassie {
             return Ok((affected, None));
         }
 
+        // Autocommit COPY has no COMMIT, so run its parent-side check here: an
+        // explicit `_id` can replace a referenced key that children still use.
+        self.validate_staged_parent_references(staging)?;
         let writes = staging
             .transaction_writes()
             .remove(&statement.table)

@@ -802,7 +802,7 @@ impl Cassie {
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
-        references.collect(constraints, payload)?;
+        references.collect(collection, constraints, payload)?;
         self.validate_foreign_key_references(session, collection, &references)
     }
 

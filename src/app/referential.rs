@@ -104,7 +104,7 @@ impl Cassie {
             let mut references = ForeignKeyReferences::default();
             for change in session.collection_changes(&collection).values() {
                 if let TransactionRowChange::Upsert(payload) = change {
-                    references.collect(&constraints, payload)?;
+                    references.collect(&collection, &constraints, payload)?;
                 }
             }
             self.validate_foreign_key_references(Some(session), &collection, &references)?;

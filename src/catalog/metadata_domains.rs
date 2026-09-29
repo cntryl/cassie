@@ -6,6 +6,32 @@ use crate::catalog::{
 };
 
 impl Catalog {
+    /// Whether `table.field` is backed by a PRIMARY KEY, UNIQUE constraint or
+    /// single-column unique scalar index other than `excluding_index`, which is
+    /// what a FOREIGN KEY may reference.
+    #[must_use]
+    pub fn has_unique_key_on(
+        &self,
+        table: &str,
+        field: &str,
+        excluding_index: Option<&str>,
+    ) -> bool {
+        self.get_constraints(table).into_iter().any(|candidate| {
+            candidate.field.eq_ignore_ascii_case(field)
+                && (candidate.primary_key || candidate.unique)
+        }) || self
+            .list_indexes(table)
+            .into_iter()
+            .filter(|index| index.unique && index.kind == crate::catalog::IndexKind::Scalar)
+            .filter(|index| {
+                excluding_index.is_none_or(|name| !index.name.eq_ignore_ascii_case(name))
+            })
+            .any(|index| {
+                let fields = index.normalized_fields();
+                fields.len() == 1 && fields[0].eq_ignore_ascii_case(field)
+            })
+    }
+
     pub fn register_maintenance_debt(&self, metadata: MaintenanceDebtMeta) {
         let key = format!("{}\0{}", metadata.collection, metadata.artifact);
         self.maintenance_debts.write().insert(key, metadata);

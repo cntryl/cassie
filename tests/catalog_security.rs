@@ -3376,6 +3376,74 @@ mod database_scope {
         assert!(read.is_err(), "tenant_b must not reach pg_catalog.leak");
         let _ = std::fs::remove_dir_all(path);
     }
+
+    #[test]
+    fn should_not_read_graph_edges_from_another_database() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("graph_read_cross_database");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let postgres = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE DATABASE analytics",
+            "CREATE GRAPH social",
+            "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 2)",
+        ] {
+            cassie.execute_sql(&postgres, sql, vec![]).unwrap();
+        }
+        let analytics = cassie.create_session("tester", Some("analytics".to_string()));
+        for sql in [
+            "CREATE GRAPH social",
+            "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e2', 'person', 'alice', 'person', 'carol', 'knows', 1)",
+        ] {
+            cassie.execute_sql(&analytics, sql, vec![]).unwrap();
+        }
+
+        // Act
+        let default_neighbors = query_rows(
+            &cassie,
+            &postgres,
+            "SELECT node_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
+        );
+        let tenant_neighbors = query_rows(
+            &cassie,
+            &analytics,
+            "SELECT node_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
+        );
+        let tenant_expansion = query_rows(
+            &cassie,
+            &analytics,
+            "SELECT node_id, depth FROM graph_expand('social', 'person', 'alice', 2, 'out', 'knows', 10)",
+        );
+        let cross_database_reads = [
+            "SELECT node_id FROM graph_shortest_path('social', 'person', 'alice', 'person', 'bob', 3, 'out', 'knows', 1)",
+            "SELECT node_id FROM graph_neighbors('postgres.public.social', 'person', 'alice', 'out', 'knows', 10)",
+        ]
+        .map(|sql| (sql, cassie.execute_sql(&analytics, sql, vec![])));
+
+        // Assert
+        assert_eq!(
+            default_neighbors,
+            vec![vec![Value::String("bob".to_string())]]
+        );
+        assert_eq!(
+            tenant_neighbors,
+            vec![vec![Value::String("carol".to_string())]]
+        );
+        assert_eq!(
+            tenant_expansion,
+            vec![vec![Value::String("carol".to_string()), Value::Int64(1)]]
+        );
+        for (sql, read) in cross_database_reads {
+            let leaked_rows = read.map_or(0, |result| result.rows.len());
+            assert_eq!(
+                leaked_rows, 0,
+                "analytics session must not traverse the postgres graph: {sql}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/integration_sql_catalog.rs.

@@ -190,9 +190,9 @@ mod tests {
     use crate::types::DataType;
 
     #[test]
-    fn should_parse_postgres_text_array_escaping_and_nulls() {
+    fn should_parse_postgres_text_array_quoted_escapes() {
         // Arrange
-        let text = r#"{plain,"comma,value","escaped\"quote",NULL,"NULL"}"#;
+        let text = r#"{plain,"comma,value","escaped\"quote"}"#;
 
         // Act
         let values = parse_text_array(text, &DataType::Text).expect("parse array");
@@ -200,8 +200,20 @@ mod tests {
         // Assert
         assert_eq!(
             values,
-            serde_json::json!(["plain", "comma,value", "escaped\"quote", null, "NULL"])
+            serde_json::json!(["plain", "comma,value", "escaped\"quote"])
         );
+    }
+
+    #[test]
+    fn should_distinguish_postgres_array_null_spellings() {
+        // Arrange
+        let text = r#"{NULL,"NULL"}"#;
+
+        // Act
+        let values = parse_text_array(text, &DataType::Text).expect("parse array");
+
+        // Assert
+        assert_eq!(values, serde_json::json!([null, "NULL"]));
     }
 
     #[test]

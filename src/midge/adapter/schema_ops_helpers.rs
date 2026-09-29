@@ -84,19 +84,7 @@ pub(super) fn drop_referencing_indexes_in_tx(
         let Ok(metadata) = serde_json::from_slice::<IndexMeta>(&value) else {
             continue;
         };
-        let partition_references_field =
-            metadata.options.get("partition_by").is_some_and(|fields| {
-                fields
-                    .split(',')
-                    .map(str::trim)
-                    .any(|candidate| candidate.eq_ignore_ascii_case(field))
-            });
-        let references_field = partition_references_field
-            || metadata
-                .normalized_fields()
-                .iter()
-                .chain(metadata.normalized_include_fields().iter())
-                .any(|candidate| candidate.eq_ignore_ascii_case(field));
+        let references_field = metadata.references_field(field);
         if !references_field {
             continue;
         }

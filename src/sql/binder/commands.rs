@@ -356,7 +356,7 @@ pub(super) fn bind_create_rollup(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateRollupStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("CREATE ROLLUP requires a name".into()));
     }

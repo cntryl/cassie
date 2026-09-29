@@ -9,7 +9,7 @@ pub(super) fn bind_create_function(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateFunctionStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE FUNCTION requires a name".into(),
@@ -94,7 +94,7 @@ pub(super) fn bind_create_procedure(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateProcedureStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE PROCEDURE requires a name".into(),

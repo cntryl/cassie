@@ -10696,17 +10696,31 @@ mod foreign_key_integrity {
         let _ = std::fs::remove_dir_all(path);
     }
 
+    const NODE_DDL: &str = "CREATE TABLE node (id INT PRIMARY KEY, parent_id INT, CONSTRAINT nfk FOREIGN KEY (parent_id) REFERENCES node(id))";
+
     #[test]
-    fn should_declare_self_referencing_foreign_key_and_insert_self_pointing_row() {
+    fn should_declare_self_referencing_foreign_key_at_create_table() {
         // Arrange
-        let (cassie, session, path) = start("fk-self-reference");
+        let (cassie, session, path) = start("fk-self-reference-declare");
 
         // Act
-        let created = cassie.execute_sql(
-            &session,
-            "CREATE TABLE node (id INT PRIMARY KEY, parent_id INT, CONSTRAINT nfk FOREIGN KEY (parent_id) REFERENCES node(id))",
-            vec![],
+        let created = cassie.execute_sql(&session, NODE_DDL, vec![]);
+
+        // Assert
+        assert!(
+            created.is_ok(),
+            "self-referencing FK at CREATE TABLE: {created:?}"
         );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_accept_self_pointing_row_given_self_referencing_foreign_key() {
+        // Arrange
+        let (cassie, session, path) = start("fk-self-reference-insert");
+        run(&cassie, &session, NODE_DDL);
+
+        // Act
         let root = cassie.execute_sql(
             &session,
             "INSERT INTO node (id, parent_id) VALUES (1, 1)",
@@ -10715,17 +10729,8 @@ mod foreign_key_integrity {
 
         // Assert
         assert!(
-            created.is_ok(),
-            "self-referencing FK at CREATE TABLE: {created:?}"
-        );
-        assert!(
             root.is_ok(),
             "a self-pointing root row satisfies its own FK"
-        );
-        run(
-            &cassie,
-            &session,
-            "INSERT INTO node (id, parent_id) VALUES (2, 1)",
         );
         assert!(cassie
             .execute_sql(
@@ -10734,13 +10739,29 @@ mod foreign_key_integrity {
                 vec![],
             )
             .is_err());
-        run(&cassie, &session, "DELETE FROM node WHERE id = 2");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_delete_row_referenced_only_by_itself() {
+        // Arrange
+        let (cassie, session, path) = start("fk-self-reference-delete");
+        run(&cassie, &session, NODE_DDL);
+        run(
+            &cassie,
+            &session,
+            "INSERT INTO node (id, parent_id) VALUES (1, 1)",
+        );
+
+        // Act
+        let deleted = cassie.execute_sql(&session, "DELETE FROM node WHERE id = 1", vec![]);
+
+        // Assert
         assert!(
-            cassie
-                .execute_sql(&session, "DELETE FROM node WHERE id = 1", vec![])
-                .is_ok(),
+            deleted.is_ok(),
             "a row referenced only by itself is deletable"
         );
+        assert!(rows(&cassie, &session, "SELECT id FROM node").is_empty());
         let _ = std::fs::remove_dir_all(path);
     }
 }

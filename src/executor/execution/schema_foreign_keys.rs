@@ -52,7 +52,7 @@ pub(super) fn reject_referenced_unique_index_drop(
     };
     if cassie
         .catalog
-        .has_unique_key_on(table, &field, Some(&index.name))
+        .has_unique_key_on(table, field, Some(&index.name))
     {
         return Ok(());
     }

@@ -7021,7 +7021,7 @@ mod uuid_bytea_scalar_indexes {
         );
 
         // Assert
-        assert!(reused.is_ok(), "deleted value must be reusable: {reused:?}");
+        assert!(reused.is_ok(), "deleted value must be reusable");
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7042,7 +7042,7 @@ mod uuid_bytea_scalar_indexes {
         );
 
         // Assert
-        assert!(reused.is_ok(), "deleted value must be reusable: {reused:?}");
+        assert!(reused.is_ok(), "deleted value must be reusable");
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7067,7 +7067,7 @@ mod uuid_bytea_scalar_indexes {
         );
 
         // Assert
-        assert!(reused.is_ok(), "deleted value must be reusable: {reused:?}");
+        assert!(reused.is_ok(), "deleted value must be reusable");
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -7092,7 +7092,7 @@ mod uuid_bytea_scalar_indexes {
         );
 
         // Assert
-        assert!(reused.is_ok(), "deleted value must be reusable: {reused:?}");
+        assert!(reused.is_ok(), "deleted value must be reusable");
         let _ = std::fs::remove_dir_all(path);
     }
 }

@@ -769,6 +769,10 @@ fn write_varint(mut value: u64, out: &mut Vec<u8>) {
     out.push(u8::try_from(value).expect("final varint byte fits in u8"));
 }
 
+pub(crate) fn canonical_bytea_text(value: &str) -> Result<String, CassieError> {
+    decode_bytea(value).map(|bytes| encode_bytea(&bytes))
+}
+
 fn decode_bytea(value: &str) -> Result<Vec<u8>, CassieError> {
     if !value.starts_with("\\x") {
         return Err(CassieError::InvalidVector(

@@ -1923,21 +1923,18 @@ mod sql_quoted_identifiers {
     }
 
     #[test]
-    fn should_compare_and_group_by_quoted_identifiers_as_column_values() {
-        with_users_table("quoted_ident_group_compare", |cassie, session| {
+    fn should_group_by_a_quoted_identifier_as_the_column_value() {
+        with_users_table("quoted_ident_group", |cassie, session| {
             // Arrange
             run(
                 cassie,
                 session,
                 "INSERT INTO users (id, name) VALUES (3, 'bob')",
             );
-            let grouped_sql =
-                "SELECT \"name\", count(*) FROM users GROUP BY \"name\" ORDER BY \"name\"";
-            let compared_sql = "SELECT name FROM users WHERE \"id\" > 1 ORDER BY \"id\"";
+            let sql = "SELECT \"name\", count(*) FROM users GROUP BY \"name\" ORDER BY \"name\"";
 
             // Act
-            let grouped = run(cassie, session, grouped_sql);
-            let compared = run(cassie, session, compared_sql);
+            let grouped = run(cassie, session, sql);
 
             // Assert
             assert_eq!(
@@ -1947,7 +1944,20 @@ mod sql_quoted_identifiers {
                     vec![Value::String("bob".to_string()), Value::Int64(2)],
                 ]
             );
-            assert_eq!(compared.rows, string_rows(&["bob", "bob"]));
+        });
+    }
+
+    #[test]
+    fn should_compare_a_quoted_identifier_against_a_numeric_literal() {
+        with_users_table("quoted_ident_compare", |cassie, session| {
+            // Arrange
+            let sql = "SELECT name FROM users WHERE \"id\" > 1";
+
+            // Act
+            let compared = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(compared.rows, string_rows(&["bob"]));
         });
     }
 
@@ -1970,7 +1980,7 @@ mod sql_quoted_identifiers {
     }
 
     #[test]
-    fn should_resolve_quoted_identifiers_with_spaces_and_multibyte_characters() {
+    fn should_resolve_quoted_identifiers_containing_spaces_or_multibyte_characters() {
         with_users_table("quoted_ident_spaces", |cassie, session| {
             // Arrange
             run(

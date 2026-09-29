@@ -475,6 +475,18 @@ fn canonical_field_value(
     value: &serde_json::Value,
 ) -> Option<serde_json::Value> {
     let canonical_text = match data_type {
+        DataType::Uuid => {
+            return value
+                .as_str()
+                .and_then(|value| uuid::Uuid::parse_str(value).ok())
+                .map(|value| serde_json::Value::String(value.to_string()));
+        }
+        DataType::Bytea => {
+            return value
+                .as_str()
+                .and_then(|value| crate::midge::row_blob::canonical_bytea_text(value).ok())
+                .map(serde_json::Value::String);
+        }
         DataType::Float => {
             return value
                 .as_number()

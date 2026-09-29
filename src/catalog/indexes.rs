@@ -153,6 +153,29 @@ impl IndexMeta {
         self.include_fields.clone()
     }
 
+    /// Whether dropping `field` invalidates this index: a key or INCLUDE column,
+    /// a time-series partition column, or a vector index's embedding source.
+    #[must_use]
+    pub fn references_field(&self, field: &str) -> bool {
+        let partition_references_field = self.options.get("partition_by").is_some_and(|fields| {
+            fields
+                .split(',')
+                .map(str::trim)
+                .any(|candidate| candidate.eq_ignore_ascii_case(field))
+        });
+        let source_references_field = self
+            .options
+            .get("source_field")
+            .is_some_and(|source| source.eq_ignore_ascii_case(field));
+        partition_references_field
+            || source_references_field
+            || self
+                .normalized_fields()
+                .iter()
+                .chain(self.normalized_include_fields().iter())
+                .any(|candidate| candidate.eq_ignore_ascii_case(field))
+    }
+
     #[must_use]
     pub fn normalized_expressions(&self) -> Vec<String> {
         self.expressions.clone()

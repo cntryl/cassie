@@ -16,12 +16,13 @@ impl Cassie {
         for index in indexes {
             self.validate_embedding_compatibility(index, None)?;
 
-            let source_value = object.get(&index.source_field).ok_or_else(|| {
-                CassieError::InvalidEmbedding(format!(
-                    "missing source field '{}' for vector index '{}' on collection '{}'",
-                    index.source_field, index.field, index.collection
-                ))
-            })?;
+            // An omitted or NULL source column leaves the embedding as supplied.
+            let Some(source_value) = object
+                .get(&index.source_field)
+                .filter(|value| !value.is_null())
+            else {
+                continue;
+            };
 
             let source = if let Some(value) = source_value.as_str() {
                 value.to_string()

@@ -471,12 +471,31 @@ fn alter_table_drop_column(
         .alter_collection_drop_column(table, field)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.remove_collection_field(table, field);
+    unregister_vector_indexes_on_column(cassie, table, field);
     schema_foreign_keys::drop_foreign_keys_on_column(cassie, table, field)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
         .map_err(QueryError::Cassie)?;
     super::materialized_projection::mark_source_projections_stale(cassie, table)?;
     refresh_table_cardinality_stats(cassie, table)
+}
+
+fn unregister_vector_indexes_on_column(cassie: &Cassie, table: &str, field: &str) {
+    for index in cassie.catalog.list_indexes(table) {
+        if matches!(index.kind, catalog::IndexKind::Vector) && index.references_field(field) {
+            cassie
+                .catalog
+                .unregister_index(&index.collection, &index.name);
+        }
+    }
+    for index in cassie.catalog.list_vector_indexes(table) {
+        if index.field.eq_ignore_ascii_case(field) || index.source_field.eq_ignore_ascii_case(field)
+        {
+            cassie
+                .catalog
+                .unregister_vector_index(&index.collection, &index.field);
+        }
+    }
 }
 
 fn alter_table_rename_column(

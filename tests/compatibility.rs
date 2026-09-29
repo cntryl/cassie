@@ -495,7 +495,7 @@ datasource db {
     }
 
     #[test]
-    fn should_report_missing_search_path_schema_with_tokio_postgres() {
+    fn should_accept_missing_search_path_schema_with_tokio_postgres() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -510,15 +510,25 @@ datasource db {
                     .expect("connect should complete within the timeout");
 
             // Act
-            let error = client
-                .batch_execute("SET search_path = missing_schema")
-                .await
-                .expect_err("missing schema should be rejected");
+            let set = client
+                .batch_execute("SET search_path = missing_schema, public")
+                .await;
 
             // Assert
-            let db_error = db_error(&error);
-            assert_eq!(db_error.code().code(), "3F000");
-            assert!(db_error.message().contains("missing_schema"));
+            assert!(
+                set.is_ok(),
+                "PostgreSQL ignores missing search_path schemas"
+            );
+            let shown = client
+                .simple_query("SHOW search_path")
+                .await
+                .expect("show search_path")
+                .into_iter()
+                .find_map(|message| match message {
+                    tokio_postgres::SimpleQueryMessage::Row(row) => row.get(0).map(str::to_string),
+                    _ => None,
+                });
+            assert_eq!(shown.as_deref(), Some("missing_schema, public"));
 
             drop(client);
             server.shutdown(connection).await;

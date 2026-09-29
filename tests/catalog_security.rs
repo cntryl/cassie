@@ -7191,4 +7191,24 @@ mod search_path_resolution {
             .is_ok());
         let _ = std::fs::remove_dir_all(path);
     }
+
+    #[test]
+    fn should_skip_missing_search_path_schemas_when_creating() {
+        // Arrange
+        let (cassie, session, path) = start("missing_search_path_schema_create");
+        run(
+            &cassie,
+            &session,
+            "SET search_path TO missing_schema, public",
+        );
+
+        // Act
+        run(&cassie, &session, "CREATE TABLE skips_missing (id INT)");
+
+        // Assert
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM public.skips_missing", vec![])
+            .is_ok());
+        let _ = std::fs::remove_dir_all(path);
+    }
 }

@@ -5,14 +5,19 @@ use crate::sql::ast::{
 
 pub(super) fn create_role(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     statement: &CreateRoleStatement,
 ) -> Result<QueryResult, QueryError> {
+    let database = session
+        .and_then(CassieSession::current_database)
+        .unwrap_or(cassie.default_database.as_str());
     cassie
-        .create_role(
+        .create_role_in_database(
             &statement.name,
             statement.login,
             statement.password.clone(),
             statement.if_not_exists,
+            database,
         )
         .map_err(QueryError::Cassie)?;
 

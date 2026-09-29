@@ -248,7 +248,7 @@ fn execute_schema_object_group(
             super::schema_command::alter_schema(cassie, statement),
         )),
         LogicalCommand::CreateRole(statement) => Some(CommandExecution::invalidating(
-            super::role_command::create_role(cassie, statement),
+            super::role_command::create_role(cassie, session, statement),
         )),
         LogicalCommand::AlterRole(statement) => Some(CommandExecution::invalidating(
             super::role_command::alter_role(cassie, statement),

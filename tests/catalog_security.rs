@@ -2248,6 +2248,39 @@ mod database_connect_grants {
     }
 
     #[test]
+    fn should_grant_connect_on_the_creating_sessions_database() {
+        // Arrange
+        let cassie = cassie("create-role-session-database");
+        let admin = cassie
+            .authenticate_role("root", Some("postgres"), None)
+            .expect("admin");
+        cassie
+            .execute_sql(&admin, "CREATE DATABASE tenant_b", Vec::new())
+            .expect("database");
+        let tenant_admin = cassie
+            .authenticate_role("root", Some("postgres"), Some("tenant_b".to_string()))
+            .expect("tenant admin");
+
+        // Act
+        cassie
+            .execute_sql(
+                &tenant_admin,
+                "CREATE ROLE app_b LOGIN PASSWORD 'app-secret'",
+                Vec::new(),
+            )
+            .expect("create role from tenant_b");
+
+        // Assert
+        assert!(cassie
+            .authenticate_role("app_b", Some("app-secret"), Some("tenant_b".to_string()))
+            .is_ok());
+        assert!(matches!(
+            cassie.authenticate_role("app_b", Some("app-secret"), Some("postgres".to_string())),
+            Err(CassieError::InsufficientPrivilege)
+        ));
+    }
+
+    #[test]
     fn should_parse_exact_database_connect_grant_forms() {
         // Arrange
         let grant_sql = "GRANT CONNECT ON DATABASE analytics TO reader";

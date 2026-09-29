@@ -98,6 +98,23 @@ impl Cassie {
         password: Option<String>,
         if_not_exists: bool,
     ) -> Result<(), CassieError> {
+        self.create_role_in_database(name, login, password, if_not_exists, &self.default_database)
+    }
+
+    /// Creates a role that may connect to `database`, the database of the
+    /// session issuing `CREATE ROLE`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when validation, storage, or execution fails.
+    pub(crate) fn create_role_in_database(
+        &self,
+        name: &str,
+        login: bool,
+        password: Option<String>,
+        if_not_exists: bool,
+        database: &str,
+    ) -> Result<(), CassieError> {
         let normalized = normalize_role_name(name);
         if normalized.is_empty() {
             return Err(CassieError::Planner(
@@ -130,7 +147,7 @@ impl Cassie {
         };
 
         let mut role = RoleMeta::new(normalized, login, false, password_hash);
-        role.grant_database(&self.default_database);
+        role.grant_database(database);
         self.midge
             .put_role(&role)
             .map_err(|error| CassieError::Storage(format!("persist role '{name}': {error}")))?;

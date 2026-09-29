@@ -4262,6 +4262,204 @@ mod pgwire_result_framing {
         frames
     }
 
+    /// Runs `sql` over the simple-query protocol and returns every frame
+    /// through `ReadyForQuery`.
+    fn simple_round_trip(cassie: Cassie, path: String, sql: &str) -> Frames {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let frames = runtime.block_on(async {
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut writer).await;
+            support::write_frames(&mut writer, vec![support::simple_query_frame(sql)]).await;
+            let frames = support::read_frames_until_ready_within(&mut reader, ANSWER_LIMIT).await;
+            server.stop().await;
+            frames
+        });
+        let _ = std::fs::remove_dir_all(path);
+        frames
+    }
+
+    /// Runs one Parse/Describe(statement)/Bind/Execute/Sync cycle in text
+    /// format and returns every frame through `ReadyForQuery`.
+    fn extended_text_round_trip(cassie: Cassie, path: String, sql: &str) -> Frames {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let frames = runtime.block_on(async {
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut writer).await;
+            support::write_frames(
+                &mut writer,
+                vec![
+                    support::parse_frame("", sql),
+                    support::describe_statement_frame(""),
+                    support::bind_frame("", "", &[]),
+                    support::execute_frame(""),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready_within(&mut reader, ANSWER_LIMIT).await;
+            server.stop().await;
+            frames
+        });
+        let _ = std::fs::remove_dir_all(path);
+        frames
+    }
+
+    /// Asserts at least one `DataRow` arrived and every `DataRow` carries
+    /// exactly as many fields as the `RowDescription` declared.
+    fn assert_rows_match_description(frames: &Frames) {
+        let described = support::row_description_names(frames).len();
+        let rows = support::data_rows(frames);
+        assert!(!rows.is_empty(), "expected at least one DataRow");
+        for row in rows {
+            assert_eq!(
+                row.len(),
+                described,
+                "DataRow width must match RowDescription"
+            );
+        }
+    }
+
+    #[test]
+    fn should_describe_every_joined_column_given_wildcard_over_left_join() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "wildcard-left-join",
+            &[
+                "CREATE TABLE wj_l (k INT, name TEXT)",
+                "CREATE TABLE wj_r (k INT, total INT)",
+                "INSERT INTO wj_l (k, name) VALUES (1, 'a'), (2, 'b')",
+                "INSERT INTO wj_r (k, total) VALUES (1, 10)",
+            ],
+        );
+
+        // Act
+        let frames = simple_round_trip(
+            cassie,
+            path,
+            "SELECT * FROM wj_l LEFT JOIN wj_r ON wj_l.k = wj_r.k",
+        );
+
+        // Assert
+        assert_eq!(
+            support::row_description_names(&frames),
+            vec!["id", "k", "name", "id", "k", "total"]
+        );
+        assert_rows_match_description(&frames);
+    }
+
+    #[test]
+    fn should_describe_view_columns_without_phantom_id_given_wildcard_over_view() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "wildcard-view",
+            &[
+                "CREATE TABLE wv_t (i INT, k TEXT)",
+                "INSERT INTO wv_t (i, k) VALUES (1, 'a')",
+                "CREATE VIEW wv_v AS SELECT i, k FROM wv_t",
+            ],
+        );
+
+        // Act
+        let frames = simple_round_trip(cassie, path, "SELECT * FROM wv_v");
+
+        // Assert
+        assert_eq!(support::row_description_names(&frames), vec!["i", "k"]);
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![vec![Some("1".to_string()), Some("a".to_string())]]
+        );
+    }
+
+    #[test]
+    fn should_describe_derived_table_columns_given_wildcard_over_subquery() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "wildcard-derived",
+            &[
+                "CREATE TABLE wd_t (name TEXT, n INT)",
+                "INSERT INTO wd_t (name, n) VALUES ('alpha', 7)",
+            ],
+        );
+
+        // Act
+        let frames =
+            extended_text_round_trip(cassie, path, "SELECT * FROM (SELECT name, n FROM wd_t) d");
+
+        // Assert
+        let descriptions = frames
+            .iter()
+            .filter(|frame| frame.0 == b'T')
+            .map(|frame| support::parse_row_description(&frame.1))
+            .collect::<Vec<_>>();
+        assert_eq!(descriptions.len(), 1);
+        let names = descriptions[0]
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["name", "n"]);
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![vec![Some("alpha".to_string()), Some("7".to_string())]]
+        );
+    }
+
+    #[test]
+    fn should_describe_table_function_columns_given_wildcard_over_table_function() {
+        // Arrange
+        let (cassie, path) = configured_cassie("wildcard-table-function", &[]);
+
+        // Act
+        let frames = simple_round_trip(cassie, path, "SELECT * FROM pg_show_all_settings()");
+
+        // Assert
+        let names = support::row_description_names(&frames);
+        assert_eq!(names.len(), 17);
+        assert_eq!(names.first().map(String::as_str), Some("name"));
+        assert_rows_match_description(&frames);
+    }
+
+    #[test]
+    fn should_describe_cte_columns_without_phantom_id_given_wildcard_over_cte() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "wildcard-cte",
+            &[
+                "CREATE TABLE wc_t (name TEXT, n INT)",
+                "INSERT INTO wc_t (name, n) VALUES ('alpha', 7)",
+            ],
+        );
+
+        // Act
+        let frames = simple_round_trip(
+            cassie,
+            path,
+            "WITH c AS (SELECT name, n FROM wc_t) SELECT * FROM c",
+        );
+
+        // Assert
+        assert_eq!(support::row_description_names(&frames), vec!["name", "n"]);
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![vec![Some("alpha".to_string()), Some("7".to_string())]]
+        );
+    }
+
     fn data_row_field_lengths(payload: &[u8]) -> Vec<i32> {
         let count = i16::from_be_bytes([payload[0], payload[1]]);
         let mut cursor = 2_usize;

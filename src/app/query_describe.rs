@@ -99,20 +99,7 @@ impl Cassie {
         } else {
             HashMap::new()
         };
-        let collection_schema = self
-            .catalog
-            .get_schema(&physical.logical.collection)
-            .or_else(|| {
-                crate::catalog::CollectionSchema::virtual_view(&physical.logical.collection)
-            })
-            .or_else(|| {
-                crate::sql::binder::cte_collection_schema_with_functions(
-                    &physical.logical.ctes,
-                    &physical.logical.collection,
-                    &self.catalog,
-                    &user_functions,
-                )
-            });
+        let collection_schema = self.describe_collection_schema(&physical.logical, &user_functions);
 
         if let Some(command) = physical.logical.command.as_ref() {
             let returning = match command {
@@ -141,13 +128,37 @@ impl Cassie {
             self.observe_query_plan_usage(key, &physical, &provenance)?;
         }
 
+        let wildcard_fields = crate::executor::aggregate::wildcard_fields_for_plan(
+            &self.catalog,
+            &physical.logical,
+            &user_functions,
+        );
         Ok(
-            crate::executor::aggregate::columns_from_projection_with_parameter_oids(
+            crate::executor::aggregate::columns_from_projection_with_wildcard(
                 &physical.logical.projection,
                 collection_schema.as_ref(),
+                wildcard_fields.as_deref(),
                 &user_functions,
                 parameter_type_oids,
             ),
         )
+    }
+
+    fn describe_collection_schema(
+        &self,
+        logical: &crate::planner::logical::LogicalPlan,
+        user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    ) -> Option<crate::catalog::CollectionSchema> {
+        self.catalog
+            .get_schema(&logical.collection)
+            .or_else(|| crate::catalog::CollectionSchema::virtual_view(&logical.collection))
+            .or_else(|| {
+                crate::sql::binder::cte_collection_schema_with_functions(
+                    &logical.ctes,
+                    &logical.collection,
+                    &self.catalog,
+                    user_functions,
+                )
+            })
     }
 }

@@ -23,6 +23,64 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
     user_functions: &HashMap<String, FunctionMeta, S>,
     parameter_type_oids: &[i32],
 ) -> Vec<ColumnMeta> {
+    columns_from_projection_with_wildcard(
+        projection,
+        collection_schema,
+        None,
+        user_functions,
+        parameter_type_oids,
+    )
+}
+
+/// Resolves the row shape `SELECT *` expands to for `logical`'s source, or
+/// `None` when the projection has no wildcard or the source cannot be
+/// inferred (callers then keep the collection-schema expansion).
+#[must_use]
+pub(crate) fn wildcard_fields_for_plan(
+    catalog: &crate::catalog::Catalog,
+    logical: &crate::planner::logical::LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Option<Vec<FieldSchema>> {
+    if !logical
+        .projection
+        .iter()
+        .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return None;
+    }
+    // A base table keeps the collection-schema expansion, which honours the
+    // schema snapshot a saved plan was compiled against.
+    if let crate::sql::ast::QuerySource::Collection(name) = &logical.source {
+        let names_cte = logical
+            .ctes
+            .iter()
+            .any(|cte| cte.name.eq_ignore_ascii_case(name));
+        if !names_cte
+            && catalog.get_view(name).is_none()
+            && catalog.get_materialized_projection(name).is_none()
+        {
+            return None;
+        }
+    }
+    crate::sql::binder::wildcard_output_fields(
+        &logical.source,
+        &logical.ctes,
+        catalog,
+        user_functions,
+    )
+    .ok()
+}
+
+/// Builds result columns, expanding `*` to `wildcard_fields` when the caller
+/// resolved the source's row shape (see `sql::binder::wildcard_output_fields`).
+#[must_use]
+pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
+    projection: &[SelectItem],
+    collection_schema: Option<&CollectionSchema>,
+    wildcard_fields: Option<&[FieldSchema]>,
+    user_functions: &HashMap<String, FunctionMeta, S>,
+    parameter_type_oids: &[i32],
+) -> Vec<ColumnMeta> {
     if projection.is_empty() {
         return vec![ColumnMeta::from_data_type("*", &DataType::Text)];
     }
@@ -36,42 +94,7 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
     projection
         .iter()
         .flat_map(|item| match item {
-            SelectItem::Wildcard => {
-                if let Some(collection_schema) = collection_schema {
-                    if crate::catalog::virtual_views::schema(&collection_schema.collection)
-                        .is_some()
-                    {
-                        collection_schema
-                            .fields
-                            .iter()
-                            .map(|field| {
-                                ColumnMeta::from_data_type(field.name.clone(), &field.data_type)
-                            })
-                            .collect()
-                    } else {
-                        let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
-                        let mut seen = HashSet::new();
-                        if !collection_schema.declares_id() {
-                            seen.insert(LEGACY_ID_COLUMN.to_string());
-                            columns.push(ColumnMeta::from_data_type(
-                                LEGACY_ID_COLUMN,
-                                &DataType::Text,
-                            ));
-                        }
-                        for field in &collection_schema.fields {
-                            if seen.insert(field.name.to_ascii_lowercase()) {
-                                columns.push(ColumnMeta::from_data_type(
-                                    field.name.clone(),
-                                    &field.data_type,
-                                ));
-                            }
-                        }
-                        columns.into_iter().collect()
-                    }
-                } else {
-                    vec![ColumnMeta::from_data_type("*", &DataType::Text)]
-                }
-            }
+            SelectItem::Wildcard => wildcard_columns(collection_schema, wildcard_fields),
             SelectItem::Column { name, alias } => {
                 let data_type = column_data_type(name, collection_schema);
                 vec![ColumnMeta::from_data_type(
@@ -119,6 +142,47 @@ pub fn columns_from_projection_with_parameter_oids<S: BuildHasher>(
             }
         })
         .collect()
+}
+
+fn wildcard_columns(
+    collection_schema: Option<&CollectionSchema>,
+    wildcard_fields: Option<&[FieldSchema]>,
+) -> Vec<ColumnMeta> {
+    if let Some(fields) = wildcard_fields {
+        fields
+            .iter()
+            .map(|field| ColumnMeta::from_data_type(field.name.clone(), &field.data_type))
+            .collect()
+    } else if let Some(collection_schema) = collection_schema {
+        if crate::catalog::virtual_views::schema(&collection_schema.collection).is_some() {
+            collection_schema
+                .fields
+                .iter()
+                .map(|field| ColumnMeta::from_data_type(field.name.clone(), &field.data_type))
+                .collect()
+        } else {
+            let mut columns = Vec::with_capacity(collection_schema.fields.len() + 1);
+            let mut seen = HashSet::new();
+            if !collection_schema.declares_id() {
+                seen.insert(LEGACY_ID_COLUMN.to_string());
+                columns.push(ColumnMeta::from_data_type(
+                    LEGACY_ID_COLUMN,
+                    &DataType::Text,
+                ));
+            }
+            for field in &collection_schema.fields {
+                if seen.insert(field.name.to_ascii_lowercase()) {
+                    columns.push(ColumnMeta::from_data_type(
+                        field.name.clone(),
+                        &field.data_type,
+                    ));
+                }
+            }
+            columns.into_iter().collect()
+        }
+    } else {
+        vec![ColumnMeta::from_data_type("*", &DataType::Text)]
+    }
 }
 
 fn window_result_type(

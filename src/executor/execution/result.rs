@@ -30,10 +30,14 @@ pub(super) fn build_select_result(
                 user_functions,
             )
         });
-    let columns = aggregate::columns_from_projection(
+    let wildcard_fields =
+        aggregate::wildcard_fields_for_plan(&cassie.catalog, &plan.logical, user_functions);
+    let columns = aggregate::columns_from_projection_with_wildcard(
         &plan.logical.projection,
         collection_schema.as_ref(),
+        wildcard_fields.as_deref(),
         user_functions,
+        &[],
     );
     // Every row carries the reserved `_id` internal-identity entry (see
     // `scan::push_row_identity`) as working state for DML/retention/scored-

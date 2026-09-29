@@ -467,6 +467,7 @@ fn alter_table_drop_column(
 ) -> Result<(), QueryError> {
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE DROP COLUMN")?;
     schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
+    schema_graph_rename::reject_graph_column_drop(cassie, table, field)?;
     cassie
         .midge
         .alter_collection_drop_column(table, field)
@@ -513,6 +514,7 @@ fn alter_table_rename_column(
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.rename_collection_field(table, from, to);
     schema_foreign_keys::rename_referenced_field(cassie, table, from, to)?;
+    schema_graph_rename::rename_graph_columns(cassie, table, from, to)?;
     cassie
         .bump_schema_epoch_and_invalidate_query_cache()
         .map_err(QueryError::Cassie)?;
@@ -539,6 +541,7 @@ fn alter_table_rename_table(
         .rename_collection(table, next_table)
         .map_err(|error| QueryError::General(error.to_string()))?;
     schema_sequence_rename::rename_owned_table_sequences(cassie, next_table)?;
+    schema_graph_rename::rename_graph_tables(cassie, table, next_table)?;
     schema_foreign_keys::rename_referenced_table(cassie, table, next_table)
 }
 

@@ -65,18 +65,36 @@ impl Midge {
         graph: &crate::catalog::GraphMeta,
         edge_collection: &str,
     ) -> Result<Vec<GraphEdgeRecord>, CassieError> {
-        self.scan_documents(edge_collection)?
+        // A stored row that no longer forms a valid edge is left out of the
+        // adjacency sidecar rather than failing reconciliation: startup runs
+        // this for every graph, so one bad row must not make the whole
+        // instance unreachable.
+        Ok(self
+            .scan_documents(edge_collection)?
             .into_iter()
-            .map(|document| {
-                graph_edge_record_from_payload(graph, &document.id, &document.payload, true)?
-                    .ok_or_else(|| {
-                        CassieError::Parse(format!(
-                            "graph '{}' edge '{}' is incomplete",
-                            graph.name, document.id
-                        ))
-                    })
+            .filter_map(|document| {
+                match graph_edge_record_from_payload(graph, &document.id, &document.payload, true) {
+                    Ok(Some(record)) => Some(record),
+                    Ok(None) => {
+                        tracing::warn!(
+                            graph = %graph.name,
+                            edge = %document.id,
+                            "skipping incomplete graph edge row during adjacency reconciliation"
+                        );
+                        None
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            graph = %graph.name,
+                            edge = %document.id,
+                            %error,
+                            "skipping invalid graph edge row during adjacency reconciliation"
+                        );
+                        None
+                    }
+                }
             })
-            .collect()
+            .collect())
     }
 
     fn rebuild_graph_adjacency(

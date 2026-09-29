@@ -186,6 +186,9 @@ impl Cassie {
             return Ok((affected, None));
         }
 
+        // Autocommit COPY has no COMMIT, so run its parent-side check here: an
+        // explicit `_id` can replace a referenced key that children still use.
+        self.validate_staged_parent_references(staging)?;
         let writes = staging
             .transaction_writes()
             .remove(&statement.table)

@@ -72,21 +72,7 @@ pub(super) fn bind_foreign_key_reference(
         )));
     };
 
-    let references_supported = catalog
-        .get_constraints(&table)
-        .into_iter()
-        .any(|candidate| {
-            candidate.field.eq_ignore_ascii_case(&reference_field)
-                && (candidate.primary_key || candidate.unique)
-        })
-        || catalog
-            .list_indexes(&table)
-            .into_iter()
-            .filter(|index| index.unique && index.kind == crate::catalog::IndexKind::Scalar)
-            .any(|index| {
-                let fields = index.normalized_fields();
-                fields.len() == 1 && fields[0].eq_ignore_ascii_case(&reference_field)
-            });
+    let references_supported = catalog.has_unique_key_on(&table, &reference_field, None);
 
     if !references_supported {
         return Err(CassieError::Planner(format!(

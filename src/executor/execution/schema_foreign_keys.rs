@@ -35,6 +35,42 @@ pub(super) fn reject_referenced_constraint_drop(
     Ok(())
 }
 
+/// Refuses to drop the unique index that is the only uniqueness backing a
+/// FOREIGN KEY's referenced column, as PostgreSQL refuses to drop an index a
+/// constraint depends on.
+pub(super) fn reject_referenced_unique_index_drop(
+    cassie: &Cassie,
+    table: &str,
+    index: &crate::catalog::IndexMeta,
+) -> Result<(), QueryError> {
+    if !index.unique {
+        return Ok(());
+    }
+    let fields = index.normalized_fields();
+    let [field] = fields.as_slice() else {
+        return Ok(());
+    };
+    if cassie
+        .catalog
+        .has_unique_key_on(table, &field, Some(&index.name))
+    {
+        return Ok(());
+    }
+    for collection in cassie.catalog.list_collections_canonical() {
+        for constraint in cassie.catalog.get_constraints(&collection.name) {
+            if references_table(&constraint, table) && references_field(&constraint, field) {
+                return Err(QueryError::General(format!(
+                    "cannot drop index '{}' because foreign key constraint '{}' on '{}' depends on it",
+                    index.name,
+                    constraint.foreign_key_constraint_name(&collection.name),
+                    collection.name
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Refuses to drop a column while a FOREIGN KEY declared on another column
 /// references it. A FOREIGN KEY declared on the dropped column itself is not a
 /// dependency; it is removed with the column.

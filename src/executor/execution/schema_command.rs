@@ -291,6 +291,7 @@ pub(super) fn drop_index(
     }
 
     if let Some(index) = index.as_ref() {
+        schema_foreign_keys::reject_referenced_unique_index_drop(cassie, &statement.table, index)?;
         if matches!(index.kind, catalog::IndexKind::Vector) {
             cassie
                 .catalog

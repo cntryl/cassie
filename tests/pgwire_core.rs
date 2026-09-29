@@ -1547,9 +1547,39 @@ mod pgwire_database_images {
                 support::complete_startup(&mut reader, &mut write_half).await;
                 let image = backup_database(&mut reader, &mut write_half).await;
                 restore_database(&mut reader, &mut write_half, &image).await;
+
+                // Verify that a new session sees restored metadata without
+                // requiring a process restart or manual catalog hydration.
+                let mut restored_socket = tokio::net::TcpStream::connect(server.addr)
+                    .await
+                    .expect("connect restored database");
+                let (restored_read, mut restored_write) = restored_socket.split();
+                let mut restored_reader = tokio::io::BufReader::new(restored_read);
+                support::complete_startup_as(
+                    &mut restored_reader,
+                    &mut restored_write,
+                    "root",
+                    "restored",
+                    "postgres",
+                )
+                .await;
+                restored_write
+                    .write_all(&query_frame("SELECT value FROM analytics"))
+                    .await
+                    .expect("query restored relation");
+                restored_write.flush().await.expect("flush restored query");
+                let restored_rows = support::read_frames_until_ready(&mut restored_reader).await;
+                assert_eq!(support::error_code(&restored_rows), None);
+                assert_eq!(
+                    support::data_rows(&restored_rows),
+                    vec![vec![Some("copy".to_string())]]
+                );
+                restored_write
+                    .shutdown()
+                    .await
+                    .expect("close restored pgwire client");
                 write_half.shutdown().await.expect("close pgwire client");
             }
-            cassie.hydrate_catalog().expect("hydrate restored catalog");
 
             // Assert
             assert_restored_database(&cassie);

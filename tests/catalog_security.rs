@@ -2665,6 +2665,22 @@ mod database_images {
     }
 
     #[test]
+    fn should_reject_qualified_database_restore_targets() {
+        // Arrange
+        let source_path = data_dir("qualified_restore_target");
+        let cassie = Cassie::new_with_data_dir(&source_path).expect("cassie");
+        cassie.startup().expect("startup");
+
+        // Act
+        let result = cassie.begin_database_restore("tenant.db");
+
+        // Assert
+        assert!(result.is_err(), "qualified database targets are invalid");
+
+        let _ = std::fs::remove_dir_all(source_path);
+    }
+
+    #[test]
     fn should_reject_restore_when_target_matches_existing_database_case_insensitively() {
         // Arrange
         let source_path = data_dir("case_restore_source");

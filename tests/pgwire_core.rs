@@ -1601,6 +1601,61 @@ mod pgwire_database_images {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_reject_qualified_restore_database_name_before_copy_in() {
+        // Arrange
+        support::use_local_storage();
+        let path = data_dir("qualified-target");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        let (entered_copy_in, error_code) = runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            write_half
+                .write_all(&query_frame("RESTORE DATABASE tenant.db FROM STDIN"))
+                .await
+                .expect("restore query");
+            write_half.flush().await.expect("flush restore query");
+            let first = support::read_wire_frame(&mut reader).await;
+            let entered_copy_in = first.0 == b'G';
+            let frames = if entered_copy_in {
+                write_half
+                    .write_all(&support::copy_fail_frame("cancel invalid target probe"))
+                    .await
+                    .expect("cancel copy-in probe");
+                write_half.flush().await.expect("flush copy fail");
+                support::read_frames_until_ready(&mut reader).await
+            } else {
+                let mut frames = vec![first];
+                frames.extend(support::read_frames_until_ready(&mut reader).await);
+                frames
+            };
+            let error_code = support::error_code(&frames);
+            server.stop().await;
+            (entered_copy_in, error_code)
+        });
+        let _ = std::fs::remove_dir_all(path);
+
+        // Assert
+        assert!(
+            !entered_copy_in,
+            "invalid target must fail before CopyInResponse"
+        );
+        assert_eq!(error_code.as_deref(), Some("42601"));
+    }
 }
 // Formerly tests/pgwire_database_scope.rs.
 mod pgwire_database_scope {

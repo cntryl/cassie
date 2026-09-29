@@ -450,12 +450,14 @@ impl Cassie {
     ///
     /// # Errors
     ///
-    /// Returns an error if the target already exists or staging cannot start.
+    /// Returns an error if the target name is invalid, the target already exists,
+    /// or staging cannot start.
     pub fn begin_database_restore(
         &self,
         target_database: &str,
     ) -> Result<DatabaseRestoreSession, CassieError> {
-        let staged = self.midge.stage_database_family(target_database)?;
+        let target_database = crate::sql::binder::normalize_database_name(target_database.trim())?;
+        let staged = self.midge.stage_database_family(&target_database)?;
         Ok(DatabaseRestoreSession {
             cassie: self.clone(),
             staged: Some(staged),

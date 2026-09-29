@@ -10707,10 +10707,7 @@ mod foreign_key_integrity {
         let created = cassie.execute_sql(&session, NODE_DDL, vec![]);
 
         // Assert
-        assert!(
-            created.is_ok(),
-            "self-referencing FK at CREATE TABLE: {created:?}"
-        );
+        assert!(created.is_ok(), "self-referencing FK at CREATE TABLE");
         let _ = std::fs::remove_dir_all(path);
     }
 

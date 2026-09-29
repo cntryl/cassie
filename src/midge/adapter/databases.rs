@@ -390,7 +390,11 @@ impl Midge {
         name: &str,
     ) -> Result<StagedDatabaseFamily, CassieError> {
         self.ensure_families_ready()?;
-        if self.get_database(name)?.is_some() {
+        if self
+            .database_families
+            .read()
+            .contains_key(&name.to_ascii_lowercase())
+        {
             return Err(CassieError::Unsupported(format!(
                 "database '{name}' already exists"
             )));

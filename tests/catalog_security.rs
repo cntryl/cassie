@@ -2665,6 +2665,65 @@ mod database_images {
     }
 
     #[test]
+    fn should_reject_restore_when_target_matches_existing_database_case_insensitively() {
+        // Arrange
+        let source_path = data_dir("case_restore_source");
+        let cassie = Cassie::new_with_data_dir(&source_path).expect("cassie");
+        cassie.startup().expect("startup");
+        cassie
+            .midge
+            .create_database("analytics", None)
+            .expect("analytics");
+        cassie
+            .midge
+            .create_namespace("analytics.public")
+            .expect("analytics namespace");
+        let collection = canonical_relation_name("analytics", "public", "parent");
+        cassie
+            .midge
+            .create_collection(
+                &collection,
+                Schema {
+                    fields: vec![
+                        FieldSchema {
+                            name: "id".to_string(),
+                            data_type: DataType::Int,
+                            nullable: false,
+                        },
+                        FieldSchema {
+                            name: "code".to_string(),
+                            data_type: DataType::Text,
+                            nullable: false,
+                        },
+                    ],
+                },
+            )
+            .expect("create parent collection");
+        cassie
+            .midge
+            .put_document(
+                &collection,
+                Some("1".to_string()),
+                serde_json::json!({"id": 1, "code": "live"}),
+            )
+            .expect("insert parent row");
+
+        // Act
+        let result = cassie.begin_database_restore("ANALYTICS");
+
+        // Assert
+        assert!(result.is_err(), "restore must not replace a live database");
+        let live_row = cassie
+            .midge
+            .get_document("analytics.public.parent", "1")
+            .expect("live row lookup")
+            .expect("live row remains present");
+        assert_eq!(live_row.payload["code"], "live");
+
+        let _ = std::fs::remove_dir_all(source_path);
+    }
+
+    #[test]
     fn should_round_trip_program_catalog_metadata() {
         // Arrange
         let source_path = data_dir("program_image_source");

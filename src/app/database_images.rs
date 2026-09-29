@@ -267,8 +267,10 @@ impl DatabaseRestoreSession {
     ///
     /// # Errors
     ///
-    /// Returns an error if the image is incomplete or the final catalog commit
-    /// fails. The staged family remains abortable on error.
+    /// Returns an error if the image is incomplete, the storage commit fails,
+    /// or the in-memory catalog cannot be refreshed after commit. If catalog
+    /// refresh fails, the database has already been committed and cannot be
+    /// aborted through this restore session.
     pub fn finish(&mut self) -> Result<(), CassieError> {
         if matches!(self.phase, RestorePhase::Closed) {
             return Err(CassieError::Execution(
@@ -290,11 +292,18 @@ impl DatabaseRestoreSession {
             .header
             .as_ref()
             .ok_or_else(|| CassieError::Parse("database image header is missing".to_string()))?;
-        let result = self.cassie.midge.commit_staged_database_family(
-            staged,
-            &header.source_database,
-            std::mem::take(&mut self.catalog_entries),
-        );
+        let result = self
+            .cassie
+            .midge
+            .commit_staged_database_family(
+                staged,
+                &header.source_database,
+                std::mem::take(&mut self.catalog_entries),
+            )
+            .and_then(|()| {
+                self.cassie.hydrate_catalog()?;
+                self.cassie.bump_schema_epoch_and_invalidate_query_cache()
+            });
         self.phase = RestorePhase::Closed;
         result
     }

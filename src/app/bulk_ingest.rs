@@ -345,10 +345,14 @@ fn copy_value_to_json(
         DataType::Boolean => parse_copy_bool(&value)
             .map(serde_json::Value::Bool)
             .ok_or_else(|| CassieError::Parse(format!("field '{}' expects boolean", field.name))),
-        DataType::Json | DataType::Array(_) | DataType::Vector(_) => serde_json::from_str(&value)
-            .map_err(|error| {
-                CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
-            }),
+        DataType::Array(element_type) => {
+            crate::types::array::parse_text_array(&value, element_type).map_err(|error| {
+                CassieError::Parse(format!("field '{}' expects array: {error}", field.name))
+            })
+        }
+        DataType::Json | DataType::Vector(_) => serde_json::from_str(&value).map_err(|error| {
+            CassieError::Parse(format!("field '{}' expects JSON: {error}", field.name))
+        }),
         DataType::Null
         | DataType::Text
         | DataType::Char { .. }

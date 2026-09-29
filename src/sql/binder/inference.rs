@@ -568,7 +568,20 @@ pub(crate) fn known_expr_type(
     }
 }
 
-fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
+const OID_VECTOR_BASE: i32 = 33_000;
+const OID_ARRAY_BASE: i32 = 34_000;
+const OID_ARRAY_LIMIT: i32 = 44_000;
+
+pub(super) fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
+    if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&oid) {
+        let element_type = scalar_data_type_for_parameter_oid(oid - OID_ARRAY_BASE)?;
+        return Some(DataType::Array(Box::new(element_type)));
+    }
+
+    scalar_data_type_for_parameter_oid(oid)
+}
+
+fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
     match oid {
         16 => Some(DataType::Boolean),
         17 => Some(DataType::Bytea),
@@ -584,7 +597,11 @@ fn data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
         1083 => Some(DataType::Time),
         1114 => Some(DataType::Timestamp),
         2950 => Some(DataType::Uuid),
-        oid if oid > 33000 => usize::try_from(oid - 33000).ok().map(DataType::Vector),
+        oid if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&oid) => {
+            usize::try_from(oid - OID_VECTOR_BASE)
+                .ok()
+                .map(DataType::Vector)
+        }
         _ => None,
     }
 }

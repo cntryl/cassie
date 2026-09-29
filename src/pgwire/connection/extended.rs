@@ -693,7 +693,14 @@ fn decode_text_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQu
         OID_JSON => serde_json::from_str(text)
             .map(Value::Json)
             .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
-        _ => Ok(Value::String(text.to_string())),
+        _ => match crate::sql::binder::parameter_data_type_for_oid(oid) {
+            Some(crate::types::DataType::Array(element_type)) => {
+                crate::types::array::parse_text_array(text, &element_type)
+                    .map(Value::Json)
+                    .map_err(|_| ExtendedQueryError::protocol("invalid text array parameter"))
+            }
+            _ => Ok(Value::String(text.to_string())),
+        },
     }
 }
 

@@ -73,6 +73,10 @@ use validation::{
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
 
+pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
+    inference::data_type_for_parameter_oid(oid)
+}
+
 #[derive(Debug, Clone)]
 pub struct BoundStatement {
     pub statement: ParsedStatement,

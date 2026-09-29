@@ -24,8 +24,12 @@ pub(crate) struct ForeignKeyReferences {
 }
 
 impl ForeignKeyReferences {
+    /// Collects the references `payload`, a row of `collection`, makes. A
+    /// self-referencing key equal to the row's own referenced value is
+    /// satisfied by the row itself and is not collected.
     pub(crate) fn collect(
         &mut self,
+        collection: &str,
         constraints: &[FieldConstraint],
         payload: &serde_json::Value,
     ) -> Result<(), CassieError> {
@@ -45,11 +49,15 @@ impl ForeignKeyReferences {
             if value.is_null() {
                 continue;
             }
-            let key = (
-                table.to_string(),
-                field.to_string(),
-                foreign_key_value_key(value),
-            );
+            let value_key = foreign_key_value_key(value);
+            if crate::catalog::name_matches(table, collection)
+                && object
+                    .get(field)
+                    .is_some_and(|own| foreign_key_value_key(own) == value_key)
+            {
+                continue;
+            }
+            let key = (table.to_string(), field.to_string(), value_key);
             if self.seen.insert(key) {
                 self.references.push(ForeignKeyReference {
                     column: constraint.field.clone(),
@@ -92,7 +100,7 @@ impl Cassie {
             .into_iter()
             .flatten()
         {
-            references.collect(constraints, &document.payload)?;
+            references.collect(collection, constraints, &document.payload)?;
         }
         self.validate_foreign_key_references(None, collection, &references)
     }
@@ -252,7 +260,7 @@ mod tests {
         // Act
         for payload in &payloads {
             references
-                .collect(&constraints, payload)
+                .collect("children", &constraints, payload)
                 .expect("collect references");
         }
 

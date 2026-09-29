@@ -50,6 +50,17 @@ pub(super) fn bind_create_table(
         ));
     }
 
+    let own_unique_fields = statement
+        .fields
+        .iter()
+        .filter(|field| {
+            field
+                .constraints
+                .iter()
+                .any(|constraint| constraint.primary_key || constraint.unique)
+        })
+        .map(|field| field.name.trim().to_string())
+        .collect::<Vec<_>>();
     let mut seen = HashSet::new();
     let mut primary_key_field: Option<String> = None;
     for field in &mut statement.fields {
@@ -76,7 +87,15 @@ pub(super) fn bind_create_table(
                 }
                 primary_key_field = Some(field_name.to_string());
             }
-            bind_foreign_key_reference(constraint, field_name, catalog, context)?;
+            if !bind_self_foreign_key_reference(
+                constraint,
+                field_name,
+                &name,
+                &own_unique_fields,
+                context,
+            )? {
+                bind_foreign_key_reference(constraint, field_name, catalog, context)?;
+            }
         }
 
         field.name = field_name.to_string();
@@ -85,6 +104,38 @@ pub(super) fn bind_create_table(
     requalify_serial_sequences(&mut statement, &name, catalog, context)?;
     statement.table = name;
     Ok(statement)
+}
+
+/// Binds a FOREIGN KEY that references the table being created, which is not
+/// in the catalog yet, against the statement's own PRIMARY KEY and UNIQUE
+/// columns. Returns `false` when the reference names another table.
+fn bind_self_foreign_key_reference(
+    constraint: &mut crate::catalog::FieldConstraint,
+    field_label: &str,
+    table: &str,
+    own_unique_fields: &[String],
+    context: &BindingContext,
+) -> Result<bool, CassieError> {
+    let (Some(referenced_table), Some(referenced_field)) = (
+        constraint.references_table.as_deref(),
+        constraint.references_field.as_deref(),
+    ) else {
+        return Ok(false);
+    };
+    if !normalize_relation_name(referenced_table.trim(), context)?.eq_ignore_ascii_case(table) {
+        return Ok(false);
+    }
+    let Some(declared) = own_unique_fields
+        .iter()
+        .find(|field| field.eq_ignore_ascii_case(referenced_field))
+    else {
+        return Err(CassieError::Planner(format!(
+            "foreign key on '{field_label}' must reference a primary or unique key on '{table}.{referenced_field}'"
+        )));
+    };
+    constraint.references_field = Some(declared.clone());
+    constraint.references_table = Some(table.to_string());
+    Ok(true)
 }
 
 /// SERIAL sequence names are derived while parsing, before the table name is

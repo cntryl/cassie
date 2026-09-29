@@ -174,6 +174,7 @@ fn find_delete_restriction(
             parent_value,
             controls,
         )?;
+        let child_rows = without_deleted_row(child_rows, &child_table, table, row_id);
         if child_rows.is_empty() {
             continue;
         }
@@ -333,6 +334,7 @@ fn apply_delete_actions(
             parent_value,
             controls,
         )?;
+        let child_rows = without_deleted_row(child_rows, &child_table, table, row_id);
         if child_rows.is_empty() {
             continue;
         }
@@ -636,6 +638,23 @@ fn referencing_child_rows(
         }
     }
     Ok(rows)
+}
+
+/// Drops the row being deleted from its own referencing rows: a row that
+/// references itself is removed with the parent and does not block it.
+fn without_deleted_row(
+    child_rows: Vec<crate::midge::adapter::DocumentRef>,
+    child_table: &str,
+    table: &str,
+    row_id: &str,
+) -> Vec<crate::midge::adapter::DocumentRef> {
+    if !crate::catalog::name_matches(child_table, table) {
+        return child_rows;
+    }
+    child_rows
+        .into_iter()
+        .filter(|child| child.id != row_id)
+        .collect()
 }
 
 fn set_child_reference_values(

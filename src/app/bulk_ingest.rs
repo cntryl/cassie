@@ -172,7 +172,7 @@ impl Cassie {
                 true,
                 None,
             )?;
-            references.collect(&constraints, &prepared)?;
+            references.collect(&statement.table, &constraints, &prepared)?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
         }

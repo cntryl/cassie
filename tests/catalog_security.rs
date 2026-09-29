@@ -3256,6 +3256,94 @@ mod database_scope {
         let _ = std::fs::remove_dir_all(path);
     });
     }
+
+    #[test]
+    fn should_reject_relation_creation_in_system_schemas() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("system_schema_relation_creation");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "CREATE TABLE owned (id INT)", vec![])
+            .unwrap();
+        let statements = [
+            "CREATE TABLE pg_catalog.leak (id BIGINT, secret TEXT)",
+            "CREATE TABLE information_schema.leak (id BIGINT, secret TEXT)",
+            "CREATE VIEW pg_catalog.leak_view AS SELECT id FROM owned",
+            "CREATE SEQUENCE pg_catalog.leak_seq",
+            "CREATE MATERIALIZED PROJECTION pg_catalog.leak_projection AS SELECT id FROM owned",
+            "ALTER TABLE owned RENAME TO pg_catalog.moved",
+        ];
+
+        for sql in statements {
+            // Act
+            let result = cassie.execute_sql(&session, sql, vec![]);
+
+            // Assert
+            assert!(
+                matches!(result, Err(CassieError::InsufficientPrivilege)),
+                "{sql} must be rejected"
+            );
+        }
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_relation_creation_given_system_schema_first_in_search_path() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("system_schema_search_path_creation");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, "SET search_path TO pg_catalog", vec![])
+            .unwrap();
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "CREATE TABLE hidden (id BIGINT, secret TEXT)",
+            vec![],
+        );
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::InsufficientPrivilege)));
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_system_schema_qualified_names_out_of_other_databases() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("system_schema_cross_database");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let postgres = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&postgres, "CREATE DATABASE tenant_b", vec![])
+            .unwrap();
+        let _ = cassie.execute_sql(
+            &postgres,
+            "CREATE TABLE pg_catalog.leak (id BIGINT, secret TEXT)",
+            vec![],
+        );
+        let _ = cassie.execute_sql(
+            &postgres,
+            "INSERT INTO pg_catalog.leak (id, secret) VALUES (1, 'TOPSECRET')",
+            vec![],
+        );
+        let tenant = cassie.create_session("tester", Some("tenant_b".to_string()));
+
+        // Act
+        let read = cassie.execute_sql(&tenant, "SELECT id, secret FROM pg_catalog.leak", vec![]);
+
+        // Assert
+        assert!(read.is_err(), "tenant_b must not reach pg_catalog.leak");
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/integration_sql_catalog.rs.

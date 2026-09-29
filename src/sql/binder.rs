@@ -48,6 +48,7 @@ use commands::{
     bind_enforce_retention_policy, bind_insert, bind_update,
 };
 pub(crate) use context::normalize_database_name;
+pub(crate) use context::normalize_new_relation_name;
 pub(crate) use context::normalize_relation_name;
 pub use context::BindingContext;
 use context::{normalize_schema_name, resolve_relation_name, resolve_schema_name};
@@ -610,7 +611,7 @@ fn bind_create_materialized_projection_statement(
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = normalize_new_relation_name(statement.name.trim(), context)?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE MATERIALIZED PROJECTION requires a name".into(),

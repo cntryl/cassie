@@ -22,7 +22,7 @@ pub(super) fn bind_create_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
-    let name = normalize_relation_name(statement.table.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.table.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE TABLE requires a table name".into(),
@@ -183,7 +183,7 @@ pub(super) fn bind_create_view(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateViewStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.name.trim(), context)?;
     if name.is_empty() {
         return Err(CassieError::Planner("CREATE VIEW requires a name".into()));
     }
@@ -251,7 +251,7 @@ pub(super) fn bind_create_graph(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateGraphStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = super::normalize_new_relation_name(statement.name.trim(), context)?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE GRAPH requires a graph name".into(),
@@ -474,7 +474,7 @@ pub(super) fn bind_alter_table(
         .collect::<HashSet<_>>();
 
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
-        *target = normalize_relation_name(target.trim(), context)?;
+        *target = super::normalize_new_relation_name(target.trim(), context)?;
     }
     if let AlterTableOperation::AlterColumnSetDefault {
         default_expression,

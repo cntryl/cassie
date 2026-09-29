@@ -99,6 +99,28 @@ pub fn normalize_relation_name(raw: &str, context: &BindingContext) -> Result<St
     }
 }
 
+/// Normalizes the name of a relation or routine being created or renamed.
+///
+/// # Errors
+///
+/// Returns `InsufficientPrivilege` when the target lands in a system schema,
+/// explicitly or through `search_path`, because system schemas are not scoped
+/// to a database; otherwise as [`normalize_relation_name`].
+pub fn normalize_new_relation_name(
+    raw: &str,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let target_schema = match parse_name(raw).map_err(CassieError::Planner)? {
+        ParsedName::Unqualified(_) => Some(context.current_schema().to_string()),
+        ParsedName::SchemaQualified { schema, .. } => Some(schema),
+        ParsedName::DatabaseQualified { .. } => None,
+    };
+    if target_schema.is_some_and(|schema| is_system_schema(&schema)) {
+        return Err(CassieError::InsufficientPrivilege);
+    }
+    normalize_relation_name(raw, context)
+}
+
 /// # Errors
 ///
 /// Returns an error when the schema reference is malformed or cross-database.

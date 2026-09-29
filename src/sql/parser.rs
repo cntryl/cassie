@@ -102,6 +102,8 @@ mod copy;
 mod dml;
 #[path = "parser/expr.rs"]
 mod expr;
+#[path = "parser/identifiers.rs"]
+mod identifiers;
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "parser/preflight.rs"]

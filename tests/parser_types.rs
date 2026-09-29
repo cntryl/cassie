@@ -1754,6 +1754,284 @@ mod parser_expressions {
     }
 }
 
+// Delimited (double-quoted) identifiers in expression, DML-target and alias positions.
+mod sql_quoted_identifiers {
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::executor::QueryResult;
+    use cassie::sql::ast::{QueryStatement, SelectItem};
+    use cassie::sql::parse_statement;
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn with_users_table(label: &str, test: impl FnOnce(&Cassie, &CassieSession)) {
+        use_local_storage();
+        let path = data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE users (id BIGINT, name TEXT)",
+                "INSERT INTO users (id, name) VALUES (1, 'alice')",
+                "INSERT INTO users (id, name) VALUES (2, 'bob')",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .expect("seed users table");
+            }
+            test(&cassie, &session);
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn run(cassie: &Cassie, session: &CassieSession, sql: &str) -> QueryResult {
+        match cassie.execute_sql(session, sql, vec![]) {
+            Ok(result) => result,
+            Err(error) => panic!("statement failed: {sql}: {error}"),
+        }
+    }
+
+    fn string_rows(values: &[&str]) -> Vec<Vec<Value>> {
+        values
+            .iter()
+            .map(|value| vec![Value::String((*value).to_string())])
+            .collect()
+    }
+
+    #[test]
+    fn should_resolve_a_quoted_identifier_in_where_to_the_column() {
+        with_users_table("quoted_ident_where", |cassie, session| {
+            // Arrange
+            let sql = "SELECT name FROM users WHERE \"name\" = 'alice'";
+
+            // Act
+            let selected = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(selected.rows, string_rows(&["alice"]));
+        });
+    }
+
+    #[test]
+    fn should_project_a_quoted_identifier_as_the_column_value() {
+        with_users_table("quoted_ident_projection", |cassie, session| {
+            // Arrange
+            let sql = "SELECT \"name\" FROM users ORDER BY \"id\" DESC";
+
+            // Act
+            let selected = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(selected.columns[0].name, "name");
+            assert_eq!(selected.rows, string_rows(&["bob", "alice"]));
+        });
+    }
+
+    #[test]
+    fn should_update_a_quoted_target_on_rows_matched_by_a_quoted_identifier() {
+        with_users_table("quoted_ident_update", |cassie, session| {
+            // Arrange
+            let update = "UPDATE users SET \"name\" = 'x' WHERE \"id\" = 1";
+
+            // Act
+            let updated = run(cassie, session, update);
+            let remaining = run(cassie, session, "SELECT name FROM users ORDER BY id");
+
+            // Assert
+            assert_eq!(updated.command, "UPDATE 1");
+            assert_eq!(remaining.rows, string_rows(&["x", "bob"]));
+        });
+    }
+
+    #[test]
+    fn should_delete_rows_matched_by_a_quoted_identifier() {
+        with_users_table("quoted_ident_delete", |cassie, session| {
+            // Arrange
+            let delete = "DELETE FROM users WHERE \"id\" = 2";
+
+            // Act
+            let deleted = run(cassie, session, delete);
+            let remaining = run(cassie, session, "SELECT name FROM users ORDER BY id");
+
+            // Assert
+            assert_eq!(deleted.command, "DELETE 1");
+            assert_eq!(remaining.rows, string_rows(&["alice"]));
+        });
+    }
+
+    #[test]
+    fn should_insert_into_a_quoted_column_created_by_create_table() {
+        with_users_table("quoted_ident_insert_columns", |cassie, session| {
+            // Arrange
+            run(cassie, session, "CREATE TABLE q (\"Col\" TEXT)");
+
+            // Act
+            let inserted = run(cassie, session, "INSERT INTO q (\"Col\") VALUES ('v')");
+            let selected = run(cassie, session, "SELECT \"Col\" FROM q");
+
+            // Assert
+            assert_eq!(inserted.command, "INSERT 0 1");
+            assert_eq!(selected.rows, string_rows(&["v"]));
+        });
+    }
+
+    #[test]
+    fn should_strip_quotes_from_a_quoted_column_alias() {
+        with_users_table("quoted_ident_alias", |cassie, session| {
+            // Arrange
+            let sql = "SELECT name AS \"Foo\" FROM users WHERE id = 1";
+
+            // Act
+            let selected = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(selected.columns[0].name, "Foo");
+            assert_eq!(selected.rows, string_rows(&["alice"]));
+        });
+    }
+
+    #[test]
+    fn should_arbitrate_on_conflict_with_a_quoted_target_column() {
+        with_users_table("quoted_ident_on_conflict", |cassie, session| {
+            // Arrange
+            run(
+                cassie,
+                session,
+                "CREATE TABLE keyed (id BIGINT PRIMARY KEY, v TEXT)",
+            );
+            run(cassie, session, "INSERT INTO keyed (id, v) VALUES (1, 'a')");
+
+            // Act
+            let upserted = run(
+                cassie,
+                session,
+                "INSERT INTO keyed (\"id\", \"v\") VALUES (1, 'b') ON CONFLICT (\"id\") DO UPDATE SET \"v\" = 'c'",
+            );
+            let selected = run(cassie, session, "SELECT v FROM keyed");
+
+            // Assert
+            assert_eq!(upserted.command, "INSERT 0 1");
+            assert_eq!(selected.rows, string_rows(&["c"]));
+        });
+    }
+
+    #[test]
+    fn should_group_by_a_quoted_identifier_as_the_column_value() {
+        with_users_table("quoted_ident_group", |cassie, session| {
+            // Arrange
+            run(
+                cassie,
+                session,
+                "INSERT INTO users (id, name) VALUES (3, 'bob')",
+            );
+            let sql = "SELECT \"name\", count(*) FROM users GROUP BY \"name\" ORDER BY \"name\"";
+
+            // Act
+            let grouped = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(
+                grouped.rows,
+                vec![
+                    vec![Value::String("alice".to_string()), Value::Int64(1)],
+                    vec![Value::String("bob".to_string()), Value::Int64(2)],
+                ]
+            );
+        });
+    }
+
+    #[test]
+    fn should_compare_a_quoted_identifier_against_a_numeric_literal() {
+        with_users_table("quoted_ident_compare", |cassie, session| {
+            // Arrange
+            let sql = "SELECT name FROM users WHERE \"id\" > 1";
+
+            // Act
+            let compared = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(compared.rows, string_rows(&["bob"]));
+        });
+    }
+
+    #[test]
+    fn should_bind_a_parameter_against_a_quoted_indexed_column() {
+        with_users_table("quoted_ident_indexed_param", |cassie, session| {
+            // Arrange
+            run(cassie, session, "CREATE INDEX users_id_idx ON users (id)");
+            let sql = "SELECT \"name\" FROM users WHERE \"id\" = $1";
+
+            // Act
+            let selected = match cassie.execute_sql(session, sql, vec![Value::Int64(2)]) {
+                Ok(result) => result,
+                Err(error) => panic!("statement failed: {sql}: {error}"),
+            };
+
+            // Assert
+            assert_eq!(selected.rows, string_rows(&["bob"]));
+        });
+    }
+
+    #[test]
+    fn should_resolve_quoted_identifiers_containing_spaces_or_multibyte_characters() {
+        with_users_table("quoted_ident_spaces", |cassie, session| {
+            // Arrange
+            run(
+                cassie,
+                session,
+                "CREATE TABLE people (\"first name\" TEXT, \"café\" TEXT)",
+            );
+            run(
+                cassie,
+                session,
+                "INSERT INTO people (\"first name\", \"café\") VALUES ('ada', 'noir')",
+            );
+            let sql = "SELECT \"café\" FROM people WHERE \"first name\" = 'ada'";
+
+            // Act
+            let selected = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(selected.columns[0].name, "café");
+            assert_eq!(selected.rows, string_rows(&["noir"]));
+        });
+    }
+
+    #[test]
+    fn should_parse_quoted_qualified_identifiers_as_column_paths() {
+        // Arrange
+        let cases = [
+            ("SELECT \"users\".\"name\" FROM users", "users.name"),
+            ("SELECT users.\"name\" FROM users", "users.name"),
+            ("SELECT \"we\"\"ird\" FROM users", "we\"ird"),
+        ];
+
+        // Act
+        let parsed = cases.map(|(sql, expected)| {
+            let statement = parse_statement(sql).expect("parse quoted identifier");
+            let QueryStatement::Select(select) = statement.statement else {
+                panic!("expected SELECT statement for {sql}");
+            };
+            (select.projection[0].clone(), expected)
+        });
+
+        // Assert
+        for (item, expected) in parsed {
+            let SelectItem::Column { name, .. } = item else {
+                panic!("expected column projection for {expected}");
+            };
+            assert_eq!(name, expected);
+        }
+    }
+}
+
 // Formerly tests/parser_functions_roles.rs.
 mod parser_functions_roles {
     #![allow(unused_imports)]

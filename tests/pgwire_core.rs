@@ -1342,6 +1342,7 @@ mod pgwire_database_images {
     use cassie::catalog::{
         canonical_relation_name, CollectionMeta, FieldConstraint, IndexKind, IndexMeta,
     };
+    use cassie::config::CassieRuntimeConfig;
     use cassie::types::{DataType, FieldSchema, Schema};
     use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
     use uuid::Uuid;
@@ -1555,12 +1556,15 @@ mod pgwire_database_images {
                     .expect("connect restored database");
                 let (restored_read, mut restored_write) = restored_socket.split();
                 let mut restored_reader = tokio::io::BufReader::new(restored_read);
+                let root_password = CassieRuntimeConfig::from_env()
+                    .expect("runtime config")
+                    .password;
                 support::complete_startup_as(
                     &mut restored_reader,
                     &mut restored_write,
                     "root",
                     "restored",
-                    "postgres",
+                    &root_password,
                 )
                 .await;
                 restored_write

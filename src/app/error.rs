@@ -102,6 +102,9 @@ pub enum CassieError {
         referenced_column: String,
     },
 
+    #[error("{0}")]
+    CardinalityViolation(String),
+
     #[error("parse error: {0}")]
     Parse(String),
 
@@ -210,6 +213,7 @@ impl CassieError {
             Self::InvalidParameterValue(message) => {
                 bad_request_descriptor("22023", message.clone())
             }
+            Self::CardinalityViolation(message) => bad_request_descriptor("21000", message.clone()),
             Self::EmbeddingUnavailable(_)
             | Self::Storage(_)
             | Self::StorageBootstrap(_)

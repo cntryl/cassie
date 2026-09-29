@@ -103,16 +103,16 @@ fn bind_on_conflict(
                     "ON CONFLICT target fields cannot be empty".into(),
                 ));
             }
-            if !schema
+            let Some(declared) = schema
                 .fields
                 .iter()
-                .any(|candidate| candidate.name.eq_ignore_ascii_case(field_name))
-            {
+                .find(|candidate| candidate.name.eq_ignore_ascii_case(field_name))
+            else {
                 return Err(CassieError::Planner(format!(
                     "ON CONFLICT target column '{field_name}' does not exist in '{table}'"
                 )));
-            }
-            normalized_target.push(field_name.to_string());
+            };
+            normalized_target.push(declared.name.clone());
         }
         on_conflict.target_fields = normalized_target;
 

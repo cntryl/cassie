@@ -62,6 +62,7 @@ pub fn error_class(error: &CassieError) -> &'static str {
         CassieError::UniqueViolation { .. } => "unique_violation",
         CassieError::CheckViolation { .. } => "check_violation",
         CassieError::ForeignKeyViolation { .. } => "foreign_key_violation",
+        CassieError::CardinalityViolation(_) => "cardinality_violation",
         CassieError::Parse(_) => "parse",
         CassieError::InvalidQuery(_) => "invalid_query",
         CassieError::Planner(_) => "planner",

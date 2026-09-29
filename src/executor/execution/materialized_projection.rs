@@ -670,11 +670,14 @@ fn projection_binding_context(
             .current_database()
             .unwrap_or(default_database.as_str());
         return if cassie.database_catalog_enforced() {
-            crate::sql::binder::BindingContext::scoped(database.to_string(), session.search_path())
+            crate::sql::binder::BindingContext::scoped(
+                database.to_string(),
+                cassie.binding_search_path(session),
+            )
         } else {
             crate::sql::binder::BindingContext::unscoped(
                 database.to_string(),
-                session.search_path(),
+                cassie.binding_search_path(session),
             )
         };
     }

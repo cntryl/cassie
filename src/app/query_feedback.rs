@@ -4,7 +4,31 @@ use super::{
 };
 use crate::runtime::RuntimeFeedbackMutation;
 
+pub(crate) const USER_SEARCH_PATH_ENTRY: &str = "$user";
+
 impl Cassie {
+    /// The session's `search_path` as name resolution sees it: like PostgreSQL,
+    /// `$user` names the schema matching the session role and is skipped when
+    /// no such schema exists.
+    pub(crate) fn binding_search_path(&self, session: &CassieSession) -> Vec<String> {
+        let database = session
+            .current_database()
+            .unwrap_or(self.default_database.as_str());
+        session
+            .search_path()
+            .into_iter()
+            .filter_map(|schema| {
+                if schema != USER_SEARCH_PATH_ENTRY {
+                    return Some(schema);
+                }
+                let role_schema = crate::catalog::canonical_schema_name(database, &session.user);
+                self.catalog
+                    .namespace_exists(&role_schema)
+                    .then(|| session.user.clone())
+            })
+            .collect()
+    }
+
     pub(crate) fn binding_context_for_session(
         &self,
         session: Option<&CassieSession>,
@@ -14,7 +38,7 @@ impl Cassie {
             .unwrap_or(self.default_database.as_str());
         let search_path = session.map_or_else(
             || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
-            CassieSession::search_path,
+            |session| self.binding_search_path(session),
         );
         if self.database_catalog_enforced() {
             binder::BindingContext::scoped(database.to_string(), search_path)

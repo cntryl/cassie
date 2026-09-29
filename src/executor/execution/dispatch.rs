@@ -609,7 +609,7 @@ fn statement_binding_context(
         .to_string();
     let search_path = session.map_or_else(
         || vec![crate::catalog::DEFAULT_SCHEMA.to_string()],
-        CassieSession::search_path,
+        |session| cassie.binding_search_path(session),
     );
     if cassie.database_catalog_enforced() {
         crate::sql::binder::BindingContext::scoped(database, search_path)

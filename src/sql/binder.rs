@@ -50,6 +50,7 @@ use commands::{
 pub(crate) use context::normalize_database_name;
 pub(crate) use context::normalize_new_relation_name;
 pub(crate) use context::normalize_relation_name;
+pub(crate) use context::resolve_existing_name;
 pub use context::BindingContext;
 use context::{normalize_schema_name, resolve_relation_name, resolve_schema_name};
 pub(crate) use inference::cte_collection_schema_with_functions;
@@ -451,16 +452,18 @@ fn bind_projection_route(
             bind_create_materialized_projection_statement(statement, raw_sql, context)
         }
         ProjectionStatement::RefreshMaterializedProjection(statement) => {
-            bind_refresh_materialized_projection_statement(statement, raw_sql, context)
+            bind_refresh_materialized_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::DropMaterializedProjection(statement) => {
-            bind_drop_materialized_projection_statement(statement, raw_sql, context)
+            bind_drop_materialized_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::AlterMaterializedProjection(statement) => {
-            bind_alter_materialized_projection_statement(statement, raw_sql, context)
+            bind_alter_materialized_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::DropMaterializedProjectionVersion(statement) => {
-            bind_drop_materialized_projection_version_statement(statement, raw_sql, context)
+            bind_drop_materialized_projection_version_statement(
+                statement, catalog, raw_sql, context,
+            )
         }
         ProjectionStatement::VerifyProjection(statement) => {
             bind_verify_projection_statement(statement, catalog, raw_sql, context)
@@ -565,7 +568,9 @@ fn bind_refresh_rollup_statement(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::RefreshRollupStatement { name } = statement;
-    let name = normalize_relation_name(name.trim(), context)?;
+    let name = resolve_existing_name(name.trim(), context, |name| {
+        catalog.get_rollup(name).is_some()
+    })?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "REFRESH ROLLUP requires a name".into(),
@@ -590,7 +595,9 @@ fn bind_drop_rollup_statement(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::DropRollupStatement { name, if_exists } = statement;
-    let name = normalize_relation_name(name.trim(), context)?;
+    let name = resolve_existing_name(name.trim(), context, |name| {
+        catalog.get_rollup(name).is_some()
+    })?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP ROLLUP requires a name".into()));
     }
@@ -625,10 +632,13 @@ fn bind_create_materialized_projection_statement(
 
 fn bind_refresh_materialized_projection_statement(
     mut statement: crate::sql::ast::RefreshMaterializedProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "REFRESH MATERIALIZED PROJECTION requires a name".into(),
@@ -642,10 +652,13 @@ fn bind_refresh_materialized_projection_statement(
 
 fn bind_drop_materialized_projection_statement(
     mut statement: crate::sql::ast::DropMaterializedProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "DROP MATERIALIZED PROJECTION requires a name".into(),
@@ -659,10 +672,13 @@ fn bind_drop_materialized_projection_statement(
 
 fn bind_alter_materialized_projection_statement(
     mut statement: crate::sql::ast::AlterMaterializedProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "ALTER MATERIALIZED PROJECTION requires a name".into(),
@@ -676,10 +692,13 @@ fn bind_alter_materialized_projection_statement(
 
 fn bind_drop_materialized_projection_version_statement(
     mut statement: crate::sql::ast::DropMaterializedProjectionVersionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "DROP MATERIALIZED PROJECTION VERSION requires a name".into(),
@@ -697,7 +716,9 @@ fn bind_verify_projection_statement(
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_relation_name(statement.name.trim(), context)?;
+    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "VERIFY PROJECTION requires a name".into(),
@@ -768,7 +789,9 @@ fn normalize_projection_target(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::ProjectionDiffTarget, CassieError> {
-    target.name = normalize_relation_name(target.name.trim(), context)?;
+    target.name = resolve_existing_name(target.name.trim(), context, |name| {
+        catalog.is_materialized_projection(name)
+    })?;
     if target.name.is_empty() {
         return Err(CassieError::Planner(
             "projection targets require a name".into(),
@@ -815,7 +838,9 @@ fn bind_drop_retention_policy_statement(
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
     let crate::sql::ast::DropRetentionPolicyStatement { name, if_exists } = statement;
-    let name = normalize_relation_name(name.trim(), context)?;
+    let name = resolve_existing_name(name.trim(), context, |name| {
+        catalog.get_retention_policy(name).is_some()
+    })?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "DROP RETENTION POLICY requires a name".into(),

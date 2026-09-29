@@ -48,6 +48,22 @@ impl BindingContext {
             .map_or(DEFAULT_SCHEMA, String::as_str)
     }
 
+    /// Schemas searched for an unqualified name. Like PostgreSQL, `pg_catalog`
+    /// is searched first unless `search_path` places it explicitly.
+    #[must_use]
+    pub fn relation_search_order(&self) -> Vec<&str> {
+        let mut order = Vec::with_capacity(self.search_path.len() + 1);
+        if !self
+            .search_path
+            .iter()
+            .any(|schema| schema.eq_ignore_ascii_case("pg_catalog"))
+        {
+            order.push("pg_catalog");
+        }
+        order.extend(self.search_path.iter().map(String::as_str));
+        order
+    }
+
     #[must_use]
     pub const fn scopes_database_objects(&self) -> bool {
         self.enforce_database_scope
@@ -117,6 +133,35 @@ pub fn normalize_new_relation_name(
     };
     if target_schema.is_some_and(|schema| is_system_schema(&schema)) {
         return Err(CassieError::InsufficientPrivilege);
+    }
+    normalize_relation_name(raw, context)
+}
+
+/// Resolves an existing object of one kind (view, rollup, projection) through
+/// `search_path`, falling back to [`normalize_relation_name`] when no schema
+/// holds a match so not-found and `IF EXISTS` handling stay unchanged.
+///
+/// # Errors
+///
+/// Returns an error when the reference is malformed or cross-database.
+pub fn resolve_existing_name(
+    raw: &str,
+    context: &BindingContext,
+    exists: impl Fn(&str) -> bool,
+) -> Result<String, CassieError> {
+    if context.scopes_database_objects() {
+        if let ParsedName::Unqualified(name) = parse_name(raw).map_err(CassieError::Planner)? {
+            for schema in context.relation_search_order() {
+                let candidate = if is_system_schema(schema) {
+                    format!("{schema}.{name}")
+                } else {
+                    canonical_relation_name(&context.database, schema, &name)
+                };
+                if exists(&candidate) {
+                    return Ok(candidate);
+                }
+            }
+        }
     }
     normalize_relation_name(raw, context)
 }
@@ -201,7 +246,7 @@ fn resolve_unscoped_relation_name(
 ) -> Result<String, CassieError> {
     match parsed {
         ParsedName::Unqualified(name) => {
-            for schema in &context.search_path {
+            for schema in context.relation_search_order() {
                 let scoped_candidate = if is_system_schema(schema) {
                     format!("{schema}.{name}")
                 } else {
@@ -282,7 +327,7 @@ fn resolve_scoped_relation_name(
 ) -> Result<String, CassieError> {
     match parsed {
         ParsedName::Unqualified(name) => {
-            for schema in &context.search_path {
+            for schema in context.relation_search_order() {
                 let candidate = if is_system_schema(schema) {
                     format!("{schema}.{name}")
                 } else {

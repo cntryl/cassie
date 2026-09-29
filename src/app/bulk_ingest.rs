@@ -72,7 +72,8 @@ impl Cassie {
     ) -> Result<usize, CassieError> {
         check_copy_cancellation(cancellation)?;
         let database = session.current_database().unwrap_or(&self.default_database);
-        let context = crate::sql::binder::BindingContext::scoped(database, session.search_path());
+        let context =
+            crate::sql::binder::BindingContext::scoped(database, self.binding_search_path(session));
         let mut statement = statement.clone();
         if let Some(relation_database) = crate::catalog::relation_database_name(&statement.table) {
             if !relation_database.eq_ignore_ascii_case(database) {

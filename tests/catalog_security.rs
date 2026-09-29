@@ -3274,7 +3274,6 @@ mod database_scope {
             "CREATE VIEW pg_catalog.leak_view AS SELECT id FROM owned",
             "CREATE SEQUENCE pg_catalog.leak_seq",
             "CREATE MATERIALIZED PROJECTION pg_catalog.leak_projection AS SELECT id FROM owned",
-            "ALTER TABLE owned RENAME TO pg_catalog.moved",
         ];
 
         for sql in statements {
@@ -6974,5 +6973,189 @@ mod catalog_missing_object_sqlstates {
 
         // Assert
         assert_eq!(sqlstates, vec![Some("42P01".to_string())]);
+    }
+}
+
+mod search_path_resolution {
+    use super::support_sql as support;
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+    use support::*;
+
+    fn start(label: &str) -> (Cassie, CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        (cassie, session, path)
+    }
+
+    fn run(cassie: &Cassie, session: &CassieSession, sql: &str) {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .unwrap_or_else(|error| panic!("{sql}: {error}"));
+    }
+
+    #[test]
+    fn should_keep_renamed_table_in_its_source_schema() {
+        // Arrange
+        let (cassie, session, path) = start("rename_keeps_schema");
+        run(&cassie, &session, "CREATE SCHEMA reporting");
+        run(&cassie, &session, "CREATE TABLE reporting.orders (id INT)");
+        run(
+            &cassie,
+            &session,
+            "INSERT INTO reporting.orders (id) VALUES (7)",
+        );
+
+        // Act
+        run(
+            &cassie,
+            &session,
+            "ALTER TABLE reporting.orders RENAME TO archive",
+        );
+
+        // Assert
+        let rows = cassie
+            .execute_sql(&session, "SELECT id FROM reporting.archive", vec![])
+            .expect("renamed table stays in reporting")
+            .rows;
+        assert_eq!(rows, vec![vec![Value::Int64(7)]]);
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM public.archive", vec![])
+            .is_err());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_schema_qualified_rename_target() {
+        // Arrange
+        let (cassie, session, path) = start("rename_rejects_qualified_target");
+        run(&cassie, &session, "CREATE SCHEMA reporting");
+        run(&cassie, &session, "CREATE TABLE orders (id INT)");
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "ALTER TABLE orders RENAME TO reporting.moved",
+            vec![],
+        );
+
+        // Assert
+        assert!(result.is_err());
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM public.orders", vec![])
+            .is_ok());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_drop_view_found_later_in_search_path() {
+        // Arrange
+        let (cassie, session, path) = start("drop_view_search_path");
+        run(&cassie, &session, "CREATE SCHEMA beta");
+        run(&cassie, &session, "CREATE TABLE beta.base (id INT)");
+        run(
+            &cassie,
+            &session,
+            "CREATE VIEW beta.v AS SELECT id FROM beta.base",
+        );
+        run(&cassie, &session, "SET search_path TO public, beta");
+
+        // Act
+        run(&cassie, &session, "DROP VIEW IF EXISTS v");
+
+        // Assert
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM v", vec![])
+            .is_err());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_drop_projection_found_later_in_search_path() {
+        // Arrange
+        let (cassie, session, path) = start("drop_projection_search_path");
+        run(&cassie, &session, "CREATE SCHEMA beta");
+        run(&cassie, &session, "CREATE TABLE beta.base (id INT)");
+        run(
+            &cassie,
+            &session,
+            "CREATE MATERIALIZED PROJECTION beta.p AS SELECT id FROM beta.base",
+        );
+        run(&cassie, &session, "SET search_path TO public, beta");
+
+        // Act
+        let dropped = cassie.execute_sql(&session, "DROP MATERIALIZED PROJECTION p", vec![]);
+
+        // Assert
+        assert!(dropped.is_ok(), "projection p resolves through search_path");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_resolve_unqualified_catalog_names_to_pg_catalog_first() {
+        // Arrange
+        let (cassie, session, path) = start("pg_catalog_precedence");
+        run(&cassie, &session, "CREATE TABLE pg_class (relname TEXT)");
+        run(
+            &cassie,
+            &session,
+            "INSERT INTO public.pg_class (relname) VALUES ('IMPOSTER')",
+        );
+
+        // Act
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT relname FROM pg_class WHERE relname = 'IMPOSTER'",
+                vec![],
+            )
+            .expect("query pg_class")
+            .rows;
+
+        // Assert
+        assert!(rows.is_empty(), "unqualified pg_class must be the catalog");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_accept_postgres_default_search_path() {
+        // Arrange
+        let (cassie, session, path) = start("default_search_path");
+
+        // Act
+        let set = cassie.execute_sql(&session, "SET search_path TO \"$user\", public", vec![]);
+
+        // Assert
+        assert!(set.is_ok(), "PostgreSQL's default search_path is accepted");
+        let current = cassie
+            .execute_sql(&session, "SELECT current_schema()", vec![])
+            .expect("current_schema")
+            .rows;
+        assert_eq!(current, vec![vec![Value::String("public".into())]]);
+        run(&cassie, &session, "CREATE TABLE lands_in_public (id INT)");
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM public.lands_in_public", vec![])
+            .is_ok());
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_resolve_user_search_path_entry_to_role_schema() {
+        // Arrange
+        let (cassie, session, path) = start("user_search_path_schema");
+        run(&cassie, &session, "CREATE SCHEMA tester");
+        run(&cassie, &session, "SET search_path TO \"$user\", public");
+
+        // Act
+        run(&cassie, &session, "CREATE TABLE owned_by_user (id INT)");
+
+        // Assert
+        assert!(cassie
+            .execute_sql(&session, "SELECT id FROM tester.owned_by_user", vec![])
+            .is_ok());
+        let _ = std::fs::remove_dir_all(path);
     }
 }

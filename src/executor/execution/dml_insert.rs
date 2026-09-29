@@ -37,12 +37,19 @@ pub(in crate::executor::execution) fn execute_insert(
         schema: &schema,
         controls,
     };
+    let mut affected_row_ids = std::collections::HashSet::new();
     for source_row in source_rows {
         check_timeout(controls)?;
-        let Some(row_id) = execute_insert_source_row(&insert_context, &target_fields, &source_row)?
+        let Some(row_id) = execute_insert_source_row(
+            &insert_context,
+            &target_fields,
+            &source_row,
+            &affected_row_ids,
+        )?
         else {
             continue;
         };
+        affected_row_ids.insert(row_id.clone());
         affected_count += 1;
         append_insert_returning_row(
             cassie,
@@ -141,6 +148,11 @@ fn find_insert_conflict_row_id(
         }
         let fields = index.normalized_fields();
         if fields.is_empty() {
+            if let Some(id) =
+                find_expression_index_conflict(cassie, session, &statement.table, &index, payload)?
+            {
+                return Ok(Some(id));
+            }
             continue;
         }
         let mut values = Vec::with_capacity(fields.len());
@@ -320,6 +332,7 @@ fn execute_insert_source_row(
     context: &InsertExecutionContext<'_>,
     target_fields: &[FieldMeta],
     source_row: &[Value],
+    affected_row_ids: &std::collections::HashSet<String>,
 ) -> Result<Option<String>, QueryError> {
     let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row)?);
     let maybe_conflict_id =
@@ -330,13 +343,16 @@ fn execute_insert_source_row(
             crate::sql::ast::InsertConflictAction::DoUpdate {
                 assignments,
                 filter,
-            } => execute_insert_conflict_update(
-                context,
-                &payload,
-                &conflict_id,
-                assignments,
-                filter.as_ref(),
-            ),
+            } => {
+                reject_second_conflict_update(&conflict_id, affected_row_ids)?;
+                execute_insert_conflict_update(
+                    context,
+                    &payload,
+                    &conflict_id,
+                    assignments,
+                    filter.as_ref(),
+                )
+            }
         },
         (_, Some(_)) => Err(QueryError::General(
             "INSERT conflict detected without ON CONFLICT clause".to_string(),
@@ -373,7 +389,7 @@ fn execute_insert_source_row(
                         .session
                         .is_some_and(CassieSession::is_transaction_active) =>
             {
-                resolve_autocommit_insert_conflict(context, &payload, error)
+                resolve_autocommit_insert_conflict(context, &payload, error, affected_row_ids)
             }
             Err(error) => Err(QueryError::from(error)),
         },
@@ -437,35 +453,95 @@ pub(crate) fn resolve_transaction_conflict_intents(
     Ok(())
 }
 
+/// Finds the row an expression unique index says `payload` conflicts with,
+/// by evaluating the index expression on the new row and on each stored or
+/// staged row.
+fn find_expression_index_conflict(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    index: &crate::catalog::IndexMeta,
+    payload: &serde_json::Value,
+) -> Result<Option<String>, QueryError> {
+    use crate::midge::adapter::Midge;
+    if !Midge::payload_matches_scalar_index_predicate(index, payload)? {
+        return Ok(None);
+    }
+    let Some(key) = Midge::scalar_index_key_values(index, payload)? else {
+        return Ok(None);
+    };
+    for batch in cassie.scan_documents_batched_for_session(session, table, 1024)? {
+        for document in batch {
+            if Midge::payload_matches_scalar_index_predicate(index, &document.payload)?
+                && Midge::scalar_index_key_values(index, &document.payload)?.as_ref() == Some(&key)
+            {
+                return Ok(Some(document.id));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Like PostgreSQL, one INSERT ... ON CONFLICT DO UPDATE may not affect the
+/// same row twice, whether it inserted that row earlier in the statement or
+/// already updated it.
+fn reject_second_conflict_update(
+    conflict_id: &str,
+    affected_row_ids: &std::collections::HashSet<String>,
+) -> Result<(), QueryError> {
+    if affected_row_ids.contains(conflict_id) {
+        return Err(QueryError::Cassie(
+            crate::app::CassieError::CardinalityViolation(
+                "ON CONFLICT DO UPDATE command cannot affect row a second time".to_string(),
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn resolve_autocommit_insert_conflict(
     context: &InsertExecutionContext<'_>,
     payload: &serde_json::Value,
     original_error: crate::app::CassieError,
+    affected_row_ids: &std::collections::HashSet<String>,
 ) -> Result<Option<String>, QueryError> {
-    let Some(conflict_id) =
-        find_insert_conflict_row_id(context.cassie, context.session, context.statement, payload)?
-    else {
-        // The violation is on a key other than the ON CONFLICT target, so it
-        // stands, and keeps its 23505 SQLSTATE.
-        return Err(QueryError::from(original_error));
-    };
     let on_conflict = context
         .statement
         .on_conflict
         .as_ref()
         .expect("conflict clause checked by caller");
+    let Some(conflict_id) =
+        find_insert_conflict_row_id(context.cassie, context.session, context.statement, payload)?
+    else {
+        // Untargeted DO NOTHING skips a conflict on any unique key, including
+        // expression indexes whose conflicting row cannot be looked up here.
+        if on_conflict.target_fields.is_empty()
+            && matches!(
+                on_conflict.action,
+                crate::sql::ast::InsertConflictAction::DoNothing
+            )
+        {
+            return Ok(None);
+        }
+        // The violation is on a key other than the ON CONFLICT target, so it
+        // stands, and keeps its 23505 SQLSTATE.
+        return Err(QueryError::from(original_error));
+    };
     match &on_conflict.action {
         crate::sql::ast::InsertConflictAction::DoNothing => Ok(None),
         crate::sql::ast::InsertConflictAction::DoUpdate {
             assignments,
             filter,
-        } => execute_insert_conflict_update(
-            context,
-            payload,
-            &conflict_id,
-            assignments,
-            filter.as_ref(),
-        ),
+        } => {
+            reject_second_conflict_update(&conflict_id, affected_row_ids)?;
+            execute_insert_conflict_update(
+                context,
+                payload,
+                &conflict_id,
+                assignments,
+                filter.as_ref(),
+            )
+        }
     }
 }
 

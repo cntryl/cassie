@@ -1923,6 +1923,78 @@ mod sql_quoted_identifiers {
     }
 
     #[test]
+    fn should_compare_and_group_by_quoted_identifiers_as_column_values() {
+        with_users_table("quoted_ident_group_compare", |cassie, session| {
+            // Arrange
+            run(
+                cassie,
+                session,
+                "INSERT INTO users (id, name) VALUES (3, 'bob')",
+            );
+            let grouped_sql =
+                "SELECT \"name\", count(*) FROM users GROUP BY \"name\" ORDER BY \"name\"";
+            let compared_sql = "SELECT name FROM users WHERE \"id\" > 1 ORDER BY \"id\"";
+
+            // Act
+            let grouped = run(cassie, session, grouped_sql);
+            let compared = run(cassie, session, compared_sql);
+
+            // Assert
+            assert_eq!(
+                grouped.rows,
+                vec![
+                    vec![Value::String("alice".to_string()), Value::Int64(1)],
+                    vec![Value::String("bob".to_string()), Value::Int64(2)],
+                ]
+            );
+            assert_eq!(compared.rows, string_rows(&["bob", "bob"]));
+        });
+    }
+
+    #[test]
+    fn should_bind_a_parameter_against_a_quoted_indexed_column() {
+        with_users_table("quoted_ident_indexed_param", |cassie, session| {
+            // Arrange
+            run(cassie, session, "CREATE INDEX users_id_idx ON users (id)");
+            let sql = "SELECT \"name\" FROM users WHERE \"id\" = $1";
+
+            // Act
+            let selected = match cassie.execute_sql(session, sql, vec![Value::Int64(2)]) {
+                Ok(result) => result,
+                Err(error) => panic!("statement failed: {sql}: {error}"),
+            };
+
+            // Assert
+            assert_eq!(selected.rows, string_rows(&["bob"]));
+        });
+    }
+
+    #[test]
+    fn should_resolve_quoted_identifiers_with_spaces_and_multibyte_characters() {
+        with_users_table("quoted_ident_spaces", |cassie, session| {
+            // Arrange
+            run(
+                cassie,
+                session,
+                "CREATE TABLE people (\"first name\" TEXT, \"café\" TEXT)",
+            );
+            run(
+                cassie,
+                session,
+                "INSERT INTO people (\"first name\", \"café\") VALUES ('ada', 'noir')",
+            );
+            let sql = "SELECT \"café\" FROM people WHERE \"first name\" = 'ada'";
+
+            // Act
+            let selected = run(cassie, session, sql);
+
+            // Assert
+            assert_eq!(selected.columns[0].name, "café");
+            assert_eq!(selected.rows, string_rows(&["noir"]));
+        });
+    }
+
+    #[test]
     fn should_parse_quoted_qualified_identifiers_as_column_paths() {
         // Arrange
         let cases = [

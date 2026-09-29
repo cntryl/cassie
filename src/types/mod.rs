@@ -1,3 +1,4 @@
+pub(crate) mod array;
 pub mod numeric;
 pub mod row;
 pub mod row_identity;

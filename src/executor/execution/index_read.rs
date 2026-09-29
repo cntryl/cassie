@@ -171,6 +171,12 @@ fn scalar_index_read_spec(
     let Some(shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };
+    if scalar_index_requires_json_scan(cassie, &projected.collection, &index, &shape, plan) {
+        // JSON equality and uniqueness use canonical JSON bytes. Range and
+        // ordered reads fall back because integer and float keys have separate
+        // tags even when the executor compares them numerically.
+        return Ok(None);
+    }
     // Scalar-index keys cannot represent NaN or infinities, while the filter
     // operator orders them above every finite value. Let the scan answer, but
     // only when such a parameter is actually part of this read's predicate: a
@@ -180,6 +186,30 @@ fn scalar_index_read_spec(
         return Ok(None);
     }
 
+    let (request, predicate_resolution) =
+        scalar_index_scan_request(cassie, &projected.collection, &index, &shape, plan, params)?;
+
+    Ok(Some(ScalarIndexReadSpec {
+        collection: projected.collection,
+        index,
+        scan_fields: projected.scan_fields,
+        request,
+        path: shape.path,
+        covered: covered_index,
+        sort_applied: plan.order.is_empty() || shape.order_satisfied,
+        null_keys: shape.null_keys,
+        predicate_resolution,
+    }))
+}
+
+fn scalar_index_scan_request(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+    plan: &LogicalPlan,
+    params: &[Value],
+) -> Result<(ScalarIndexScanRequest, ScalarIndexPredicateResolution), QueryError> {
     let extracted_constraints = if index.expressions.is_empty() {
         concrete_constraints(plan.filter.as_ref(), params)
             .map(|constraints| (constraints, BTreeMap::new()))
@@ -189,11 +219,11 @@ fn scalar_index_read_spec(
     };
     let (mut constraints, expression_constraints) = extracted_constraints
         .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
-    canonicalize_field_constraints(cassie, &projected.collection, &mut constraints);
+    canonicalize_field_constraints(cassie, collection, &mut constraints);
     let equality_prefix =
-        scalar_index_equality_prefix(&index, &shape, &constraints, &expression_constraints)?;
+        scalar_index_equality_prefix(index, shape, &constraints, &expression_constraints)?;
     let range_constraint =
-        range_constraint_for_shape(&index, &shape, &constraints, &expression_constraints);
+        range_constraint_for_shape(index, shape, &constraints, &expression_constraints);
     let lower_bound = range_constraint
         .and_then(|constraint| constraint.lower.clone())
         .map(|bound| ScalarIndexBound {
@@ -207,13 +237,13 @@ fn scalar_index_read_spec(
             inclusive: bound.inclusive,
         });
     let bounds_are_exact =
-        scalar_index_bounds_are_exact(&index, &shape, &constraints, &expression_constraints);
+        scalar_index_bounds_are_exact(index, shape, &constraints, &expression_constraints);
     let request = ScalarIndexScanRequest {
         equality_prefix,
         lower_bound,
         upper_bound,
         reverse: shape.reverse,
-        limit: storage_limit(plan, &shape, bounds_are_exact),
+        limit: storage_limit(plan, shape, bounds_are_exact),
     };
     let unsatisfiable = constraints
         .values()
@@ -227,17 +257,31 @@ fn scalar_index_read_spec(
         ScalarIndexPredicateResolution::Residual
     };
 
-    Ok(Some(ScalarIndexReadSpec {
-        collection: projected.collection,
-        index,
-        scan_fields: projected.scan_fields,
-        request,
-        path: shape.path,
-        covered: covered_index,
-        sort_applied: plan.order.is_empty() || shape.order_satisfied,
-        null_keys: shape.null_keys,
-        predicate_resolution,
-    }))
+    Ok((request, predicate_resolution))
+}
+
+fn scalar_index_requires_json_scan(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+    plan: &LogicalPlan,
+) -> bool {
+    let fields = index.normalized_fields();
+    let is_json_field =
+        |field: &str| cassie.catalog.field_type(collection, field) == Some(DataType::Json);
+    let uses_json_range_key = shape
+        .range_field_index
+        .and_then(|field_index| fields.get(field_index))
+        .is_some_and(|field| is_json_field(field));
+    let uses_json_order_key = !plan.order.is_empty()
+        && shape.order_satisfied
+        && fields
+            .iter()
+            .take(shape.order_columns_used)
+            .any(|field| is_json_field(field));
+
+    uses_json_range_key || uses_json_order_key
 }
 
 fn range_constraint_for_shape<'a>(

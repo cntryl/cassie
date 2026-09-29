@@ -326,7 +326,7 @@ impl CassieSession {
     pub fn current_schema(&self) -> String {
         self.search_path()
             .into_iter()
-            .next()
+            .find(|schema| schema != super::USER_SEARCH_PATH_ENTRY)
             .unwrap_or_else(|| DEFAULT_SCHEMA.to_string())
     }
 

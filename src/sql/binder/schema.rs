@@ -15,6 +15,7 @@ mod schema_index_options;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
 use super::schema_sequences::validate_alter_column_operation;
+use crate::catalog::{canonical_relation_name, parse_name, ParsedName};
 use schema_alter_constraints::{bind_alter_constraint_targets, bind_foreign_key_reference};
 
 pub(super) fn bind_create_table(
@@ -223,7 +224,9 @@ pub(super) fn bind_drop_view(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<DropViewStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.relation_exists(name) || virtual_views::schema(name).is_some()
+    })?;
     if name.is_empty() {
         return Err(CassieError::Planner("DROP VIEW requires a name".into()));
     }
@@ -474,7 +477,7 @@ pub(super) fn bind_alter_table(
         .collect::<HashSet<_>>();
 
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
-        *target = super::normalize_new_relation_name(target.trim(), context)?;
+        *target = rename_target_in_source_schema(&table, target.trim(), context)?;
     }
     if let AlterTableOperation::AlterColumnSetDefault {
         default_expression,
@@ -707,4 +710,30 @@ fn validate_alter_drop_column(
         )));
     }
     Ok(())
+}
+
+/// PostgreSQL's `RENAME TO` takes an unqualified name and keeps the relation
+/// in its current schema, whatever `search_path` says.
+fn rename_target_in_source_schema(
+    source: &str,
+    target: &str,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let ParsedName::Unqualified(name) = parse_name(target).map_err(CassieError::Planner)? else {
+        return Err(CassieError::Parse(format!(
+            "ALTER TABLE RENAME TO takes an unqualified name, got '{target}'"
+        )));
+    };
+    if !context.scopes_database_objects() {
+        return normalize_relation_name(&name, context);
+    }
+    match parse_name(source).map_err(CassieError::Planner)? {
+        ParsedName::DatabaseQualified {
+            database, schema, ..
+        } => Ok(canonical_relation_name(&database, &schema, &name)),
+        ParsedName::SchemaQualified { schema, .. } => {
+            Ok(canonical_relation_name(&context.database, &schema, &name))
+        }
+        ParsedName::Unqualified(_) => normalize_relation_name(&name, context),
+    }
 }

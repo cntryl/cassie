@@ -489,7 +489,9 @@ pub(super) fn bind_alter_retention_policy(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::AlterRetentionPolicyStatement, CassieError> {
-    let name = normalize_relation_name(statement.name.trim(), context)?;
+    let name = super::resolve_existing_name(statement.name.trim(), context, |name| {
+        catalog.get_retention_policy(name).is_some()
+    })?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "ALTER RETENTION POLICY requires a name".into(),

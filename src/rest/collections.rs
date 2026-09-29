@@ -48,7 +48,7 @@ pub fn create_for_session(
     let database = session
         .current_database()
         .unwrap_or(cassie.default_database.as_str());
-    let search_path = session.search_path();
+    let search_path = cassie.binding_search_path(session);
     let schema = search_path.first().map_or(DEFAULT_SCHEMA, String::as_str);
     create_in_namespace(cassie, database, schema, body)
 }

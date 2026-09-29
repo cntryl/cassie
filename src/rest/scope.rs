@@ -19,7 +19,7 @@ pub(crate) fn resolve_collection(
         )));
     }
 
-    let search_path = session.search_path();
+    let search_path = cassie.binding_search_path(session);
     let mut matches = cassie
         .catalog
         .list_collections_canonical()
@@ -62,7 +62,7 @@ pub(crate) fn list_collections(cassie: &Cassie, session: &CassieSession) -> Vec<
     let database = session
         .current_database()
         .unwrap_or(cassie.default_database.as_str());
-    let search_path = session.search_path();
+    let search_path = cassie.binding_search_path(session);
     cassie
         .catalog
         .list_collections_canonical()

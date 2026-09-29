@@ -103,7 +103,8 @@ fn validate_search_path(
         if matches!(
             schema.as_str(),
             DEFAULT_SCHEMA | PG_CATALOG_SCHEMA | INFORMATION_SCHEMA
-        ) {
+        ) || schema == crate::app::USER_SEARCH_PATH_ENTRY
+        {
             continue;
         }
         let scoped = canonical_schema_name(database, schema);

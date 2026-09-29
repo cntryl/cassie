@@ -18,7 +18,7 @@ fn binding_context(cassie: &Cassie, session: &CassieSession) -> crate::sql::bind
         .current_database()
         .unwrap_or(cassie.default_database.as_str())
         .to_string();
-    let search_path = session.search_path();
+    let search_path = cassie.binding_search_path(session);
     if cassie.database_catalog_enforced() {
         crate::sql::binder::BindingContext::scoped(database, search_path)
     } else {

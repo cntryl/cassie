@@ -243,10 +243,14 @@ fn pg_table_is_visible<R: RowAccess + ?Sized>(
     }
 
     session.is_none_or(|session| {
-        session
-            .search_path()
-            .into_iter()
-            .any(|entry| entry.eq_ignore_ascii_case(&schema))
+        session.search_path().into_iter().any(|entry| {
+            let entry = if entry == crate::app::USER_SEARCH_PATH_ENTRY {
+                session.user.as_str()
+            } else {
+                entry.as_str()
+            };
+            entry.eq_ignore_ascii_case(&schema)
+        })
     })
 }
 

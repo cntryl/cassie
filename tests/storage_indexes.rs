@@ -6963,4 +6963,136 @@ mod uuid_bytea_scalar_indexes {
         );
         let _ = std::fs::remove_dir_all(path);
     }
+
+    fn deleted_owner_fixture(
+        name: &str,
+        column_ddl: &str,
+        unique_index_ddl: Option<&str>,
+        literal: &str,
+    ) -> (Cassie, cassie::app::CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(name);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                &format!("CREATE TABLE {name} (id TEXT, value {column_ddl})"),
+                vec![],
+            )
+            .expect("create table");
+        if let Some(ddl) = unique_index_ddl {
+            cassie
+                .execute_sql(&session, ddl, vec![])
+                .expect("create unique index");
+        }
+        cassie
+            .execute_sql(
+                &session,
+                &format!("INSERT INTO {name} (id, value) VALUES ('first', '{literal}')"),
+                vec![],
+            )
+            .expect("insert non-canonical value");
+        cassie
+            .execute_sql(
+                &session,
+                &format!("DELETE FROM {name} WHERE id = 'first'"),
+                vec![],
+            )
+            .expect("delete owner");
+        (cassie, session, path)
+    }
+
+    #[test]
+    fn should_release_uuid_unique_constraint_reservation_on_delete() {
+        // Arrange
+        let literal = "A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11";
+        let (cassie, session, path) =
+            deleted_owner_fixture("uuid_unique_delete_reuse", "UUID UNIQUE", None, literal);
+
+        // Act
+        let reused = cassie.execute_sql(
+            &session,
+            &format!(
+                "INSERT INTO uuid_unique_delete_reuse (id, value) VALUES ('second', '{literal}')"
+            ),
+            vec![],
+        );
+
+        // Assert
+        assert!(reused.is_ok(), "deleted value must be reusable");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_bytea_unique_constraint_reservation_on_delete() {
+        // Arrange
+        let literal = r"\xDEADBEEF";
+        let (cassie, session, path) =
+            deleted_owner_fixture("bytea_unique_delete_reuse", "BYTEA UNIQUE", None, literal);
+
+        // Act
+        let reused = cassie.execute_sql(
+            &session,
+            &format!(
+                "INSERT INTO bytea_unique_delete_reuse (id, value) VALUES ('second', '{literal}')"
+            ),
+            vec![],
+        );
+
+        // Assert
+        assert!(reused.is_ok(), "deleted value must be reusable");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_uuid_unique_index_reservation_on_delete() {
+        // Arrange
+        let literal = "A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11";
+        let (cassie, session, path) = deleted_owner_fixture(
+            "uuid_unique_index_delete_reuse",
+            "UUID",
+            Some(
+                "CREATE UNIQUE INDEX uuid_unique_index_delete_reuse_idx ON uuid_unique_index_delete_reuse (value)",
+            ),
+            literal,
+        );
+
+        // Act
+        let reused = cassie.execute_sql(
+            &session,
+            &format!("INSERT INTO uuid_unique_index_delete_reuse (id, value) VALUES ('second', '{literal}')"),
+            vec![],
+        );
+
+        // Assert
+        assert!(reused.is_ok(), "deleted value must be reusable");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_release_bytea_unique_index_reservation_on_delete() {
+        // Arrange
+        let literal = r"\xDEADBEEF";
+        let (cassie, session, path) = deleted_owner_fixture(
+            "bytea_unique_index_delete_reuse",
+            "BYTEA",
+            Some(
+                "CREATE UNIQUE INDEX bytea_unique_index_delete_reuse_idx ON bytea_unique_index_delete_reuse (value)",
+            ),
+            literal,
+        );
+
+        // Act
+        let reused = cassie.execute_sql(
+            &session,
+            &format!("INSERT INTO bytea_unique_index_delete_reuse (id, value) VALUES ('second', '{literal}')"),
+            vec![],
+        );
+
+        // Assert
+        assert!(reused.is_ok(), "deleted value must be reusable");
+        let _ = std::fs::remove_dir_all(path);
+    }
 }

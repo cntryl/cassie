@@ -56,7 +56,7 @@ fn execute_session_or_dml_command(
             super::session_command::execute_show(session, statement),
         )),
         LogicalCommand::Set(statement) => Some(CommandExecution::new(
-            super::session_command::execute_set(cassie, session, statement),
+            super::session_command::execute_set(session, statement),
         )),
         LogicalCommand::Copy(_) => Some(CommandExecution::new(Err(QueryError::General(
             "COPY requires pgwire COPY FROM STDIN data stream".to_string(),

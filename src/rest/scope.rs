@@ -100,6 +100,17 @@ mod tests {
             }],
         };
         for name in names {
+            if let Ok(crate::catalog::ParsedName::DatabaseQualified {
+                database,
+                schema: namespace,
+                ..
+            }) = crate::catalog::parse_name(name)
+            {
+                cassie.catalog.register_namespace(
+                    &crate::catalog::canonical_schema_name(&database, &namespace),
+                    None,
+                );
+            }
             cassie.register_collection(*name, schema.clone());
         }
         cassie

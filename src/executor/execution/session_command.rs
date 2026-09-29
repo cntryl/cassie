@@ -1,7 +1,5 @@
-use super::{Cassie, CassieSession, ColumnMeta, QueryError, QueryResult, Value};
-use crate::catalog::{
-    canonical_schema_name, DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
-};
+use super::{CassieSession, ColumnMeta, QueryError, QueryResult, Value};
+use crate::catalog::DEFAULT_SCHEMA;
 
 pub(super) fn execute_show(
     session: Option<&CassieSession>,
@@ -32,7 +30,6 @@ pub(super) fn execute_show(
 }
 
 pub(super) fn execute_set(
-    cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::SetStatement,
 ) -> Result<QueryResult, QueryError> {
@@ -49,7 +46,6 @@ pub(super) fn execute_set(
             ));
         };
         let path = parse_search_path(value);
-        validate_search_path(cassie, session, &path)?;
         session.set_search_path(path);
     } else {
         let Some(session) = session else {
@@ -89,33 +85,4 @@ fn parse_search_path(raw: &str) -> Vec<String> {
         return vec![DEFAULT_SCHEMA.to_string()];
     }
     path
-}
-
-fn validate_search_path(
-    cassie: &Cassie,
-    session: &CassieSession,
-    path: &[String],
-) -> Result<(), QueryError> {
-    let database = session
-        .current_database()
-        .unwrap_or(cassie.default_database.as_str());
-    for schema in path {
-        if matches!(
-            schema.as_str(),
-            DEFAULT_SCHEMA | PG_CATALOG_SCHEMA | INFORMATION_SCHEMA
-        ) || schema == crate::app::USER_SEARCH_PATH_ENTRY
-        {
-            continue;
-        }
-        let scoped = canonical_schema_name(database, schema);
-        if !cassie.catalog.namespace_exists(&scoped) {
-            return Err(QueryError::Cassie(
-                crate::app::CassieError::CatalogObjectNotFound {
-                    kind: crate::app::CatalogObjectKind::Schema,
-                    name: scoped,
-                },
-            ));
-        }
-    }
-    Ok(())
 }

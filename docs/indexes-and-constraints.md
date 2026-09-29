@@ -49,6 +49,7 @@ Supported predicate shapes include:
 - Range predicates on supported scalar fields.
 - Left-prefix composite lookup.
 - Combined predicates extracted from simple conjunctions.
+- JSON scalar indexes and `UNIQUE` reservations support objects and arrays using deterministic JSON serialization with recursively sorted object keys. Native SQL `ARRAY` values also work in primary, unique, and secondary scalar indexes. Range predicates and index-ordered reads on JSON fields fall back to row scans because integer and float key tags are separate even when the executor compares those values numerically.
 
 NULL and non-finite values:
 

@@ -115,16 +115,26 @@ fn should_preserve_scalar_value_ordering() {
 }
 
 #[test]
-fn should_reject_unsupported_scalar_value_without_panicking() {
+fn should_encode_json_composite_values_deterministically() {
     // Arrange
-    let value = json!([]);
-    let mut key = Vec::new();
+    let first = json!({"z": [true, {"n": 1, "b": 2}], "a": null});
+    let reordered = json!({"a": null, "z": [true, {"b": 2, "n": 1}]});
+    let array = json!([true, {"n": 1}]);
+    let mut first_key = Vec::new();
+    let mut reordered_key = Vec::new();
+    let mut array_key = Vec::new();
 
     // Act
-    let result = append_scalar_value(&mut key, &value);
+    let first_result = append_scalar_value(&mut first_key, &first);
+    let reordered_result = append_scalar_value(&mut reordered_key, &reordered);
+    let array_result = append_scalar_value(&mut array_key, &array);
 
     // Assert
-    assert!(result.is_err());
+    assert!(first_result.is_ok());
+    assert!(reordered_result.is_ok());
+    assert!(array_result.is_ok());
+    assert_eq!(first_key, reordered_key);
+    assert_ne!(first_key, array_key);
 }
 
 #[test]

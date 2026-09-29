@@ -899,13 +899,43 @@ fn append_scalar_value(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(
             key.push(0x50);
             append_terminated_component(key, value.as_bytes());
         }
-        other => {
-            return Err(CassieError::Unsupported(format!(
-                "scalar index does not support key value '{other}'"
-            )));
+        serde_json::Value::Array(_) => {
+            key.push(0x60);
+            append_json_composite(key, value)?;
+        }
+        serde_json::Value::Object(_) => {
+            key.push(0x70);
+            append_json_composite(key, value)?;
         }
     }
     Ok(())
+}
+
+fn append_json_composite(key: &mut Vec<u8>, value: &serde_json::Value) -> Result<(), CassieError> {
+    let canonical_value = canonicalize_json_object_keys(value);
+    let canonical = serde_json::to_vec(&canonical_value)
+        .map_err(|error| CassieError::Parse(format!("failed to encode JSON index key: {error}")))?;
+    append_terminated_component(key, &canonical);
+    Ok(())
+}
+
+fn canonicalize_json_object_keys(value: &serde_json::Value) -> serde_json::Value {
+    match value {
+        serde_json::Value::Array(values) => {
+            serde_json::Value::Array(values.iter().map(canonicalize_json_object_keys).collect())
+        }
+        serde_json::Value::Object(values) => {
+            let mut entries = values.iter().collect::<Vec<_>>();
+            entries.sort_unstable_by_key(|(key, _)| *key);
+
+            let mut canonical = serde_json::Map::new();
+            for (key, value) in entries {
+                canonical.insert(key.clone(), canonicalize_json_object_keys(value));
+            }
+            serde_json::Value::Object(canonical)
+        }
+        value => value.clone(),
+    }
 }
 
 fn append_terminated_component(key: &mut Vec<u8>, bytes: &[u8]) {

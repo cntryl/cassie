@@ -176,6 +176,22 @@ impl IndexMeta {
                 .any(|candidate| candidate.eq_ignore_ascii_case(field))
     }
 
+    /// The 23505 error for a duplicate key in this unique index, named as
+    /// PostgreSQL reports it: the index's unqualified name.
+    #[must_use]
+    pub fn unique_violation(&self, collection: &str) -> crate::app::CassieError {
+        let column = if self.normalized_fields().is_empty() {
+            self.normalized_expressions().join(", ")
+        } else {
+            self.normalized_fields().join(", ")
+        };
+        crate::app::CassieError::UniqueViolation {
+            table: collection.to_string(),
+            column,
+            constraint: crate::catalog::local_name(&self.name),
+        }
+    }
+
     #[must_use]
     pub fn normalized_expressions(&self) -> Vec<String> {
         self.expressions.clone()

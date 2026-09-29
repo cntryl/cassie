@@ -10,9 +10,7 @@ enum UniqueReservationDescriptor {
         field: String,
         constraint: String,
     },
-    UniqueIndex {
-        name: String,
-    },
+    UniqueIndex(Box<CassieError>),
 }
 
 impl Midge {
@@ -88,9 +86,7 @@ impl Midge {
                             column: field,
                             constraint,
                         },
-                        UniqueReservationDescriptor::UniqueIndex { name } => {
-                            CassieError::InvalidVector(format!("unique index '{name}' failed"))
-                        }
+                        UniqueReservationDescriptor::UniqueIndex(violation) => *violation,
                     });
                 }
                 continue;
@@ -126,21 +122,12 @@ impl Midge {
                 &constraint.field,
                 value,
             )?;
-            let kind = if constraint.primary_key {
-                "PRIMARY KEY"
-            } else {
-                "UNIQUE"
-            };
             targets.push((
                 key,
                 UniqueReservationDescriptor::UniqueConstraint {
                     table: collection.to_string(),
                     field: constraint.field.clone(),
-                    constraint: crate::catalog::generated_constraint_name(
-                        collection,
-                        &constraint.field,
-                        kind,
-                    ),
+                    constraint: constraint.unique_constraint_name(collection),
                 },
             ));
         }
@@ -159,9 +146,9 @@ impl Midge {
             )?;
             targets.push((
                 key,
-                UniqueReservationDescriptor::UniqueIndex {
-                    name: index.name.clone(),
-                },
+                UniqueReservationDescriptor::UniqueIndex(Box::new(
+                    index.unique_violation(collection),
+                )),
             ));
         }
 

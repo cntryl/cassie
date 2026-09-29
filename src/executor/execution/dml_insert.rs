@@ -373,7 +373,7 @@ fn execute_insert_source_row(
                         .session
                         .is_some_and(CassieSession::is_transaction_active) =>
             {
-                resolve_autocommit_insert_conflict(context, &payload, &error)
+                resolve_autocommit_insert_conflict(context, &payload, error)
             }
             Err(error) => Err(QueryError::from(error)),
         },
@@ -440,12 +440,14 @@ pub(crate) fn resolve_transaction_conflict_intents(
 fn resolve_autocommit_insert_conflict(
     context: &InsertExecutionContext<'_>,
     payload: &serde_json::Value,
-    original_error: &crate::app::CassieError,
+    original_error: crate::app::CassieError,
 ) -> Result<Option<String>, QueryError> {
     let Some(conflict_id) =
         find_insert_conflict_row_id(context.cassie, context.session, context.statement, payload)?
     else {
-        return Err(QueryError::General(original_error.to_string()));
+        // The violation is on a key other than the ON CONFLICT target, so it
+        // stands, and keeps its 23505 SQLSTATE.
+        return Err(QueryError::from(original_error));
     };
     let on_conflict = context
         .statement

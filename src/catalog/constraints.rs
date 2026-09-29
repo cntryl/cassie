@@ -177,6 +177,20 @@ impl FieldConstraint {
         self.field = declared.to_string();
     }
 
+    /// The PRIMARY KEY or UNIQUE constraint's name as declared, or the
+    /// generated name that `information_schema` reports for an unnamed one.
+    #[must_use]
+    pub fn unique_constraint_name(&self, collection: &str) -> String {
+        let (declared, kind) = if self.primary_key {
+            (self.primary_key_name.as_ref(), "PRIMARY KEY")
+        } else {
+            (self.unique_name.as_ref(), "UNIQUE")
+        };
+        declared
+            .cloned()
+            .unwrap_or_else(|| generated_constraint_name(collection, &self.field, kind))
+    }
+
     /// The FOREIGN KEY's name as declared, or the generated name that
     /// `information_schema` reports for an unnamed one.
     #[must_use]

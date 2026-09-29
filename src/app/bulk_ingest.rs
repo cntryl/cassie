@@ -378,32 +378,32 @@ fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieE
         .map_err(|_| CassieError::Parse("COPY payload must be UTF-8".to_string()))?;
     let mut rows = Vec::new();
     let mut row = Vec::new();
-    let mut field = String::new();
+    let mut field = CsvField::default();
     let mut in_quotes = false;
-    let mut field_started = false;
     let mut chars = text.chars().peekable();
 
     while let Some(ch) = chars.next() {
         match ch {
             '"' if in_quotes && chars.peek() == Some(&'"') => {
-                field.push('"');
+                field.value.push('"');
                 chars.next();
             }
             '"' => {
                 in_quotes = !in_quotes;
-                field_started = true;
+                field.started = true;
+                field.quoted = true;
             }
-            ',' if !in_quotes => push_csv_field(&mut row, &mut field, &mut field_started),
-            '\n' if !in_quotes => push_csv_row(&mut rows, &mut row, &mut field, &mut field_started),
+            ',' if !in_quotes => field.push_into(&mut row),
+            '\n' if !in_quotes => push_csv_row(&mut rows, &mut row, &mut field),
             '\r' if !in_quotes => {
                 if chars.peek() == Some(&'\n') {
                     chars.next();
                 }
-                push_csv_row(&mut rows, &mut row, &mut field, &mut field_started);
+                push_csv_row(&mut rows, &mut row, &mut field);
             }
             _ => {
-                field.push(ch);
-                field_started = true;
+                field.value.push(ch);
+                field.started = true;
             }
         }
     }
@@ -413,8 +413,8 @@ fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieE
             "COPY CSV payload has unterminated quote".into(),
         ));
     }
-    if field_started || !row.is_empty() {
-        push_csv_row(&mut rows, &mut row, &mut field, &mut field_started);
+    if field.started || !row.is_empty() {
+        push_csv_row(&mut rows, &mut row, &mut field);
     }
 
     Ok(rows)
@@ -423,17 +423,26 @@ fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieE
 fn push_csv_row(
     rows: &mut Vec<Vec<Option<String>>>,
     row: &mut Vec<Option<String>>,
-    field: &mut String,
-    field_started: &mut bool,
+    field: &mut CsvField,
 ) {
-    push_csv_field(row, field, field_started);
+    field.push_into(row);
     rows.push(std::mem::take(row));
 }
 
-fn push_csv_field(row: &mut Vec<Option<String>>, field: &mut String, field_started: &mut bool) {
-    let value = std::mem::take(field);
-    row.push((value != COPY_NULL).then_some(value));
-    *field_started = false;
+#[derive(Default)]
+struct CsvField {
+    value: String,
+    started: bool,
+    quoted: bool,
+}
+
+impl CsvField {
+    /// PostgreSQL CSV reads an unquoted empty field as NULL; a quoted `""` stays empty.
+    fn push_into(&mut self, row: &mut Vec<Option<String>>) {
+        let field = std::mem::take(self);
+        let is_null = field.value == COPY_NULL || (field.value.is_empty() && !field.quoted);
+        row.push((!is_null).then_some(field.value));
+    }
 }
 
 #[cfg(test)]
@@ -480,5 +489,23 @@ mod tests {
 
         // Assert
         assert_eq!(rows[0], vec![Some("row-1".to_string()), None, None]);
+    }
+
+    #[test]
+    fn should_parse_unquoted_empty_csv_fields_as_null_in_every_position() {
+        // Arrange
+        let payload = b",\"\",\r\n\"q\",,";
+
+        // Act
+        let rows = parse_csv_payload(payload).expect("empty fields");
+
+        // Assert
+        assert_eq!(
+            rows,
+            vec![
+                vec![None, Some(String::new()), None],
+                vec![Some("q".to_string()), None, None],
+            ]
+        );
     }
 }

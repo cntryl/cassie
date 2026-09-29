@@ -1,4 +1,5 @@
 use super::clauses::{split_top_level, split_top_level_last, strip_parentheses, update_case_depth};
+use super::identifiers::{normalize_identifier, parse_quoted_identifier_chain};
 use super::schema::{parse_data_type, starts_with_keyword};
 use super::{
     parse_statement, BinaryOp, Expr, FunctionCall, NullsOrder, OrderExpr, QueryStatement,
@@ -397,8 +398,8 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.eq_ignore_ascii_case("false") {
         return Ok(Expr::BoolLiteral(false));
     }
-    if raw.starts_with('"') && raw.ends_with('"') {
-        return Ok(Expr::StringLiteral(raw.trim_matches('"').to_string()));
+    if let Some(column) = parse_quoted_identifier_chain(raw)? {
+        return Ok(Expr::Column(column));
     }
     if let Some(value) = raw
         .strip_prefix('\'')
@@ -482,7 +483,9 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
         if right.trim().is_empty() {
             return (token, None);
         }
-        return (left.trim(), Some(right.trim().to_string()));
+        let alias = right.trim();
+        let alias = normalize_identifier(alias).unwrap_or_else(|_| alias.to_string());
+        return (left.trim(), Some(alias));
     }
     (token, None)
 }

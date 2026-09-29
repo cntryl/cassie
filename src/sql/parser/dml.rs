@@ -1,4 +1,5 @@
 use super::expr::{parse_expr_token, parse_expression, split_csv};
+use super::identifiers::normalize_identifier;
 use super::query::parse_projection_items;
 use super::{
     find_top_level_keyword, parse_statement, strip_parentheses, Expr, InsertSource,
@@ -142,7 +143,7 @@ fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflict
                         "ON CONFLICT target field cannot be empty".into(),
                     ))
                 } else {
-                    Ok(field.to_string())
+                    normalize_identifier(field)
                 }
             })
             .collect::<Result<Vec<_>, _>>()?
@@ -328,7 +329,7 @@ pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &st
                     "INSERT column list cannot include empty columns".into(),
                 ));
             }
-            Ok(column.to_string())
+            normalize_identifier(column)
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -534,7 +535,7 @@ pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {
         return Err(SqlError::new("UPDATE SET assignment missing value".into()));
     }
 
-    Ok((left.to_string(), parse_expression(right)?))
+    Ok((normalize_identifier(left)?, parse_expression(right)?))
 }
 
 pub(super) fn split_top_level_assignment(raw: &str) -> Option<usize> {

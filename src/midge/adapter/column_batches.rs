@@ -1,4 +1,3 @@
-use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use std::collections::BTreeSet;
 use std::time::Instant;
 
@@ -10,12 +9,14 @@ use super::{
     DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter,
 };
 
+mod direct_aggregate;
 mod incremental;
 mod output;
 mod storage_v2;
 mod summary;
 mod validation;
 
+use self::direct_aggregate::DirectAggregateAccumulator;
 use self::output::project_column_batch_document;
 use self::storage_v2::{load_segment, scan_aggregate_segment, scan_segment, LoadedSegment};
 use self::summary::{column_batch_summaries, column_values, compare_summary_to_json};
@@ -26,8 +27,6 @@ use crate::midge::adapter::column_batch_format_v2::{
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::row_identity::is_row_identity_column;
-use crate::types::semantic::compare_values;
-use crate::types::Value;
 
 pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = MANIFEST_FORMAT_VERSION as u32;
 pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = MANIFEST_SUMMARY_VERSION as u32;
@@ -81,166 +80,6 @@ struct ColumnBatchScanState {
     materialized_values: usize,
     skipped_segments: usize,
     query_memory: Option<QueryMemoryReservation>,
-}
-
-enum DirectAggregateAccumulator {
-    Count(i64),
-    Sum { value: Option<Value>, seen: bool },
-    Avg { sum: f64, count: usize },
-    Min { value: Option<Value>, max: bool },
-}
-
-impl DirectAggregateAccumulator {
-    fn new(spec: &ColumnBatchAggregateSpec) -> Self {
-        match spec.function.as_str() {
-            "count" => Self::Count(0),
-            "sum" => Self::Sum {
-                value: None,
-                seen: false,
-            },
-            "avg" => Self::Avg { sum: 0.0, count: 0 },
-            "max" => Self::Min {
-                value: None,
-                max: true,
-            },
-            _ => Self::Min {
-                value: None,
-                max: false,
-            },
-        }
-    }
-
-    fn update_count(&mut self, rows: usize) -> Result<(), CassieError> {
-        let Self::Count(count) = self else {
-            return Ok(());
-        };
-        *count = count
-            .checked_add(
-                i64::try_from(rows)
-                    .map_err(|_| CassieError::Parse("aggregate row count overflow".to_string()))?,
-            )
-            .ok_or_else(|| CassieError::Parse("aggregate row count overflow".to_string()))?;
-        Ok(())
-    }
-
-    fn update_values(
-        &mut self,
-        spec: &ColumnBatchAggregateSpec,
-        values: &[Value],
-    ) -> Result<(), CassieError> {
-        match self {
-            Self::Count(count) => {
-                *count = count
-                    .checked_add(
-                        i64::try_from(values.iter().filter(|v| !v.is_null()).count()).map_err(
-                            |_| CassieError::Parse("aggregate row count overflow".to_string()),
-                        )?,
-                    )
-                    .ok_or_else(|| {
-                        CassieError::Parse("aggregate row count overflow".to_string())
-                    })?;
-            }
-            Self::Sum { value, seen } => {
-                for current in values.iter().filter(|value| !value.is_null()) {
-                    match current {
-                        Value::Int64(next) => match value {
-                            None => *value = Some(Value::Int64(*next)),
-                            Some(Value::Int64(total)) => {
-                                *total = total.checked_add(*next).ok_or_else(|| {
-                                    CassieError::Parse("aggregate integer overflow".to_string())
-                                })?;
-                            }
-                            Some(Value::Float64(total)) => *total += i64_to_f64(*next),
-                            _ => {
-                                return Err(CassieError::Parse(
-                                    "unsupported aggregate type".to_string(),
-                                ))
-                            }
-                        },
-                        Value::Float64(next) => {
-                            if value.is_none() {
-                                *value = Some(Value::Float64(0.0));
-                            }
-                            if let Some(Value::Int64(total)) = value {
-                                *value = Some(Value::Float64(i64_to_f64(*total)));
-                            }
-                            if let Some(Value::Float64(total)) = value {
-                                *total += next;
-                            }
-                        }
-                        _ => {
-                            return Err(CassieError::Parse(format!(
-                                "{} requires numeric input",
-                                spec.function
-                            )))
-                        }
-                    }
-                    *seen = true;
-                }
-            }
-            Self::Avg { sum, count } => {
-                for current in values {
-                    match current {
-                        Value::Int64(value) => {
-                            *sum += i64_to_f64(*value);
-                            *count = count.checked_add(1).ok_or_else(|| {
-                                CassieError::Parse("aggregate row count overflow".to_string())
-                            })?;
-                        }
-                        Value::Float64(value) => {
-                            *sum += value;
-                            *count = count.checked_add(1).ok_or_else(|| {
-                                CassieError::Parse("aggregate row count overflow".to_string())
-                            })?;
-                        }
-                        Value::Null => {}
-                        _ => {
-                            return Err(CassieError::Parse(
-                                "avg requires numeric input".to_string(),
-                            ))
-                        }
-                    }
-                }
-            }
-            Self::Min { value, max } => {
-                for current in values.iter().filter(|value| !value.is_null()) {
-                    let replace = value.as_ref().is_none_or(|selected| {
-                        let ordering = compare_values(current, selected);
-                        if *max {
-                            ordering.is_gt()
-                        } else {
-                            ordering.is_lt()
-                        }
-                    });
-                    if replace {
-                        *value = Some(current.clone());
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn finish(self) -> Value {
-        match self {
-            Self::Count(count) => Value::Int64(count),
-            Self::Sum { value, seen } => {
-                if seen {
-                    value.unwrap_or(Value::Null)
-                } else {
-                    Value::Null
-                }
-            }
-            Self::Avg { sum, count } => {
-                if count == 0 {
-                    Value::Null
-                } else {
-                    Value::Float64(sum / usize_to_f64(count))
-                }
-            }
-            Self::Min { value, .. } => value.unwrap_or(Value::Null),
-        }
-    }
 }
 
 impl ColumnBatchScanState {

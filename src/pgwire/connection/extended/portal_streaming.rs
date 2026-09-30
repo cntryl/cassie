@@ -321,6 +321,7 @@ async fn execute_cursor_portal_page(
             has_more: remains_suspended,
             rows_emitted: request.rows_emitted,
             window,
+            row_description_sent: request.portal.described || request.prepared.described,
         },
     )
     .await?;

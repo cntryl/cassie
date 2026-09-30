@@ -290,6 +290,10 @@ pub(super) struct StreamingPortalResult {
     pub(super) has_more: bool,
     pub(super) rows_emitted: usize,
     pub(super) window: PortalFetchWindow,
+    /// Whether a `RowDescription` already went out for this result, either
+    /// through Describe(Portal) or a Describe(Statement) that landed after
+    /// the portal was bound.
+    pub(super) row_description_sent: bool,
 }
 
 pub(super) async fn write_streaming_result(
@@ -305,6 +309,7 @@ pub(super) async fn write_streaming_result(
         has_more,
         rows_emitted,
         window,
+        row_description_sent,
     } = streaming;
     if window.rejects_lookahead(has_more) {
         clear_cancellation(state, cancellation.as_ref());
@@ -333,7 +338,7 @@ pub(super) async fn write_streaming_result(
             rows,
             command: &command,
             result_formats: &portal.result_formats,
-            row_description_already_sent: portal.described,
+            row_description_already_sent: row_description_sent,
             remains_suspended: has_more,
         },
     )

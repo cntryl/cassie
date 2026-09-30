@@ -141,11 +141,7 @@ pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
-    if contains_top_level_between(raw) {
-        return parse_not_expression(raw);
-    }
-
-    if let Some((left, right)) = split_top_level(raw, " and ") {
+    if let Some((left, right)) = split_top_level_conjunction(raw) {
         return Ok(Expr::Binary {
             left: Box::new(parse_and_expression(left)?),
             right: Box::new(parse_and_expression(right)?),
@@ -284,8 +280,30 @@ fn split_arithmetic_operator<'a>(
         .max_by_key(|(left, _, _)| left.len())
 }
 
-pub(super) fn contains_top_level_between(raw: &str) -> bool {
-    split_top_level(raw, " between ").is_some() || split_top_level(raw, " not between ").is_some()
+/// Splits `raw` at its first top-level `AND` conjunction, skipping each `AND`
+/// that closes a preceding `[NOT] BETWEEN low AND high` predicate, so BETWEEN
+/// binds tighter than AND as in PostgreSQL.
+fn split_top_level_conjunction(raw: &str) -> Option<(&str, &str)> {
+    const AND: &str = " and ";
+    const BETWEEN: &str = " between ";
+
+    let mut offset = 0;
+    let mut open_betweens = 0usize;
+    loop {
+        let rest = &raw[offset..];
+        let and_at = split_top_level(rest, AND).map(|(left, _)| left.len())?;
+        let between_at = split_top_level(rest, BETWEEN).map(|(left, _)| left.len());
+        if let Some(between_at) = between_at.filter(|between_at| *between_at < and_at) {
+            open_betweens += 1;
+            offset += between_at + BETWEEN.len();
+        } else if open_betweens > 0 {
+            open_betweens -= 1;
+            offset += and_at + AND.len();
+        } else {
+            let split_at = offset + and_at;
+            return Some((&raw[..split_at], &raw[split_at + AND.len()..]));
+        }
+    }
 }
 
 pub(super) fn parse_between_expression(

@@ -8,7 +8,7 @@ use super::{
 
 pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if !trimmed.to_lowercase().starts_with("insert into ") {
+    if !trimmed.to_ascii_lowercase().starts_with("insert into ") {
         return Err(SqlError::new("INSERT requires INTO clause".into()));
     }
 
@@ -382,7 +382,7 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
 
 pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if !trimmed.to_lowercase().starts_with("delete from ") {
+    if !trimmed.to_ascii_lowercase().starts_with("delete from ") {
         return Err(SqlError::new("DELETE requires FROM clause".into()));
     }
 
@@ -487,7 +487,7 @@ pub(super) fn find_matching_paren(raw: &str, open_at: usize) -> Option<usize> {
     let mut in_single = false;
     let mut in_double = false;
 
-    for (idx, ch) in raw.char_indices().skip(open_at) {
+    for (idx, ch) in raw.char_indices().skip_while(|(idx, _)| *idx < open_at) {
         match ch {
             '\'' if !in_double => in_single = !in_single,
             '"' if !in_single => in_double = !in_double,

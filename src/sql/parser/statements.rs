@@ -237,7 +237,7 @@ pub(super) fn parse_set_statement(trimmed: &str) -> Result<ParsedStatement, SqlE
     } else if let Some((left, right)) = argument.split_once('=') {
         variable = left.trim();
         value = Some(normalize_set_value(right.trim()));
-    } else if let Some(pos) = argument.to_lowercase().find(" to ") {
+    } else if let Some(pos) = argument.to_ascii_lowercase().find(" to ") {
         variable = argument[..pos].trim();
         value = Some(normalize_set_value(argument[pos + 4..].trim()));
     }
@@ -633,7 +633,7 @@ pub(super) fn parse_sql_quoted_string(raw: &str) -> Result<(String, &str), SqlEr
 }
 
 pub(super) fn split_keyword<'a>(raw: &'a str, keyword: &'a str) -> Option<(&'a str, &'a str)> {
-    let lower = raw.to_lowercase();
+    let lower = raw.to_ascii_lowercase();
     let keyword_len = keyword.len();
     let idx = lower.find(&format!(" {keyword} "))?;
 

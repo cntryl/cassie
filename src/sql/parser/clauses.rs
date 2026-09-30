@@ -106,7 +106,7 @@ pub(super) fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> O
 }
 
 pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize> {
-    let lower = rest.to_lowercase();
+    let lower = rest.to_ascii_lowercase();
     let token = token.as_bytes();
     let bytes = lower.as_bytes();
     let mut depth = 0i32;
@@ -201,7 +201,7 @@ pub(super) fn is_identifier_byte(byte: u8) -> bool {
 }
 
 pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&'a str, &'a str)> {
-    let lower = input.to_lowercase();
+    let lower = input.to_ascii_lowercase();
     let chars = lower.char_indices().collect::<Vec<_>>();
     let token = keyword.as_bytes();
     let mut depth = 0i32;
@@ -235,12 +235,9 @@ pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&
             && case_depth == 0
             && !in_single
             && !in_double
-            && idx + token.len() <= input.len()
+            && lower.as_bytes().get(idx..idx + token.len()) == Some(token)
         {
-            let slice = &lower[idx..idx + token.len()];
-            if slice.as_bytes() == token {
-                return Some((&input[..idx], &input[idx + token.len()..]));
-            }
+            return Some((&input[..idx], &input[idx + token.len()..]));
         }
     }
 
@@ -251,7 +248,7 @@ pub(super) fn split_top_level_last<'a>(
     input: &'a str,
     keyword: &str,
 ) -> Option<(&'a str, &'a str)> {
-    let lower = input.to_lowercase();
+    let lower = input.to_ascii_lowercase();
     let chars = lower.char_indices().collect::<Vec<_>>();
     let token = keyword.as_bytes();
     let mut depth = 0i32;
@@ -286,8 +283,7 @@ pub(super) fn split_top_level_last<'a>(
             && case_depth == 0
             && !in_single
             && !in_double
-            && idx + token.len() <= input.len()
-            && &lower.as_bytes()[idx..idx + token.len()] == token
+            && lower.as_bytes().get(idx..idx + token.len()) == Some(token)
         {
             selected = Some((&input[..idx], &input[idx + token.len()..]));
         }

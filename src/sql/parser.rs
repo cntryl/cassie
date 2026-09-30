@@ -169,7 +169,7 @@ use statements::{
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     preflight_sql(sql)?;
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let lower = trimmed.to_lowercase();
+    let lower = trimmed.to_ascii_lowercase();
 
     if let Some(parsed) = parse_query_or_dml_statement(trimmed, &lower)? {
         return Ok(parsed);

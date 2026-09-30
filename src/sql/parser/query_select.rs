@@ -221,7 +221,7 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
 }
 
 fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
-    if sql.to_lowercase().starts_with("select ") {
+    if sql.to_ascii_lowercase().starts_with("select ") {
         Ok(())
     } else {
         Err(SqlError::new(
@@ -277,7 +277,7 @@ fn split_select_projection_and_rest(
 
 fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), SqlError> {
     let mut distinct_on = Vec::new();
-    let select_part_lower = select_part.to_lowercase();
+    let select_part_lower = select_part.to_ascii_lowercase();
     if select_part_lower.starts_with("distinct on") {
         let after_distinct_on = select_part["distinct on".len()..].trim_start();
         let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
@@ -299,7 +299,7 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
                 "missing projection in SELECT statement".into(),
             ));
         }
-        if select_part.to_lowercase().starts_with("distinct") {
+        if select_part.to_ascii_lowercase().starts_with("distinct") {
             return Err(SqlError::new("duplicate DISTINCT clause".into()));
         }
         return Ok((false, distinct_on));
@@ -397,7 +397,7 @@ fn parse_select_clauses(
                     if !seen.insert("group by") {
                         return Err(SqlError::new("duplicate GROUP BY clause".into()));
                     }
-                    let lower = raw_value.to_lowercase();
+                    let lower = raw_value.to_ascii_lowercase();
                     if lower.contains("grouping sets")
                         || lower.contains("rollup")
                         || lower.contains("cube")

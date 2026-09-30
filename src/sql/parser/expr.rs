@@ -335,7 +335,7 @@ pub(super) fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
     let mut items = Vec::new();
     for token in split_csv(raw) {
         let token = token.trim();
-        let lower = token.to_lowercase();
+        let lower = token.to_ascii_lowercase();
         let (token, nulls) = if lower.ends_with(" nulls first") {
             (
                 token[..token.len() - " nulls first".len()].trim(),
@@ -349,7 +349,7 @@ pub(super) fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
         } else {
             (token, None)
         };
-        let lower = token.to_lowercase();
+        let lower = token.to_ascii_lowercase();
         let (expr, direction) = if lower.ends_with(" desc") {
             (&token[..token.len() - 5], SortDirection::Desc)
         } else if lower.ends_with(" asc") {

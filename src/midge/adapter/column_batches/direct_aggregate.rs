@@ -94,11 +94,10 @@ impl DirectAggregateAccumulator {
                                 add_float(total, *next)?;
                             }
                         }
-                        _ => {
-                            return Err(CassieError::Execution(format!(
-                                "{} requires numeric input",
-                                spec.function
-                            )))
+                        other => {
+                            return Err(CassieError::Execution(
+                                numeric::non_numeric_aggregate_input(&spec.function, other),
+                            ))
                         }
                     }
                     *seen = true;
@@ -120,9 +119,9 @@ impl DirectAggregateAccumulator {
                             })?;
                         }
                         Value::Null => {}
-                        _ => {
+                        other => {
                             return Err(CassieError::Execution(
-                                "avg requires numeric input".to_string(),
+                                numeric::non_numeric_aggregate_input("avg", other),
                             ))
                         }
                     }

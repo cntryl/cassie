@@ -483,6 +483,9 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
     {
         return bad_request_descriptor("22003", message.to_string());
     }
+    if message.starts_with("function ") && message.ends_with(") does not exist") {
+        return bad_request_descriptor("42883", message.to_string());
+    }
     if message.eq_ignore_ascii_case("query admission exhausted") {
         return service_unavailable_descriptor("53300", message.to_string());
     }
@@ -740,6 +743,22 @@ mod tests {
 
         // Assert
         assert_eq!(descriptor.sql_state, "22003");
+    }
+
+    #[test]
+    fn should_map_non_numeric_aggregate_input_to_undefined_function() {
+        // Arrange
+        let error = CassieError::Execution(crate::types::numeric::non_numeric_aggregate_input(
+            "SUM",
+            &crate::types::Value::String("a".to_string()),
+        ));
+
+        // Act
+        let descriptor = error.descriptor();
+
+        // Assert
+        assert_eq!(descriptor.sql_state, "42883");
+        assert_eq!(descriptor.message, "function sum(text) does not exist");
     }
 
     #[test]

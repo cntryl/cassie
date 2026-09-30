@@ -600,6 +600,90 @@ mod integration_sql_aggregates {
             );
         }
     }
+
+    #[test]
+    fn should_reject_numeric_aggregates_over_non_numeric_columns() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_non_numeric_input",
+            &[
+                "CREATE TABLE agg (label TEXT, flag BOOLEAN)",
+                "INSERT INTO agg (label, flag) VALUES ('a', true)",
+                "INSERT INTO agg (label, flag) VALUES ('b', false)",
+            ],
+        );
+
+        // Act
+        let errors = [
+            "SELECT SUM(label) FROM agg",
+            "SELECT AVG(label) FROM agg",
+            "SELECT SUM(flag) FROM agg",
+            "SELECT AVG(flag) FROM agg",
+            "SELECT SUM(label) AS s, COUNT(label) AS c FROM agg GROUP BY flag",
+        ]
+        .map(|sql| fixture.error(sql).to_string());
+
+        // Assert
+        assert!(
+            errors
+                == [
+                    "execution error: function sum(text) does not exist",
+                    "execution error: function avg(text) does not exist",
+                    "execution error: function sum(boolean) does not exist",
+                    "execution error: function avg(boolean) does not exist",
+                    "execution error: function sum(text) does not exist",
+                ],
+            "each aggregate must name its non-numeric input type"
+        );
+    }
+
+    #[test]
+    fn should_reject_sum_over_mixed_json_values() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_mixed_input",
+            &["CREATE TABLE mixed (id INT, amount JSON)"],
+        );
+        let collection = super::support_sql::canonical_test_collection(&fixture.cassie, "mixed");
+        fixture
+            .cassie
+            .midge
+            .put_documents(
+                &collection,
+                vec![
+                    (
+                        Some("m1".to_string()),
+                        serde_json::json!({ "id": 1, "amount": 2 }),
+                    ),
+                    (
+                        Some("m2".to_string()),
+                        serde_json::json!({ "id": 2, "amount": "not a number" }),
+                    ),
+                    (
+                        Some("m3".to_string()),
+                        serde_json::json!({ "id": 3, "amount": 3 }),
+                    ),
+                ],
+            )
+            .expect("put mixed documents");
+
+        // Act
+        let errors = [
+            "SELECT SUM(amount) FROM mixed",
+            "SELECT AVG(amount) FROM mixed",
+        ]
+        .map(|sql| fixture.error(sql).to_string());
+
+        // Assert
+        assert!(
+            errors
+                == [
+                    "execution error: function sum(text) does not exist",
+                    "execution error: function avg(text) does not exist",
+                ],
+            "a non-numeric row in a mixed column must fail the aggregate"
+        );
+    }
 }
 
 // Formerly tests/integration_sql_ctes.rs.

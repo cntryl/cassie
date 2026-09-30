@@ -44,6 +44,8 @@ mod schema_sequences;
 mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
+#[path = "binder/set_types.rs"]
+mod set_types;
 #[path = "binder/set_width.rs"]
 mod set_width;
 #[path = "binder/validation.rs"]

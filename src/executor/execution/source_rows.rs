@@ -213,7 +213,10 @@ pub(super) fn distinct_batches(
     batches: Vec<Batch>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
-    let mut rows = BTreeMap::<SemanticKey, BatchRow>::new();
+    // Keep the first occurrence of each row in input order: the input is
+    // already sorted by ORDER BY, and DISTINCT must not reorder it.
+    let mut seen = HashSet::<SemanticKey>::new();
+    let mut rows = Vec::new();
     let mut memory = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(controls)?;
@@ -223,15 +226,12 @@ pub(super) fn distinct_batches(
                 .map(|bytes| bytes.len())
                 .unwrap_or_default(),
         );
-        if let std::collections::btree_map::Entry::Vacant(entry) = rows.entry(signature) {
+        if seen.insert(signature) {
             memory.push(controls.reserve_query_memory(bytes)?);
-            entry.insert(row);
+            rows.push(row);
         }
     }
-    Ok(batch::chunk_rows(
-        rows.into_values().collect(),
-        batch::DEFAULT_BATCH_SIZE,
-    ))
+    Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
 }
 
 pub(super) fn distinct_on_batches(

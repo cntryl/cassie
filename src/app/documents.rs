@@ -704,6 +704,11 @@ impl Cassie {
         value: &serde_json::Value,
         check: &ConstraintCheck,
     ) -> Result<bool, CassieError> {
+        // A CHECK whose comparison evaluates to NULL is satisfied under SQL
+        // three-valued logic, so a NULL operand never violates it.
+        if value.is_null() || check.value.is_null() {
+            return Ok(true);
+        }
         Ok(match check.operator {
             ConstraintOperator::Eq => value == &check.value,
             ConstraintOperator::NotEq => value != &check.value,

@@ -209,6 +209,13 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right)) = split_top_level(raw, " between ") {
         return parse_between_expression(left, right, false);
     }
+    if split_top_level(raw, " like ")
+        .is_some_and(|(_, pattern)| split_top_level(pattern, " escape ").is_some())
+    {
+        return Err(SqlError::unsupported(
+            "LIKE ... ESCAPE is not supported".into(),
+        ));
+    }
     for (op, parsed) in [
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
@@ -371,6 +378,11 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if raw.is_empty() {
         return Err(SqlError::new("invalid expression token".into()));
     }
+    if split_top_level(raw, "||").is_some() {
+        return Err(SqlError::unsupported(
+            "operator || is not supported; use concat()".into(),
+        ));
+    }
 
     if raw.starts_with('$') {
         let value = raw.trim_start_matches('$');
@@ -401,11 +413,8 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     if let Some(column) = parse_quoted_identifier_chain(raw)? {
         return Ok(Expr::Column(column));
     }
-    if let Some(value) = raw
-        .strip_prefix('\'')
-        .and_then(|value| value.strip_suffix('\''))
-    {
-        return Ok(Expr::StringLiteral(value.replace("''", "'")));
+    if let Some(value) = parse_single_string_literal(raw) {
+        return Ok(Expr::StringLiteral(value));
     }
     // Integer tokens keep integer typing (PostgreSQL types them int4/int8);
     // only tokens with a decimal point or exponent become float literals.
@@ -438,6 +447,24 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
     }
 
     Ok(Expr::Column(raw.to_string()))
+}
+
+/// Parses `raw` as exactly one single-quoted literal: the opening quote's
+/// match must be the final character, with `''` read as an escaped quote.
+fn parse_single_string_literal(raw: &str) -> Option<String> {
+    let inner = raw.strip_prefix('\'')?;
+    let mut value = String::with_capacity(inner.len());
+    let mut chars = inner.char_indices().peekable();
+    while let Some((idx, ch)) = chars.next() {
+        if ch != '\'' {
+            value.push(ch);
+        } else if chars.next_if(|&(_, next)| next == '\'').is_some() {
+            value.push('\'');
+        } else {
+            return (idx + 1 == inner.len()).then_some(value);
+        }
+    }
+    None
 }
 
 fn is_integer_literal(raw: &str) -> bool {

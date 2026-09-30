@@ -226,9 +226,8 @@ pub(super) fn distinct_batches(
                 .map(|bytes| bytes.len())
                 .unwrap_or_default(),
         );
-        if !seen.contains(&signature) {
+        if seen.insert(signature) {
             memory.push(controls.reserve_query_memory(bytes)?);
-            seen.insert(signature);
             rows.push(row);
         }
     }

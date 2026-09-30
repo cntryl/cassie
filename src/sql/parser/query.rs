@@ -24,7 +24,7 @@ pub(super) fn parse_select_statement(
 
 pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let remainder = sql[4..].trim_start();
-    let lower_remainder = remainder.to_lowercase();
+    let lower_remainder = remainder.to_ascii_lowercase();
     let mut recursive = false;
     let after_recursive = if lower_remainder.starts_with("recursive ") {
         recursive = true;
@@ -43,7 +43,7 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
         ));
     }
     if !after_recursive[select_pos..]
-        .to_lowercase()
+        .to_ascii_lowercase()
         .starts_with("select ")
     {
         return Err(SqlError::new(
@@ -183,7 +183,7 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     } else {
         (raw, None)
     };
-    let lower = spec_raw.trim().to_lowercase();
+    let lower = spec_raw.trim().to_ascii_lowercase();
     if lower.starts_with("partition by ") {
         let rest = spec_raw.trim()["partition by ".len()..].trim();
         if let Some((partition_raw, order_raw)) = split_top_level(rest, " order by ") {

@@ -1768,6 +1768,133 @@ mod parser_expressions {
         ));
     }
 
+    fn select_filter(sql: &str) -> Expr {
+        let QueryStatement::Select(statement) = parse_statement(sql)
+            .expect("parse should succeed")
+            .statement
+        else {
+            panic!("expected select statement");
+        };
+        statement.filter.expect("filter should exist")
+    }
+
+    fn is_between(expr: &Expr, expected_negated: bool) -> bool {
+        matches!(expr, Expr::Between { negated, .. } if *negated == expected_negated)
+    }
+
+    #[test]
+    fn should_bind_between_tighter_than_a_following_and_conjunct() {
+        // Arrange
+        let sql = "SELECT a FROM t WHERE a BETWEEN 1 AND 3 AND b = 'v1'";
+
+        // Act
+        let filter = select_filter(sql);
+
+        // Assert
+        let Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } = filter
+        else {
+            panic!("expected AND at the top of the filter");
+        };
+        assert!(is_between(&left, false));
+        assert!(matches!(
+            *right,
+            Expr::Binary {
+                op: BinaryOp::Eq,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn should_bind_between_tighter_than_a_preceding_and_conjunct() {
+        // Arrange
+        let sql = "SELECT a FROM t WHERE b = 'v1' AND a BETWEEN 1 AND 3";
+
+        // Act
+        let filter = select_filter(sql);
+
+        // Assert
+        let Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } = filter
+        else {
+            panic!("expected AND at the top of the filter");
+        };
+        assert!(matches!(
+            *left,
+            Expr::Binary {
+                op: BinaryOp::Eq,
+                ..
+            }
+        ));
+        assert!(is_between(&right, false));
+    }
+
+    #[test]
+    fn should_split_and_chains_that_mix_between_and_not_between() {
+        // Arrange
+        let sql = "SELECT a FROM t WHERE a BETWEEN 1 AND 3 AND b NOT BETWEEN 4 AND 6 AND c = 1";
+
+        // Act
+        let filter = select_filter(sql);
+
+        // Assert
+        let Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } = filter
+        else {
+            panic!("expected AND at the top of the filter");
+        };
+        assert!(is_between(&left, false));
+        let Expr::Binary {
+            left: middle,
+            op: BinaryOp::And,
+            right: last,
+        } = *right
+        else {
+            panic!("expected nested AND");
+        };
+        assert!(is_between(&middle, true));
+        assert!(matches!(
+            *last,
+            Expr::Binary {
+                op: BinaryOp::Eq,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn should_bind_between_tighter_than_and_in_delete_filters() {
+        // Arrange
+        let sql = "DELETE FROM t WHERE a BETWEEN 1 AND 3 AND b = 'v1'";
+
+        // Act
+        let parsed = parse_statement(sql).expect("parse should succeed");
+
+        // Assert
+        let QueryStatement::Delete(statement) = parsed.statement else {
+            panic!("expected delete statement");
+        };
+        let Some(Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            ..
+        }) = statement.filter
+        else {
+            panic!("expected AND at the top of the filter");
+        };
+        assert!(is_between(&left, false));
+    }
+
     #[test]
     fn should_parse_cast_function_expression() {
         // Arrange

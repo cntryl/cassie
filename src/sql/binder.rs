@@ -40,6 +40,8 @@ mod routines;
 mod schema;
 #[path = "binder/schema_sequences.rs"]
 mod schema_sequences;
+#[path = "binder/search_field_case.rs"]
+mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
 #[path = "binder/validation.rs"]

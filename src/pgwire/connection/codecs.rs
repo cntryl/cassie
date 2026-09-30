@@ -367,13 +367,19 @@ fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
     let codec = binary_codec_for_oid(element_oid)?;
     let has_null = values.iter().any(serde_json::Value::is_null);
     let mut encoded = Vec::new();
-    encoded.extend_from_slice(&1_i32.to_be_bytes());
+    // PostgreSQL writes an empty array as zero dimensions with no dimension
+    // header: ndim, has_null and the element OID only.
+    let dimensions = i32::from(!values.is_empty());
+    encoded.extend_from_slice(&dimensions.to_be_bytes());
     encoded.extend_from_slice(&i32::from(has_null).to_be_bytes());
     encoded.extend_from_slice(
         &i32::try_from(element_oid)
             .map_err(|_| unsupported_codec(type_oid))?
             .to_be_bytes(),
     );
+    if values.is_empty() {
+        return Ok(encoded);
+    }
     encoded.extend_from_slice(
         &i32::try_from(values.len())
             .map_err(|_| invalid_data("array"))?
@@ -403,10 +409,17 @@ fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
     let has_null = read_i32(parameter, &mut cursor, "array")?;
     let element_oid = i64::from(read_i32(parameter, &mut cursor, "array")?);
     let expected_oid = type_oid - OID_ARRAY_BASE;
-    if dimensions != 1 || !matches!(has_null, 0 | 1) || element_oid != expected_oid {
+    if !matches!(dimensions, 0 | 1) || !matches!(has_null, 0 | 1) || element_oid != expected_oid {
         return Err(invalid_data("array"));
     }
     binary_codec_for_oid(element_oid)?;
+    if dimensions == 0 {
+        // The canonical empty array: no dimension header and no elements.
+        if has_null != 0 || cursor != parameter.len() {
+            return Err(invalid_data("array"));
+        }
+        return Ok(Value::Json(serde_json::Value::Array(Vec::new())));
+    }
     let length = usize::try_from(read_i32(parameter, &mut cursor, "array")?)
         .map_err(|_| invalid_data("array"))?;
     if read_i32(parameter, &mut cursor, "array")? != 1 {

@@ -25,6 +25,8 @@ use crate::types::Value;
 mod portal_state;
 #[path = "extended/portal_streaming.rs"]
 mod portal_streaming;
+#[path = "extended/text_parameters.rs"]
+mod text_parameters;
 use portal_state::{
     take_portal_execution, write_completed_portal, write_fresh_result, FreshPortalWriteRequest,
     PortalExecution, PortalFetchWindow,
@@ -33,13 +35,8 @@ use portal_streaming::{
     execute_streaming_portal_page, resume_suspended_portal, streamable_portal_query,
     StreamingPortalPageRequest, SuspendedPortalRequest,
 };
+use text_parameters::decode_text_parameter;
 
-const OID_BOOL: i32 = 16;
-const OID_INT8: i32 = 20;
-const OID_INT2: i32 = 21;
-const OID_INT4: i32 = 23;
-const OID_JSON: i32 = 114;
-const OID_FLOAT8: i32 = 701;
 const OID_UNKNOWN: i32 = 705;
 const MAX_PREPARED_STATEMENTS_PER_CONNECTION: usize = 1_024;
 const MAX_PORTALS_PER_CONNECTION: usize = 1_024;
@@ -719,46 +716,9 @@ pub(super) fn benchmark_decode_parameter(
     decode_parameter(Some(parameter), format, oid).map_err(|error| error.pg_error.message.clone())
 }
 
-fn decode_text_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQueryError> {
-    let text = str::from_utf8(parameter)
-        .map_err(|_| ExtendedQueryError::protocol("bind parameter is not valid UTF-8"))?;
-    match oid {
-        OID_BOOL => parse_bool(text).map(Value::Bool),
-        OID_INT2 | OID_INT4 | OID_INT8 => text
-            .parse::<i64>()
-            .map(Value::Int64)
-            .map_err(|_| ExtendedQueryError::protocol("invalid integer bind parameter")),
-        OID_FLOAT8 => text
-            .parse::<f64>()
-            .map(Value::Float64)
-            .map_err(|_| ExtendedQueryError::protocol("invalid float bind parameter")),
-        OID_JSON => serde_json::from_str(text)
-            .map(Value::Json)
-            .map_err(|_| ExtendedQueryError::protocol("invalid JSON bind parameter")),
-        _ => match crate::sql::binder::parameter_data_type_for_oid(oid) {
-            Some(crate::types::DataType::Array(element_type)) => {
-                crate::types::array::parse_text_array(text, &element_type)
-                    .map(Value::Json)
-                    .map_err(|_| ExtendedQueryError::protocol("invalid text array parameter"))
-            }
-            _ => Ok(Value::String(text.to_string())),
-        },
-    }
-}
-
 fn decode_binary_parameter(parameter: &[u8], oid: i32) -> Result<Value, ExtendedQueryError> {
     binary_to_value(parameter, i64::from(oid))
         .map_err(|error| ExtendedQueryError::protocol_from_io(&error))
-}
-
-fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "t" | "1" => Ok(true),
-        "false" | "f" | "0" => Ok(false),
-        _ => Err(ExtendedQueryError::protocol(
-            "invalid boolean bind parameter",
-        )),
-    }
 }
 
 fn missing_statement_error(name: &str) -> ExtendedQueryError {

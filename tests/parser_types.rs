@@ -1783,7 +1783,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_bind_between_tighter_than_a_following_and_conjunct() {
+    fn should_bind_between_tighter_than_a_following_conjunct() {
         // Arrange
         let sql = "SELECT a FROM t WHERE a BETWEEN 1 AND 3 AND b = 'v1'";
 
@@ -1810,7 +1810,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_bind_between_tighter_than_a_preceding_and_conjunct() {
+    fn should_bind_between_tighter_than_a_preceding_conjunct() {
         // Arrange
         let sql = "SELECT a FROM t WHERE b = 'v1' AND a BETWEEN 1 AND 3";
 
@@ -1837,7 +1837,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_split_and_chains_that_mix_between_and_not_between() {
+    fn should_split_conjunction_chains_mixing_between_with_not_between() {
         // Arrange
         let sql = "SELECT a FROM t WHERE a BETWEEN 1 AND 3 AND b NOT BETWEEN 4 AND 6 AND c = 1";
 
@@ -1873,7 +1873,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_ignore_nested_between_and_quoted_and_when_splitting_conjunctions() {
+    fn should_ignore_nested_or_quoted_between_when_splitting_conjunctions() {
         // Arrange
         let sql = "SELECT a FROM t WHERE (b BETWEEN 4 AND 6 OR c = ' between x and ') AND CASE WHEN d BETWEEN 1 AND 2 THEN true ELSE false END AND a BETWEEN 1 AND 3";
 
@@ -1909,7 +1909,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_bind_between_tighter_than_and_in_delete_filters() {
+    fn should_bind_between_tighter_than_conjunctions_in_delete_filters() {
         // Arrange
         let sql = "DELETE FROM t WHERE a BETWEEN 1 AND 3 AND b = 'v1'";
 

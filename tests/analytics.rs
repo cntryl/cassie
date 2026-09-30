@@ -1274,7 +1274,7 @@ mod cardinality_incremental {
 
 // Formerly tests/column_batch_encoded_aggregates.rs.
 mod column_batch_encoded_aggregates {
-    use cassie::app::Cassie;
+    use cassie::app::{Cassie, CassieError};
     use cassie::types::Value;
 
     use super::support_sql as support;
@@ -1450,6 +1450,44 @@ mod column_batch_encoded_aggregates {
         });
 
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_classify_filtered_direct_aggregate_overflow_as_execution_error() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("column_batch_filtered_overflow_class");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE ovf (id INT, amount BIGINT)",
+            "INSERT INTO ovf (id, amount) VALUES (1, 9223372036854775807)",
+            "INSERT INTO ovf (id, amount) VALUES (2, 9223372036854775807)",
+            "CREATE INDEX ovf_idx ON ovf USING column (id, amount) WITH (segment_size = 1)",
+        ] {
+            cassie.execute_sql(&session, sql, vec![]).expect("setup");
+        }
+
+        // Act
+        let errors = [
+            "SELECT SUM(amount) AS s FROM ovf WHERE id > 0",
+            "SELECT SUM(amount) AS s FROM ovf WHERE id > 0 LIMIT 1",
+            "SELECT SUM(amount) AS s FROM ovf",
+        ]
+        .map(|sql| {
+            cassie
+                .execute_sql(&session, sql, vec![])
+                .expect_err("overflowing SUM must fail")
+        });
+
+        // Assert
+        for error in &errors {
+            assert!(
+                matches!(error, CassieError::Execution(message) if message == "aggregate integer overflow"),
+                "overflow must be an execution error, got: {error}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&path);
     }
 }
 

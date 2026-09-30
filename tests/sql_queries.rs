@@ -7,6 +7,8 @@ mod support_pgwire;
 mod support_relational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
@@ -441,6 +443,90 @@ mod integration_sql_aggregates {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_report_each_unaliased_aggregate_sharing_a_function_name() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_same_name_outputs",
+            &[
+                "CREATE TABLE t (k INT, v INT)",
+                "INSERT INTO t (k, v) VALUES (1, 10)",
+                "INSERT INTO t (k, v) VALUES (2, NULL)",
+                "INSERT INTO t (k, v) VALUES (NULL, 30)",
+            ],
+        );
+
+        // Act
+        let counts = fixture.rows("SELECT COUNT(*), COUNT(v) FROM t");
+        let reversed = fixture.rows("SELECT COUNT(v), COUNT(*) FROM t");
+        let sums = fixture.rows("SELECT SUM(k), SUM(v) FROM t");
+        let grouped = fixture.rows("SELECT k, COUNT(*), COUNT(v) FROM t WHERE k = 2 GROUP BY k");
+
+        // Assert
+        assert_eq!(counts, vec![vec![Value::Int64(3), Value::Int64(2)]]);
+        assert_eq!(reversed, vec![vec![Value::Int64(2), Value::Int64(3)]]);
+        assert_eq!(sums, vec![vec![Value::Int64(3), Value::Int64(40)]]);
+        assert_eq!(
+            grouped,
+            vec![vec![Value::Int64(2), Value::Int64(1), Value::Int64(0)]]
+        );
+    }
+
+    #[test]
+    fn should_report_each_unaliased_aggregate_from_column_batch_summaries() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_same_name_column_batch",
+            &[
+                "CREATE TABLE tc (k INT, v INT)",
+                "INSERT INTO tc (k, v) VALUES (1, 10)",
+                "INSERT INTO tc (k, v) VALUES (2, NULL)",
+                "INSERT INTO tc (k, v) VALUES (NULL, 30)",
+                "CREATE INDEX tc_idx ON tc USING column (k, v) WITH (segment_size = 2)",
+            ],
+        );
+
+        // Act
+        let unfiltered = fixture.rows("SELECT COUNT(*), COUNT(v), SUM(k), SUM(v) FROM tc");
+        let filtered = fixture.rows("SELECT COUNT(k), COUNT(v) FROM tc WHERE k > 0");
+
+        // Assert
+        assert_eq!(
+            unfiltered,
+            vec![vec![
+                Value::Int64(3),
+                Value::Int64(2),
+                Value::Int64(3),
+                Value::Int64(40)
+            ]]
+        );
+        assert_eq!(filtered, vec![vec![Value::Int64(2), Value::Int64(1)]]);
+    }
+
+    #[test]
+    fn should_report_aggregate_value_when_a_column_shares_its_name() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_column_name_collision",
+            &[
+                "CREATE TABLE t2 (sum INT, x INT)",
+                "INSERT INTO t2 (sum, x) VALUES (7, 1)",
+                "INSERT INTO t2 (sum, x) VALUES (7, 2)",
+                "CREATE TABLE u2 (count INT)",
+                "INSERT INTO u2 (count) VALUES (5)",
+                "INSERT INTO u2 (count) VALUES (5)",
+            ],
+        );
+
+        // Act
+        let sums = fixture.rows("SELECT sum, sum(x) FROM t2 GROUP BY sum");
+        let counts = fixture.rows("SELECT count, count(*) FROM u2 GROUP BY count");
+
+        // Assert
+        assert_eq!(sums, vec![vec![Value::Int64(7), Value::Int64(3)]]);
+        assert_eq!(counts, vec![vec![Value::Int64(5), Value::Int64(2)]]);
     }
 }
 

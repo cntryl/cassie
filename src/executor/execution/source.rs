@@ -707,14 +707,23 @@ fn apply_sort_phase(
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
+    // Grouped rows carry only group keys and aggregate results, so ORDER BY
+    // keys are rewritten (aliases resolved) to read those columns.
+    let grouped_order = plan_uses_aggregate(plan).then(|| {
+        aggregate_exec::rewrite_aggregate_order(&plan.order, &plan.projection, &plan.group_by)
+    });
+    let (order, projection) = match &grouped_order {
+        Some(order) => (order.as_slice(), &[][..]),
+        None => (plan.order.as_slice(), plan.projection.as_slice()),
+    };
     if !plan.distinct_on.is_empty() {
         let eval = sort::EvalInput {
-            order: &plan.order,
-            projection: &plan.projection,
+            order,
+            projection,
             params,
+            search_context,
             user_functions,
             session,
-            search_context,
         };
         batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
         ensure_query_memory_budget(controls, &batches)?;
@@ -732,12 +741,12 @@ fn apply_sort_phase(
     }
     if plan.set.is_none() && !plan.order.is_empty() {
         let eval = sort::EvalInput {
-            order: &plan.order,
-            projection: &plan.projection,
+            order,
+            projection,
             params,
+            search_context,
             user_functions,
             session,
-            search_context,
         };
         batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
         ensure_query_memory_budget(controls, &batches)?;

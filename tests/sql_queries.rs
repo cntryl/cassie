@@ -794,6 +794,63 @@ mod integration_sql_aggregates {
             ]
         );
     }
+
+    fn ordered_groups_fixture(label: &str) -> super::support_sql_fixture::SqlFixture {
+        super::support_sql_fixture::sql_fixture(
+            label,
+            &[
+                "CREATE TABLE t (g TEXT, v INT)",
+                "INSERT INTO t (g, v) VALUES ('a', 1)",
+                "INSERT INTO t (g, v) VALUES ('a', 2)",
+                "INSERT INTO t (g, v) VALUES ('b', 100)",
+                "INSERT INTO t (g, v) VALUES ('c', 10)",
+            ],
+        )
+    }
+
+    fn labels(rows: &[Vec<Value>]) -> Vec<String> {
+        rows.iter()
+            .map(|row| match row.first() {
+                Some(Value::String(label)) => label.clone(),
+                _ => String::new(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn should_order_grouped_rows_by_aggregate_expression() {
+        // Arrange
+        let fixture = ordered_groups_fixture("aggregate_order_by_aggregate");
+
+        // Act
+        let orders = [
+            "SELECT g, SUM(v) AS s FROM t GROUP BY g ORDER BY SUM(v) DESC",
+            "SELECT g, SUM(v) AS s FROM t GROUP BY g ORDER BY s DESC",
+            "SELECT g, SUM(v) AS s FROM t GROUP BY g ORDER BY s",
+            "SELECT g, COUNT(*) AS n FROM t GROUP BY g ORDER BY COUNT(*) DESC, g",
+            "SELECT g FROM t GROUP BY g ORDER BY MAX(v)",
+            "SELECT g, AVG(v) FROM t GROUP BY g ORDER BY AVG(v) DESC",
+            "SELECT g FROM t GROUP BY g ORDER BY COUNT(*) DESC, g LIMIT 1",
+            "SELECT g FROM t GROUP BY g ORDER BY SUM(v) + 1 DESC",
+        ]
+        .map(|sql| labels(&fixture.rows(sql)));
+
+        // Assert
+        assert_eq!(
+            orders,
+            [
+                vec!["b", "c", "a"],
+                vec!["b", "c", "a"],
+                vec!["a", "c", "b"],
+                vec!["a", "b", "c"],
+                vec!["a", "c", "b"],
+                vec!["b", "c", "a"],
+                vec!["a"],
+                vec!["b", "c", "a"],
+            ]
+            .map(|labels| labels.into_iter().map(String::from).collect::<Vec<_>>())
+        );
+    }
 }
 
 // Formerly tests/integration_sql_ctes.rs.

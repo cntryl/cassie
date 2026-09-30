@@ -6,7 +6,7 @@ use crate::app::{Cassie, CassieSession};
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::{self, Batch, BatchRow};
 use crate::executor::filter;
-use crate::executor::semantic::{compare_values, SemanticKey};
+use crate::executor::semantic::SemanticKey;
 use crate::planner::logical::LogicalPlan;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, FunctionCall, SelectItem};
@@ -24,12 +24,11 @@ mod state;
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
 
-use crate::types::numeric::{i64_to_f64, usize_to_f64};
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
     contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_projection,
 };
-use state::{NumericSum, PartialAggregateGroup};
+use state::{AggregateAccumulator, PartialAggregateGroup};
 
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
@@ -62,7 +61,16 @@ pub(super) fn aggregate_query_batches(
                 worker_limit.min(partition_count(rows.len(), batch::DEFAULT_BATCH_SIZE));
             if let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(requested) {
                 let workers = worker_guard.workers().min(requested);
-                return aggregate_query_batches_parallel(cassie, &rows, &specs, context, workers);
+                let partials = aggregate_partitions(&rows, &specs, context, workers)?;
+                if let Some(batches) =
+                    merge_partial_aggregations(cassie, partials, workers, &rows, &specs, context)?
+                {
+                    return Ok(batches);
+                }
+                cassie
+                    .runtime
+                    .record_parallel_aggregation_fallback(FLOAT_SUM_FALLBACK.to_owned());
+                return aggregate_query_batches_serial(rows, &specs, context);
             }
         }
     }
@@ -128,15 +136,19 @@ fn aggregate_query_batches_serial(
     Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
 }
 
-fn aggregate_query_batches_parallel(
+/// Fallback reason recorded when a merged group folded an inexact SUM/AVG
+/// input: merging per-partition float sums would re-associate the row-order
+/// fold, so the rows are aggregated serially instead.
+const FLOAT_SUM_FALLBACK: &str = "float-sum-requires-row-order";
+
+fn merge_partial_aggregations(
     cassie: &Cassie,
+    partials: Vec<PartialAggregation>,
+    workers: usize,
     rows: &[BatchRow],
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
-    workers: usize,
-) -> Result<Vec<Batch>, QueryError> {
-    let partials = aggregate_partitions(rows, specs, context, workers)?;
-
+) -> Result<Option<Vec<Batch>>, QueryError> {
     let partitions = partials.len();
     let input_rows = rows.len();
     let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
@@ -167,12 +179,19 @@ fn aggregate_query_batches_parallel(
         merged.insert(signature, group);
     }
 
+    if merged
+        .values()
+        .any(PartialAggregateGroup::requires_row_order)
+    {
+        return Ok(None);
+    }
+
     let group_count = merged.len();
     let mut out = Vec::with_capacity(group_count);
     for (_signature, group) in merged {
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
-            let value = accumulator.finish();
+            let value = accumulator.finish()?;
             for name in &spec.output_names {
                 values.push((name.clone(), value.clone()));
             }
@@ -185,7 +204,7 @@ fn aggregate_query_batches_parallel(
     cassie
         .runtime
         .record_parallel_aggregation(workers, partitions, input_rows, group_count);
-    Ok(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE))
+    Ok(Some(batch::chunk_rows(out, batch::DEFAULT_BATCH_SIZE)))
 }
 
 type PartialGroups = BTreeMap<SemanticKey, PartialAggregateGroup>;
@@ -430,148 +449,11 @@ fn evaluate_aggregate(
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
-    match name.as_str() {
-        "count" => Ok(Value::Int64(count_aggregate(function, rows, context)?)),
-        "sum" => sum_aggregate(function, rows, context),
-        "avg" => avg_aggregate(function, rows, context),
-        "min" => minmax_aggregate(function, rows, context, false),
-        "max" => minmax_aggregate(function, rows, context, true),
-        _ => Ok(Value::Null),
-    }
-}
-
-fn count_aggregate(
-    function: &FunctionCall,
-    rows: &[BatchRow],
-    context: &AggregateExecutionContext<'_>,
-) -> Result<i64, QueryError> {
-    if matches!(function.args.as_slice(), [Expr::Column(name)] if name == "*") {
-        return i64::try_from(rows.len())
-            .map_err(|_| QueryError::General(String::from("aggregate row count overflow")));
-    }
-    let mut count = 0i64;
-    for row in rows {
-        let value = filter::evaluate_expr_value(
-            row,
-            &function.args[0],
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )?;
-        if !matches!(value, Value::Null) {
-            count += 1;
-        }
-    }
-    Ok(count)
-}
-
-fn sum_aggregate(
-    function: &FunctionCall,
-    rows: &[BatchRow],
-    context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    let mut sum = NumericSum::Int(0);
-    let mut seen = false;
-    for row in rows {
-        match filter::evaluate_expr_value(
-            row,
-            &function.args[0],
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )? {
-            Value::Int64(value) => {
-                sum.add_int(value)?;
-                seen = true;
-            }
-            Value::Float64(value) => {
-                sum.add_float(value);
-                seen = true;
-            }
-            Value::Null => {}
-            _ => {
-                sum.promote_to_float();
-            }
-        }
-    }
-    if !seen {
-        return Ok(Value::Null);
-    }
-    Ok(sum.finish_value())
-}
-
-fn avg_aggregate(
-    function: &FunctionCall,
-    rows: &[BatchRow],
-    context: &AggregateExecutionContext<'_>,
-) -> Result<Value, QueryError> {
-    let mut sum = 0.0;
-    let mut count = 0usize;
-    for row in rows {
-        match filter::evaluate_expr_value(
-            row,
-            &function.args[0],
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )? {
-            Value::Int64(value) => {
-                sum += i64_to_f64(value);
-                count += 1;
-            }
-            Value::Float64(value) => {
-                sum += value;
-                count += 1;
-            }
-            _ => {}
-        }
-    }
-    if count == 0 {
-        Ok(Value::Null)
+    if matches!(name.as_str(), "count" | "sum" | "avg" | "min" | "max") {
+        AggregateAccumulator::evaluate(function, rows, context)
     } else {
-        Ok(Value::Float64(sum / usize_to_f64(count)))
+        Ok(Value::Null)
     }
-}
-
-fn minmax_aggregate(
-    function: &FunctionCall,
-    rows: &[BatchRow],
-    context: &AggregateExecutionContext<'_>,
-    max: bool,
-) -> Result<Value, QueryError> {
-    let mut selected: Option<Value> = None;
-    for row in rows {
-        let value = filter::evaluate_expr_value(
-            row,
-            &function.args[0],
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            None,
-        )?;
-        if matches!(value, Value::Null) {
-            continue;
-        }
-        let replace = selected.as_ref().is_none_or(|current| {
-            let ordering = compare_values(&value, current);
-            if max {
-                ordering.is_gt()
-            } else {
-                ordering.is_lt()
-            }
-        });
-        if replace {
-            selected = Some(value);
-        }
-    }
-    Ok(selected.unwrap_or(Value::Null))
 }
 
 fn aggregation_worker_limit(cassie: &Cassie, row_count: usize) -> usize {

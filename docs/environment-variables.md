@@ -126,7 +126,7 @@ never receives Midge's local-only `sync` or `buffered` policies.
 | `CASSIE_MAX_QUERY_WORKERS` | Integer, minimum `1` | `64` | Global concurrent query-worker budget. |
 | `CASSIE_PARALLEL_SCAN_WORKERS` | Unsigned integer | `1` | Scan worker setting used by eligible plans. |
 | `CASSIE_PARALLEL_SCORING_WORKERS` | Unsigned integer | `1` | Vector/full-text scoring worker setting used by eligible plans. |
-| `CASSIE_PARALLEL_AGGREGATION_WORKERS` | Unsigned integer | `1` | Aggregation worker setting used by eligible plans. |
+| `CASSIE_PARALLEL_AGGREGATION_WORKERS` | Unsigned integer | `1` | Aggregation worker setting used by eligible plans. Results match single-worker aggregation exactly: integer SUM overflow is detected at the row-order running total, and groups whose SUM/AVG folded a float (or an integer AVG beyond exact `f64` range) are re-aggregated serially (fallback reason `float-sum-requires-row-order`). |
 | `CASSIE_PGWIRE_MAX_CONNECTIONS` | Integer, minimum `1` | `256` | Pgwire connection limit. |
 | `CASSIE_REST_MAX_CONNECTIONS` | Integer, minimum `1` | `512` | REST connection limit. |
 | `CASSIE_REST_MAX_SESSIONS_PER_USER` | Integer, minimum `1` | `16` | Active REST sessions allowed per normalized user. |

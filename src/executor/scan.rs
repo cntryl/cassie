@@ -782,7 +782,10 @@ fn projected_document_matches(
         .is_some_and(|value| value == filter.value)
 }
 
-fn projected_field_value<'a>(
+/// Reads `field` from a document payload, preferring an exact key and falling
+/// back to an ASCII case-insensitive match, because unquoted SQL identifiers
+/// are case-insensitive while payload keys keep their declared case.
+pub(crate) fn projected_field_value<'a>(
     object: &'a serde_json::Map<String, serde_json::Value>,
     field: &str,
 ) -> Option<&'a serde_json::Value> {

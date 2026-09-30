@@ -58,7 +58,8 @@ pub(super) fn execute_ordered_column_top_k(
             let document_id = document.id.clone();
             let order_value = document
                 .payload
-                .get(&spec.order_column)
+                .as_object()
+                .and_then(|object| scan::projected_field_value(object, &spec.order_column))
                 .map_or(Value::Null, super::projected_read::json_to_query_value);
             let values = ordered_projection_row(&document, &spec.projection, schema.as_ref());
             let candidate = OrderedColumnCandidate {

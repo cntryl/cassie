@@ -125,6 +125,7 @@ pub(super) async fn write_simple_query_result(
 
     if !columns.is_empty() {
         ensure_row_widths(&rows, &columns)?;
+        let command = select_command_tag(&command, rows.len());
         let mut frame = Vec::new();
         append_row_description_frame(&mut frame, &columns, &[])?;
         write_half.write_all(&frame).await?;
@@ -362,6 +363,21 @@ pub(super) async fn write_copy_data(
 
 pub(super) async fn write_copy_done(write_half: &mut (impl AsyncWrite + Unpin)) -> io::Result<()> {
     write_backend_frame(write_half, b'c', &[]).await
+}
+
+/// Gives a `SELECT` command tag the row count PostgreSQL reports: the rows
+/// this query, or this `Execute` of a portal, actually returned. Every other
+/// tag passes through unchanged.
+pub(super) fn select_command_tag(command: &str, rows: usize) -> std::borrow::Cow<'_, str> {
+    let is_select = command.eq_ignore_ascii_case("SELECT")
+        || command.split_once(' ').is_some_and(|(verb, count)| {
+            verb.eq_ignore_ascii_case("SELECT") && count.parse::<u64>().is_ok()
+        });
+    if is_select {
+        std::borrow::Cow::Owned(format!("SELECT {rows}"))
+    } else {
+        std::borrow::Cow::Borrowed(command)
+    }
 }
 
 pub(super) fn append_command_complete_frame(frame: &mut Vec<u8>, command: &str) -> io::Result<()> {

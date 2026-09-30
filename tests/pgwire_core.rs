@@ -638,6 +638,118 @@ mod pgwire_binary_codecs {
         });
     }
 
+    fn empty_int_array_body() -> Vec<u8> {
+        [
+            0_i32.to_be_bytes().as_slice(),
+            0_i32.to_be_bytes().as_slice(),
+            23_i32.to_be_bytes().as_slice(),
+        ]
+        .concat()
+    }
+
+    #[test]
+    fn should_store_empty_array_given_zero_dimension_binary_parameter() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("binary-empty-array-bind");
+        let empty_array = empty_int_array_body();
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE empty_arrays (id TEXT, vals INT[])",
+                    vec![],
+                )
+                .expect("create table");
+
+            // Act
+            let (frames, server) = start_extended_query(
+                cassie.clone(),
+                support::parse_frame_with_types(
+                    "empty_array_insert",
+                    "INSERT INTO empty_arrays (id, vals) VALUES ('e', $1)",
+                    &[34_023],
+                ),
+                support::bind_frame_with_formats(
+                    "empty_array_insert_portal",
+                    "empty_array_insert",
+                    &[1],
+                    &[Some(&empty_array)],
+                    &[],
+                ),
+                support::execute_frame("empty_array_insert_portal"),
+            )
+            .await;
+
+            // Assert
+            assert!(frames.iter().all(|frame| frame.0 != b'E'));
+            let stored = cassie
+                .execute_sql(&session, "SELECT vals FROM empty_arrays", vec![])
+                .expect("select stored array");
+            assert_eq!(stored.rows, vec![vec![Value::Json(serde_json::json!([]))]]);
+
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_encode_stored_empty_array_with_zero_dimensions() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("binary-empty-array-result");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE empty_array_rows (id TEXT, vals INT[])",
+                    vec![],
+                )
+                .expect("create table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO empty_array_rows (id, vals) VALUES ('e', $1)",
+                    vec![Value::Json(serde_json::json!([]))],
+                )
+                .expect("insert empty array");
+
+            // Act
+            let (frames, server) = start_extended_query(
+                cassie,
+                support::parse_frame("empty_array_select", "SELECT vals FROM empty_array_rows"),
+                support::bind_frame_with_formats(
+                    "empty_array_select_portal",
+                    "empty_array_select",
+                    &[],
+                    &[],
+                    &[1],
+                ),
+                support::execute_frame("empty_array_select_portal"),
+            )
+            .await;
+
+            // Assert
+            let rows = frames
+                .iter()
+                .filter(|frame| frame.0 == b'D')
+                .map(|frame| read_binary_row(&frame.1))
+                .collect::<Vec<_>>();
+            assert_eq!(rows, vec![vec![Some(empty_int_array_body())]]);
+
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     #[test]
     fn should_apply_mixed_result_formats_with_null_values() {
         // Arrange

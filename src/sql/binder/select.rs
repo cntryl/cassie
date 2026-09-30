@@ -235,7 +235,7 @@ fn validate_bound_select_references(
     projection_aliases: &HashSet<String>,
 ) -> Result<(), CassieError> {
     validate_projection_references(&select.projection, known_fields)?;
-    validate_grouped_projection(&select.projection, &select.group_by)?;
+    validate_grouped_projection(select, projection_aliases)?;
     validate_expression_references(
         select.filter.as_ref(),
         known_fields,
@@ -259,14 +259,19 @@ fn validate_bound_select_references(
     Ok(())
 }
 
+/// Rejects a column that is neither grouped nor inside an aggregate, in the
+/// projection and in ORDER BY, whenever the query aggregates: with a GROUP
+/// BY clause, a HAVING clause, or an aggregate anywhere in the projection
+/// (an implicit single group).
 fn validate_grouped_projection(
-    projection: &[SelectItem],
-    group_by: &[Expr],
+    select: &SelectStatement,
+    projection_aliases: &HashSet<String>,
 ) -> Result<(), CassieError> {
-    if group_by.is_empty() {
+    let group_by = select.group_by.as_slice();
+    if group_by.is_empty() && select.having.is_none() && !projection_has_aggregate(select) {
         return Ok(());
     }
-    for item in projection {
+    for item in &select.projection {
         let expression = match item {
             SelectItem::Wildcard => {
                 return Err(CassieError::Planner(
@@ -283,13 +288,59 @@ fn validate_grouped_projection(
             SelectItem::Expr { expr, .. } => expr.clone(),
             SelectItem::WindowFunction { .. } => continue,
         };
-        if let Some(column) = first_ungrouped_column(&expression, group_by) {
-            return Err(CassieError::Planner(format!(
-                "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
-            )));
+        reject_ungrouped_column(&expression, group_by)?;
+    }
+    for order in &select.order {
+        let names_output = matches!(&order.expr, Expr::Column(name)
+            if names_projection_output(select, projection_aliases, name));
+        if !names_output && !matches!(order.expr, Expr::IntegerLiteral(_)) {
+            reject_ungrouped_column(&order.expr, group_by)?;
         }
     }
     Ok(())
+}
+
+fn reject_ungrouped_column(expr: &Expr, group_by: &[Expr]) -> Result<(), CassieError> {
+    match first_ungrouped_column(expr, group_by) {
+        Some(column) => Err(CassieError::Planner(format!(
+            "column '{column}' must appear in the GROUP BY clause or be used in an aggregate function"
+        ))),
+        None => Ok(()),
+    }
+}
+
+/// Whether ORDER BY `name` refers to an output column (an alias or an
+/// unaliased function's name) rather than an input column.
+fn names_projection_output(
+    select: &SelectStatement,
+    projection_aliases: &HashSet<String>,
+    name: &str,
+) -> bool {
+    projection_aliases.contains(&name.to_ascii_lowercase())
+        || select.projection.iter().any(|item| {
+            matches!(item, SelectItem::Function { function, alias: None }
+                if function.name.eq_ignore_ascii_case(name))
+        })
+}
+
+/// Whether a projection item calls an aggregate outside a window function.
+fn projection_has_aggregate(select: &SelectStatement) -> bool {
+    let is_aggregate = |expr: &Expr| {
+        expr.any_descendant_or_self(&mut |expr| {
+            matches!(expr, Expr::Function(function)
+                if crate::sql::functions::is_aggregate_function(&function.name))
+        })
+    };
+    select.projection.iter().any(|item| match item {
+        SelectItem::Function { function, .. } => {
+            crate::sql::functions::is_aggregate_function(&function.name)
+                || function.args.iter().any(is_aggregate)
+        }
+        SelectItem::Expr { expr, .. } => is_aggregate(expr),
+        SelectItem::Wildcard | SelectItem::Column { .. } | SelectItem::WindowFunction { .. } => {
+            false
+        }
+    })
 }
 
 /// Returns the first column that is neither grouped nor inside an aggregate.

@@ -684,6 +684,116 @@ mod integration_sql_aggregates {
             "a non-numeric row in a mixed column must fail the aggregate"
         );
     }
+
+    fn grouping_fixture(label: &str) -> super::support_sql_fixture::SqlFixture {
+        super::support_sql_fixture::sql_fixture(
+            label,
+            &[
+                "CREATE TABLE m (g TEXT, v INT)",
+                "INSERT INTO m (g, v) VALUES ('a', 9)",
+                "INSERT INTO m (g, v) VALUES ('a', 2)",
+                "INSERT INTO m (g, v) VALUES ('b', 1)",
+                "INSERT INTO m (g, v) VALUES ('c', 5)",
+            ],
+        )
+    }
+
+    #[test]
+    fn should_reject_bare_column_beside_aggregate_without_group_by() {
+        // Arrange
+        let fixture = grouping_fixture("aggregate_implicit_group_bare_column");
+
+        // Act
+        let errors = [
+            "SELECT g, SUM(v) AS s FROM m",
+            "SELECT g, COUNT(*) AS n FROM m",
+            "SELECT v, MAX(v) AS mx FROM m",
+            "SELECT g FROM m HAVING COUNT(*) > 0",
+            "SELECT v + 1, COUNT(*) FROM m",
+        ]
+        .map(|sql| fixture.error(sql).to_string());
+
+        // Assert
+        for error in errors {
+            assert!(
+                error.contains(
+                    "must appear in the GROUP BY clause or be used in an aggregate function"
+                ),
+                "an ungrouped column beside an aggregate must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn should_accept_implicit_group_projection_without_bare_columns() {
+        // Arrange
+        let fixture = grouping_fixture("aggregate_implicit_group_valid");
+
+        // Act
+        let rows = fixture.rows("SELECT COUNT(*) AS n, MAX(v) + 1 AS top, 'x' AS tag FROM m");
+
+        // Assert
+        assert_eq!(
+            rows,
+            vec![vec![
+                Value::Int64(4),
+                Value::Int64(10),
+                Value::String("x".to_string())
+            ]]
+        );
+    }
+
+    #[test]
+    fn should_reject_order_by_column_that_is_not_grouped() {
+        // Arrange
+        let fixture = grouping_fixture("aggregate_order_by_ungrouped");
+
+        // Act
+        let errors = [
+            "SELECT g, COUNT(*) AS n FROM m GROUP BY g ORDER BY v DESC",
+            "SELECT g, MAX(v) AS mx FROM m GROUP BY g ORDER BY v",
+            "SELECT COUNT(*) FROM m ORDER BY v",
+        ]
+        .map(|sql| fixture.error(sql).to_string());
+
+        // Assert
+        for error in errors {
+            assert!(
+                error.contains(
+                    "must appear in the GROUP BY clause or be used in an aggregate function"
+                ),
+                "an ungrouped ORDER BY column must be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn should_order_grouped_rows_by_group_key_or_output_alias() {
+        // Arrange
+        let fixture = grouping_fixture("aggregate_order_by_grouped");
+
+        // Act
+        let by_key = fixture.rows("SELECT g, COUNT(*) AS n FROM m GROUP BY g ORDER BY g DESC");
+        let by_alias = fixture.rows("SELECT g AS label FROM m GROUP BY g ORDER BY label");
+
+        // Assert
+        assert_eq!(
+            by_key,
+            vec![
+                vec![Value::String("c".to_string()), Value::Int64(1)],
+                vec![Value::String("b".to_string()), Value::Int64(1)],
+                vec![Value::String("a".to_string()), Value::Int64(2)],
+            ]
+        );
+        assert_eq!(
+            by_alias,
+            vec![
+                vec![Value::String("a".to_string())],
+                vec![Value::String("b".to_string())],
+                vec![Value::String("c".to_string())],
+            ]
+        );
+    }
 }
 
 // Formerly tests/integration_sql_ctes.rs.

@@ -2,7 +2,7 @@ use crate::executor::ColumnMeta;
 use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 use std::{io, str};
-use time::{Date, PrimitiveDateTime, Time, UtcOffset};
+use time::{Date, PrimitiveDateTime, Time};
 
 const OID_BOOL: i64 = 16;
 const OID_BYTEA: i64 = 17;
@@ -705,10 +705,9 @@ fn decode_timestamp(bytes: &[u8]) -> io::Result<String> {
         .ok_or_else(|| invalid_data("timestamp"))?;
     let date = Date::from_julian_day(julian_day).map_err(|_| invalid_data("timestamp"))?;
     let time = time_from_microseconds(remainder)?;
-    let datetime = PrimitiveDateTime::new(date, time).assume_offset(UtcOffset::UTC);
-    datetime
-        .format(&time::format_description::well_known::Rfc3339)
-        .map_err(|_| invalid_data("timestamp"))
+    Ok(crate::types::temporal::format_timestamp(
+        PrimitiveDateTime::new(date, time),
+    ))
 }
 
 // DATE/TIME/TIMESTAMP parsing and canonical formatting are shared with
@@ -745,7 +744,7 @@ fn format_time(time: Time) -> String {
     crate::types::temporal::format_time(time)
 }
 
-fn hex_bytea(bytes: &[u8]) -> String {
+pub(super) fn hex_bytea(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(2 + bytes.len().saturating_mul(2));
     out.push_str("\\x");

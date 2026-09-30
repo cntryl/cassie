@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
@@ -4916,5 +4918,105 @@ mod ddl_default_values {
             "'maybe' is not a boolean literal"
         );
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+mod sql_predicate_types {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::{sql_fixture, SqlFixture};
+
+    fn predicate_fixture(label: &str) -> SqlFixture {
+        sql_fixture(
+            label,
+            &[
+                "CREATE TABLE b (id INT, flag BOOLEAN, name TEXT, score INT)",
+                "INSERT INTO b (id, flag, name, score) VALUES (1, true, 'x', 5)",
+                "INSERT INTO b (id, flag, name, score) VALUES (2, false, 'y', 0)",
+                "CREATE TABLE h (id INT, code TEXT)",
+                "INSERT INTO h (id, code) VALUES (1, 'abc')",
+                "INSERT INTO h (id, code) VALUES (2, 'abc')",
+                "INSERT INTO h (id, code) VALUES (3, 'xy')",
+            ],
+        )
+    }
+
+    #[test]
+    fn should_reject_non_boolean_predicate_arguments() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_non_boolean");
+
+        // Act
+        let rejected = [
+            "SELECT id FROM b WHERE score",
+            "SELECT id FROM b WHERE name",
+            "SELECT id FROM b WHERE NOT score",
+            "SELECT id FROM b WHERE flag AND score",
+            "SELECT id FROM b WHERE score + 1",
+            "SELECT code FROM h GROUP BY code HAVING COUNT(*)",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+
+        // Assert
+        assert_eq!(rejected, [true; 6]);
+    }
+
+    #[test]
+    fn should_accept_boolean_where_arguments() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_boolean");
+
+        // Act
+        let flagged = fixture.rows("SELECT id FROM b WHERE flag");
+        let negated = fixture.rows("SELECT id FROM b WHERE NOT flag AND score = 0");
+
+        // Assert
+        assert_eq!(flagged, vec![vec![Value::Int64(1)]]);
+        assert_eq!(negated, vec![vec![Value::Int64(2)]]);
+    }
+
+    #[test]
+    fn should_type_check_comparisons_with_function_calls() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_function_operands");
+
+        // Act
+        let rejected = [
+            "SELECT code, count(*) FROM h GROUP BY code HAVING count(*) = '2'",
+            "SELECT id FROM h WHERE length(code) = '3'",
+            "SELECT id FROM h WHERE lower(code) = 3",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+        let matched = fixture.rows("SELECT id FROM h WHERE length(code) = 3 ORDER BY id");
+
+        // Assert
+        assert_eq!(rejected, [true; 3]);
+        assert_eq!(matched, vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]);
+    }
+
+    #[test]
+    fn should_type_check_dml_predicates_like_select() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_dml_family_check");
+
+        // Act
+        let rejected = [
+            "DELETE FROM b WHERE flag = 1",
+            "UPDATE b SET name = 'changed' WHERE flag = 0",
+            "DELETE FROM b WHERE score",
+            "UPDATE b SET name = 'changed' WHERE length(name) = '1'",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+        let remaining = fixture.rows("SELECT id, name FROM b ORDER BY id");
+
+        // Assert
+        assert_eq!(rejected, [true; 4]);
+        assert_eq!(
+            remaining,
+            vec![
+                vec![Value::Int64(1), Value::String("x".to_string())],
+                vec![Value::Int64(2), Value::String("y".to_string())],
+            ]
+        );
     }
 }

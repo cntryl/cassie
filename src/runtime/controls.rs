@@ -145,6 +145,18 @@ impl QueryExecutionControls {
         }
     }
 
+    /// Returns controls for an input relation that must be fully
+    /// materialized, such as a set-operation branch: the result-row cap
+    /// applies only to the final result, while the deadline, cancellation and
+    /// shared memory budget still apply.
+    #[must_use]
+    pub fn for_uncapped_input(&self) -> Self {
+        Self {
+            max_result_rows: usize::MAX,
+            ..self.clone()
+        }
+    }
+
     #[must_use]
     pub fn is_timed_out(&self) -> bool {
         self.deadline

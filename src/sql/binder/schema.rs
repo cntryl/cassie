@@ -10,6 +10,8 @@ use super::{
 
 #[path = "schema_alter_constraints.rs"]
 mod schema_alter_constraints;
+#[path = "schema_defaults.rs"]
+mod schema_defaults;
 #[path = "schema_index_options.rs"]
 mod schema_index_options;
 #[path = "schema_indexes.rs"]
@@ -75,6 +77,11 @@ pub(super) fn bind_create_table(
             ));
         }
         validate_not_internal_identity_field(field_name)?;
+        schema_defaults::bind_constraint_defaults(
+            field_name,
+            &field.data_type,
+            &mut field.constraints,
+        )?;
 
         if !seen.insert(field_name.to_ascii_lowercase()) {
             return Err(CassieError::Planner(format!(
@@ -557,6 +564,7 @@ pub(super) fn bind_alter_table(
             context,
         )?;
     }
+    schema_defaults::bind_alter_defaults(&mut statement.operation, &schema)?;
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
 

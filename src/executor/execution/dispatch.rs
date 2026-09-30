@@ -149,6 +149,9 @@ fn execute_plan_with_physical(
         ));
     }
 
+    // A CTE body is an input relation: the result-row cap applies to the
+    // final result only and must not truncate it.
+    let cte_controls = env.controls.for_uncapped_input();
     for cte in &plan.ctes {
         let rows = execute_cte(
             env.cassie,
@@ -157,7 +160,7 @@ fn execute_plan_with_physical(
             cte_context,
             env.user_functions,
             env.params,
-            env.controls,
+            &cte_controls,
         )?;
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }

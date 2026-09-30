@@ -260,7 +260,14 @@ pub(super) fn bind_create_view(
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)
         .map_err(|error| CassieError::InvalidQuery(error.to_string()))?;
-    let raw_sql = parsed.raw_sql.clone();
+    // Persist the whole body text: a set operation's or WITH query's parsed
+    // `raw_sql` covers only its leading SELECT.
+    let body = statement
+        .query
+        .trim()
+        .trim_end_matches(';')
+        .trim()
+        .to_string();
     let QueryStatement::Select(select) = parsed.statement else {
         return Err(CassieError::Planner(
             "CREATE VIEW requires a SELECT query body".into(),
@@ -277,7 +284,7 @@ pub(super) fn bind_create_view(
     let _schema = infer_select_schema_with_context(&bound, catalog, context)?;
 
     statement.name = name;
-    statement.query = raw_sql;
+    statement.query = body;
     Ok(statement)
 }
 

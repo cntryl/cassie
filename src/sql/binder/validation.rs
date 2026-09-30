@@ -41,7 +41,7 @@ pub(super) fn validate_select_operand_families(
         validate_select_item_operand_families(item, &field_types)?;
     }
     if let Some(filter) = &select.filter {
-        validate_expression_operand_families(filter, &field_types)?;
+        validate_predicate(filter, &field_types, "WHERE")?;
     }
     for expression in &select.distinct_on {
         validate_expression_operand_families(expression, &field_types)?;
@@ -50,7 +50,7 @@ pub(super) fn validate_select_operand_families(
         validate_expression_operand_families(expression, &field_types)?;
     }
     if let Some(having) = &select.having {
-        validate_expression_operand_families(having, &field_types)?;
+        validate_predicate(having, &field_types, "HAVING")?;
     }
     for order in &select.order {
         validate_expression_operand_families(&order.expr, &field_types)?;
@@ -94,6 +94,80 @@ pub(super) fn validate_expression_operand_families(
     Ok(())
 }
 
+/// Validates a WHERE/HAVING predicate: operand families must be compatible
+/// and the predicate itself must be boolean, as PostgreSQL requires
+/// ("argument of WHERE must be type boolean"), rather than coerced by
+/// truthiness at execution time.
+pub(super) fn validate_predicate(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+    clause: &str,
+) -> Result<(), CassieError> {
+    validate_expression_operand_families(expr, field_types)?;
+    require_boolean_argument(expr, field_types, clause)
+}
+
+fn require_boolean_argument(
+    expr: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+    clause: &str,
+) -> Result<(), CassieError> {
+    match expr {
+        Expr::Binary {
+            left,
+            op: BinaryOp::And | BinaryOp::Or,
+            right,
+        } => {
+            require_boolean_argument(left, field_types, clause)?;
+            require_boolean_argument(right, field_types, clause)
+        }
+        Expr::Not { expr } => require_boolean_argument(expr, field_types, "NOT"),
+        // `search(body, 'q')` is Cassie's full-text match predicate even
+        // though its registered result type is its score.
+        Expr::Function(function) if function.name.eq_ignore_ascii_case("search") => Ok(()),
+        _ => match expression_operand_family(expr, field_types)? {
+            Some(family) if family != OperandFamily::Boolean => Err(CassieError::Planner(format!(
+                "argument of {clause} must be type boolean, not type {}",
+                family.label()
+            ))),
+            _ => Ok(()),
+        },
+    }
+}
+
+/// The operand family a built-in function's result belongs to, when its
+/// registered return type determines one.
+fn function_operand_family(
+    function: &crate::sql::ast::FunctionCall,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    use crate::sql::functions::FunctionReturnType;
+    let Some(metadata) = crate::sql::functions::function(&function.name.to_ascii_lowercase())
+    else {
+        return Ok(None);
+    };
+    Ok(match metadata.return_type {
+        FunctionReturnType::Float
+        | FunctionReturnType::Int
+        | FunctionReturnType::BigInt
+        | FunctionReturnType::NumericArgument
+        | FunctionReturnType::SumArgument => Some(OperandFamily::Numeric),
+        FunctionReturnType::Text => Some(OperandFamily::Text),
+        FunctionReturnType::Boolean => Some(OperandFamily::Boolean),
+        FunctionReturnType::Timestamp => Some(OperandFamily::Temporal),
+        FunctionReturnType::FirstNonNullArgument => {
+            let mut family = None;
+            for argument in &function.args {
+                if family.is_none() {
+                    family = expression_operand_family(argument, field_types)?;
+                }
+            }
+            family
+        }
+        FunctionReturnType::Unknown => None,
+    })
+}
+
 fn expression_operand_family(
     expr: &Expr,
     field_types: &crate::sql::FieldTypeMap,
@@ -120,7 +194,7 @@ fn expression_operand_family(
             for argument in &function.args {
                 validate_expression_operand_families(argument, field_types)?;
             }
-            Ok(None)
+            function_operand_family(function, field_types)
         }
         Expr::Cast { expr, data_type } => {
             validate_expression_operand_families(expr, field_types)?;

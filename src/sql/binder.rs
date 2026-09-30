@@ -44,6 +44,10 @@ mod schema_sequences;
 mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
+#[path = "binder/set_types.rs"]
+mod set_types;
+#[path = "binder/set_width.rs"]
+mod set_width;
 #[path = "binder/validation.rs"]
 mod validation;
 #[path = "binder/wildcard.rs"]
@@ -76,9 +80,9 @@ use select::bind_select;
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
-    validate_distinct_on_order_prefix, validate_expression, validate_expression_operand_families,
-    validate_expression_references, validate_function_calls, validate_functions,
-    validate_order_by_references, validate_projection_references, validate_select_operand_families,
+    validate_distinct_on_order_prefix, validate_expression, validate_expression_references,
+    validate_function_calls, validate_functions, validate_order_by_references,
+    validate_projection_references, validate_select_operand_families,
 };
 pub(crate) use wildcard::wildcard_output_fields;
 

@@ -801,6 +801,9 @@ fn finalize_plan_rows(
             &mut right_plan,
             &env.cassie.catalog,
         );
+        // The right branch is an input relation, not a result: the result-row
+        // cap must not truncate it before EXCEPT/INTERSECT consult it.
+        let right_controls = env.controls.for_uncapped_input();
         let right_rows = execute_plan(
             env.cassie,
             env.session,
@@ -808,7 +811,7 @@ fn finalize_plan_rows(
             cte_context,
             env.user_functions,
             env.params,
-            env.controls,
+            &right_controls,
         )?;
         rows = apply_set_operation(rows, right_rows, &left_output_names, set, env.controls)?;
     }

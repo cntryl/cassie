@@ -293,6 +293,7 @@ pub(super) fn bind_update(
         *field = normalized_field;
     }
 
+    validate_dml_predicate(statement.filter.as_ref(), &table, catalog)?;
     validate_returning_items(
         &statement.returning,
         &schema,
@@ -305,6 +306,24 @@ pub(super) fn bind_update(
     statement.table = table;
     super::own_qualifier::strip_update_own_qualifiers(&mut statement);
     Ok(statement)
+}
+
+/// Holds UPDATE/DELETE WHERE clauses to the same operand-family and boolean
+/// rules as SELECT, so a predicate the read path rejects cannot drive a
+/// destructive write.
+fn validate_dml_predicate(
+    filter: Option<&Expr>,
+    table: &str,
+    catalog: &Catalog,
+) -> Result<(), CassieError> {
+    let Some(filter) = filter else {
+        return Ok(());
+    };
+    let field_types = crate::sql::source_field_type_map(
+        &crate::sql::ast::QuerySource::Collection(table.to_string()),
+        catalog,
+    );
+    super::validation::validate_predicate(filter, &field_types, "WHERE")
 }
 
 pub(super) fn bind_delete(
@@ -334,6 +353,7 @@ pub(super) fn bind_delete(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
+    validate_dml_predicate(statement.filter.as_ref(), &table, catalog)?;
     validate_returning_items(
         &statement.returning,
         &schema,

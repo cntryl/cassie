@@ -7,6 +7,8 @@ mod support_pgwire;
 mod support_relational_evidence;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
@@ -2741,6 +2743,54 @@ mod integration_sql_ordering {
 
     use super::support_sql as support;
     use support::*;
+
+    #[test]
+    fn should_keep_order_by_direction_through_distinct() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "distinct_keeps_order",
+            &[
+                "CREATE TABLE np (category TEXT)",
+                "INSERT INTO np (category) VALUES ('b')",
+                "INSERT INTO np (category) VALUES (NULL)",
+                "INSERT INTO np (category) VALUES ('a')",
+                "INSERT INTO np (category) VALUES ('a')",
+                "CREATE TABLE d (n INT)",
+                "INSERT INTO d (n) VALUES (1)",
+                "INSERT INTO d (n) VALUES (3)",
+                "INSERT INTO d (n) VALUES (2)",
+                "INSERT INTO d (n) VALUES (3)",
+                "INSERT INTO d (n) VALUES (NULL)",
+            ],
+        );
+        let text = |value: &str| Value::String(value.to_string());
+
+        // Act
+        let ascending = fixture.rows("SELECT DISTINCT category FROM np ORDER BY category");
+        let descending = fixture.rows("SELECT DISTINCT category FROM np ORDER BY category DESC");
+        let numeric = fixture.rows("SELECT DISTINCT n FROM d ORDER BY n DESC");
+        let limited = fixture.rows("SELECT DISTINCT n FROM d ORDER BY n DESC LIMIT 2");
+
+        // Assert
+        assert_eq!(
+            ascending,
+            vec![vec![text("a")], vec![text("b")], vec![Value::Null]]
+        );
+        assert_eq!(
+            descending,
+            vec![vec![Value::Null], vec![text("b")], vec![text("a")]]
+        );
+        assert_eq!(
+            numeric,
+            vec![
+                vec![Value::Null],
+                vec![Value::Int64(3)],
+                vec![Value::Int64(2)],
+                vec![Value::Int64(1)]
+            ]
+        );
+        assert_eq!(limited, vec![vec![Value::Null], vec![Value::Int64(3)]]);
+    }
 
     #[test]
     fn should_apply_limit_offset_after_ordering() {

@@ -7075,6 +7075,48 @@ mod catalog_missing_object_sqlstates {
         // Assert
         assert_eq!(sqlstates, vec![Some("42P01".to_string())]);
     }
+
+    #[test]
+    fn should_report_invalid_schema_sqlstate_when_creating_in_a_missing_schema() {
+        // Arrange
+        use_local_storage();
+        let setup = [
+            "CREATE SCHEMA existing_target",
+            "CREATE TABLE public.ghost_source (id INT)",
+        ];
+        let statements = [
+            "CREATE TABLE ghost.t (id BIGINT)",
+            "CREATE VIEW ghost.v AS SELECT id FROM public.ghost_source",
+            "CREATE SEQUENCE ghost.s",
+            "CREATE TABLE existing_target.t (id BIGINT)",
+            "CREATE TABLE public.t (id BIGINT)",
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'ghost'",
+        ];
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        // Act
+        let sqlstates = runtime.block_on(sqlstates_for(
+            "create_in_missing_schema",
+            &setup,
+            &statements,
+        ));
+
+        // Assert
+        assert_eq!(
+            sqlstates,
+            vec![
+                Some("3F000".to_string()),
+                Some("3F000".to_string()),
+                Some("3F000".to_string()),
+                None,
+                None,
+                None,
+            ]
+        );
+    }
 }
 
 mod search_path_resolution {

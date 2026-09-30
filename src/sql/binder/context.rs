@@ -1,7 +1,7 @@
 use crate::app::{CassieError, CatalogObjectKind};
 use crate::catalog::{
-    canonical_relation_name, canonical_schema_name, is_system_schema, parse_name, ParsedName,
-    DEFAULT_SCHEMA,
+    canonical_relation_name, canonical_schema_name, is_system_schema, parse_name, Catalog,
+    ParsedName, DEFAULT_SCHEMA,
 };
 
 #[derive(Debug, Clone)]
@@ -121,10 +121,12 @@ pub fn normalize_relation_name(raw: &str, context: &BindingContext) -> Result<St
 ///
 /// Returns `InsufficientPrivilege` when the target lands in a system schema,
 /// explicitly or through `search_path`, because system schemas are not scoped
-/// to a database; otherwise as [`normalize_relation_name`].
+/// to a database; `CatalogObjectNotFound` (SQLSTATE `3F000`) when the target
+/// schema does not exist; otherwise as [`normalize_relation_name`].
 pub fn normalize_new_relation_name(
     raw: &str,
     context: &BindingContext,
+    catalog: &Catalog,
 ) -> Result<String, CassieError> {
     let target_schema = match parse_name(raw).map_err(CassieError::Planner)? {
         ParsedName::Unqualified(_) => Some(context.current_schema().to_string()),
@@ -134,7 +136,31 @@ pub fn normalize_new_relation_name(
     if target_schema.is_some_and(|schema| is_system_schema(&schema)) {
         return Err(CassieError::InsufficientPrivilege);
     }
-    normalize_relation_name(raw, context)
+    let name = normalize_relation_name(raw, context)?;
+    require_existing_schema(&name, catalog)?;
+    Ok(name)
+}
+
+/// Refuses to place a new object in a schema that does not exist, so every
+/// stored object stays reachable through `search_path` and removable by
+/// `DROP SCHEMA`. `public` always exists.
+fn require_existing_schema(name: &str, catalog: &Catalog) -> Result<(), CassieError> {
+    let Some(database) = crate::catalog::relation_database_name(name) else {
+        return Ok(());
+    };
+    let schema = crate::catalog::relation_schema_name(name);
+    if schema.eq_ignore_ascii_case(DEFAULT_SCHEMA) || is_system_schema(&schema) {
+        return Ok(());
+    }
+    let namespace = canonical_schema_name(&database, &schema);
+    if catalog.namespace_exists(&namespace) {
+        Ok(())
+    } else {
+        Err(CassieError::CatalogObjectNotFound {
+            kind: CatalogObjectKind::Schema,
+            name: namespace,
+        })
+    }
 }
 
 /// Resolves an existing object of one kind (view, rollup, projection) through

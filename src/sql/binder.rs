@@ -452,7 +452,7 @@ fn bind_projection_route(
             bind_drop_rollup_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::CreateMaterializedProjection(statement) => {
-            bind_create_materialized_projection_statement(statement, raw_sql, context)
+            bind_create_materialized_projection_statement(statement, catalog, raw_sql, context)
         }
         ProjectionStatement::RefreshMaterializedProjection(statement) => {
             bind_refresh_materialized_projection_statement(statement, catalog, raw_sql, context)
@@ -618,10 +618,11 @@ fn bind_drop_rollup_statement(
 
 fn bind_create_materialized_projection_statement(
     mut statement: crate::sql::ast::CreateMaterializedProjectionStatement,
+    catalog: &Catalog,
     raw_sql: &str,
     context: &BindingContext,
 ) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_new_relation_name(statement.name.trim(), context)?;
+    statement.name = normalize_new_relation_name(statement.name.trim(), context, catalog)?;
     if statement.name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE MATERIALIZED PROJECTION requires a name".into(),

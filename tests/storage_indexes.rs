@@ -2410,6 +2410,128 @@ mod integration_sql_scalar_indexes {
     }
 }
 
+// Index DDL names columns case-insensitively, like every other reference.
+mod index_field_case {
+    use super::support_sql as support;
+
+    use cassie::app::{Cassie, CassieSession};
+    use cassie::types::Value;
+
+    use support::{data_dir, use_local_storage};
+
+    fn seeded(label: &str) -> (Cassie, CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE t (id INT, amount INT, name TEXT)",
+            "INSERT INTO t (id, amount, name) VALUES (1, 5, 'ada'), (2, 7, 'bob')",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .expect(statement);
+        }
+        (cassie, session, path)
+    }
+
+    #[test]
+    fn should_create_a_scalar_index_on_an_other_case_column() {
+        // Arrange
+        let (cassie, session, path) = seeded("index_case_scalar");
+
+        // Act
+        let created = cassie.execute_sql(&session, "CREATE INDEX t_idx ON t (AMOUNT)", vec![]);
+        let filtered = cassie
+            .execute_sql(&session, "SELECT name FROM t WHERE amount = 7", vec![])
+            .expect("indexed filter");
+
+        // Assert
+        assert!(created.is_ok(), "CREATE INDEX on AMOUNT must succeed");
+        assert_eq!(filtered.rows, vec![vec![Value::String("bob".to_string())]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_create_a_unique_index_on_an_other_case_column() {
+        // Arrange
+        let (cassie, session, path) = seeded("index_case_unique");
+
+        // Act
+        let created =
+            cassie.execute_sql(&session, "CREATE UNIQUE INDEX t_uidx ON t (NAME)", vec![]);
+        let duplicate = cassie.execute_sql(
+            &session,
+            "INSERT INTO t (id, amount, name) VALUES (3, 9, 'ada')",
+            vec![],
+        );
+
+        // Assert
+        assert!(created.is_ok(), "CREATE UNIQUE INDEX on NAME must succeed");
+        assert!(
+            duplicate.is_err(),
+            "the unique index must reject a repeated name"
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_create_an_index_with_other_case_include_columns() {
+        // Arrange
+        let (cassie, session, path) = seeded("index_case_include");
+
+        // Act
+        let created = cassie.execute_sql(
+            &session,
+            "CREATE INDEX t_inc ON t (Amount) INCLUDE (NAME)",
+            vec![],
+        );
+
+        // Assert
+        assert!(created.is_ok(), "INCLUDE on NAME must succeed");
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_create_an_expression_index_over_an_other_case_column() {
+        // Arrange
+        let (cassie, session, path) = seeded("index_case_expression");
+
+        // Act
+        let created = cassie.execute_sql(&session, "CREATE INDEX t_e ON t ((lower(NAME)))", vec![]);
+        let filtered = cassie
+            .execute_sql(
+                &session,
+                "SELECT amount FROM t WHERE lower(name) = 'bob'",
+                vec![],
+            )
+            .expect("expression filter");
+
+        // Assert
+        assert!(created.is_ok(), "expression index over NAME must succeed");
+        assert_eq!(filtered.rows, vec![vec![Value::Int64(7)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_create_a_fulltext_index_on_an_other_case_column() {
+        // Arrange
+        let (cassie, session, path) = seeded("index_case_fulltext");
+
+        // Act
+        let created = cassie.execute_sql(
+            &session,
+            "CREATE INDEX t_ft ON t USING fulltext (NAME)",
+            vec![],
+        );
+
+        // Assert
+        assert!(created.is_ok(), "fulltext index on NAME must succeed");
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
 mod composite_scalar_index_correctness {
     use cassie::app::Cassie;
     use cassie::types::Value;

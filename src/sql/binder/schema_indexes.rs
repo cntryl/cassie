@@ -46,9 +46,14 @@ pub(super) fn bind_create_index(
     let schema = catalog
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
+    let fields = declared_field_names(&schema, fields);
+    let expressions = expressions
+        .iter()
+        .map(|expr| declared_expression_columns(&schema, expr))
+        .collect::<Vec<_>>();
     validate_index_shape(&statement, &fields, &expressions)?;
 
-    let include_fields = normalize_fields(&statement.include_fields);
+    let include_fields = declared_field_names(&schema, normalize_fields(&statement.include_fields));
     validate_include_fields(&statement, &schema, &table, &fields, &include_fields)?;
     validate_index_fields_and_expressions(&schema, &table, &fields, &expressions)?;
 
@@ -194,6 +199,34 @@ fn normalize_fields(fields: &[String]) -> Vec<String> {
         .map(|field| field.trim().to_string())
         .filter(|field| !field.is_empty())
         .collect()
+}
+
+/// Spells each index field the way the table declares it. Column references
+/// are case-insensitive, so `CREATE INDEX ON t (AMOUNT)` indexes the column
+/// declared as `amount`; an unknown name is kept so validation reports it.
+fn declared_field_names(schema: &CollectionSchema, fields: Vec<String>) -> Vec<String> {
+    fields
+        .into_iter()
+        .map(|field| declared_field_name(schema, field))
+        .collect()
+}
+
+fn declared_field_name(schema: &CollectionSchema, field: String) -> String {
+    if schema.fields.iter().any(|entry| entry.name == field) {
+        return field;
+    }
+    schema
+        .fields
+        .iter()
+        .find(|entry| entry.name.eq_ignore_ascii_case(&field))
+        .map_or(field, |entry| entry.name.clone())
+}
+
+fn declared_expression_columns(schema: &CollectionSchema, expr: &Expr) -> Expr {
+    match expr {
+        Expr::Column(name) => Expr::Column(declared_field_name(schema, name.clone())),
+        _ => expr.map_children(|child| declared_expression_columns(schema, child)),
+    }
 }
 
 fn validate_index_shape(

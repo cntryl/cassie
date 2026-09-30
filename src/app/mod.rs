@@ -99,6 +99,7 @@ mod query_explain;
 mod query_feedback;
 pub(crate) use query_feedback::USER_SEARCH_PATH_ENTRY;
 mod query_metrics;
+mod query_parameters;
 mod query_prepared;
 mod query_transactions;
 mod referential;

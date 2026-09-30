@@ -480,11 +480,13 @@ fn load_source_batches(
     cte_context: &mut CteContext,
     outer_row: Option<&BatchRow>,
 ) -> SourceExecution {
+    // A lateral body keeps its own qualifiers (the binder only strips them
+    // when no outer row is combined in), so its rows need qualified aliases.
     let (mut batches, text_fields) = execute_query_source(
         env,
         &plan.source,
         cte_context,
-        false,
+        outer_row.is_some(),
         outer_row,
         source_row_budget(plan, env.controls.max_result_rows),
     )?;

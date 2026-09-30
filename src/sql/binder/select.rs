@@ -108,6 +108,9 @@ pub(super) fn bind_select_with_lateral_fields(
     known_fields.extend(lateral_fields.iter().cloned());
     select.source = source;
     select.ctes = bound_ctes;
+    if lateral_fields.is_empty() {
+        super::own_qualifier::strip_select_own_qualifiers(&mut select);
+    }
 
     let field_types = crate::sql::source_field_type_map(&select.source, catalog);
     if let Some(filter) = select.filter.as_mut() {
@@ -125,9 +128,11 @@ pub(super) fn bind_select_with_lateral_fields(
             operator: set.operator,
             right: Box::new(right),
         }));
+        super::set_width::validate_set_operand_widths(&select, catalog)?;
     }
 
     validate_functions(&select, catalog, context)?;
+    super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
 }

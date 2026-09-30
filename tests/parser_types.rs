@@ -4212,7 +4212,7 @@ mod sql_string_literals {
 
     use cassie::app::Cassie;
     use cassie::sql::ast::{Expr, QueryStatement, SelectItem};
-    use cassie::sql::parse_statement;
+    use cassie::sql::{parse_statement, SqlErrorKind};
     use cassie::types::Value;
 
     use support::{data_dir, use_local_storage};
@@ -4239,6 +4239,87 @@ mod sql_string_literals {
             ("SELECT 'O''Brien'", "O'Brien"),
             ("SELECT ''''", "'"),
             ("SELECT 'one''two''three'", "one'two'three"),
+        ];
+
+        // Act
+        let parsed = cases.map(|(sql, expected)| (parse_projected_string(sql), expected));
+
+        // Assert
+        for (actual, expected) in parsed {
+            assert_eq!(actual, expected);
+        }
+    }
+
+    fn statements_not_rejected_as_unsupported<'a>(statements: &[&'a str]) -> Vec<&'a str> {
+        statements
+            .iter()
+            .copied()
+            .filter(|sql| {
+                !parse_statement(sql)
+                    .err()
+                    .is_some_and(|error| error.kind() == SqlErrorKind::Unsupported)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn should_reject_concatenation_instead_of_parsing_one_string_literal() {
+        // Arrange
+        let statements = [
+            "SELECT 'a' || 'b'",
+            "SELECT 'a'||'b'",
+            "SELECT '(' || name || ')' AS y FROM n",
+            "SELECT '[' || trim('  x  ') || ']' AS t",
+            "SELECT name || 'x' AS y FROM n",
+            "SELECT plain FROM k WHERE 'x' = 'x' || 'y'",
+            "SELECT id FROM p WHERE name = 'al' || 'pha'",
+            "INSERT INTO p (id, name) VALUES (2, 'a' || 'b')",
+            "DELETE FROM n WHERE 'x' = 'x' || 'y'",
+            "UPDATE n SET name = 'a' || 'b'",
+        ];
+
+        // Act
+        let accepted = statements_not_rejected_as_unsupported(&statements);
+
+        // Assert
+        assert!(accepted.is_empty(), "not rejected: {accepted:?}");
+    }
+
+    #[test]
+    fn should_reject_like_escape_instead_of_parsing_one_string_literal() {
+        // Arrange
+        let statements = [
+            "SELECT 'abc' LIKE 'a%' ESCAPE '!' AS v",
+            "SELECT name FROM n WHERE name LIKE 'a!%' ESCAPE '!'",
+        ];
+
+        // Act
+        let accepted = statements_not_rejected_as_unsupported(&statements);
+
+        // Assert
+        assert!(accepted.is_empty(), "not rejected: {accepted:?}");
+    }
+
+    #[test]
+    fn should_reject_adjacent_string_literals_as_one_token() {
+        // Arrange
+        let sql = "SELECT 'a' 'b'";
+
+        // Act
+        let parsed = parse_statement(sql);
+
+        // Assert
+        assert!(parsed.is_err(), "adjacent literals must not collapse");
+    }
+
+    #[test]
+    fn should_keep_operator_text_inside_a_single_string_literal() {
+        // Arrange
+        let cases = [
+            ("SELECT 'a || b'", "a || b"),
+            ("SELECT 'a'' || ''b'", "a' || 'b"),
+            ("SELECT 'x LIKE y ESCAPE z'", "x LIKE y ESCAPE z"),
+            ("SELECT ''", ""),
         ];
 
         // Act

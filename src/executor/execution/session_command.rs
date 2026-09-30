@@ -1,6 +1,24 @@
 use super::{CassieSession, ColumnMeta, QueryError, QueryResult, Value};
 use crate::catalog::DEFAULT_SCHEMA;
 
+/// The single column `SHOW` returns, shared by Describe and execution so the
+/// `RowDescription` of a prepared `SHOW` always matches its `DataRow`.
+pub(crate) fn show_result_columns(statement: &crate::sql::ast::ShowStatement) -> Vec<ColumnMeta> {
+    let variable = statement.variable.trim().to_ascii_lowercase();
+    if variable.is_empty() {
+        return Vec::new();
+    }
+    vec![ColumnMeta::text(show_column_name(&variable))]
+}
+
+fn show_column_name(variable: &str) -> &str {
+    if variable == "transaction isolation level" {
+        "transaction_isolation"
+    } else {
+        setting_display_name(variable)
+    }
+}
+
 pub(super) fn execute_show(
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::ShowStatement,
@@ -10,23 +28,19 @@ pub(super) fn execute_show(
         return Err(QueryError::General("SHOW requires a variable".to_string()));
     }
 
-    if variable == "transaction isolation level" {
-        Ok(QueryResult {
-            columns: vec![ColumnMeta::text("transaction_isolation")],
-            rows: vec![vec![Value::String("read committed".to_string())]],
-            command: "SHOW".to_string(),
-        })
+    let value = if variable == "transaction isolation level" {
+        "read committed".to_string()
     } else {
-        let value = session.map_or_else(
+        session.map_or_else(
             || default_setting(&variable),
             |session| session.setting(&variable),
-        )?;
-        Ok(QueryResult {
-            columns: vec![ColumnMeta::text(setting_display_name(&variable))],
-            rows: vec![vec![Value::String(value)]],
-            command: "SHOW".to_string(),
-        })
-    }
+        )?
+    };
+    Ok(QueryResult {
+        columns: show_result_columns(statement),
+        rows: vec![vec![Value::String(value)]],
+        command: "SHOW".to_string(),
+    })
 }
 
 pub(super) fn execute_set(

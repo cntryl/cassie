@@ -112,6 +112,9 @@ impl Cassie {
                 crate::planner::logical::LogicalCommand::Delete(statement) => {
                     Some(statement.returning.as_slice())
                 }
+                crate::planner::logical::LogicalCommand::Show(statement) => {
+                    return Ok(crate::executor::show_result_columns(statement));
+                }
                 _ => None,
             };
             if let Some(returning) = returning {

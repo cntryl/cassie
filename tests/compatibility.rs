@@ -536,6 +536,84 @@ datasource db {
     }
 
     #[test]
+    fn should_read_show_search_path_through_prepared_query_with_tokio_postgres() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let server = CompatibilityServer::start("prepared_show_search_path").await;
+            let (client, connection) =
+                tokio::time::timeout(Duration::from_secs(5), server.connect())
+                    .await
+                    .expect("connect should complete within the timeout");
+            client
+                .batch_execute("SET search_path = missing_schema, public")
+                .await
+                .expect("set search_path");
+
+            // Act
+            let row = tokio::time::timeout(
+                Duration::from_secs(5),
+                client.query_one("SHOW search_path", &[]),
+            )
+            .await
+            .expect("prepared SHOW should complete within the timeout");
+
+            // Assert
+            let row = row.expect("prepared SHOW should decode as one row");
+            assert_eq!(row.columns()[0].name(), "search_path");
+            let shown: String = row.try_get(0).expect("search_path column");
+            assert_eq!(shown, "missing_schema, public");
+
+            drop(client);
+            server.shutdown(connection).await;
+        });
+    }
+
+    #[test]
+    fn should_name_prepared_show_columns_like_postgres_with_tokio_postgres() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let server = CompatibilityServer::start("prepared_show_columns").await;
+            let (client, connection) =
+                tokio::time::timeout(Duration::from_secs(5), server.connect())
+                    .await
+                    .expect("connect should complete within the timeout");
+
+            // Act
+            let mut named = Vec::new();
+            for sql in ["SHOW TRANSACTION ISOLATION LEVEL", "SHOW DateStyle"] {
+                let row = client
+                    .query_one(sql, &[])
+                    .await
+                    .unwrap_or_else(|_| panic!("{sql} should decode as one row"));
+                let value: String = row.try_get(0).expect("setting value");
+                named.push((row.columns()[0].name().to_string(), value.is_empty()));
+            }
+
+            // Assert
+            assert_eq!(
+                named,
+                vec![
+                    ("transaction_isolation".to_string(), false),
+                    ("DateStyle".to_string(), false),
+                ]
+            );
+
+            drop(client);
+            server.shutdown(connection).await;
+        });
+    }
+
+    #[test]
     fn should_query_prepared_statement_with_tokio_postgres() {
         // Arrange
         let runtime = tokio::runtime::Builder::new_current_thread()

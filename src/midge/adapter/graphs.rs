@@ -9,7 +9,9 @@ mod reconcile;
 #[path = "graphs/scan.rs"]
 mod scan;
 
-pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 1;
+/// Version 2 folds the anchor node type to lowercase in adjacency keys, so
+/// version 1 sidecars fall back to the row scan until reconcile rebuilds them.
+pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct GraphAdjacencyManifest {

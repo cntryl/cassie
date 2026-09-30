@@ -5,13 +5,19 @@
 //! expression parser does, so a constant means the same thing wherever it is
 //! written.
 
-use super::{SqlError, Value};
+use super::{strip_parentheses, SqlError, Value};
 
 /// Parses one SQL constant: `NULL`, `TRUE`, `FALSE`, a single-quoted string
-/// or a number. Anything else, such as a column reference or an expression,
-/// is an error rather than being reinterpreted as text.
+/// or a number, optionally parenthesized and followed by a `::type` cast (as
+/// `pg_dump` writes `'draft'::varchar`). The cast is dropped because the
+/// value is coerced to the column type when the DDL is bound. Anything else,
+/// such as a column reference or an expression, is an error rather than
+/// being reinterpreted as text.
 pub(super) fn parse_constant_literal(raw: &str) -> Result<Value, SqlError> {
-    let raw = raw.trim();
+    let raw = strip_literal_cast(raw.trim());
+    if let Some(inner) = strip_parentheses(raw) {
+        return parse_constant_literal(inner);
+    }
     if raw.is_empty() {
         return Err(SqlError::new("invalid literal".to_string()));
     }
@@ -38,7 +44,7 @@ pub(super) fn parse_constant_literal(raw: &str) -> Result<Value, SqlError> {
     )))
 }
 
-/// Parses a `DEFAULT` value or role password. A constant decodes as
+/// Parses a role password. A constant decodes as
 /// [`parse_constant_literal`]; other text is kept verbatim.
 pub(in crate::sql::parser) fn parse_constraint_literal(raw: &str) -> Result<Value, SqlError> {
     let raw = raw.trim();
@@ -69,4 +75,35 @@ fn single_quoted_literal(raw: &str) -> Option<String> {
         decoded.push(character);
     }
     Some(decoded)
+}
+
+/// Drops one trailing `::type` cast outside any quoted text, for example
+/// `'draft'::varchar` or `'{}'::jsonb`. Text whose cast target is not a
+/// plain type name is returned unchanged.
+fn strip_literal_cast(raw: &str) -> &str {
+    let mut in_single = false;
+    let mut cast_at = None;
+    for (index, character) in raw.char_indices() {
+        match character {
+            '\'' => in_single = !in_single,
+            ':' if !in_single && raw[index + 1..].starts_with(':') => {
+                cast_at = Some(index);
+                break;
+            }
+            _ => {}
+        }
+    }
+    let Some(cast_at) = cast_at else {
+        return raw;
+    };
+    let type_name = raw[cast_at + 2..].trim();
+    let is_type_name = !type_name.is_empty()
+        && type_name.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '(' | ')' | '[' | ']')
+        });
+    if is_type_name {
+        raw[..cast_at].trim_end()
+    } else {
+        raw
+    }
 }

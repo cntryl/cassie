@@ -23,6 +23,12 @@ pub(super) fn apply_default_values(
             );
         } else if let Some(default) = &constraint.default_value {
             object.insert(constraint.field.clone(), default.clone());
+        } else if let Some(value) = constraint
+            .default_expression
+            .as_deref()
+            .and_then(crate::catalog::evaluate_volatile_default)
+        {
+            object.insert(constraint.field.clone(), value);
         }
     }
 

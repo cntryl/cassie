@@ -1,5 +1,6 @@
 pub mod cardinality;
 pub mod collections;
+pub mod column_defaults;
 pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
@@ -32,6 +33,10 @@ pub use collections::{
     ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta, ProjectionRebuildState,
     ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
     ProjectionVersionMeta, ProjectionVersionState,
+};
+pub use column_defaults::{
+    coerce_default_literal, evaluate_volatile_default, parse_volatile_default_expression,
+    volatile_default_accepts,
 };
 pub use composite_unique::{
     composite_unique_constraints, composite_unique_indexes, conflicting_unique_membership,

@@ -1,7 +1,7 @@
 use super::schema_identifiers::parse_identifier;
 use super::schema_references::parse_references_target;
 use super::{
-    parse_check_constraint, parse_constraint_literal, parse_data_type, tokenize_schema_field,
+    parse_check_constraint, parse_constant_literal, parse_data_type, tokenize_schema_field,
     FieldConstraint, FieldDefinition, SqlError,
 };
 use crate::catalog::DefaultSequenceOwnership;
@@ -191,7 +191,19 @@ pub(super) fn apply_default_constraint(
         return Ok(());
     }
 
-    constraint.default_value = Some(parse_constraint_literal(raw)?);
+    if let Some(expression) = crate::catalog::parse_volatile_default_expression(raw) {
+        constraint.default_value = None;
+        constraint.default_expression = Some(expression);
+        constraint.default_sequence = None;
+        return Ok(());
+    }
+
+    constraint.default_value = Some(parse_constant_literal(raw).map_err(|_| {
+        SqlError::unsupported(format!(
+            "DEFAULT {} is not supported: use a constant, nextval(...), now(), CURRENT_TIMESTAMP, LOCALTIMESTAMP, CURRENT_DATE or gen_random_uuid()",
+            raw.trim()
+        ))
+    })?);
     constraint.default_expression = None;
     constraint.default_sequence = None;
     Ok(())

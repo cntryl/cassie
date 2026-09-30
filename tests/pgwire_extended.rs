@@ -1141,6 +1141,99 @@ mod pgwire_extended_lifecycle {
         });
     }
 
+    /// Sends one pipelined `batch` on a fresh session over the close-cascade
+    /// fixture and returns the frames through `ReadyForQuery` plus the
+    /// server's prepared-statement and portal counts afterwards.
+    fn run_close_batch(
+        label: &str,
+        batch: &[Vec<u8>],
+    ) -> (Vec<WireFrame>, Option<u64>, Option<u64>) {
+        use_local_storage();
+        let path = data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let config = CassieRuntimeConfig::from_env().expect("runtime config");
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            cassie.startup().unwrap();
+            seed_close_cascade_collection(&cassie);
+            let (addr, server) = spawn_pgwire_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(addr)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_pgwire_session(&mut reader, &mut write_half).await;
+            tokio::io::AsyncWriteExt::write_all(&mut write_half, &batch.concat())
+                .await
+                .expect("write close batch");
+            tokio::io::AsyncWriteExt::flush(&mut write_half)
+                .await
+                .expect("flush close batch");
+            let frames = read_ready_frames(&mut reader).await;
+            let metrics = cassie.metrics();
+            let prepared = metrics["pgwire"]["prepared_statements"].as_u64();
+            let portals = metrics["pgwire"]["portals"].as_u64();
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+            (frames, prepared, portals)
+        })
+    }
+
+    #[test]
+    fn should_run_pipelined_query_given_close_of_nonexistent_names() {
+        // Arrange
+        let batch = vec![
+            close_frame(b'S', "evicted_stmt"),
+            close_frame(b'P', "evicted_portal"),
+            parse_frame("live_stmt", "SELECT title FROM extended_query_close_docs"),
+            bind_frame("live_portal", "live_stmt", &[]),
+            execute_frame("live_portal"),
+            sync_frame(),
+        ];
+
+        // Act
+        let (frames, _, _) = run_close_batch("close_missing_names", &batch);
+
+        // Assert
+        let tags = frames.iter().map(|(tag, _)| *tag).collect::<Vec<_>>();
+        assert!(!tags.contains(&b'E'));
+        assert_eq!(&tags[..4], b"3312");
+        let rows = frames
+            .iter()
+            .filter(|(tag, _)| *tag == b'D')
+            .map(|(_, payload)| parse_data_row(payload))
+            .collect::<Vec<_>>();
+        assert_eq!(rows, vec![vec![Some("alpha".to_string())]]);
+    }
+
+    #[test]
+    fn should_keep_counts_at_zero_given_repeated_close_of_one_statement() {
+        // Arrange
+        let batch = vec![
+            parse_frame("twice_stmt", "SELECT title FROM extended_query_close_docs"),
+            bind_frame("twice_portal", "twice_stmt", &[]),
+            close_frame(b'P', "twice_portal"),
+            close_frame(b'P', "twice_portal"),
+            close_frame(b'S', "twice_stmt"),
+            close_frame(b'S', "twice_stmt"),
+            sync_frame(),
+        ];
+
+        // Act
+        let (frames, prepared, portals) = run_close_batch("close_twice", &batch);
+
+        // Assert
+        let tags = frames.iter().map(|(tag, _)| *tag).collect::<Vec<_>>();
+        assert_eq!(tags, b"123333Z".to_vec());
+        assert_eq!((prepared, portals), (Some(0), Some(0)));
+    }
+
     #[test]
     fn should_close_transaction_portals_at_transaction_end() {
         // Arrange

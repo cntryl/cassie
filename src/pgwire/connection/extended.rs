@@ -521,20 +521,20 @@ async fn handle_close(
     target: DescribeTarget,
     name: String,
 ) -> Result<(), ExtendedQueryError> {
+    // PostgreSQL: "It is not an error to issue Close against a nonexistent
+    // statement or portal name." A missing name still answers CloseComplete
+    // and leaves the rest of the pipelined batch running.
     match target {
         DescribeTarget::Statement => {
-            let prepared = state
-                .prepared_statements
-                .remove(&name)
-                .ok_or_else(|| missing_statement_error(&name))?;
-            runtime.record_pgwire_prepared_delta(-1);
-            remove_portals_for_prepared_id(state, runtime, prepared.id);
+            if let Some(prepared) = state.prepared_statements.remove(&name) {
+                runtime.record_pgwire_prepared_delta(-1);
+                remove_portals_for_prepared_id(state, runtime, prepared.id);
+            }
         }
         DescribeTarget::Portal => {
-            state
-                .remove_portal(&name)
-                .ok_or_else(|| missing_portal_error(&name))?;
-            runtime.record_pgwire_portal_delta(-1);
+            if state.remove_portal(&name).is_some() {
+                runtime.record_pgwire_portal_delta(-1);
+            }
         }
     }
     let _ = write_close_complete(write_half).await;

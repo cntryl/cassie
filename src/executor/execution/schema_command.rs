@@ -140,6 +140,7 @@ pub(super) fn drop_table(
     if statement.if_exists && !cassie.catalog.exists(&statement.table) {
         return Ok(empty_command("DROP TABLE"));
     }
+    schema_foreign_keys::reject_referenced_table_drop(cassie, &statement.table)?;
 
     cassie
         .midge

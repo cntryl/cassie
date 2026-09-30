@@ -35,6 +35,27 @@ pub(super) fn reject_referenced_constraint_drop(
     Ok(())
 }
 
+/// Refuses to drop a table while a FOREIGN KEY on another table references
+/// it, as PostgreSQL refuses `DROP TABLE` without `CASCADE`. A table's own
+/// self-referencing FOREIGN KEY is dropped with it.
+pub(super) fn reject_referenced_table_drop(cassie: &Cassie, table: &str) -> Result<(), QueryError> {
+    for collection in cassie.catalog.list_collections_canonical() {
+        if collection.name.eq_ignore_ascii_case(table) {
+            continue;
+        }
+        for constraint in cassie.catalog.get_constraints(&collection.name) {
+            if references_table(&constraint, table) {
+                return Err(QueryError::General(format!(
+                    "cannot drop table '{table}' because foreign key '{}' on '{}' depends on it",
+                    constraint.foreign_key_constraint_name(&collection.name),
+                    collection.name
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Refuses to drop the unique index that is the only uniqueness backing a
 /// FOREIGN KEY's referenced column, as PostgreSQL refuses to drop an index a
 /// constraint depends on.

@@ -308,6 +308,7 @@ Foreign key DDL lifecycle:
 - `ALTER TABLE ... ADD CONSTRAINT ... REFERENCES` resolves the referenced relation through `search_path` exactly as `CREATE TABLE` does.
 - `ALTER TABLE ... RENAME TO` and `ALTER TABLE ... RENAME COLUMN` carry every foreign key that references the renamed table or column.
 - `ALTER TABLE ... DROP COLUMN` is refused while a foreign key on another column references the dropped column; a foreign key declared on the dropped column is removed with it.
+- `DROP TABLE` is refused while a foreign key on another table references the table (`DROP TABLE ... CASCADE` is not supported). Drop the foreign key first. A table's self-referencing foreign key does not block dropping that table.
 - Foreign key violations name the constraint as declared, or as generated when it is unnamed, matching `information_schema.table_constraints`.
 
 ## Benchmark Expectations

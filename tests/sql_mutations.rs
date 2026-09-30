@@ -10214,6 +10214,40 @@ mod foreign_key_ddl_lifecycle {
     }
 
     #[test]
+    fn should_reject_dropping_a_table_that_a_foreign_key_still_references() {
+        with_cassie("fk-ddl-drop-referenced-table", |path| {
+            // Arrange
+            let (cassie, session) = start(path);
+            exec_all(&cassie, &session, &PARENT_CHILD);
+            exec_all(
+                &cassie,
+                &session,
+                &[
+                    "CREATE TABLE tree (id INT PRIMARY KEY, parent INT, CONSTRAINT tree_fk FOREIGN KEY (parent) REFERENCES tree(id))",
+                    "INSERT INTO tree (id, parent) VALUES (1, NULL)",
+                ],
+            );
+
+            // Act
+            let referenced_drop = run(&cassie, &session, "DROP TABLE p");
+            let child_insert = run(&cassie, &session, "INSERT INTO c (cid, pid) VALUES (11, 1)");
+            let self_referencing_drop = run(&cassie, &session, "DROP TABLE tree");
+            run(&cassie, &session, "ALTER TABLE c DROP CONSTRAINT cfk").expect("drop fk");
+            let released_drop = run(&cassie, &session, "DROP TABLE p");
+
+            // Assert
+            assert_foreign_key_error(referenced_drop, "drop of a referenced parent");
+            assert!(child_insert.is_ok(), "the child still resolves its parent");
+            assert!(
+                self_referencing_drop.is_ok(),
+                "a self-referencing table can be dropped"
+            );
+            assert!(released_drop.is_ok(), "the parent is no longer referenced");
+            assert!(!cassie.catalog.exists("p"));
+        });
+    }
+
+    #[test]
     fn should_enforce_foreign_key_added_by_alter_table_when_column_case_differs() {
         with_cassie("fk-ddl-alter-column-case", |path| {
             // Arrange

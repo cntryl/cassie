@@ -3010,6 +3010,51 @@ mod time_series_rollups {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_keep_rollup_sum_of_integer_column_in_bigint() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_sum_bigint");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE ev (tenant TEXT, event_at TEXT, amount INT, small SMALLINT)",
+            "INSERT INTO ev (tenant, event_at, amount, small) VALUES ('a', '2026-01-01T00:05:00Z', 1, 1)",
+            "CREATE ROLLUP ev_hourly ON ev USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum, SUM(small) AS small_sum",
+            "INSERT INTO ev (tenant, event_at, amount, small) VALUES ('a', '2026-01-01T00:20:00Z', 2000000000, 30000)",
+            "INSERT INTO ev (tenant, event_at, amount, small) VALUES ('a', '2026-01-01T00:40:00Z', 2000000000, 30000)",
+        ] {
+            assert!(cassie.execute_sql(&session, sql, vec![]).is_ok(), "{sql}");
+        }
+
+        // Act
+        let refreshed = cassie
+            .execute_sql(&session, "REFRESH ROLLUP ev_hourly", vec![])
+            .is_ok();
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT total, amount_sum, small_sum FROM __cassie_rollup_ev_hourly",
+                vec![],
+            )
+            .map(|result| result.rows)
+            .unwrap_or_default();
+
+        // Assert
+        assert!(refreshed, "REFRESH ROLLUP must succeed");
+        assert_eq!(
+            rows,
+            vec![vec![
+                Value::Int64(3),
+                Value::Int64(4_000_000_001),
+                Value::Int64(60_001)
+            ]]
+        );
+        let _ = std::fs::remove_dir_all(&path);
+    }
 }
 
 mod graph_database_scope {

@@ -1,5 +1,25 @@
 use serde::{Deserialize, Serialize};
 
+/// First type OID of the `VECTOR(n)` family: `VECTOR(n)` is this plus `n`.
+/// The range sits above the array OIDs (`34000..44000`) so no vector width
+/// can resolve to an array type.
+pub const VECTOR_OID_BASE: i64 = 100_000;
+/// Widest vector the OID range covers; the binary vector format stores the
+/// dimension count as an `int16`.
+pub const VECTOR_OID_MAX_DIMENSIONS: usize = 32_767;
+/// Array element OIDs for vectors keep the historical `33000 + n` index so
+/// arrays of vectors do not move onto a scalar array's OID.
+const LEGACY_VECTOR_ELEMENT_BASE: i64 = 33_000;
+
+/// Vector dimension count encoded in `type_oid`, if it is a vector OID.
+#[must_use]
+pub fn vector_dimensions_for_oid(type_oid: i64) -> Option<usize> {
+    let dimensions = usize::try_from(type_oid.checked_sub(VECTOR_OID_BASE)?).ok()?;
+    (1..=VECTOR_OID_MAX_DIMENSIONS)
+        .contains(&dimensions)
+        .then_some(dimensions)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum DataType {
@@ -75,7 +95,6 @@ impl DataType {
         const OID_DATE: i64 = 1082;
         const OID_TIME: i64 = 1083;
         const OID_TIMESTAMP: i64 = 1114;
-        const OID_VECTOR_BASE: i64 = 33000;
         const OID_UNKNOWN: i64 = 705;
         const OID_ARRAY_BASE: i64 = 34000;
 
@@ -94,9 +113,17 @@ impl DataType {
             Self::Date => OID_DATE,
             Self::Time => OID_TIME,
             Self::Timestamp => OID_TIMESTAMP,
-            Self::Vector(dimensions) => OID_VECTOR_BASE + i64::try_from(*dimensions).unwrap_or(0),
+            Self::Vector(dimensions) => VECTOR_OID_BASE + i64::try_from(*dimensions).unwrap_or(0),
             Self::Json => OID_JSON,
-            Self::Array(inner) => OID_ARRAY_BASE + (inner.type_oid() % 10000),
+            Self::Array(inner) => {
+                let element = match inner.as_ref() {
+                    Self::Vector(dimensions) => {
+                        LEGACY_VECTOR_ELEMENT_BASE + i64::try_from(*dimensions).unwrap_or(0)
+                    }
+                    other => other.type_oid(),
+                };
+                OID_ARRAY_BASE + element % 10000
+            }
         }
     }
 

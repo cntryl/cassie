@@ -387,17 +387,31 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
         crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
-        crate::sql::functions::FunctionReturnType::FirstNonNullArgument => function
-            .args
-            .iter()
-            .find_map(|arg| infer_expr_type(arg, source_schema, user_functions, parameter_types))
-            .filter(|data_type| !matches!(data_type, DataType::Null))
-            .or(Some(DataType::Text)),
+        crate::sql::functions::FunctionReturnType::FirstNonNullArgument => {
+            let argument_types = function
+                .args
+                .iter()
+                .filter_map(|arg| {
+                    infer_expr_type(arg, source_schema, user_functions, parameter_types)
+                })
+                .filter(|data_type| !matches!(data_type, DataType::Null))
+                .collect::<Vec<_>>();
+            // Any argument may supply the value (COALESCE), so the result is
+            // their common type; incompatible arguments keep the first type.
+            argument_types
+                .iter()
+                .cloned()
+                .try_fold(DataType::Null, common_case_type)
+                .filter(|data_type| !matches!(data_type, DataType::Null))
+                .or_else(|| argument_types.first().cloned())
+                .or(Some(DataType::Text))
+        }
         crate::sql::functions::FunctionReturnType::NumericArgument => function
             .args
             .first()
             .and_then(|expr| infer_expr_type(expr, source_schema, user_functions, parameter_types))
             .map(|data_type| match data_type {
+                DataType::SmallInt => DataType::SmallInt,
                 DataType::Int => DataType::Int,
                 DataType::BigInt => DataType::BigInt,
                 _ => DataType::Float,

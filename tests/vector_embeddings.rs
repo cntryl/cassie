@@ -1640,6 +1640,38 @@ mod hnsw_indexes {
     }
 
     #[test]
+    fn should_use_hnsw_graph_for_an_other_case_vector_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("hnsw_sql_topk_field_case");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "hnsw_sql_topk_field_case";
+        register_hnsw_collection(&cassie, collection);
+        put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_hnsw_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+        put_hnsw_index(&cassie, collection, 2);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT id, vector_distance(EMBEDDING, '[1,0,0]') AS distance FROM hnsw_sql_topk_field_case ORDER BY distance ASC LIMIT 1",
+            vec![],
+        );
+
+        // Assert
+        let rows = result.map(|result| result.rows).ok();
+        assert_eq!(
+            rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
+            Some(Value::String("near".to_string()))
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
         // Arrange
         use_local_storage();
@@ -4390,6 +4422,37 @@ mod ivfflat_indexes {
 
         let _ = std::fs::remove_dir_all(path);
     });
+    }
+
+    #[test]
+    fn should_use_ivfflat_lists_for_an_other_case_vector_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("ivfflat_field_case");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "ivfflat_field_case";
+        register_ivfflat_collection(&cassie, collection);
+        put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_ivfflat_index(&cassie, collection, 7);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT id, vector_distance(EMBEDDING, '[1,0,0]') AS distance FROM ivfflat_field_case ORDER BY distance ASC LIMIT 1",
+            vec![],
+        );
+
+        // Assert
+        let rows = result.map(|result| result.rows).ok();
+        assert_eq!(
+            rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
+            Some(Value::String("near".to_string()))
+        );
+
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

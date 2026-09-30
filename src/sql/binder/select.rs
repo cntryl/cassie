@@ -128,6 +128,7 @@ pub(super) fn bind_select_with_lateral_fields(
     }
 
     validate_functions(&select, catalog, context)?;
+    super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
 }

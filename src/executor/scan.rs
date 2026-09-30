@@ -820,6 +820,9 @@ fn json_to_value(value: &serde_json::Value) -> Value {
 }
 
 fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+    if matches!(data_type, DataType::Json) && value.is_string() {
+        return Value::Json(value.clone());
+    }
     if let DataType::Vector(dimensions) = data_type {
         if let Some(values) = value.as_array() {
             if values.len() == *dimensions {

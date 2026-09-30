@@ -119,7 +119,14 @@ fn inserted_row_to_batch_row(
     ));
 
     for field in &schema.fields {
-        let value = payload.get(&field.name).map_or(Value::Null, json_to_value);
+        let value = payload.get(&field.name).map_or(Value::Null, |value| {
+            // A json column's JSON string stays a document, quotes included.
+            if matches!(field.data_type, DataType::Json) && value.is_string() {
+                Value::Json(value.clone())
+            } else {
+                json_to_value(value)
+            }
+        });
         row.push((field.name.clone(), value));
     }
 

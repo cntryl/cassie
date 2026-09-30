@@ -4319,7 +4319,7 @@ mod sql_string_literals {
             ("SELECT 'a || b'", "a || b"),
             ("SELECT 'a'' || ''b'", "a' || 'b"),
             ("SELECT 'x LIKE y ESCAPE z'", "x LIKE y ESCAPE z"),
-        ];
+            ("SELECT ''", ""),        ];
 
         // Act
         let parsed = cases.map(|(sql, expected)| (parse_projected_string(sql), expected));

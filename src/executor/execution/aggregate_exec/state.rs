@@ -1,4 +1,4 @@
-use crate::types::numeric::{i64_to_f64, usize_to_f64};
+use crate::types::numeric::{i128_to_f64, i64_to_f64, usize_to_f64};
 use std::collections::HashMap;
 
 use crate::app::CassieSession;
@@ -57,6 +57,14 @@ impl PartialAggregateGroup {
         Ok(change)
     }
 
+    /// True when any accumulator must be folded in row order rather than
+    /// merged from partitions.
+    pub(super) fn requires_row_order(&self) -> bool {
+        self.accumulators
+            .iter()
+            .any(AggregateAccumulator::requires_row_order)
+    }
+
     /// Merges `other` into this group and reports how the retained
     /// accumulator bytes changed.
     pub(super) fn merge(&mut self, other: &Self) -> Result<RetainedChange, QueryError> {
@@ -97,7 +105,7 @@ fn value_retained_bytes(value: &Value) -> usize {
 pub(super) enum AggregateAccumulator {
     Count { count: i64 },
     Sum { sum: NumericSum, seen: bool },
-    Avg { sum: f64, count: usize },
+    Avg { sum: AvgSum, count: usize },
     MinMax { selected: Option<Value>, max: bool },
 }
 
@@ -115,14 +123,37 @@ impl AggregateAccumulator {
         }
     }
 
+    /// Folds `rows` in order through a fresh accumulator for `function`.
+    pub(super) fn evaluate(
+        function: &FunctionCall,
+        rows: &[BatchRow],
+        context: &AggregateExecutionContext<'_>,
+    ) -> Result<Value, QueryError> {
+        let mut accumulator = Self::new(function);
+        for row in rows {
+            accumulator.update(
+                function,
+                row,
+                context.params,
+                context.search_context,
+                context.user_functions,
+                context.session,
+            )?;
+        }
+        accumulator.finish()
+    }
+
     fn new(function: &FunctionCall) -> Self {
         match function.name.to_ascii_lowercase().as_str() {
             "count" => Self::Count { count: 0 },
             "sum" => Self::Sum {
-                sum: NumericSum::Int(0),
+                sum: NumericSum::default(),
                 seen: false,
             },
-            "avg" => Self::Avg { sum: 0.0, count: 0 },
+            "avg" => Self::Avg {
+                sum: AvgSum::default(),
+                count: 0,
+            },
             "max" => Self::MinMax {
                 selected: None,
                 max: true,
@@ -178,7 +209,7 @@ impl AggregateAccumulator {
                     seen: other_seen,
                 },
             ) => {
-                sum.merge(other_sum)?;
+                sum.merge(other_sum);
                 *seen = *seen || *other_seen;
             }
             (
@@ -188,7 +219,7 @@ impl AggregateAccumulator {
                     count: other_count,
                 },
             ) => {
-                *sum += other_sum;
+                sum.merge(other_sum);
                 *count += other_count;
             }
             (
@@ -217,12 +248,12 @@ impl AggregateAccumulator {
         Ok(RetainedChange::default())
     }
 
-    pub(super) fn finish(self) -> Value {
-        match self {
+    pub(super) fn finish(self) -> Result<Value, QueryError> {
+        Ok(match self {
             Self::Count { count } => Value::Int64(count),
             Self::Sum { sum, seen } => {
                 if seen {
-                    sum.finish_value()
+                    sum.finish_value()?
                 } else {
                     Value::Null
                 }
@@ -231,11 +262,20 @@ impl AggregateAccumulator {
                 if count == 0 {
                     Value::Null
                 } else {
-                    let count = usize_to_f64(count);
-                    Value::Float64(sum / count)
+                    Value::Float64(sum.sum / usize_to_f64(count))
                 }
             }
             Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
+        })
+    }
+
+    /// True when this accumulator folded a float, so partitions of it cannot
+    /// be merged without re-associating the row-order sum.
+    pub(super) fn requires_row_order(&self) -> bool {
+        match self {
+            Self::Sum { sum, .. } => sum.requires_row_order(),
+            Self::Avg { sum, .. } => sum.requires_row_order(),
+            Self::Count { .. } | Self::MinMax { .. } => false,
         }
     }
 
@@ -290,7 +330,7 @@ impl AggregateAccumulator {
         };
         match value {
             Value::Int64(value) => {
-                sum.add_int(value)?;
+                sum.add_int(value);
                 *seen = true;
             }
             Value::Float64(value) => {
@@ -307,7 +347,7 @@ impl AggregateAccumulator {
         function: &FunctionCall,
         row: &BatchRow,
         context: &AggregateValueContext<'_>,
-        sum: &mut f64,
+        sum: &mut AvgSum,
         count: &mut usize,
     ) -> Result<(), QueryError> {
         let Some(value) = Self::evaluate_input(function, row, context)? else {
@@ -315,11 +355,11 @@ impl AggregateAccumulator {
         };
         match value {
             Value::Int64(value) => {
-                *sum += i64_to_f64(value);
+                sum.add_int(value);
                 *count += 1;
             }
             Value::Float64(value) => {
-                *sum += value;
+                sum.add_float(value);
                 *count += 1;
             }
             _ => {}
@@ -357,52 +397,146 @@ impl AggregateAccumulator {
     }
 }
 
+/// Running SUM state that reproduces the sequential row-order fold.
+///
+/// Integer inputs accumulate exactly while tracking the running prefix
+/// range, so a merge of ordered partitions reports overflow exactly when the
+/// row-order running total would have left `i64`. Once a non-integer input
+/// arrives the state becomes a row-order `f64` fold, which cannot be
+/// re-associated; see [`NumericSum::requires_row_order`].
 #[derive(Clone)]
 pub(super) enum NumericSum {
-    Int(i64),
-    Float(f64),
+    Int(IntegerSum),
+    Float { sum: f64, int_overflow: bool },
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct IntegerSum {
+    total: i128,
+    prefix_min: i128,
+    prefix_max: i128,
+}
+
+impl IntegerSum {
+    fn add(&mut self, value: i64) {
+        self.total += i128::from(value);
+        self.prefix_min = self.prefix_min.min(self.total);
+        self.prefix_max = self.prefix_max.max(self.total);
+    }
+
+    fn append(&mut self, later: &Self) {
+        self.prefix_min = self.prefix_min.min(self.total + later.prefix_min);
+        self.prefix_max = self.prefix_max.max(self.total + later.prefix_max);
+        self.total += later.total;
+    }
+
+    fn overflowed(&self) -> bool {
+        self.prefix_min < i128::from(i64::MIN) || self.prefix_max > i128::from(i64::MAX)
+    }
+}
+
+impl Default for NumericSum {
+    fn default() -> Self {
+        Self::Int(IntegerSum::default())
+    }
 }
 
 impl NumericSum {
-    pub(super) fn add_int(&mut self, value: i64) -> Result<(), QueryError> {
+    pub(super) fn add_int(&mut self, value: i64) {
         match self {
-            Self::Int(sum) => {
-                *sum = sum.checked_add(value).ok_or_else(|| {
-                    QueryError::General(String::from("aggregate integer overflow"))
-                })?;
-            }
-            Self::Float(sum) => *sum += i64_to_f64(value),
+            Self::Int(sum) => sum.add(value),
+            Self::Float { sum, .. } => *sum += i64_to_f64(value),
         }
-        Ok(())
     }
 
     pub(super) fn add_float(&mut self, value: f64) {
         self.promote_to_float();
-        if let Self::Float(sum) = self {
+        if let Self::Float { sum, .. } = self {
             *sum += value;
         }
     }
 
     pub(super) fn promote_to_float(&mut self) {
         if let Self::Int(sum) = self {
-            *self = Self::Float(i64_to_f64(*sum));
+            *self = Self::Float {
+                sum: i128_to_f64(sum.total),
+                int_overflow: sum.overflowed(),
+            };
         }
     }
 
-    fn merge(&mut self, other: &Self) -> Result<(), QueryError> {
-        match other {
-            Self::Int(value) => self.add_int(*value),
-            Self::Float(value) => {
-                self.add_float(*value);
-                Ok(())
-            }
+    /// True once a float participated: the state is then a row-order `f64`
+    /// fold that a partition merge cannot reproduce.
+    pub(super) fn requires_row_order(&self) -> bool {
+        matches!(self, Self::Float { .. })
+    }
+
+    /// Appends the state of the rows that follow this one. Exact for
+    /// integer states; float states must be folded in row order instead.
+    fn merge(&mut self, later: &Self) {
+        match (&mut *self, later) {
+            (Self::Int(sum), Self::Int(later)) => sum.append(later),
+            (_, Self::Int(later)) => self.add_float(i128_to_f64(later.total)),
+            (_, Self::Float { sum, .. }) => self.add_float(*sum),
         }
     }
 
-    pub(super) fn finish_value(self) -> Value {
+    pub(super) fn finish_value(self) -> Result<Value, QueryError> {
         match self {
-            Self::Int(sum) => Value::Int64(sum),
-            Self::Float(sum) => Value::Float64(sum),
+            Self::Int(sum) => i64::try_from(sum.total)
+                .ok()
+                .filter(|_| !sum.overflowed())
+                .map(Value::Int64)
+                .ok_or_else(integer_overflow),
+            Self::Float {
+                int_overflow: true, ..
+            } => Err(integer_overflow()),
+            Self::Float { sum, .. } => Ok(Value::Float64(sum)),
         }
     }
+}
+
+/// Running AVG state: the row-order `f64` fold of every input, plus the
+/// exact integer prefix range that shows when partition sums can be merged
+/// without changing that fold.
+#[derive(Clone, Default)]
+pub(super) struct AvgSum {
+    sum: f64,
+    exact: IntegerSum,
+    saw_float: bool,
+}
+
+impl AvgSum {
+    /// Integers up to 2^53 are exact in `f64`; bounding every prefix by
+    /// 2^52 also bounds every input by 2^53, so each addition is exact and
+    /// any grouping of the fold yields the same value.
+    const EXACT_PREFIX: i128 = 1 << 52;
+
+    fn add_int(&mut self, value: i64) {
+        self.sum += i64_to_f64(value);
+        self.exact.add(value);
+    }
+
+    fn add_float(&mut self, value: f64) {
+        self.sum += value;
+        self.saw_float = true;
+    }
+
+    fn merge(&mut self, later: &Self) {
+        self.sum += later.sum;
+        self.exact.append(&later.exact);
+        self.saw_float |= later.saw_float;
+    }
+
+    /// True when the fold is not exact, so merged partition sums could
+    /// differ from the row-order fold.
+    fn requires_row_order(&self) -> bool {
+        self.saw_float
+            || self.exact.prefix_min < -Self::EXACT_PREFIX
+            || self.exact.prefix_max > Self::EXACT_PREFIX
+    }
+}
+
+fn integer_overflow() -> QueryError {
+    QueryError::General(String::from("aggregate integer overflow"))
 }

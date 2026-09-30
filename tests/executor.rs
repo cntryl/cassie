@@ -3190,6 +3190,157 @@ mod executor_parallel {
 
         let _ = std::fs::remove_dir_all(path);
     }
+
+    /// Runs `sql` over `values` (one row per value, stored in scan order) with
+    /// the given aggregation worker limit and returns the rows or the error text.
+    fn aggregate_with_workers(
+        label: &str,
+        workers: usize,
+        data_type: DataType,
+        values: &[serde_json::Value],
+        sql: &str,
+    ) -> Result<Vec<Vec<Value>>, String> {
+        use_local_storage();
+        let path = data_dir(label);
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.limits.parallel_aggregation_workers = workers;
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+        let session = cassie.create_session("tester", None);
+        create_registered_collection(&cassie, "exec_parallel_row_order", &[("v", data_type)]);
+        put_documents(
+            &cassie,
+            "exec_parallel_row_order",
+            values.iter().enumerate().map(|(index, value)| {
+                (format!("row-{index:07}"), serde_json::json!({ "v": value }))
+            }),
+        );
+        let result = cassie
+            .execute_sql(&session, sql, vec![])
+            .map(|result| result.rows)
+            .map_err(|error| error.to_string());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+        result
+    }
+
+    #[test]
+    fn should_report_row_order_integer_sum_overflow_at_every_worker_count() {
+        // Arrange
+        let mut values = vec![serde_json::json!(0); 2050];
+        values[0] = serde_json::json!(5_000_000_000_000_000_000_i64);
+        values[1025] = serde_json::json!(5_000_000_000_000_000_000_i64);
+        values[1026] = serde_json::json!(-9_000_000_000_000_000_000_i64);
+
+        // Act
+        let outcomes = [1, 2, 4].map(|workers| {
+            aggregate_with_workers(
+                "parallel_row_order_int_overflow",
+                workers,
+                DataType::BigInt,
+                &values,
+                "SELECT SUM(v) FROM exec_parallel_row_order",
+            )
+        });
+
+        // Assert
+        for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+            let error = outcome.expect_err("row-order prefix overflows i64 at every worker count");
+            assert!(
+                error.contains("aggregate integer overflow"),
+                "workers={workers}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_keep_integer_sum_when_only_a_partition_local_prefix_overflows() {
+        // Arrange
+        let mut values = vec![serde_json::json!(0); 2050];
+        values[0] = serde_json::json!(-5_000_000_000_000_000_000_i64);
+        values[1025] = serde_json::json!(9_000_000_000_000_000_000_i64);
+        values[1026] = serde_json::json!(5_000_000_000_000_000_000_i64);
+
+        // Act
+        let outcomes = [1, 2, 4].map(|workers| {
+            aggregate_with_workers(
+                "parallel_row_order_local_prefix",
+                workers,
+                DataType::BigInt,
+                &values,
+                "SELECT SUM(v) FROM exec_parallel_row_order",
+            )
+        });
+
+        // Assert
+        for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+            assert_eq!(
+                outcome.expect("row-order prefix stays within i64"),
+                vec![vec![Value::Int64(9_000_000_000_000_000_000)]],
+                "workers={workers}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_fold_float_aggregates_in_row_order_at_every_worker_count() {
+        // Arrange
+        let mut values = vec![serde_json::json!(1.0); 1025];
+        values[0] = serde_json::json!(1.0e16);
+
+        // Act
+        let outcomes = [1, 2, 4].map(|workers| {
+            aggregate_with_workers(
+                "parallel_row_order_float",
+                workers,
+                DataType::Float,
+                &values,
+                "SELECT SUM(v), AVG(v) FROM exec_parallel_row_order",
+            )
+        });
+
+        // Assert
+        for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+            assert_eq!(
+                outcome.expect("float aggregate should execute"),
+                vec![vec![
+                    Value::Float64(1.0e16),
+                    Value::Float64(1.0e16 / 1025.0)
+                ]],
+                "workers={workers}"
+            );
+        }
+    }
+
+    #[test]
+    fn should_fold_integer_avg_in_row_order_beyond_exact_float_range() {
+        // Arrange
+        let mut values = vec![serde_json::json!(1); 1025];
+        values[0] = serde_json::json!(1_i64 << 60);
+
+        // Act
+        let outcomes = [1, 2, 4].map(|workers| {
+            aggregate_with_workers(
+                "parallel_row_order_int_avg",
+                workers,
+                DataType::BigInt,
+                &values,
+                "SELECT AVG(v), SUM(v) FROM exec_parallel_row_order",
+            )
+        });
+
+        // Assert
+        let row_order_avg = (1..1025).fold(2.0_f64.powi(60), |sum, _| sum + 1.0) / 1025.0;
+        for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+            assert_eq!(
+                outcome.expect("integer average should execute"),
+                vec![vec![
+                    Value::Float64(row_order_avg),
+                    Value::Int64((1_i64 << 60) + 1024)
+                ]],
+                "workers={workers}"
+            );
+        }
+    }
 }
 
 // Formerly tests/executor_projection.rs.

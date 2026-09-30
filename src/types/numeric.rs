@@ -35,6 +35,29 @@ pub fn usize_to_f64(value: usize) -> f64 {
     u64_to_f64(u64::try_from(value).unwrap_or(u64::MAX))
 }
 
+/// Converts `value` to the nearest `f64` (round-half-to-even).
+#[must_use]
+pub fn i128_to_f64(value: i128) -> f64 {
+    let magnitude = value.unsigned_abs();
+    let converted = if let Ok(small) = u64::try_from(magnitude) {
+        u64_to_f64(small)
+    } else {
+        // Keep the top 64 significant bits and fold every discarded bit into
+        // a sticky low bit, so rounding the kept bits to 53 matches rounding
+        // the full magnitude; scaling by a power of two is then exact.
+        let shift = 64 - magnitude.leading_zeros();
+        let discarded = magnitude & ((1_u128 << shift) - 1);
+        let top = u64::try_from(magnitude >> shift).unwrap_or(u64::MAX) | u64::from(discarded != 0);
+        let exponent = i32::try_from(shift).unwrap_or(i32::MAX);
+        u64_to_f64(top) * 2.0_f64.powi(exponent)
+    };
+    if value.is_negative() {
+        -converted
+    } else {
+        converted
+    }
+}
+
 /// Converts `value` to `f64` only when the conversion is exact.
 ///
 /// An integer is exactly representable when its magnitude, with trailing
@@ -72,6 +95,27 @@ mod tests {
         // Assert
         assert_eq!(converted, exact.map(|value| Some(parsed(&value).to_bits())));
         assert_eq!(rejected, [None, None, None]);
+    }
+
+    #[test]
+    fn should_round_wide_integers_like_a_correctly_rounded_cast() {
+        // Arrange
+        let values = [
+            0,
+            -7,
+            i128::from(i64::MAX),
+            i128::from(i64::MIN) * 3,
+            (1_i128 << 90) + (1 << 37) + 1,
+            (1_i128 << 90) + (1 << 37),
+            i128::MAX,
+            i128::MIN,
+        ];
+
+        // Act
+        let converted = values.map(|value| i128_to_f64(value).to_bits());
+
+        // Assert
+        assert_eq!(converted, values.map(|value| parsed(&value).to_bits()));
     }
 
     #[test]

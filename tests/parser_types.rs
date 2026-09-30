@@ -4954,11 +4954,12 @@ mod sql_predicate_types {
             "SELECT id FROM b WHERE flag AND score",
             "SELECT id FROM b WHERE score + 1",
             "SELECT code FROM h GROUP BY code HAVING COUNT(*)",
+            "SELECT b.id FROM b JOIN h ON b.score",
         ]
         .map(|sql| fixture.execute(sql).is_err());
 
         // Assert
-        assert_eq!(rejected, [true; 6]);
+        assert_eq!(rejected, [true; 7]);
     }
 
     #[test]

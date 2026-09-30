@@ -4821,6 +4821,38 @@ mod pgwire_result_framing {
         assert!(!rows.is_empty());
         assert!(rows.iter().flatten().all(|length| *length == 1));
     }
+    #[test]
+    fn should_keep_json_string_quotes_given_json_column_read() {
+        // Arrange
+        let setup = [
+            "CREATE TABLE framing_json_text (id TEXT, doc JSON)",
+            "INSERT INTO framing_json_text (id, doc) VALUES ('a', '\"hi\"'), ('b', '[1]')",
+        ];
+        let queries = [
+            "SELECT doc FROM framing_json_text ORDER BY id",
+            "SELECT doc FROM framing_json_text WHERE id = 'a'",
+            "SELECT id, doc FROM framing_json_text",
+            "SELECT DISTINCT doc FROM framing_json_text",
+            "INSERT INTO framing_json_text (id, doc) VALUES ('c', '\"hi\"') RETURNING doc",
+        ];
+
+        // Act
+        let rendered = queries
+            .iter()
+            .map(|sql| {
+                let (cassie, path) = configured_cassie("text-json-string", &setup);
+                let frames = simple_round_trip(cassie, path, sql);
+                support::data_rows(&frames)
+                    .into_iter()
+                    .filter_map(|row| row.last().cloned().flatten())
+                    .filter(|doc| doc.contains("hi"))
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // Assert
+        assert_eq!(rendered, vec![vec!["\"hi\"".to_string()]; queries.len()]);
+    }
 }
 
 mod pgwire_row_limited_portal {

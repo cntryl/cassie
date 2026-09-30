@@ -827,6 +827,75 @@ mod pgwire_binary_codecs {
     }
 
     #[test]
+    fn should_encode_aggregated_array_columns_in_binary_format() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("binary-grouped-arrays");
+        let queries = [
+            "SELECT tags FROM grouped_tags",
+            "SELECT tags FROM grouped_tags GROUP BY tags",
+            "SELECT MIN(tags) FROM grouped_tags",
+            "SELECT MAX(tags) FROM grouped_tags",
+        ];
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE grouped_tags (id TEXT, tags TEXT[])",
+                    vec![],
+                )
+                .expect("create table");
+            for id in ["a", "b"] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        "INSERT INTO grouped_tags (id, tags) VALUES ($1, $2)",
+                        vec![
+                            Value::String(id.to_string()),
+                            Value::Json(serde_json::json!(["x"])),
+                        ],
+                    )
+                    .expect("insert row");
+            }
+
+            // Act
+            let mut first_rows = Vec::new();
+            for sql in queries {
+                let (frames, server) = start_extended_query(
+                    cassie.clone(),
+                    support::parse_frame("grouped_array_stmt", sql),
+                    support::bind_frame_with_formats(
+                        "grouped_array_portal",
+                        "grouped_array_stmt",
+                        &[],
+                        &[],
+                        &[1],
+                    ),
+                    support::execute_frame("grouped_array_portal"),
+                )
+                .await;
+                server.stop().await;
+                first_rows.push(
+                    frames
+                        .iter()
+                        .find(|frame| frame.0 == b'D')
+                        .map(|frame| read_binary_row(&frame.1)),
+                );
+            }
+
+            // Assert
+            assert!(first_rows[0].is_some());
+            assert_eq!(first_rows, vec![first_rows[0].clone(); queries.len()]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_apply_mixed_result_formats_with_null_values() {
         // Arrange
         support::use_local_storage();

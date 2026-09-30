@@ -11773,6 +11773,29 @@ mod identifier_case_resolution {
     }
 
     #[test]
+    fn should_sort_unprojected_rows_on_an_other_case_column() {
+        // Arrange
+        let (cassie, session, path) = seeded(
+            "case_unprojected_sort",
+            &[
+                "CREATE TABLE oc (v INT, w TEXT)",
+                "INSERT INTO oc (v, w) VALUES (5, 'e'), (1, 'a'), (4, 'd'), (2, 'b'), (3, 'c')",
+            ],
+        );
+
+        // Act
+        let sorted = rows(&cassie, &session, "SELECT * FROM oc ORDER BY W LIMIT 3");
+
+        // Assert
+        let order = sorted
+            .iter()
+            .map(|row| row[row.len() - 1].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(order, vec![text("a"), text("b"), text("c")]);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_update_rows_matched_on_an_other_case_column() {
         // Arrange
         let (cassie, session, path) = mixed_case_scores("case_update");

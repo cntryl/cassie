@@ -3282,7 +3282,7 @@ mod executor_parallel {
     }
 
     #[test]
-    fn should_fold_float_sum_and_avg_in_row_order_at_every_worker_count() {
+    fn should_fold_float_aggregates_in_row_order_at_every_worker_count() {
         // Arrange
         let mut values = vec![serde_json::json!(1.0); 1025];
         values[0] = serde_json::json!(1.0e16);

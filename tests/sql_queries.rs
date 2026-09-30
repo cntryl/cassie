@@ -3582,6 +3582,83 @@ mod integration_sql_ordering {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    fn ordered_case_session(
+        label: &str,
+        statements: &[&str],
+    ) -> (Cassie, cassie::app::CassieSession, String) {
+        use_local_storage();
+        let path = data_dir(label);
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for statement in statements {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .expect(statement);
+        }
+        (cassie, session, path)
+    }
+
+    #[test]
+    fn should_top_k_order_a_mixed_case_column_referenced_in_lowercase() {
+        // Arrange
+        let (cassie, session, path) = ordered_case_session(
+            "ordered_top_k_declared_case",
+            &[
+                "CREATE TABLE mc (Label TEXT, Score INT)",
+                "INSERT INTO mc (Label, Score) VALUES ('low', 1), ('high', 9), ('mid', 5)",
+            ],
+        );
+
+        // Act
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT Label, Score FROM mc ORDER BY score DESC LIMIT 2",
+                vec![],
+            )
+            .expect("ordered top-k");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::String("high".to_string()), Value::Int64(9)],
+                vec![Value::String("mid".to_string()), Value::Int64(5)]
+            ]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_top_k_order_a_lowercase_column_referenced_in_uppercase() {
+        // Arrange
+        let (cassie, session, path) = ordered_case_session(
+            "ordered_top_k_query_case",
+            &[
+                "CREATE TABLE oc (v INT, w TEXT)",
+                "INSERT INTO oc (v, w) VALUES (5, 'e'), (1, 'a'), (4, 'd'), (2, 'b'), (3, 'c'), (7, 'g'), (6, 'f')",
+            ],
+        );
+
+        // Act
+        let ascending = cassie
+            .execute_sql(&session, "SELECT w FROM oc ORDER BY V LIMIT 4", vec![])
+            .expect("ascending top-k");
+        let descending = cassie
+            .execute_sql(&session, "SELECT w FROM oc ORDER BY V DESC LIMIT 2", vec![])
+            .expect("descending top-k");
+
+        // Assert
+        let text = |value: &str| vec![Value::String(value.to_string())];
+        assert_eq!(
+            ascending.rows,
+            vec![text("a"), text("b"), text("c"), text("d")]
+        );
+        assert_eq!(descending.rows, vec![text("g"), text("f")]);
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 // Formerly tests/integration_sql_predicates.rs.

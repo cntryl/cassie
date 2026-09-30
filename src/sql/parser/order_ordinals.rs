@@ -18,12 +18,44 @@ pub(super) fn resolve_order_ordinals(
             let Expr::IntegerLiteral(position) = item.expr else {
                 return Ok(item);
             };
-            Ok(OrderExpr {
-                expr: output_column_at(position, projection)?,
-                ..item
-            })
+            let expr = output_column_at(position, projection)?;
+            ensure_unambiguous(position, &expr, projection)?;
+            Ok(OrderExpr { expr, ..item })
         })
         .collect()
+}
+
+/// ORDER BY column references resolve to the first select-list alias with
+/// that name, so a rewritten position must not be captured by a different
+/// item's alias (for example `SELECT g, v AS g ... ORDER BY 1`).
+fn ensure_unambiguous(
+    position: i64,
+    expr: &Expr,
+    projection: &[SelectItem],
+) -> Result<(), SqlError> {
+    let Expr::Column(name) = expr else {
+        return Ok(());
+    };
+    let captured_by = projection
+        .iter()
+        .position(|item| alias_of(item).is_some_and(|alias| alias.eq_ignore_ascii_case(name)));
+    let target = usize::try_from(position - 1).ok();
+    match captured_by {
+        Some(index) if Some(index) != target => Err(SqlError::unsupported(format!(
+            "ORDER BY position {position} is ambiguous: output name \"{name}\" is used by more than one select-list item"
+        ))),
+        _ => Ok(()),
+    }
+}
+
+fn alias_of(item: &SelectItem) -> Option<&str> {
+    match item {
+        SelectItem::Wildcard => None,
+        SelectItem::Column { alias, .. }
+        | SelectItem::Function { alias, .. }
+        | SelectItem::Expr { alias, .. }
+        | SelectItem::WindowFunction { alias, .. } => alias.as_deref(),
+    }
 }
 
 fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, SqlError> {

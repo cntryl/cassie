@@ -11167,6 +11167,40 @@ mod order_by_ordinals {
     }
 
     #[test]
+    fn should_sort_set_operation_output_by_ordinal_of_an_aliased_column() {
+        with_scores("order_by_ordinal_union_alias", |cassie, session| {
+            // Arrange
+            let sql = "SELECT g AS k, v FROM scores WHERE v < 4 UNION ALL SELECT g, v FROM scores WHERE v > 4 ORDER BY 1 DESC";
+
+            // Act
+            let rows = run(cassie, session, sql).rows;
+
+            // Assert
+            assert_eq!(
+                rows,
+                vec![row("d", 3), row("c", 9), row("b", 1), row("a", 5)]
+            );
+        });
+    }
+
+    #[test]
+    fn should_reject_ordinal_whose_output_name_is_another_items_alias() {
+        with_scores("order_by_ordinal_ambiguous", |cassie, session| {
+            // Arrange
+            let sql = "SELECT g, v AS g FROM scores ORDER BY 1 DESC";
+
+            // Act
+            let error = error_text(cassie, session, sql);
+
+            // Assert
+            assert!(
+                error.contains("ORDER BY position 1 is ambiguous"),
+                "unexpected error: {error}"
+            );
+        });
+    }
+
+    #[test]
     fn should_reject_ordinals_outside_the_select_list() {
         with_scores("order_by_ordinal_out_of_range", |cassie, session| {
             // Arrange

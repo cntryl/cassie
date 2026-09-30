@@ -514,7 +514,7 @@ mod pgwire_binary_codecs {
             support::parse_frame_with_types(
                 "binary_complex_parameter_stmt",
                 "INSERT INTO binary_parameter_complex (embedding, values) VALUES ($1, $2) RETURNING embedding, values",
-                &[33_002, 34_023],
+                &[100_002, 34_023],
             ),
             support::bind_frame_with_formats(
                 "binary_complex_parameter_portal",
@@ -746,6 +746,82 @@ mod pgwire_binary_codecs {
             assert_eq!(rows, vec![vec![Some(empty_int_array_body())]]);
 
             server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_read_wide_vector_columns_in_binary_format_under_vector_oids() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("binary-wide-vectors");
+        let dimensions = [1025_usize, 1536];
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for dimension in dimensions {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE wide_vectors_{dimension} (e VECTOR({dimension}))"),
+                        vec![],
+                    )
+                    .expect("create wide vector table");
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("INSERT INTO wide_vectors_{dimension} (e) VALUES ($1)"),
+                        vec![Value::Vector(Vector::new(vec![0.25; dimension]))],
+                    )
+                    .expect("insert wide vector");
+            }
+
+            // Act
+            let mut observed = Vec::new();
+            for dimension in dimensions {
+                let (frames, server) = start_extended_query(
+                    cassie.clone(),
+                    support::parse_frame(
+                        "wide_vector_stmt",
+                        &format!("SELECT e FROM wide_vectors_{dimension}"),
+                    ),
+                    support::bind_frame_with_formats(
+                        "wide_vector_portal",
+                        "wide_vector_stmt",
+                        &[],
+                        &[],
+                        &[1],
+                    ),
+                    support::execute_frame("wide_vector_portal"),
+                )
+                .await;
+                server.stop().await;
+                let oid = frames
+                    .iter()
+                    .find(|frame| frame.0 == b'T')
+                    .map(|frame| support::parse_row_description(&frame.1)[0].type_oid);
+                let body_lengths = frames
+                    .iter()
+                    .filter(|frame| frame.0 == b'D')
+                    .map(|frame| read_binary_row(&frame.1)[0].as_ref().map(Vec::len))
+                    .collect::<Vec<_>>();
+                observed.push((
+                    oid.is_some_and(|oid| !(34_000..44_000).contains(&oid)),
+                    body_lengths,
+                ));
+            }
+
+            // Assert
+            assert_eq!(
+                observed,
+                dimensions
+                    .iter()
+                    .map(|dimension| (true, vec![Some(4 + 4 * dimension)]))
+                    .collect::<Vec<_>>()
+            );
+
             let _ = std::fs::remove_dir_all(path);
         });
     }

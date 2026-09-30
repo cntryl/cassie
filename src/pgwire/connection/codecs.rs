@@ -1,4 +1,5 @@
 use crate::executor::ColumnMeta;
+use crate::types::schema::vector_dimensions_for_oid;
 use crate::types::Value;
 use std::{io, str};
 use time::{Date, PrimitiveDateTime, Time, UtcOffset};
@@ -18,7 +19,6 @@ const OID_BPCHAR: i64 = 1042;
 const OID_VARCHAR: i64 = 1043;
 const OID_UUID: i64 = 2950;
 const OID_UNKNOWN: i64 = 705;
-const OID_VECTOR_BASE: i64 = 33_000;
 const OID_ARRAY_BASE: i64 = 34_000;
 const OID_ARRAY_LIMIT: i64 = 44_000;
 const POSTGRES_EPOCH_JULIAN_DAY: i32 = 2_451_545;
@@ -164,7 +164,7 @@ fn float8_text(value: f64) -> String {
 }
 
 pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
-    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+    if vector_dimensions_for_oid(type_oid).is_some() {
         return encode_vector(value, type_oid);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
@@ -223,11 +223,8 @@ fn binary_codec_for_oid(type_oid: i64) -> io::Result<BinaryCodec> {
 }
 
 fn validate_binary_oid(type_oid: i64) -> io::Result<()> {
-    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
-        let dimensions = type_oid - OID_VECTOR_BASE;
-        return (dimensions > 0 && dimensions <= i64::from(i16::MAX))
-            .then_some(())
-            .ok_or_else(|| unsupported_codec(type_oid));
+    if vector_dimensions_for_oid(type_oid).is_some() {
+        return Ok(());
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         binary_codec_for_oid(type_oid - OID_ARRAY_BASE).map(|_| ())
@@ -264,7 +261,7 @@ pub(super) fn validate_result_formats(
 }
 
 pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
-    if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+    if vector_dimensions_for_oid(type_oid).is_some() {
         return decode_vector(parameter, type_oid);
     }
     if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
@@ -317,7 +314,7 @@ fn encode_vector(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
         return invalid_value("vector");
     };
     let dimensions =
-        usize::try_from(type_oid - OID_VECTOR_BASE).map_err(|_| unsupported_codec(type_oid))?;
+        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
     if vector.values.len() != dimensions || dimensions > i16::MAX as usize {
         return Err(invalid_data("vector"));
     }
@@ -344,7 +341,7 @@ fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
     let dimensions = usize::from(u16::from_be_bytes([parameter[0], parameter[1]]));
     let reserved = i16::from_be_bytes([parameter[2], parameter[3]]);
     let expected =
-        usize::try_from(type_oid - OID_VECTOR_BASE).map_err(|_| unsupported_codec(type_oid))?;
+        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
     if dimensions != expected || reserved != 0 || parameter.len() != 4 + dimensions * 4 {
         return Err(invalid_data("vector"));
     }
@@ -543,7 +540,7 @@ fn fixed_bytes<const N: usize>(value: &[u8], type_name: &str) -> io::Result<[u8;
 }
 
 fn unsupported_codec(type_oid: i64) -> io::Error {
-    let family = if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&type_oid) {
+    let family = if vector_dimensions_for_oid(type_oid).is_some() {
         "vector"
     } else if (OID_ARRAY_BASE..OID_ARRAY_LIMIT).contains(&type_oid) {
         "array"

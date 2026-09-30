@@ -568,7 +568,6 @@ pub(crate) fn known_expr_type(
     }
 }
 
-const OID_VECTOR_BASE: i32 = 33_000;
 const OID_ARRAY_BASE: i32 = 34_000;
 const OID_ARRAY_LIMIT: i32 = 44_000;
 
@@ -597,11 +596,8 @@ fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
         1083 => Some(DataType::Time),
         1114 => Some(DataType::Timestamp),
         2950 => Some(DataType::Uuid),
-        oid if (OID_VECTOR_BASE..OID_ARRAY_BASE).contains(&oid) => {
-            usize::try_from(oid - OID_VECTOR_BASE)
-                .ok()
-                .map(DataType::Vector)
+        oid => {
+            crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(DataType::Vector)
         }
-        _ => None,
     }
 }

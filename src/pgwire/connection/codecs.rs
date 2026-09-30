@@ -125,12 +125,16 @@ const BINARY_CODEC_REGISTRY: &[BinaryCodec] = &[
     },
 ];
 
-pub(super) fn value_to_text(value: Value) -> String {
+/// Renders `value` with PostgreSQL's text output function for the column's
+/// declared `type_oid`.
+pub(super) fn value_to_text(value: Value, type_oid: i64) -> String {
     match value {
         Value::Null => "NULL".to_string(),
+        // boolout emits a single `t`/`f`; a JSON column keeps JSON's spelling.
+        Value::Bool(v) if type_oid == OID_BOOL => if v { "t" } else { "f" }.to_string(),
         Value::Bool(v) => v.to_string(),
         Value::Int64(v) => v.to_string(),
-        Value::Float64(v) => v.to_string(),
+        Value::Float64(v) => float8_text(v),
         Value::String(v) => v,
         Value::Vector(v) => format!(
             "[{}]",
@@ -141,6 +145,21 @@ pub(super) fn value_to_text(value: Value) -> String {
                 .join(",")
         ),
         Value::Json(v) => v.to_string(),
+    }
+}
+
+/// float8out spelling: `Infinity`, `-Infinity` and `NaN` for the non-finite
+/// values Rust would print as `inf`, `-inf` and `NaN`.
+fn float8_text(value: f64) -> String {
+    if value.is_infinite() {
+        if value.is_sign_positive() {
+            "Infinity"
+        } else {
+            "-Infinity"
+        }
+        .to_string()
+    } else {
+        value.to_string()
     }
 }
 
@@ -166,7 +185,7 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
         BinaryCodecKind::Int4 => encode_integer(value, codec.name, encode_i32_binary),
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
         BinaryCodecKind::Float8 => encode_float8(value, codec.name),
-        BinaryCodecKind::Text => Ok(value_to_text(value).into_bytes()),
+        BinaryCodecKind::Text => Ok(value_to_text(value, type_oid).into_bytes()),
         BinaryCodecKind::Json => match value {
             Value::Json(value) => Ok(value.to_string().into_bytes()),
             Value::String(value) => Ok(value.into_bytes()),

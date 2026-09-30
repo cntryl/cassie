@@ -238,7 +238,7 @@ pub(super) fn append_data_row_frame(
             other => {
                 let format_code = result_format_for_index(result_formats, index);
                 let bytes = if format_code == 0 {
-                    value_to_text(other).into_bytes()
+                    value_to_text(other, columns[index].type_oid).into_bytes()
                 } else if format_code == 1 {
                     value_to_binary(other, columns[index].type_oid)?
                 } else {

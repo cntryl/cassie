@@ -7,6 +7,7 @@ use crate::sql::parser::clauses::{
     find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
 };
 use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv, take_int};
+use crate::sql::parser::order_ordinals::resolve_order_ordinals;
 
 pub(super) fn parse_select_statement(
     sql: &str,
@@ -51,6 +52,7 @@ pub(super) fn parse_select_statement(
         .map(parse_order_by)
         .transpose()?
         .unwrap_or_default();
+    let order = resolve_order_ordinals(order, &projection)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -106,7 +108,7 @@ pub(super) fn parse_set_select_statement(
         operator,
         right: Box::new(right_select),
     }));
-    left_select.order = global_order;
+    left_select.order = resolve_order_ordinals(global_order, &left_select.projection)?;
     left_select.limit = global_limit;
     left_select.offset = global_offset;
     Ok(left)

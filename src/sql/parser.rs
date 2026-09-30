@@ -106,6 +106,8 @@ mod expr;
 mod identifiers;
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
+#[path = "parser/order_ordinals.rs"]
+mod order_ordinals;
 #[path = "parser/preflight.rs"]
 mod preflight;
 #[path = "parser/query.rs"]

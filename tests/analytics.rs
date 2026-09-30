@@ -901,6 +901,45 @@ mod analytical_projections {
         let _ = std::fs::remove_dir_all(path);
     });
     }
+
+    #[test]
+    fn should_read_a_capitalized_projection_alias_in_lowercase() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("projection_alias_case");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let session = cassie.create_session("tester", None);
+        for statement in [
+            "CREATE TABLE alias_src (amount INT, tag TEXT)",
+            "INSERT INTO alias_src (amount, tag) VALUES (5, 'a'), (7, 'b')",
+            "CREATE MATERIALIZED PROJECTION alias_p AS SELECT amount AS Total, tag FROM alias_src",
+        ] {
+            cassie
+                .execute_sql(&session, statement, vec![])
+                .expect(statement);
+        }
+        let read = |sql: &str| cassie.execute_sql(&session, sql, vec![]).expect(sql).rows;
+
+        // Act
+        let projected = read("SELECT total, tag FROM alias_p ORDER BY tag");
+        let filtered = read("SELECT tag FROM alias_p WHERE total = 5");
+        let summed = read("SELECT SUM(total) FROM alias_p");
+        let top = read("SELECT total FROM alias_p ORDER BY total DESC LIMIT 1");
+
+        // Assert
+        assert_eq!(
+            projected,
+            vec![
+                vec![Value::Int64(5), Value::String("a".to_string())],
+                vec![Value::Int64(7), Value::String("b".to_string())]
+            ]
+        );
+        assert_eq!(filtered, vec![vec![Value::String("a".to_string())]]);
+        assert_eq!(summed, vec![vec![Value::Int64(12)]]);
+        assert_eq!(top, vec![vec![Value::Int64(7)]]);
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 mod analytical_projection_schema_invalidation {

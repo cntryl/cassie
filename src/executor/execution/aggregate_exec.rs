@@ -277,6 +277,9 @@ fn aggregate_group_values(
         .iter()
         .map(|expr| {
             let name = group_expr_name(expr);
+            if let Some(value) = state::stored_json_column_value(row, expr) {
+                return Ok((name, value));
+            }
             let value = filter::evaluate_expr_value(
                 row,
                 expr,

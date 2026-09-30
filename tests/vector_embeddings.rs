@@ -1640,6 +1640,38 @@ mod hnsw_indexes {
     }
 
     #[test]
+    fn should_use_hnsw_graph_for_an_other_case_vector_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("hnsw_sql_topk_field_case");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "hnsw_sql_topk_field_case";
+        register_hnsw_collection(&cassie, collection);
+        put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_hnsw_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_hnsw_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+        put_hnsw_index(&cassie, collection, 2);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT id, vector_distance(EMBEDDING, '[1,0,0]') AS distance FROM hnsw_sql_topk_field_case ORDER BY distance ASC LIMIT 1",
+            vec![],
+        );
+
+        // Assert
+        let rows = result.map(|result| result.rows).ok();
+        assert_eq!(
+            rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
+            Some(Value::String("near".to_string()))
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_reject_hnsw_sql_top_k_query_dimension_mismatch() {
         // Arrange
         use_local_storage();
@@ -4393,6 +4425,37 @@ mod ivfflat_indexes {
     }
 
     #[test]
+    fn should_use_ivfflat_lists_for_an_other_case_vector_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("ivfflat_field_case");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        let collection = "ivfflat_field_case";
+        register_ivfflat_collection(&cassie, collection);
+        put_ivfflat_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "orthogonal", [0.0, 1.0, 0.0]);
+        put_ivfflat_document(&cassie, collection, "far", [-1.0, 0.0, 0.0]);
+        put_ivfflat_index(&cassie, collection, 7);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let result = cassie.execute_sql(
+            &session,
+            "SELECT id, vector_distance(EMBEDDING, '[1,0,0]') AS distance FROM ivfflat_field_case ORDER BY distance ASC LIMIT 1",
+            vec![],
+        );
+
+        // Assert
+        let rows = result.map(|result| result.rows).ok();
+        assert_eq!(
+            rows.and_then(|rows| rows.first().map(|row| row[0].clone())),
+            Some(Value::String("near".to_string()))
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_read_only_probed_ivfflat_candidates() {
         // Arrange
         use_local_storage();
@@ -6533,5 +6596,81 @@ mod vector_source_column_lifecycle {
         );
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+// Vector bind parameters written to columns that are not declared VECTOR(n).
+mod vector_parameter_finiteness {
+    use cassie::app::Cassie;
+    use cassie::types::{Value, Vector};
+
+    #[test]
+    fn should_reject_non_finite_vector_parameter_components_without_writing() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+        let cassie = Cassie::new_with_data_dir("unused").expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE vector_param_json (label TEXT, doc JSON)",
+                Vec::new(),
+            )
+            .expect("create table");
+        let insert = "INSERT INTO vector_param_json (label, doc) VALUES ($1, $2)";
+
+        // Act
+        let infinite = cassie.execute_sql(
+            &session,
+            insert,
+            vec![
+                Value::String("inf".to_string()),
+                Value::Vector(Vector::new(vec![1.0, f32::INFINITY, 3.0])),
+            ],
+        );
+        let nan = cassie.execute_sql(
+            &session,
+            insert,
+            vec![
+                Value::String("nan".to_string()),
+                Value::Vector(Vector::new(vec![f32::NAN])),
+            ],
+        );
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO vector_param_json (label, doc) VALUES ('kept', '[1]')",
+                Vec::new(),
+            )
+            .expect("insert finite row");
+        let updated = cassie.execute_sql(
+            &session,
+            "UPDATE vector_param_json SET doc = $1",
+            vec![Value::Vector(Vector::new(vec![2.0, f32::NEG_INFINITY]))],
+        );
+        let rows = cassie
+            .execute_sql(
+                &session,
+                "SELECT label, doc FROM vector_param_json",
+                Vec::new(),
+            )
+            .expect("select rows")
+            .rows;
+
+        // Assert
+        assert!(infinite.is_err(), "infinite component must be rejected");
+        assert!(nan.is_err(), "NaN component must be rejected");
+        assert!(
+            updated.is_err(),
+            "non-finite UPDATE component must be rejected"
+        );
+        assert_eq!(
+            rows,
+            vec![vec![
+                Value::String("kept".to_string()),
+                Value::Json(serde_json::json!([1])),
+            ]]
+        );
     }
 }

@@ -646,7 +646,7 @@ fn adjacent_node_ref<'a>(
     node_type: &str,
     node_id: &str,
 ) -> (&'a str, &'a str) {
-    if edge.source_type == node_type && edge.source_id == node_id {
+    if edge.source_type.eq_ignore_ascii_case(node_type) && edge.source_id == node_id {
         (&edge.target_type, &edge.target_id)
     } else {
         (&edge.source_type, &edge.source_id)

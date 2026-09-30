@@ -303,6 +303,7 @@ pub(super) fn bind_update(
     )?;
 
     statement.table = table;
+    super::own_qualifier::strip_update_own_qualifiers(&mut statement);
     Ok(statement)
 }
 
@@ -343,6 +344,7 @@ pub(super) fn bind_delete(
     )?;
 
     statement.table = table;
+    super::own_qualifier::strip_delete_own_qualifiers(&mut statement);
     Ok(statement)
 }
 

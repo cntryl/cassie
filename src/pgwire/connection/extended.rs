@@ -264,6 +264,11 @@ async fn handle_parse(
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let parameter_type_oids = normalize_parameter_type_oids(&parameter_type_oids);
+    if let Some(message) =
+        crate::sql::declared_parameter_type_conflict(&parsed, &parameter_type_oids, &cassie.catalog)
+    {
+        return Err(ExtendedQueryError::cassie(&CassieError::Planner(message)));
+    }
     let parameter_types = crate::sql::parameter_type_oids_with_catalog(
         &parsed,
         &parameter_type_oids,

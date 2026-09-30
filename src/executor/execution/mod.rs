@@ -107,6 +107,7 @@ mod schema_command;
 mod schema_creation;
 mod sequence_command;
 mod session_command;
+pub(crate) use session_command::show_result_columns;
 mod vector_index_command;
 
 mod source;

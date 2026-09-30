@@ -186,9 +186,16 @@ pub(super) fn value_to_binary(value: Value, type_oid: i64) -> io::Result<Vec<u8>
         BinaryCodecKind::Int8 => encode_int8(value, codec.name),
         BinaryCodecKind::Float8 => encode_float8(value, codec.name),
         BinaryCodecKind::Text => Ok(value_to_text(value, type_oid).into_bytes()),
+        // Binary json is the document's text. Reads unwrap JSON scalars to
+        // plain values, so a number or boolean is written in JSON spelling.
         BinaryCodecKind::Json => match value {
             Value::Json(value) => Ok(value.to_string().into_bytes()),
             Value::String(value) => Ok(value.into_bytes()),
+            Value::Bool(value) => Ok(value.to_string().into_bytes()),
+            Value::Int64(value) => Ok(value.to_string().into_bytes()),
+            Value::Float64(value) => serde_json::Number::from_f64(value)
+                .map(|number| number.to_string().into_bytes())
+                .ok_or_else(|| invalid_data(codec.name)),
             _ => invalid_value(codec.name),
         },
         BinaryCodecKind::Uuid => match value {

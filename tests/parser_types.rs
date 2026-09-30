@@ -1873,6 +1873,42 @@ mod parser_expressions {
     }
 
     #[test]
+    fn should_ignore_nested_between_and_quoted_and_when_splitting_conjunctions() {
+        // Arrange
+        let sql = "SELECT a FROM t WHERE (b BETWEEN 4 AND 6 OR c = ' between x and ') AND CASE WHEN d BETWEEN 1 AND 2 THEN true ELSE false END AND a BETWEEN 1 AND 3";
+
+        // Act
+        let filter = select_filter(sql);
+
+        // Assert
+        let Expr::Binary {
+            left,
+            op: BinaryOp::And,
+            right,
+        } = filter
+        else {
+            panic!("expected AND at the top of the filter");
+        };
+        assert!(matches!(
+            *left,
+            Expr::Binary {
+                op: BinaryOp::Or,
+                ..
+            }
+        ));
+        let Expr::Binary {
+            left: middle,
+            op: BinaryOp::And,
+            right: last,
+        } = *right
+        else {
+            panic!("expected nested AND");
+        };
+        assert!(matches!(*middle, Expr::Case { .. }));
+        assert!(is_between(&last, false));
+    }
+
+    #[test]
     fn should_bind_between_tighter_than_and_in_delete_filters() {
         // Arrange
         let sql = "DELETE FROM t WHERE a BETWEEN 1 AND 3 AND b = 'v1'";

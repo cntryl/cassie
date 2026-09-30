@@ -72,10 +72,10 @@ where
                     let value = row.get(source).cloned().unwrap_or(Value::Null);
                     projected.push((key.clone(), value));
                 }
-                ProjectionOp::AggregateFunction { key, function_name } => {
-                    let value = row
-                        .get(key)
-                        .or_else(|| row.get(function_name))
+                ProjectionOp::AggregateFunction { key, lookups } => {
+                    let value = lookups
+                        .iter()
+                        .find_map(|lookup| row.get(lookup))
                         .cloned()
                         .unwrap_or(Value::Null);
                     projected.push((key.clone(), value));
@@ -131,10 +131,10 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
                     .unwrap_or(function.name.as_str())
                     .to_string();
                 if crate::sql::functions::is_aggregate_function(&function.name) {
-                    ProjectionOp::AggregateFunction {
-                        key,
-                        function_name: function.name.clone(),
-                    }
+                    let mut lookups = alias.iter().cloned().collect::<Vec<_>>();
+                    lookups.push(crate::executor::execution::aggregate_signature(function));
+                    lookups.push(function.name.clone());
+                    ProjectionOp::AggregateFunction { key, lookups }
                 } else {
                     ProjectionOp::ScalarFunction {
                         key,
@@ -268,7 +268,11 @@ enum ProjectionOp {
     },
     AggregateFunction {
         key: String,
-        function_name: String,
+        /// Row entries to read, most specific first: the alias when one was
+        /// written, then the aggregate signature (`count(v)`), which is
+        /// unique per aggregate, then the bare function name for producers
+        /// that only emit that.
+        lookups: Vec<String>,
     },
     ScalarFunction {
         key: String,

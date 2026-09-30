@@ -171,6 +171,7 @@ pub(crate) fn project_batches(
     check_projection_build_failure_point()?;
     let ops = compile_projection_ops(projection);
     if ops.iter().all(ProjectionOp::can_move_owned)
+        && owned_sources_are_distinct(&ops)
         && batches
             .iter()
             .all(|batch| batch.iter().all(|row| row.aliases().is_empty()))
@@ -194,6 +195,22 @@ pub(crate) fn project_batches(
             )
         })
         .collect()
+}
+
+/// Moving values out of a row is only sound when no entry is read twice. A
+/// column referenced more than once (in any spelling, since references are
+/// case-insensitive) or next to a wildcard needs the cloning path so every
+/// output keeps its value.
+fn owned_sources_are_distinct(ops: &[ProjectionOp]) -> bool {
+    if ops.len() > 1 && ops.iter().any(|op| matches!(op, ProjectionOp::Wildcard)) {
+        return false;
+    }
+    let mut sources = std::collections::HashSet::new();
+    ops.iter().all(|op| match op {
+        ProjectionOp::Column { source, .. } => sources.insert(source.to_ascii_lowercase()),
+        ProjectionOp::WindowFunction { key } => sources.insert(key.to_ascii_lowercase()),
+        _ => true,
+    })
 }
 
 fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Batch {
@@ -231,9 +248,14 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
             }
             ProjectionOp::Column { source, key } => {
                 let value = entries
-                    .iter_mut()
-                    .find(|(name, _)| name == source)
-                    .and_then(|(_, value)| value.take())
+                    .iter()
+                    .position(|(name, _)| name == source)
+                    .or_else(|| {
+                        entries
+                            .iter()
+                            .position(|(name, _)| name.eq_ignore_ascii_case(source))
+                    })
+                    .and_then(|index| entries[index].1.take())
                     .unwrap_or(Value::Null);
                 if !matches!(value, Value::Null) {
                     OWNED_VALUE_MOVES.fetch_add(1, Ordering::Relaxed);

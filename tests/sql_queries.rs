@@ -551,7 +551,7 @@ mod integration_sql_aggregates {
         // Assert
         assert!(
             matches!(&error, cassie::app::CassieError::Execution(message) if message == "value out of range: overflow"),
-            "unexpected error: {error}"
+            "float overflow must be an execution error"
         );
     }
 
@@ -566,7 +566,7 @@ mod integration_sql_aggregates {
         // Assert
         assert!(
             matches!(&error, cassie::app::CassieError::Execution(message) if message == "value out of range: overflow"),
-            "unexpected error: {error}"
+            "float overflow must be an execution error"
         );
     }
 
@@ -594,7 +594,10 @@ mod integration_sql_aggregates {
 
         // Assert
         for error in errors {
-            assert!(error.contains("value out of range: overflow"), "{error}");
+            assert!(
+                error.contains("value out of range: overflow"),
+                "float overflow must be reported"
+            );
         }
     }
 }

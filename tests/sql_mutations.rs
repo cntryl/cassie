@@ -11371,7 +11371,7 @@ mod composite_unique_constraints {
     }
 
     #[test]
-    fn should_add_and_drop_a_composite_unique_constraint() {
+    fn should_manage_a_composite_unique_constraint_through_alter_table() {
         // Arrange
         let (cassie, session, path) = start(
             "composite-unique-alter",
@@ -11422,7 +11422,7 @@ mod composite_unique_constraints {
     }
 
     #[test]
-    fn should_keep_a_composite_unique_constraint_through_rename_and_restart() {
+    fn should_keep_a_composite_unique_constraint_across_its_ddl_lifecycle() {
         // Arrange
         let (cassie, session, path) = start(
             "composite-unique-lifecycle",

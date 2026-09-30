@@ -471,6 +471,67 @@ mod rest {
     }
 
     #[test]
+    fn should_apply_declared_on_delete_actions_to_rest_document_deletes() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("rest_on_delete_actions");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        for sql in [
+            "CREATE TABLE rest_action_parent (id INT PRIMARY KEY, name TEXT)",
+            "CREATE TABLE rest_action_cascade (cid INT PRIMARY KEY, pid INT, CONSTRAINT rest_action_cascade_fk FOREIGN KEY (pid) REFERENCES rest_action_parent(id) ON DELETE CASCADE)",
+            "CREATE TABLE rest_action_set_null (nid INT PRIMARY KEY, pid INT, CONSTRAINT rest_action_set_null_fk FOREIGN KEY (pid) REFERENCES rest_action_parent(id) ON DELETE SET NULL)",
+            "CREATE TABLE rest_action_restrict (rid INT PRIMARY KEY, pid INT, CONSTRAINT rest_action_restrict_fk FOREIGN KEY (pid) REFERENCES rest_action_parent(id) ON DELETE RESTRICT)",
+            "INSERT INTO rest_action_parent (id, name) VALUES (1, 'a'), (2, 'b')",
+            "INSERT INTO rest_action_cascade (cid, pid) VALUES (10, 1)",
+            "INSERT INTO rest_action_set_null (nid, pid) VALUES (20, 1)",
+            "INSERT INTO rest_action_restrict (rid, pid) VALUES (30, 2)",
+        ] {
+            cassie.execute_sql(&session, sql, Vec::new()).expect("setup SQL");
+        }
+        let parent_row = |key: i64| {
+            cassie
+                .midge
+                .scan_documents("postgres.public.rest_action_parent")
+                .expect("scan parent")
+                .into_iter()
+                .find(|document| document.payload["id"] == key)
+                .expect("parent row")
+                .id
+        };
+        let cascading_parent = parent_row(1);
+        let restricted_parent = parent_row(2);
+
+        // Act
+        let cascaded = documents::delete(&cassie, "rest_action_parent", &cascading_parent);
+        let restricted = documents::delete(&cassie, "rest_action_parent", &restricted_parent);
+        let rows = |sql: &str| {
+            cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("select")
+                .rows
+        };
+
+        // Assert
+        assert!(cascaded.is_ok(), "no child restricts parent 1");
+        assert!(restricted.is_err(), "ON DELETE RESTRICT keeps parent 2");
+        assert!(rows("SELECT cid FROM rest_action_cascade").is_empty());
+        assert_eq!(
+            rows("SELECT nid, pid FROM rest_action_set_null"),
+            vec![vec![
+                cassie::types::Value::Int64(20),
+                cassie::types::Value::Null
+            ]]
+        );
+        assert_eq!(
+            rows("SELECT id FROM rest_action_parent"),
+            vec![vec![cassie::types::Value::Int64(2)]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_create_rest_collection_for_session_database_scope() {
         // Arrange
         std::env::set_var("CASSIE_STORAGE_MODE", "local");

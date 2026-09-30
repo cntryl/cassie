@@ -4,6 +4,7 @@ use super::{
     FieldConstraint, Instant, MidgeScanTimings, RowDecode, RowFilter, TransactionRowChange, Uuid,
 };
 
+mod char_values;
 mod controlled;
 mod payload_keys;
 
@@ -118,6 +119,7 @@ impl Cassie {
         if apply_defaults && !constraints.is_empty() {
             super::defaults::apply_default_values(self, &mut payload, &constraints)?;
         }
+        char_values::canonicalize_char_values(&schema.fields, &mut payload);
 
         Self::validate_payload_schema(collection, &schema, &payload)?;
 

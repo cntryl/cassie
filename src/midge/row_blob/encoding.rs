@@ -44,6 +44,7 @@ pub(super) fn encode_value(
             value,
             *length,
             1,
+            crate::types::char_text::canonical_char_text,
             "char field expects string",
             "char field expects up to {length} characters",
         ),
@@ -51,6 +52,7 @@ pub(super) fn encode_value(
             value,
             *length,
             0,
+            |text| text,
             "varchar field expects string",
             "varchar field expects up to {length} characters",
         ),
@@ -156,12 +158,15 @@ fn encode_bounded_string(
     value: &serde_json::Value,
     length: Option<u32>,
     default_length: u32,
+    canonicalize: fn(&str) -> &str,
     type_error: &str,
     length_error: &str,
 ) -> Result<(u8, Vec<u8>), CassieError> {
-    let value = value
-        .as_str()
-        .ok_or_else(|| CassieError::InvalidVector(type_error.to_string()))?;
+    let value = canonicalize(
+        value
+            .as_str()
+            .ok_or_else(|| CassieError::InvalidVector(type_error.to_string()))?,
+    );
     let length = length.unwrap_or(default_length);
     let max_chars = usize::try_from(length).expect("string length limits fit in usize");
     if value.chars().count() > max_chars {

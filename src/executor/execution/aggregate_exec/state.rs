@@ -338,7 +338,7 @@ impl AggregateAccumulator {
                 *seen = true;
             }
             Value::Null => {}
-            _ => sum.promote_to_float(),
+            other => return Err(non_numeric_input(function, &other)),
         }
         Ok(())
     }
@@ -362,7 +362,8 @@ impl AggregateAccumulator {
                 sum.add_float(value);
                 *count += 1;
             }
-            _ => {}
+            Value::Null => {}
+            other => return Err(non_numeric_input(function, &other)),
         }
         Ok(())
     }
@@ -568,6 +569,10 @@ impl AvgSum {
             || self.exact.prefix_min < -Self::EXACT_PREFIX
             || self.exact.prefix_max > Self::EXACT_PREFIX
     }
+}
+
+fn non_numeric_input(function: &FunctionCall, value: &Value) -> QueryError {
+    QueryError::General(numeric::non_numeric_aggregate_input(&function.name, value))
 }
 
 fn integer_overflow() -> QueryError {

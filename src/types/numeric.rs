@@ -5,6 +5,26 @@
 
 const TWO_TO_32: f64 = 4_294_967_296.0;
 
+/// The error for a numeric aggregate (SUM/AVG) over a non-numeric `value`,
+/// worded like PostgreSQL's missing-overload error (SQLSTATE 42883).
+#[must_use]
+pub fn non_numeric_aggregate_input(function: &str, value: &crate::types::Value) -> String {
+    use crate::types::Value;
+    let type_name = match value {
+        Value::Null => "unknown",
+        Value::Bool(_) => "boolean",
+        Value::Int64(_) => "bigint",
+        Value::Float64(_) => "double precision",
+        Value::String(_) => "text",
+        Value::Vector(_) => "vector",
+        Value::Json(_) => "json",
+    };
+    format!(
+        "function {}({type_name}) does not exist",
+        function.to_ascii_lowercase()
+    )
+}
+
 /// PostgreSQL's message for float arithmetic that overflows (SQLSTATE 22003).
 pub const FLOAT_OVERFLOW: &str = "value out of range: overflow";
 

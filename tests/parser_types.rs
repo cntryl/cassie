@@ -5021,3 +5021,138 @@ mod sql_predicate_types {
         );
     }
 }
+
+// Bound string parameters compared against typed columns.
+mod typed_parameter_canonicalization {
+    use cassie::app::Cassie;
+    use cassie::types::Value;
+
+    fn string(value: &str) -> Value {
+        Value::String(value.to_string())
+    }
+
+    fn ids(cassie: &Cassie, sql: &str, param: &str) -> Vec<Vec<Value>> {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, sql, vec![string(param)])
+            .expect("parameterized query")
+            .rows
+    }
+
+    #[test]
+    fn should_match_bound_string_parameters_like_inline_typed_literals() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
+        let cassie = Cassie::new_with_data_dir("unused").expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("tester", None);
+        for sql in [
+            "CREATE TABLE typed_params (id TEXT, v UUID, b BYTEA, ts TIMESTAMP, iv UUID)",
+            "CREATE INDEX typed_params_iv ON typed_params (iv)",
+            "INSERT INTO typed_params (id, v, b, ts, iv) VALUES ('a', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', '\\xdeadbeef', '2024-01-01 12:00:00', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')",
+        ] {
+            cassie
+                .execute_sql(&session, sql, Vec::new())
+                .expect("seed typed parameter table");
+        }
+        let upper_uuid = "A0EEBC99-9C0B-4EF8-BB6D-6BB9BD380A11";
+
+        // Act
+        let by_uuid = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE v = $1",
+            upper_uuid,
+        );
+        let by_indexed_uuid = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE iv = $1",
+            upper_uuid,
+        );
+        let by_bytea = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE b = $1",
+            "\\xDEADBEEF",
+        );
+        let by_reversed_uuid = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE $1 = v",
+            upper_uuid,
+        );
+        let by_uuid_list = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE v IN ($1, 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11')",
+            upper_uuid,
+        );
+        let by_timestamp = ids(
+            &cassie,
+            "SELECT id FROM typed_params WHERE ts = $1",
+            "2024-01-01 12:00:00",
+        );
+
+        // Assert
+        let expected = vec![vec![string("a")]];
+        assert_eq!(by_uuid, expected);
+        assert_eq!(by_indexed_uuid, expected);
+        assert_eq!(by_reversed_uuid, expected);
+        assert_eq!(by_uuid_list, expected);
+        assert_eq!(by_bytea, expected);
+        assert_eq!(by_timestamp, expected);
+    }
+}
+
+mod sql_float_integer_casts {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::sql_fixture;
+
+    #[test]
+    fn should_round_float_to_nearest_integer_when_casting() {
+        // Arrange
+        let fixture = sql_fixture(
+            "cast_float_rounds",
+            &[
+                "CREATE TABLE d (id INT, price FLOAT)",
+                "INSERT INTO d (id, price) VALUES (1, 19.99)",
+                "INSERT INTO d (id, price) VALUES (2, 5.0)",
+                "INSERT INTO d (id, price) VALUES (3, 2.5)",
+                "INSERT INTO d (id, price) VALUES (4, -3.5)",
+            ],
+        );
+
+        // Act
+        let ints = fixture.rows("SELECT CAST(price AS INT) FROM d ORDER BY id");
+        let bigints = fixture.rows("SELECT CAST(price AS BIGINT) FROM d WHERE id = 1");
+        let smallints = fixture.rows("SELECT CAST(price AS SMALLINT) FROM d WHERE id = 4");
+
+        // Assert
+        assert_eq!(
+            ints,
+            vec![
+                vec![Value::Int64(20)],
+                vec![Value::Int64(5)],
+                vec![Value::Int64(2)],
+                vec![Value::Int64(-4)],
+            ]
+        );
+        assert_eq!(bigints, vec![vec![Value::Int64(20)]]);
+        assert_eq!(smallints, vec![vec![Value::Int64(-4)]]);
+    }
+
+    #[test]
+    fn should_reject_float_cast_outside_integer_range() {
+        // Arrange
+        let fixture = sql_fixture(
+            "cast_float_out_of_range",
+            &[
+                "CREATE TABLE r (price FLOAT)",
+                "INSERT INTO r (price) VALUES (1.0e10)",
+            ],
+        );
+
+        // Act
+        let failed = fixture.execute("SELECT CAST(price AS INT) FROM r").is_err();
+
+        // Assert
+        assert!(failed, "a float beyond int4 must not cast to INT");
+    }
+}

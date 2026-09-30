@@ -411,12 +411,17 @@ impl Cassie {
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
-        params: Vec<crate::types::Value>,
+        mut params: Vec<crate::types::Value>,
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
+        super::query_parameters::canonicalize_string_parameters(
+            &parsed,
+            &self.catalog,
+            &mut params,
+        );
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,

@@ -30,6 +30,8 @@ mod commands;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+#[path = "binder/own_qualifier.rs"]
+mod own_qualifier;
 #[path = "binder/recursive.rs"]
 mod recursive;
 #[path = "binder/routines.rs"]
@@ -38,8 +40,14 @@ mod routines;
 mod schema;
 #[path = "binder/schema_sequences.rs"]
 mod schema_sequences;
+#[path = "binder/search_field_case.rs"]
+mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
+#[path = "binder/set_types.rs"]
+mod set_types;
+#[path = "binder/set_width.rs"]
+mod set_width;
 #[path = "binder/validation.rs"]
 mod validation;
 #[path = "binder/wildcard.rs"]

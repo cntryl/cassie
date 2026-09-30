@@ -324,6 +324,92 @@ mod graph_transaction_semantics {
         let _ = std::fs::remove_dir_all(path);
     });
     }
+
+    fn upper_type_rows(cassie: &Cassie, session: &cassie::app::CassieSession) -> Vec<Vec<Value>> {
+        cassie
+            .execute_sql(
+                session,
+                "SELECT node_id, node_type FROM graph_neighbors('social', 'PERSON', 'alice', 'out', 'knows', 10)",
+                vec![],
+            )
+            .expect("read graph neighbors")
+            .rows
+    }
+
+    #[test]
+    fn should_match_an_other_case_node_type_on_the_adjacency_sidecar() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("graph_node_type_case_sidecar");
+        let runtime = current_thread_runtime();
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let writer = cassie.create_session("writer", None);
+            create_graph(&cassie, &writer);
+            execute(
+                &cassie,
+                &writer,
+                "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 2)",
+            );
+
+            // Act
+            let rows = upper_type_rows(&cassie, &writer);
+
+            // Assert
+            assert_eq!(
+                rows,
+                vec![vec![Value::String("bob".into()), Value::String("person".into())]]
+            );
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_return_the_far_endpoint_for_an_other_case_node_type_on_the_row_scan() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("graph_node_type_case_row_scan");
+        let runtime = current_thread_runtime();
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let writer = cassie.create_session("writer", None);
+            create_graph(&cassie, &writer);
+            execute(
+                &cassie,
+                &writer,
+                "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 2)",
+            );
+            execute(&cassie, &writer, "BEGIN");
+            execute(
+                &cassie,
+                &writer,
+                "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e2', 'person', 'carol', 'person', 'dave', 'knows', 1)",
+            );
+
+            // Act
+            let neighbors = upper_type_rows(&cassie, &writer);
+            let expanded = cassie
+                .execute_sql(
+                    &writer,
+                    "SELECT node_id, depth FROM graph_expand('social', 'PERSON', 'alice', 2, 'out', 'knows', 10)",
+                    vec![],
+                )
+                .expect("expand graph")
+                .rows;
+
+            // Assert
+            assert_eq!(
+                neighbors,
+                vec![vec![Value::String("bob".into()), Value::String("person".into())]]
+            );
+            assert_eq!(
+                expanded,
+                vec![vec![Value::String("bob".into()), Value::Int64(1)]]
+            );
+            execute(&cassie, &writer, "ROLLBACK");
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }
 
 // Formerly tests/integration_sql_graph.rs.

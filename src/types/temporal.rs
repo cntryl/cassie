@@ -46,16 +46,22 @@ pub fn canonical_time(value: &str) -> Result<String, String> {
 /// Returns an error when `value` is not a valid RFC3339 or
 /// `YYYY-MM-DD[T ]HH:MM:SS[.ffffff]` timestamp.
 pub fn canonical_timestamp(value: &str) -> Result<String, String> {
-    let datetime = parse_timestamp(value)?;
+    parse_timestamp(value).map(format_timestamp)
+}
+
+/// Formats an offset-free timestamp in the canonical fixed-width
+/// `YYYY-MM-DDTHH:MM:SS.ffffffZ` form that [`canonical_timestamp`] produces.
+#[must_use]
+pub fn format_timestamp(datetime: PrimitiveDateTime) -> String {
     let time = datetime.time();
-    Ok(format!(
+    format!(
         "{}T{:02}:{:02}:{:02}.{:06}Z",
         format_date(datetime.date()),
         time.hour(),
         time.minute(),
         time.second(),
         time.microsecond()
-    ))
+    )
 }
 
 /// Returns the text that orders `value` chronologically against other

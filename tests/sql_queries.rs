@@ -9537,7 +9537,24 @@ mod window_frames {
     }
 
     #[test]
-    fn should_apply_ordered_default_rows_frame() {
+    fn should_share_default_frame_end_across_order_by_peers() {
+        // Arrange
+        let query = "SELECT ordinal, last_value(ordinal) OVER (ORDER BY value) AS last_peer FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
+
+        // Act
+        let result = execute_window_query("window_default_range_peers", query)
+            .expect("execute default frame");
+
+        // Assert
+        let last_peer = values_for_column(&result, 1);
+        assert_eq!(last_peer[0], Value::Int64(1));
+        assert_eq!(last_peer[1], last_peer[2], "peers share one frame end");
+        assert!(matches!(last_peer[1], Value::Int64(2 | 3)));
+        assert_eq!(last_peer[3], Value::Int64(4));
+    }
+
+    #[test]
+    fn should_apply_ordered_default_frame_with_unique_keys() {
         // Arrange
         let query = "SELECT ordinal, first_value(value) OVER (PARTITION BY category ORDER BY ordinal) AS first_value, last_value(value) OVER (PARTITION BY category ORDER BY ordinal) AS last_value FROM window_frame_values WHERE category = 'a' ORDER BY ordinal";
 

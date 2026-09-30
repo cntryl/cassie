@@ -18,6 +18,8 @@ mod schema_fields;
 mod schema_identifiers;
 #[path = "schema_indexes.rs"]
 mod schema_indexes;
+#[path = "schema_literals.rs"]
+mod schema_literals;
 #[path = "schema_references.rs"]
 mod schema_references;
 #[path = "schema_sequences.rs"]
@@ -30,6 +32,8 @@ use schema_identifiers::parse_identifier;
 pub(super) use schema_indexes::{
     parse_create_index_statement, parse_drop_index_statement, parse_index_options,
 };
+use schema_literals::parse_constant_literal;
+pub(super) use schema_literals::parse_constraint_literal;
 use schema_sequences::parse_alter_column_operation;
 use schema_table_constraints::{
     apply_table_constraints, parse_named_add_constraint, parse_table_constraint,
@@ -744,52 +748,13 @@ pub(super) fn parse_simple_comparison(raw: &str) -> Option<(String, ConstraintOp
                 continue;
             }
 
-            if let Ok(value) = parse_constraint_literal(right) {
+            if let Ok(value) = parse_constant_literal(right) {
                 return Some((left.to_string(), kind, value));
             }
         }
     }
 
     None
-}
-
-pub(super) fn parse_constraint_literal(raw: &str) -> Result<Value, SqlError> {
-    let raw = raw.trim();
-    if raw.is_empty() {
-        return Err(SqlError::new("invalid literal".to_string()));
-    }
-
-    if raw.eq_ignore_ascii_case("null") {
-        return Ok(Value::Null);
-    }
-    if raw.eq_ignore_ascii_case("true") {
-        return Ok(Value::Bool(true));
-    }
-    if raw.eq_ignore_ascii_case("false") {
-        return Ok(Value::Bool(false));
-    }
-
-    if let Some(rest) = raw.strip_prefix('\'') {
-        if raw.ends_with('\'') && raw.len() >= 2 {
-            let unquoted = rest.strip_suffix('\'').unwrap_or(rest);
-            return Ok(Value::String(unquoted.to_string()));
-        }
-    }
-    if let Some(rest) = raw.strip_prefix('"') {
-        if raw.ends_with('"') && raw.len() >= 2 {
-            let unquoted = rest.strip_suffix('"').unwrap_or(rest);
-            return Ok(Value::String(unquoted.to_string()));
-        }
-    }
-
-    if let Ok(value) = raw.parse::<i64>() {
-        return Ok(value.into());
-    }
-    if let Ok(value) = raw.parse::<f64>() {
-        return Ok(value.into());
-    }
-
-    Ok(Value::String(raw.to_string()))
 }
 
 pub(super) fn tokenize_schema_field(raw: &str) -> Vec<String> {

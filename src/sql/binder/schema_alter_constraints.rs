@@ -19,6 +19,14 @@ pub(super) fn bind_alter_constraint_targets(
         AlterTableOperation::AddColumn {
             field, constraints, ..
         } => (constraints, Some(field.as_str())),
+        AlterTableOperation::AlterColumnSetDefault { field, .. }
+        | AlterTableOperation::AlterColumnDropDefault { field }
+        | AlterTableOperation::AlterColumnSetNotNull { field }
+        | AlterTableOperation::AlterColumnDropNotNull { field }
+        | AlterTableOperation::DropColumn { field } => {
+            use_declared_column_spelling(field, schema);
+            return Ok(());
+        }
         _ => return Ok(()),
     };
 
@@ -37,6 +45,19 @@ pub(super) fn bind_alter_constraint_targets(
     }
 
     Ok(())
+}
+
+/// Rewrites a column named by `ALTER COLUMN` or `DROP COLUMN` to the declared
+/// spelling, which is the key stored payloads and constraint
+/// metadata use; the binder already matched it without regard to ASCII case.
+fn use_declared_column_spelling(field: &mut String, schema: &CollectionSchema) {
+    if let Some(declared) = schema
+        .fields
+        .iter()
+        .find(|declared| declared.name.eq_ignore_ascii_case(field.trim()))
+    {
+        declared.name.clone_into(field);
+    }
 }
 
 /// Resolves a FOREIGN KEY's referenced relation and column to their stored

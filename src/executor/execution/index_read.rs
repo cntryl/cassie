@@ -1068,14 +1068,13 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
         Value::Int64(value) => serde_json::Value::Number((*value).into()),
         Value::Float64(value) => serde_json::Value::Number(serde_json::Number::from_f64(*value)?),
         Value::String(value) => serde_json::Value::String(value.clone()),
-        Value::Vector(value) => serde_json::Value::Array(
-            value
-                .values
-                .iter()
-                .filter_map(|value| serde_json::Number::from_f64(f64::from(*value)))
-                .map(serde_json::Value::Number)
-                .collect(),
-        ),
+        Value::Vector(value) => value
+            .values
+            .iter()
+            .map(|value| serde_json::Number::from_f64(f64::from(*value)))
+            .map(|number| number.map(serde_json::Value::Number))
+            .collect::<Option<_>>()
+            .map(serde_json::Value::Array)?,
         Value::Json(value) => value.clone(),
     })
 }

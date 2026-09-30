@@ -34,9 +34,14 @@ fn value_to_json(value: &Value) -> Result<serde_json::Value, QueryError> {
             value
                 .values
                 .iter()
-                .filter_map(|value| serde_json::Number::from_f64((*value).into()))
-                .map(serde_json::Value::Number)
-                .collect(),
+                .map(|value| {
+                    serde_json::Number::from_f64((*value).into())
+                        .map(serde_json::Value::Number)
+                        .ok_or_else(|| {
+                            QueryError::General(NON_FINITE_WRITE_VALUE_ERROR.to_string())
+                        })
+                })
+                .collect::<Result<_, _>>()?,
         ),
         Value::Json(value) => value.clone(),
     })

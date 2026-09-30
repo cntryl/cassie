@@ -548,14 +548,21 @@ fn query_value_to_json(value: Value) -> Result<serde_json::Value, CassieError> {
                 )
             }),
         Value::String(value) => Ok(serde_json::Value::String(value)),
-        Value::Vector(value) => Ok(serde_json::Value::Array(
-            value
-                .values
-                .into_iter()
-                .filter_map(|value| serde_json::Number::from_f64(f64::from(value)))
-                .map(serde_json::Value::Number)
-                .collect(),
-        )),
+        Value::Vector(value) => value
+            .values
+            .into_iter()
+            .map(|value| {
+                serde_json::Number::from_f64(f64::from(value))
+                    .map(serde_json::Value::Number)
+                    .ok_or_else(|| {
+                        CassieError::Unsupported(
+                            "non-finite scalar index expression values are not supported"
+                                .to_string(),
+                        )
+                    })
+            })
+            .collect::<Result<_, _>>()
+            .map(serde_json::Value::Array),
         Value::Json(value) => Ok(value),
     }
 }

@@ -3378,4 +3378,69 @@ mod graph_backing_table_ddl {
             let _ = std::fs::remove_dir_all(path);
         });
     }
+
+    #[test]
+    fn should_only_repoint_the_graph_in_the_altering_database() {
+        // Arrange
+        let runtime = current_thread_runtime();
+        runtime.block_on(async {
+            use_local_storage();
+            let path = data_dir("graph_backing_ddl_database_scope");
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let admin = cassie.create_session("tester", Some("postgres".to_string()));
+            let mut sessions = Vec::new();
+            for database in ["tenant_a", "tenant_b"] {
+                execute(&cassie, &admin, &format!("CREATE DATABASE {database}"));
+                let session = cassie.create_session("tester", Some(database.to_string()));
+                create_graph(&cassie, &session);
+                execute(
+                    &cassie,
+                    &session,
+                    "INSERT INTO social_nodes (node_type, node_id) VALUES ('person', 'alice'), ('person', 'bob'), ('person', 'carol')",
+                );
+                sessions.push(session);
+            }
+            let (tenant_a, tenant_b) = (&sessions[0], &sessions[1]);
+
+            // Act
+            execute(
+                &cassie,
+                tenant_a,
+                "ALTER TABLE social_edges RENAME COLUMN source_id TO src",
+            );
+            execute(&cassie, tenant_a, "ALTER TABLE social_edges RENAME TO other_edges");
+            execute(
+                &cassie,
+                tenant_a,
+                "INSERT INTO other_edges (edge_id, source_type, src, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'bob', 'knows', 1)",
+            );
+            execute(
+                &cassie,
+                tenant_b,
+                "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ('e1', 'person', 'alice', 'person', 'carol', 'knows', 1)",
+            );
+            let tenant_b_drop = cassie.execute_sql(
+                tenant_b,
+                "ALTER TABLE social_edges DROP COLUMN source_id",
+                vec![],
+            );
+            let altered_neighbors = neighbors(&cassie, tenant_a);
+            let untouched_neighbors = neighbors(&cassie, tenant_b);
+            drop(sessions);
+            drop(cassie);
+            let reopened = Cassie::new_with_data_dir(&path).expect("reopen cassie");
+            let restarted = reopened.startup();
+
+            // Assert
+            assert_eq!(altered_neighbors, vec![vec![Value::String("bob".to_string())]]);
+            assert_eq!(untouched_neighbors, vec![vec![Value::String("carol".to_string())]]);
+            assert!(
+                tenant_b_drop.is_err(),
+                "tenant_b graph still reads its own source_id column"
+            );
+            assert!(restarted.is_ok(), "restart after scoped graph DDL must succeed");
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
 }

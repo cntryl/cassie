@@ -7,7 +7,7 @@
 //! are rewritten to read those columns instead of re-evaluating per-row
 //! sub-expressions.
 
-use crate::sql::ast::{Expr, FunctionCall, SelectItem};
+use crate::sql::ast::{Expr, FunctionCall, OrderExpr, SelectItem};
 use crate::sql::functions::is_aggregate_function;
 
 use super::super::{aggregate_signature, group_expr_name};
@@ -30,6 +30,28 @@ pub(in crate::executor::execution) fn rewrite_aggregate_expr(
         }
         _ => expr.map_children(|child| rewrite_aggregate_expr(child, group_by)),
     }
+}
+
+/// Rewrites ORDER BY keys of a grouped query so they read the group row:
+/// a projection alias resolves to its expression first, then grouped
+/// sub-expressions and aggregate calls become group row columns.
+pub(in crate::executor::execution) fn rewrite_aggregate_order(
+    order: &[OrderExpr],
+    projection: &[SelectItem],
+    group_by: &[Expr],
+) -> Vec<OrderExpr> {
+    order
+        .iter()
+        .map(|order| {
+            let expr = crate::executor::sort::alias_expr(&order.expr, projection)
+                .unwrap_or_else(|| order.expr.clone());
+            OrderExpr {
+                expr: rewrite_aggregate_expr(&expr, group_by),
+                direction: order.direction.clone(),
+                nulls: order.nulls,
+            }
+        })
+        .collect()
 }
 
 /// Returns whether `expr` calls an aggregate function anywhere inside it.

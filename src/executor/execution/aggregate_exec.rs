@@ -26,7 +26,8 @@ mod tests;
 
 use group_memory::GroupMemory;
 pub(super) use rewrite::{
-    contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_projection,
+    contains_aggregate, rewrite_aggregate_expr, rewrite_aggregate_order,
+    rewrite_aggregate_projection,
 };
 use state::{AggregateAccumulator, PartialAggregateGroup};
 

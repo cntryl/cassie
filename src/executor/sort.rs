@@ -153,7 +153,9 @@ pub(crate) fn maintain_top_k_kernel(
     Ok(ranked.into_iter().map(|candidate| candidate.row).collect())
 }
 
-fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
+/// Resolves an ORDER BY reference to a projection alias into the aliased
+/// expression.
+pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
     match expr {
         Expr::Column(alias) => projection.iter().find_map(|item| {
             let alias_lower = alias.to_ascii_lowercase();

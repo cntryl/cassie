@@ -37,6 +37,7 @@ struct AccessPathContext<'a> {
     mixed_execution: Option<String>,
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct ExistsResolutionContext<'a> {
     pub(super) cassie: &'a Cassie,
     pub(super) session: Option<&'a CassieSession>,
@@ -44,6 +45,8 @@ pub(super) struct ExistsResolutionContext<'a> {
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) controls: &'a QueryExecutionControls,
+    /// The enclosing row a correlated subquery is evaluated against.
+    pub(super) outer_row: Option<&'a BatchRow>,
 }
 
 const ACCESS_PATH_EXECUTORS: &[AccessPathExecutor] = &[
@@ -175,6 +178,7 @@ fn execute_plan_with_physical(
                 user_functions: env.user_functions,
                 params: env.params,
                 controls: env.controls,
+                outer_row: None,
             },
             plan,
         )?;
@@ -470,6 +474,7 @@ pub(super) fn resolve_statement_exists(
             user_functions,
             params,
             controls,
+            outer_row: None,
         },
         expr,
     )
@@ -532,7 +537,15 @@ pub(super) fn resolve_exists_expr<'a>(
                 context.params,
                 context.controls,
             );
-            let rows = execute_plan_with_outer_row(&env, &logical, &mut subquery_context, None)?;
+            let outer_row = context.outer_row.map(|row| {
+                super::exists_correlated::scoped_outer_row(context.cassie, &logical, row)
+            });
+            let rows = execute_plan_with_outer_row(
+                &env,
+                &logical,
+                &mut subquery_context,
+                outer_row.as_ref(),
+            )?;
             Ok(Expr::BoolLiteral(!rows.is_empty()))
         }
         Expr::Column(_)
@@ -650,11 +663,25 @@ fn build_exists_logical_plan(
             (name.clone(), columns)
         })
         .collect();
+    let outer_fields: std::collections::HashSet<String> = context
+        .outer_row
+        .map(|row| {
+            row.entries()
+                .iter()
+                .flat_map(|(name, _)| {
+                    let name = name.to_ascii_lowercase();
+                    let column = name.rsplit('.').next().unwrap_or(&name).to_string();
+                    [name, column]
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let bound = crate::sql::binder::bind_with_outer_ctes(
         statement.clone(),
         &context.cassie.catalog,
         &binding_context,
         &outer_ctes,
+        &outer_fields,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
     let mut plan = crate::planner::logical::plan(&bound)

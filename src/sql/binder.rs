@@ -143,7 +143,8 @@ fn source_collection(source: &QuerySource) -> Option<String> {
 
 /// Binds a subquery statement whose relation names may refer to CTEs of the
 /// enclosing statement. `outer_ctes` maps each visible CTE name (lower case)
-/// to its output column names.
+/// to its output column names; `outer_fields` names the enclosing row's
+/// columns a correlated subquery may reference.
 ///
 /// # Errors
 ///
@@ -153,8 +154,30 @@ pub(crate) fn bind_with_outer_ctes(
     catalog: &Catalog,
     context: &BindingContext,
     outer_ctes: &HashMap<String, Vec<String>>,
+    outer_fields: &HashSet<String>,
 ) -> Result<BoundStatement, CassieError> {
-    let statement = bind_statement(statement, catalog, outer_ctes, context)?;
+    let statement = match statement.statement {
+        QueryStatement::Select(select) if !outer_fields.is_empty() => {
+            // A correlated subquery also sees the enclosing row's columns.
+            let select = select::bind_select_with_lateral_fields(
+                select,
+                catalog,
+                outer_ctes,
+                outer_fields,
+                context,
+            )?;
+            parsed_statement(&statement.raw_sql, QueryStatement::Select(select))
+        }
+        other => bind_statement(
+            ParsedStatement {
+                raw_sql: statement.raw_sql,
+                statement: other,
+            },
+            catalog,
+            outer_ctes,
+            context,
+        )?,
+    };
     let indexes = bound_indexes(&statement, catalog);
     Ok(BoundStatement { statement, indexes })
 }

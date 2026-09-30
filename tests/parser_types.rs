@@ -5,6 +5,8 @@
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
@@ -4994,5 +4996,48 @@ mod typed_parameter_canonicalization {
         assert_eq!(by_uuid_list, expected);
         assert_eq!(by_bytea, expected);
         assert_eq!(by_timestamp, expected);
+    }
+}
+
+mod sql_substring_window {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::sql_fixture;
+
+    #[test]
+    fn should_clamp_substring_window_that_starts_before_the_string() {
+        // Arrange
+        let fixture = sql_fixture("substring_window", &[]);
+
+        // Act
+        let windows = [
+            "SELECT substring('abcdef', 0, 3)",
+            "SELECT substring('abcdef', -1, 3)",
+            "SELECT substring('abcdef', -5, 3)",
+            "SELECT substring('abcdef', 2, 3)",
+            "SELECT substring('abcdef', -1)",
+        ]
+        .map(|sql| fixture.rows(sql));
+
+        // Assert
+        let text = |value: &str| vec![vec![Value::String(value.to_string())]];
+        assert_eq!(
+            windows,
+            [text("ab"), text("a"), text(""), text("bcd"), text("abcdef")]
+        );
+    }
+
+    #[test]
+    fn should_reject_negative_substring_length() {
+        // Arrange
+        let fixture = sql_fixture("substring_negative_length", &[]);
+
+        // Act
+        let failed = fixture
+            .execute("SELECT substring('abcdef', 2, -1)")
+            .is_err();
+
+        // Assert
+        assert!(failed, "a negative substring length must be rejected");
     }
 }

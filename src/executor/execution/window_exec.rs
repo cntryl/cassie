@@ -287,9 +287,12 @@ fn window_value_at(
     }
 }
 
+/// The explicit frame, or PostgreSQL's default `RANGE BETWEEN UNBOUNDED
+/// PRECEDING AND CURRENT ROW` (through the last ORDER BY peer), which covers
+/// the whole partition when there is no ORDER BY.
 fn effective_window_frame(function: &WindowFunctionCall) -> WindowFrame {
     function.frame.clone().unwrap_or(WindowFrame {
-        unit: WindowFrameUnit::Rows,
+        unit: WindowFrameUnit::Range,
         start: WindowFrameBound::UnboundedPreceding,
         end: if function.order_by.is_empty() {
             WindowFrameBound::UnboundedFollowing

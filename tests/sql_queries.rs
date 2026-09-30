@@ -475,6 +475,37 @@ mod integration_sql_aggregates {
     }
 
     #[test]
+    fn should_report_each_unaliased_aggregate_from_column_batch_summaries() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_same_name_column_batch",
+            &[
+                "CREATE TABLE tc (k INT, v INT)",
+                "INSERT INTO tc (k, v) VALUES (1, 10)",
+                "INSERT INTO tc (k, v) VALUES (2, NULL)",
+                "INSERT INTO tc (k, v) VALUES (NULL, 30)",
+                "CREATE INDEX tc_idx ON tc USING column (k, v) WITH (segment_size = 2)",
+            ],
+        );
+
+        // Act
+        let unfiltered = fixture.rows("SELECT COUNT(*), COUNT(v), SUM(k), SUM(v) FROM tc");
+        let filtered = fixture.rows("SELECT COUNT(k), COUNT(v) FROM tc WHERE k > 0");
+
+        // Assert
+        assert_eq!(
+            unfiltered,
+            vec![vec![
+                Value::Int64(3),
+                Value::Int64(2),
+                Value::Int64(3),
+                Value::Int64(40)
+            ]]
+        );
+        assert_eq!(filtered, vec![vec![Value::Int64(2), Value::Int64(1)]]);
+    }
+
+    #[test]
     fn should_report_aggregate_value_when_a_column_shares_its_name() {
         // Arrange
         let fixture = super::support_sql_fixture::sql_fixture(

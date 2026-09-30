@@ -46,9 +46,29 @@ impl BatchRow {
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
-        let index = *lookup.get(name)?;
+        let index = match lookup.get(name) {
+            Some(index) => *index,
+            None => self.case_insensitive_index(name)?,
+        };
         let entry = &self.values[index];
         Some(&entry.1)
+    }
+
+    /// Resolves `name` against entry and alias names ignoring ASCII case.
+    /// Unquoted SQL identifiers are case-insensitive, so a reference spelled
+    /// in a different case than the stored column still reads its value. An
+    /// exact-case match always wins first, so distinct quoted spellings keep
+    /// resolving to their own columns.
+    fn case_insensitive_index(&self, name: &str) -> Option<usize> {
+        self.values
+            .iter()
+            .position(|(column, _)| column.eq_ignore_ascii_case(name))
+            .or_else(|| {
+                self.aliases
+                    .iter()
+                    .find(|(alias, _)| alias.eq_ignore_ascii_case(name))
+                    .map(|(_, index)| *index)
+            })
     }
 
     pub(crate) fn into_entries(self) -> RowEntries {
@@ -101,9 +121,7 @@ impl RowAccess for BatchRow {
 
 impl RowAccess for Vec<(String, Value)> {
     fn get(&self, name: &str) -> Option<&Value> {
-        self.iter()
-            .find(|(column, _)| column == name)
-            .map(|(_, value)| value)
+        entry_value(self, name)
     }
 
     fn entries(&self) -> &[(String, Value)] {
@@ -113,14 +131,26 @@ impl RowAccess for Vec<(String, Value)> {
 
 impl RowAccess for [(String, Value)] {
     fn get(&self, name: &str) -> Option<&Value> {
-        self.iter()
-            .find(|(column, _)| column == name)
-            .map(|(_, value)| value)
+        entry_value(self, name)
     }
 
     fn entries(&self) -> &[(String, Value)] {
         self
     }
+}
+
+/// Looks `name` up in row entries, preferring an exact-case match and falling
+/// back to an ASCII case-insensitive one (see [`BatchRow::get`]).
+fn entry_value<'a>(entries: &'a [(String, Value)], name: &str) -> Option<&'a Value> {
+    entries
+        .iter()
+        .find(|(column, _)| column == name)
+        .or_else(|| {
+            entries
+                .iter()
+                .find(|(column, _)| column.eq_ignore_ascii_case(name))
+        })
+        .map(|(_, value)| value)
 }
 
 pub(crate) const DEFAULT_BATCH_SIZE: usize = 1024;

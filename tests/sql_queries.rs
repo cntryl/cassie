@@ -624,15 +624,16 @@ mod integration_sql_aggregates {
         .map(|sql| fixture.error(sql).to_string());
 
         // Assert
-        assert_eq!(
-            errors,
-            [
-                "execution error: function sum(text) does not exist",
-                "execution error: function avg(text) does not exist",
-                "execution error: function sum(boolean) does not exist",
-                "execution error: function avg(boolean) does not exist",
-                "execution error: function sum(text) does not exist",
-            ]
+        assert!(
+            errors
+                == [
+                    "execution error: function sum(text) does not exist",
+                    "execution error: function avg(text) does not exist",
+                    "execution error: function sum(boolean) does not exist",
+                    "execution error: function avg(boolean) does not exist",
+                    "execution error: function sum(text) does not exist",
+                ],
+            "each aggregate must name its non-numeric input type"
         );
     }
 
@@ -674,12 +675,13 @@ mod integration_sql_aggregates {
         .map(|sql| fixture.error(sql).to_string());
 
         // Assert
-        assert_eq!(
-            errors,
-            [
-                "execution error: function sum(text) does not exist",
-                "execution error: function avg(text) does not exist",
-            ]
+        assert!(
+            errors
+                == [
+                    "execution error: function sum(text) does not exist",
+                    "execution error: function avg(text) does not exist",
+                ],
+            "a non-numeric row in a mixed column must fail the aggregate"
         );
     }
 }

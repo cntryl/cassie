@@ -82,36 +82,136 @@ pub(super) fn parse_set_select_statement(
     token_len: usize,
     operator: SetOperator,
 ) -> Result<ParsedStatement, SqlError> {
-    let left_sql = trimmed[..set_pos].trim();
-    let right_sql = trimmed[set_pos + token_len..].trim();
-    if left_sql.is_empty() || right_sql.is_empty() {
+    let mut operand_sql = vec![trimmed[..set_pos].trim()];
+    let mut operators = vec![operator];
+    let mut rest = trimmed[set_pos + token_len..].trim();
+    while let Some((position, len, operator)) = find_set_operation(rest) {
+        operand_sql.push(rest[..position].trim());
+        operators.push(operator);
+        rest = rest[position + len..].trim();
+    }
+    if operand_sql.iter().any(|sql| sql.is_empty()) || rest.is_empty() {
         return Err(SqlError::new(
             "set operation requires both SELECT operands".into(),
         ));
     }
 
-    let (right_sql, global_order, global_limit, global_offset) =
-        split_set_right_and_global_clauses(right_sql)?;
-    let mut left = parse_select_statement(left_sql, withs, recursive)?;
-    let right = parse_select_statement(&right_sql, Vec::new(), false)?;
-    let QueryStatement::Select(left_select) = &mut left.statement else {
-        return Err(SqlError::new(
+    let (last_sql, global_order, global_limit, global_offset) =
+        split_set_right_and_global_clauses(rest)?;
+    let mut operands = Vec::with_capacity(operand_sql.len() + 1);
+    for sql in operand_sql
+        .into_iter()
+        .chain(std::iter::once(last_sql.as_str()))
+    {
+        operands.push(parse_set_operand(sql)?);
+    }
+    let first_projection = operands[0].projection.clone();
+
+    let mut root = build_set_tree(operands, &operators);
+    root.ctes = withs;
+    root.recursive = recursive;
+    root.order = resolve_order_ordinals(global_order, &first_projection)?;
+    root.limit = global_limit;
+    root.offset = global_offset;
+    Ok(ParsedStatement {
+        raw_sql: trimmed.to_string(),
+        statement: QueryStatement::Select(root),
+    })
+}
+
+fn parse_set_operand(sql: &str) -> Result<SelectStatement, SqlError> {
+    match parse_select_statement(sql, Vec::new(), false)?.statement {
+        QueryStatement::Select(select) => Ok(select),
+        _ => Err(SqlError::new(
             "set operation requires SELECT operands".into(),
-        ));
-    };
-    let QueryStatement::Select(right_select) = right.statement else {
-        return Err(SqlError::new(
-            "set operation requires SELECT operands".into(),
-        ));
-    };
-    left_select.set = Some(Box::new(SelectSet {
+        )),
+    }
+}
+
+/// Folds operands into a tree where every operator is left-associative and
+/// `INTERSECT` binds tighter than `UNION` and `EXCEPT`, as in PostgreSQL.
+fn build_set_tree(operands: Vec<SelectStatement>, operators: &[SetOperator]) -> SelectStatement {
+    let mut operands = operands.into_iter();
+    let mut terms = Vec::new();
+    let mut term_operators = Vec::new();
+    let mut term = operands.next().expect("set operation has a first operand");
+    for (&operator, operand) in operators.iter().zip(operands) {
+        if operator == SetOperator::Intersect {
+            term = combine_set_operands(term, operator, operand);
+        } else {
+            terms.push(term);
+            term_operators.push(operator);
+            term = operand;
+        }
+    }
+    terms.push(term);
+
+    let mut terms = terms.into_iter();
+    let mut root = terms.next().expect("set operation has a first term");
+    for (operator, term) in term_operators.into_iter().zip(terms) {
+        root = combine_set_operands(root, operator, term);
+    }
+    root
+}
+
+/// Returns `left <operator> right`. A left operand that is already a set
+/// operation is regrouped only when the result is unchanged
+/// (`(A op B) op C == A op (B op C)` for a repeated associative operator);
+/// otherwise it is wrapped as a derived table so it evaluates first.
+fn combine_set_operands(
+    mut left: SelectStatement,
+    operator: SetOperator,
+    right: SelectStatement,
+) -> SelectStatement {
+    let associative = matches!(
         operator,
-        right: Box::new(right_select),
-    }));
-    left_select.order = resolve_order_ordinals(global_order, &left_select.projection)?;
-    left_select.limit = global_limit;
-    left_select.offset = global_offset;
-    Ok(left)
+        SetOperator::Union | SetOperator::UnionAll | SetOperator::Intersect
+    );
+    match left.set.take() {
+        None => {
+            left.set = Some(Box::new(SelectSet {
+                operator,
+                right: Box::new(right),
+            }));
+            left
+        }
+        Some(mut set) if associative && set.operator == operator => {
+            set.right = Box::new(combine_set_operands(*set.right, operator, right));
+            left.set = Some(set);
+            left
+        }
+        Some(set) => {
+            left.set = Some(set);
+            let mut wrapped = derived_set_operand(left);
+            wrapped.set = Some(Box::new(SelectSet {
+                operator,
+                right: Box::new(right),
+            }));
+            wrapped
+        }
+    }
+}
+
+fn derived_set_operand(select: SelectStatement) -> SelectStatement {
+    SelectStatement {
+        source: QuerySource::Subquery {
+            alias: "__set_operand".to_string(),
+            select: Box::new(select),
+            lateral: false,
+        },
+        ctes: Vec::new(),
+        recursive: false,
+        distinct: false,
+        distinct_on: Vec::new(),
+        projection: vec![super::SelectItem::Wildcard],
+        filter: None,
+        group_by: Vec::new(),
+        having: None,
+        order: Vec::new(),
+        limit: None,
+        offset: None,
+        set: None,
+    }
 }
 
 /// Returns the byte offset, byte length and operator of the first top-level

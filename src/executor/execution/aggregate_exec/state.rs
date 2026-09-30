@@ -375,7 +375,14 @@ impl AggregateAccumulator {
         selected: &mut Option<Value>,
         max: bool,
     ) -> Result<RetainedChange, QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
+        let stored = function
+            .args
+            .first()
+            .and_then(|expr| stored_json_column_value(row, expr));
+        let Some(value) = (match stored {
+            Some(value) => Some(value),
+            None => Self::evaluate_input(function, row, context)?,
+        }) else {
             return Ok(RetainedChange::default());
         };
         if matches!(value, Value::Null) {
@@ -395,6 +402,20 @@ impl AggregateAccumulator {
             return Ok(change);
         }
         Ok(RetainedChange::default())
+    }
+}
+
+/// The stored value of a bare column reference that holds a JSON value (an
+/// array or json document), read directly from the row. Scalar expression
+/// evaluation flattens JSON to text, which would turn an array column's
+/// group key or MIN/MAX result into a string under an array-typed column.
+pub(super) fn stored_json_column_value(row: &BatchRow, expr: &Expr) -> Option<Value> {
+    let Expr::Column(name) = expr else {
+        return None;
+    };
+    match row.get(name) {
+        Some(value @ Value::Json(_)) => Some(value.clone()),
+        _ => None,
     }
 }
 

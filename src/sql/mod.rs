@@ -53,6 +53,40 @@ pub fn parameter_type_oids_with_catalog(
     oids
 }
 
+/// Returns a planner error message when a client-declared parameter type
+/// cannot be compared with, or assigned to, the `BOOLEAN` operand it meets.
+///
+/// Literals of other families are rejected against `BOOLEAN` operands by
+/// operand-family validation; a declared parameter type is held to the same
+/// rule, as PostgreSQL does, instead of being compared by truthiness.
+#[must_use]
+pub fn declared_parameter_type_conflict(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+) -> Option<String> {
+    let boolean_oid = i32::try_from(DataType::Boolean.type_oid()).ok()?;
+    let inferred = parameter_type_oids_with_catalog(statement, &[], catalog);
+    provided
+        .iter()
+        .zip(inferred)
+        .find_map(|(declared, inferred)| {
+            if inferred != boolean_oid
+                || matches!(*declared, 0 | UNKNOWN_PARAMETER_TYPE_OID)
+                || *declared == boolean_oid
+            {
+                return None;
+            }
+            let family = match *declared {
+                20 | 21 | 23 | 700 | 701 | 1700 => "numeric",
+                _ => "text",
+            };
+            Some(format!(
+                "incompatible comparison operands: boolean and {family}"
+            ))
+        })
+}
+
 fn infer_parameter_type_oids_query(
     statement: &QueryStatement,
     catalog: &crate::catalog::Catalog,

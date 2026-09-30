@@ -308,7 +308,8 @@ async fn execute_cursor_portal_page(
     };
     cassie.runtime.record_query_peak_memory(peak_bytes);
     let rows = portal_document_rows(&cassie, &spec, request.prepared, documents);
-    let command = format!("SELECT {}", request.rows_emitted.saturating_add(rows.len()));
+    // The page writer fills in the rows this Execute returned.
+    let command = "SELECT".to_string();
     let suspended_cancellation = if remains_suspended {
         Some(cancellation.suspend())
     } else {

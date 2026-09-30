@@ -3872,6 +3872,79 @@ mod integration_sql_insert_values {
     }
 
     #[test]
+    fn should_return_stored_canonical_typed_text_from_insert_update_returning() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("insert_values_returning_canonical");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE returning_canonical (k INT, ts TIMESTAMP, tag UUID, blob BYTEA)",
+                    vec![],
+                )
+                .unwrap();
+            let expected = vec![
+                Value::String("2024-06-01T08:00:00.000000Z".to_string()),
+                Value::String("6ba7b810-9dad-11d1-80b4-00c04fd430c8".to_string()),
+                Value::String("\\xcafe".to_string()),
+            ];
+
+            // Act
+            let autocommit = cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO returning_canonical (k, ts, tag, blob) VALUES (1, '2024-06-01 08:00:00', '6BA7B810-9DAD-11D1-80B4-00C04FD430C8', '\\xCAFE') RETURNING ts, tag, blob",
+                    vec![],
+                )
+                .unwrap();
+            cassie.execute_sql(&session, "BEGIN", vec![]).unwrap();
+            let staged = cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO returning_canonical (k, ts, tag, blob) VALUES (2, $1, $2, $3) RETURNING ts, tag, blob",
+                    vec![
+                        Value::String("2024-06-01 08:00:00".to_string()),
+                        Value::String("6BA7B810-9DAD-11D1-80B4-00C04FD430C8".to_string()),
+                        Value::String("\\xCAFE".to_string()),
+                    ],
+                )
+                .unwrap();
+            let updated = cassie
+                .execute_sql(
+                    &session,
+                    "UPDATE returning_canonical SET ts = '2024-06-01 08:00:00' WHERE k = 2 RETURNING ts, tag, blob",
+                    vec![],
+                )
+                .unwrap();
+            cassie.execute_sql(&session, "COMMIT", vec![]).unwrap();
+            let stored = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT ts, tag, blob FROM returning_canonical ORDER BY k",
+                    vec![],
+                )
+                .unwrap();
+
+            // Assert
+            assert_eq!(autocommit.rows, vec![expected.clone()]);
+            assert_eq!(staged.rows, vec![expected.clone()]);
+            assert_eq!(updated.rows, vec![expected.clone()]);
+            assert_eq!(stored.rows, vec![expected.clone(), expected]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_insert_values_using_table_column_order() {
         // Arrange
         use_local_storage();

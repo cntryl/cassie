@@ -81,6 +81,7 @@ pub(crate) fn graph_inbound_edge_type_key(record: &GraphEdgeRecord) -> Vec<u8> {
 }
 
 fn graph_node_prefix(graph_id: u64, ordering: &[u8], node_type: &str, node_id: &str) -> Vec<u8> {
+    let node_type = node_type.to_ascii_lowercase();
     let graph = encoded_u64_component(graph_id);
     prefix(
         FAMILY_GRAPH_ADJACENCY,
@@ -100,6 +101,7 @@ fn graph_node_type_prefix(
     node_id: &str,
     edge_type: &str,
 ) -> Vec<u8> {
+    let node_type = node_type.to_ascii_lowercase();
     let edge_type = edge_type.to_ascii_lowercase();
     let graph = encoded_u64_component(graph_id);
     prefix(
@@ -118,12 +120,13 @@ fn graph_weight_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bo
     let graph = encoded_u64_component(record.graph_id);
     let weight = sortable_weight(record.weight);
     let (node_type, node_id, other_type, other_id) = graph_edge_nodes(record, outbound);
+    let node_type = anchor_node_type(node_type);
     key(
         FAMILY_GRAPH_ADJACENCY,
         &[
             graph.as_slice(),
             ordering,
-            node_type,
+            node_type.as_bytes(),
             node_id,
             weight.as_bytes(),
             record.edge_id.as_bytes(),
@@ -139,12 +142,13 @@ fn graph_type_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bool
     let weight = sortable_weight(record.weight);
     let normalized_edge_type = record.edge_type.to_ascii_lowercase();
     let (node_type, node_id, other_type, other_id) = graph_edge_nodes(record, outbound);
+    let node_type = anchor_node_type(node_type);
     key(
         FAMILY_GRAPH_ADJACENCY,
         &[
             graph.as_slice(),
             ordering,
-            node_type,
+            node_type.as_bytes(),
             node_id,
             normalized_edge_type.as_bytes(),
             weight.as_bytes(),
@@ -154,6 +158,14 @@ fn graph_type_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bool
             other_id,
         ],
     )
+}
+
+/// Node types match ASCII case-insensitively (as the row-scan fallback and
+/// edge types do), so the anchor node type is folded in adjacency keys and
+/// in the prefixes that scan them. The far endpoint keeps its stored spelling
+/// because it is decoded back into the returned edge.
+fn anchor_node_type(node_type: &[u8]) -> String {
+    String::from_utf8_lossy(node_type).to_ascii_lowercase()
 }
 
 fn graph_edge_nodes(record: &GraphEdgeRecord, outbound: bool) -> (&[u8], &[u8], &[u8], &[u8]) {

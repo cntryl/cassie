@@ -4678,6 +4678,34 @@ mod pgwire_result_framing {
     }
 
     #[test]
+    fn should_encode_json_scalars_given_binary_result_format() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "binary-json-scalars",
+            &[
+                "CREATE TABLE framing_json (id TEXT, doc JSON)",
+                "INSERT INTO framing_json (id, doc) VALUES ('a-arr', '[1,2]'), ('b-bool', 'true'), ('c-num', '7'), ('d-float', '2.5'), ('e-obj', '{\"a\":1}')",
+            ],
+        );
+
+        // Act
+        let frames = binary_round_trip(cassie, path, "SELECT doc FROM framing_json ORDER BY id");
+
+        // Assert
+        assert_eq!(support::error_code(&frames), None);
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![
+                vec![Some("[1,2]".to_string())],
+                vec![Some("true".to_string())],
+                vec![Some("7".to_string())],
+                vec![Some("2.5".to_string())],
+                vec![Some("{\"a\":1}".to_string())],
+            ]
+        );
+    }
+
+    #[test]
     fn should_render_bool_as_postgres_text_given_text_result_format() {
         // Arrange
         let (cassie, path) = configured_cassie(

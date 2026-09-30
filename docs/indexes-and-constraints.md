@@ -302,6 +302,13 @@ Compatibility notes:
 - Primary key, unique, not-null, check, and default behavior should stay PostgreSQL-like for supported syntax.
 - Foreign key and generated-column behavior should be documented with explicit limits because Cassie is a projection/read-model database, not a full OLTP PostgreSQL replacement.
 
+Multi-column UNIQUE constraints:
+
+- `UNIQUE (a, b)` and `CONSTRAINT name UNIQUE (a, b)` reject a row only when the whole tuple `(a, b)` already exists. A row that shares only one of the columns is accepted, and a tuple that contains a NULL never conflicts. An unnamed constraint is named `<table>_<a>_<b>_key`, as in PostgreSQL.
+- The constraint is enforced through a unique scalar index with the constraint's name, created by `CREATE TABLE` or `ALTER TABLE ... ADD CONSTRAINT`. Adding the constraint fails if existing rows repeat a tuple. `DROP CONSTRAINT` drops the index. `DROP INDEX` on the backing index is refused. `DROP COLUMN` on one of its columns drops the whole constraint.
+- `ON CONFLICT (a, b)` uses the constraint as its arbiter, with the target columns in any order.
+- A column can belong to only one UNIQUE constraint when either of the constraints spans several columns (for example `a INT UNIQUE` together with `UNIQUE (a, b)`, or `UNIQUE (a, b)` together with `UNIQUE (b, c)`). Such DDL is rejected rather than applied partially. A multi-column `PRIMARY KEY` is not supported.
+
 Foreign key DDL lifecycle:
 
 - Constraint column lists match declared columns without regard to ASCII case and are stored with the declared spelling.

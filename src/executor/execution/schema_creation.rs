@@ -81,7 +81,11 @@ fn create_table_gated(
         .midge
         .save_constraints(&statement.table, constraints.as_slice())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let primary_key_indexes = primary_key_indexes(&statement.table, constraints.as_slice());
+    let mut primary_key_indexes = primary_key_indexes(&statement.table, constraints.as_slice());
+    primary_key_indexes.extend(catalog::composite_unique_indexes(
+        &statement.table,
+        constraints.as_slice(),
+    ));
     for index in &primary_key_indexes {
         cassie
             .midge

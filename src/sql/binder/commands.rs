@@ -211,21 +211,23 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
         return true;
     }
 
-    let normalized_target = target_fields
-        .iter()
-        .map(|field| field.to_ascii_lowercase())
-        .collect::<Vec<_>>();
+    // PostgreSQL infers the arbiter from the set of target columns, so
+    // `ON CONFLICT (b, a)` matches a key declared on `(a, b)`.
+    let column_set = |fields: &mut dyn Iterator<Item = &String>| {
+        let mut set = fields
+            .map(|field| field.to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        set.sort();
+        set.dedup();
+        set
+    };
+    let normalized_target = column_set(&mut target_fields.iter());
 
-    let constraint_fields = catalog
-        .get_constraints(table)
-        .into_iter()
-        .filter(|constraint| constraint.primary_key || constraint.unique)
-        .map(|constraint| vec![constraint.field.to_ascii_lowercase()])
-        .collect::<Vec<_>>();
-    if constraint_fields
-        .iter()
-        .any(|fields| fields.as_slice() == normalized_target.as_slice())
-    {
+    let constraints = catalog.get_constraints(table);
+    if constraints.iter().any(|constraint| {
+        crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
+            && normalized_target == [constraint.field.to_ascii_lowercase()]
+    }) {
         return true;
     }
 
@@ -233,14 +235,7 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
         .list_indexes(table)
         .into_iter()
         .filter(|index| index.unique && index.kind == crate::catalog::IndexKind::Scalar)
-        .map(|index| {
-            index
-                .normalized_fields()
-                .into_iter()
-                .map(|field| field.to_ascii_lowercase())
-                .collect::<Vec<_>>()
-        })
-        .any(|fields| fields.as_slice() == normalized_target.as_slice())
+        .any(|index| column_set(&mut index.normalized_fields().iter()) == normalized_target)
 }
 
 pub(super) fn bind_update(

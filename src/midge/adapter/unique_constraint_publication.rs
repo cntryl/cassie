@@ -71,10 +71,12 @@ impl Midge {
         let fields = constraints
             .iter()
             .filter(|constraint| {
-                (constraint.unique || constraint.primary_key)
+                crate::catalog::enforces_single_column_uniqueness(constraint, constraints)
                     && !previous.iter().any(|existing| {
                         existing.field.eq_ignore_ascii_case(&constraint.field)
-                            && (existing.unique || existing.primary_key)
+                            && crate::catalog::enforces_single_column_uniqueness(
+                                existing, &previous,
+                            )
                     })
             })
             .cloned()

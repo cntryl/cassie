@@ -761,7 +761,7 @@ impl Cassie {
         exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
         for constraint in constraints {
-            if !(constraint.unique || constraint.primary_key) {
+            if !crate::catalog::enforces_single_column_uniqueness(constraint, constraints) {
                 continue;
             }
 
@@ -772,13 +772,15 @@ impl Cassie {
                 continue;
             }
 
-            if self.value_exists_for_collection_field(
-                session,
-                collection,
-                &constraint.field,
-                value,
-                exclude_id,
-            )? {
+            if self
+                .find_document_id_by_fields(
+                    session,
+                    collection,
+                    &[(constraint.field.as_str(), value)],
+                    exclude_id,
+                )?
+                .is_some()
+            {
                 return Err(CassieError::UniqueViolation {
                     table: collection.to_string(),
                     column: constraint.field.clone(),
@@ -871,31 +873,6 @@ impl Cassie {
         }
 
         Ok(())
-    }
-
-    pub(crate) fn value_exists_for_collection_field(
-        &self,
-        session: Option<&CassieSession>,
-        collection: &str,
-        field: &str,
-        value: &serde_json::Value,
-        exclude_id: Option<&str>,
-    ) -> Result<bool, CassieError> {
-        for document in self
-            .scan_documents_batched_for_session(session, collection, 1024)?
-            .into_iter()
-            .flatten()
-        {
-            if exclude_id.is_some_and(|id| document.id == id) {
-                continue;
-            }
-
-            if document.payload.get(field) == Some(value) {
-                return Ok(true);
-            }
-        }
-
-        Ok(false)
     }
 
     pub(crate) fn find_document_id_by_fields(

@@ -16,9 +16,10 @@ impl Catalog {
         field: &str,
         excluding_index: Option<&str>,
     ) -> bool {
-        self.get_constraints(table).into_iter().any(|candidate| {
+        let constraints = self.get_constraints(table);
+        constraints.iter().any(|candidate| {
             candidate.field.eq_ignore_ascii_case(field)
-                && (candidate.primary_key || candidate.unique)
+                && crate::catalog::enforces_single_column_uniqueness(candidate, &constraints)
         }) || self
             .list_indexes(table)
             .into_iter()

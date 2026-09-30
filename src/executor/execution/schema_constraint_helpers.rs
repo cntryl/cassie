@@ -8,6 +8,9 @@ pub(super) fn alter_table_drop_constraint(
     if_exists: bool,
 ) -> Result<(), QueryError> {
     let mut constraints = cassie.catalog.get_constraints(table);
+    let dropped_composite = crate::catalog::composite_unique_constraints(&constraints)
+        .into_iter()
+        .find(|composite| composite.name.eq_ignore_ascii_case(name));
     let mut constrained_unique_fields = Vec::new();
     let mut found = false;
     for constraint in &mut constraints {
@@ -93,19 +96,65 @@ pub(super) fn alter_table_drop_constraint(
         .catalog
         .register_constraints(table, constraints.clone());
 
+    if let Some(composite) = dropped_composite {
+        drop_constraint_index(cassie, table, &composite.name)?;
+    }
     if !constraints.iter().any(|constraint| constraint.primary_key) {
-        let primary_index_name = format!("{table}_pkey");
-        if cassie
-            .catalog
-            .get_index(table, &primary_index_name)
-            .is_some()
+        drop_constraint_index(cassie, table, &format!("{table}_pkey"))?;
+    }
+    Ok(())
+}
+
+/// Drops the index that backed a dropped PRIMARY KEY or multi-column UNIQUE
+/// constraint, when it exists.
+fn drop_constraint_index(cassie: &Cassie, table: &str, index: &str) -> Result<(), QueryError> {
+    if cassie.catalog.get_index(table, index).is_none() {
+        return Ok(());
+    }
+    cassie
+        .midge
+        .defer_drop_index(table, index, cassie.runtime.schema_epoch())
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.unregister_index(table, index);
+    Ok(())
+}
+
+/// Drops every multi-column UNIQUE constraint that includes `field`, as
+/// PostgreSQL drops such a constraint with the column instead of leaving it
+/// on the remaining columns.
+pub(super) fn drop_composite_unique_constraints_on_column(
+    cassie: &Cassie,
+    table: &str,
+    field: &str,
+) -> Result<(), QueryError> {
+    let constraints = cassie.catalog.get_constraints(table);
+    for composite in crate::catalog::composite_unique_constraints(&constraints) {
+        if composite
+            .fields
+            .iter()
+            .any(|member| member.eq_ignore_ascii_case(field))
         {
-            cassie
-                .midge
-                .defer_drop_index(table, &primary_index_name, cassie.runtime.schema_epoch())
-                .map_err(|error| QueryError::General(error.to_string()))?;
-            cassie.catalog.unregister_index(table, &primary_index_name);
+            alter_table_drop_constraint(cassie, table, &composite.name, false)?;
         }
+    }
+    Ok(())
+}
+
+/// Refuses to drop the unique index that backs a multi-column UNIQUE
+/// constraint, as PostgreSQL refuses to drop an index a constraint requires.
+pub(super) fn reject_constraint_index_drop(
+    cassie: &Cassie,
+    table: &str,
+    index: &str,
+) -> Result<(), QueryError> {
+    let constraints = cassie.catalog.get_constraints(table);
+    if crate::catalog::composite_unique_constraints(&constraints)
+        .iter()
+        .any(|composite| composite.name.eq_ignore_ascii_case(index))
+    {
+        return Err(QueryError::General(format!(
+            "cannot drop index '{index}' because constraint '{index}' on '{table}' requires it; drop the constraint instead"
+        )));
     }
     Ok(())
 }

@@ -5156,3 +5156,52 @@ mod sql_float_integer_casts {
         assert!(failed, "a float beyond int4 must not cast to INT");
     }
 }
+
+mod sql_unbounded_varchar {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::sql_fixture;
+
+    #[test]
+    fn should_store_any_length_in_bare_varchar_column() {
+        // Arrange
+        let long = "x".repeat(300);
+        let fixture = sql_fixture(
+            "bare_varchar_unbounded",
+            &["CREATE TABLE vc (a VARCHAR, b VARCHAR(8), c CHAR)"],
+        );
+
+        // Act
+        let inserted = fixture
+            .execute(&format!(
+                "INSERT INTO vc (a, b, c) VALUES ('{long}', 'hi', 'x')"
+            ))
+            .is_ok();
+        let rows = fixture.rows("SELECT a, b, c FROM vc");
+
+        // Assert
+        assert!(inserted, "bare VARCHAR must accept a non-empty value");
+        assert_eq!(
+            rows,
+            vec![vec![
+                Value::String(long.clone()),
+                Value::String("hi".to_string()),
+                Value::String("x".to_string())
+            ]]
+        );
+    }
+
+    #[test]
+    fn should_keep_rejecting_values_longer_than_varchar_limit() {
+        // Arrange
+        let fixture = sql_fixture("bounded_varchar_limit", &["CREATE TABLE vb (b VARCHAR(2))"]);
+
+        // Act
+        let failed = fixture
+            .execute("INSERT INTO vb (b) VALUES ('abc')")
+            .is_err();
+
+        // Assert
+        assert!(failed, "VARCHAR(2) must reject three characters");
+    }
+}

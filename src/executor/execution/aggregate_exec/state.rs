@@ -287,9 +287,6 @@ impl AggregateAccumulator {
         let Some(expr) = function.args.first() else {
             return Ok(None);
         };
-        if let Some(value) = stored_json_column_value(row, expr) {
-            return Ok(Some(value));
-        }
         filter::evaluate_expr_value(
             row,
             expr,
@@ -378,7 +375,14 @@ impl AggregateAccumulator {
         selected: &mut Option<Value>,
         max: bool,
     ) -> Result<RetainedChange, QueryError> {
-        let Some(value) = Self::evaluate_input(function, row, context)? else {
+        let stored = function
+            .args
+            .first()
+            .and_then(|expr| stored_json_column_value(row, expr));
+        let Some(value) = (match stored {
+            Some(value) => Some(value),
+            None => Self::evaluate_input(function, row, context)?,
+        }) else {
             return Ok(RetainedChange::default());
         };
         if matches!(value, Value::Null) {

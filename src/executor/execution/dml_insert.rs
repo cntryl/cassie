@@ -119,8 +119,9 @@ fn find_insert_conflict_row_id(
             .map_err(QueryError::from);
     }
 
-    for constraint in cassie.catalog.get_constraints(&statement.table) {
-        if !(constraint.primary_key || constraint.unique) {
+    let constraints = cassie.catalog.get_constraints(&statement.table);
+    for constraint in &constraints {
+        if !crate::catalog::enforces_single_column_uniqueness(constraint, &constraints) {
             continue;
         }
         let Some(value) = object.get(&constraint.field) else {

@@ -292,6 +292,11 @@ pub(super) fn drop_index(
 
     if let Some(index) = index.as_ref() {
         schema_foreign_keys::reject_referenced_unique_index_drop(cassie, &statement.table, index)?;
+        schema_constraint_helpers::reject_constraint_index_drop(
+            cassie,
+            &statement.table,
+            &index.name,
+        )?;
         if matches!(index.kind, catalog::IndexKind::Vector) {
             cassie
                 .catalog
@@ -437,15 +442,31 @@ fn alter_table_add_constraint(
     cassie
         .midge
         .with_collection_write_gates(&gated_collections, || {
+            let existing = cassie.catalog.get_constraints(table);
+            if let Some(message) =
+                crate::catalog::conflicting_unique_membership(table, &existing, constraints)
+            {
+                return Err(QueryError::General(message));
+            }
             cassie.validate_existing_check_and_not_null_rows(table, constraints)?;
             cassie.validate_existing_foreign_key_rows(table, constraints)?;
-            let mut merged = cassie.catalog.get_constraints(table);
+            let mut merged = existing;
             crate::catalog::merge_constraint_set(&mut merged, constraints.to_vec());
+            let composite_indexes = crate::catalog::composite_unique_indexes(table, constraints);
+            for index in &composite_indexes {
+                cassie
+                    .midge
+                    .put_index_with_held_collection_gate(index)
+                    .map_err(QueryError::from)?;
+            }
             cassie
                 .midge
                 .save_constraints_with_unique_reservations(table, merged.as_slice())
                 .map_err(|error| QueryError::General(error.to_string()))?;
             cassie.catalog.register_constraints(table, merged);
+            for index in composite_indexes {
+                cassie.catalog.register_index(index);
+            }
             Ok(())
         })
 }
@@ -468,6 +489,7 @@ fn alter_table_drop_column(
     ensure_row_store_alter_supported(is_column_store, "ALTER TABLE DROP COLUMN")?;
     schema_foreign_keys::reject_referenced_column_drop(cassie, table, field)?;
     schema_graph_rename::reject_graph_column_drop(cassie, table, field)?;
+    schema_constraint_helpers::drop_composite_unique_constraints_on_column(cassie, table, field)?;
     cassie
         .midge
         .alter_collection_drop_column(table, field)

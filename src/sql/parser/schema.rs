@@ -71,8 +71,8 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
             if raw.is_empty() {
                 return Err(SqlError::new("empty column definition".into()));
             }
-            if let Some(constraints) = parse_table_constraint(raw)? {
-                apply_table_constraints(&mut fields, constraints)?;
+            if let Some(constraints) = parse_table_constraint(raw, &table)? {
+                apply_table_constraints(&mut fields, constraints, &table)?;
             } else {
                 let field = parse_field_definition_for_table(raw, Some(&table))?;
                 fields.push(field);

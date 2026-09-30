@@ -4,7 +4,10 @@ use super::{
     parse_check_constraint, starts_with_keyword, FieldConstraint, FieldDefinition, SqlError,
 };
 
-pub(super) fn parse_table_constraint(raw: &str) -> Result<Option<Vec<FieldConstraint>>, SqlError> {
+pub(super) fn parse_table_constraint(
+    raw: &str,
+    table: &str,
+) -> Result<Option<Vec<FieldConstraint>>, SqlError> {
     let mut clause = raw.trim();
     let mut constraint_name = None;
     if !starts_with_keyword(clause, "constraint")
@@ -23,13 +26,50 @@ pub(super) fn parse_table_constraint(raw: &str) -> Result<Option<Vec<FieldConstr
         clause = rest;
     }
 
-    parse_table_constraint_body(clause, constraint_name.as_deref()).map(Some)
+    let constraints = parse_table_constraint_body(clause, constraint_name.as_deref())?;
+    Ok(Some(name_unnamed_composite_unique(constraints, table)))
+}
+
+/// Names an unnamed multi-column `UNIQUE (a, b)` as PostgreSQL does,
+/// `<table>_<a>_<b>_key`, so its columns share one constraint name.
+fn name_unnamed_composite_unique(
+    mut constraints: Vec<FieldConstraint>,
+    table: &str,
+) -> Vec<FieldConstraint> {
+    let unnamed_unique = constraints
+        .iter()
+        .filter(|constraint| constraint.unique && constraint.unique_name.is_none())
+        .count();
+    if unnamed_unique < 2 {
+        return constraints;
+    }
+    let local_table = table.rsplit('.').next().unwrap_or(table);
+    let columns = constraints
+        .iter()
+        .map(|constraint| constraint.field.as_str())
+        .collect::<Vec<_>>()
+        .join("_");
+    let name = format!("{local_table}_{columns}_key");
+    for constraint in &mut constraints {
+        constraint.unique_name = Some(name.clone());
+    }
+    constraints
 }
 
 pub(super) fn apply_table_constraints(
     fields: &mut [FieldDefinition],
     constraints: Vec<FieldConstraint>,
+    table: &str,
 ) -> Result<(), SqlError> {
+    let existing = fields
+        .iter()
+        .flat_map(|field| field.constraints.iter().cloned())
+        .collect::<Vec<_>>();
+    if let Some(message) =
+        crate::catalog::conflicting_unique_membership(table, &existing, &constraints)
+    {
+        return Err(SqlError::unsupported(message));
+    }
     for mut constraint in constraints {
         let Some(field) = fields
             .iter_mut()

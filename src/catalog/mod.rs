@@ -1,5 +1,6 @@
 pub mod cardinality;
 pub mod collections;
+pub mod composite_unique;
 pub mod consistency;
 pub mod constraints;
 pub mod function_resolution;
@@ -31,6 +32,10 @@ pub use collections::{
     ProjectionIntegrityReportMeta, ProjectionKind, ProjectionMeta, ProjectionRebuildState,
     ProjectionRebuildVerificationMeta, ProjectionSwapMeta, ProjectionVerificationState,
     ProjectionVersionMeta, ProjectionVersionState,
+};
+pub use composite_unique::{
+    composite_unique_constraints, composite_unique_indexes, conflicting_unique_membership,
+    enforces_single_column_uniqueness, is_composite_unique_member, CompositeUnique,
 };
 pub use consistency::{
     ProjectionConsistencyReportMeta, ProjectionManifestHashMetadata,

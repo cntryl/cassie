@@ -50,14 +50,18 @@ pub(super) fn bind_create_table(
         ));
     }
 
+    let own_constraints = statement
+        .fields
+        .iter()
+        .flat_map(|field| field.constraints.iter().cloned())
+        .collect::<Vec<_>>();
     let own_unique_fields = statement
         .fields
         .iter()
         .filter(|field| {
-            field
-                .constraints
-                .iter()
-                .any(|constraint| constraint.primary_key || constraint.unique)
+            field.constraints.iter().any(|constraint| {
+                crate::catalog::enforces_single_column_uniqueness(constraint, &own_constraints)
+            })
         })
         .map(|field| field.name.trim().to_string())
         .collect::<Vec<_>>();

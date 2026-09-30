@@ -437,10 +437,13 @@ impl Midge {
             .cloned()
             .collect::<Vec<_>>();
         let graph = self.graph_for_edge_collection(collection)?;
-        let constraints = self
-            .load_constraints(collection)?
-            .into_iter()
-            .filter(|constraint| constraint.unique || constraint.primary_key)
+        let loaded = self.load_constraints(collection)?;
+        let constraints = loaded
+            .iter()
+            .filter(|constraint| {
+                crate::catalog::enforces_single_column_uniqueness(constraint, &loaded)
+            })
+            .cloned()
             .collect::<Vec<_>>();
         let needs_existing_payload = !constraints.is_empty()
             || !unique_scalar_indexes.is_empty()

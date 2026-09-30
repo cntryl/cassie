@@ -108,6 +108,9 @@ pub(super) fn bind_select_with_lateral_fields(
     known_fields.extend(lateral_fields.iter().cloned());
     select.source = source;
     select.ctes = bound_ctes;
+    if lateral_fields.is_empty() {
+        super::own_qualifier::strip_select_own_qualifiers(&mut select);
+    }
 
     let field_types = crate::sql::source_field_type_map(&select.source, catalog);
     if let Some(filter) = select.filter.as_mut() {

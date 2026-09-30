@@ -3698,6 +3698,58 @@ mod parser_sources_sets {
     }
 
     #[test]
+    fn should_parse_union_all_separated_by_any_whitespace() {
+        // Arrange
+        let statements = [
+            "SELECT title FROM left_docs UNION  ALL SELECT title FROM right_docs",
+            "SELECT title FROM left_docs\n  UNION\n  ALL\n  SELECT title FROM right_docs",
+            "SELECT title FROM left_docs union\tall SELECT title FROM right_docs",
+        ];
+
+        // Act
+        let operators = statements.map(|sql| {
+            let QueryStatement::Select(statement) = parse_statement(sql)
+                .expect("parse should succeed")
+                .statement
+            else {
+                panic!("expected select statement");
+            };
+            let set = statement.set.expect("set clause should exist");
+            assert_eq!(
+                set.right.source,
+                QuerySource::Collection("right_docs".to_string())
+            );
+            set.operator
+        });
+
+        // Assert
+        for operator in operators {
+            assert!(matches!(operator, SetOperator::UnionAll));
+        }
+    }
+
+    #[test]
+    fn should_parse_recursive_cte_with_union_all_on_separate_lines() {
+        // Arrange
+        let sql = "WITH RECURSIVE counter(n) AS (SELECT n FROM docs\nUNION\nALL\nSELECT n FROM counter) SELECT n FROM counter";
+
+        // Act
+        let parsed = parse_statement(sql).expect("parse should succeed");
+
+        // Assert
+        let QueryStatement::Select(statement) = parsed.statement else {
+            panic!("expected select statement");
+        };
+        assert!(matches!(
+            statement.ctes[0].query,
+            CteQuery::Recursive {
+                operator: SetOperator::UnionAll,
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn should_parse_union_select() {
         // Arrange
         let sql = "SELECT title FROM left_docs UNION SELECT title FROM right_docs";

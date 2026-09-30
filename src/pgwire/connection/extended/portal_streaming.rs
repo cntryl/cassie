@@ -15,9 +15,7 @@ use crate::app::PortalReadSpec;
 use crate::midge::adapter::RowDecode;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{QueryStatement, SelectItem};
-use crate::types::row_identity::{
-    is_identity_reference, is_row_identity_column, ROW_IDENTITY_COLUMN,
-};
+use crate::types::row_identity::{is_identity_reference, ROW_IDENTITY_COLUMN};
 use crate::types::Value;
 
 pub(super) struct SuspendedPortalRequest<'a> {
@@ -128,9 +126,13 @@ pub(super) async fn execute_streaming_portal_page(
             let Some(schema) = cassie.catalog.get_schema(&spec.collection) else {
                 return execute_offset_portal_page(cassie, write_half, request).await;
             };
-            for field in schema.fields.iter().map(|field| field.name.clone()) {
-                if !spec.source_fields.contains(&field) {
-                    spec.source_fields.push(field);
+            for field in &schema.fields {
+                if !spec
+                    .source_fields
+                    .iter()
+                    .any(|source| source.eq_ignore_ascii_case(&field.name))
+                {
+                    spec.source_fields.push(field.name.clone());
                 }
             }
         }
@@ -372,11 +374,19 @@ fn portal_document_rows(
                 .projection
                 .iter()
                 .flat_map(|item| match item {
-                    SelectItem::Wildcard => row
-                        .entries()
-                        .iter()
-                        .filter(|(name, _)| !schema_has_id || !is_row_identity_column(name))
-                        .map(|(_, value)| value.clone())
+                    // `*` expands in declared schema order, as the
+                    // RowDescription does, regardless of the order the
+                    // explicit columns pushed fields into the read.
+                    SelectItem::Wildcard => (!schema_has_id)
+                        .then_some(ROW_IDENTITY_COLUMN)
+                        .into_iter()
+                        .chain(
+                            schema
+                                .iter()
+                                .flat_map(|schema| schema.fields.iter())
+                                .map(|field| field.name.as_str()),
+                        )
+                        .map(|name| portal_row_value(&row, name))
                         .collect::<Vec<_>>(),
                     SelectItem::Column { name, .. }
                     | SelectItem::Expr {
@@ -388,13 +398,28 @@ fn portal_document_rows(
                         } else {
                             name.as_str()
                         };
-                        vec![row.get(lookup_name).cloned().unwrap_or(Value::Null)]
+                        vec![portal_row_value(&row, lookup_name)]
                     }
                     _ => Vec::new(),
                 })
                 .collect()
         })
         .collect()
+}
+
+/// Reads `name` from a projected row, falling back to a case-insensitive
+/// match so a column spelled differently from its declaration still resolves
+/// to the one value the read fetched for it.
+fn portal_row_value(row: &crate::executor::batch::BatchRow, name: &str) -> Value {
+    row.get(name)
+        .or_else(|| {
+            row.entries()
+                .iter()
+                .find(|(entry, _)| entry.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value)
+        })
+        .cloned()
+        .unwrap_or(Value::Null)
 }
 
 pub(super) fn streamable_portal_query(prepared: &PreparedStatement, max_rows: usize) -> bool {

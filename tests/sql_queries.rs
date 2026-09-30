@@ -6758,6 +6758,7 @@ mod integration_sql_numeric_typing {
     use cassie::types::Value;
 
     const OID_INT8: i64 = 20;
+    const OID_INT2: i64 = 21;
     const OID_INT4: i64 = 23;
     const OID_FLOAT8: i64 = 701;
 
@@ -6782,6 +6783,61 @@ mod integration_sql_numeric_typing {
     fn first_value(cassie: &Cassie, session: &CassieSession, sql: &str) -> (Value, i64) {
         let result = cassie.execute_sql(session, sql, vec![]).expect(sql);
         (result.rows[0][0].clone(), result.columns[0].type_oid)
+    }
+
+    fn mixed_width_fixture(label: &str) -> super::support_sql_fixture::SqlFixture {
+        super::support_sql_fixture::sql_fixture(
+            label,
+            &[
+                "CREATE TABLE mix (k TEXT, s SMALLINT, i INT, b BIGINT)",
+                "INSERT INTO mix (k, s, i, b) VALUES ('empty', NULL, NULL, NULL)",
+                "INSERT INTO mix (k, s, i, b) VALUES ('one', 1, 1, 1)",
+            ],
+        )
+    }
+
+    fn typed_first_value(
+        fixture: &super::support_sql_fixture::SqlFixture,
+        sql: &str,
+    ) -> (Value, i64) {
+        let result = fixture
+            .execute(sql)
+            .map(|result| (result.rows[0][0].clone(), result.columns[0].type_oid));
+        result.unwrap_or((Value::Null, -1))
+    }
+
+    #[test]
+    fn should_type_coalesce_by_the_common_argument_type() {
+        // Arrange
+        let fixture = mixed_width_fixture("numeric_coalesce_common_type");
+
+        // Act
+        let widened = [
+            "SELECT COALESCE(b, 1.5) FROM mix WHERE k = 'empty'",
+            "SELECT COALESCE(i, 1.5) FROM mix WHERE k = 'empty'",
+            "SELECT COALESCE(s, 1.5) FROM mix WHERE k = 'empty'",
+        ]
+        .map(|sql| typed_first_value(&fixture, sql));
+        let integers =
+            typed_first_value(&fixture, "SELECT COALESCE(s, i) FROM mix WHERE k = 'one'");
+
+        // Assert
+        assert!(widened
+            .iter()
+            .all(|typed| *typed == (Value::Float64(1.5), OID_FLOAT8)));
+        assert_eq!(integers, (Value::Int64(1), OID_INT4));
+    }
+
+    #[test]
+    fn should_type_abs_of_smallint_as_smallint() {
+        // Arrange
+        let fixture = mixed_width_fixture("numeric_abs_smallint");
+
+        // Act
+        let absolute = typed_first_value(&fixture, "SELECT abs(s) FROM mix WHERE k = 'one'");
+
+        // Assert
+        assert_eq!(absolute, (Value::Int64(1), OID_INT2));
     }
 
     #[test]

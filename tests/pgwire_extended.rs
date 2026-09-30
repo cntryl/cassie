@@ -2910,6 +2910,79 @@ mod pgwire_portal_streaming {
         });
     }
 
+    /// Pipelines Parse, Bind, Describe(Statement), a row-limited Execute and
+    /// Sync for `sql` over a three-row table and returns the frame tags.
+    fn describe_statement_after_bind_tags(label: &str, sql: &str) -> Vec<u8> {
+        support::use_local_storage();
+        let path = support::data_dir(label);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in [
+                "CREATE TABLE dab_names (name TEXT)",
+                "INSERT INTO dab_names (name) VALUES ('alpha'), ('beta'), ('gamma')",
+            ] {
+                cassie
+                    .execute_sql(&session, sql, vec![])
+                    .unwrap_or_else(|error| panic!("{sql}: {error}"));
+            }
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("query connection");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame("dab_stmt", sql),
+                    support::bind_frame("dab_portal", "dab_stmt", &[]),
+                    support::describe_statement_frame("dab_stmt"),
+                    support::execute_limited_frame("dab_portal", 2),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready(&mut reader).await;
+            drop(socket);
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(&path);
+            frames.into_iter().map(|(tag, _)| tag).collect()
+        })
+    }
+
+    #[test]
+    fn should_send_one_row_description_given_describe_statement_after_bind_on_streaming_portal() {
+        // Arrange
+        let sql = "SELECT name FROM dab_names";
+
+        // Act
+        let tags = describe_statement_after_bind_tags("describe-after-bind-streaming", sql);
+
+        // Assert
+        assert_eq!(tags, b"12tTDDsZ".to_vec());
+    }
+
+    #[test]
+    fn should_send_one_row_description_given_describe_statement_after_bind_on_materialized_portal()
+    {
+        // Arrange
+        let sql = "SELECT name FROM dab_names ORDER BY name";
+
+        // Act
+        let tags = describe_statement_after_bind_tags("describe-after-bind-materialized", sql);
+
+        // Assert
+        assert_eq!(tags, b"12tTDDsZ".to_vec());
+    }
+
     /// Seeds `count` rows of `{"payload": "value-NN"}` straight through the
     /// storage adapter, bypassing SQL so the test only exercises paging.
     fn seed_payload_rows(cassie: &Cassie, collection: &str, count: usize) {

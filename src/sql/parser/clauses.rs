@@ -105,6 +105,30 @@ pub(super) fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> O
     find_top_level_clause(rest, start, token)
 }
 
+/// Finds the first top-level `UNION` and returns its byte offset, the byte
+/// length of the whole operator, and whether it is `UNION ALL`. `ALL` may be
+/// separated from `UNION` by any whitespace, including newlines.
+pub(super) fn find_top_level_union(rest: &str) -> Option<(usize, usize, bool)> {
+    const UNION: &str = "union";
+    const ALL: &[u8] = b"all";
+
+    let position = find_top_level_clause(rest, 0, UNION)?;
+    let tail = &rest[position + UNION.len()..];
+    let word = tail.trim_start();
+    let gap = tail.len() - word.len();
+    let is_all = gap > 0
+        && word
+            .as_bytes()
+            .get(..ALL.len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(ALL))
+        && is_clause_boundary_after(word.as_bytes(), ALL.len());
+    if is_all {
+        Some((position, UNION.len() + gap + ALL.len(), true))
+    } else {
+        Some((position, UNION.len(), false))
+    }
+}
+
 pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize> {
     let lower = rest.to_ascii_lowercase();
     let token = token.as_bytes();

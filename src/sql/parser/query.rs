@@ -1,4 +1,6 @@
-use super::clauses::{find_top_level_keyword, split_top_level, strip_parentheses};
+use super::clauses::{
+    find_top_level_keyword, find_top_level_union, split_top_level, strip_parentheses,
+};
 use super::expr::{
     parse_alias, parse_expression, parse_function, parse_order_by, split_csv,
     split_csv_quoted_by_space,
@@ -585,21 +587,17 @@ pub(super) fn parse_cte_definitions(
 }
 
 pub(super) fn parse_recursive_cte_query(body: &str) -> Result<Option<CteQuery>, SqlError> {
-    let union_all_pos = find_top_level_keyword(body, 0, "union all");
-    let union_pos = find_top_level_keyword(body, 0, "union")
-        .filter(|position| Some(*position) != union_all_pos);
-    let Some((set_pos, set_token, operator)) = [
-        union_all_pos.map(|position| (position, "union all", SetOperator::UnionAll)),
-        union_pos.map(|position| (position, "union", SetOperator::Union)),
-    ]
-    .into_iter()
-    .flatten()
-    .min_by_key(|(position, _, _)| *position) else {
+    let Some((set_pos, set_len, all)) = find_top_level_union(body) else {
         return Ok(None);
+    };
+    let operator = if all {
+        SetOperator::UnionAll
+    } else {
+        SetOperator::Union
     };
 
     let base = body[..set_pos].trim();
-    let recursive = body[(set_pos + set_token.len())..].trim();
+    let recursive = body[(set_pos + set_len)..].trim();
     if base.is_empty() || recursive.is_empty() {
         return Err(SqlError::new(
             "recursive CTE requires anchor and recursive terms".into(),

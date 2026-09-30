@@ -4,7 +4,7 @@ use super::{
 };
 use crate::sql::ast::{SelectSet, SelectStatement, SetOperator};
 use crate::sql::parser::clauses::{
-    find_top_level_keyword, parse_clauses, Clause, ClauseMatch, ClauseToken,
+    find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
 };
 use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv, take_int};
 
@@ -16,13 +16,13 @@ pub(super) fn parse_select_statement(
     ensure_select_statement(sql)?;
 
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if let Some((set_pos, set_token, set_operator)) = find_set_operation(trimmed) {
+    if let Some((set_pos, set_len, set_operator)) = find_set_operation(trimmed) {
         return parse_set_select_statement(
             trimmed,
             withs,
             recursive,
             set_pos,
-            set_token,
+            set_len,
             set_operator,
         );
     }
@@ -77,10 +77,9 @@ pub(super) fn parse_set_select_statement(
     withs: Vec<CommonTableExpression>,
     recursive: bool,
     set_pos: usize,
-    set_token: &'static str,
+    token_len: usize,
     operator: SetOperator,
 ) -> Result<ParsedStatement, SqlError> {
-    let token_len = set_token.len();
     let left_sql = trimmed[..set_pos].trim();
     let right_sql = trimmed[set_pos + token_len..].trim();
     if left_sql.is_empty() || right_sql.is_empty() {
@@ -113,23 +112,28 @@ pub(super) fn parse_set_select_statement(
     Ok(left)
 }
 
+/// Returns the byte offset, byte length and operator of the first top-level
+/// set operation in `sql`.
 #[must_use]
-pub(super) fn find_set_operation(sql: &str) -> Option<(usize, &'static str, SetOperator)> {
+pub(super) fn find_set_operation(sql: &str) -> Option<(usize, usize, SetOperator)> {
+    let union = find_top_level_union(sql).map(|(position, len, all)| {
+        let operator = if all {
+            SetOperator::UnionAll
+        } else {
+            SetOperator::Union
+        };
+        (position, len, operator)
+    });
     [
-        ("union all", SetOperator::UnionAll),
         ("intersect", SetOperator::Intersect),
         ("except", SetOperator::Except),
-        ("union", SetOperator::Union),
     ]
     .into_iter()
     .filter_map(|(token, operator)| {
-        find_top_level_keyword(sql, 0, token).map(|pos| (pos, token, operator))
+        find_top_level_keyword(sql, 0, token).map(|pos| (pos, token.len(), operator))
     })
-    .min_by(|left, right| {
-        left.0
-            .cmp(&right.0)
-            .then_with(|| right.1.len().cmp(&left.1.len()))
-    })
+    .chain(union)
+    .min_by_key(|(position, _, _)| *position)
 }
 
 type ResultClauses = (Vec<OrderExpr>, Option<i64>, Option<i64>);

@@ -315,14 +315,16 @@ fn aggregate_meta(
 fn aggregate_data_type(cassie: &Cassie, source: &str, function: &FunctionCall) -> DataType {
     match function.name.to_ascii_lowercase().as_str() {
         "count" => DataType::BigInt,
-        "sum" => function
-            .args
-            .first()
-            .and_then(|expr| match expr {
-                Expr::Column(name) => cassie.catalog.field_type(source, name),
-                _ => None,
-            })
-            .unwrap_or(DataType::Float),
+        // SUM widens every integer input to int8, exactly as the query path
+        // types it (`FunctionReturnType::SumArgument`), so a bucket total
+        // that exceeds the source column's range still fits.
+        "sum" => match function.args.first() {
+            Some(Expr::Column(name)) => match cassie.catalog.field_type(source, name) {
+                Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => DataType::BigInt,
+                _ => DataType::Float,
+            },
+            _ => DataType::Float,
+        },
         "avg" => DataType::Float,
         "min" | "max" => function
             .args

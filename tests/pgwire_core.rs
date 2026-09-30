@@ -2242,7 +2242,7 @@ mod pgwire_hardening {
         assert_eq!(
             parse_data_row(&row.1),
             vec![
-                Some("true".to_string()),
+                Some("t".to_string()),
                 Some("7".to_string()),
                 Some("3.5".to_string()),
             ]

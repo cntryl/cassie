@@ -1388,7 +1388,7 @@ mod pgwire_extended_metadata {
             vec![
                 Some("typed-1".to_string()),
                 Some("42".to_string()),
-                Some("true".to_string())
+                Some("t".to_string())
             ]
         );
         assert_eq!(frames[6].1, vec![b'I']);
@@ -4675,6 +4675,87 @@ mod pgwire_result_framing {
         assert!(!frames.iter().any(|frame| frame.0 == b'D'));
         assert!(!frames.iter().any(|frame| frame.0 == b'C'));
         assert_eq!(frames.last().map(|frame| frame.0), Some(b'Z'));
+    }
+
+    #[test]
+    fn should_render_bool_as_postgres_text_given_text_result_format() {
+        // Arrange
+        let (cassie, path) = configured_cassie(
+            "text-bool-output",
+            &[
+                "CREATE TABLE framing_text_flags (id INT NOT NULL, flag BOOLEAN)",
+                "INSERT INTO framing_text_flags (id, flag) VALUES (1, true), (2, false), (3, NULL)",
+            ],
+        );
+
+        // Act
+        let frames = simple_round_trip(
+            cassie,
+            path,
+            "SELECT flag, id > 1 FROM framing_text_flags ORDER BY id",
+        );
+
+        // Assert
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![
+                vec![Some("t".to_string()), Some("f".to_string())],
+                vec![Some("f".to_string()), Some("t".to_string())],
+                vec![None, Some("t".to_string())],
+            ]
+        );
+    }
+
+    #[test]
+    fn should_render_infinite_float8_as_postgres_text_given_text_result_format() {
+        // Arrange
+        let (cassie, path) = configured_cassie("text-float8-infinity", &[]);
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let positive = f64::INFINITY.to_be_bytes();
+        let negative = f64::NEG_INFINITY.to_be_bytes();
+
+        // Act
+        let frames = runtime.block_on(async {
+            let server = support::spawn_server(cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(server.addr)
+                .await
+                .expect("connect");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut writer).await;
+            support::write_frames(
+                &mut writer,
+                vec![
+                    support::parse_frame_with_types("", "SELECT $1 AS v, $2 AS w", &[701, 701]),
+                    support::bind_frame_with_formats(
+                        "",
+                        "",
+                        &[1],
+                        &[Some(&positive), Some(&negative)],
+                        &[0],
+                    ),
+                    support::execute_frame(""),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let frames = support::read_frames_until_ready_within(&mut reader, ANSWER_LIMIT).await;
+            server.stop().await;
+            frames
+        });
+        let _ = std::fs::remove_dir_all(path);
+
+        // Assert
+        assert_eq!(
+            support::data_rows(&frames),
+            vec![vec![
+                Some("Infinity".to_string()),
+                Some("-Infinity".to_string()),
+            ]]
+        );
     }
 
     #[test]

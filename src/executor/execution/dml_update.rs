@@ -98,7 +98,14 @@ fn matched_dml_rows(
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);
     if let Some(filter_expr) = filter_expr {
-        let mut filter_expr = filter_expr.clone();
+        let mut filter_expr = crate::executor::execution::resolve_statement_exists(
+            cassie,
+            session,
+            filter_expr,
+            user_functions,
+            params,
+            controls,
+        )?;
         crate::planner::logical::rewrite_expr_for_schema(
             &mut filter_expr,
             crate::planner::logical::collection_declares_id(&cassie.catalog, table),

@@ -117,11 +117,18 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
     } else {
         split_csv(args_raw)
             .into_iter()
-            .map(parse_expr_token)
+            .map(parse_function_argument)
             .collect::<Result<Vec<_>, _>>()?
     };
 
     Ok(Some(FunctionCall { name, args }))
+}
+
+/// Parses one function argument. An argument that is not a single token,
+/// such as `NOT EXISTS (...)` or a comparison, is parsed as a full boolean
+/// expression.
+fn parse_function_argument(raw: &str) -> Result<Expr, SqlError> {
+    parse_expr_token(raw).or_else(|error| parse_expression(raw).map_err(|_| error))
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {

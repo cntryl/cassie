@@ -580,9 +580,17 @@ fn execute_insert_conflict_update(
     );
     let excluded_args = excluded_local_args(payload);
     if let Some(filter_expr) = conflict_filter {
+        let filter_expr = crate::executor::execution::resolve_statement_exists(
+            context.cassie,
+            context.session,
+            filter_expr,
+            context.user_functions,
+            context.params,
+            context.controls,
+        )?;
         let matches = filter::eval_scalar(
             &existing_row,
-            filter_expr,
+            &filter_expr,
             context.params,
             None,
             context.user_functions,

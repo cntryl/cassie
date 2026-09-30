@@ -287,6 +287,9 @@ impl AggregateAccumulator {
         let Some(expr) = function.args.first() else {
             return Ok(None);
         };
+        if let Some(value) = stored_json_column_value(row, expr) {
+            return Ok(Some(value));
+        }
         filter::evaluate_expr_value(
             row,
             expr,
@@ -395,6 +398,20 @@ impl AggregateAccumulator {
             return Ok(change);
         }
         Ok(RetainedChange::default())
+    }
+}
+
+/// The stored value of a bare column reference that holds a JSON value (an
+/// array or json document), read directly from the row. Scalar expression
+/// evaluation flattens JSON to text, which would turn an array column's
+/// group key or MIN/MAX result into a string under an array-typed column.
+pub(super) fn stored_json_column_value(row: &BatchRow, expr: &Expr) -> Option<Value> {
+    let Expr::Column(name) = expr else {
+        return None;
+    };
+    match row.get(name) {
+        Some(value @ Value::Json(_)) => Some(value.clone()),
+        _ => None,
     }
 }
 

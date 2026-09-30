@@ -10,8 +10,9 @@ use super::errors::{PgWireError, PgWireSeverity};
 use super::readers::read_frontend_message;
 use super::state::{DescribeTarget, FrontendMessage, HandshakeError, HandshakeState, SessionState};
 use super::writers::{
-    append_row_description_frame, write_bind_complete, write_close_complete, write_error_response,
-    write_no_data, write_parameter_description, write_parse_complete, write_ready_for_query,
+    append_row_description_frame, write_bind_complete, write_close_complete,
+    write_empty_query_response, write_error_response, write_no_data, write_parameter_description,
+    write_parse_complete, write_ready_for_query,
 };
 use super::{ConnectionStep, PgwireReader};
 use crate::app::{unsupported_sql_error, Cassie, CassieError, CassieSession};
@@ -226,6 +227,28 @@ async fn handle_parse(
             "parse parameter type OID cannot be negative",
         ));
     }
+    let empty_query = super::simple_query::split_simple_query(&query)
+        .is_ok_and(|statements| statements.is_empty());
+    if empty_query {
+        let parameter_types = normalize_parameter_type_oids(&parameter_type_oids);
+        let id = state.next_prepared_id();
+        store_prepared_statement(
+            runtime,
+            state,
+            PreparedStatement {
+                id,
+                name,
+                query,
+                parsed: None,
+                sql_fingerprint: 0,
+                parameter_count: parameter_types.len(),
+                parameter_types,
+                described: false,
+            },
+        );
+        let _ = write_parse_complete(write_half).await;
+        return Ok(());
+    }
     if let Some(error) = unsupported_sql_error(&query) {
         if session.is_authenticated_read_only() {
             return Err(ExtendedQueryError::cassie(
@@ -247,34 +270,46 @@ async fn handle_parse(
         &cassie.catalog,
     );
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
-    let prepared_id = state.next_prepared_id();
-    let replaced_prepared = state
-        .prepared_statements
-        .get(&name)
-        .map(|statement| statement.id);
-    if let Some(prepared_id) = replaced_prepared {
-        remove_portals_for_prepared_id(state, runtime, prepared_id);
-    }
-
-    state.prepared_statements.insert(
-        name.clone(),
+    let id = state.next_prepared_id();
+    store_prepared_statement(
+        runtime,
+        state,
         PreparedStatement {
-            id: prepared_id,
+            id,
             name,
             query,
-            parsed,
+            parsed: Some(parsed),
             sql_fingerprint,
             parameter_count: parameter_types.len(),
             parameter_types,
             described: false,
         },
     );
-    if replaced_prepared.is_none() {
-        runtime.record_pgwire_prepared_delta(1);
-    }
 
     let _ = write_parse_complete(write_half).await;
     Ok(())
+}
+
+/// Registers `prepared` under its name, closing the portals of any statement
+/// it replaces.
+fn store_prepared_statement(
+    runtime: &RuntimeState,
+    state: &mut SessionState,
+    prepared: PreparedStatement,
+) {
+    let replaced_prepared = state
+        .prepared_statements
+        .get(&prepared.name)
+        .map(|statement| statement.id);
+    if let Some(prepared_id) = replaced_prepared {
+        remove_portals_for_prepared_id(state, runtime, prepared_id);
+    }
+    state
+        .prepared_statements
+        .insert(prepared.name.clone(), prepared);
+    if replaced_prepared.is_none() {
+        runtime.record_pgwire_prepared_delta(1);
+    }
 }
 
 struct BindRequest {
@@ -440,6 +475,11 @@ async fn handle_execute(
     }
 
     let prepared = prepared_for_portal(state, &portal)?;
+    let Some(parsed) = prepared.parsed.clone() else {
+        return write_empty_query_response(write_half)
+            .await
+            .map_err(|error| ExtendedQueryError::write_failed(&error));
+    };
     if streamable_portal_query(&prepared, max_rows) {
         return execute_streaming_portal_page(
             cassie,
@@ -459,7 +499,6 @@ async fn handle_execute(
     }
     let session = session.clone();
     let params = portal.params.clone();
-    let parsed = prepared.parsed.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
     let registration = state
         .backend_registration
@@ -546,10 +585,13 @@ async fn describe_prepared(
     session: CassieSession,
     prepared: PreparedStatement,
 ) -> Result<Vec<ColumnMeta>, ExtendedQueryError> {
+    let Some(parsed) = prepared.parsed else {
+        return Ok(Vec::new());
+    };
     run_pgwire_blocking(cassie, "pgwire_describe", move |cassie| {
         cassie.describe_parsed_statement_for_session(
             &session,
-            prepared.parsed,
+            parsed,
             prepared.sql_fingerprint,
             &prepared.parameter_types,
         )

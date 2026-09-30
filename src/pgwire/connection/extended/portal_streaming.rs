@@ -99,8 +99,13 @@ pub(super) async fn execute_streaming_portal_page(
     write_half: &mut (impl AsyncWrite + Unpin),
     mut request: StreamingPortalPageRequest<'_>,
 ) -> Result<(), ExtendedQueryError> {
-    let resolved =
-        cassie.resolve_portal_read_spec(request.session, request.prepared.parsed.clone());
+    let Some(parsed) = request.prepared.parsed.clone() else {
+        clear_request_execution(&mut request);
+        return Err(ExtendedQueryError::protocol(
+            "streaming portal requires a select statement",
+        ));
+    };
+    let resolved = cassie.resolve_portal_read_spec(request.session, parsed);
     let resolved = match resolved {
         Ok(resolved) => resolved,
         Err(error) => {
@@ -171,7 +176,12 @@ async fn execute_offset_portal_page(
     write_half: &mut (impl AsyncWrite + Unpin),
     mut request: StreamingPortalPageRequest<'_>,
 ) -> Result<(), ExtendedQueryError> {
-    let mut parsed = request.prepared.parsed.clone();
+    let Some(mut parsed) = request.prepared.parsed.clone() else {
+        clear_request_execution(&mut request);
+        return Err(ExtendedQueryError::protocol(
+            "streaming portal requires a select statement",
+        ));
+    };
     let crate::sql::ast::QueryStatement::Select(select) = &mut parsed.statement else {
         clear_request_execution(&mut request);
         return Err(ExtendedQueryError::protocol(
@@ -351,7 +361,9 @@ fn portal_document_rows(
     documents: Vec<crate::midge::adapter::DocumentRef>,
 ) -> Vec<Vec<Value>> {
     let schema = cassie.catalog.get_schema(&spec.collection);
-    let QueryStatement::Select(select) = &prepared.parsed.statement else {
+    let Some(QueryStatement::Select(select)) =
+        prepared.parsed.as_ref().map(|parsed| &parsed.statement)
+    else {
         return Vec::new();
     };
     // A bare `id` reference against a table with no declared `id` field
@@ -424,7 +436,9 @@ fn portal_row_value(row: &crate::executor::batch::BatchRow, name: &str) -> Value
 }
 
 pub(super) fn streamable_portal_query(prepared: &PreparedStatement, max_rows: usize) -> bool {
-    let crate::sql::ast::QueryStatement::Select(select) = &prepared.parsed.statement else {
+    let Some(crate::sql::ast::QueryStatement::Select(select)) =
+        prepared.parsed.as_ref().map(|parsed| &parsed.statement)
+    else {
         return false;
     };
     max_rows > 0

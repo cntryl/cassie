@@ -519,9 +519,9 @@ fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
     match value {
         ScalarValue::Int(value) => Some(*value),
         ScalarValue::Bool(value) => Some(i64::from(*value)),
-        ScalarValue::Float(value) if value.is_finite() && value.fract() == 0.0 => {
-            parse_f64_to_i64(*value)
-        }
+        // PostgreSQL rounds float-to-integer casts to the nearest integer
+        // (ties to even, like `rint`) and fails only on range overflow.
+        ScalarValue::Float(value) if value.is_finite() => parse_f64_to_i64(value.round_ties_even()),
         ScalarValue::Float(_) | ScalarValue::Null => None,
         ScalarValue::Str(value) => value.parse().ok(),
     }

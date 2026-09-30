@@ -1,4 +1,4 @@
-use crate::types::numeric::{i128_to_f64, i64_to_f64, usize_to_f64};
+use crate::types::numeric::{self, i128_to_f64, i64_to_f64, usize_to_f64};
 use std::collections::HashMap;
 
 use crate::app::CassieSession;
@@ -262,7 +262,7 @@ impl AggregateAccumulator {
                 if count == 0 {
                     Value::Null
                 } else {
-                    Value::Float64(sum.sum / usize_to_f64(count))
+                    Value::Float64(sum.finish_mean(count)?)
                 }
             }
             Self::MinMax { selected, .. } => selected.unwrap_or(Value::Null),
@@ -407,7 +407,28 @@ impl AggregateAccumulator {
 #[derive(Clone)]
 pub(super) enum NumericSum {
     Int(IntegerSum),
-    Float { sum: f64, int_overflow: bool },
+    Float {
+        sum: f64,
+        overflow: Option<SumOverflow>,
+    },
+}
+
+/// The first overflow a row-order fold hit. It is reported when the fold
+/// finishes, so an ordered partition that only overflows locally never
+/// fails a query whose full row order stays in range.
+#[derive(Clone, Copy)]
+pub(super) enum SumOverflow {
+    Integer,
+    Float,
+}
+
+impl SumOverflow {
+    fn error(self) -> QueryError {
+        match self {
+            Self::Integer => integer_overflow(),
+            Self::Float => QueryError::General(String::from(numeric::FLOAT_OVERFLOW)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -445,14 +466,16 @@ impl NumericSum {
     pub(super) fn add_int(&mut self, value: i64) {
         match self {
             Self::Int(sum) => sum.add(value),
-            Self::Float { sum, .. } => *sum += i64_to_f64(value),
+            Self::Float { .. } => self.add_float(i64_to_f64(value)),
         }
     }
 
     pub(super) fn add_float(&mut self, value: f64) {
         self.promote_to_float();
-        if let Self::Float { sum, .. } = self {
-            *sum += value;
+        if let Self::Float { sum, overflow } = self {
+            if numeric::add_f64_overflowed(sum, value) && overflow.is_none() {
+                *overflow = Some(SumOverflow::Float);
+            }
         }
     }
 
@@ -460,7 +483,7 @@ impl NumericSum {
         if let Self::Int(sum) = self {
             *self = Self::Float {
                 sum: i128_to_f64(sum.total),
-                int_overflow: sum.overflowed(),
+                overflow: sum.overflowed().then_some(SumOverflow::Integer),
             };
         }
     }
@@ -489,8 +512,9 @@ impl NumericSum {
                 .map(Value::Int64)
                 .ok_or_else(integer_overflow),
             Self::Float {
-                int_overflow: true, ..
-            } => Err(integer_overflow()),
+                overflow: Some(overflow),
+                ..
+            } => Err(overflow.error()),
             Self::Float { sum, .. } => Ok(Value::Float64(sum)),
         }
     }
@@ -504,6 +528,7 @@ pub(super) struct AvgSum {
     sum: f64,
     exact: IntegerSum,
     saw_float: bool,
+    overflowed: bool,
 }
 
 impl AvgSum {
@@ -513,19 +538,27 @@ impl AvgSum {
     const EXACT_PREFIX: i128 = 1 << 52;
 
     fn add_int(&mut self, value: i64) {
-        self.sum += i64_to_f64(value);
+        self.overflowed |= numeric::add_f64_overflowed(&mut self.sum, i64_to_f64(value));
         self.exact.add(value);
     }
 
     fn add_float(&mut self, value: f64) {
-        self.sum += value;
+        self.overflowed |= numeric::add_f64_overflowed(&mut self.sum, value);
         self.saw_float = true;
     }
 
     fn merge(&mut self, later: &Self) {
-        self.sum += later.sum;
+        self.overflowed |=
+            numeric::add_f64_overflowed(&mut self.sum, later.sum) || later.overflowed;
         self.exact.append(&later.exact);
         self.saw_float |= later.saw_float;
+    }
+
+    fn finish_mean(&self, count: usize) -> Result<f64, QueryError> {
+        if self.overflowed {
+            return Err(SumOverflow::Float.error());
+        }
+        Ok(self.sum / usize_to_f64(count))
     }
 
     /// True when the fold is not exact, so merged partition sums could

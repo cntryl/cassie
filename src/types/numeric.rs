@@ -5,6 +5,19 @@
 
 const TWO_TO_32: f64 = 4_294_967_296.0;
 
+/// PostgreSQL's message for float arithmetic that overflows (SQLSTATE 22003).
+pub const FLOAT_OVERFLOW: &str = "value out of range: overflow";
+
+/// Adds `value` to `sum` and reports whether two finite operands overflowed
+/// to an infinity, the condition PostgreSQL's `float8pl` rejects. Infinite
+/// inputs propagate without being reported.
+pub fn add_f64_overflowed(sum: &mut f64, value: f64) -> bool {
+    let result = *sum + value;
+    let overflowed = result.is_infinite() && sum.is_finite() && value.is_finite();
+    *sum = result;
+    overflowed
+}
+
 /// Converts `value` to the nearest `f64` (round-half-to-even), exactly like a
 /// correctly rounded cast.
 #[must_use]

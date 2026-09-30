@@ -3312,6 +3312,35 @@ mod executor_parallel {
     }
 
     #[test]
+    fn should_keep_float_sum_when_only_a_partition_local_fold_overflows() {
+        // Arrange
+        let mut values = vec![serde_json::json!(0.0); 1025];
+        values[0] = serde_json::json!(-1.0e308);
+        values[513] = serde_json::json!(1.0e308);
+        values[514] = serde_json::json!(1.0e308);
+
+        // Act
+        let outcomes = [1, 2, 4].map(|workers| {
+            aggregate_with_workers(
+                "parallel_row_order_float_local_overflow",
+                workers,
+                DataType::Float,
+                &values,
+                "SELECT SUM(v) FROM exec_parallel_row_order",
+            )
+        });
+
+        // Assert
+        for (workers, outcome) in [1, 2, 4].into_iter().zip(outcomes) {
+            assert_eq!(
+                outcome.expect("row-order float fold stays finite"),
+                vec![vec![Value::Float64(1.0e308)]],
+                "workers={workers}"
+            );
+        }
+    }
+
+    #[test]
     fn should_fold_integer_avg_in_row_order_beyond_exact_float_range() {
         // Arrange
         let mut values = vec![serde_json::json!(1); 1025];

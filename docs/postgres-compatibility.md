@@ -32,6 +32,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - Mutable settings are `search_path`, `application_name`, and `client_min_messages`. Cassie validates fixed PostgreSQL-facing values for server and client encoding, date style, time zone, standard strings, integer datetimes, bytea output, extra float digits, and the advertised server version.
 - Unsupported setting names and incompatible fixed values are errors; Cassie does not silently accept arbitrary PostgreSQL GUCs.
 - Unqualified relations resolve through `search_path` inside the current database.
+- `CREATE TABLE`, `CREATE VIEW`, `CREATE SEQUENCE`, `CREATE GRAPH`, `CREATE FUNCTION`, `CREATE PROCEDURE`, `CREATE ROLLUP` and `CREATE MATERIALIZED PROJECTION` fail with SQLSTATE `3F000` (`invalid_schema_name`) when the target schema does not exist, whether it is named explicitly (`CREATE TABLE ghost.t ...`) or reached through `search_path`. `public` always exists.
 - Cross-database relation references are unsupported.
 - Prepared statements and portals belong to one connection and are removed when closed or disconnected.
 - Transactions accept Cassie's documented isolation behavior only; unsupported modes return `0A000`.

@@ -8,7 +8,7 @@ pub(super) fn bind_create_sequence(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateSequenceStatement, CassieError> {
-    let name = super::normalize_new_relation_name(statement.name.trim(), context)?;
+    let name = super::normalize_new_relation_name(statement.name.trim(), context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE SEQUENCE requires a name".into(),

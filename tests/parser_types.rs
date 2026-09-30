@@ -4845,7 +4845,7 @@ mod ddl_default_values {
     }
 
     #[test]
-    fn should_accept_parenthesized_and_cast_default_constants() {
+    fn should_accept_wrapped_default_constants() {
         // Arrange
         let (cassie, session, path) = open(
             "default_cast_constants",

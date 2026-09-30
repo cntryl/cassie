@@ -1,4 +1,5 @@
 pub(crate) mod array;
+pub mod char_text;
 pub mod numeric;
 pub mod row;
 pub mod row_identity;

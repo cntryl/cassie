@@ -487,6 +487,12 @@ pub(crate) fn canonical_field_value(
                 .and_then(serde_json::Number::from_f64)
                 .map(serde_json::Value::Number);
         }
+        DataType::Char { .. } => {
+            return value
+                .as_str()
+                .map(crate::types::char_text::canonical_char_text)
+                .map(|text| serde_json::Value::String(text.to_string()));
+        }
         DataType::Date => crate::types::temporal::canonical_date,
         DataType::Time => crate::types::temporal::canonical_time,
         DataType::Timestamp => crate::types::temporal::canonical_timestamp,

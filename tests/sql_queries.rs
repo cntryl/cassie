@@ -11796,6 +11796,39 @@ mod identifier_case_resolution {
     }
 
     #[test]
+    fn should_join_on_qualified_mixed_case_columns() {
+        // Arrange
+        let (cassie, session, path) = seeded(
+            "case_qualified_join",
+            &[
+                "CREATE TABLE CaseUsers (UserKey INT, Name TEXT)",
+                "CREATE TABLE CaseOrders (OrderUserKey INT, Total INT)",
+                "INSERT INTO CaseUsers (UserKey, Name) VALUES (1, 'ada')",
+                "INSERT INTO CaseOrders (OrderUserKey, Total) VALUES (1, 42)",
+            ],
+        );
+
+        // Act
+        let inner = rows(
+            &cassie,
+            &session,
+            "SELECT CaseUsers.Name, CaseOrders.Total FROM CaseUsers \
+             JOIN CaseOrders ON CaseUsers.UserKey = CaseOrders.OrderUserKey",
+        );
+        let left = rows(
+            &cassie,
+            &session,
+            "SELECT caseusers.name, caseorders.total FROM CaseUsers \
+             LEFT JOIN CaseOrders ON caseusers.userkey = caseorders.orderuserkey",
+        );
+
+        // Assert
+        assert_eq!(inner, vec![vec![text("ada"), Value::Int64(42)]]);
+        assert_eq!(left, inner);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_update_rows_matched_on_an_other_case_column() {
         // Arrange
         let (cassie, session, path) = mixed_case_scores("case_update");

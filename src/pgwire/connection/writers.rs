@@ -182,6 +182,14 @@ pub(super) async fn write_no_data(write_half: &mut (impl AsyncWrite + Unpin)) ->
     write_backend_frame(write_half, b'n', &[]).await
 }
 
+/// `EmptyQueryResponse`: stands in for `CommandComplete` when the query
+/// string held no statement at all.
+pub(super) async fn write_empty_query_response(
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> io::Result<()> {
+    write_backend_frame(write_half, b'I', &[]).await
+}
+
 pub(super) fn append_row_description_frame(
     frame: &mut Vec<u8>,
     columns: &[crate::executor::ColumnMeta],

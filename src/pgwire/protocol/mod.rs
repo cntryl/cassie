@@ -97,7 +97,9 @@ pub struct PreparedStatement {
     pub id: u64,
     pub name: String,
     pub query: String,
-    pub parsed: crate::sql::ast::ParsedStatement,
+    /// `None` for an empty query string (only whitespace, comments or `;`),
+    /// which PostgreSQL accepts and answers with `EmptyQueryResponse`.
+    pub parsed: Option<crate::sql::ast::ParsedStatement>,
     pub sql_fingerprint: u64,
     pub parameter_count: usize,
     pub parameter_types: Vec<i32>,

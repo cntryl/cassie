@@ -39,6 +39,13 @@ pub(super) fn build_select_result(
         user_functions,
         &[],
     );
+    let columns = super::unify_set_result_columns(
+        &cassie.catalog,
+        &plan.logical,
+        user_functions,
+        &[],
+        columns,
+    );
     // Every row carries the reserved `_id` internal-identity entry (see
     // `scan::push_row_identity`) as working state for DML/retention/scored-
     // candidate resolution; it is never a `SELECT` output column, so it's

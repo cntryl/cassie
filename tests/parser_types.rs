@@ -4921,6 +4921,107 @@ mod ddl_default_values {
     }
 }
 
+mod sql_predicate_types {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::{sql_fixture, SqlFixture};
+
+    fn predicate_fixture(label: &str) -> SqlFixture {
+        sql_fixture(
+            label,
+            &[
+                "CREATE TABLE b (id INT, flag BOOLEAN, name TEXT, score INT)",
+                "INSERT INTO b (id, flag, name, score) VALUES (1, true, 'x', 5)",
+                "INSERT INTO b (id, flag, name, score) VALUES (2, false, 'y', 0)",
+                "CREATE TABLE h (id INT, code TEXT)",
+                "INSERT INTO h (id, code) VALUES (1, 'abc')",
+                "INSERT INTO h (id, code) VALUES (2, 'abc')",
+                "INSERT INTO h (id, code) VALUES (3, 'xy')",
+            ],
+        )
+    }
+
+    #[test]
+    fn should_reject_non_boolean_predicate_arguments() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_non_boolean");
+
+        // Act
+        let rejected = [
+            "SELECT id FROM b WHERE score",
+            "SELECT id FROM b WHERE name",
+            "SELECT id FROM b WHERE NOT score",
+            "SELECT id FROM b WHERE flag AND score",
+            "SELECT id FROM b WHERE score + 1",
+            "SELECT code FROM h GROUP BY code HAVING COUNT(*)",
+            "SELECT b.id FROM b JOIN h ON b.score",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+
+        // Assert
+        assert_eq!(rejected, [true; 7]);
+    }
+
+    #[test]
+    fn should_accept_boolean_where_arguments() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_boolean");
+
+        // Act
+        let flagged = fixture.rows("SELECT id FROM b WHERE flag");
+        let negated = fixture.rows("SELECT id FROM b WHERE NOT flag AND score = 0");
+
+        // Assert
+        assert_eq!(flagged, vec![vec![Value::Int64(1)]]);
+        assert_eq!(negated, vec![vec![Value::Int64(2)]]);
+    }
+
+    #[test]
+    fn should_type_check_comparisons_with_function_calls() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_function_operands");
+
+        // Act
+        let rejected = [
+            "SELECT code, count(*) FROM h GROUP BY code HAVING count(*) = '2'",
+            "SELECT id FROM h WHERE length(code) = '3'",
+            "SELECT id FROM h WHERE lower(code) = 3",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+        let matched = fixture.rows("SELECT id FROM h WHERE length(code) = 3 ORDER BY id");
+
+        // Assert
+        assert_eq!(rejected, [true; 3]);
+        assert_eq!(matched, vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]);
+    }
+
+    #[test]
+    fn should_type_check_dml_predicates_like_select() {
+        // Arrange
+        let fixture = predicate_fixture("predicate_dml_family_check");
+
+        // Act
+        let rejected = [
+            "DELETE FROM b WHERE flag = 1",
+            "UPDATE b SET name = 'changed' WHERE flag = 0",
+            "DELETE FROM b WHERE score",
+            "UPDATE b SET name = 'changed' WHERE length(name) = '1'",
+        ]
+        .map(|sql| fixture.execute(sql).is_err());
+        let remaining = fixture.rows("SELECT id, name FROM b ORDER BY id");
+
+        // Assert
+        assert_eq!(rejected, [true; 4]);
+        assert_eq!(
+            remaining,
+            vec![
+                vec![Value::Int64(1), Value::String("x".to_string())],
+                vec![Value::Int64(2), Value::String("y".to_string())],
+            ]
+        );
+    }
+}
+
 // Bound string parameters compared against typed columns.
 mod typed_parameter_canonicalization {
     use cassie::app::Cassie;
@@ -4996,6 +5097,112 @@ mod typed_parameter_canonicalization {
         assert_eq!(by_uuid_list, expected);
         assert_eq!(by_bytea, expected);
         assert_eq!(by_timestamp, expected);
+    }
+}
+
+mod sql_float_integer_casts {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::sql_fixture;
+
+    #[test]
+    fn should_round_float_to_nearest_integer_when_casting() {
+        // Arrange
+        let fixture = sql_fixture(
+            "cast_float_rounds",
+            &[
+                "CREATE TABLE d (id INT, price FLOAT)",
+                "INSERT INTO d (id, price) VALUES (1, 19.99)",
+                "INSERT INTO d (id, price) VALUES (2, 5.0)",
+                "INSERT INTO d (id, price) VALUES (3, 2.5)",
+                "INSERT INTO d (id, price) VALUES (4, -3.5)",
+            ],
+        );
+
+        // Act
+        let ints = fixture.rows("SELECT CAST(price AS INT) FROM d ORDER BY id");
+        let bigints = fixture.rows("SELECT CAST(price AS BIGINT) FROM d WHERE id = 1");
+        let smallints = fixture.rows("SELECT CAST(price AS SMALLINT) FROM d WHERE id = 4");
+
+        // Assert
+        assert_eq!(
+            ints,
+            vec![
+                vec![Value::Int64(20)],
+                vec![Value::Int64(5)],
+                vec![Value::Int64(2)],
+                vec![Value::Int64(-4)],
+            ]
+        );
+        assert_eq!(bigints, vec![vec![Value::Int64(20)]]);
+        assert_eq!(smallints, vec![vec![Value::Int64(-4)]]);
+    }
+
+    #[test]
+    fn should_reject_float_cast_outside_integer_range() {
+        // Arrange
+        let fixture = sql_fixture(
+            "cast_float_out_of_range",
+            &[
+                "CREATE TABLE r (price FLOAT)",
+                "INSERT INTO r (price) VALUES (1.0e10)",
+            ],
+        );
+
+        // Act
+        let failed = fixture.execute("SELECT CAST(price AS INT) FROM r").is_err();
+
+        // Assert
+        assert!(failed, "a float beyond int4 must not cast to INT");
+    }
+}
+
+mod sql_unbounded_varchar {
+    use cassie::types::Value;
+
+    use super::support_sql_fixture::sql_fixture;
+
+    #[test]
+    fn should_store_any_length_in_bare_varchar_column() {
+        // Arrange
+        let long = "x".repeat(300);
+        let fixture = sql_fixture(
+            "bare_varchar_unbounded",
+            &["CREATE TABLE vc (a VARCHAR, b VARCHAR(8), c CHAR)"],
+        );
+
+        // Act
+        let inserted = fixture
+            .execute(&format!(
+                "INSERT INTO vc (a, b, c) VALUES ('{long}', 'hi', 'x')"
+            ))
+            .is_ok();
+        let rows = fixture.rows("SELECT a, b, c FROM vc");
+
+        // Assert
+        assert!(inserted, "bare VARCHAR must accept a non-empty value");
+        assert_eq!(
+            rows,
+            vec![vec![
+                Value::String(long.clone()),
+                Value::String("hi".to_string()),
+                Value::String("x".to_string())
+            ]]
+        );
+    }
+
+    #[test]
+    fn should_keep_rejecting_values_longer_than_varchar_limit() {
+        // Arrange
+        let fixture = sql_fixture("bounded_varchar_limit", &["CREATE TABLE vb (b VARCHAR(2))"]);
+
+        // Act
+        let failed = fixture
+            .execute("INSERT INTO vb (b) VALUES ('abc')")
+            .is_err();
+
+        // Assert
+        assert!(failed, "VARCHAR(2) must reject three characters");
     }
 }
 

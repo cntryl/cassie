@@ -478,6 +478,7 @@ fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
         return bad_request_descriptor("22012", message.to_string());
     }
     if message.eq_ignore_ascii_case("aggregate integer overflow")
+        || message.eq_ignore_ascii_case(crate::types::numeric::FLOAT_OVERFLOW)
         || message.eq_ignore_ascii_case(crate::executor::filter::BIGINT_OUT_OF_RANGE)
     {
         return bad_request_descriptor("22003", message.to_string());
@@ -721,6 +722,18 @@ mod tests {
     fn should_map_aggregate_integer_overflow_to_numeric_value_out_of_range() {
         // Arrange
         let error = CassieError::Execution("aggregate integer overflow".to_string());
+
+        // Act
+        let descriptor = error.descriptor();
+
+        // Assert
+        assert_eq!(descriptor.sql_state, "22003");
+    }
+
+    #[test]
+    fn should_map_float_overflow_to_numeric_value_out_of_range() {
+        // Arrange
+        let error = CassieError::Execution(crate::types::numeric::FLOAT_OVERFLOW.to_string());
 
         // Act
         let descriptor = error.descriptor();

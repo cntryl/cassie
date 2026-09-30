@@ -353,7 +353,10 @@ fn sum_value(
     if !floating_summary_fold_is_exact(&summaries) {
         return Ok(None);
     }
-    merge_float_capable_summaries(&summaries).map(Some)
+    // A float fold that reaches an infinity must be re-derived from rows so
+    // the row path decides between an overflow error and an infinite input.
+    merge_float_capable_summaries(&summaries)
+        .map(|value| (!matches!(value, Value::Float64(sum) if sum.is_infinite())).then_some(value))
 }
 
 fn merge_numeric_sums(
@@ -405,6 +408,9 @@ fn avg_value(
         return Ok(None);
     }
     let sum: f64 = summaries.iter().filter_map(|summary| summary.avg_sum).sum();
+    if sum.is_infinite() {
+        return Ok(None);
+    }
     Ok(Some(Value::Float64(sum / usize_to_f64(count))))
 }
 

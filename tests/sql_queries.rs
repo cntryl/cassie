@@ -528,6 +528,78 @@ mod integration_sql_aggregates {
         assert_eq!(sums, vec![vec![Value::Int64(7), Value::Int64(3)]]);
         assert_eq!(counts, vec![vec![Value::Int64(5), Value::Int64(2)]]);
     }
+
+    fn float_overflow_fixture(label: &str) -> super::support_sql_fixture::SqlFixture {
+        super::support_sql_fixture::sql_fixture(
+            label,
+            &[
+                "CREATE TABLE fl (v FLOAT)",
+                "INSERT INTO fl (v) VALUES (1.0e308)",
+                "INSERT INTO fl (v) VALUES (1.0e308)",
+            ],
+        )
+    }
+
+    #[test]
+    fn should_reject_float_sum_that_overflows_to_infinity() {
+        // Arrange
+        let fixture = float_overflow_fixture("aggregate_float_sum_overflow");
+
+        // Act
+        let error = fixture.error("SELECT SUM(v) FROM fl");
+
+        // Assert
+        assert!(
+            matches!(&error, cassie::app::CassieError::Execution(message) if message == "value out of range: overflow"),
+            "float overflow must be an execution error"
+        );
+    }
+
+    #[test]
+    fn should_reject_float_avg_that_overflows_to_infinity() {
+        // Arrange
+        let fixture = float_overflow_fixture("aggregate_float_avg_overflow");
+
+        // Act
+        let error = fixture.error("SELECT AVG(v) FROM fl");
+
+        // Assert
+        assert!(
+            matches!(&error, cassie::app::CassieError::Execution(message) if message == "value out of range: overflow"),
+            "float overflow must be an execution error"
+        );
+    }
+
+    #[test]
+    fn should_reject_filtered_column_batch_float_sum_overflow() {
+        // Arrange
+        let fixture = super::support_sql_fixture::sql_fixture(
+            "aggregate_float_direct_overflow",
+            &[
+                "CREATE TABLE fd (id INT, v FLOAT)",
+                "INSERT INTO fd (id, v) VALUES (1, 1.0e308)",
+                "INSERT INTO fd (id, v) VALUES (2, 1.0e308)",
+                "CREATE INDEX fd_idx ON fd USING column (id, v) WITH (segment_size = 1)",
+            ],
+        );
+
+        // Act
+        let errors = [
+            "SELECT SUM(v) FROM fd WHERE id > 0",
+            "SELECT AVG(v) FROM fd WHERE id > 0",
+            "SELECT SUM(v) FROM fd",
+            "SELECT AVG(v) FROM fd",
+        ]
+        .map(|sql| fixture.error(sql).to_string());
+
+        // Assert
+        for error in errors {
+            assert!(
+                error.contains("value out of range: overflow"),
+                "float overflow must be reported"
+            );
+        }
+    }
 }
 
 // Formerly tests/integration_sql_ctes.rs.

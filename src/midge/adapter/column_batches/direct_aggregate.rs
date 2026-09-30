@@ -4,7 +4,7 @@
 //! input is classified exactly like the executor's own aggregate errors.
 
 use super::{CassieError, ColumnBatchAggregateSpec};
-use crate::types::numeric::{i64_to_f64, usize_to_f64};
+use crate::types::numeric::{self, i64_to_f64, usize_to_f64};
 use crate::types::semantic::compare_values;
 use crate::types::Value;
 
@@ -76,7 +76,7 @@ impl DirectAggregateAccumulator {
                                     CassieError::Execution("aggregate integer overflow".to_string())
                                 })?;
                             }
-                            Some(Value::Float64(total)) => *total += i64_to_f64(*next),
+                            Some(Value::Float64(total)) => add_float(total, i64_to_f64(*next))?,
                             _ => {
                                 return Err(CassieError::Execution(
                                     "unsupported aggregate type".to_string(),
@@ -91,7 +91,7 @@ impl DirectAggregateAccumulator {
                                 *value = Some(Value::Float64(i64_to_f64(*total)));
                             }
                             if let Some(Value::Float64(total)) = value {
-                                *total += next;
+                                add_float(total, *next)?;
                             }
                         }
                         _ => {
@@ -108,13 +108,13 @@ impl DirectAggregateAccumulator {
                 for current in values {
                     match current {
                         Value::Int64(value) => {
-                            *sum += i64_to_f64(*value);
+                            add_float(sum, i64_to_f64(*value))?;
                             *count = count.checked_add(1).ok_or_else(|| {
                                 CassieError::Execution("aggregate row count overflow".to_string())
                             })?;
                         }
                         Value::Float64(value) => {
-                            *sum += value;
+                            add_float(sum, *value)?;
                             *count = count.checked_add(1).ok_or_else(|| {
                                 CassieError::Execution("aggregate row count overflow".to_string())
                             })?;
@@ -167,4 +167,13 @@ impl DirectAggregateAccumulator {
             Self::Min { value, .. } => value.unwrap_or(Value::Null),
         }
     }
+}
+
+/// Adds `value` to `sum`, rejecting finite operands that overflow to an
+/// infinity the way the executor's SUM/AVG do.
+fn add_float(sum: &mut f64, value: f64) -> Result<(), CassieError> {
+    if numeric::add_f64_overflowed(sum, value) {
+        return Err(CassieError::Execution(numeric::FLOAT_OVERFLOW.to_string()));
+    }
+    Ok(())
 }

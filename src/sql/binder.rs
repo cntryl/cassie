@@ -30,6 +30,8 @@ mod commands;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+#[path = "binder/json_predicates.rs"]
+mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
 #[path = "binder/recursive.rs"]

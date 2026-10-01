@@ -99,6 +99,7 @@ pub(super) fn bind_select_with_lateral_fields(
     if let Some(filter) = select.filter.as_mut() {
         canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
+    super::json_predicates::rewrite_select(&mut select, &field_types);
     super::case_unify::unify_select_case_results(&mut select, &field_types);
 
     let projection_aliases = collect_projection_aliases(&select);
@@ -685,7 +686,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 &right_lateral_fields,
                 context,
             )?;
-            let joined = QuerySource::Join {
+            let mut joined = QuerySource::Join {
                 left: Box::new(left),
                 right: Box::new(right),
                 kind,
@@ -695,6 +696,9 @@ pub(super) fn bind_query_source_with_lateral_fields(
             validate_expression(&on, &known_fields, &HashSet::new(), false)?;
             let field_types = crate::sql::source_field_type_map(&joined, catalog);
             validate_expression_operand_families(&on, &field_types)?;
+            if let QuerySource::Join { on, .. } = &mut joined {
+                super::json_predicates::rewrite(on, &field_types);
+            }
             Ok(joined)
         }
     }

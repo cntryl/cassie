@@ -48,6 +48,7 @@ pub(crate) enum ScalarValue {
     Int(i64),
     Float(f64),
     Str(String),
+    Json(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,7 +120,7 @@ impl ScalarValue {
                     PredicateResult::True
                 }
             }
-            ScalarValue::Str(value) => {
+            ScalarValue::Str(value) | ScalarValue::Json(value) => {
                 if value.is_empty() {
                     PredicateResult::False
                 } else {
@@ -136,7 +137,7 @@ impl ScalarValue {
 
     pub(crate) fn as_str(&self) -> Option<&str> {
         match self {
-            ScalarValue::Str(v) => Some(v),
+            ScalarValue::Str(v) | ScalarValue::Json(v) => Some(v),
             _ => None,
         }
     }
@@ -156,7 +157,7 @@ impl ScalarValue {
             ScalarValue::Bool(v) => Value::Bool(*v),
             ScalarValue::Int(v) => Value::Int64(*v),
             ScalarValue::Float(v) => Value::Float64(*v),
-            ScalarValue::Str(v) => Value::String(v.clone()),
+            ScalarValue::Str(v) | ScalarValue::Json(v) => Value::String(v.clone()),
         }
     }
 }
@@ -410,7 +411,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             ScalarValue::Bool(value) => value.to_string(),
             ScalarValue::Int(value) => value.to_string(),
             ScalarValue::Float(value) => value.to_string(),
-            ScalarValue::Str(value) => value.clone(),
+            ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
             ScalarValue::Null => String::new(),
         })),
         DataType::Char { length } => cast_bounded_text(value, length.unwrap_or(1), "CHAR"),
@@ -441,7 +442,7 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
             "TIMESTAMP",
             crate::types::temporal::canonical_timestamp,
         ),
-        DataType::Json => Ok(ScalarValue::Str(cast_json_text(value))),
+        DataType::Json => Ok(ScalarValue::Json(cast_json_text(value))),
         DataType::Array(_) => Err(QueryError::General(
             "cannot cast scalar value to ARRAY".to_string(),
         )),
@@ -456,7 +457,7 @@ fn cast_to_text(value: &ScalarValue) -> Option<String> {
         ScalarValue::Bool(value) => Some(value.to_string()),
         ScalarValue::Int(value) => Some(value.to_string()),
         ScalarValue::Float(value) => Some(value.to_string()),
-        ScalarValue::Str(value) => Some(value.clone()),
+        ScalarValue::Str(value) | ScalarValue::Json(value) => Some(value.clone()),
         ScalarValue::Null => None,
     }
 }
@@ -466,13 +467,15 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         ScalarValue::Bool(value) => Ok(ScalarValue::Bool(*value)),
         ScalarValue::Int(value) => Ok(ScalarValue::Bool(*value != 0)),
         ScalarValue::Float(value) => Ok(ScalarValue::Bool(*value != 0.0)),
-        ScalarValue::Str(value) => match value.to_ascii_lowercase().as_str() {
-            "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
-            "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
-            _ => Err(QueryError::General(
-                "cannot cast value to BOOLEAN".to_string(),
-            )),
-        },
+        ScalarValue::Str(value) | ScalarValue::Json(value) => {
+            match value.to_ascii_lowercase().as_str() {
+                "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
+                "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
+                _ => Err(QueryError::General(
+                    "cannot cast value to BOOLEAN".to_string(),
+                )),
+            }
+        }
         ScalarValue::Null => Ok(ScalarValue::Null),
     }
 }
@@ -510,7 +513,7 @@ fn cast_json_text(value: &ScalarValue) -> String {
         ScalarValue::Bool(value) => value.to_string(),
         ScalarValue::Int(value) => value.to_string(),
         ScalarValue::Float(value) => value.to_string(),
-        ScalarValue::Str(value) => value.clone(),
+        ScalarValue::Str(value) | ScalarValue::Json(value) => value.clone(),
         ScalarValue::Null => "null".to_string(),
     }
 }
@@ -523,7 +526,7 @@ fn scalar_to_i64(value: &ScalarValue) -> Option<i64> {
         // (ties to even, like `rint`) and fails only on range overflow.
         ScalarValue::Float(value) if value.is_finite() => parse_f64_to_i64(value.round_ties_even()),
         ScalarValue::Float(_) | ScalarValue::Null => None,
-        ScalarValue::Str(value) => value.parse().ok(),
+        ScalarValue::Str(value) | ScalarValue::Json(value) => value.parse().ok(),
     }
 }
 
@@ -710,6 +713,8 @@ fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {
         (ScalarValue::Str(left), ScalarValue::Str(right)) => {
             Some(compare_text(left, right).is_eq())
         }
+        (ScalarValue::Json(left), ScalarValue::Str(right) | ScalarValue::Json(right))
+        | (ScalarValue::Str(left), ScalarValue::Json(right)) => json_equality::equal(left, right),
         (ScalarValue::Bool(left), ScalarValue::Int(right)) => {
             Some((*left && *right != 0) || (!*left && *right == 0))
         }
@@ -740,7 +745,7 @@ fn scalar_from_value(value: &Value) -> ScalarValue {
                 .collect::<Vec<_>>()
                 .join(",")
         )),
-        Value::Json(v) => ScalarValue::Str(v.to_string()),
+        Value::Json(v) => ScalarValue::Json(v.to_string()),
         Value::Null => ScalarValue::Null,
     }
 }
@@ -879,3 +884,6 @@ fn parse_f64_to_i64(value: f64) -> Option<i64> {
 #[cfg(test)]
 #[path = "filter/tests.rs"]
 mod tests;
+
+#[path = "filter/json_equality.rs"]
+mod json_equality;

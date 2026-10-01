@@ -618,6 +618,7 @@ fn projected_pushdown_literal(expr: &Expr) -> Option<Value> {
         {
             None
         }
+        Expr::StringLiteral(value) if is_json_shaped_string(value) => None,
         Expr::StringLiteral(value) => Some(Value::String(value.clone())),
         Expr::BoolLiteral(value) => Some(Value::Bool(*value)),
         _ => None,
@@ -751,6 +752,7 @@ fn reverse_column_batch_scan_op(op: &BinaryOp) -> Option<crate::midge::adapter::
 
 fn column_batch_literal(expr: &Expr) -> Option<serde_json::Value> {
     match expr {
+        Expr::StringLiteral(value) if is_json_shaped_string(value) => None,
         Expr::StringLiteral(value) => Some(serde_json::Value::String(value.clone())),
         Expr::BoolLiteral(value) => Some(serde_json::Value::Bool(*value)),
         Expr::NumberLiteral(value) => {
@@ -760,6 +762,10 @@ fn column_batch_literal(expr: &Expr) -> Option<serde_json::Value> {
         Expr::Null => Some(serde_json::Value::Null),
         _ => None,
     }
+}
+
+fn is_json_shaped_string(value: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(value).is_ok()
 }
 
 fn projected_scan_filter_columns(expr: &Expr) -> Option<Vec<String>> {

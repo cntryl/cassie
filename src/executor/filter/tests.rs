@@ -245,3 +245,19 @@ fn should_preserve_boolean_numeric_equality_coercions() {
         ]
     );
 }
+
+#[test]
+fn should_compare_json_numbers_by_numeric_value() {
+    // Arrange
+    let left = ScalarValue::Json("{\"k\":[1,9007199254740993]}".to_string());
+    let equivalent = ScalarValue::Str("{\"k\":[1.0,9007199254740993]}".to_string());
+    let rounded = ScalarValue::Str("{\"k\":[1.0,9007199254740992.0]}".to_string());
+
+    // Act
+    let equality = eq_value(&left, &equivalent);
+    let rounded_equality = eq_value(&left, &rounded);
+
+    // Assert
+    assert_eq!(equality, Some(true));
+    assert_eq!(rounded_equality, Some(false));
+}

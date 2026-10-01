@@ -1174,8 +1174,14 @@ mod graph_resilience {
         assert_eq!(reverse.native_overlay, reverse_rows);
         assert_eq!(forward_rows, reverse_rows);
         assert_ne!(forward_rows, other_seed.adjacency);
-        assert!(forward.disconnected_native_overlay.is_empty());
-        assert!(forward.disconnected_adjacency.is_empty());
+        assert_eq!(
+            forward.disconnected_native_overlay,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
+        assert_eq!(
+            forward.disconnected_adjacency,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         assert_eq!(forward.overlay_fallback_reason, "transaction-overlay");
     }
 
@@ -1636,8 +1642,8 @@ mod graph_resilience {
 
         // Assert
         assert_eq!(before_drop, vec![vec![Value::String("e1".into())]]);
-        assert!(after_drop.is_empty());
-        assert!(after_restart.is_empty());
+        assert_eq!(after_drop, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+        assert_eq!(after_restart, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         let _ = std::fs::remove_dir_all(path);
     });
     }

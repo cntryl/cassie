@@ -4734,7 +4734,7 @@ mod integration_sql_predicates {
             .unwrap();
 
         // Assert
-        assert!(selected.rows.is_empty());
+        assert_eq!(selected.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });
@@ -10602,7 +10602,7 @@ mod window_frames {
             .expect("single partition");
 
         // Assert
-        assert!(empty.rows.is_empty());
+        assert_eq!(empty.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(single.rows, vec![vec![Value::Int64(99), Value::Int64(99)]]);
     }
 
@@ -11178,7 +11178,10 @@ mod typed_literal_canonicalization {
                 vec![vec![Value::String("MixedCase".to_string())]]
             );
         }
-        assert!(text_control.rows.is_empty());
+        assert_eq!(
+            text_control.rows,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         let _ = std::fs::remove_dir_all(path);
     }
 }

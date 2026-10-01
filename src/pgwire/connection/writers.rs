@@ -478,6 +478,6 @@ mod tests {
 
         // Assert
         assert!(is_backend_frame_too_large(&error));
-        assert!(frame.is_empty());
+        assert_eq!(frame, [] as [u8; 0]);
     }
 }

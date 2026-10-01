@@ -80,7 +80,7 @@ fn encoded_posting_entry_len(previous: &str, posting: &PersistedFulltextPosting)
 }
 
 fn varint_len(value: usize) -> usize {
-    let bits = usize::BITS - value.max(1).leading_zeros();
+    let bits = value.max(1).bit_width();
     usize::try_from(bits.div_ceil(7)).unwrap_or(usize::MAX)
 }
 

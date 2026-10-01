@@ -1263,8 +1263,14 @@ mod hnsw_indexes {
                 .row_count,
             5_001
         );
-        assert!(remaining_normalized.is_empty());
-        assert!(remaining_nodes.is_empty());
+        assert_eq!(
+            remaining_normalized,
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
+        assert_eq!(
+            remaining_nodes,
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -4304,16 +4310,20 @@ mod ivfflat_indexes {
         assert!(failed.to_string().contains("injected test failure"));
         assert!(unpublished.is_none());
         assert_eq!(staged_memberships.len(), 5_001);
+        let training_row_count = published
+            .metadata
+            .ivfflat_training
+            .expect("published training")
+            .row_count;
+        assert_eq!(training_row_count, 5_001);
         assert_eq!(
-            published
-                .metadata
-                .ivfflat_training
-                .expect("published training")
-                .row_count,
-            5_001
+            remaining_normalized.len().cmp(&0),
+            std::cmp::Ordering::Equal
         );
-        assert!(remaining_normalized.is_empty());
-        assert!(remaining_memberships.is_empty());
+        assert_eq!(
+            remaining_memberships.len().cmp(&0),
+            std::cmp::Ordering::Equal
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -4859,11 +4869,13 @@ mod normalized_vector_generation {
         rewrite_sidecar_generation(&cassie, collection, 0);
 
         // Assert
-        assert!(cassie
-            .midge
-            .list_normalized_vectors(collection, "embedding")
-            .expect("read sidecars")
-            .is_empty());
+        assert_eq!(
+            cassie
+                .midge
+                .list_normalized_vectors(collection, "embedding")
+                .expect("read sidecars"),
+            [] as [cassie::embeddings::NormalizedVectorRecord; 0]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -5525,7 +5537,7 @@ mod vector_index_metadata {
                 .midge
                 .list_vector_indexes()
                 .expect("stored vector index records");
-            assert!(!stored.is_empty());
+            assert_ne!(stored, [] as [cassie::embeddings::VectorIndexRecord; 0]);
 
             let hydrated = restarted
                 .catalog

@@ -124,7 +124,7 @@ mod temporal_predicate_literals {
                 let Value::String(plan) = &explain.rows[0][0] else {
                     panic!("expected textual plan");
                 };
-                assert!(plan.contains(index_name), "plan={plan}");
+                assert!(plan.contains(index_name));
             }
 
             let _ = std::fs::remove_dir_all(path);

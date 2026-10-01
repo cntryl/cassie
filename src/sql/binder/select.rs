@@ -285,6 +285,19 @@ fn canonicalize_column_literal_pair(
             }
             *literal = format!("\\x{}", digits.to_ascii_lowercase());
         }
+        Some(DataType::Date) => {
+            *literal = crate::types::temporal::canonical_date(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid DATE literal '{literal}'")))?;
+        }
+        Some(DataType::Time) => {
+            *literal = crate::types::temporal::canonical_time(literal)
+                .map_err(|_| CassieError::Planner(format!("invalid TIME literal '{literal}'")))?;
+        }
+        Some(DataType::Timestamp) => {
+            *literal = crate::types::temporal::canonical_timestamp(literal).map_err(|_| {
+                CassieError::Planner(format!("invalid TIMESTAMP literal '{literal}'"))
+            })?;
+        }
         _ => {}
     }
     Ok(())
@@ -869,4 +882,51 @@ pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
         ];
     }
     graph_table_function_columns()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{canonicalize_column_literal_pair, DataType, Expr};
+
+    #[test]
+    fn should_canonicalize_temporal_string_predicate_literals() {
+        // Arrange
+        let field_types = crate::sql::FieldTypeMap::from([
+            ("d".to_string(), DataType::Date),
+            ("t".to_string(), DataType::Time),
+            ("ts".to_string(), DataType::Timestamp),
+        ]);
+        let mut date_column = Expr::Column("d".to_string());
+        let mut date_literal = Expr::StringLiteral("2024-1-1".to_string());
+        let mut time_column = Expr::Column("t".to_string());
+        let mut time_literal = Expr::StringLiteral("12:00:00.000".to_string());
+        let mut timestamp_column = Expr::Column("ts".to_string());
+        let mut timestamp_literal = Expr::StringLiteral("2024-01-01 12:00:00".to_string());
+
+        // Act
+        canonicalize_column_literal_pair(&mut date_column, &mut date_literal, &field_types)
+            .expect("canonicalize DATE literal");
+        canonicalize_column_literal_pair(&mut time_column, &mut time_literal, &field_types)
+            .expect("canonicalize TIME literal");
+        canonicalize_column_literal_pair(
+            &mut timestamp_column,
+            &mut timestamp_literal,
+            &field_types,
+        )
+        .expect("canonicalize TIMESTAMP literal");
+
+        // Assert
+        let Expr::StringLiteral(date_literal) = date_literal else {
+            panic!("DATE predicate literal should remain a string");
+        };
+        let Expr::StringLiteral(time_literal) = time_literal else {
+            panic!("TIME predicate literal should remain a string");
+        };
+        let Expr::StringLiteral(timestamp_literal) = timestamp_literal else {
+            panic!("TIMESTAMP predicate literal should remain a string");
+        };
+        assert_eq!(date_literal, "2024-01-01");
+        assert_eq!(time_literal, "12:00:00");
+        assert_eq!(timestamp_literal, "2024-01-01T12:00:00.000000Z");
+    }
 }

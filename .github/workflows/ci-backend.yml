@@ -17,11 +17,11 @@ permissions:
   contents: read
 
 jobs:
-  backend:
+  backend-quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # Cassie links 18 consolidated integration-test binaries against a heavy
+      # Cassie links consolidated integration-test binaries against a heavy
       # dependency tree. lld keeps those links fast without changing local
       # development toolchains or runtime behavior.
       RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
@@ -70,19 +70,81 @@ jobs:
       - name: Cargo clippy pedantic
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings -D clippy::pedantic
 
-      - name: Run tests
-        run: cargo test --locked --workspace
+  backend-test-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.shards.outputs.matrix }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Publish backend test shard matrix
+        id: shards
+        run: echo "matrix=$(jq -c . .github/backend-test-shards.json)" >> "$GITHUB_OUTPUT"
+
+  backend-tests:
+    needs: backend-test-matrix
+    name: backend tests (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix: ${{ fromJSON(needs.backend-test-matrix.outputs.matrix) }}
+    env:
+      RUSTFLAGS: "-C link-arg=-fuse-ld=lld"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Update Rust toolchain
+        run: rustup update stable
+
+      - name: Install lld linker
+        run: |
+          # The hosted image may have a stale Google Chrome index while its
+          # release metadata is being refreshed. It is unrelated to this job;
+          # remove only that optional source so Ubuntu package installation
+          # is deterministic.
+          sudo grep -RIl 'dl.google.com/linux/chrome' /etc/apt/sources.list.d \
+            | xargs -r sudo rm -f
+          sudo apt-get update
+          sudo apt-get install -y lld
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci"
+
+      - name: Run backend test shard
+        run: cargo test --locked --workspace ${{ join(matrix.cargo_test_args, ' ') }}
 
       - name: Generate deterministic adaptive profile evidence
+        if: matrix.shard == 'core'
         env:
           CASSIE_ADAPTIVE_EVIDENCE_PATH: adaptive-evidence/adaptive-profile.json
           CASSIE_EVIDENCE_COMMIT: ${{ github.sha }}
         run: cargo test --locked --test metrics metrics_adaptive::should_preserve_the_selected_adaptive_read_surface_across_profiles -- --nocapture
 
       - name: Retain adaptive profile evidence
+        if: always() && matrix.shard == 'core'
         uses: actions/upload-artifact@v7
         with:
           name: cassie-adaptive-profile-${{ github.sha }}
           path: adaptive-evidence/adaptive-profile.json
           if-no-files-found: error
           retention-days: 90
+
+  backend:
+    name: backend
+    needs: [backend-quality, backend-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require backend quality and every test shard
+        env:
+          QUALITY_RESULT: ${{ needs.backend-quality.result }}
+          TESTS_RESULT: ${{ needs.backend-tests.result }}
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$TESTS_RESULT" = success

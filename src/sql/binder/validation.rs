@@ -6,6 +6,8 @@ use super::{
 #[path = "validation_case.rs"]
 mod case;
 use case::case_operand_family;
+#[path = "validation_vector.rs"]
+mod vector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OperandFamily {
@@ -69,6 +71,7 @@ fn validate_select_item_operand_families(
             for argument in &function.args {
                 validate_expression_operand_families(argument, field_types)?;
             }
+            vector::validate_vector_function_query(function, field_types)?;
             Ok(())
         }
         SelectItem::WindowFunction { function, .. } => {
@@ -121,6 +124,7 @@ fn expression_operand_family(
             for argument in &function.args {
                 validate_expression_operand_families(argument, field_types)?;
             }
+            vector::validate_vector_function_query(function, field_types)?;
             Ok(None)
         }
         Expr::Cast { expr, data_type } => {
@@ -161,6 +165,7 @@ fn expression_operand_family(
                 BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
                     require_family(left_family, OperandFamily::Vector, "vector distance")?;
                     require_family(right_family, OperandFamily::Vector, "vector distance")?;
+                    vector::validate_vector_query_literals(left, right, field_types)?;
                     Ok(Some(OperandFamily::Numeric))
                 }
             }

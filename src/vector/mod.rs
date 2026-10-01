@@ -18,3 +18,21 @@ pub use normalized::{
     NormalizedVector,
 };
 pub use source_fingerprint::normalized_vector_source_fingerprint;
+
+pub(crate) fn f64_to_finite_f32(value: f64) -> Option<f32> {
+    if !value.is_finite() || value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
+        return None;
+    }
+    value
+        .to_string()
+        .parse::<f32>()
+        .ok()
+        .filter(|component| component.is_finite())
+}
+
+pub(crate) fn finite_f32_vector(values: &[f32]) -> Option<Vec<f32>> {
+    values
+        .iter()
+        .all(|component| component.is_finite())
+        .then(|| values.to_vec())
+}

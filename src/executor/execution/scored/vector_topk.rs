@@ -272,7 +272,7 @@ fn vector_distance_args(function: &FunctionCall, params: &[Value]) -> Option<(St
         Expr::StringLiteral(query) => parse_vector_literal(query)?,
         Expr::Param(index) => match params.get(*index)? {
             Value::String(query) => parse_vector_literal(query)?,
-            Value::Vector(query) => query.values.clone(),
+            Value::Vector(query) => crate::vector::finite_f32_vector(&query.values)?,
             _ => return None,
         },
         _ => return None,
@@ -281,11 +281,14 @@ fn vector_distance_args(function: &FunctionCall, params: &[Value]) -> Option<(St
 }
 
 pub(crate) fn parse_vector_literal(value: &str) -> Option<Vec<f32>> {
-    let values = serde_json::from_str::<Vec<f32>>(value).ok()?;
+    let values = serde_json::from_str::<Vec<f64>>(value).ok()?;
     if values.is_empty() {
         return None;
     }
-    Some(values)
+    values
+        .into_iter()
+        .map(crate::vector::f64_to_finite_f32)
+        .collect()
 }
 
 pub(super) fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
@@ -298,13 +301,6 @@ pub(super) fn vector_from_json(value: &serde_json::Value) -> Option<Vec<f32>> {
 }
 
 fn finite_f32(value: f64, context: &str) -> Result<f32, QueryError> {
-    if !value.is_finite() || value < f64::from(f32::MIN) || value > f64::from(f32::MAX) {
-        return Err(QueryError::General(format!(
-            "{context} is outside f32 range"
-        )));
-    }
-    value
-        .to_string()
-        .parse::<f32>()
-        .map_err(|_| QueryError::General(format!("failed to parse {context} as f32")))
+    crate::vector::f64_to_finite_f32(value)
+        .ok_or_else(|| QueryError::General(format!("{context} is outside f32 range")))
 }

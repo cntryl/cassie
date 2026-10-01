@@ -1,0 +1,83 @@
+{
+  "include": [
+    {
+      "shard": "core",
+      "cargo_test_args": [
+        "--lib",
+        "--bin",
+        "cassie",
+        "--test",
+        "backend_ci",
+        "--test",
+        "bench_operations",
+        "--test",
+        "executor",
+        "--test",
+        "json_writes",
+        "--test",
+        "metrics",
+        "--test",
+        "parser_types",
+        "--test",
+        "pgwire_core",
+        "--test",
+        "pgwire_extended",
+        "--test",
+        "planner_controls"
+      ]
+    },
+    {
+      "shard": "analytics-and-catalog",
+      "cargo_test_args": [
+        "--test",
+        "analytics",
+        "--test",
+        "catalog_security",
+        "--test",
+        "compatibility",
+        "--test",
+        "configuration_isolated",
+        "--test",
+        "domain_models"
+      ]
+    },
+    {
+      "shard": "query-surface",
+      "cargo_test_args": [
+        "--test",
+        "query_scan_controls",
+        "--test",
+        "rest",
+        "--test",
+        "search",
+        "--test",
+        "sql_derived_sources",
+        "--test",
+        "sql_exists_subqueries",
+        "--test",
+        "sql_mutations",
+        "--test",
+        "sql_queries",
+        "--test",
+        "sql_set_operations"
+      ]
+    },
+    {
+      "shard": "storage-and-vector",
+      "cargo_test_args": [
+        "--test",
+        "storage_indexes",
+        "--test",
+        "temporal_predicate_literals",
+        "--test",
+        "time_series_float_partitions",
+        "--test",
+        "vector_embeddings"
+      ]
+    },
+    {
+      "shard": "documentation",
+      "cargo_test_args": ["--doc"]
+    }
+  ]
+}

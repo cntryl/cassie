@@ -413,11 +413,13 @@ impl Cassie {
         let mut normalized_candidate_count = 0usize;
         let mut fallback_candidate_count = 0usize;
         for candidate in candidates {
-            let vector = candidate
+            let Some(vector) = candidate
                 .payload
                 .get(request.vector_field)
                 .and_then(vector_from_json)
-                .unwrap_or_default();
+            else {
+                continue;
+            };
             let normalized_record =
                 normalized_vectors.and_then(|records| records.get(candidate.id.as_str()));
             let (distance, used_normalized) =

@@ -151,10 +151,10 @@ pub(super) fn score_hybrid_documents(
         if search_score == 0.0 {
             continue;
         }
+        let Some(vector) = document.vector.as_ref() else {
+            continue;
+        };
         text_candidate_count += 1;
-        let vector = document.vector.as_ref().ok_or_else(|| {
-            QueryError::General("vector_score expects vector in first argument".to_string())
-        })?;
         if vector.len() != spec.vector_query.len() {
             return Err(QueryError::General(format!(
                 "vector_score vector length mismatch: {} != {}",

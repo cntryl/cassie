@@ -53,6 +53,7 @@ pub use types::{
 mod cte;
 mod dispatch;
 mod entrypoints;
+mod exists_correlated;
 mod exists_plan;
 mod result;
 

@@ -398,15 +398,9 @@ pub(super) fn execute_source_query_with_outer_row(
         controls: env.controls,
         search_context: search_context.as_ref(),
     };
-    let resolved_filter = resolve_plan_filter(
-        env.cassie,
-        env.session,
-        plan,
-        cte_context,
-        env.user_functions,
-        env.params,
-        env.controls,
-    )?;
+    let resolved_filter;
+    (batches, resolved_filter) =
+        resolve_filter_or_correlate(env, plan, cte_context, batches, search_context.as_ref())?;
     batches = apply_filter_phase(
         batches,
         resolved_filter.as_ref(),
@@ -573,6 +567,53 @@ struct PhaseExecutionEnv<'a> {
     search_context: Option<&'a filter::SearchContext>,
 }
 
+/// Resolves the plan's `WHERE` EXISTS predicates once, or, when a subquery
+/// references the enclosing row, filters `batches` row by row instead and
+/// returns no remaining filter.
+fn resolve_filter_or_correlate(
+    env: &SourceExecutionEnv<'_>,
+    plan: &LogicalPlan,
+    cte_context: &mut CteContext,
+    batches: Vec<Batch>,
+    search_context: Option<&filter::SearchContext>,
+) -> Result<(Vec<Batch>, Option<Expr>), QueryError> {
+    let error = match resolve_plan_filter(
+        env.cassie,
+        env.session,
+        plan,
+        cte_context,
+        env.user_functions,
+        env.params,
+        env.controls,
+    ) {
+        Ok(filter) => return Ok((batches, filter)),
+        Err(error) => error,
+    };
+    let Some(filter_expr) = plan
+        .filter
+        .as_ref()
+        .filter(|expr| super::exists_correlated::contains_exists(expr))
+    else {
+        return Err(error);
+    };
+    let batches = super::exists_correlated::filter_rows_per_outer_row(
+        &ExistsResolutionContext {
+            cassie: env.cassie,
+            session: env.session,
+            cte_context,
+            user_functions: env.user_functions,
+            params: env.params,
+            controls: env.controls,
+            outer_row: None,
+        },
+        &plan.source,
+        filter_expr,
+        batches,
+        search_context,
+    )?;
+    Ok((batches, None))
+}
+
 fn resolve_plan_filter(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -591,6 +632,7 @@ fn resolve_plan_filter(
                 user_functions,
                 params,
                 controls,
+                outer_row: None,
             },
             filter_expr,
         )

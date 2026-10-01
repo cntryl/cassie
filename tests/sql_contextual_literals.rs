@@ -192,7 +192,7 @@ fn should_compare_jsonb_scalar_string_literals() {
         boolean.rows,
         vec![vec![Value::String("boolean".to_string())]]
     );
-    assert!(sql_null.rows.is_empty());
+    assert_eq!(sql_null.rows, [] as [Vec<Value>; 0]);
     assert_eq!(projected.rows, vec![vec![Value::Bool(true)]]);
     assert_eq!(
         updated.rows,

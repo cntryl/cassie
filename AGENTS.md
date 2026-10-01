@@ -149,6 +149,39 @@ Create GitHub issues and pull requests as durable engineering records. Use real 
 
 ## Agentic Workflow
 
+### Jev issue triage and review
+
+Jev is TypeSafe's structured judgment model. It accepts a state and typed questions, then returns typed answers (`choice`, `score`, or `noul`) with probabilities or confidence where applicable. Use it throughout issue selection, dependency/scope decisions, adversarial review, and completion triage. Jev helps decide what to investigate; it does not establish code correctness, replace tests, or prove an issue is complete. Verify every material judgment against repository source, tests, GitHub state, and other direct evidence.
+
+Call `POST https://api.typesafe.ai/v1/systemone` with `Authorization: Bearer $TYPESAFE_API_KEY` and `Content-Type: application/json`. Keep the key in the environment or another approved secret store; never put credentials in source, issue/PR text, logs, or command output. A request has a `model`, a relevant `state`, and one or more named typed `questions`. Use lowercase question types and concrete criteria/options, for example:
+
+- Use `choice` to select from named alternatives, `score` to rate against an ordered rubric, and `noul` to judge a yes/no statement.
+- Check the [TypeSafe quick start](https://docs.typesafe.ai/introduction/quickstart.md) and [question primitives](https://docs.typesafe.ai/primitives.md) when request details or question behavior need verification.
+
+```json
+{
+  "model": "jev-latest",
+  "state": "Issue #N asks for [behavior]. The relevant implementation is [paths]. Existing evidence is [tests/docs].",
+  "questions": {
+    "scope": {
+      "type": "choice",
+      "instructions": "Which implementation scope best matches the issue and its dependencies?",
+      "criteria": {
+        "issue_only": "Implement only this issue; related work has a distinct behavior or implementation root.",
+        "bundle_related": "Bundle the named related issues because they share one behavior and implementation context.",
+        "blocked": "A documented dependency or unresolved contract prevents implementation."
+      }
+    },
+    "missing_case": {
+      "type": "noul",
+      "instructions": "Does the proposed change or its tests appear to miss a material case required by the stated contract?"
+    }
+  }
+}
+```
+
+Ask narrow questions tied to explicit issue acceptance criteria and the current diff. Record the judgment and confidence when useful, investigate non-obvious concerns in code/tests, and resolve or document concerns before moving on. Never treat an answer, confidence value, or probability as permission to change scope, as a review approval, or as validation evidence.
+
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
 When an `issues/` backlog exists, follow its priority order. In this checkout, no issue backlog is present; use the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs as the planning surface.
 

@@ -506,7 +506,7 @@ fn build_search_context(
     if fulltext_fields.is_empty() {
         return Ok(None);
     }
-    let options = search_context_options(cassie, &plan.source, fulltext_fields)?;
+    let options = search_context_options(cassie, &plan.source, &plan.ctes, fulltext_fields)?;
     cassie
         .runtime
         .record_fulltext_row_scan_fallback("authoritative_row_scan");
@@ -530,9 +530,12 @@ struct SearchContextOptions {
 fn search_context_options(
     cassie: &Cassie,
     source: &QuerySource,
+    ctes: &[crate::sql::ast::CommonTableExpression],
     fulltext_fields: &HashSet<String>,
 ) -> Result<SearchContextOptions, QueryError> {
-    let QuerySource::Collection(name) = source else {
+    // A derived table or CTE that passes a base table's columns through
+    // unrenamed searches with that table's fulltext index options.
+    let Some(name) = super::fulltext_options::fulltext_base_collection(source, ctes) else {
         return Ok(SearchContextOptions {
             boost: HashMap::new(),
             k1: HashMap::new(),

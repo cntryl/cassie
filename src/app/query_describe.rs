@@ -152,16 +152,21 @@ impl Cassie {
         logical: &crate::planner::logical::LogicalPlan,
         user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     ) -> Option<crate::catalog::CollectionSchema> {
-        self.catalog
-            .get_schema(&logical.collection)
-            .or_else(|| crate::catalog::CollectionSchema::virtual_view(&logical.collection))
-            .or_else(|| {
-                crate::sql::binder::cte_collection_schema_with_functions(
-                    &logical.ctes,
-                    &logical.collection,
-                    &self.catalog,
-                    user_functions,
-                )
-            })
+        crate::sql::binder::derived_source_schema(
+            &logical.source,
+            &logical.ctes,
+            &self.catalog,
+            user_functions,
+        )
+        .or_else(|| self.catalog.get_schema(&logical.collection))
+        .or_else(|| crate::catalog::CollectionSchema::virtual_view(&logical.collection))
+        .or_else(|| {
+            crate::sql::binder::cte_collection_schema_with_functions(
+                &logical.ctes,
+                &logical.collection,
+                &self.catalog,
+                user_functions,
+            )
+        })
     }
 }

@@ -46,6 +46,8 @@ mod search_field_case;
 mod select;
 #[path = "binder/set_width.rs"]
 mod set_width;
+#[path = "binder/source_schema.rs"]
+mod source_schema;
 #[path = "binder/validation.rs"]
 mod validation;
 #[path = "binder/wildcard.rs"]
@@ -75,6 +77,7 @@ use schema::{
 };
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
+pub(crate) use source_schema::derived_source_schema;
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,

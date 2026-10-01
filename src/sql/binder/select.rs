@@ -69,30 +69,12 @@ pub(super) fn bind_select_with_lateral_fields(
             )?,
         };
 
-        let visible_fields = cte_output_fields(&query)?;
-        let aliases = if cte.aliases.is_empty() {
-            visible_fields
-        } else {
-            if visible_fields.len() != cte.aliases.len() {
-                return Err(CassieError::Planner(format!(
-                    "CTE '{cte_name}' alias count does not match output columns"
-                )));
-            }
-
-            cte.aliases
-                .iter()
-                .map(|alias| alias.to_ascii_lowercase())
-                .collect()
-        };
-        scope.insert(cte_name_lc, aliases.clone());
-
+        let (aliases, stored_aliases) =
+            cte_column_aliases(&cte.name, &declared_aliases, &query, &bound_ctes, catalog)?;
+        scope.insert(cte_name_lc, aliases);
         bound_ctes.push(crate::sql::ast::CommonTableExpression {
             name: cte.name,
-            aliases: if declared_aliases.is_empty() {
-                aliases
-            } else {
-                declared_aliases
-            },
+            aliases: stored_aliases,
             query,
         });
     }
@@ -112,7 +94,8 @@ pub(super) fn bind_select_with_lateral_fields(
         super::own_qualifier::strip_select_own_qualifiers(&mut select);
     }
 
-    let field_types = crate::sql::source_field_type_map(&select.source, catalog);
+    let field_types =
+        crate::sql::source_field_type_map_with_ctes(&select.source, &select.ctes, catalog);
     if let Some(filter) = select.filter.as_mut() {
         canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
@@ -135,6 +118,79 @@ pub(super) fn bind_select_with_lateral_fields(
     super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
+}
+
+/// Returns a CTE's visible column names and the alias list stored on the
+/// bound CTE. Without a declared list both are the body's output names (`*`
+/// for a wildcard body). A declared list may be shorter than the body's
+/// output, as in PostgreSQL: it renames the leading columns and the rest keep
+/// their names. A longer list, or any mismatch for a recursive CTE, is an
+/// error.
+fn cte_column_aliases(
+    cte_name: &str,
+    declared: &[String],
+    query: &CteQuery,
+    bound_ctes: &[crate::sql::ast::CommonTableExpression],
+    catalog: &Catalog,
+) -> Result<(Vec<String>, Vec<String>), CassieError> {
+    let visible = cte_output_fields(query)?;
+    if declared.is_empty() {
+        return Ok((visible.clone(), visible));
+    }
+    let recursive = matches!(query, CteQuery::Recursive { .. });
+    let visible = if visible.len() == 1 && visible[0] == "*" {
+        wildcard_cte_columns(cte_name, query, bound_ctes, catalog).unwrap_or(visible)
+    } else {
+        visible
+    };
+    let known_width = !(visible.len() == 1 && visible[0] == "*");
+    if known_width
+        && (declared.len() > visible.len() || (recursive && declared.len() != visible.len()))
+    {
+        return Err(CassieError::Planner(format!(
+            "CTE '{cte_name}' alias count does not match output columns"
+        )));
+    }
+    let rest: Vec<String> = if known_width && !recursive {
+        visible.into_iter().skip(declared.len()).collect()
+    } else {
+        Vec::new()
+    };
+    let aliases = declared
+        .iter()
+        .map(|alias| alias.to_ascii_lowercase())
+        .chain(rest.iter().cloned())
+        .collect();
+    let stored = declared.iter().cloned().chain(rest).collect();
+    Ok((aliases, stored))
+}
+
+/// The output column names of a wildcard CTE body, in row order.
+fn wildcard_cte_columns(
+    cte_name: &str,
+    query: &CteQuery,
+    bound_ctes: &[crate::sql::ast::CommonTableExpression],
+    catalog: &Catalog,
+) -> Option<Vec<String>> {
+    let mut in_scope = bound_ctes.to_vec();
+    in_scope.push(crate::sql::ast::CommonTableExpression {
+        name: cte_name.to_string(),
+        aliases: Vec::new(),
+        query: query.clone(),
+    });
+    let schema = super::source_schema::derived_source_schema(
+        &QuerySource::Cte(cte_name.to_string()),
+        &in_scope,
+        catalog,
+        &HashMap::new(),
+    )?;
+    Some(
+        schema
+            .fields
+            .into_iter()
+            .map(|field| field.name.to_ascii_lowercase())
+            .collect(),
+    )
 }
 
 fn canonicalize_typed_predicate_literals(

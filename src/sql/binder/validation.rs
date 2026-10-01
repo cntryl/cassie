@@ -36,7 +36,8 @@ pub(super) fn validate_select_operand_families(
     select: &SelectStatement,
     catalog: &Catalog,
 ) -> Result<(), CassieError> {
-    let field_types = crate::sql::source_field_type_map(&select.source, catalog);
+    let field_types =
+        crate::sql::source_field_type_map_with_ctes(&select.source, &select.ctes, catalog);
     for item in &select.projection {
         validate_select_item_operand_families(item, &field_types)?;
     }

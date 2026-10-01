@@ -174,7 +174,7 @@ fn infer_select_parameter_type_oids(
     catalog: &crate::catalog::Catalog,
     oids: &mut [i32],
 ) {
-    let field_types = source_field_type_map(&statement.source, catalog);
+    let field_types = source_field_type_map_with_ctes(&statement.source, &statement.ctes, catalog);
     for cte in &statement.ctes {
         match &cte.query {
             ast::CteQuery::Simple(statement) => {
@@ -430,17 +430,33 @@ pub(crate) fn source_field_type_map(
     source: &ast::QuerySource,
     catalog: &crate::catalog::Catalog,
 ) -> FieldTypeMap {
+    source_field_type_map_with_ctes(source, &[], catalog)
+}
+
+/// Maps each column a `FROM` source exposes to its declared type. A derived
+/// table or CTE (declared in `ctes`) is typed by its own output columns, so a
+/// rename such as `txt AS uid` keeps `txt`'s type.
+pub(crate) fn source_field_type_map_with_ctes(
+    source: &ast::QuerySource,
+    ctes: &[ast::CommonTableExpression],
+    catalog: &crate::catalog::Catalog,
+) -> FieldTypeMap {
     match source {
         ast::QuerySource::Collection(collection) => catalog
             .get_schema(collection)
             .map(|schema| field_type_map(schema.fields.iter()))
             .unwrap_or_default(),
         ast::QuerySource::Join { left, right, .. } => {
-            let mut fields = source_field_type_map(left, catalog);
-            fields.extend(source_field_type_map(right, catalog));
+            let mut fields = source_field_type_map_with_ctes(left, ctes, catalog);
+            fields.extend(source_field_type_map_with_ctes(right, ctes, catalog));
             fields
         }
         ast::QuerySource::Subquery { select, .. } => {
+            if let Some(schema) =
+                binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
+            {
+                return field_type_map(schema.fields.iter());
+            }
             let mut fields = source_field_type_map(&select.source, catalog);
             for cte in &select.ctes {
                 if let ast::CteQuery::Simple(statement) = &cte.query {
@@ -449,9 +465,12 @@ pub(crate) fn source_field_type_map(
             }
             fields
         }
-        ast::QuerySource::Cte(_)
-        | ast::QuerySource::TableFunction { .. }
-        | ast::QuerySource::SingleRow => FieldTypeMap::new(),
+        ast::QuerySource::Cte(_) => {
+            binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
+                .map(|schema| field_type_map(schema.fields.iter()))
+                .unwrap_or_default()
+        }
+        ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
     }
 }
 

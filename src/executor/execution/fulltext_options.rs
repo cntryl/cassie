@@ -139,3 +139,51 @@ fn parse_index_float_option(
 
     Ok(parsed)
 }
+
+/// Returns the base collection whose columns `source` exposes unrenamed: the
+/// collection itself, or the single collection a derived table or CTE body
+/// selects from with only `*` and unaliased column references.
+pub(super) fn fulltext_base_collection<'a>(
+    source: &'a crate::sql::ast::QuerySource,
+    ctes: &'a [crate::sql::ast::CommonTableExpression],
+) -> Option<&'a str> {
+    use crate::sql::ast::{CteQuery, QuerySource, QueryStatement, SelectItem, SelectStatement};
+
+    fn passes_columns_through(select: &SelectStatement) -> bool {
+        select.set.is_none()
+            && select.projection.iter().all(|item| {
+                matches!(
+                    item,
+                    SelectItem::Wildcard | SelectItem::Column { alias: None, .. }
+                )
+            })
+    }
+
+    match source {
+        QuerySource::Collection(name) => Some(name),
+        QuerySource::Subquery { select, .. } if passes_columns_through(select) => {
+            let inner_ctes = if select.ctes.is_empty() {
+                ctes
+            } else {
+                &select.ctes
+            };
+            fulltext_base_collection(&select.source, inner_ctes)
+        }
+        QuerySource::Cte(name) => {
+            let position = ctes
+                .iter()
+                .position(|cte| cte.name.eq_ignore_ascii_case(name))?;
+            let CteQuery::Simple(statement) = &ctes[position].query else {
+                return None;
+            };
+            let QueryStatement::Select(select) = &statement.statement else {
+                return None;
+            };
+            if !passes_columns_through(select) {
+                return None;
+            }
+            fulltext_base_collection(&select.source, &ctes[..position])
+        }
+        _ => None,
+    }
+}

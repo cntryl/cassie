@@ -12,24 +12,30 @@ pub(super) fn build_select_result(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let collection_schema = plan
-        .collection_schema
-        .clone()
-        .or_else(|| cassie.catalog.get_schema(&plan.logical.collection))
-        // Describe types built-in catalog views from their declared schema;
-        // without the same arm here every such column executes as text and
-        // the DataRow disagrees with the RowDescription.
-        .or_else(|| crate::catalog::CollectionSchema::virtual_view(&plan.logical.collection))
-        // A CTE is not a catalog object, so without this its columns would all
-        // be reported as text.
-        .or_else(|| {
-            crate::sql::binder::cte_collection_schema_with_functions(
-                &plan.logical.ctes,
-                &plan.logical.collection,
-                &cassie.catalog,
-                user_functions,
-            )
-        });
+    // A derived table or CTE is typed by its own body, never by a catalog
+    // table that happens to share its alias.
+    let collection_schema = crate::sql::binder::derived_source_schema(
+        &plan.logical.source,
+        &plan.logical.ctes,
+        &cassie.catalog,
+        user_functions,
+    )
+    .or_else(|| plan.collection_schema.clone())
+    .or_else(|| cassie.catalog.get_schema(&plan.logical.collection))
+    // Describe types built-in catalog views from their declared schema;
+    // without the same arm here every such column executes as text and
+    // the DataRow disagrees with the RowDescription.
+    .or_else(|| crate::catalog::CollectionSchema::virtual_view(&plan.logical.collection))
+    // A CTE is not a catalog object, so without this its columns would all
+    // be reported as text.
+    .or_else(|| {
+        crate::sql::binder::cte_collection_schema_with_functions(
+            &plan.logical.ctes,
+            &plan.logical.collection,
+            &cassie.catalog,
+            user_functions,
+        )
+    });
     let wildcard_fields =
         aggregate::wildcard_fields_for_plan(&cassie.catalog, &plan.logical, user_functions);
     let columns = aggregate::columns_from_projection_with_wildcard(

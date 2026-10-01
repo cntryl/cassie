@@ -4116,6 +4116,63 @@ mod rest_embeddings {
     }
 
     #[test]
+    fn should_exclude_documents_without_vectors_from_rest_top_k() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("rest_topk_missing_vector");
+        let path_for_cleanup = path.clone();
+        let openai_server = MockOpenAiServer::spawn(vec![
+            MockResponse {
+                status: 200,
+                body: response_body(&[{
+                    let mut vector = vec![0.0; 1536];
+                    vector[0] = 1.0;
+                    vector
+                }]),
+            },
+            MockResponse {
+                status: 200,
+                body: response_body(&[{
+                    let mut vector = vec![0.0; 1536];
+                    vector[0] = 0.9;
+                    vector
+                }]),
+            },
+        ]);
+        let cassie = Cassie::new_with_data_dir_and_config(
+            &path,
+            openai_runtime_with_server(openai_server.base_url()),
+        )
+        .expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "rest_topk_missing_vector";
+        create_vector_collection(&cassie, collection, 1536);
+        create_vector_index(&cassie, collection, "l2");
+        let missing = rest::documents::create(
+            &cassie,
+            collection,
+            serde_json::json!({"label": "missing"})
+                .to_string()
+                .as_bytes(),
+        )
+        .expect("create document without source text");
+        let missing_id = missing["id"]
+            .as_str()
+            .expect("missing-vector document id")
+            .to_string();
+        let scored = create_labelled_document(&cassie, collection, "scored", "present");
+
+        // Act
+        let result = vector_search(&cassie, collection, "l2", 2, 0);
+
+        // Assert
+        let result_ids = row_ids(&result);
+        assert_eq!(result_ids, vec![scored]);
+        assert!(!result_ids.contains(&missing_id));
+        cleanup_path(Path::new(&path_for_cleanup));
+    }
+
+    #[test]
     fn should_fall_back_to_raw_vector_search_when_normalized_sidecars_are_missing() {
         // Arrange
         use_local_storage();

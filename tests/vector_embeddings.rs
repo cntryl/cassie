@@ -1646,6 +1646,86 @@ mod hnsw_indexes {
     }
 
     #[test]
+    fn should_exclude_null_vector_rows_from_sql_top_k() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("sql_topk_missing_vector");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let collection = "sql_topk_missing_vector";
+        register_hnsw_collection(&cassie, collection);
+        put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        put_hnsw_document(&cassie, collection, "far", [0.0, 1.0, 0.0]);
+        cassie
+            .midge
+            .put_document(
+                &canonical_hnsw_collection(collection),
+                Some("missing".to_string()),
+                serde_json::json!({"content": "missing vector"}),
+            )
+            .expect("insert row with NULL vector");
+        let session = cassie.create_session("tester", None);
+        let query = format!(
+            "SELECT id, vector_distance(embedding, '[1,0,0]') AS distance FROM {collection} ORDER BY distance ASC LIMIT 2"
+        );
+
+        // Act
+        let exact = cassie.execute_sql(&session, &query, vec![]);
+        cassie
+            .execute_sql(&session, "BEGIN", vec![])
+            .expect("begin transaction");
+        cassie
+            .execute_sql(
+                &session,
+                &format!("UPDATE {collection} SET content = 'near updated' WHERE id = 'near'"),
+                vec![],
+            )
+            .expect("stage an update to select the non-streaming exact path");
+        let fallback = cassie.execute_sql(&session, &query, vec![]);
+        cassie
+            .execute_sql(&session, "ROLLBACK", vec![])
+            .expect("rollback transaction");
+        put_hnsw_index(&cassie, collection, 2);
+        let indexed = cassie.execute_sql(&session, &query, vec![]);
+
+        // Assert
+        let expected = vec![
+            Value::String("near".to_string()),
+            Value::String("far".to_string()),
+        ];
+        let exact_rows = exact.expect("exact top-k should skip NULL vectors").rows;
+        let fallback_rows = fallback
+            .expect("non-streaming exact top-k should skip NULL vectors")
+            .rows;
+        let indexed_rows = indexed.expect("HNSW top-k should skip NULL vectors").rows;
+        assert_eq!(exact_rows.len(), expected.len());
+        assert_eq!(fallback_rows.len(), expected.len());
+        assert_eq!(indexed_rows.len(), expected.len());
+        assert_eq!(
+            exact_rows
+                .iter()
+                .map(|row| row[0].clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            indexed_rows
+                .iter()
+                .map(|row| row[0].clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(
+            fallback_rows
+                .iter()
+                .map(|row| row[0].clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_use_hnsw_graph_for_an_other_case_vector_field() {
         // Arrange
         use_local_storage();
@@ -2230,8 +2310,8 @@ mod integration_sql_hybrid_query {
     use cassie::catalog::{IndexKind, IndexMeta};
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, OpenAiRuntimeConfig};
     use cassie::embeddings::{
-        openai::OpenAiConfig, DistanceMetric, VectorIndexMetadata, VectorIndexRecord,
-        VectorIndexType, DEFAULT_EMBEDDING_MODEL,
+        openai::OpenAiConfig, DistanceMetric, HnswIndexOptions, VectorIndexMetadata,
+        VectorIndexRecord, VectorIndexType, DEFAULT_EMBEDDING_MODEL,
     };
     use cassie::midge::adapter::StorageFamily;
     use cassie::types::{DataType, FieldSchema, Schema, Value, Vector};
@@ -2474,19 +2554,7 @@ mod integration_sql_hybrid_query {
     });
     }
 
-    #[test]
-    fn should_reject_hybrid_text_candidate_without_vector() {
-        // Arrange
-        use_local_storage();
-        let path = data_dir("hybrid_missing_vector");
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir(&path).unwrap();
-        let collection = "sql_hybrid_missing_vector";
+    fn setup_missing_vector_hybrid_fixture(cassie: &Cassie, collection: &str) {
         let schema = Schema {
             fields: vec![
                 FieldSchema {
@@ -2505,15 +2573,31 @@ mod integration_sql_hybrid_query {
             .midge
             .create_collection(collection, schema.clone())
             .unwrap();
+        cassie.register_collection(
+            collection,
+            schema
+                .fields
+                .iter()
+                .map(|field| (field.name.clone(), field.data_type.clone()))
+                .collect(),
+        );
+        let fulltext_index = IndexMeta {
+            collection: collection.to_string(),
+            name: "sql_hybrid_missing_vector_body_idx".to_string(),
+            field: "body".to_string(),
+            fields: vec!["body".to_string()],
+            expressions: Vec::new(),
+            include_fields: Vec::new(),
+            predicate: None,
+            kind: IndexKind::FullText,
+            unique: false,
+            options: std::collections::BTreeMap::new(),
+        };
         cassie
-            .register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+            .midge
+            .put_index(&fulltext_index)
+            .expect("persist fulltext index");
+        cassie.catalog.register_index(fulltext_index);
         cassie
             .midge
             .put_document(
@@ -2530,22 +2614,94 @@ mod integration_sql_hybrid_query {
                 serde_json::json!({"body": "blue"}),
             )
             .unwrap();
-        let session = cassie.create_session("tester", None);
+        cassie
+            .midge
+            .put_document(
+                collection,
+                Some("scored_match".to_string()),
+                serde_json::json!({"body": "red", "embedding": [1.0, 0.0]}),
+            )
+            .unwrap();
+    }
 
-        // Act
-        let result = cassie
+    fn missing_vector_hybrid_index(collection: &str) -> VectorIndexRecord {
+        VectorIndexRecord {
+            collection: collection.to_string(),
+            field: "embedding".to_string(),
+            source_field: "body".to_string(),
+            metadata: VectorIndexMetadata {
+                provider: "manual".to_string(),
+                model: "manual".to_string(),
+                dimensions: 2,
+                metric: DistanceMetric::L2,
+                index_type: VectorIndexType::Hnsw,
+                hnsw: Some(HnswIndexOptions {
+                    version: 1,
+                    m: 2,
+                    ef_construction: 4,
+                    ef_search: 8,
+                }),
+                hnsw_graph: None,
+                ivfflat: None,
+                ivfflat_training: None,
+            },
+        }
+    }
+
+    fn execute_missing_vector_hybrid_query(
+        cassie: &Cassie,
+        session: &cassie::app::CassieSession,
+    ) -> Vec<Vec<Value>> {
+        cassie
             .execute_sql(
-                &session,
+                session,
                 "SELECT id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM sql_hybrid_missing_vector ORDER BY score DESC LIMIT 1",
                 hybrid_params("red"),
+            )
+            .expect("hybrid query")
+            .rows
+    }
+
+    #[test]
+    fn should_skip_hybrid_text_candidate_without_vector() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("hybrid_missing_vector");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let collection = "sql_hybrid_missing_vector";
+            setup_missing_vector_hybrid_fixture(&cassie, collection);
+            let session = cassie.create_session("tester", None);
+
+            // Act
+            let fallback_rows = execute_missing_vector_hybrid_query(&cassie, &session);
+
+            // Assert
+            assert_eq!(fallback_rows.len(), 1);
+            assert_eq!(
+                fallback_rows[0][0],
+                Value::String("scored_match".to_string())
             );
 
-        // Assert
-        let error = result.expect_err("text candidate should require a vector");
-        assert!(error.to_string().contains("vector_score expects vector"));
+            let vector_index = missing_vector_hybrid_index(collection);
+            cassie
+                .midge
+                .put_vector_index(vector_index.clone())
+                .expect("build vector index");
+            cassie.register_vector_index(vector_index);
+            let indexed_rows = execute_missing_vector_hybrid_query(&cassie, &session);
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            // Assert
+            assert_eq!(indexed_rows.len(), fallback_rows.len());
+            assert_eq!(indexed_rows[0][0], fallback_rows[0][0]);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     fn bounded_hybrid_fixture() -> (Cassie, String, &'static str) {

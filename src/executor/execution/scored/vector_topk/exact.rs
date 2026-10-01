@@ -74,15 +74,19 @@ pub(super) fn execute_exact_vector_top_k(
             .record_vector_prefilter_usage(before, candidates.len(), None);
     }
 
-    let final_candidate_count = candidates.len();
+    let mut final_candidate_count = 0usize;
     let mut top = AccountedVectorTopK::try_new(request.controls)?;
     for candidate in candidates {
         super::super::super::check_timeout(request.controls)?;
-        let vector = candidate
+        let Some(value) = candidate
             .get(&spec.vector_field)
-            .and_then(value_to_vector)
-            .unwrap_or_default();
+            .filter(|value| !value.is_null())
+        else {
+            continue;
+        };
+        let vector = value_to_vector(value).unwrap_or_default();
         validate_exact_vector(spec, &vector)?;
+        final_candidate_count = final_candidate_count.saturating_add(1);
         let score = crate::vector::l2_distance(&vector, &spec.query);
         top.try_push(
             SqlVectorCandidate {
@@ -153,10 +157,16 @@ fn stream_exact_vector_candidates(
             )? {
                 continue;
             }
-            let vector =
-                vector_from_json(&document.payload[&spec.vector_field]).ok_or_else(|| {
-                    QueryError::General("exact vector candidate is invalid".to_string())
-                })?;
+            let Some(value) = document
+                .payload
+                .get(&spec.vector_field)
+                .filter(|value| !value.is_null())
+            else {
+                continue;
+            };
+            let vector = vector_from_json(value).ok_or_else(|| {
+                QueryError::General("exact vector candidate is invalid".to_string())
+            })?;
             validate_exact_vector(spec, &vector)?;
             let score = crate::vector::l2_distance(&vector, &spec.query);
             candidate_count = candidate_count.saturating_add(1);

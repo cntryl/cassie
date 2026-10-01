@@ -162,8 +162,12 @@ pub(super) fn infer_cte_schema(
 
     let mut schema = infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
 
-    if !cte.aliases.is_empty() {
-        if schema.fields.len() != cte.aliases.len() {
+    let recursive = matches!(cte.query, CteQuery::Recursive { .. });
+    let placeholder = cte.aliases.len() == 1 && cte.aliases[0] == "*";
+    if !cte.aliases.is_empty() && !placeholder {
+        if cte.aliases.len() > schema.fields.len()
+            || (recursive && schema.fields.len() != cte.aliases.len())
+        {
             return Err(CassieError::Planner(format!(
                 "CTE '{}' alias count does not match output columns",
                 cte.name

@@ -167,14 +167,9 @@ fn rename_cte_rows(rows: CteRows, aliases: &[String]) -> CteRows {
         .map(|row| {
             row.into_iter()
                 .enumerate()
-                .map(|(index, (_, value))| {
-                    (
-                        aliases
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_else(|| format!("column_{}", index + 1)),
-                        value,
-                    )
+                .map(|(index, (name, value))| {
+                    // Columns past the alias list keep their own names.
+                    (aliases.get(index).cloned().unwrap_or(name), value)
                 })
                 .collect()
         })

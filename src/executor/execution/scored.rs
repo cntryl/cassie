@@ -786,7 +786,7 @@ fn vector_score_args(function: &FunctionCall, params: &[Value]) -> Option<(Strin
         Expr::StringLiteral(query) => parse_vector_literal(query)?,
         Expr::Param(index) => match params.get(*index)? {
             Value::String(query) => parse_vector_literal(query)?,
-            Value::Vector(query) => query.values.clone(),
+            Value::Vector(query) => crate::vector::finite_f32_vector(&query.values)?,
             _ => return None,
         },
         _ => return None,

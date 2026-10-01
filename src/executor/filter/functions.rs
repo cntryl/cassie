@@ -680,7 +680,7 @@ pub(super) fn to_text(value: &Value) -> String {
 
 pub(super) fn to_vector(value: &Value) -> Option<Vec<f32>> {
     match value {
-        Value::Vector(vector) => Some(vector.values.clone()),
+        Value::Vector(vector) => crate::vector::finite_f32_vector(&vector.values),
         Value::Json(json) => json.as_array().and_then(|items| {
             let mut out = Vec::with_capacity(items.len());
             for item in items {
@@ -881,7 +881,7 @@ fn parse_f64_to_usize(value: f64) -> Option<usize> {
 }
 
 fn parse_f64_to_f32(value: f64) -> Option<f32> {
-    value.to_string().parse::<f32>().ok()
+    crate::vector::f64_to_finite_f32(value)
 }
 
 pub(super) fn vector_operands(
@@ -933,7 +933,8 @@ pub(super) fn parse_vector_text(value: &str) -> Option<Vec<f32>> {
 
     let mut out = Vec::new();
     for part in inner.split(',') {
-        out.push(part.trim().parse::<f32>().ok()?);
+        let value = part.trim().parse::<f64>().ok()?;
+        out.push(crate::vector::f64_to_finite_f32(value)?);
     }
     Some(out)
 }

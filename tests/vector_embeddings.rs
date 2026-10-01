@@ -1701,8 +1701,164 @@ mod hnsw_indexes {
 
         // Assert
         let error = error.to_string();
-        assert!(error.contains("vector_distance query for field 'embedding' on collection"));
+        assert!(error.contains("vector distance query for field 'embedding'"));
         assert!(error.contains("expects 3 dimensions but received 2"));
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_pgvector_operator_query_dimension_mismatch() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("pgvector_operator_dimension_mismatch");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "pgvector_operator_dimension_mismatch";
+        register_hnsw_collection(&cassie, collection);
+        put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        let empty_collection = "pgvector_operator_dimension_mismatch_empty";
+        register_hnsw_collection(&cassie, empty_collection);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let errors = ["<->", "<=>", "<#>"].map(|operator| {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!("SELECT embedding {operator} '[1,0]' FROM {collection}"),
+                    vec![],
+                )
+                .expect_err("mismatched vector dimensions must be rejected")
+                .to_string()
+        });
+        let empty_results = ["<->", "<=>", "<#>"].map(|operator| {
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding {operator} '[1,0]' FROM {empty_collection}"),
+                vec![],
+            )
+        });
+        let empty_operand_results = [
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> '[]' FROM {collection}"),
+                vec![],
+            ),
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> $1 FROM {collection}"),
+                vec![Value::String("[]".to_string())],
+            ),
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> $1 FROM {collection}"),
+                vec![Value::Vector(cassie::types::Vector::new(vec![]))],
+            ),
+        ];
+
+        // Assert
+        for error in errors {
+            assert!(
+                error.contains("vector distance"),
+                "unexpected error: {error}"
+            );
+        }
+        assert!(
+            empty_results.iter().all(Result::is_err),
+            "dimension mismatches must be rejected even when the table is empty"
+        );
+        assert!(
+            empty_operand_results.iter().all(Result::is_err),
+            "empty vector operands must be rejected rather than ranked as Infinity"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_reject_out_of_range_query_vector_components() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("out_of_range_query_vector_components");
+        let cassie = Cassie::new_with_data_dir(&path).unwrap();
+        cassie.startup().unwrap();
+        let collection = "out_of_range_query_vector_components";
+        register_hnsw_collection(&cassie, collection);
+        put_hnsw_document(&cassie, collection, "near", [1.0, 0.0, 0.0]);
+        let empty_collection = "out_of_range_query_vector_components_empty";
+        register_hnsw_collection(&cassie, empty_collection);
+        let session = cassie.create_session("tester", None);
+
+        // Act
+        let mut results = Vec::new();
+        for query in ["[1e39,0,0]", "[-1e39,0,0]"] {
+            results.push(cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> '{query}' FROM {collection}"),
+                vec![],
+            ));
+            results.push(cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> $1 FROM {collection}"),
+                vec![Value::String(query.to_string())],
+            ));
+            results.push(cassie.execute_sql(
+                &session,
+                &format!("SELECT vector_distance(embedding, '{query}') AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"),
+                vec![],
+            ));
+            results.push(cassie.execute_sql(
+                &session,
+                &format!("SELECT vector_distance(embedding, $1) AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"),
+                vec![Value::String(query.to_string())],
+            ));
+        }
+        results.push(cassie.execute_sql(
+            &session,
+            &format!("SELECT vector_distance(embedding, $1) AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"),
+            vec![Value::Json(serde_json::json!([1e39, 0.0, 0.0]))],
+        ));
+        results.push(cassie.execute_sql(
+            &session,
+            &format!("SELECT embedding <-> $1 FROM {collection}"),
+            vec![Value::Vector(cassie::types::Vector::new(vec![
+                1.0,
+                f32::INFINITY,
+                0.0,
+            ]))],
+        ));
+        results.push(cassie.execute_sql(
+            &session,
+            &format!("SELECT vector_distance(embedding, $1) AS distance FROM {collection} ORDER BY distance ASC LIMIT 1"),
+            vec![Value::Vector(cassie::types::Vector::new(vec![
+                1.0,
+                f32::INFINITY,
+                0.0,
+            ]))],
+        ));
+        let empty_results = [
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT embedding <-> '[1e39,0,0]' FROM {empty_collection}"),
+                vec![],
+            ),
+            cassie.execute_sql(
+                &session,
+                &format!("SELECT vector_distance(embedding, '[1e39,0,0]') AS distance FROM {empty_collection} ORDER BY distance ASC LIMIT 1"),
+                vec![],
+            ),
+        ];
+
+        // Assert
+        assert!(
+            results.iter().all(Result::is_err),
+            "out-of-range query vectors must be rejected in every supported form"
+        );
+        assert!(
+            empty_results.iter().all(Result::is_err),
+            "out-of-range literals must be rejected even when the table is empty"
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }

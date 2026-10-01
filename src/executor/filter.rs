@@ -584,7 +584,7 @@ fn binary_scalar(
             if matches!(left, ScalarValue::Null) || matches!(right, ScalarValue::Null) {
                 ScalarValue::Null
             } else {
-                ScalarValue::Float(vector_distance(op, left, right))
+                ScalarValue::Float(vector_distance(op, left, right)?)
             }
         }
     };
@@ -661,25 +661,38 @@ fn binary_math(
         .map(|(left, right)| op(left, right))
 }
 
-fn vector_distance(op: &BinaryOp, left: &ScalarValue, right: &ScalarValue) -> f64 {
+fn vector_distance(
+    op: &BinaryOp,
+    left: &ScalarValue,
+    right: &ScalarValue,
+) -> Result<f64, QueryError> {
     let left = left
         .as_str()
         .and_then(parse_vector_text)
-        .unwrap_or_default();
+        .ok_or_else(|| QueryError::General("invalid vector distance operand".to_string()))?;
     let right = right
         .as_str()
         .and_then(parse_vector_text)
-        .unwrap_or_default();
-    if left.is_empty() || right.is_empty() || left.len() != right.len() {
-        return f64::INFINITY;
+        .ok_or_else(|| QueryError::General("invalid vector distance operand".to_string()))?;
+    if left.is_empty() || right.is_empty() {
+        return Err(QueryError::General(
+            "vector distance operand cannot be empty".to_string(),
+        ));
+    }
+    if left.len() != right.len() {
+        return Err(QueryError::General(format!(
+            "vector distance dimension mismatch: {} != {}",
+            left.len(),
+            right.len()
+        )));
     }
 
-    match op {
+    Ok(match op {
         BinaryOp::PgvectorCosine => crate::vector::cosine_distance(&left, &right),
         BinaryOp::PgvectorL2 => crate::vector::l2_distance(&left, &right),
         BinaryOp::PgvectorDot => -crate::vector::dot_score(&left, &right),
         _ => 0.0,
-    }
+    })
 }
 
 fn eq_value(left: &ScalarValue, right: &ScalarValue) -> Option<bool> {

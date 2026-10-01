@@ -56,6 +56,7 @@ pub(super) fn try_execute_time_series_read(
         plan.filter.as_ref(),
         index.options.get("partition_by").map(String::as_str),
         params,
+        schema.as_ref(),
     );
     let (lower_bucket_seconds, upper_bucket_seconds) = time_series_bucket_bounds(&index, &range);
     let scan_request = TimeSeriesScanRequest {
@@ -488,6 +489,7 @@ fn partition_key_from_filter(
     filter: Option<&Expr>,
     partition_by: Option<&str>,
     params: &[Value],
+    schema: Option<&CollectionSchema>,
 ) -> Option<String> {
     let fields = partition_by?
         .split(',')
@@ -498,7 +500,7 @@ fn partition_key_from_filter(
         return None;
     }
     let mut values = vec![None; fields.len()];
-    collect_partition_equalities(filter?, &fields, &mut values, params);
+    collect_partition_equalities(filter?, &fields, &mut values, params, schema);
     values
         .into_iter()
         .collect::<Option<Vec<_>>>()
@@ -510,6 +512,7 @@ fn collect_partition_equalities(
     fields: &[&str],
     values: &mut [Option<String>],
     params: &[Value],
+    schema: Option<&CollectionSchema>,
 ) {
     match expr {
         Expr::Binary {
@@ -517,8 +520,8 @@ fn collect_partition_equalities(
             op: BinaryOp::And,
             right,
         } => {
-            collect_partition_equalities(left, fields, values, params);
-            collect_partition_equalities(right, fields, values, params);
+            collect_partition_equalities(left, fields, values, params, schema);
+            collect_partition_equalities(right, fields, values, params, schema);
         }
         Expr::Binary {
             left,
@@ -531,11 +534,11 @@ fn collect_partition_equalities(
                 if let (Expr::Column(column), Some(value)) =
                     (right.as_ref(), partition_literal(left.as_ref(), params))
                 {
-                    set_partition_value(column, value, fields, values);
+                    set_partition_value(column, value, fields, values, schema);
                 }
                 return;
             };
-            set_partition_value(column, value, fields, values);
+            set_partition_value(column, value, fields, values, schema);
         }
         _ => {}
     }
@@ -546,12 +549,28 @@ fn set_partition_value(
     value: String,
     fields: &[&str],
     values: &mut [Option<String>],
+    schema: Option<&CollectionSchema>,
 ) {
     if let Some(position) = fields
         .iter()
         .position(|field| field.eq_ignore_ascii_case(column))
     {
-        values[position] = Some(value);
+        values[position] = match schema
+            .and_then(|schema| {
+                schema
+                    .fields
+                    .iter()
+                    .find(|field| field.name.eq_ignore_ascii_case(column))
+            })
+            .map(|field| &field.data_type)
+        {
+            Some(DataType::Float) => value
+                .parse::<f64>()
+                .ok()
+                .and_then(serde_json::Number::from_f64)
+                .map(|number| number.to_string()),
+            _ => Some(value),
+        };
     }
 }
 

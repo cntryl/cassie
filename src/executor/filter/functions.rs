@@ -432,6 +432,21 @@ pub(super) fn text_arg(name: &str, value: &Value) -> Result<Option<String>, Quer
     }
 }
 
+pub(super) fn integer_arg(name: &str, value: &Value) -> Result<Option<usize>, QueryError> {
+    match value {
+        Value::Null => Ok(None),
+        Value::Int64(value) if *value >= 0 => Ok(usize::try_from(*value).ok()),
+        Value::Float64(value)
+            if value.is_finite() && *value >= 0.0 && value.fract().abs() < f64::EPSILON =>
+        {
+            Ok(parse_f64_to_usize(*value))
+        }
+        _ => Err(QueryError::General(format!(
+            "function '{name}' expects a non-negative integer input"
+        ))),
+    }
+}
+
 fn signed_integer_arg(name: &str, value: &Value) -> Result<Option<i64>, QueryError> {
     match value {
         Value::Null => Ok(None),
@@ -498,23 +513,23 @@ fn format_character_type(name: &str, typmod: i64) -> String {
     }
 }
 
-/// Characters at positions `start <= p < start + length` intersected with
-/// `1..=char_length`, as PostgreSQL defines SUBSTRING: a start below 1
-/// consumes part of the length instead of being clamped forward.
-pub(super) fn substring_text(value: &str, start: i64, length: Option<i64>) -> String {
+pub(super) fn substring_text(value: &str, start: usize, length: Option<usize>) -> String {
     let chars = value.chars().collect::<Vec<_>>();
-    let char_count = i64::try_from(chars.len()).unwrap_or(i64::MAX);
-    let first = start.max(1);
-    let end = length
-        .map_or(i64::MAX, |length| start.saturating_add(length))
-        .min(char_count.saturating_add(1));
-    if end <= first {
+    if chars.is_empty() {
         return String::new();
     }
-    let (Ok(first), Ok(end)) = (usize::try_from(first - 1), usize::try_from(end - 1)) else {
+
+    let start_index = start.max(1).saturating_sub(1);
+    if start_index >= chars.len() {
         return String::new();
+    }
+
+    let end_index = match length {
+        Some(length) => start_index.saturating_add(length).min(chars.len()),
+        None => chars.len(),
     };
-    chars[first..end].iter().collect()
+
+    chars[start_index..end_index].iter().collect()
 }
 
 pub(super) fn scalar_to_f64(value: &Value) -> f64 {
@@ -738,16 +753,11 @@ fn evaluate_substring(name: &str, args: &[Value]) -> Result<Value, QueryError> {
     let Some(text) = text_arg(name, &args[0])? else {
         return Ok(Value::Null);
     };
-    let Some(start) = signed_integer_arg(name, &args[1])? else {
+    let Some(start) = integer_arg(name, &args[1])? else {
         return Ok(Value::Null);
     };
     let length = if args.len() == 3 {
-        match signed_integer_arg(name, &args[2])? {
-            Some(length) if length < 0 => {
-                return Err(QueryError::General(
-                    "negative substring length not allowed".to_string(),
-                ))
-            }
+        match integer_arg(name, &args[2])? {
             Some(length) => Some(length),
             None => return Ok(Value::Null),
         }
@@ -861,6 +871,13 @@ fn parse_f64_to_i64(value: f64) -> Option<i64> {
         return None;
     }
     format!("{value:.0}").parse::<i64>().ok()
+}
+
+fn parse_f64_to_usize(value: f64) -> Option<usize> {
+    if !value.is_finite() || value.fract() != 0.0 || value < 0.0 {
+        return None;
+    }
+    format!("{value:.0}").parse::<usize>().ok()
 }
 
 fn parse_f64_to_f32(value: f64) -> Option<f32> {

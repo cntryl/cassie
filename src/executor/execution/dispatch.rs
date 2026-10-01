@@ -165,6 +165,25 @@ fn execute_plan_with_physical(
         cte_context.insert(cte.name.to_ascii_lowercase(), rows);
     }
 
+    let resolved_plan;
+    let (plan, physical) = if super::exists_plan::plan_has_unresolved_exists(plan) {
+        resolved_plan = super::exists_plan::resolve_plan_exists(
+            &ExistsResolutionContext {
+                cassie: env.cassie,
+                session: env.session,
+                cte_context,
+                user_functions: env.user_functions,
+                params: env.params,
+                controls: env.controls,
+            },
+            plan,
+        )?;
+        // The physical plan was chosen for the unresolved plan.
+        (&resolved_plan, None)
+    } else {
+        (plan, physical)
+    };
+
     let mixed_execution = mixed_execution_summary(plan);
     if outer_row.is_none() && !source_reads_materialized_projection(env.cassie, &plan.source) {
         let mut access_path_context = AccessPathContext {
@@ -432,6 +451,30 @@ pub(super) fn execute_plan_with_execution_breakdown(
     Ok((rows, breakdown))
 }
 
+/// Resolves uncorrelated EXISTS predicates in a statement-level expression
+/// (a DML filter) that has no enclosing CTE scope.
+pub(super) fn resolve_statement_exists(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    expr: &Expr,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Expr, QueryError> {
+    let cte_context = CteContext::new();
+    resolve_exists_expr(
+        &ExistsResolutionContext {
+            cassie,
+            session,
+            cte_context: &cte_context,
+            user_functions,
+            params,
+            controls,
+        },
+        expr,
+    )
+}
+
 pub(super) fn resolve_exists_expr<'a>(
     context: &'a ExistsResolutionContext<'a>,
     expr: &'a Expr,
@@ -498,8 +541,14 @@ pub(super) fn resolve_exists_expr<'a>(
         | Expr::NumberLiteral(_)
         | Expr::IntegerLiteral(_)
         | Expr::BoolLiteral(_)
-        | Expr::Null
-        | Expr::Function(_) => Ok(expr.clone()),
+        | Expr::Null => Ok(expr.clone()),
+        Expr::Function(function) => {
+            let mut function = function.clone();
+            for argument in &mut function.args {
+                *argument = resolve_exists_expr(context, argument)?;
+            }
+            Ok(Expr::Function(function))
+        }
     }
 }
 
@@ -585,10 +634,27 @@ fn build_exists_logical_plan(
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
     let binding_context = exists_binding_context(context);
-    let bound = crate::sql::binder::bind_with_context(
+    // Relation names resolve against the enclosing statement's CTEs first.
+    let outer_ctes: HashMap<String, Vec<String>> = context
+        .cte_context
+        .iter()
+        .map(|(name, rows)| {
+            let columns = rows.first().map_or_else(
+                || vec!["*".to_string()],
+                |row| {
+                    row.iter()
+                        .map(|(column, _)| column.to_ascii_lowercase())
+                        .collect()
+                },
+            );
+            (name.clone(), columns)
+        })
+        .collect();
+    let bound = crate::sql::binder::bind_with_outer_ctes(
         statement.clone(),
         &context.cassie.catalog,
         &binding_context,
+        &outer_ctes,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
     let mut plan = crate::planner::logical::plan(&bound)

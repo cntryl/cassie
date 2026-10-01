@@ -44,8 +44,6 @@ mod schema_sequences;
 mod search_field_case;
 #[path = "binder/select.rs"]
 mod select;
-#[path = "binder/set_types.rs"]
-mod set_types;
 #[path = "binder/set_width.rs"]
 mod set_width;
 #[path = "binder/validation.rs"]
@@ -80,9 +78,9 @@ use select::bind_select;
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
-    validate_distinct_on_order_prefix, validate_expression, validate_expression_references,
-    validate_function_calls, validate_functions, validate_order_by_references,
-    validate_projection_references, validate_select_operand_families,
+    validate_distinct_on_order_prefix, validate_expression, validate_expression_operand_families,
+    validate_expression_references, validate_function_calls, validate_functions,
+    validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
 pub(crate) use wildcard::wildcard_output_fields;
 
@@ -138,6 +136,24 @@ fn source_collection(source: &QuerySource) -> Option<String> {
         QuerySource::Join { left, .. } => source_collection(left),
         QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => None,
     }
+}
+
+/// Binds a subquery statement whose relation names may refer to CTEs of the
+/// enclosing statement. `outer_ctes` maps each visible CTE name (lower case)
+/// to its output column names.
+///
+/// # Errors
+///
+/// Returns an error when validation fails.
+pub(crate) fn bind_with_outer_ctes(
+    statement: ParsedStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+    outer_ctes: &HashMap<String, Vec<String>>,
+) -> Result<BoundStatement, CassieError> {
+    let statement = bind_statement(statement, catalog, outer_ctes, context)?;
+    let indexes = bound_indexes(&statement, catalog);
+    Ok(BoundStatement { statement, indexes })
 }
 
 fn bind_statement(

@@ -53,6 +53,7 @@ pub use types::{
 mod cte;
 mod dispatch;
 mod entrypoints;
+mod exists_plan;
 mod result;
 
 pub(crate) use entrypoints::{
@@ -68,7 +69,8 @@ use dispatch::{
     build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
     ensure_query_memory_budget_for_rows, execute_physical_plan, execute_plan,
     execute_plan_with_execution_breakdown, execute_plan_with_outer_row, plan_execution_env,
-    reserve_projection_output_before_building, resolve_exists_expr, ExistsResolutionContext,
+    reserve_projection_output_before_building, resolve_exists_expr, resolve_statement_exists,
+    ExistsResolutionContext,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};
@@ -126,11 +128,9 @@ mod fulltext_options;
 pub(crate) use fulltext_options::load_fulltext_index_options;
 mod graph;
 mod plan_inspection;
-mod set_columns;
 pub(crate) use plan_inspection::{
     plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,
 };
-pub(crate) use set_columns::unify_set_result_columns;
 mod aggregate_accel;
 mod aggregate_exec;
 mod window_exec;

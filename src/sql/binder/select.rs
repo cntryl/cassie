@@ -1,11 +1,11 @@
 use super::{
     bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
     resolve_relation_name, validate_distinct_on_order_prefix, validate_expression,
-    validate_expression_references, validate_functions, validate_order_by_references,
-    validate_projection_references, validate_select_operand_families, virtual_views,
-    BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr, FieldSchema,
-    FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem, SelectSet,
-    SelectStatement,
+    validate_expression_operand_families, validate_expression_references, validate_functions,
+    validate_order_by_references, validate_projection_references, validate_select_operand_families,
+    virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
+    FieldSchema, FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem,
+    SelectSet, SelectStatement,
 };
 use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
@@ -129,7 +129,6 @@ pub(super) fn bind_select_with_lateral_fields(
             right: Box::new(right),
         }));
         super::set_width::validate_set_operand_widths(&select, catalog)?;
-        super::set_types::validate_set_operand_types(&select, catalog)?;
     }
 
     validate_functions(&select, catalog, context)?;
@@ -626,7 +625,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
             let known_fields = source_fields(catalog, &joined, scope)?;
             validate_expression(&on, &known_fields, &HashSet::new(), false)?;
             let field_types = crate::sql::source_field_type_map(&joined, catalog);
-            super::validation::validate_predicate(&on, &field_types, "JOIN/ON")?;
+            validate_expression_operand_families(&on, &field_types)?;
             Ok(joined)
         }
     }

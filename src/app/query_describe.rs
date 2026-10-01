@@ -136,20 +136,15 @@ impl Cassie {
             &physical.logical,
             &user_functions,
         );
-        let columns = crate::executor::aggregate::columns_from_projection_with_wildcard(
-            &physical.logical.projection,
-            collection_schema.as_ref(),
-            wildcard_fields.as_deref(),
-            &user_functions,
-            parameter_type_oids,
-        );
-        Ok(crate::executor::unify_set_result_columns(
-            &self.catalog,
-            &physical.logical,
-            &user_functions,
-            parameter_type_oids,
-            columns,
-        ))
+        Ok(
+            crate::executor::aggregate::columns_from_projection_with_wildcard(
+                &physical.logical.projection,
+                collection_schema.as_ref(),
+                wildcard_fields.as_deref(),
+                &user_functions,
+                parameter_type_oids,
+            ),
+        )
     }
 
     fn describe_collection_schema(

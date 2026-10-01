@@ -135,7 +135,6 @@ pub(crate) fn check_projection_activation_failure_point() -> Result<(), crate::a
 }
 pub(crate) use execution::resolve_transaction_conflict_intents;
 pub(crate) use execution::show_result_columns;
-pub(crate) use execution::unify_set_result_columns;
 pub(crate) use execution::{
     plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,
     run_with_session_controls,

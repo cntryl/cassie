@@ -8752,6 +8752,81 @@ mod relational_semantic_correctness {
     }
 
     #[test]
+    fn should_preserve_signed_zero_equality_in_an_indexed_bounded_join() {
+        // Arrange
+        with_bounded_join_cassie("semantic_indexed_signed_zero_join", |cassie, session| {
+            for (table, values) in [
+                (
+                    "semantic_zero_left",
+                    [("negative-left", -0.0), ("positive-left", 0.0)],
+                ),
+                (
+                    "semantic_zero_right",
+                    [("negative-right", -0.0), ("positive-right", 0.0)],
+                ),
+            ] {
+                cassie
+                    .execute_sql(
+                        session,
+                        &format!("CREATE TABLE {table} (join_key FLOAT, label TEXT)"),
+                        vec![],
+                    )
+                    .expect("create signed-zero join table");
+                for (label, join_key) in values {
+                    cassie
+                        .execute_sql(
+                            session,
+                            &format!("INSERT INTO {table} (join_key, label) VALUES ($1, $2)"),
+                            vec![Value::Float64(join_key), Value::String(label.to_owned())],
+                        )
+                        .expect("insert signed-zero join row");
+                }
+            }
+            cassie
+                .execute_sql(
+                    session,
+                    "CREATE INDEX semantic_zero_right_key_idx ON semantic_zero_right USING btree (join_key)",
+                    vec![],
+                )
+                .expect("create float join index");
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    session,
+                    "SELECT semantic_zero_left.label, semantic_zero_right.label FROM semantic_zero_left JOIN semantic_zero_right ON semantic_zero_left.join_key = semantic_zero_right.join_key LIMIT 10",
+                    vec![],
+                )
+                .expect("join signed-zero rows");
+
+            // Assert
+            let mut rows = result.rows;
+            rows.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+            assert_eq!(
+                rows,
+                vec![
+                    vec![
+                        Value::String("negative-left".to_owned()),
+                        Value::String("negative-right".to_owned())
+                    ],
+                    vec![
+                        Value::String("negative-left".to_owned()),
+                        Value::String("positive-right".to_owned())
+                    ],
+                    vec![
+                        Value::String("positive-left".to_owned()),
+                        Value::String("negative-right".to_owned())
+                    ],
+                    vec![
+                        Value::String("positive-left".to_owned()),
+                        Value::String("positive-right".to_owned())
+                    ]
+                ]
+            );
+        });
+    }
+
+    #[test]
     fn should_evaluate_same_dimension_vector_parameters_independently() {
         // Arrange
         with_cassie("semantic_vector_parameters", |cassie, session| {

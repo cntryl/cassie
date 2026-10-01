@@ -407,6 +407,168 @@ mod integration_sql_scalar_index_lexkey {
         });
     }
 
+    #[test]
+    fn should_match_full_scan_for_signed_zero_float_scalar_index_constraints() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_negative_zero_equality");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for (table, indexed) in [
+                ("negative_zero_baseline", false),
+                ("negative_zero_indexed", true),
+            ] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE {table} (tag TEXT, delta FLOAT)"),
+                        vec![],
+                    )
+                    .expect("create float table");
+                for (tag, delta) in [
+                    ("negative", -1.5),
+                    ("negative-zero", -0.0),
+                    ("positive-zero", 0.0),
+                    ("positive", 1.5),
+                ] {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!("INSERT INTO {table} (tag, delta) VALUES ($1, $2)"),
+                            vec![Value::String(tag.to_owned()), Value::Float64(delta)],
+                        )
+                        .expect("insert signed zero");
+                }
+                if indexed {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!(
+                                "CREATE INDEX negative_zero_delta_idx ON {table} USING btree (delta)"
+                            ),
+                            vec![],
+                        )
+                        .expect("create float scalar index");
+                }
+            }
+
+            // Act
+            for (predicate, expected_tags) in [
+                ("=", vec!["negative-zero", "positive-zero"]),
+                (">=", vec!["negative-zero", "positive-zero", "positive"]),
+                ("<", vec!["negative"]),
+            ] {
+                let baseline = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!(
+                        "SELECT tag FROM negative_zero_baseline WHERE delta {predicate} $1"
+                    ),
+                    vec![Value::Float64(0.0)],
+                );
+                let indexed = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!(
+                        "SELECT tag FROM negative_zero_indexed WHERE delta {predicate} $1"
+                    ),
+                    vec![Value::Float64(0.0)],
+                );
+                let mut expected = expected_tags
+                    .into_iter()
+                    .map(|tag| vec![Value::String(tag.to_owned())])
+                    .collect::<Vec<_>>();
+                expected.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+
+                // Assert
+                assert_eq!(baseline, expected);
+                assert_eq!(indexed, baseline, "delta {predicate} 0.0");
+            }
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_match_full_scan_for_signed_zero_float_expression_index() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_signed_zero_expression_index");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for (table, indexed) in [
+                ("signed_zero_expression_baseline", false),
+                ("signed_zero_expression_indexed", true),
+            ] {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!("CREATE TABLE {table} (tag TEXT, delta FLOAT)"),
+                        vec![],
+                    )
+                    .expect("create float table");
+                for (tag, delta) in [("negative", -0.0), ("positive", 0.0)] {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!("INSERT INTO {table} (tag, delta) VALUES ($1, $2)"),
+                            vec![Value::String(tag.to_owned()), Value::Float64(delta)],
+                        )
+                        .expect("insert signed zero");
+                }
+                if indexed {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!(
+                                "CREATE INDEX signed_zero_expression_idx ON {table} USING btree ((delta * 1.0))"
+                            ),
+                            vec![],
+                        )
+                        .expect("create float expression index");
+                }
+            }
+
+            // Act
+            let baseline = sorted_rows(
+                &cassie,
+                &session,
+                "SELECT tag FROM signed_zero_expression_baseline WHERE delta * 1.0 = $1",
+                vec![Value::Float64(0.0)],
+            );
+            let indexed = sorted_rows(
+                &cassie,
+                &session,
+                "SELECT tag FROM signed_zero_expression_indexed WHERE delta * 1.0 = $1",
+                vec![Value::Float64(0.0)],
+            );
+
+            // Assert
+            assert_eq!(
+                baseline,
+                vec![
+                    vec![Value::String("negative".to_owned())],
+                    vec![Value::String("positive".to_owned())]
+                ]
+            );
+            assert_eq!(indexed, baseline);
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     fn sorted_rows(
         cassie: &Cassie,
         session: &cassie::app::CassieSession,

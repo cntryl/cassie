@@ -123,6 +123,7 @@ mod index_probe_canonicalization;
 mod index_read;
 mod ordered_read;
 mod projected_read;
+mod scalar_index_constraints;
 mod time_series_read;
 
 mod fulltext_options;

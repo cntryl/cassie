@@ -836,30 +836,62 @@ fn scan_indexed_join_rows(
     key_value: serde_json::Value,
     limit: usize,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    let hits = env
-        .cassie
-        .midge
-        .scan_scalar_index_controlled(
-            index,
-            &crate::midge::adapter::ScalarIndexScanRequest {
-                equality_prefix: vec![key_value],
-                limit: Some(limit),
-                ..Default::default()
-            },
-            env.controls,
-        )
-        .map_err(QueryError::from)?;
-    let (hits, _hits_memory) = hits.into_parts();
+    let fields = index.normalized_fields();
+    let field = fields
+        .first()
+        .ok_or_else(|| QueryError::General("scalar join index has no leading field".to_string()))?;
+    let signed_zero_counterpart =
+        crate::executor::execution::index_read::signed_zero_probe_counterpart(
+            env.cassie, collection, field, &key_value,
+        );
+    let mut probe_values = vec![key_value];
+    if let Some(counterpart) = signed_zero_counterpart {
+        probe_values.push(counterpart);
+    }
+    let mut hit_ids = Vec::new();
+    let mut seen_ids = std::collections::HashSet::new();
+    let mut hit_memory = Vec::with_capacity(probe_values.len());
+    for value in probe_values {
+        let hits = env
+            .cassie
+            .midge
+            .scan_scalar_index_controlled(
+                index,
+                &crate::midge::adapter::ScalarIndexScanRequest {
+                    equality_prefix: vec![value],
+                    limit: Some(limit),
+                    ..Default::default()
+                },
+                env.controls,
+            )
+            .map_err(QueryError::from)?;
+        let (hits, memory) = hits.into_parts();
+        hit_memory.push(memory);
+        for hit in hits {
+            if seen_ids.insert(hit.id.clone()) {
+                hit_ids.push(hit.id);
+            }
+        }
+    }
+    hit_ids.truncate(limit);
+    let hit_id_bytes = hit_ids.iter().fold(0_usize, |bytes, id| {
+        bytes
+            .saturating_add(std::mem::size_of::<String>())
+            .saturating_add(3 * std::mem::size_of::<usize>())
+            .saturating_add(id.len())
+    });
+    let hit_id_memory = env.controls.reserve_query_memory(hit_id_bytes)?;
+    let _retained_index_memory = (hit_memory, hit_id_memory);
     env.cassie
         .runtime
-        .record_read_path_index_seek(collection, hits.len(), &index.name);
+        .record_read_path_index_seek(collection, hit_ids.len(), &index.name);
 
     let schema = env.cassie.catalog.get_schema(collection);
-    let mut rows = Vec::with_capacity(hits.len());
-    for hit in hits {
+    let mut rows = Vec::with_capacity(hit_ids.len());
+    for hit_id in hit_ids {
         let Some(document) = env
             .cassie
-            .get_document_for_session(env.session, collection, &hit.id)
+            .get_document_for_session(env.session, collection, &hit_id)
             .map_err(|error| QueryError::General(error.to_string()))?
         else {
             continue;

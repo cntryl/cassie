@@ -126,6 +126,22 @@ enum ScalarIndexPredicateResolution {
     Residual,
 }
 
+pub(super) fn signed_zero_probe_counterpart(
+    cassie: &Cassie,
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    if cassie.catalog.field_type(collection, field) != Some(DataType::Float) {
+        return None;
+    }
+    let number = value.as_f64()?;
+    if !number.is_finite() || number != 0.0 {
+        return None;
+    }
+    serde_json::Number::from_f64(-number).map(serde_json::Value::Number)
+}
+
 fn scalar_index_read_spec(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -185,6 +201,13 @@ fn scalar_index_read_spec(
     if filter_binds_non_finite_param(plan.filter.as_ref(), params) {
         return Ok(None);
     }
+    if scalar_index_reads_signed_zero(cassie, &projected.collection, &index, plan, params) {
+        // LexKey keeps -0.0 and +0.0 as distinct ordered keys, while SQL
+        // comparisons treat them as equal. Expression-index metadata does not
+        // retain the result type, so zero-bound expressions also use the
+        // regular filter path to avoid changing existing persisted keys.
+        return Ok(None);
+    }
 
     let (request, predicate_resolution) =
         scalar_index_scan_request(cassie, &projected.collection, &index, &shape, plan, params)?;
@@ -200,6 +223,54 @@ fn scalar_index_read_spec(
         null_keys: shape.null_keys,
         predicate_resolution,
     }))
+}
+
+fn scalar_index_reads_signed_zero(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    plan: &LogicalPlan,
+    params: &[Value],
+) -> bool {
+    let Some(filter) = plan.filter.as_ref() else {
+        return false;
+    };
+
+    let field_constraint_reads_zero =
+        concrete_constraints(Some(filter), params).is_some_and(|constraints| {
+            index.normalized_fields().iter().any(|field| {
+                cassie.catalog.field_type(collection, field) == Some(DataType::Float)
+                    && constraints
+                        .get(&field.to_ascii_lowercase())
+                        .is_some_and(constraint_contains_zero)
+            })
+        });
+    let expression_constraint_reads_zero = !index.expressions.is_empty()
+        && expression_index_constraints(Some(filter), params).is_some_and(|constraints| {
+            index.normalized_expressions().iter().any(|expression| {
+                constraints
+                    .expressions
+                    .get(expression)
+                    .is_some_and(constraint_contains_zero)
+            })
+        });
+
+    field_constraint_reads_zero || expression_constraint_reads_zero
+}
+
+fn constraint_contains_zero(constraint: &ConcreteConstraint) -> bool {
+    constraint
+        .equality
+        .iter()
+        .chain(constraint.lower.iter().map(|bound| &bound.value))
+        .chain(constraint.upper.iter().map(|bound| &bound.value))
+        .any(is_zero_number)
+}
+
+fn is_zero_number(value: &serde_json::Value) -> bool {
+    value
+        .as_f64()
+        .is_some_and(|number| number.is_finite() && number == 0.0)
 }
 
 fn scalar_index_scan_request(

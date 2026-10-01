@@ -761,6 +761,86 @@ mod fulltext_persisted_sql {
     }
 
     #[test]
+    fn should_keep_both_signed_zeros_in_fulltext_scalar_prefilter() {
+        // Arrange
+        use_local_storage();
+        std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
+        let path = data_dir("persisted_fulltext_signed_zero_prefilter");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE signed_zero_filter_docs (rating FLOAT, body TEXT)",
+                vec![],
+            )
+            .expect("create float-filtered documents");
+        for (rating, body) in [
+            (-0.0, "alpha negative"),
+            (0.0, "alpha positive"),
+            (1.0, "alpha other"),
+        ] {
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO signed_zero_filter_docs (rating, body) VALUES ($1, $2)",
+                    vec![Value::Float64(rating), Value::String(body.to_owned())],
+                )
+                .expect("insert signed-zero document");
+        }
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX signed_zero_filter_rating_idx ON signed_zero_filter_docs (rating)",
+                vec![],
+            )
+            .expect("create float scalar index");
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE INDEX signed_zero_filter_body_idx ON signed_zero_filter_docs USING fulltext (body)",
+                vec![],
+            )
+            .expect("create fulltext index");
+
+        // Act
+        let before = cassie.metrics();
+        let result = cassie
+            .execute_sql(
+                &session,
+                "SELECT body, search_score(body, $1) AS score FROM signed_zero_filter_docs WHERE search(body, $1) AND rating = $2",
+                vec![Value::String("alpha".to_owned()), Value::Float64(0.0)],
+            )
+            .expect("query signed-zero fulltext matches");
+        let after = cassie.metrics();
+
+        // Assert
+        let mut bodies = result
+            .rows
+            .into_iter()
+            .map(|row| row[0].clone())
+            .collect::<Vec<_>>();
+        bodies.sort_by_key(|value| format!("{value:?}"));
+        assert_eq!(
+            bodies,
+            vec![
+                Value::String("alpha negative".to_owned()),
+                Value::String("alpha positive".to_owned())
+            ]
+        );
+        assert_eq!(
+            after["search"]["candidate_row_fetches_total"]
+                .as_u64()
+                .unwrap()
+                - before["search"]["candidate_row_fetches_total"]
+                    .as_u64()
+                    .unwrap(),
+            2
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_keep_null_trailing_index_keys_in_fulltext_prefilter() {
         // Arrange
         use_local_storage();

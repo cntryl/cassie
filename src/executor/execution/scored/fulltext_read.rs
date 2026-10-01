@@ -668,37 +668,55 @@ fn scalar_prefilter_ids(
     else {
         return Ok(None);
     };
+    let signed_zero_counterpart = super::super::index_read::signed_zero_probe_counterpart(
+        cassie,
+        &spec.collection,
+        &field,
+        &value,
+    );
     super::super::index_probe_canonicalization::canonicalize_index_probe_value(
         cassie,
         &spec.collection,
         &field,
         &mut value,
     );
-    let hits = cassie
-        .midge
-        .scan_scalar_index_controlled(
-            &index,
-            &crate::midge::adapter::ScalarIndexScanRequest {
-                equality_prefix: vec![value],
-                ..crate::midge::adapter::ScalarIndexScanRequest::default()
-            },
-            controls,
-        )
-        .map_err(QueryError::from)?;
-    let (hits, hit_memory) = hits.into_parts();
-    let retained_bytes = hits.iter().fold(0usize, |bytes, hit| {
-        bytes
-            .saturating_add(std::mem::size_of::<String>())
-            .saturating_add(3 * std::mem::size_of::<usize>())
-            .saturating_add(hit.id.len())
-    });
-    let id_memory = controls.reserve_query_memory(retained_bytes)?;
-    let mut ids = HashSet::with_capacity(hits.len());
-    ids.extend(hits.into_iter().map(|hit| hit.id));
-    Ok(Some(ControlledScalarCandidates {
-        ids,
-        memory: vec![hit_memory, id_memory],
-    }))
+    let mut probe_values = vec![value];
+    if let Some(mut counterpart) = signed_zero_counterpart {
+        super::super::index_probe_canonicalization::canonicalize_index_probe_value(
+            cassie,
+            &spec.collection,
+            &field,
+            &mut counterpart,
+        );
+        probe_values.push(counterpart);
+    }
+    let mut ids = HashSet::new();
+    let mut memory = Vec::with_capacity(probe_values.len() * 2);
+    for value in probe_values {
+        let hits = cassie
+            .midge
+            .scan_scalar_index_controlled(
+                &index,
+                &crate::midge::adapter::ScalarIndexScanRequest {
+                    equality_prefix: vec![value],
+                    ..crate::midge::adapter::ScalarIndexScanRequest::default()
+                },
+                controls,
+            )
+            .map_err(QueryError::from)?;
+        let (hits, hit_memory) = hits.into_parts();
+        let retained_bytes = hits.iter().fold(0usize, |bytes, hit| {
+            bytes
+                .saturating_add(std::mem::size_of::<String>())
+                .saturating_add(3 * std::mem::size_of::<usize>())
+                .saturating_add(hit.id.len())
+        });
+        let id_memory = controls.reserve_query_memory(retained_bytes)?;
+        ids.extend(hits.into_iter().map(|hit| hit.id));
+        memory.push(hit_memory);
+        memory.push(id_memory);
+    }
+    Ok(Some(ControlledScalarCandidates { ids, memory }))
 }
 
 fn equality_literal(expr: &Expr, params: &[Value]) -> Option<(String, serde_json::Value)> {

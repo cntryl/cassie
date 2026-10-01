@@ -65,6 +65,7 @@ mod time_series_float_partitions {
                     "(2, 2.0, 'tenant-a', '2026-01-01T13:00:00Z')",
                     "(3, 2.5, 'tenant-a', '2026-01-01T14:00:00Z')",
                     "(4, 2, 'tenant-b', '2026-01-01T14:30:00Z')",
+                    "(5, -0.0, 'tenant-a', '2026-01-01T14:45:00Z')",
                 ] {
                     cassie
                         .execute_sql(
@@ -87,19 +88,32 @@ mod time_series_float_partitions {
                 (
                     "ratio = 2 AND tenant = 'tenant-a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T15:00:00Z'",
                     vec![],
+                    vec![1, 2],
                 ),
                 (
                     "ratio = 2.0 AND tenant = 'tenant-a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T15:00:00Z'",
                     vec![],
+                    vec![1, 2],
                 ),
                 (
                     "ratio = $1 AND tenant = 'tenant-a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T15:00:00Z'",
                     vec![Value::Float64(2.0)],
+                    vec![1, 2],
+                ),
+                (
+                    "ratio = 0.0 AND tenant = 'tenant-a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T15:00:00Z'",
+                    vec![],
+                    vec![5],
+                ),
+                (
+                    "ratio = 0 AND tenant = 'tenant-a' AND event_at >= '2026-01-01T12:00:00Z' AND event_at < '2026-01-01T15:00:00Z'",
+                    vec![],
+                    vec![5],
                 ),
             ];
 
             // Act
-            for (predicate, params) in predicates {
+            for (predicate, params, expected) in predicates {
                 let baseline = query_ids(
                     &cassie,
                     &session,
@@ -116,7 +130,7 @@ mod time_series_float_partitions {
                 );
 
                 // Assert
-                assert_eq!(baseline, vec![1, 2], "baseline: {predicate}");
+                assert_eq!(baseline, expected, "baseline: {predicate}");
                 assert_eq!(indexed, baseline, "indexed: {predicate}");
             }
 

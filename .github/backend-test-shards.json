@@ -51,6 +51,8 @@
         "--test",
         "search",
         "--test",
+        "sql_contextual_literals",
+        "--test",
         "sql_derived_sources",
         "--test",
         "sql_exists_subqueries",

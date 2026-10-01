@@ -304,6 +304,7 @@ pub(super) fn bind_update(
 
     statement.table = table;
     super::own_qualifier::strip_update_own_qualifiers(&mut statement);
+    super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
     Ok(statement)
 }
 
@@ -345,6 +346,7 @@ pub(super) fn bind_delete(
 
     statement.table = table;
     super::own_qualifier::strip_delete_own_qualifiers(&mut statement);
+    super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
     Ok(statement)
 }
 

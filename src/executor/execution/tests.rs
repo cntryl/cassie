@@ -194,6 +194,21 @@ fn should_detect_projected_scan_pushdown_for_literal_equality() {
 }
 
 #[test]
+fn should_keep_json_shaped_string_equality_on_typed_filter_path() {
+    // Arrange
+    let plan = plan_for_sql("SELECT id, doc FROM json_docs WHERE doc = '{\"k\":1}'");
+    let filter = plan.filter.as_ref().expect("filter");
+
+    // Act
+    let projected_pushdown = projected_read::projected_scan_pushdown_filter(filter);
+    let column_batch_pushdown = projected_read::column_batch_scan_filter(filter);
+
+    // Assert
+    assert!(projected_pushdown.is_none());
+    assert!(column_batch_pushdown.is_none());
+}
+
+#[test]
 fn should_reject_projected_scan_pushdown_for_row_id_equality() {
     // Arrange
     let plan = plan_for_sql("SELECT id, title FROM bench_documents WHERE id = 'doc-1'");

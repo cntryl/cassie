@@ -135,41 +135,7 @@ fn expression_operand_family(
             validate_expression_operand_families(expr, field_types)?;
             Ok(Some(OperandFamily::Boolean))
         }
-        Expr::Binary { left, op, right } => {
-            let left_family = expression_operand_family(left, field_types)?;
-            let right_family = expression_operand_family(right, field_types)?;
-            match op {
-                BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
-                BinaryOp::Eq
-                | BinaryOp::NotEq
-                | BinaryOp::Lt
-                | BinaryOp::Lte
-                | BinaryOp::Gt
-                | BinaryOp::Gte => {
-                    if validate_typed_string_comparison(left, right, field_types)? {
-                        return Ok(Some(OperandFamily::Boolean));
-                    }
-                    require_compatible_families(left_family, right_family, "comparison")?;
-                    Ok(Some(OperandFamily::Boolean))
-                }
-                BinaryOp::Like => {
-                    require_family(left_family, OperandFamily::Text, "LIKE")?;
-                    require_family(right_family, OperandFamily::Text, "LIKE")?;
-                    Ok(Some(OperandFamily::Boolean))
-                }
-                BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-                    require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
-                    require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
-                    Ok(Some(OperandFamily::Numeric))
-                }
-                BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
-                    require_family(left_family, OperandFamily::Vector, "vector distance")?;
-                    require_family(right_family, OperandFamily::Vector, "vector distance")?;
-                    vector::validate_vector_query_literals(left, right, field_types)?;
-                    Ok(Some(OperandFamily::Numeric))
-                }
-            }
-        }
+        Expr::Binary { left, op, right } => binary_operand_family(left, op, right, field_types),
         Expr::InList { expr, values, .. } => {
             let expression_family = expression_operand_family(expr, field_types)?;
             for value in values {
@@ -177,6 +143,13 @@ fn expression_operand_family(
                 if validate_typed_string_comparison(expr, value, field_types)? {
                     continue;
                 }
+                let (expression_family, value_family) = contextual_string_literal_families(
+                    expr,
+                    value,
+                    expression_family,
+                    value_family,
+                    true,
+                )?;
                 require_compatible_families(expression_family, value_family, "IN")?;
             }
             Ok(Some(OperandFamily::Boolean))
@@ -194,6 +167,54 @@ fn expression_operand_family(
                 require_compatible_families(expression_family, high_family, "BETWEEN")?;
             }
             Ok(Some(OperandFamily::Boolean))
+        }
+    }
+}
+
+fn binary_operand_family(
+    left: &Expr,
+    op: &BinaryOp,
+    right: &Expr,
+    field_types: &crate::sql::FieldTypeMap,
+) -> Result<Option<OperandFamily>, CassieError> {
+    let left_family = expression_operand_family(left, field_types)?;
+    let right_family = expression_operand_family(right, field_types)?;
+    match op {
+        BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
+        BinaryOp::Eq
+        | BinaryOp::NotEq
+        | BinaryOp::Lt
+        | BinaryOp::Lte
+        | BinaryOp::Gt
+        | BinaryOp::Gte => {
+            if validate_typed_string_comparison(left, right, field_types)? {
+                return Ok(Some(OperandFamily::Boolean));
+            }
+            let (left_family, right_family) = contextual_string_literal_families(
+                left,
+                right,
+                left_family,
+                right_family,
+                matches!(op, BinaryOp::Eq | BinaryOp::NotEq),
+            )?;
+            require_compatible_families(left_family, right_family, "comparison")?;
+            Ok(Some(OperandFamily::Boolean))
+        }
+        BinaryOp::Like => {
+            require_family(left_family, OperandFamily::Text, "LIKE")?;
+            require_family(right_family, OperandFamily::Text, "LIKE")?;
+            Ok(Some(OperandFamily::Boolean))
+        }
+        BinaryOp::Add | BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            require_family(left_family, OperandFamily::Numeric, "arithmetic")?;
+            require_family(right_family, OperandFamily::Numeric, "arithmetic")?;
+            Ok(Some(OperandFamily::Numeric))
+        }
+        BinaryOp::PgvectorCosine | BinaryOp::PgvectorL2 | BinaryOp::PgvectorDot => {
+            require_family(left_family, OperandFamily::Vector, "vector distance")?;
+            require_family(right_family, OperandFamily::Vector, "vector distance")?;
+            vector::validate_vector_query_literals(left, right, field_types)?;
+            Ok(Some(OperandFamily::Numeric))
         }
     }
 }
@@ -228,6 +249,29 @@ fn validate_typed_string_comparison(
             Ok(true)
         }
         _ => Ok(false),
+    }
+}
+
+fn contextual_string_literal_families(
+    left: &Expr,
+    right: &Expr,
+    left_family: Option<OperandFamily>,
+    right_family: Option<OperandFamily>,
+    allow_json: bool,
+) -> Result<(Option<OperandFamily>, Option<OperandFamily>), CassieError> {
+    match (left, right, left_family, right_family) {
+        (Expr::StringLiteral(literal), _, _, Some(family))
+        | (_, Expr::StringLiteral(literal), Some(family), _)
+            if family == OperandFamily::Text || (allow_json && family == OperandFamily::Json) =>
+        {
+            if family == OperandFamily::Json {
+                serde_json::from_str::<serde_json::Value>(literal).map_err(|_| {
+                    CassieError::Planner(format!("invalid JSON literal '{literal}'"))
+                })?;
+            }
+            Ok((Some(family), Some(family)))
+        }
+        _ => Ok((left_family, right_family)),
     }
 }
 

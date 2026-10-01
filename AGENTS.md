@@ -150,7 +150,26 @@ Create GitHub issues and pull requests as durable engineering records. Use real 
 ## Agentic Workflow
 
 Agents must work from the current repository source of truth, not from ad hoc architectural judgment.
-When an `issues/` backlog exists, follow its priority order. In this checkout, no issue backlog is present; use the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs as the planning surface.
+Use `gh` CLI to read the current GitHub backlog, issue dependencies, PRs, reviews, and checks. Follow documented priority and dependency order, using the user request plus `docs/product-roadmap.md`, `docs/production-readiness.md`, `docs/performance-contracts.md`, and subsystem docs. Use Jev continuously to judge that current evidence.
+
+### Jev
+
+Jev is TypeSafe's System One model. It returns typed judgments and probabilities; it does not store GitHub issues or prove correctness. Read issue/status data with `gh`, then submit that evidence to Jev for triage, grouping, dependency assessment, implementation review, and adversarial review. Confirm its judgments with source, failing/passing tests, and current GitHub state.
+
+- Live API documentation: `https://docs.typesafe.ai/api.md` and `https://docs.typesafe.ai/primitives/choice.md`.
+- Endpoint: `POST https://api.typesafe.ai/v1/systemone`, with `Authorization: Bearer <key>` and `Content-Type: application/json`.
+- Model: `jev-latest`. Credentials are in `~/.config/typesafe/jev.key`; read them privately and never print, log, commit, or include them in request artifacts.
+- Request shape: `{"model":"jev-latest","state":{...},"questions":{"question_id":{"type":"choice","instructions":"A precise judgment about the supplied evidence","criteria":{"option":"Meaning of this option","none":"No supported option"}}}}`.
+- Use `choice` for competing candidates, `noul` for a yes/no probability, and `score` for an ordered rubric. A `noul` question does not need `criteria`.
+- Include exact issue requirements, relevant functions and callers, sibling paths, concrete candidate SQL inputs, and test output. Ask a specific question whose answer changes the next action; avoid generic requests such as “any regression?”.
+- Submit independent questions together. Keep request/response evidence under the isolated worktree's ignored `target/` directory.
+- An adversarial gap probability at or above 0.30 requires a focused probe. Fix confirmed findings or link the appropriate follow-up issue. Record Jev's question, result, and the action taken in the PR review record.
+
+### Bundling and local validation
+
+Work one PR at a time. Bundle a substantial set of related issues when they share implementation context or observable behavior, and define the bundle before coding. Implement each behavior as a small local red → green → refactor increment. Run the complete validation once the coherent bundle is ready, then open the PR, perform adversarial review, refine, verify the final PR head, and squash merge. Read back the merged commit and issue closures before selecting the next bundle.
+
+Use local tests and analyzers for iteration; avoid repeatedly pushing tiny changes just to wait for GitHub workflows. If an issue is already fixed, verify the acceptance criteria locally and close it with evidence instead of opening a standalone PR that changes no runtime behavior. Track test-latency findings through the backlog and preserve required checks.
 
 Required loop:
 

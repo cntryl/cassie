@@ -205,10 +205,12 @@ mod index_publication_recovery {
         .is_err());
 
         // Assert
-        assert!(cassie
-            .catalog
-            .list_vector_indexes("vector_index_publication_docs")
-            .is_empty());
+        assert_eq!(
+            cassie
+                .catalog
+                .list_vector_indexes("vector_index_publication_docs"),
+            [] as [cassie::embeddings::VectorIndexRecord; 0]
+        );
         assert!(cassie
             .catalog
             .get_index(
@@ -3491,11 +3493,13 @@ mod midge_baseline_database_families {
         // Assert
         assert_eq!(mapping, first_mapping);
         assert_isolated_rows(&restarted);
-        assert!(restarted
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, b"doc:")
-            .expect("compat scan")
-            .is_empty());
+        assert_eq!(
+            restarted
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, b"doc:")
+                .expect("compat scan"),
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -3792,9 +3796,18 @@ mod midge_layout_bootstrap {
 
             // Assert
             assert_eq!(stored.payload["title"], "alpha");
-            assert!(legacy_row_entries.is_empty());
-            assert!(legacy_doc_entries.is_empty());
-            assert!(legacy_schema_entries.is_empty());
+            assert_eq!(
+                legacy_row_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
+            assert_eq!(
+                legacy_doc_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
+            assert_eq!(
+                legacy_schema_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
             assert!(schema_entries
                 .iter()
                 .any(|(_, value)| value.as_slice() == b"cassie-midge-layout-v2"));
@@ -4084,7 +4097,7 @@ mod midge_layout_bootstrap {
                 .midge
                 .raw_scan_prefix(StorageFamily::Temp, b"")
                 .unwrap();
-            assert!(entries.is_empty());
+            assert_eq!(entries, [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -4536,11 +4549,13 @@ mod midge_metadata_stats {
                 )
                 .unwrap();
 
-            assert!(cassie
-                .midge
-                .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
-                .unwrap()
-                .is_empty());
+            assert_eq!(
+                cassie
+                    .midge
+                    .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
+                    .unwrap(),
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
 
             // Act
             cassie.midge.rename_collection(collection, renamed).unwrap();
@@ -4555,11 +4570,13 @@ mod midge_metadata_stats {
             // Assert
             assert_eq!(metadata.storage_mode, CollectionStorageMode::ColumnStore);
             assert!(moved.is_some());
-            assert!(cassie
-                .midge
-                .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
-                .unwrap()
-                .is_empty());
+            assert_eq!(
+                cassie
+                    .midge
+                    .raw_scan_prefix(StorageFamily::Data, b"__cassie__/column-store/v1/")
+                    .unwrap(),
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
             assert!(cassie.midge.collection_metadata(renamed).unwrap().is_none());
 
             let _ = std::fs::remove_dir_all(path);
@@ -4609,7 +4626,7 @@ mod midge_metadata_stats {
             .unwrap();
 
         // Assert
-        assert!(!entries.is_empty());
+        assert_ne!(entries, [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]);
         assert!(entries.iter().all(|(key, _)| !key
             .windows(collection.len())
             .any(|window| window == collection.as_bytes())));
@@ -4665,7 +4682,10 @@ mod midge_metadata_stats {
             assert_eq!(metadata.offset, 0);
             assert_eq!(metadata.lag, 0);
             assert_eq!(metadata.rebuild_state, ProjectionRebuildState::Idle);
-            assert!(legacy_entries.is_empty());
+            assert_eq!(
+                legacy_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -5183,8 +5203,14 @@ mod midge_row_blob_layout {
 
             // Assert
             assert_eq!(stored.payload["title"], "alpha");
-            assert!(legacy_row_entries.is_empty());
-            assert!(legacy_doc_entries.is_empty());
+            assert_eq!(
+                legacy_row_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
+            assert_eq!(
+                legacy_doc_entries,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });

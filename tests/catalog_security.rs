@@ -799,7 +799,7 @@ mod catalog_introspection {
                     Value::String("title".to_string()),
                 ]]
             );
-            assert!(dropped.rows.is_empty());
+            assert_eq!(dropped.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2158,8 +2158,8 @@ mod catalog_probes {
             // Assert
             let result = result.unwrap();
             assert_eq!(result.command, "SET");
-            assert!(result.columns.is_empty());
-            assert!(result.rows.is_empty());
+            assert_eq!(result.columns, [] as [cassie::executor::ColumnMeta; 0]);
+            assert_eq!(result.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -3204,10 +3204,10 @@ mod database_scope {
             );
 
             // Assert
-            assert!(policies.is_empty());
-            assert!(rollups.is_empty());
-            assert!(projections.is_empty());
-            assert!(!checkpoints.is_empty());
+            assert_eq!(policies, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(rollups, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_eq!(projections, [] as [std::vec::Vec<cassie::types::Value>; 0]);
+            assert_ne!(checkpoints, [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert!(checkpoints.iter().all(|row| {
                 matches!(&row[0], Value::String(collection) if collection.starts_with("tenant_b."))
             }));
@@ -4656,7 +4656,10 @@ mod schema_epoch_safety {
                 .unwrap();
 
             // Assert
-            assert!(!sidecars_before.is_empty());
+            assert_ne!(
+                sidecars_before,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
             let cassie::types::Value::String(plan) = &new_plan.rows[0][0] else {
                 panic!("expected explain text");
             };
@@ -4665,9 +4668,15 @@ mod schema_epoch_safety {
                 .catalog
                 .get_index(&collection, "epoch_drop_title_idx")
                 .is_none());
-            assert!(!sidecars_while_pinned.is_empty());
+            assert_ne!(
+                sidecars_while_pinned,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
             assert!(stored_index_while_pinned.is_some());
-            assert!(sidecars_after_drain.is_empty());
+            assert_eq!(
+                sidecars_after_drain,
+                [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+            );
             assert!(stored_index_after_drain.is_none());
 
             let _ = std::fs::remove_dir_all(path);
@@ -5340,7 +5349,10 @@ mod schema_operation_recovery {
             .expect("replay graph collection drop idempotently");
 
         // Assert
-        assert!(after_drop.rows.is_empty());
+        assert_eq!(
+            after_drop.rows,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         let after_second_restart = restarted_again
         .execute_sql(
             &restarted_again.create_session("tester", None),
@@ -5348,7 +5360,10 @@ mod schema_operation_recovery {
             vec![],
         )
         .expect("read graph adjacency after second restart");
-        assert!(after_second_restart.rows.is_empty());
+        assert_eq!(
+            after_second_restart.rows,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -5395,11 +5410,13 @@ mod schema_operation_recovery {
             .expect("collection metadata")
             .storage_id;
         let prefix = Midge::scalar_index_collection_prefix_for_diagnostics(relation_id);
-        assert!(!cassie
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, &prefix)
-            .expect("read scalar sidecars")
-            .is_empty());
+        assert_ne!(
+            cassie
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, &prefix)
+                .expect("read scalar sidecars"),
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
         cassie
             .midge
             .defer_drop_index("drop_index_recovery", "drop_index_recovery_title_idx", 0)
@@ -5415,11 +5432,13 @@ mod schema_operation_recovery {
             .get_index(&collection, "drop_index_recovery_title_idx")
             .expect("read interrupted metadata")
             .is_some());
-        assert!(cassie
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, &prefix)
-            .expect("read cleaned scalar sidecars")
-            .is_empty());
+        assert_eq!(
+            cassie
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, &prefix)
+                .expect("read cleaned scalar sidecars"),
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
         drop(cassie);
         let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
         restarted.startup().expect("replay index cleanup");
@@ -5428,11 +5447,13 @@ mod schema_operation_recovery {
             .get_index(&collection, "drop_index_recovery_title_idx")
             .expect("read removed metadata")
             .is_none());
-        assert!(restarted
-            .midge
-            .raw_scan_prefix(StorageFamily::Data, &prefix)
-            .expect("read removed scalar sidecars")
-            .is_empty());
+        assert_eq!(
+            restarted
+                .midge
+                .raw_scan_prefix(StorageFamily::Data, &prefix)
+                .expect("read removed scalar sidecars"),
+            [] as [(std::vec::Vec<u8>, std::vec::Vec<u8>); 0]
+        );
         drop(restarted);
         let restarted_again = Cassie::new_with_data_dir(&path).expect("reopen Cassie again");
         restarted_again
@@ -5718,7 +5739,10 @@ mod udf_database_scope {
                     vec![],
                 )
                 .expect("create tenant_b function");
-            assert!(own_function.rows.is_empty());
+            assert_eq!(
+                own_function.rows,
+                [] as [std::vec::Vec<cassie::types::Value>; 0]
+            );
             let result = cassie
                 .execute_sql(&tenant_b, "SELECT rate(2)", vec![])
                 .expect("execute tenant_b function");

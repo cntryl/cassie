@@ -3,7 +3,7 @@ use crate::app::CassieError;
 use super::binary::invalid;
 
 pub(super) fn required_bits(maximum: u64) -> u8 {
-    u8::try_from(u64::BITS - maximum.leading_zeros()).expect("u64 bit width fits in u8")
+    u8::try_from(maximum.bit_width()).expect("u64 bit width fits in u8")
 }
 
 pub(super) fn packed_len(count: usize, width: u8) -> Result<usize, CassieError> {

@@ -281,7 +281,7 @@ impl Midge {
             Ok(rows) => rows,
             Err(reason) => return Ok(controlled_fallback(reason)),
         };
-        debug_assert!(persisted_rows.is_empty());
+        debug_assert_eq!(persisted_rows, [] as [ColumnBatchRow; 0]);
         if self.collection_generation(&collection)? != current_generation {
             return Ok(controlled_fallback(
                 ColumnBatchScanFallbackReason::GenerationMismatch,

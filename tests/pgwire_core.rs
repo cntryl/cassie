@@ -1181,7 +1181,10 @@ mod pgwire_text_parameters {
         // Assert
         for frames in &batches {
             assert_eq!(support::error_code(frames).as_deref(), Some("08P01"));
-            assert!(support::data_rows(frames).is_empty());
+            assert_eq!(
+                support::data_rows(frames),
+                [] as [std::vec::Vec<std::option::Option<std::string::String>>; 0]
+            );
         }
     }
 

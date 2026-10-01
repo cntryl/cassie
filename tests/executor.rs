@@ -5604,7 +5604,10 @@ mod procedure_support_contract {
 
         // Assert
         assert!(errors.iter().all(|error| !error.trim().is_empty()));
-        assert!(cassie.catalog.list_procedures().is_empty());
+        assert_eq!(
+            cassie.catalog.list_procedures(),
+            [] as [cassie::catalog::ProcedureMeta; 0]
+        );
 
         cassie.shutdown();
         let _ = std::fs::remove_dir_all(path);

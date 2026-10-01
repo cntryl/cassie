@@ -79,12 +79,12 @@ mod graph_transaction_semantics {
         let reader_after = neighbor_rows(&cassie, &reader, "out");
 
         // Assert
-        assert!(writer_rows.is_empty());
+        assert_eq!(writer_rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(
             reader_before,
             vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
         );
-        assert!(reader_after.is_empty());
+        assert_eq!(reader_after, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         let _ = std::fs::remove_dir_all(path);
     });
     }
@@ -319,7 +319,7 @@ mod graph_transaction_semantics {
             writer_rows,
             vec![vec![Value::String("bob".into()), Value::Float64(2.0)]]
         );
-        assert!(reader_before.is_empty());
+        assert_eq!(reader_before, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(reader_after, writer_rows);
         let _ = std::fs::remove_dir_all(path);
     });
@@ -2214,7 +2214,7 @@ mod time_series_retention {
                     Value::String("ready".to_string()),
                 ]]
             );
-            assert!(dropped.rows.is_empty());
+            assert_eq!(dropped.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2312,7 +2312,7 @@ mod time_series_retention {
                     vec![Value::String("missing".to_string())],
                 ]
             );
-            assert!(indexed.rows.is_empty());
+            assert_eq!(indexed.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert_eq!(metrics["retention"]["enforcements"].as_u64(), Some(2));
             assert_eq!(metrics["retention"]["deleted_rows"].as_u64(), Some(1));
             assert_eq!(metrics["retention"]["skipped_rows"].as_u64(), Some(4));
@@ -2401,7 +2401,7 @@ mod time_series_retention {
                 ]
             );
             assert_eq!(restrict.rows, vec![vec![Value::Int64(1)]]);
-            assert!(cascade.rows.is_empty());
+            assert_eq!(cascade.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert_eq!(null.rows, vec![vec![Value::Null]]);
             assert_eq!(default.rows, vec![vec![Value::Int64(5)]]);
             assert_eq!(policy.rows, vec![vec![Value::Int64(3), Value::Int64(1)]]);
@@ -3052,7 +3052,7 @@ mod time_series_rollups {
         assert_eq!(recovered.rows.len(), 3);
         assert_eq!(recovered.rows[0][2], Value::Int64(2));
         assert_eq!(recovered.rows[0][3], Value::Int64(12));
-        assert!(remaining_debt.rows.is_empty());
+        assert_eq!(remaining_debt.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });

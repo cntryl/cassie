@@ -4114,8 +4114,11 @@ mod planner_physical {
 
             // Assert
             assert!(!physical_plan.adaptive_plan.enabled);
-            assert!(physical_plan.adaptive_plan.decision_point.is_empty());
-            assert!(physical_plan.adaptive_plan.candidates.is_empty());
+            assert_eq!(physical_plan.adaptive_plan.decision_point, "");
+            assert_eq!(
+                physical_plan.adaptive_plan.candidates,
+                [] as [std::string::String; 0]
+            );
         });
     }
 
@@ -5634,7 +5637,10 @@ mod query_promotion_evidence {
         assert_eq!(pages.indexed.concat(), pages.indexed_full);
         assert_eq!(pages.row_baseline.concat(), pages.row_baseline_full);
         assert_eq!(pages.indexed_empty, pages.row_baseline_empty);
-        assert!(pages.indexed_empty.is_empty());
+        assert_eq!(
+            pages.indexed_empty,
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         assert_eq!(pages.indexed_full, pages.indexed_rewritten);
         assert_eq!(pages.row_baseline_full, pages.row_baseline_rewritten);
         assert_eq!(pages.indexed_rewritten, pages.row_baseline_rewritten);

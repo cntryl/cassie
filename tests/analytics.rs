@@ -386,7 +386,7 @@ mod analytical_projection_recovery {
                 Value::String("maintenance_pending".to_string()),
             ]
         );
-        assert!(restarted_debt.rows.is_empty());
+        assert_eq!(restarted_debt.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         assert_eq!(
             projection.rows,
             vec![vec![Value::String("stale".to_string())]]
@@ -473,7 +473,7 @@ mod analytical_projection_recovery {
                 debt_before_restart.rows,
                 vec![vec![Value::String("materialized_projection".to_string())]]
             );
-            assert!(debt_after_restart.rows.is_empty());
+            assert_eq!(debt_after_restart.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
             assert_eq!(
                 rows_before_restart.rows,
                 vec![
@@ -9061,7 +9061,7 @@ mod projection_repair {
         assert_eq!(manifest.generated_ms, 8_642);
         assert_eq!(verification.rows[0][0], Value::String("verified".to_string()));
         assert_eq!(active_rows.rows, vec![vec![Value::String("alpha".to_string())]]);
-        assert!(reports.rows.is_empty());
+        assert_eq!(reports.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
         let _ = std::fs::remove_dir_all(snapshot);
@@ -9180,7 +9180,7 @@ mod projection_repair {
             .unwrap();
 
         // Assert
-        assert!(reports.rows.is_empty());
+        assert_eq!(reports.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
 
         let _ = std::fs::remove_dir_all(path);
     });

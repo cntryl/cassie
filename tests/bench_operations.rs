@@ -2000,7 +2000,10 @@ mod benchmark_harness_contract {
 
         // Assert
         assert_eq!(shared_fixture_constructions, 1);
-        assert!(obsolete_fixture_constructors.is_empty());
+        assert_eq!(
+            obsolete_fixture_constructors.len().cmp(&0),
+            std::cmp::Ordering::Equal
+        );
         assert!(source.contains("prepare_tier3_query_domains"));
     }
 
@@ -4316,7 +4319,7 @@ mod benchmark_kernels {
                 vec![],
             )
             .expect("inspect mutation-lane cleanup");
-        assert!(remaining.rows.is_empty());
+        assert_eq!(remaining.rows.len().cmp(&0), std::cmp::Ordering::Equal);
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
         drop(context);
@@ -5764,7 +5767,10 @@ mod performance_benchmarks_tests {
 
         // Assert
         assert_eq!(rows.len(), 1);
-        assert!(rows[0].diagnostic_codes.is_empty());
+        assert_eq!(
+            rows[0].diagnostic_codes.len().cmp(&0),
+            std::cmp::Ordering::Equal
+        );
     }
 
     #[test]
@@ -6216,7 +6222,7 @@ mod performance_benchmarks_tests {
             .collect::<Vec<_>>();
 
         // Assert
-        assert!(!tier2.is_empty());
+        assert_eq!(tier2.len().cmp(&0), std::cmp::Ordering::Greater);
         assert!(
             oversized.is_empty(),
             "oversized Tier 2 fixtures: {oversized:?}"

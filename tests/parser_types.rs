@@ -1265,7 +1265,7 @@ mod parser_dml_transactions {
             panic!("expected insert statement");
         };
         let on_conflict = statement.on_conflict.expect("missing on conflict");
-        assert!(on_conflict.target_fields.is_empty());
+        assert_eq!(on_conflict.target_fields, [] as [std::string::String; 0]);
         assert!(matches!(
             on_conflict.action,
             cassie::sql::ast::InsertConflictAction::DoNothing
@@ -2738,7 +2738,7 @@ mod parser_indexes {
         };
         assert_eq!(statement.name, "idx_docs_lower_title");
         assert_eq!(statement.table, "docs");
-        assert!(statement.fields.is_empty());
+        assert_eq!(statement.fields, [] as [std::string::String; 0]);
         assert_eq!(statement.expressions.len(), 1);
     }
 

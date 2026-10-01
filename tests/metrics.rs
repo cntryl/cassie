@@ -2719,7 +2719,7 @@ mod metrics_joins {
             .unwrap();
 
         // Assert
-        assert!(selected.rows.is_empty());
+        assert_eq!(selected.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
         let metrics = cassie.metrics();
         assert_eq!(metrics["joins"]["vectorized_joins"], 0);
         assert_eq!(metrics["joins"]["vectorized_fallbacks"], 1);

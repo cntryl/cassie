@@ -2573,7 +2573,7 @@ mod pgwire_portal_safety {
 
         // Assert
         assert_eq!(error_code(&overflow).as_deref(), Some("54000"));
-        assert!(data_values(&overflow).is_empty());
+        assert_eq!(data_values(&overflow), [] as [std::string::String; 0]);
 
         support::write_frames(
             &mut write_half,
@@ -4818,7 +4818,7 @@ mod pgwire_result_framing {
             .filter(|frame| frame.0 == b'D')
             .map(|frame| data_row_field_lengths(&frame.1))
             .collect::<Vec<_>>();
-        assert!(!rows.is_empty());
+        assert_ne!(rows, [] as [std::vec::Vec<i32>; 0]);
         assert!(rows.iter().flatten().all(|length| *length == 1));
     }
     #[test]
@@ -5265,7 +5265,10 @@ mod pgwire_boolean_parameter_families {
         // Assert
         for frames in &batches[..5] {
             assert!(support::error_code(frames).is_some());
-            assert!(support::data_rows(frames).is_empty());
+            assert_eq!(
+                support::data_rows(frames),
+                [] as [std::vec::Vec<std::option::Option<std::string::String>>; 0]
+            );
         }
         assert_eq!(
             support::data_rows(&batches[5]),

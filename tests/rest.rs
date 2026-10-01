@@ -516,7 +516,10 @@ mod rest {
         // Assert
         assert!(cascaded.is_ok(), "no child restricts parent 1");
         assert!(restricted.is_err(), "ON DELETE RESTRICT keeps parent 2");
-        assert!(rows("SELECT cid FROM rest_action_cascade").is_empty());
+        assert_eq!(
+            rows("SELECT cid FROM rest_action_cascade"),
+            [] as [std::vec::Vec<cassie::types::Value>; 0]
+        );
         assert_eq!(
             rows("SELECT nid, pid FROM rest_action_set_null"),
             vec![vec![
@@ -1160,7 +1163,10 @@ mod rest {
             .expect("catalog schema");
         assert_eq!(catalog_schema.fields.len(), 1);
         assert_eq!(catalog_schema.fields[0].name, "rest_value");
-        assert!(cassie.catalog.get_constraints(&collection).is_empty());
+        assert_eq!(
+            cassie.catalog.get_constraints(&collection),
+            [] as [cassie::catalog::FieldConstraint; 0]
+        );
         let storage_schema = cassie
             .midge
             .collection_schema(&collection)

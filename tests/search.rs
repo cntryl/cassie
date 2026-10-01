@@ -2131,6 +2131,92 @@ mod search_vector {
     }
 
     #[test]
+    fn should_keep_high_magnitude_vector_distances_finite_across_simd_dimensions() {
+        // Arrange
+        let component = 2.0e19_f32;
+        let scalar = vec![component; 4];
+        let simd = vec![component; 8];
+        let simd_with_tail = vec![component; 9];
+        let zero = vec![0.0_f32; 8];
+        let zero_with_tail = vec![0.0_f32; 9];
+        let component_f64 = f64::from(component);
+
+        // Act
+        let scalar_dot = dot_score(&scalar, &scalar);
+        let simd_dot = dot_score(&simd, &simd);
+        let simd_tail_dot = dot_score(&simd_with_tail, &simd_with_tail);
+        let scalar_l2 = l2_distance(&scalar, &[0.0_f32; 4]);
+        let simd_l2 = l2_distance(&simd, &zero);
+        let simd_tail_l2 = l2_distance(&simd_with_tail, &zero_with_tail);
+        let scalar_cosine = cosine_distance(&scalar, &scalar);
+        let simd_cosine = cosine_distance(&simd, &simd);
+        let simd_tail_cosine = cosine_distance(&simd_with_tail, &simd_with_tail);
+
+        // Assert
+        assert_f64_close(scalar_dot, 4.0 * component_f64 * component_f64);
+        assert_f64_close(simd_dot, 8.0 * component_f64 * component_f64);
+        assert_f64_close(simd_tail_dot, 9.0 * component_f64 * component_f64);
+        assert_f64_close(scalar_l2, 2.0 * component_f64);
+        assert_f64_close(simd_l2, 8.0_f64.sqrt() * component_f64);
+        assert_f64_close(simd_tail_l2, 3.0 * component_f64);
+        assert_f64_close(scalar_cosine, 0.0);
+        assert_f64_close(simd_cosine, 0.0);
+        assert_f64_close(simd_tail_cosine, 0.0);
+    }
+
+    #[test]
+    fn should_preserve_wide_simd_lanes_for_distinct_vector_components() {
+        // Arrange
+        let component = 2.0e19_f32;
+        let query = [
+            component,
+            component * 2.0,
+            component * 3.0,
+            component * 4.0,
+            component * 5.0,
+            component * 6.0,
+            component * 7.0,
+            component * 8.0,
+        ];
+        let target = [
+            component * 8.0,
+            component * 7.0,
+            component * 6.0,
+            component * 5.0,
+            component * 4.0,
+            component * 3.0,
+            component * 2.0,
+            component,
+        ];
+        let query_values = query.map(f64::from);
+        let target_values = target.map(f64::from);
+        let expected_dot = query_values
+            .iter()
+            .zip(target_values.iter())
+            .map(|(left, right)| left * right)
+            .sum::<f64>();
+        let expected_l2 = query_values
+            .iter()
+            .zip(target_values.iter())
+            .map(|(left, right)| (left - right).powi(2))
+            .sum::<f64>()
+            .sqrt();
+        let query_norm = query_values.iter().map(|value| value.powi(2)).sum::<f64>();
+        let target_norm = target_values.iter().map(|value| value.powi(2)).sum::<f64>();
+        let expected_cosine = 1.0 - expected_dot / (query_norm.sqrt() * target_norm.sqrt());
+
+        // Act
+        let actual_dot = dot_score(&query, &target);
+        let actual_l2 = l2_distance(&query, &target);
+        let actual_cosine = cosine_distance(&query, &target);
+
+        // Assert
+        assert_f64_close(actual_dot, expected_dot);
+        assert_f64_close(actual_l2, expected_l2);
+        assert_f64_close(actual_cosine, expected_cosine);
+    }
+
+    #[test]
     fn should_return_sentinel_values_for_mismatched_vector_lengths() {
         // Arrange
         let a = vec![1.0f32, 2.0, 3.0];

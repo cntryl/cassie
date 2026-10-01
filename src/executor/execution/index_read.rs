@@ -206,11 +206,12 @@ fn scalar_index_read_spec(
     if filter_binds_non_finite_param(plan.filter.as_ref(), params) {
         return Ok(None);
     }
-    if scalar_index_reads_signed_zero(cassie, &projected.collection, &index, plan, params) {
+    if scalar_index_reads_unsafe_numeric_bounds(cassie, &projected.collection, &index, plan, params)
+    {
         // LexKey keeps -0.0 and +0.0 as distinct ordered keys, while SQL
-        // comparisons treat them as equal. Expression-index metadata does not
-        // retain the result type, so zero-bound expressions also use the
-        // regular filter path to avoid changing existing persisted keys.
+        // comparisons treat them as equal. Expression-index metadata also
+        // omits result types, so use SQL filtering for numeric expression
+        // bounds whose probe encoding may differ from stored keys.
         return Ok(None);
     }
 
@@ -230,7 +231,7 @@ fn scalar_index_read_spec(
     }))
 }
 
-fn scalar_index_reads_signed_zero(
+fn scalar_index_reads_unsafe_numeric_bounds(
     cassie: &Cassie,
     collection: &str,
     index: &IndexMeta,
@@ -250,17 +251,17 @@ fn scalar_index_reads_signed_zero(
                         .is_some_and(constraint_contains_zero)
             })
         });
-    let expression_constraint_reads_zero = !index.expressions.is_empty()
+    let expression_constraint_reads_numeric = !index.expressions.is_empty()
         && expression_index_constraints(Some(filter), params).is_some_and(|constraints| {
             index.normalized_expressions().iter().any(|expression| {
                 constraints
                     .expressions
                     .get(expression)
-                    .is_some_and(constraint_contains_zero)
+                    .is_some_and(constraint_contains_numeric_bound)
             })
         });
 
-    field_constraint_reads_zero || expression_constraint_reads_zero
+    field_constraint_reads_zero || expression_constraint_reads_numeric
 }
 
 fn constraint_contains_zero(constraint: &ConcreteConstraint) -> bool {
@@ -270,6 +271,15 @@ fn constraint_contains_zero(constraint: &ConcreteConstraint) -> bool {
         .chain(constraint.lower.iter().map(|bound| &bound.value))
         .chain(constraint.upper.iter().map(|bound| &bound.value))
         .any(is_zero_number)
+}
+
+fn constraint_contains_numeric_bound(constraint: &ConcreteConstraint) -> bool {
+    constraint
+        .equality
+        .iter()
+        .chain(constraint.lower.iter().map(|bound| &bound.value))
+        .chain(constraint.upper.iter().map(|bound| &bound.value))
+        .any(serde_json::Value::is_number)
 }
 
 fn is_zero_number(value: &serde_json::Value) -> bool {

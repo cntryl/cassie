@@ -569,6 +569,90 @@ mod integration_sql_scalar_index_lexkey {
         });
     }
 
+    #[test]
+    fn should_match_full_scan_for_numeric_expression_index_bounds() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("scalar_lexkey_numeric_expression_bounds");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            for (table, indexed) in [
+                ("numeric_expression_baseline", false),
+                ("numeric_expression_indexed", true),
+            ] {
+                cassie
+                    .execute_sql(&session, &format!("CREATE TABLE {table} (x FLOAT)"), vec![])
+                    .expect("create float table");
+                for value in [-1.0, 2.5, 5.0, 7.25] {
+                    cassie
+                        .execute_sql(
+                            &session,
+                            &format!("INSERT INTO {table} (x) VALUES ($1)"),
+                            vec![Value::Float64(value)],
+                        )
+                        .expect("insert float row");
+                }
+                if indexed {
+                    for (name, expression) in [
+                        ("numeric_expression_times_two_idx", "x * 2"),
+                        ("numeric_expression_abs_idx", "abs(x)"),
+                    ] {
+                        cassie
+                            .execute_sql(
+                                &session,
+                                &format!(
+                                    "CREATE INDEX {name} ON {table} USING btree (({expression}))"
+                                ),
+                                vec![],
+                            )
+                            .expect("create numeric expression index");
+                    }
+                }
+            }
+
+            // Act
+            let mut mismatches = Vec::new();
+            for predicate in [
+                "x * 2 = 5",
+                "x * 2 > 4 AND x * 2 < 11",
+                "abs(x) > 1",
+                "abs(x) < 3",
+            ] {
+                let baseline = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM numeric_expression_baseline WHERE {predicate}"),
+                    vec![],
+                );
+                let indexed = sorted_rows(
+                    &cassie,
+                    &session,
+                    &format!("SELECT x FROM numeric_expression_indexed WHERE {predicate}"),
+                    vec![],
+                );
+                if baseline != indexed {
+                    mismatches.push(format!(
+                        "{predicate}: baseline={baseline:?} indexed={indexed:?}"
+                    ));
+                }
+            }
+
+            // Assert
+            assert!(
+                mismatches.is_empty(),
+                "numeric expression indexes must agree with full scans: {mismatches:?}"
+            );
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
     fn sorted_rows(
         cassie: &Cassie,
         session: &cassie::app::CassieSession,

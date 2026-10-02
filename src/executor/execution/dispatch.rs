@@ -652,14 +652,11 @@ fn build_exists_logical_plan(
         .cte_context
         .iter()
         .map(|(name, rows)| {
-            let columns = rows.first().map_or_else(
-                || vec!["*".to_string()],
-                |row| {
-                    row.iter()
-                        .map(|(column, _)| column.to_ascii_lowercase())
-                        .collect()
-                },
-            );
+            let columns = rows
+                .fields
+                .iter()
+                .map(|field| field.name.to_ascii_lowercase())
+                .collect();
             (name.clone(), columns)
         })
         .collect();

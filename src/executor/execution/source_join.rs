@@ -1,8 +1,8 @@
 use super::{
-    batch, catalog, check_timeout, combine_nulls_with_row, combine_row_with_nulls, combine_rows,
-    deduce_text_fields, execute_query_source, filter, qualify_row, row_columns, row_lookup_columns,
-    scan, source_contains_lateral, Batch, BatchRow, BinaryOp, CteContext, Expr, JoinKind,
-    QueryError, QuerySource, SourceExecution, SourceExecutionEnv, Value,
+    batch, catalog, check_timeout, combine_rows, deduce_text_fields, execute_query_source, filter,
+    qualify_row, row_lookup_columns, scan, source_contains_lateral, Batch, BatchRow, BinaryOp,
+    CteContext, Expr, JoinKind, QueryError, QuerySource, SourceExecution, SourceExecutionEnv,
+    Value,
 };
 use crate::executor::semantic::SemanticKey;
 
@@ -81,10 +81,10 @@ pub(super) fn execute_join_source<'a>(
     let left_rows = batch::flatten_batches(left_batches);
     let right_rows = batch::flatten_batches(right_batches);
     let _input_memory = reserve_join_rows(env, &left_rows, &right_rows)?;
-    let left_columns = row_columns(&left_rows);
-    let right_columns = row_columns(&right_rows);
-    let left_lookup_columns = row_lookup_columns(&left_rows);
-    let right_lookup_columns = row_lookup_columns(&right_rows);
+    let left_template = super::source_shape::null_row(env, spec.left, cte_context)?;
+    let right_template = super::source_shape::null_row(env, spec.right, cte_context)?;
+    let left_lookup_columns = row_lookup_columns(std::slice::from_ref(&left_template));
+    let right_lookup_columns = row_lookup_columns(std::slice::from_ref(&right_template));
 
     let joined = execute_loaded_join(
         env,
@@ -93,8 +93,8 @@ pub(super) fn execute_join_source<'a>(
             on: spec.on,
             left_rows: &left_rows,
             right_rows: &right_rows,
-            left_columns: &left_columns,
-            right_columns: &right_columns,
+            left_template: &left_template,
+            right_template: &right_template,
             row_budget: spec.row_budget,
         },
         &left_lookup_columns,
@@ -124,7 +124,7 @@ fn execute_loaded_join(
                     keys: &keys,
                     left_rows: spec.left_rows,
                     right_rows: spec.right_rows,
-                    right_columns: spec.right_columns,
+                    right_template: spec.right_template,
                     row_budget: spec.row_budget,
                 },
             )? {
@@ -170,6 +170,7 @@ fn execute_lateral_join<'a>(
     let mut joined = Vec::new();
     let mut matched_rows = 0usize;
     let output_budget = spec.row_budget.unwrap_or(usize::MAX);
+    let right_template = super::source_shape::null_row(env, spec.right, cte_context)?;
 
     'left: for left_row in &left_rows {
         check_timeout(env.controls)?;
@@ -184,7 +185,6 @@ fn execute_lateral_join<'a>(
             right_budget,
         )?;
         let right_rows = batch::flatten_batches(right_batches);
-        let right_columns = row_columns(&right_rows);
         let mut matched = false;
         for right_row in &right_rows {
             check_timeout(env.controls)?;
@@ -211,7 +211,7 @@ fn execute_lateral_join<'a>(
         }
 
         if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
-            joined.push(combine_row_with_nulls(left_row, &right_columns));
+            joined.push(combine_rows(left_row, &right_template));
             if joined.len() >= output_budget {
                 break;
             }
@@ -238,8 +238,8 @@ struct JoinRowsSpec<'a> {
     on: &'a Expr,
     left_rows: &'a [BatchRow],
     right_rows: &'a [BatchRow],
-    left_columns: &'a [String],
-    right_columns: &'a [String],
+    left_template: &'a BatchRow,
+    right_template: &'a BatchRow,
     row_budget: Option<usize>,
 }
 
@@ -280,7 +280,7 @@ fn execute_nested_loop_join(
         }
 
         if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
-            joined.push(combine_row_with_nulls(left_row, spec.right_columns));
+            joined.push(combine_rows(left_row, spec.right_template));
             if joined.len() >= output_budget {
                 break;
             }
@@ -291,7 +291,7 @@ fn execute_nested_loop_join(
         for (right_index, right_row) in spec.right_rows.iter().enumerate() {
             check_timeout(env.controls)?;
             if !right_matched[right_index] {
-                joined.push(combine_nulls_with_row(spec.left_columns, right_row));
+                joined.push(combine_rows(spec.left_template, right_row));
                 if joined.len() >= output_budget {
                     break;
                 }
@@ -361,7 +361,7 @@ struct VectorizedJoinSpec<'a> {
     keys: &'a EquiJoinKeys,
     left_rows: &'a [BatchRow],
     right_rows: &'a [BatchRow],
-    right_columns: &'a [String],
+    right_template: &'a BatchRow,
     row_budget: Option<usize>,
 }
 
@@ -425,7 +425,7 @@ fn execute_vectorized_join(
             probe_rows += 1;
             let Some(key) = row_join_key(left, &spec.keys.left) else {
                 if matches!(spec.kind, JoinKind::Left) {
-                    joined.push(combine_row_with_nulls(left, spec.right_columns));
+                    joined.push(combine_rows(left, spec.right_template));
                     if joined.len() >= output_budget {
                         break 'probe;
                     }
@@ -445,7 +445,7 @@ fn execute_vectorized_join(
             }
 
             if !matched && matches!(spec.kind, JoinKind::Left) {
-                joined.push(combine_row_with_nulls(left, spec.right_columns));
+                joined.push(combine_rows(left, spec.right_template));
                 if joined.len() >= output_budget {
                     break 'probe;
                 }

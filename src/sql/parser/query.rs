@@ -25,12 +25,12 @@ pub(super) fn parse_select_statement(
 }
 
 pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
-    let remainder = sql[4..].trim_start();
-    let lower_remainder = remainder.to_ascii_lowercase();
+    let remainder = super::lexical::trim_separators(&sql[4..]);
     let mut recursive = false;
-    let after_recursive = if lower_remainder.starts_with("recursive ") {
+    let after_recursive = if let Some(end) = super::lexical::pattern_end(remainder, 0, "recursive")
+    {
         recursive = true;
-        remainder[10..].trim_start()
+        super::lexical::trim_separators(&remainder[end..])
     } else {
         remainder
     };
@@ -44,10 +44,7 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
             "missing CTE definition in WITH clause".into(),
         ));
     }
-    if !after_recursive[select_pos..]
-        .to_ascii_lowercase()
-        .starts_with("select ")
-    {
+    if super::lexical::pattern_end(&after_recursive[select_pos..], 0, "select").is_none() {
         return Err(SqlError::new(
             "only SELECT statements are supported in this stage".into(),
         ));
@@ -61,7 +58,7 @@ pub(super) fn parse_with_statement(sql: &str) -> Result<ParsedStatement, SqlErro
 pub(super) fn parse_projection_items(
     raw: &str,
 ) -> Result<Vec<crate::sql::ast::SelectItem>, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if raw.is_empty() {
         return Err(SqlError::new("missing projection".into()));
     }
@@ -160,7 +157,7 @@ pub(super) fn parse_window_function(raw: &str) -> Result<Option<WindowFunctionCa
 type WindowSpec = (Vec<Expr>, Vec<OrderExpr>, Option<WindowFrame>);
 
 pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if raw.is_empty() {
         return Ok((Vec::new(), Vec::new(), None));
     }
@@ -177,7 +174,7 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     .min_by_key(|(position, _, _)| *position);
 
     let (spec_raw, frame) = if let Some((position, keyword, unit)) = frame_start {
-        let frame_raw = raw[position + keyword.len()..].trim();
+        let frame_raw = super::lexical::trim_separators(&raw[position + keyword.len()..]);
         if frame_raw.is_empty() {
             return Err(SqlError::unsupported("window frame requires bounds".into()));
         }
@@ -185,9 +182,9 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
     } else {
         (raw, None)
     };
-    let lower = spec_raw.trim().to_ascii_lowercase();
-    if lower.starts_with("partition by ") {
-        let rest = spec_raw.trim()["partition by ".len()..].trim();
+    let spec_raw = super::lexical::trim_separators(spec_raw);
+    if let Some(end) = super::lexical::pattern_end(spec_raw, 0, "partition by") {
+        let rest = super::lexical::trim_separators(&spec_raw[end..]);
         if let Some((partition_raw, order_raw)) = split_top_level(rest, " order by ") {
             let partition_by = split_csv(partition_raw)
                 .into_iter()
@@ -202,12 +199,8 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
         return Ok((partition_by, Vec::new(), frame));
     }
 
-    if lower.starts_with("order by ") {
-        return Ok((
-            Vec::new(),
-            parse_order_by(&spec_raw.trim()["order by ".len()..])?,
-            frame,
-        ));
+    if let Some(end) = super::lexical::pattern_end(spec_raw, 0, "order by") {
+        return Ok((Vec::new(), parse_order_by(&spec_raw[end..])?, frame));
     }
 
     Err(SqlError::unsupported(
@@ -218,7 +211,10 @@ pub(super) fn parse_window_spec(raw: &str) -> Result<WindowSpec, SqlError> {
 fn parse_window_frame(raw: &str, unit: WindowFrameUnit) -> Result<WindowFrame, SqlError> {
     let lower = raw.to_ascii_lowercase();
     let (bounds, exclusion) = split_window_exclusion(&lower)?;
-    let (start_raw, end_raw) = if let Some(body) = bounds.strip_prefix("between ") {
+    let bounds = super::lexical::trim_separators(bounds);
+    let (start_raw, end_raw) = if let Some(end) = super::lexical::pattern_end(bounds, 0, "between")
+    {
+        let body = super::lexical::trim_separators(&bounds[end..]);
         let (start, end) = split_top_level(body, " and ").ok_or_else(|| {
             SqlError::unsupported("ROWS BETWEEN requires start and end bounds".into())
         })?;
@@ -245,7 +241,11 @@ fn split_window_exclusion(raw: &str) -> Result<(&str, WindowFrameExclusion), Sql
     let Some(position) = find_top_level_keyword(raw, 0, "exclude") else {
         return Ok((raw, WindowFrameExclusion::NoOthers));
     };
-    let exclusion = match raw[position + "exclude".len()..].trim() {
+    let keyword = super::lexical::without_comments(&raw[position + "exclude".len()..])
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let exclusion = match keyword.as_str() {
         "no others" => WindowFrameExclusion::NoOthers,
         "current row" => WindowFrameExclusion::CurrentRow,
         "group" => WindowFrameExclusion::Group,
@@ -260,7 +260,11 @@ fn split_window_exclusion(raw: &str) -> Result<(&str, WindowFrameExclusion), Sql
 }
 
 fn parse_window_bound(raw: &str) -> Result<WindowFrameBound, SqlError> {
-    let raw = raw.trim();
+    let keyword = super::lexical::without_comments(raw)
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let raw = keyword.as_str();
     match raw {
         "unbounded preceding" => Ok(WindowFrameBound::UnboundedPreceding),
         "current row" => Ok(WindowFrameBound::CurrentRow),
@@ -315,10 +319,10 @@ fn valid_window_bound_order(start: WindowFrameBound, end: WindowFrameBound) -> b
 }
 
 pub(super) fn parse_query_source(raw: &str) -> Result<QuerySource, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if let Some(join) = rightmost_join(raw) {
         let left = raw[..join.position].trim();
-        let right = raw[join.position + join.token.len()..].trim();
+        let right = raw[join.end..].trim();
         return match join.kind {
             SourceJoinKind::OuterApply => parse_apply_source(left, right, true),
             SourceJoinKind::CrossApply => parse_apply_source(left, right, false),
@@ -345,7 +349,7 @@ enum SourceJoinKind {
 #[derive(Clone, Copy)]
 struct SourceJoinMatch {
     position: usize,
-    token: &'static str,
+    end: usize,
     kind: SourceJoinKind,
 }
 
@@ -355,28 +359,31 @@ fn rightmost_join(raw: &str) -> Option<SourceJoinMatch> {
         ("cross apply", SourceJoinKind::CrossApply),
         ("full outer join", SourceJoinKind::Join(JoinKind::Full)),
         ("full join", SourceJoinKind::Join(JoinKind::Full)),
+        ("right outer join", SourceJoinKind::Join(JoinKind::Right)),
         ("right join", SourceJoinKind::Join(JoinKind::Right)),
+        ("left outer join", SourceJoinKind::Join(JoinKind::Left)),
         ("left join", SourceJoinKind::Join(JoinKind::Left)),
         ("cross join", SourceJoinKind::Join(JoinKind::Cross)),
+        ("inner join", SourceJoinKind::Join(JoinKind::Inner)),
         ("join", SourceJoinKind::Join(JoinKind::Inner)),
     ];
     let mut rightmost = None;
     for (token, kind) in candidates {
         let mut start = 0;
-        while let Some(position) = find_top_level_keyword(raw, start, token) {
+        while let Some((position, end)) =
+            super::clauses::find_top_level_keyword_span(raw, start, token)
+        {
             let candidate = SourceJoinMatch {
                 position,
-                token,
+                end,
                 kind,
             };
             if rightmost.is_none_or(|current: SourceJoinMatch| {
-                position + token.len() > current.position + current.token.len()
-                    || (position + token.len() == current.position + current.token.len()
-                        && token.len() > current.token.len())
+                end > current.end || (end == current.end && position < current.position)
             }) {
                 rightmost = Some(candidate);
             }
-            start = position + token.len();
+            start = end;
         }
     }
     rightmost
@@ -445,27 +452,23 @@ pub(super) fn mark_source_lateral(source: QuerySource) -> QuerySource {
 }
 
 pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if raw.is_empty() {
         return Err(SqlError::new("missing collection in FROM".into()));
     }
 
-    let lateral = raw.eq_ignore_ascii_case("lateral")
-        || raw
-            .get(..8)
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("lateral "));
-    let raw = if lateral { raw[7..].trim_start() } else { raw };
+    let lateral_end = super::lexical::pattern_end(raw, 0, "lateral");
+    let lateral = lateral_end.is_some();
+    let raw = lateral_end.map_or(raw, |end| super::lexical::trim_separators(&raw[end..]));
 
     if raw.starts_with('(') {
         let close = matching_closing_paren(raw)
             .ok_or_else(|| SqlError::new("invalid FROM subquery syntax".into()))?;
         let subquery_sql = &raw[1..close];
-        let alias_raw = raw[close + 1..].trim();
-        let alias = alias_raw
-            .strip_prefix("AS ")
-            .or_else(|| alias_raw.strip_prefix("as "))
-            .unwrap_or(alias_raw)
-            .trim();
+        let alias_raw = super::lexical::trim_separators(&raw[close + 1..]);
+        let alias = super::lexical::pattern_end(alias_raw, 0, "as").map_or(alias_raw, |end| {
+            super::lexical::trim_separators(&alias_raw[end..])
+        });
         if alias.is_empty() || alias.split_whitespace().count() != 1 {
             return Err(SqlError::new(
                 "FROM subquery requires a deterministic alias".into(),
@@ -512,24 +515,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
 }
 
 pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {
-    let mut depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    for (index, ch) in raw.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
+    super::lexical::matching_paren(raw, 0)
 }
 
 pub(super) fn parse_cte_definitions(
@@ -538,7 +524,7 @@ pub(super) fn parse_cte_definitions(
 ) -> Result<Vec<CommonTableExpression>, SqlError> {
     let mut out = Vec::new();
     for definition in split_csv(raw) {
-        let definition = definition.trim();
+        let definition = super::lexical::trim_separators(definition);
         if definition.is_empty() {
             continue;
         }
@@ -546,8 +532,8 @@ pub(super) fn parse_cte_definitions(
         let as_pos = find_top_level_keyword(definition, 0, "as").ok_or_else(|| {
             SqlError::new(format!("invalid CTE definition '{definition}': missing AS"))
         })?;
-        let head = definition[..as_pos].trim();
-        let body = definition[as_pos + 2..].trim();
+        let head = super::lexical::trim_separators(&definition[..as_pos]);
+        let body = super::lexical::trim_separators(&definition[as_pos + 2..]);
 
         let (name, aliases) = parse_cte_header(head)?;
         let body_sql = parse_enclosed_parenthesized(body)
@@ -617,7 +603,7 @@ pub(super) fn parse_recursive_cte_query(body: &str) -> Result<Option<CteQuery>, 
 }
 
 pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     let open = raw.find('(').filter(|open| *open + 1 < raw.len());
     if let Some(open) = open {
         let close = raw
@@ -627,18 +613,18 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        let name = raw[..open].trim();
+        let name = super::lexical::trim_separators(&raw[..open]);
         if name.is_empty() || name.contains('(') || name.contains(')') {
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        if !raw[close + 1..].trim().is_empty() {
+        if !super::lexical::trim_separators(&raw[close + 1..]).is_empty() {
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
         let aliases = raw[(open + 1)..close]
             .split(',')
-            .map(|alias| alias.trim().to_string())
+            .map(|alias| super::lexical::trim_separators(alias).to_string())
             .filter(|alias| !alias.is_empty())
             .collect::<Vec<_>>();
         if aliases.is_empty() {
@@ -656,58 +642,13 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
 }
 
 pub(super) fn parse_enclosed_parenthesized(raw: &str) -> Option<String> {
-    let raw = raw.trim();
-    if !raw.starts_with('(') || !raw.ends_with(')') {
-        return None;
-    }
-
-    let mut depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    for (i, ch) in raw.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => {
-                depth -= 1;
-                if depth == 0 && i != raw.len().saturating_sub(1) {
-                    return None;
-                }
-            }
-            _ => {}
-        }
-    }
-    if depth != 0 {
-        return None;
-    }
-
-    Some(raw[1..raw.len().saturating_sub(1)].to_string())
+    let raw = super::lexical::trim_separators(raw);
+    let close = super::lexical::matching_paren(raw, 0)?;
+    (close + 1 == raw.len()).then(|| raw[1..close].to_string())
 }
 
 pub(super) fn parse_parenthesized_prefix(raw: &str) -> Option<(String, &str)> {
-    let raw = raw.trim_start();
-    if !raw.starts_with('(') {
-        return None;
-    }
-
-    let mut depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    for (index, ch) in raw.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some((raw[1..index].to_string(), &raw[index + 1..]));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    None
+    let raw = super::lexical::trim_separators(raw);
+    let close = super::lexical::matching_paren(raw, 0)?;
+    Some((raw[1..close].to_string(), &raw[close + 1..]))
 }

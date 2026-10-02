@@ -16,7 +16,9 @@ pub(super) fn parse_select_statement(
 ) -> Result<ParsedStatement, SqlError> {
     ensure_select_statement(sql)?;
 
-    let trimmed = sql.trim().trim_end_matches(';').trim();
+    let trimmed = crate::sql::parser::lexical::trim_separators(sql)
+        .trim_end_matches(';')
+        .trim();
     if let Some((set_pos, set_len, set_operator)) = find_set_operation(trimmed) {
         return parse_set_select_statement(
             trimmed,
@@ -28,7 +30,7 @@ pub(super) fn parse_select_statement(
         );
     }
 
-    let after_select = trimmed[6..].trim();
+    let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[6..]);
     let (mut select_part, rest, source) = split_select_projection_and_rest(after_select)?;
     let (distinct, distinct_on) = parse_distinct_clause(&mut select_part)?;
     let clauses = parse_clauses(&rest)?;
@@ -247,7 +249,7 @@ pub(super) fn split_set_right_and_global_clauses(
     let trimmed = right_sql.trim();
     ensure_select_statement(trimmed)?;
 
-    let after_select = trimmed[6..].trim();
+    let after_select = crate::sql::parser::lexical::trim_separators(&trimmed[6..]);
     let clauses = parse_clauses(after_select)?;
     let Some(global_start) = clauses
         .iter()
@@ -291,7 +293,7 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
                 clause.text()
             )));
         }
-        let start = clause.position + kind.token().len();
+        let start = clause.end;
         let raw_value = rest[start..next_pos].trim();
         if raw_value.is_empty() {
             return Err(SqlError::new(format!(
@@ -327,7 +329,7 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
 }
 
 fn ensure_select_statement(sql: &str) -> Result<(), SqlError> {
-    if sql.to_ascii_lowercase().starts_with("select ") {
+    if crate::sql::parser::lexical::pattern_end(sql, 0, "select").is_some() {
         Ok(())
     } else {
         Err(SqlError::new(
@@ -384,8 +386,8 @@ fn split_select_projection_and_rest(
 fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), SqlError> {
     let mut distinct_on = Vec::new();
     let select_part_lower = select_part.to_ascii_lowercase();
-    if select_part_lower.starts_with("distinct on") {
-        let after_distinct_on = select_part["distinct on".len()..].trim_start();
+    if let Some(end) = crate::sql::parser::lexical::pattern_end(select_part, 0, "distinct on") {
+        let after_distinct_on = crate::sql::parser::lexical::trim_separators(&select_part[end..]);
         let (raw_distinct_on, remainder) = parse_parenthesized_prefix(after_distinct_on)
             .ok_or_else(|| {
                 SqlError::new("DISTINCT ON requires a parenthesized expression list".into())
@@ -411,7 +413,7 @@ fn parse_distinct_clause(select_part: &mut String) -> Result<(bool, Vec<Expr>), 
         return Ok((false, distinct_on));
     }
 
-    if select_part_lower == "distinct" || select_part_lower.starts_with("distinct ") {
+    if crate::sql::parser::lexical::pattern_end(&select_part_lower, 0, "distinct").is_some() {
         *select_part = select_part["distinct".len()..].trim().to_string();
         return Ok((true, distinct_on));
     }
@@ -442,7 +444,9 @@ fn parse_projection_items(select_part: &str) -> Result<Vec<super::SelectItem>, S
     let projection_tokens: Vec<&str> = split_csv(select_part);
     let mut projection = Vec::with_capacity(projection_tokens.len());
     for token in projection_tokens {
-        projection.push(parse_projection_item(token.trim())?);
+        projection.push(parse_projection_item(
+            crate::sql::parser::lexical::trim_separators(token),
+        )?);
     }
     Ok(projection)
 }
@@ -556,7 +560,7 @@ fn clause_value<'a>(
         ClauseToken::Recognized(clause_kind) => clause_kind.token(),
         ClauseToken::Unsupported(kind) => kind,
     };
-    let start = clause.position + token_text.len();
+    let start = clause.end;
     if start > rest.len() || next_pos > rest.len() || start > next_pos {
         return Err(SqlError::new(format!(
             "unsupported or malformed clause placement: {}",

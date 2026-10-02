@@ -243,6 +243,38 @@ mod pgwire_binary_codecs {
     }
 
     #[test]
+    fn should_emit_outer_join_rows_matching_pgwire_metadata() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("outer-join-wire-shape");
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            for sql in ["CREATE TABLE wire_users (user_key INT, name TEXT)", "CREATE TABLE wire_orders (order_key INT, total INT)", "INSERT INTO wire_users VALUES (1,'ada'),(2,'grace')"] {
+                cassie.execute_sql(&session,sql,vec![]).expect("setup");
+            }
+            // Act
+            for format in [0,1] {
+                for sql in ["SELECT * FROM wire_users LEFT JOIN wire_orders ON wire_users.user_key=wire_orders.order_key", "SELECT * FROM wire_orders RIGHT JOIN wire_users ON wire_users.user_key=wire_orders.order_key", "SELECT * FROM wire_users FULL JOIN wire_orders ON wire_users.user_key=wire_orders.order_key"] {
+                    let (frames,server)=start_extended_query(cassie.clone(),support::parse_frame("join_stmt",sql),support::bind_frame_with_formats("join_portal","join_stmt",&[],&[],&[format]),support::execute_frame("join_portal")).await;
+                    // Assert
+                    assert!(!frames.iter().any(|frame| frame.0==b'E'),"{sql}: {frames:?}");
+                    let description=frames.iter().find(|frame| frame.0==b'T').expect("metadata");
+                    let width=support::parse_row_description(&description.1).len();
+                    assert_eq!(width,6);
+                    let rows=frames.iter().filter(|frame| frame.0==b'D').map(|frame| read_binary_row(&frame.1)).collect::<Vec<_>>();
+                    assert_eq!(rows.len(),2);
+                    for row in rows { assert_eq!(row.len(),width,"{sql}"); assert_eq!(row.iter().filter(|value| value.is_none()).count(),3); }
+                    server.stop().await;
+                }
+            }
+            drop(cassie);
+        });
+        std::fs::remove_dir_all(path).expect("cleanup");
+    }
+
+    #[test]
     fn should_reject_incompatible_coalesce_before_sending_rows_over_pgwire() {
         // Arrange
         support::use_local_storage();

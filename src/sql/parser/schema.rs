@@ -1,4 +1,3 @@
-use super::clauses::is_identifier_byte;
 use super::expr::split_csv;
 use super::{
     find_matching_paren, find_top_level_keyword, parse_enclosed_parenthesized,
@@ -791,13 +790,7 @@ pub(super) fn tokenize_schema_field(raw: &str) -> Vec<String> {
 }
 
 pub(super) fn starts_with_keyword(raw: &str, keyword: &str) -> bool {
-    let lower = raw.to_lowercase();
-    if !lower.starts_with(keyword) {
-        return false;
-    }
-
-    let suffix = lower.as_bytes().get(keyword.len()).copied().unwrap_or(b' ');
-    !is_identifier_byte(suffix)
+    super::lexical::pattern_end(raw, 0, keyword).is_some()
 }
 
 pub(super) fn parse_data_type(raw: &str) -> Result<DataType, SqlError> {

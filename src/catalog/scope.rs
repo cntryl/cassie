@@ -138,12 +138,30 @@ pub enum ParsedName {
 
 #[must_use]
 pub fn canonical_schema_name(database: &str, schema: &str) -> String {
-    format!("{database}.{schema}")
+    format!(
+        "{}.{}",
+        canonical_identifier_component(database),
+        canonical_identifier_component(schema)
+    )
 }
 
 #[must_use]
 pub fn canonical_relation_name(database: &str, schema: &str, name: &str) -> String {
-    format!("{database}.{schema}.{name}")
+    format!(
+        "{}.{}.{}",
+        canonical_identifier_component(database),
+        canonical_identifier_component(schema),
+        canonical_identifier_component(name)
+    )
+}
+
+#[must_use]
+pub fn canonical_identifier_component(name: &str) -> String {
+    if name.contains(['.', '"']) || name.chars().any(char::is_whitespace) {
+        format!("\"{}\"", name.replace('"', "\"\""))
+    } else {
+        name.to_string()
+    }
 }
 
 #[must_use]
@@ -169,7 +187,7 @@ pub fn qualifier_variants(raw: &str) -> Vec<String> {
     for start in 0..parts.len() {
         let variant = parts[start..]
             .iter()
-            .map(|part| part.to_ascii_lowercase())
+            .map(|part| canonical_identifier_component(&part.to_ascii_lowercase()))
             .collect::<Vec<_>>()
             .join(".");
         if !variant.is_empty() {
@@ -284,6 +302,8 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
     let mut current = String::new();
     let mut chars = raw.trim().chars().peekable();
     let mut in_quotes = false;
+    let mut quoted_component = false;
+    let mut closed_quote = false;
 
     while let Some(character) = chars.next() {
         if in_quotes {
@@ -293,6 +313,7 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
                     let _ = chars.next();
                 } else {
                     in_quotes = false;
+                    closed_quote = true;
                 }
             } else {
                 current.push(character);
@@ -301,14 +322,31 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
         }
 
         match character {
-            '"' => in_quotes = true,
+            '"' => {
+                if closed_quote || !current.trim().is_empty() {
+                    return Err(format!("invalid qualified name '{raw}'"));
+                }
+                current.clear();
+                quoted_component = true;
+                in_quotes = true;
+            }
             '.' => {
-                let part = current.trim();
+                let part = if quoted_component {
+                    current.as_str()
+                } else {
+                    current.trim()
+                };
                 if part.is_empty() {
                     return Err(format!("invalid qualified name '{raw}'"));
                 }
                 parts.push(part.to_string());
                 current.clear();
+                quoted_component = false;
+                closed_quote = false;
+            }
+            character if closed_quote && character.is_whitespace() => {}
+            _ if closed_quote => {
+                return Err(format!("invalid qualified name '{raw}'"));
             }
             _ => current.push(character),
         }
@@ -318,7 +356,11 @@ pub fn split_identifier_path(raw: &str) -> Result<Vec<String>, String> {
         return Err(format!("unterminated quoted identifier '{raw}'"));
     }
 
-    let part = current.trim();
+    let part = if quoted_component {
+        current.as_str()
+    } else {
+        current.trim()
+    };
     if part.is_empty() {
         return Err(format!("invalid qualified name '{raw}'"));
     }
@@ -412,6 +454,20 @@ mod tests {
     }
 
     #[test]
+    fn should_round_trip_canonical_relation_names_with_escaped_components() {
+        // Arrange
+        let expected = RelationId::new("tenant.db", "reporting", "orders \"archive\" ");
+
+        // Act
+        let canonical = expected.canonical_name();
+        let parsed = RelationId::parse_canonical(&canonical).expect("escaped relation id");
+
+        // Assert
+        assert_eq!(canonical, r#""tenant.db".reporting."orders ""archive"" ""#);
+        assert_eq!(parsed, expected);
+    }
+
+    #[test]
     fn should_distinguish_name_depths() {
         // Arrange
         let one = parse_name("orders").expect("unqualified");
@@ -453,6 +509,25 @@ mod tests {
                 "tenant_db.reporting.orders".to_string(),
                 "reporting.orders".to_string(),
                 "orders".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn should_preserve_quoted_component_boundaries_in_relation_qualifiers() {
+        // Arrange
+        let raw = r#"postgres.public."triage.dot""#;
+
+        // Act
+        let variants = qualifier_variants(raw);
+
+        // Assert
+        assert_eq!(
+            variants,
+            vec![
+                r#"postgres.public."triage.dot""#.to_string(),
+                r#"public."triage.dot""#.to_string(),
+                r#""triage.dot""#.to_string(),
             ]
         );
     }

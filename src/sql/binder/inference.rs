@@ -225,7 +225,8 @@ pub(super) fn infer_source_schema(
 
     if qualify {
         Ok(match source {
-            QuerySource::Collection(name) | QuerySource::Cte(name) => qualify_schema(&schema, name),
+            QuerySource::Collection(name) => qualify_schema(&schema, name),
+            QuerySource::Cte(name) => qualify_schema(&schema, name),
             QuerySource::SingleRow
             | QuerySource::TableFunction { .. }
             | QuerySource::Subquery { .. }

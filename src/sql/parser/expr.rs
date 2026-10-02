@@ -54,10 +54,6 @@ pub(super) fn split_csv(s: &str) -> Vec<&str> {
     out
 }
 
-pub(super) fn split_csv_quoted_by_space(s: &str) -> Vec<&str> {
-    s.split_whitespace().collect()
-}
-
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
     let Some((open, _)) = super::clauses::find_top_level_keyword_span(raw, 0, "(") else {
         return Ok(None);

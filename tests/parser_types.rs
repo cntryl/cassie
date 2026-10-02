@@ -21,6 +21,7 @@ mod parser_core {
         SelectItem, SetOperator, SortDirection,
     };
     use cassie::sql::parse_statement;
+    use cassie::sql::IdentifierPath;
     use cassie::types::{DataType, FieldSchema, Schema};
     use std::collections::BTreeMap;
     use uuid::Uuid;
@@ -40,7 +41,7 @@ mod parser_core {
 
         assert_eq!(
             statement.source,
-            QuerySource::Collection("docs".to_string())
+            QuerySource::Collection(IdentifierPath::parse("docs").expect("relation path"))
         );
         assert_eq!(statement.limit, Some(10));
         assert_eq!(statement.offset, Some(5));
@@ -524,6 +525,7 @@ mod parser_cte_schema {
         SetOperator, SortDirection,
     };
     use cassie::sql::parse_statement;
+    use cassie::sql::IdentifierPath;
     use cassie::types::{DataType, FieldSchema, Schema};
     use std::collections::BTreeMap;
     use uuid::Uuid;
@@ -545,7 +547,7 @@ mod parser_cte_schema {
         assert!(matches!(statement.ctes[0].query, CteQuery::Simple(_)));
         assert_eq!(
             statement.source,
-            QuerySource::Collection("docs_cte".to_string())
+            QuerySource::Collection(IdentifierPath::parse("docs_cte").expect("relation path"),)
         );
     }
 
@@ -566,7 +568,7 @@ mod parser_cte_schema {
         assert_eq!(statement.ctes[1].name, "second");
         assert_eq!(
             statement.source,
-            QuerySource::Collection("second".to_string())
+            QuerySource::Collection(IdentifierPath::parse("second").expect("relation path"))
         );
     }
 
@@ -608,7 +610,7 @@ mod parser_cte_schema {
         assert_eq!(statement.ctes[0].aliases[0], "title_alias");
         assert_eq!(
             statement.source,
-            QuerySource::Collection("docs_cte".to_string())
+            QuerySource::Collection(IdentifierPath::parse("docs_cte").expect("relation path"),)
         );
     }
 
@@ -3558,6 +3560,7 @@ mod parser_sources_sets {
         SetOperator, SortDirection,
     };
     use cassie::sql::parse_statement;
+    use cassie::sql::IdentifierPath;
     use cassie::types::{DataType, FieldSchema, Schema};
     use std::collections::BTreeMap;
     use uuid::Uuid;
@@ -3602,7 +3605,7 @@ mod parser_sources_sets {
             panic!("expected outer join source");
         };
         assert_eq!(kind, JoinKind::Inner);
-        assert!(matches!(*right, QuerySource::Collection(ref name) if name == "regions"));
+        assert!(matches!(*right, QuerySource::Collection(ref name) if name.as_str() == "regions"));
         assert!(matches!(
             *left,
             QuerySource::Join {
@@ -3882,7 +3885,9 @@ mod parser_sources_sets {
             let set = statement.set.expect("set clause should exist");
             assert_eq!(
                 set.right.source,
-                QuerySource::Collection("right_docs".to_string())
+                QuerySource::Collection(
+                    IdentifierPath::parse("right_docs").expect("relation path"),
+                )
             );
             set.operator
         });

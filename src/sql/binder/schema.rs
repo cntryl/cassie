@@ -1,11 +1,11 @@
 use super::{
     bind_select, bm25, infer_select_schema_with_context, is_reserved_namespace, local_name,
-    normalize_relation_name, normalize_schema_name, resolve_relation_name, resolve_schema_name,
-    select_contains_parameters, virtual_views, AlterSchemaOperation, AlterSchemaStatement,
-    AlterTableOperation, AlterTableStatement, BindingContext, CassieError, Catalog,
-    CatalogObjectKind, CollectionSchema, CreateViewStatement, DataType, DistanceMetric,
-    DropIndexStatement, DropSchemaStatement, DropViewStatement, Expr, HashMap, HashSet,
-    QueryStatement,
+    normalize_new_relation_path, normalize_relation_name, normalize_schema_name,
+    resolve_relation_name, resolve_relation_path, resolve_schema_name, select_contains_parameters,
+    virtual_views, AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation,
+    AlterTableStatement, BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema,
+    CreateViewStatement, DataType, DistanceMetric, DropIndexStatement, DropSchemaStatement,
+    DropViewStatement, Expr, HashMap, HashSet, QueryStatement,
 };
 
 #[path = "schema_alter_constraints.rs"]
@@ -18,6 +18,7 @@ mod schema_index_options;
 mod schema_indexes;
 use super::schema_sequences::validate_alter_column_operation;
 use crate::catalog::{canonical_relation_name, parse_name, ParsedName};
+use crate::sql::ast::IdentifierPath;
 use schema_alter_constraints::{bind_alter_constraint_targets, bind_foreign_key_reference};
 
 pub(super) fn bind_create_table(
@@ -25,7 +26,7 @@ pub(super) fn bind_create_table(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::CreateTableStatement, CassieError> {
-    let name = super::normalize_new_relation_name(statement.table.trim(), context, catalog)?;
+    let name = normalize_new_relation_path(&statement.table, context, catalog)?;
     if name.is_empty() {
         return Err(CassieError::Planner(
             "CREATE TABLE requires a table name".into(),
@@ -38,7 +39,7 @@ pub(super) fn bind_create_table(
         )));
     }
     if statement.if_not_exists && already_exists {
-        statement.table = name;
+        statement.table = canonical_relation_path(&name)?;
         return Ok(statement);
     }
 
@@ -113,8 +114,12 @@ pub(super) fn bind_create_table(
     }
 
     requalify_serial_sequences(&mut statement, &name, catalog, context)?;
-    statement.table = name;
+    statement.table = canonical_relation_path(&name)?;
     Ok(statement)
+}
+
+fn canonical_relation_path(name: &str) -> Result<IdentifierPath, CassieError> {
+    IdentifierPath::parse(name).map_err(CassieError::Planner)
 }
 
 /// Binds a FOREIGN KEY that references the table being created, which is not
@@ -523,7 +528,7 @@ pub(super) fn bind_alter_table(
     context: &BindingContext,
 ) -> Result<AlterTableStatement, CassieError> {
     let source_table = statement.table.clone();
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "ALTER TABLE requires a table name".into(),
@@ -575,7 +580,7 @@ pub(super) fn bind_alter_table(
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
 
-    statement.table = table;
+    statement.table = canonical_relation_path(&table)?;
     Ok(statement)
 }
 

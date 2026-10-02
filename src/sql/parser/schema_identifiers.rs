@@ -1,4 +1,9 @@
 use super::SqlError;
+use crate::sql::ast::IdentifierPath;
+
+pub(super) fn parse_relation_path(raw: &str) -> Result<IdentifierPath, SqlError> {
+    IdentifierPath::parse(raw).map_err(SqlError::new)
+}
 
 pub(super) fn parse_identifier(raw: &str) -> Result<String, SqlError> {
     let raw = raw.trim();

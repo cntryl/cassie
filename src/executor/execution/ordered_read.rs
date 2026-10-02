@@ -317,7 +317,7 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
     }
 
     Some(OrderedColumnTopKSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         order_column: order_column.clone(),
         direction: plan.order[0].direction.clone(),
         projection,
@@ -373,7 +373,7 @@ fn ordered_row_id_page_spec(plan: &LogicalPlan, params: &[Value]) -> Option<Orde
     };
 
     Some(OrderedRowIdPageSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         direction: plan.order[0].direction.clone(),
         projection,
         limit,

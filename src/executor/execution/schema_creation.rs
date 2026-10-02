@@ -27,24 +27,26 @@ pub(super) fn create_table(
     cassie: &Cassie,
     statement: &CreateTableStatement,
 ) -> Result<CreationOutcome, QueryError> {
+    let table = statement.table.to_string();
     cassie
         .midge
-        .with_collection_gates(std::slice::from_ref(&statement.table), || {
-            create_table_gated(cassie, statement)
+        .with_collection_gates(std::slice::from_ref(&table), || {
+            create_table_gated(cassie, statement, &table)
         })
 }
 
 fn create_table_gated(
     cassie: &Cassie,
     statement: &CreateTableStatement,
+    table: &str,
 ) -> Result<CreationOutcome, QueryError> {
-    if statement.if_not_exists && cassie.catalog.relation_exists(&statement.table) {
+    if statement.if_not_exists && cassie.catalog.relation_exists(table) {
         return Ok(CreationOutcome::unchanged("CREATE TABLE"));
     }
-    if cassie.catalog.relation_exists(&statement.table) {
+    if cassie.catalog.relation_exists(table) {
         return Err(CassieError::CatalogObjectAlreadyExists {
             kind: CatalogObjectKind::Relation,
-            name: statement.table.clone(),
+            name: table.to_string(),
         }
         .into());
     }
@@ -60,16 +62,13 @@ fn create_table_gated(
             })
             .collect(),
     };
-    let collection_meta = catalog::CollectionMeta::new_with_storage_mode(
-        &statement.table,
-        None,
-        statement.storage_mode,
-    );
+    let collection_meta =
+        catalog::CollectionMeta::new_with_storage_mode(table, None, statement.storage_mode);
     let table_sequences =
         super::sequence_command::prepare_create_table_sequences(cassie, statement)?;
     cassie
         .midge
-        .create_collection_with_meta(&statement.table, &schema, &collection_meta)
+        .create_collection_with_meta(table, &schema, &collection_meta)
         .map_err(QueryError::from)?;
 
     let constraints = statement
@@ -79,11 +78,11 @@ fn create_table_gated(
         .collect::<Vec<_>>();
     cassie
         .midge
-        .save_constraints(&statement.table, constraints.as_slice())
+        .save_constraints(table, constraints.as_slice())
         .map_err(|error| QueryError::General(error.to_string()))?;
-    let mut primary_key_indexes = primary_key_indexes(&statement.table, constraints.as_slice());
+    let mut primary_key_indexes = primary_key_indexes(table, constraints.as_slice());
     primary_key_indexes.extend(catalog::composite_unique_indexes(
-        &statement.table,
+        table,
         constraints.as_slice(),
     ));
     for index in &primary_key_indexes {
@@ -105,7 +104,7 @@ fn create_table_gated(
     for index in primary_key_indexes {
         cassie.catalog.register_index(index);
     }
-    super::schema_command::refresh_table_cardinality_stats(cassie, &statement.table)?;
+    super::schema_command::refresh_table_cardinality_stats(cassie, table)?;
     Ok(CreationOutcome::created("CREATE TABLE"))
 }
 
@@ -132,7 +131,7 @@ pub(super) fn create_index(
         ));
     }
     let metadata = catalog::IndexMeta {
-        collection: statement.table.clone(),
+        collection: statement.table.to_string(),
         name: statement.name.clone(),
         field: statement.fields.first().cloned().unwrap_or_default(),
         fields: statement.fields.clone(),

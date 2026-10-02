@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use crate::catalog::{FieldConstraint, IndexKind};
 use crate::types::DataType;
 
+#[path = "ast_identifier.rs"]
+mod ast_identifier;
+pub use ast_identifier::{IdentifierComponent, IdentifierPath};
+
 #[path = "ast_schema.rs"]
 mod ast_schema;
 pub use ast_schema::{AlterTableOperation, AlterTableStatement};
@@ -167,7 +171,7 @@ pub enum InsertConflictAction {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InsertStatement {
-    pub table: String,
+    pub table: IdentifierPath,
     pub columns: Vec<String>,
     pub source: InsertSource,
     pub on_conflict: Option<InsertConflictClause>,
@@ -176,7 +180,7 @@ pub struct InsertStatement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateStatement {
-    pub table: String,
+    pub table: IdentifierPath,
     pub assignments: Vec<(String, Expr)>,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
@@ -184,14 +188,14 @@ pub struct UpdateStatement {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteStatement {
-    pub table: String,
+    pub table: IdentifierPath,
     pub filter: Option<Expr>,
     pub returning: Vec<SelectItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateTableStatement {
-    pub table: String,
+    pub table: IdentifierPath,
     pub fields: Vec<FieldDefinition>,
     pub if_not_exists: bool,
     pub storage_mode: crate::catalog::CollectionStorageMode,
@@ -208,7 +212,7 @@ pub struct CreateGraphStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateIndexStatement {
     pub name: String,
-    pub table: String,
+    pub table: IdentifierPath,
     pub fields: Vec<String>,
     pub expressions: Vec<Expr>,
     pub include_fields: Vec<String>,

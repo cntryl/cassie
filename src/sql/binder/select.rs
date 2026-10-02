@@ -1,12 +1,13 @@
 use super::{
     bind_recursive_cte_query, bind_statement, collect_projection_aliases, mem, qualified_fields,
-    resolve_relation_name, validate_distinct_on_order_prefix, validate_expression,
+    resolve_relation_path, validate_distinct_on_order_prefix, validate_expression,
     validate_expression_operand_families, validate_expression_references, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
     virtual_views, BindingContext, CassieError, Catalog, CteQuery, CteScope, DataType, Expr,
     FieldSchema, FunctionCall, HashMap, HashSet, QuerySource, QueryStatement, Schema, SelectItem,
     SelectSet, SelectStatement,
 };
+use crate::sql::ast::IdentifierPath;
 use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
 };
@@ -616,11 +617,12 @@ pub(super) fn bind_query_source_with_lateral_fields(
         QuerySource::Collection(name) => {
             let source_name_lc = name.to_ascii_lowercase();
             if scope.contains_key(&source_name_lc) {
-                Ok(QuerySource::Cte(name))
+                Ok(QuerySource::Cte(name.to_string()))
             } else {
-                Ok(QuerySource::Collection(resolve_relation_name(
-                    &name, catalog, context,
-                )?))
+                let resolved = resolve_relation_path(&name, catalog, context)?;
+                Ok(QuerySource::Collection(
+                    IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
+                ))
             }
         }
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
@@ -734,7 +736,7 @@ pub(super) fn source_fields(
             } else {
                 let schema = catalog
                     .get_schema(name)
-                    .ok_or_else(|| CassieError::CollectionNotFound(name.clone()))?;
+                    .ok_or_else(|| CassieError::CollectionNotFound(name.to_string()))?;
                 Ok(base_table_fields(name, &schema))
             }
         }

@@ -42,7 +42,9 @@ pub(super) fn try_execute_analytical_projection(
     };
 
     let mut rewritten = plan.clone();
-    rewritten.source = QuerySource::Collection(output_collection.clone());
+    rewritten.source = QuerySource::Collection(
+        crate::sql::IdentifierPath::parse(&output_collection).map_err(QueryError::General)?,
+    );
     rewritten.collection = output_collection;
     let env = super::plan_execution_env(cassie, session, user_functions, params, controls);
     let rows = super::execute_plan_with_outer_row(&env, &rewritten, cte_context, None)?;

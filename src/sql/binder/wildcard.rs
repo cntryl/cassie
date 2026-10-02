@@ -157,7 +157,13 @@ fn source_fields(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
     match source {
-        QuerySource::Collection(name) | QuerySource::Cte(name) => {
+        QuerySource::Collection(name) => {
+            if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
+                return Ok(fields.clone());
+            }
+            relation_fields(catalog, name)
+        }
+        QuerySource::Cte(name) => {
             if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
                 return Ok(fields.clone());
             }

@@ -903,9 +903,8 @@ pub(super) fn recursive_cte_reference_count(statement: &ParsedStatement, cte_nam
 
 fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
     match source {
-        QuerySource::Cte(name) | QuerySource::Collection(name) => {
-            usize::from(name.eq_ignore_ascii_case(cte_name))
-        }
+        QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
+        QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
         QuerySource::TableFunction { .. } | QuerySource::SingleRow => 0,
         QuerySource::Subquery { select, .. } => {
             source_cte_reference_count(&select.source, cte_name)

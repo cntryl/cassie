@@ -27,7 +27,7 @@ mod schema_sequences;
 mod schema_table_constraints;
 use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
-use schema_identifiers::parse_identifier;
+use schema_identifiers::{parse_identifier, parse_relation_path};
 pub(super) use schema_indexes::{
     parse_create_index_statement, parse_drop_index_statement, parse_index_options,
 };
@@ -53,7 +53,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
         return Err(SqlError::new("invalid CREATE TABLE definition".into()));
     }
 
-    let table = parse_identifier(rest[..open_paren].trim())?;
+    let table = parse_relation_path(rest[..open_paren].trim())?;
     let body = rest[(open_paren + 1)..close_paren].trim();
     let trailing = rest[(close_paren + 1)..].trim();
     if table.is_empty() {
@@ -346,8 +346,8 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
     }
     let (table, op_clause) = split_first_token(rest)
         .ok_or_else(|| SqlError::new("missing table name in ALTER TABLE".into()))?;
-    let table = parse_identifier(&table)?;
-    if table.is_empty() {
+    let table = parse_relation_path(&table)?;
+    if table.components().is_empty() {
         return Err(SqlError::new("missing table name in ALTER TABLE".into()));
     }
 
@@ -356,7 +356,7 @@ pub(super) fn parse_alter_table_statement(sql: &str) -> Result<ParsedStatement, 
         return Err(SqlError::new("missing alter operation".into()));
     }
 
-    let operation = parse_alter_table_operation(&table, op_clause)?;
+    let operation = parse_alter_table_operation(table.as_str(), op_clause)?;
 
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
@@ -428,13 +428,8 @@ pub(super) fn parse_alter_table_operation(
         if table.is_empty() {
             return Err(SqlError::new("RENAME TO requires a collection name".into()));
         }
-        if table.split_whitespace().count() != 1 {
-            return Err(SqlError::new(
-                "RENAME TO supports only one collection name".into(),
-            ));
-        }
         return Ok(AlterTableOperation::RenameTo {
-            table: parse_identifier(table)?,
+            table: parse_relation_path(table)?.into_string(),
         });
     }
 

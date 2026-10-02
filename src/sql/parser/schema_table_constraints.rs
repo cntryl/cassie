@@ -43,7 +43,7 @@ fn name_unnamed_composite_unique(
     if unnamed_unique < 2 {
         return constraints;
     }
-    let local_table = table.rsplit('.').next().unwrap_or(table);
+    let local_table = crate::catalog::local_name(table);
     let columns = constraints
         .iter()
         .map(|constraint| constraint.field.as_str())

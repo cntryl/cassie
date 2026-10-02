@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::IdentifierPath;
 use super::ParsedStatement;
 use crate::types::DataType;
 
@@ -22,7 +23,7 @@ pub enum CteQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum QuerySource {
-    Collection(String),
+    Collection(IdentifierPath),
     Cte(String),
     TableFunction {
         name: String,
@@ -46,8 +47,8 @@ pub enum QuerySource {
 impl PartialEq for QuerySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Collection(left), Self::Collection(right))
-            | (Self::Cte(left), Self::Cte(right)) => left == right,
+            (Self::Collection(left), Self::Collection(right)) => left == right,
+            (Self::Cte(left), Self::Cte(right)) => left == right,
             (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
                 left == right
             }

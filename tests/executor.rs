@@ -687,7 +687,9 @@ mod executor_commands {
 
             let logical = LogicalPlan {
                 command: None,
-                source: QuerySource::Collection(collection.to_string()),
+                source: QuerySource::Collection(
+                    cassie::sql::IdentifierPath::parse(collection).expect("relation path"),
+                ),
                 collection: collection.to_string(),
                 ctes: vec![],
                 distinct: false,

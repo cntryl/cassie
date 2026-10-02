@@ -69,11 +69,12 @@ pub use rollups::{
 };
 pub use schemas::{CollectionSchema, FieldMeta};
 pub use scope::{
-    canonical_relation_name, canonical_schema_name, derive_scoped_name, is_reserved_namespace,
-    is_system_schema, local_name, name_matches, parse_name, qualifier_variants,
-    relation_belongs_to_database, relation_database_name, relation_schema_name,
-    schema_belongs_to_database, schema_database_name, split_identifier_path, DatabaseMeta,
-    ParsedName, RelationId, SchemaId, DEFAULT_SCHEMA, INFORMATION_SCHEMA, PG_CATALOG_SCHEMA,
+    canonical_identifier_component, canonical_relation_name, canonical_schema_name,
+    derive_scoped_name, is_reserved_namespace, is_system_schema, local_name, name_matches,
+    parse_name, qualifier_variants, relation_belongs_to_database, relation_database_name,
+    relation_schema_name, schema_belongs_to_database, schema_database_name, split_identifier_path,
+    DatabaseMeta, ParsedName, RelationId, SchemaId, DEFAULT_SCHEMA, INFORMATION_SCHEMA,
+    PG_CATALOG_SCHEMA,
 };
 pub use sequences::{
     canonical_nextval_expression, parse_nextval_default_expression, serial_sequence_name,

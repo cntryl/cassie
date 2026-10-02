@@ -3749,7 +3749,9 @@ mod planner_logical {
             statement: ParsedStatement {
                 raw_sql: "SELECT id FROM  LIMIT 1".to_string(),
                 statement: QueryStatement::Select(SelectStatement {
-                    source: QuerySource::Collection(String::new()),
+                    source: QuerySource::Collection(cassie::sql::IdentifierPath::from_components(
+                        Vec::new(),
+                    )),
                     ctes: vec![],
                     recursive: false,
                     distinct: false,
@@ -3788,7 +3790,10 @@ mod planner_logical {
             statement: ParsedStatement {
                 raw_sql: "SELECT FROM planner_projectionless".to_string(),
                 statement: QueryStatement::Select(SelectStatement {
-                    source: QuerySource::Collection("planner_projectionless".to_string()),
+                    source: QuerySource::Collection(
+                        cassie::sql::IdentifierPath::parse("planner_projectionless")
+                            .expect("relation path"),
+                    ),
                     ctes: vec![],
                     recursive: false,
                     distinct: false,
@@ -3824,7 +3829,10 @@ mod planner_logical {
             statement: ParsedStatement {
                 raw_sql: "SELECT id FROM planner_negative_offset".to_string(),
                 statement: QueryStatement::Select(SelectStatement {
-                    source: QuerySource::Collection("planner_negative_offset".to_string()),
+                    source: QuerySource::Collection(
+                        cassie::sql::IdentifierPath::parse("planner_negative_offset")
+                            .expect("relation path"),
+                    ),
                     ctes: vec![],
                     recursive: false,
                     distinct: false,
@@ -3863,7 +3871,10 @@ mod planner_logical {
             statement: ParsedStatement {
                 raw_sql: "SELECT id FROM planner_negative_limit".to_string(),
                 statement: QueryStatement::Select(SelectStatement {
-                    source: QuerySource::Collection("planner_negative_limit".to_string()),
+                    source: QuerySource::Collection(
+                        cassie::sql::IdentifierPath::parse("planner_negative_limit")
+                            .expect("relation path"),
+                    ),
                     ctes: vec![],
                     recursive: false,
                     distinct: false,

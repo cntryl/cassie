@@ -386,7 +386,7 @@ pub(super) fn projected_filtered_read_spec(
     };
 
     Some(ProjectedFilteredReadSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         scan_fields,
         scan_limit,
     })
@@ -576,7 +576,7 @@ fn projected_result_scan_limit(
 
 fn heap_top_k_collection(plan: &LogicalPlan) -> Option<String> {
     match &plan.source {
-        QuerySource::Collection(collection) => Some(collection.clone()),
+        QuerySource::Collection(collection) => Some(collection.to_string()),
         _ => None,
     }
 }

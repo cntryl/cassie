@@ -2,6 +2,36 @@
 //! and alias positions.
 
 use super::SqlError;
+use crate::sql::ast::IdentifierPath;
+
+pub(super) fn parse_relation_path_prefix(raw: &str) -> Result<(IdentifierPath, &str), SqlError> {
+    let raw = raw.trim_start();
+    let mut in_quotes = false;
+    // Comments are SQL separators even when they touch an identifier. Replacing
+    // them with same-width spaces lets this scan find the boundary while the
+    // returned tail still retains the original SQL bytes for clause parsing.
+    let uncommented = super::lexical::without_comments(raw);
+    let mut chars = uncommented.char_indices().peekable();
+    while let Some((index, character)) = chars.next() {
+        if character == '"' {
+            if in_quotes && matches!(chars.peek(), Some((_, '"'))) {
+                let _ = chars.next();
+            } else {
+                in_quotes = !in_quotes;
+            }
+        } else if character.is_whitespace() && !in_quotes {
+            let path = IdentifierPath::parse(raw[..index].trim()).map_err(SqlError::new)?;
+            return Ok((path, raw[index..].trim_start()));
+        }
+    }
+    if in_quotes {
+        return Err(SqlError::new(format!(
+            "unterminated quoted identifier '{raw}'"
+        )));
+    }
+    let path = IdentifierPath::parse(raw.trim()).map_err(SqlError::new)?;
+    Ok((path, ""))
+}
 
 /// Parses a column reference written as one or more `.`-separated parts where
 /// at least one part is a delimited identifier (`"name"`, `"tbl"."col"`,

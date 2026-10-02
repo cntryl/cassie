@@ -478,7 +478,7 @@ fn expression_index_read_spec(
         collect_expression_columns(filter, &mut scan_fields);
     }
     Some(projected_read::ProjectedFilteredReadSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         scan_fields,
         scan_limit: None,
     })

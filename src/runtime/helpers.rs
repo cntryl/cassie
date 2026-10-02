@@ -310,7 +310,10 @@ mod tests {
             collection_schema: None,
             logical: LogicalPlan {
                 command: None,
-                source: QuerySource::Collection("bench_documents".to_string()),
+                source: QuerySource::Collection(
+                    crate::sql::IdentifierPath::parse("bench_documents")
+                        .expect("benchmark relation path"),
+                ),
                 collection: "bench_documents".to_string(),
                 ctes: Vec::new(),
                 distinct: false,

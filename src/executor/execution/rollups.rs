@@ -406,7 +406,10 @@ fn build_rollup_rows(
 fn build_rollup_refresh_plan(meta: &RollupMeta) -> Result<LogicalPlan, QueryError> {
     Ok(LogicalPlan {
         command: None,
-        source: QuerySource::Collection(meta.source_collection.clone()),
+        source: QuerySource::Collection(
+            crate::sql::IdentifierPath::parse(&meta.source_collection)
+                .map_err(QueryError::General)?,
+        ),
         collection: meta.source_collection.clone(),
         ctes: Vec::new(),
         distinct: false,

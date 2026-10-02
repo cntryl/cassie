@@ -33,7 +33,7 @@ impl Cassie {
             }
         }
         Ok(Some(PortalReadSpec {
-            collection: collection.clone(),
+            collection: collection.to_string(),
             source_fields,
             includes_wildcard,
         }))

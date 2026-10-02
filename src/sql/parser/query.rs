@@ -1,10 +1,8 @@
 use super::clauses::{
     find_top_level_keyword, find_top_level_union, split_top_level, strip_parentheses,
 };
-use super::expr::{
-    parse_alias, parse_expression, parse_function, parse_order_by, split_csv,
-    split_csv_quoted_by_space,
-};
+use super::expr::{parse_alias, parse_expression, parse_function, parse_order_by, split_csv};
+use super::identifiers::parse_relation_path_prefix;
 use super::{
     parse_statement, CommonTableExpression, CteQuery, Expr, HashSet, JoinKind, OrderExpr,
     ParsedStatement, QuerySource, QueryStatement, SelectItem, SqlError, WindowFunctionCall,
@@ -506,12 +504,12 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
         }
     }
 
-    let tokens = split_csv_quoted_by_space(raw);
-    if tokens.len() != 1 {
+    let (path, rest) = parse_relation_path_prefix(raw)?;
+    if !rest.is_empty() {
         return Err(SqlError::new("unsupported FROM syntax".into()));
     }
 
-    Ok(QuerySource::Collection(tokens[0].trim().to_string()))
+    Ok(QuerySource::Collection(path))
 }
 
 pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {

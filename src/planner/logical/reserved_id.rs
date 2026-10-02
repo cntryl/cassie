@@ -268,7 +268,9 @@ mod tests {
     fn id_lookup_plan(collection: &str) -> LogicalPlan {
         LogicalPlan {
             command: None,
-            source: QuerySource::Collection(collection.to_string()),
+            source: QuerySource::Collection(
+                crate::sql::IdentifierPath::parse(collection).expect("id lookup relation path"),
+            ),
             collection: collection.to_string(),
             ctes: Vec::new(),
             distinct: false,

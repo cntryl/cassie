@@ -224,9 +224,10 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
-                    QuerySource::Collection(name)
-                    | QuerySource::Cte(name)
-                    | QuerySource::TableFunction { name, .. } => name.clone(),
+                    QuerySource::Collection(name) => name.to_string(),
+                    QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+                        name.clone()
+                    }
                     QuerySource::Subquery { alias, .. } => alias.clone(),
                     QuerySource::SingleRow => "single_row".to_string(),
                     QuerySource::Join { .. } => "join".to_string(),
@@ -654,7 +655,7 @@ fn conflict_existing_row(
     super::scan::attach_row_types(&mut row, Some(schema));
     let types = row.shared_data_types();
     let (values, mut aliases) = row.into_parts();
-    let local_table = table.rsplit('.').next().unwrap_or(table);
+    let local_table = crate::catalog::local_name(table);
     for (index, (field, _)) in values.iter().enumerate() {
         aliases.push((format!("{table}.{field}"), index));
         aliases.push((format!("{local_table}.{field}"), index));

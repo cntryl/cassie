@@ -32,7 +32,7 @@ pub(super) fn vector_index_metadata(
     };
 
     Ok(VectorIndexRecord {
-        collection: statement.table.clone(),
+        collection: statement.table.to_string(),
         field: statement.fields.first().cloned().unwrap_or_default(),
         source_field,
         metadata,

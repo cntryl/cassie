@@ -173,9 +173,11 @@ pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     preflight_sql(sql)?;
     let raw_sql = sql.trim().trim_end_matches(';').trim();
     let start = lexical::separator_end(raw_sql, 0);
-    let mut parsed = parse_statement_body(&raw_sql[start..])?;
-    parsed.raw_sql = raw_sql.to_string();
-    Ok(parsed)
+    let parsed = parse_statement_body(&raw_sql[start..])?;
+    Ok(ParsedStatement {
+        raw_sql: raw_sql.to_string(),
+        statement: parsed.statement,
+    })
 }
 
 fn parse_statement_body(sql: &str) -> Result<ParsedStatement, SqlError> {

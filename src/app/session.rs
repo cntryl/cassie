@@ -12,6 +12,8 @@ pub struct CassieSession {
     #[serde(skip)]
     access: SessionAccess,
     #[serde(skip)]
+    pub(super) schema_context: Arc<Mutex<Option<super::session_schema::SessionSchemaContext>>>,
+    #[serde(skip)]
     search_path: Arc<Mutex<Vec<String>>>,
     #[serde(skip)]
     settings: Arc<Mutex<SessionSettings>>,
@@ -192,6 +194,7 @@ impl CassieSession {
             user: normalize_role_name(user),
             database,
             access,
+            schema_context: Arc::new(Mutex::new(None)),
             search_path: Arc::new(Mutex::new(vec![DEFAULT_SCHEMA.to_string()])),
             settings: Arc::new(Mutex::new(SessionSettings::default())),
             backend_pid: Arc::new(AtomicI32::new(0)),
@@ -232,6 +235,7 @@ impl CassieSession {
             user: self.user.clone(),
             database: self.database.clone(),
             access: self.access,
+            schema_context: Arc::clone(&self.schema_context),
             search_path: Arc::new(Mutex::new(self.search_path())),
             settings: Arc::new(Mutex::new(self.settings.lock().clone())),
             backend_pid: Arc::clone(&self.backend_pid),
@@ -324,9 +328,7 @@ impl CassieSession {
 
     #[must_use]
     pub fn current_schema(&self) -> String {
-        self.search_path()
-            .into_iter()
-            .find(|schema| schema != super::USER_SEARCH_PATH_ENTRY)
+        self.current_existing_schema()
             .unwrap_or_else(|| DEFAULT_SCHEMA.to_string())
     }
 

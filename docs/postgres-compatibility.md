@@ -27,6 +27,8 @@ Cassie does not currently expose a named database-image capability or a non-admi
 ## Session Model
 
 - `current_user`, `current_database()`, `current_schema()`, `SHOW search_path`, and `SET search_path` reflect session state.
+- `current_schema()` resolves `$user`, skips missing schemas, and returns SQL NULL when no search-path schema exists. It follows the same catalog-aware resolution as unqualified names.
+- Session-mutating `set_config` calls execute for every session, including qualified calls and calls through stored views; execution-result caching never substitutes a returned row for the setting change.
 - Startup parameters, `SET`, `SHOW`, `current_setting`, `set_config`, `pg_settings`, and `pg_show_all_settings()` share one validated settings contract.
 - `set_config` accepts boolean values for `is_local`; true requests are rejected because transaction-local settings are unsupported, while false applies the setting to the session. Invalid boolean text and non-boolean values are errors.
 - Mutable settings are `search_path`, `application_name`, and `client_min_messages`. Cassie validates fixed PostgreSQL-facing values for server and client encoding, date style, time zone, standard strings, integer datetimes, bytea output, extra float digits, and the advertised server version.
@@ -85,6 +87,8 @@ else in `float8`. The rules below are stable and deliberately chosen to stay clo
 - `/` over two integers truncates toward zero, as in PostgreSQL: `7 / 2` is `3` and `-7 / 2` is `-3`. Division by zero is `22012`. There is no `%` modulo operator.
 - An overflowing `int8` result raises `bigint out of range` with SQLSTATE `22003` instead of silently widening to a float. PostgreSQL promotes overflowing `int4` arithmetic to `bigint`; Cassie already computes in `int8`, so only `int8` overflow is reachable.
 - `COUNT` returns `int8` in every position: on its own, nested in `COALESCE` or `CASE`, in a view's output schema, and through a CTE.
+- `COALESCE` requires compatible result types, using the same common-type rules as `CASE`; incompatible boolean/text or boolean/numeric combinations fail before result rows are sent. Bound parameter types are checked at description and execution, including DML RETURNING.
+- UUID and BYTEA casts return canonical spelling. SELECT, UPDATE, and DELETE predicates canonicalize typed string literals consistently, including IN and BETWEEN.
 - `SUM` over an integer argument returns `int8` and errors on overflow rather than falling back to an inexact float; PostgreSQL returns `numeric` for `SUM(bigint)`. `SUM` over a float argument returns `float8`.
 - `AVG` always returns `float8`, including for integer arguments, where PostgreSQL returns `numeric`.
 - `MIN`/`MAX` keep their argument's declared type.

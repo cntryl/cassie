@@ -99,6 +99,13 @@ impl Cassie {
         } else {
             HashMap::new()
         };
+        crate::sql::binder::validate_coalesce_plan(
+            &physical.logical,
+            &self.catalog,
+            &self.binding_context_for_session(session),
+            parameter_type_oids,
+            false,
+        )?;
         let collection_schema = self.describe_collection_schema(&physical.logical, &user_functions);
 
         if let Some(command) = physical.logical.command.as_ref() {

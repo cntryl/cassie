@@ -304,6 +304,13 @@ pub(super) fn bind_update(
 
     statement.table = table;
     super::own_qualifier::strip_update_own_qualifiers(&mut statement);
+    if let Some(filter) = statement.filter.as_mut() {
+        let field_types = crate::sql::source_field_type_map(
+            &crate::sql::ast::QuerySource::Collection(statement.table.clone()),
+            catalog,
+        );
+        super::select::canonicalize_typed_predicate_literals(filter, &field_types)?;
+    }
     super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
     Ok(statement)
 }
@@ -346,6 +353,13 @@ pub(super) fn bind_delete(
 
     statement.table = table;
     super::own_qualifier::strip_delete_own_qualifiers(&mut statement);
+    if let Some(filter) = statement.filter.as_mut() {
+        let field_types = crate::sql::source_field_type_map(
+            &crate::sql::ast::QuerySource::Collection(statement.table.clone()),
+            catalog,
+        );
+        super::select::canonicalize_typed_predicate_literals(filter, &field_types)?;
+    }
     super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
     Ok(statement)
 }
@@ -597,8 +611,15 @@ pub(super) fn validate_returning_items(
         .collect::<HashSet<_>>();
     known_fields.extend(super::select::base_table_fields(table, schema));
 
+    let result_types = super::coalesce_results::ResultTypes::for_source(
+        &crate::sql::ast::QuerySource::Collection(table.to_string()),
+        &[],
+        catalog,
+        context,
+    )?;
     let mut functions = Vec::new();
     for item in returning {
+        result_types.item(item)?;
         match item {
             SelectItem::Wildcard => {}
             SelectItem::Column { name, .. } => {

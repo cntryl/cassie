@@ -104,11 +104,18 @@ fn evaluate_system_function<R: RowAccess + ?Sized>(
             require_zero_args(name, args)
                 .map(|()| Value::Int64(i64::from(session.map_or(0, CassieSession::backend_pid)))),
         ),
-        "current_schema" => Some(require_zero_args(name, args).map(|()| {
-            Value::String(
-                session.map_or_else(|| "public".to_string(), CassieSession::current_schema),
-            )
-        })),
+        "current_schema" | "pg_catalog.current_schema" => {
+            Some(require_zero_args(name, args).map(|()| {
+                session.map_or_else(
+                    || Value::String("public".to_string()),
+                    |session| {
+                        session
+                            .current_existing_schema()
+                            .map_or(Value::Null, Value::String)
+                    },
+                )
+            }))
+        }
         "current_database" => Some(require_zero_args(name, args).map(|()| {
             Value::String(
                 session

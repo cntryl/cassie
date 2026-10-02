@@ -105,6 +105,7 @@ pub(super) fn bind_select_with_lateral_fields(
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
     validate_select_operand_families(&select, catalog)?;
+    super::coalesce_results::validate_select(&select, catalog, context)?;
 
     if let Some(set) = set {
         let right = bind_select(*set.right, catalog, &scope, context)?;
@@ -194,7 +195,7 @@ fn wildcard_cte_columns(
     )
 }
 
-fn canonicalize_typed_predicate_literals(
+pub(super) fn canonicalize_typed_predicate_literals(
     expr: &mut Expr,
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<(), CassieError> {

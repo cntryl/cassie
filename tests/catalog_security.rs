@@ -7345,4 +7345,76 @@ mod search_path_resolution {
             .is_ok());
         let _ = std::fs::remove_dir_all(path);
     }
+    #[test]
+    fn should_report_the_existing_schema_used_by_name_binding() {
+        // Arrange
+        let (cassie, session, path) = start("current_existing_schema");
+        run(&cassie, &session, "CREATE SCHEMA tester");
+        let raw = cassie::app::CassieSession::new("tester".into(), None);
+
+        // Act
+        for active in [&session, &raw] {
+            for (search_path, expected) in [
+                ("missing_schema, public", Value::String("public".into())),
+                ("\"$user\", public", Value::String("tester".into())),
+                ("missing_schema", Value::Null),
+            ] {
+                run(
+                    &cassie,
+                    active,
+                    &format!("SET search_path TO {search_path}"),
+                );
+                let result = cassie
+                    .execute_sql(active, "SELECT current_schema()", vec![])
+                    .expect("current schema");
+
+                // Assert
+                assert_eq!(result.rows, vec![vec![expected]]);
+            }
+        }
+        run(
+            &cassie,
+            &session,
+            "SET search_path TO future_schema, public",
+        );
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT current_schema()", vec![])
+                .expect("before create")
+                .rows,
+            vec![vec![Value::String("public".into())]]
+        );
+        run(&cassie, &session, "CREATE SCHEMA future_schema");
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT current_schema()", vec![])
+                .expect("after create")
+                .rows,
+            vec![vec![Value::String("future_schema".into())]]
+        );
+        run(&cassie, &session, "SET search_path TO tester, public");
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT current_schema()", vec![])
+                .expect("before drop")
+                .rows,
+            vec![vec![Value::String("tester".into())]]
+        );
+        run(&cassie, &session, "DROP SCHEMA tester");
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT current_schema()", vec![])
+                .expect("after drop")
+                .rows,
+            vec![vec![Value::String("public".into())]]
+        );
+        assert_eq!(
+            cassie
+                .execute_sql(&session, "SELECT pg_catalog.current_schema()", vec![])
+                .expect("qualified current schema")
+                .rows,
+            vec![vec![Value::String("public".into())]]
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
 }

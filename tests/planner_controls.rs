@@ -50,6 +50,76 @@ mod execution_result_cache {
     }
 
     #[test]
+    fn should_execute_session_mutations_for_each_matching_session() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("session-mutating-builtins");
+        let cassie = Cassie::new_with_data_dir_and_config(&path, cache_config(128, 1_048_576))
+            .expect("cassie");
+        let setup = cassie.create_session("reader", None);
+        cassie
+            .execute_sql(&setup, "CREATE TABLE cache_seed (marker INT)", vec![])
+            .expect("table");
+        cassie
+            .execute_sql(&setup, "INSERT INTO cache_seed VALUES (1)", vec![])
+            .expect("seed");
+        cassie.execute_sql(&setup, "CREATE VIEW cache_mutation AS SELECT set_config('application_name', 'view', false) AS applied FROM cache_seed", vec![]).expect("view");
+        cassie
+            .execute_sql(
+                &setup,
+                "CREATE VIEW cache_nested_mutation AS SELECT applied FROM cache_mutation",
+                vec![],
+            )
+            .expect("nested view");
+
+        // Act
+        for (sql, expected) in [
+            (
+                "SELECT set_config('application_name', 'direct', false)",
+                "direct",
+            ),
+            (
+                "SELECT pg_catalog.set_config('application_name', 'qualified', false)",
+                "qualified",
+            ),
+            ("SELECT applied FROM cache_mutation", "view"),
+            ("SELECT applied FROM cache_nested_mutation", "view"),
+        ] {
+            let first = cassie.create_session("reader", None);
+            let second = cassie.create_session("reader", None);
+            cassie
+                .execute_sql(&first, sql, vec![])
+                .expect("first mutation");
+            let result = cassie
+                .execute_sql(&second, sql, vec![])
+                .expect("second mutation");
+
+            // Assert
+            assert_eq!(result.rows, vec![vec![Value::String(expected.into())]]);
+            assert_eq!(
+                second.setting("application_name").expect("setting"),
+                expected
+            );
+        }
+        let hits_before = cassie.metrics()["execution_result_cache"]["hits"]
+            .as_u64()
+            .expect("cache hits");
+        cassie
+            .execute_sql(&setup, "SELECT marker FROM cache_seed", vec![])
+            .expect("warm pure query");
+        cassie
+            .execute_sql(&setup, "SELECT marker FROM cache_seed", vec![])
+            .expect("cached pure query");
+        assert_eq!(
+            cassie.metrics()["execution_result_cache"]["hits"]
+                .as_u64()
+                .expect("cache hits"),
+            hits_before + 1
+        );
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_isolate_current_user_results() {
         // Arrange
         use_local_storage();

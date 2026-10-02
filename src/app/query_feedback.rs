@@ -15,24 +15,7 @@ impl Cassie {
         let database = session
             .current_database()
             .unwrap_or(self.default_database.as_str());
-        session
-            .search_path()
-            .into_iter()
-            .map(|schema| {
-                if schema == USER_SEARCH_PATH_ENTRY {
-                    session.user.clone()
-                } else {
-                    schema
-                }
-            })
-            .filter(|schema| {
-                crate::catalog::is_system_schema(schema)
-                    || schema.eq_ignore_ascii_case(crate::catalog::DEFAULT_SCHEMA)
-                    || self
-                        .catalog
-                        .namespace_exists(&crate::catalog::canonical_schema_name(database, schema))
-            })
-            .collect()
+        super::session_schema::resolved_search_path(&self.catalog, database, session)
     }
 
     pub(crate) fn binding_context_for_session(

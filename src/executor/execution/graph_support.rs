@@ -162,8 +162,8 @@ pub(super) fn neighbor_graph_path_bytes(
     std::mem::size_of::<GraphPath>()
         .saturating_add(start_type.len())
         .saturating_add(start_id.len())
-        .saturating_add(next_type.len())
-        .saturating_add(next_id.len())
+        .saturating_add(next_type.len().saturating_mul(2))
+        .saturating_add(next_id.len().saturating_mul(2))
         .saturating_add(edge.edge_id.len())
         .saturating_add(graph_edge_bytes(edge))
 }
@@ -287,4 +287,45 @@ pub(super) fn same_executor_graph_edge(left: &GraphEdgeRecord, right: &GraphEdge
         && left.target_id == right.target_id
         && left.edge_type == right.edge_type
         && left.weight.to_bits() == right.weight.to_bits()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn should_account_for_neighbor_endpoint_copy() {
+        // Arrange
+        let edge = GraphEdgeRecord {
+            graph: "g".into(),
+            graph_id: 1,
+            row_id: "row".into(),
+            edge_id: "e".into(),
+            source_type: "n".into(),
+            source_id: "s".into(),
+            target_type: "n".into(),
+            target_id: "t".repeat(4096),
+            edge_type: "r".into(),
+            weight: 1.0,
+        };
+        // Act
+        let estimated = neighbor_graph_path_bytes(&edge, "n", "s", "n", &edge.target_id);
+        let path = GraphPath {
+            node_type: "n".into(),
+            node_id: edge.target_id.clone(),
+            depth: 1,
+            cost: 1.0,
+            path_nodes: vec![
+                ("n".into(), "s".into()),
+                ("n".into(), edge.target_id.clone()),
+            ],
+            path_edges: vec![edge.edge_id.clone()],
+            last_edge: Some(edge),
+        };
+        let actual = graph_path_bytes(&path);
+        // Assert
+        assert_eq!(
+            estimated, actual,
+            "neighbor reservation omits endpoint copy"
+        );
+    }
 }

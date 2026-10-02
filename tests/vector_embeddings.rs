@@ -7021,10 +7021,10 @@ mod vector_write_path {
 
     fn run(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(&session, sql, params)
-            .expect("statement")
-            .rows
+        let Ok(result) = cassie.execute_sql(&session, sql, params) else {
+            panic!("statement failed: {sql}");
+        };
+        result.rows
     }
 
     fn error_text(cassie: &Cassie, sql: &str, params: Vec<Value>) -> String {

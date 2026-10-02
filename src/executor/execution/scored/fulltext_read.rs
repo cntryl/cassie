@@ -649,12 +649,21 @@ fn scalar_prefilter_ids(
     let Some((field, mut value)) = equality_literal(residual, params) else {
         return Ok(None);
     };
+    if !super::super::index_probe_canonicalization::probe_comparison_is_exact(
+        cassie,
+        &spec.collection,
+        &field,
+        &value,
+    ) {
+        return Ok(None);
+    }
     let Some(index) = cassie
         .catalog
         .list_indexes(&spec.collection)
         .into_iter()
         .find(|index| {
             index.kind == crate::catalog::IndexKind::Scalar
+                && index.predicate.is_none()
                 && index
                     .normalized_fields()
                     .first()

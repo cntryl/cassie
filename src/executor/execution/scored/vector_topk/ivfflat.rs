@@ -24,6 +24,10 @@ pub(super) fn execute_ivfflat_vector_top_k(
     let Some(snapshot) = ivfflat_training(cassie, spec, controls)? else {
         return Ok(None);
     };
+    if !matches!(spec.direction, super::SortDirection::Asc) {
+        cassie.runtime.record_ivfflat_fallback("unsupported-sort");
+        return Ok(None);
+    }
     let (manifest_generation, training, membership_count, manifest_reads, manifest_memory) =
         snapshot.into_parts();
     let started_at = Instant::now();

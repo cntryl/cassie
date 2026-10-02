@@ -282,9 +282,6 @@ fn is_row_id_range_filter(expr: &Expr) -> bool {
                 && matches!(
                     other,
                     Expr::StringLiteral(_)
-                        | Expr::BoolLiteral(_)
-                        | Expr::NumberLiteral(_) | Expr::IntegerLiteral(_)
-                        | Expr::Null
                         | Expr::Param(_)
                 )
     )

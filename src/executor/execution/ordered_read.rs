@@ -13,6 +13,17 @@ pub(super) fn execute_ordered_column_top_k(
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if let QuerySource::Collection(collection) = &plan.source {
+        if cassie
+            .catalog
+            .collection_storage_mode(collection)
+            .is_some_and(
+                crate::catalog::collections::CollectionStorageMode::uses_column_store_storage,
+            )
+        {
+            return Ok(None);
+        }
+    }
     if let Some(rows) = execute_ordered_row_id_page(cassie, session, params, plan)? {
         return Ok(Some(rows));
     }
@@ -20,6 +31,10 @@ pub(super) fn execute_ordered_column_top_k(
     let Some(spec) = ordered_column_top_k_spec(plan) else {
         return Ok(None);
     };
+
+    if spec.limit == 0 {
+        return Ok(Some(Vec::new()));
+    }
 
     let schema = cassie.catalog.get_schema(&spec.collection);
     let Some(mut cursor) = cassie
@@ -31,9 +46,7 @@ pub(super) fn execute_ordered_column_top_k(
         )
         .map_err(QueryError::from)?
     else {
-        return Err(QueryError::General(
-            "ordered top-k requires row storage".to_string(),
-        ));
+        return Ok(None);
     };
     let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
 
@@ -267,7 +280,7 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let limit = usize::try_from(plan.limit?).ok()?;
     let offset = plan
         .offset
         .and_then(|offset| usize::try_from(offset).ok())
@@ -378,7 +391,14 @@ fn ordered_row_id_range_bounds(
         _ => return None,
     };
 
-    let row_id = super::projected_read::point_lookup_value_to_row_id(other.0, params)?;
+    let row_id = match other.0 {
+        Expr::StringLiteral(value) => value.clone(),
+        Expr::Param(index) => match params.get(*index)? {
+            Value::String(value) => value.clone(),
+            _ => return None,
+        },
+        _ => return None,
+    };
 
     match (other.1, op) {
         (false, BinaryOp::Gt) | (true, BinaryOp::Lt) => Some((

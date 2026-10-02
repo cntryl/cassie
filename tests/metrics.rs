@@ -2996,6 +2996,11 @@ mod metrics_read_paths {
         Schema {
             fields: vec![
                 FieldSchema {
+                    name: "score".to_string(),
+                    data_type: DataType::Int,
+                    nullable: false,
+                },
+                FieldSchema {
                     name: "tenant_id".to_string(),
                     data_type: DataType::Text,
                     nullable: true,
@@ -3054,6 +3059,7 @@ mod metrics_read_paths {
         register_collection_with_schema(cassie, collection, scalar_read_schema());
         let bootstrap = cassie.create_session("bootstrap", None);
         for sql in [
+        "CREATE INDEX metrics_scalar_score_idx ON metrics_scalar_read_paths USING btree (score)",
         "CREATE INDEX metrics_scalar_title_idx ON metrics_scalar_read_paths USING btree (title)",
         "CREATE INDEX metrics_scalar_tenant_status_idx ON metrics_scalar_read_paths USING btree (tenant_id, status)",
     ] {
@@ -3069,6 +3075,7 @@ mod metrics_read_paths {
                         "tenant_id": "tenant-a",
                         "status": "closed",
                         "title": "alpha",
+                        "score": 1,
                     }),
                 ),
                 (
@@ -3077,6 +3084,7 @@ mod metrics_read_paths {
                         "tenant_id": "tenant-a",
                         "status": "open",
                         "title": "beta",
+                        "score": 2,
                     }),
                 ),
                 (
@@ -3085,6 +3093,7 @@ mod metrics_read_paths {
                         "tenant_id": "tenant-b",
                         "status": "closed",
                         "title": "charlie",
+                        "score": 3,
                     }),
                 ),
                 (
@@ -3093,6 +3102,7 @@ mod metrics_read_paths {
                         "tenant_id": "tenant-b",
                         "status": "open",
                         "title": "delta",
+                        "score": 4,
                     }),
                 ),
             ],
@@ -3209,7 +3219,7 @@ mod metrics_read_paths {
         );
         assert_eq!(
             after["read_paths"]["last_index_scan_index"].as_str(),
-            Some("metrics_scalar_title_idx"),
+            Some("metrics_scalar_score_idx"),
         );
     }
 
@@ -3273,7 +3283,7 @@ mod metrics_read_paths {
                 "SELECT title FROM metrics_scalar_read_paths WHERE title = 'alpha'",
                 "SELECT title FROM metrics_scalar_read_paths WHERE tenant_id = 'tenant-a' AND status = 'open'",
                 "SELECT title FROM metrics_scalar_read_paths WHERE title >= 'beta' AND title < 'omega' ORDER BY title ASC",
-                "SELECT title FROM metrics_scalar_read_paths ORDER BY title ASC LIMIT 2",
+                "SELECT title FROM metrics_scalar_read_paths ORDER BY score ASC LIMIT 2",
             ],
         );
 

@@ -35,6 +35,9 @@ pub(crate) fn execute_vector_distance_top_k(
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
     validate_vector_top_k_dimensions(&schema, &spec)?;
+    if spec.limit == 0 {
+        return Ok(Some(Vec::new()));
+    }
 
     if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
         diagnostics::record_transaction_overlay_exact_fallback(cassie, &spec)?;
@@ -199,7 +202,7 @@ fn vector_distance_top_k_spec(
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let limit = usize::try_from(plan.limit?).ok()?;
     let offset = plan
         .offset
         .and_then(|offset| usize::try_from(offset).ok())
@@ -225,7 +228,11 @@ fn vector_distance_top_k_spec(
 fn vector_distance_projection(
     projection: &[SelectItem],
 ) -> Option<(String, &FunctionCall, String)> {
-    let SelectItem::Column { name, alias: _ } = &projection[0] else {
+    let SelectItem::Column {
+        name,
+        alias: id_alias,
+    } = &projection[0]
+    else {
         return None;
     };
     if !crate::types::row_identity::is_row_identity_column(name) {
@@ -238,7 +245,7 @@ fn vector_distance_projection(
         return None;
     }
     Some((
-        alias.clone().unwrap_or_else(|| name.clone()),
+        id_alias.clone().unwrap_or_else(|| name.clone()),
         function,
         alias.clone().unwrap_or_else(|| function.name.clone()),
     ))

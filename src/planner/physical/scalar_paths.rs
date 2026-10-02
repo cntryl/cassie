@@ -428,7 +428,7 @@ fn collect_single_expression_constraint_shape(
             high,
             negated: false,
         } if super::expr_has_column(expr) && !matches!(expr.as_ref(), Expr::Column(_)) => {
-            if !super::expr_is_constant(low) || !super::expr_is_constant(high) {
+            if !bound_can_be_materialized(low) || !bound_can_be_materialized(high) {
                 return None;
             }
             let candidate = serde_json::to_string(expr.as_ref()).ok()?;
@@ -452,14 +452,14 @@ fn expression_constraint_shape(
         (expr, value)
             if super::expr_has_column(expr)
                 && !matches!(expr, Expr::Column(_))
-                && super::expr_is_constant(value) =>
+                && bound_can_be_materialized(value) =>
         {
             Some((serde_json::to_string(expr).ok()?, op.clone()))
         }
         (value, expr)
             if super::expr_has_column(expr)
                 && !matches!(expr, Expr::Column(_))
-                && super::expr_is_constant(value) =>
+                && bound_can_be_materialized(value) =>
         {
             Some((serde_json::to_string(expr).ok()?, reverse_binary_op(op)?))
         }
@@ -509,18 +509,18 @@ fn collect_exact_expression_index_equality(
     equality: &mut ExactExpressionIndexEqualities,
 ) -> Option<()> {
     match (left, right) {
-        (Expr::Column(field), value) if super::expr_is_constant(value) => {
+        (Expr::Column(field), value) if bound_can_be_materialized(value) => {
             equality.fields.insert(field.to_ascii_lowercase());
             Some(())
         }
-        (value, Expr::Column(field)) if super::expr_is_constant(value) => {
+        (value, Expr::Column(field)) if bound_can_be_materialized(value) => {
             equality.fields.insert(field.to_ascii_lowercase());
             Some(())
         }
         (expr, value)
             if super::expr_has_column(expr)
                 && !matches!(expr, Expr::Column(_))
-                && super::expr_is_constant(value) =>
+                && bound_can_be_materialized(value) =>
         {
             equality
                 .expressions
@@ -530,7 +530,7 @@ fn collect_exact_expression_index_equality(
         (value, expr)
             if super::expr_has_column(expr)
                 && !matches!(expr, Expr::Column(_))
-                && super::expr_is_constant(value) =>
+                && bound_can_be_materialized(value) =>
         {
             equality
                 .expressions
@@ -745,7 +745,7 @@ fn collect_filter_constraint_shapes(
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
             };
-            if !super::expr_is_constant(low) || !super::expr_is_constant(high) {
+            if !bound_can_be_materialized(low) || !bound_can_be_materialized(high) {
                 return None;
             }
             let entry = constraints.entry(field.to_ascii_lowercase()).or_default();
@@ -763,10 +763,10 @@ fn field_constraint_shape<'a>(
     right: &'a Expr,
 ) -> Option<(String, BinaryOp)> {
     match (left, right) {
-        (Expr::Column(field), other) if super::expr_is_constant(other) => {
+        (Expr::Column(field), other) if bound_can_be_materialized(other) => {
             Some((field.to_ascii_lowercase(), op.clone()))
         }
-        (other, Expr::Column(field)) if super::expr_is_constant(other) => {
+        (other, Expr::Column(field)) if bound_can_be_materialized(other) => {
             Some((field.to_ascii_lowercase(), reverse_binary_op(op)?))
         }
         _ => None,
@@ -781,5 +781,19 @@ fn reverse_binary_op(op: &BinaryOp) -> Option<BinaryOp> {
         BinaryOp::Lt => Some(BinaryOp::Gt),
         BinaryOp::Lte => Some(BinaryOp::Gte),
         _ => None,
+    }
+}
+
+// Scalar reads materialize literal and parameter bounds, not arbitrary expressions.
+// Declining other constant shapes preserves their normal SQL evaluation path.
+fn bound_can_be_materialized(expr: &Expr) -> bool {
+    match expr {
+        Expr::StringLiteral(_)
+        | Expr::IntegerLiteral(_)
+        | Expr::BoolLiteral(_)
+        | Expr::Null
+        | Expr::Param(_) => true,
+        Expr::NumberLiteral(value) => value.is_finite(),
+        _ => false,
     }
 }

@@ -40,6 +40,16 @@ SQL parsing rejects text over 1 MiB, more than 100,000 lexical tokens, nesting d
 | Count or aggregate | Streaming or equivalence-proven aggregate/column path | Batch memory or documented aggregate state |
 | Join | Named algorithm, legal order, estimates, build/probe bounds | Accounted build state and bounded workers |
 
+Optimized reads preserve a zero result limit. Row-only ordered, full-text, and time-series
+shortcuts decline column-store sources and use the supported column execution path. Scalar
+probes decline constant expressions they cannot materialize, rounded integer-to-float bounds,
+and timestamp-shaped character comparisons whose SQL instant semantics differ from byte keys.
+Timestamp-shaped expression-index probes also use SQL filtering. Character expression
+ordering declines byte-order shortcuts when its output may have that timestamp shape;
+`lower(...)` output cannot have the required uppercase T/Z markers and retains its bounded path. Full-text scalar prefilters
+require an unpredicated index and the same exact probe comparison. These fallbacks preserve
+query results without changing stored index formats.
+
 `EXPLAIN` must identify scans, ordering, filters, estimates, join order and algorithm, legality barriers, fallback reasons, and memory bounds relevant to the selected tree.
 
 Inner-join planning exhaustively enumerates deterministic relation orders through eight relations and uses deterministic greedy expansion above eight. Outer, full, cross, lateral, and correlated dependencies remain explicit legality barriers unless a semantics-preserving proof applies. Missing statistics use a stable conservative fallback and lexical tie-breaking, so identical schema and statistics snapshots produce identical plans and reusable plan-cache entries.
@@ -49,6 +59,11 @@ Inner-join planning exhaustively enumerates deterministic relation orders throug
 Full-text indexed execution reads persisted posting blocks and document statistics, computes exact BM25 scores, maintains a bounded result window, renders snippets from fetched candidates, and fetches only candidate rows. Eligible scalar equality indexes are intersected before row fetch. Transaction overlays and missing, stale, corrupt, or incomplete artifacts use an explicitly labelled row fallback under the same cancellation and memory controls.
 
 Exact vector search reads lazy Midge cursor batches and retains only a memory-accounted top-k heap. HNSW reads persisted node records; IVFFlat reads persisted membership prefixes. Approximate paths expand candidates deterministically within the configured cap and exact-rerank selected source rows. Each ANN candidate batch carries its persisted source generation, which is fenced before, during, and after reranking. A missing row, malformed or dimension-invalid vector, or generation change labels the attempt `concurrent-source-change`, discards all attempted-path rows and metrics, and executes the exact controlled path once. Structured filters and transaction overlays use an explicitly diagnosed exact fallback; candidate exhaustion produces an exact fallback or resource error rather than silent truncation.
+
+Descending vector-distance queries use exact scoring rather than nearest-list IVFFlat
+probing. Vector top-k preserves the identity projection's own output alias independently of
+the score alias; zero-limit SQL queries retain vector dimension validation. REST vector search
+also preserves a requested zero limit after index/provider compatibility validation.
 
 Retained HNSW release rows at 10k, 100k, and the declared upper scaling fixture compute exact
 top-k membership outside the timed region and record recall, the immutable 0.90 floor, top-k,

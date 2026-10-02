@@ -189,13 +189,22 @@ fn scalar_index_read_spec(
     let Some(index) = indexes.into_iter().find(|index| index.name == index_name) else {
         return Ok(None);
     };
-    let Some(shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
+    let Some(mut shape) = scalar_index_plan_shape(plan, &index, &not_null_fields) else {
         return Ok(None);
     };
-    if scalar_index_requires_json_scan(cassie, &projected.collection, &index, &shape, plan) {
-        // JSON equality and uniqueness use canonical JSON bytes. Range and
-        // ordered reads fall back because integer and float keys have separate
-        // tags even when the executor compares them numerically.
+    if scalar_index_order_needs_sql_sort(cassie, &projected.collection, &index, &shape, plan) {
+        if shape.path == ScalarIndexPlanPath::OrderedBoundedScan {
+            return Ok(None);
+        }
+        // Keep exact predicate candidate selection, but sort all candidates
+        // using SQL semantics before applying the requested result window.
+        shape.order_satisfied = false;
+    }
+    if scalar_index_requires_json_scan(cassie, &projected.collection, &index, &shape, plan)
+        || scalar_index_requires_semantic_scan(cassie, &projected.collection, &index, plan, params)
+    {
+        // Decline byte-key reads when executor comparison can equate different
+        // encodings or when probe conversion would lose numeric precision.
         return Ok(None);
     }
     // Scalar-index keys cannot represent NaN or infinities, while the filter
@@ -210,13 +219,16 @@ fn scalar_index_read_spec(
     {
         // LexKey keeps -0.0 and +0.0 as distinct ordered keys, while SQL
         // comparisons treat them as equal. Expression-index metadata also
-        // omits result types, so use SQL filtering for numeric expression
-        // bounds whose probe encoding may differ from stored keys.
+        // omits result types, so use SQL filtering for numeric or timestamp-shaped
+        // expression bounds whose probe encoding may differ from SQL semantics.
         return Ok(None);
     }
 
-    let (request, predicate_resolution) =
-        scalar_index_scan_request(cassie, &projected.collection, &index, &shape, plan, params)?;
+    let Some((request, predicate_resolution)) =
+        scalar_index_scan_request(cassie, &projected.collection, &index, &shape, plan, params)?
+    else {
+        return Ok(None);
+    };
 
     Ok(Some(ScalarIndexReadSpec {
         collection: projected.collection,
@@ -257,7 +269,7 @@ fn scalar_index_reads_unsafe_numeric_bounds(
                 constraints
                     .expressions
                     .get(expression)
-                    .is_some_and(constraint_contains_numeric_bound)
+                    .is_some_and(constraint_contains_unsafe_expression_bound)
             })
         });
 
@@ -273,13 +285,18 @@ fn constraint_contains_zero(constraint: &ConcreteConstraint) -> bool {
         .any(is_zero_number)
 }
 
-fn constraint_contains_numeric_bound(constraint: &ConcreteConstraint) -> bool {
+fn constraint_contains_unsafe_expression_bound(constraint: &ConcreteConstraint) -> bool {
     constraint
         .equality
         .iter()
         .chain(constraint.lower.iter().map(|bound| &bound.value))
         .chain(constraint.upper.iter().map(|bound| &bound.value))
-        .any(serde_json::Value::is_number)
+        .any(|value| {
+            value.is_number()
+                || value
+                    .as_str()
+                    .is_some_and(crate::types::temporal::is_canonical_timestamp_text)
+        })
 }
 
 fn is_zero_number(value: &serde_json::Value) -> bool {
@@ -295,7 +312,7 @@ fn scalar_index_scan_request(
     shape: &crate::planner::physical::ScalarIndexPlanShape,
     plan: &LogicalPlan,
     params: &[Value],
-) -> Result<(ScalarIndexScanRequest, ScalarIndexPredicateResolution), QueryError> {
+) -> Result<Option<(ScalarIndexScanRequest, ScalarIndexPredicateResolution)>, QueryError> {
     let extracted_constraints = if index.expressions.is_empty() {
         concrete_constraints(plan.filter.as_ref(), params)
             .map(|constraints| (constraints, BTreeMap::new()))
@@ -303,8 +320,9 @@ fn scalar_index_scan_request(
         expression_index_constraints(plan.filter.as_ref(), params)
             .map(|constraints| (constraints.fields, constraints.expressions))
     };
-    let (mut constraints, expression_constraints) = extracted_constraints
-        .ok_or_else(|| QueryError::General("unsupported scalar index filter".to_string()))?;
+    let Some((mut constraints, expression_constraints)) = extracted_constraints else {
+        return Ok(None);
+    };
     canonicalize_field_constraints(cassie, collection, &mut constraints);
     let equality_prefix =
         scalar_index_equality_prefix(index, shape, &constraints, &expression_constraints)?;
@@ -343,7 +361,7 @@ fn scalar_index_scan_request(
         ScalarIndexPredicateResolution::Residual
     };
 
-    Ok((request, predicate_resolution))
+    Ok(Some((request, predicate_resolution)))
 }
 
 fn scalar_index_requires_json_scan(
@@ -612,4 +630,83 @@ fn record_scalar_index_read_path(cassie: &Cassie, spec: &ScalarIndexReadSpec, ro
             .runtime
             .record_read_path_ordered_bounded_scan(&spec.collection, rows, &spec.index.name),
     }
+}
+
+fn scalar_index_requires_semantic_scan(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    plan: &LogicalPlan,
+    params: &[Value],
+) -> bool {
+    let fields = index.normalized_fields();
+    concrete_constraints(plan.filter.as_ref(), params).is_some_and(|constraints| {
+        fields.iter().any(|field| {
+            constraints
+                .get(&field.to_ascii_lowercase())
+                .is_some_and(|constraint| {
+                    constraint
+                        .equality
+                        .iter()
+                        .chain(constraint.lower.iter().map(|bound| &bound.value))
+                        .chain(constraint.upper.iter().map(|bound| &bound.value))
+                        .any(|value| {
+                            !super::index_probe_canonicalization::probe_comparison_is_exact(
+                                cassie, collection, field, value,
+                            )
+                        })
+                })
+        })
+    })
+}
+
+fn scalar_index_order_needs_sql_sort(
+    cassie: &Cassie,
+    collection: &str,
+    index: &IndexMeta,
+    shape: &crate::planner::physical::ScalarIndexPlanShape,
+    plan: &LogicalPlan,
+) -> bool {
+    if plan.order.is_empty() || !shape.order_satisfied {
+        return false;
+    }
+    if index
+        .normalized_fields()
+        .iter()
+        .skip(shape.equality_prefix_len)
+        .take(shape.order_columns_used)
+        .any(|field| {
+            matches!(
+                cassie.catalog.field_type(collection, field),
+                Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. })
+            )
+        })
+    {
+        return true;
+    }
+    if index.expressions.is_empty() {
+        return false;
+    }
+    let Some(source) = cassie.catalog.get_schema(collection) else {
+        return true;
+    };
+    let schema = crate::types::Schema {
+        fields: source
+            .fields
+            .into_iter()
+            .map(|field| crate::types::FieldSchema {
+                name: field.name,
+                data_type: field.data_type,
+                nullable: true,
+            })
+            .collect(),
+    };
+    plan.order.iter().any(|order| {
+        // Lowercase output cannot have the uppercase T/Z timestamp shape.
+        if matches!(&order.expr, Expr::Function(function) if function.name.eq_ignore_ascii_case("lower")) {
+            return false;
+        }
+        matches!(crate::sql::binder::infer_expr_type(&order.expr, &schema, &HashMap::new(), &[]),
+            None | Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. } | DataType::Json | DataType::Array(_)))
+    })
 }

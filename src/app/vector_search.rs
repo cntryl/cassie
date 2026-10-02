@@ -54,7 +54,17 @@ impl Cassie {
         self.validate_embedding_compatibility(&index, metric.as_ref())?;
 
         let metric = metric.unwrap_or(index.metadata.metric);
-        let limit = limit.max(1);
+        if limit == 0 {
+            let schema = self
+                .catalog
+                .get_schema(collection)
+                .ok_or_else(|| CassieError::CollectionNotFound(collection.to_string()))?;
+            return Ok(QueryResult {
+                columns: vector_search_columns(&schema),
+                rows: Vec::new(),
+                command: "SELECT".to_string(),
+            });
+        }
         let catalog_version = self.catalog.version();
         let result_cache_key = VectorSearchResultCacheKey {
             catalog_version,
@@ -81,7 +91,6 @@ impl Cassie {
         let embedding = self.cached_query_embedding(query)?;
         Self::validate_embedding_payload(&index, &embedding)?;
 
-        let limit = limit.max(1);
         let request = ProjectedVectorSearch {
             schema: &self
                 .catalog

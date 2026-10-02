@@ -27,6 +27,13 @@ pub(super) fn try_execute_time_series_read(
     let Some(spec) = super::projected_read::projected_filtered_read_spec(plan) else {
         return Ok(None);
     };
+    if cassie
+        .catalog
+        .collection_storage_mode(&spec.collection)
+        .is_some_and(crate::catalog::collections::CollectionStorageMode::uses_column_store_storage)
+    {
+        return Ok(None);
+    }
     let Some(index) = selected_time_series_index(cassie, plan) else {
         return Ok(None);
     };

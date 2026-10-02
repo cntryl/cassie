@@ -32,3 +32,31 @@ fn canonicalize_temporal_text(
         *value = serde_json::Value::String(canonical);
     }
 }
+
+/// Whether converting a SQL comparison probe to its stored key shape is exact.
+/// TEXT timestamp shapes use instant comparison; FLOAT probes must not round an integer.
+pub(super) fn probe_comparison_is_exact(
+    cassie: &Cassie,
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> bool {
+    match cassie.catalog.field_type(collection, field) {
+        Some(
+            crate::types::DataType::Text
+            | crate::types::DataType::Char { .. }
+            | crate::types::DataType::Varchar { .. },
+        ) => !value
+            .as_str()
+            .is_some_and(crate::types::temporal::is_canonical_timestamp_text),
+        Some(crate::types::DataType::Float) => value.as_i64().is_none_or(|integer| {
+            value.as_f64().is_some_and(|float| {
+                crate::types::semantic::compare_numeric_values(
+                    &crate::types::Value::Int64(integer),
+                    &crate::types::Value::Float64(float),
+                ) == Some(std::cmp::Ordering::Equal)
+            })
+        }),
+        _ => true,
+    }
+}

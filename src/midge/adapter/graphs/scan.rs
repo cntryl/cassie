@@ -256,7 +256,7 @@ fn decode_graph_edge_key(
         .map(std::str::from_utf8)
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| CassieError::Parse(format!("invalid graph adjacency key: {error}")))?;
-    let [weight, edge_id, edge_type, other_type, other_id] = components.as_slice() else {
+    let [weight, edge_id, edge_type, other_type, other_id, row_id] = components.as_slice() else {
         return Err(CassieError::Parse(
             "invalid graph adjacency component count".to_owned(),
         ));
@@ -270,6 +270,7 @@ fn decode_graph_edge_key(
     Ok(GraphEdgeRecord {
         graph: request.graph.name.clone(),
         graph_id: request.graph.storage_id,
+        row_id: (*row_id).to_owned(),
         edge_id: (*edge_id).to_owned(),
         source_type: source_type.to_owned(),
         source_id: source_id.to_owned(),
@@ -337,10 +338,12 @@ fn compare_graph_edges(left: &GraphEdgeRecord, right: &GraphEdgeRecord) -> std::
         .then_with(|| left.source_id.cmp(&right.source_id))
         .then_with(|| left.target_type.cmp(&right.target_type))
         .then_with(|| left.target_id.cmp(&right.target_id))
+        .then_with(|| left.row_id.cmp(&right.row_id))
 }
 
 fn same_graph_edge(left: &GraphEdgeRecord, right: &GraphEdgeRecord) -> bool {
     left.graph_id == right.graph_id
+        && left.row_id == right.row_id
         && left.edge_id == right.edge_id
         && left.source_type == right.source_type
         && left.source_id == right.source_id

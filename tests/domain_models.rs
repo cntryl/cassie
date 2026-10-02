@@ -3649,3 +3649,183 @@ mod column_time_series_read_equivalence {
         });
     }
 }
+
+mod graph_function_correctness {
+    use super::support_graph as support;
+    use support::*;
+
+    fn insert_edge(cassie: &Cassie, session: &cassie::app::CassieSession, edge: &str) {
+        execute(
+            cassie,
+            session,
+            &format!(
+                "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight) VALUES ({edge})"
+            ),
+        );
+    }
+
+    fn query(cassie: &Cassie, session: &cassie::app::CassieSession, sql: &str) -> Vec<Vec<Value>> {
+        cassie
+            .execute_sql(session, sql, vec![])
+            .expect("read graph function")
+            .rows
+    }
+
+    fn with_graph(
+        name: &str,
+        create_sql: &str,
+        body: impl FnOnce(&Cassie, &cassie::app::CassieSession),
+    ) {
+        use_local_storage();
+        let path = data_dir(name);
+        let runtime = current_thread_runtime();
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            let session = cassie.create_session("tester", None);
+            execute(&cassie, &session, create_sql);
+            body(&cassie, &session);
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn seed_shared_intermediate_node(cassie: &Cassie, session: &cassie::app::CassieSession) {
+        insert_edge(cassie, session, "'e1', 'n', 'A', 'n', 'X', 'r', 1");
+        insert_edge(cassie, session, "'e2', 'n', 'A', 'n', 'B', 'r', 1");
+        insert_edge(cassie, session, "'e3', 'n', 'B', 'n', 'X', 'r', 1");
+        insert_edge(cassie, session, "'e4', 'n', 'X', 'n', 'T', 'r', 1");
+    }
+
+    #[test]
+    fn should_return_every_requested_path_when_alternates_share_an_intermediate_node() {
+        // Arrange
+        with_graph(
+            "graph_shortest_path_shared_node",
+            "CREATE GRAPH social",
+            |cassie, session| {
+                seed_shared_intermediate_node(cassie, session);
+
+                // Act
+                let rows = query(
+                cassie,
+                session,
+                "SELECT cost, depth, path_edges FROM graph_shortest_path('social', 'n', 'A', 'n', 'T', 5, 'out', '*', 3)",
+            );
+
+                // Assert
+                assert_eq!(
+                    rows,
+                    vec![
+                        vec![
+                            Value::Float64(2.0),
+                            Value::Int64(2),
+                            Value::Json(serde_json::json!(["e1", "e4"])),
+                        ],
+                        vec![
+                            Value::Float64(3.0),
+                            Value::Int64(3),
+                            Value::Json(serde_json::json!(["e2", "e3", "e4"])),
+                        ],
+                    ]
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn should_cap_shortest_paths_at_max_paths_when_alternates_share_a_node() {
+        // Arrange
+        with_graph(
+            "graph_shortest_path_shared_node_cap",
+            "CREATE GRAPH social",
+            |cassie, session| {
+                seed_shared_intermediate_node(cassie, session);
+
+                // Act
+                let rows = query(
+                cassie,
+                session,
+                "SELECT cost FROM graph_shortest_path('social', 'n', 'A', 'n', 'T', 5, 'out', '*', 1)",
+            );
+
+                // Assert
+                assert_eq!(rows, vec![vec![Value::Float64(2.0)]]);
+            },
+        );
+    }
+
+    #[test]
+    fn should_match_expand_path_nodes_for_neighbors() {
+        // Arrange
+        with_graph(
+            "graph_path_nodes_agree",
+            "CREATE GRAPH social",
+            |cassie, session| {
+                insert_edge(
+                    cassie,
+                    session,
+                    "'e1', 'person', 'alice', 'person', 'bob', 'knows', 1",
+                );
+
+                // Act
+                let neighbors = query(
+                cassie,
+                session,
+                "SELECT path_nodes, path_edges FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
+            );
+                let expanded = query(
+                cassie,
+                session,
+                "SELECT path_nodes, path_edges FROM graph_expand('social', 'person', 'alice', 1, 'out', 'knows', 10)",
+            );
+
+                // Assert
+                assert_eq!(neighbors.len(), 1);
+                assert_eq!(neighbors, expanded);
+                assert_eq!(
+                    neighbors[0][0],
+                    Value::Json(serde_json::json!([
+                        {"node_type": "person", "node_id": "alice"},
+                        {"node_type": "person", "node_id": "bob"},
+                    ]))
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn should_keep_a_surviving_edge_when_a_duplicate_keyed_edge_row_is_deleted() {
+        // Arrange
+        with_graph(
+            "graph_duplicate_edge_key_delete",
+            "CREATE GRAPH social (EDGES (tag TEXT))",
+            |cassie, session| {
+                for tag in ["a", "b"] {
+                    execute(
+                        cassie,
+                        session,
+                        &format!(
+                            "INSERT INTO social_edges (edge_id, source_type, source_id, target_type, target_id, edge_type, weight, tag) VALUES ('dup', 'person', 'alice', 'person', 'bob', 'knows', 1, '{tag}')"
+                        ),
+                    );
+                }
+
+                // Act
+                execute(cassie, session, "DELETE FROM social_edges WHERE tag = 'b'");
+                let neighbors = query(
+                    cassie,
+                    session,
+                    "SELECT node_id FROM graph_neighbors('social', 'person', 'alice', 'out', 'knows', 10)",
+                );
+                let expanded = query(
+                    cassie,
+                    session,
+                    "SELECT node_id FROM graph_expand('social', 'person', 'alice', 1, 'out', 'knows', 10)",
+                );
+
+                // Assert
+                assert_eq!(neighbors, vec![vec![Value::String("bob".into())]]);
+                assert_eq!(expanded, vec![vec![Value::String("bob".into())]]);
+            },
+        );
+    }
+}

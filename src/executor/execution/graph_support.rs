@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use super::{source, BatchRow, QueryError};
 use crate::midge::adapter::GraphEdgeRecord;
@@ -122,30 +122,34 @@ pub(super) fn initial_graph_frontier(
     Ok((frontier, memory))
 }
 
+/// Admit a popped path when its node has been expanded fewer than
+/// `max_visits` times. Allowing up to `max_paths` visits per node keeps
+/// alternate paths that share an intermediate node, as in a k-shortest-paths
+/// search; one visit per node would drop them.
 pub(super) fn record_shortest_visit(
     path: &GraphPath,
     target_type: &str,
     target_id: &str,
-    best_seen: &mut HashSet<(String, String)>,
-    best_seen_bytes: &mut usize,
+    max_visits: usize,
+    visit_counts: &mut HashMap<(String, String), usize>,
+    visit_counts_bytes: &mut usize,
     state_memory: &mut crate::runtime::QueryMemoryReservation,
 ) -> Result<(bool, bool), QueryError> {
     let is_target = path.node_type == target_type && path.node_id == target_id;
+    let visited_key = (path.node_type.clone(), path.node_id.clone());
+    if let Some(count) = visit_counts.get_mut(&visited_key) {
+        if *count >= max_visits {
+            return Ok((false, is_target));
+        }
+        *count += 1;
+        return Ok((true, is_target));
+    }
     let visited_bytes = graph_node_key_bytes(&path.node_type, &path.node_id);
     state_memory.try_grow(visited_bytes)?;
-    let visited_key = (path.node_type.clone(), path.node_id.clone());
-    let inserted = if best_seen.contains(&visited_key) {
-        drop(visited_key);
-        release_graph_bytes(state_memory, visited_bytes);
-        false
-    } else {
-        try_reserve_graph_slot(|| best_seen.try_reserve(1))?;
-        best_seen.insert(visited_key)
-    };
-    if inserted {
-        *best_seen_bytes = best_seen_bytes.saturating_add(visited_bytes);
-    }
-    Ok((inserted, is_target))
+    try_reserve_graph_slot(|| visit_counts.try_reserve(1))?;
+    visit_counts.insert(visited_key, 1);
+    *visit_counts_bytes = visit_counts_bytes.saturating_add(visited_bytes);
+    Ok((true, is_target))
 }
 
 pub(super) fn neighbor_graph_path_bytes(
@@ -158,8 +162,8 @@ pub(super) fn neighbor_graph_path_bytes(
     std::mem::size_of::<GraphPath>()
         .saturating_add(start_type.len())
         .saturating_add(start_id.len())
-        .saturating_add(next_type.len())
-        .saturating_add(next_id.len())
+        .saturating_add(next_type.len().saturating_mul(2))
+        .saturating_add(next_id.len().saturating_mul(2))
         .saturating_add(edge.edge_id.len())
         .saturating_add(graph_edge_bytes(edge))
 }
@@ -220,6 +224,7 @@ pub(super) fn try_reserve_graph_slot(
 pub(super) fn graph_edge_bytes(edge: &crate::midge::adapter::GraphEdgeRecord) -> usize {
     edge.edge_id
         .len()
+        .saturating_add(edge.row_id.len())
         .saturating_add(edge.edge_type.len())
         .saturating_add(edge.source_type.len())
         .saturating_add(edge.source_id.len())
@@ -269,10 +274,12 @@ pub(super) fn compare_graph_edge_records(
         .then_with(|| left.source_id.cmp(&right.source_id))
         .then_with(|| left.target_type.cmp(&right.target_type))
         .then_with(|| left.target_id.cmp(&right.target_id))
+        .then_with(|| left.row_id.cmp(&right.row_id))
 }
 
 pub(super) fn same_executor_graph_edge(left: &GraphEdgeRecord, right: &GraphEdgeRecord) -> bool {
     left.graph_id == right.graph_id
+        && left.row_id == right.row_id
         && left.edge_id == right.edge_id
         && left.source_type == right.source_type
         && left.source_id == right.source_id
@@ -280,4 +287,45 @@ pub(super) fn same_executor_graph_edge(left: &GraphEdgeRecord, right: &GraphEdge
         && left.target_id == right.target_id
         && left.edge_type == right.edge_type
         && left.weight.to_bits() == right.weight.to_bits()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn should_account_for_neighbor_endpoint_copy() {
+        // Arrange
+        let edge = GraphEdgeRecord {
+            graph: "g".into(),
+            graph_id: 1,
+            row_id: "row".into(),
+            edge_id: "e".into(),
+            source_type: "n".into(),
+            source_id: "s".into(),
+            target_type: "n".into(),
+            target_id: "t".repeat(4096),
+            edge_type: "r".into(),
+            weight: 1.0,
+        };
+        // Act
+        let estimated = neighbor_graph_path_bytes(&edge, "n", "s", "n", &edge.target_id);
+        let path = GraphPath {
+            node_type: "n".into(),
+            node_id: edge.target_id.clone(),
+            depth: 1,
+            cost: 1.0,
+            path_nodes: vec![
+                ("n".into(), "s".into()),
+                ("n".into(), edge.target_id.clone()),
+            ],
+            path_edges: vec![edge.edge_id.clone()],
+            last_edge: Some(edge),
+        };
+        let actual = graph_path_bytes(&path);
+        // Assert
+        assert_eq!(
+            estimated, actual,
+            "neighbor reservation omits endpoint copy"
+        );
+    }
 }

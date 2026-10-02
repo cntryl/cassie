@@ -6999,6 +6999,348 @@ mod vector_parameter_finiteness {
     }
 }
 
+// Embedding writes: explicit vectors, source lifecycle, index backfill, literal spellings.
+mod vector_write_path {
+    use cassie::app::Cassie;
+    use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
+    use cassie::types::{Value, Vector};
+
+    use super::support_sql as support;
+    use support::{data_dir, use_local_storage};
+
+    fn start_vector_cassie(path: &str) -> Cassie {
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+            model: "deterministic-test".to_string(),
+            dimensions: 3,
+        });
+        let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        cassie
+    }
+
+    fn run(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, sql, params)
+            .expect("statement")
+            .rows
+    }
+
+    fn error_text(cassie: &Cassie, sql: &str, params: Vec<Value>) -> String {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, sql, params)
+            .err()
+            .map(|error| error.to_string())
+            .expect("statement should fail")
+    }
+
+    fn create_table(cassie: &Cassie, table: &str, with_index: bool) {
+        run(
+            cassie,
+            &format!("CREATE TABLE {table} (id TEXT, body TEXT, embedding VECTOR(3))"),
+            vec![],
+        );
+        if with_index {
+            create_index(cassie, table);
+        }
+    }
+
+    fn create_index(cassie: &Cassie, table: &str) {
+        run(
+            cassie,
+            &format!(
+                "CREATE INDEX {table}_idx ON {table} USING vector (embedding) WITH (source_field = body)"
+            ),
+            vec![],
+        );
+    }
+
+    fn embedding_of(cassie: &Cassie, table: &str, id: &str) -> Value {
+        run(
+            cassie,
+            &format!("SELECT embedding FROM {table} WHERE id = '{id}'"),
+            vec![],
+        )
+        .remove(0)
+        .remove(0)
+    }
+
+    fn vector(values: [f32; 3]) -> Value {
+        Value::Vector(Vector::new(values.to_vec()))
+    }
+
+    #[test]
+    fn should_store_explicit_vector_given_insert_into_sourced_vector_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_explicit_insert");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "explicit_insert", true);
+
+        // Act
+        run(
+            &cassie,
+            "INSERT INTO explicit_insert (id, body, embedding) VALUES ('a', 'gamma', $1)",
+            vec![vector([1.0, 0.0, 0.0])],
+        );
+        run(
+            &cassie,
+            "INSERT INTO explicit_insert (id, body) VALUES ('b', 'gamma')",
+            vec![],
+        );
+
+        // Assert
+        assert_eq!(
+            embedding_of(&cassie, "explicit_insert", "a"),
+            vector([1.0, 0.0, 0.0])
+        );
+        let derived = embedding_of(&cassie, "explicit_insert", "b");
+        assert_ne!(derived, vector([1.0, 0.0, 0.0]));
+        assert!(matches!(derived, Value::Vector(_)));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_store_explicit_vector_given_update_assigns_embedding_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_explicit_update");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "explicit_update", true);
+        run(
+            &cassie,
+            "INSERT INTO explicit_update (id, body) VALUES ('a', 'gamma')",
+            vec![],
+        );
+        let derived = embedding_of(&cassie, "explicit_update", "a");
+
+        // Act
+        let returned = run(
+            &cassie,
+            "UPDATE explicit_update SET embedding = $1 WHERE id = 'a' RETURNING embedding",
+            vec![vector([0.0, 1.0, 0.0])],
+        );
+
+        // Assert
+        assert_ne!(derived, vector([0.0, 1.0, 0.0]));
+        assert_eq!(
+            returned,
+            vec![vec![Value::Json(serde_json::json!([0.0, 1.0, 0.0]))]]
+        );
+        assert_eq!(
+            embedding_of(&cassie, "explicit_update", "a"),
+            vector([0.0, 1.0, 0.0])
+        );
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_regenerate_embedding_given_update_changes_source_column() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_regenerate");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "regenerate", true);
+        run(
+            &cassie,
+            "INSERT INTO regenerate (id, body) VALUES ('a', 'alpha'), ('b', 'beta')",
+            vec![],
+        );
+        let before = embedding_of(&cassie, "regenerate", "a");
+        let beta = embedding_of(&cassie, "regenerate", "b");
+
+        // Act
+        run(
+            &cassie,
+            "UPDATE regenerate SET body = 'beta' WHERE id = 'a'",
+            vec![],
+        );
+
+        // Assert
+        let after = embedding_of(&cassie, "regenerate", "a");
+        assert_ne!(after, before);
+        assert_eq!(after, beta);
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_clear_embedding_given_update_sets_source_column_to_null() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_clear");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "clear_source", true);
+        run(
+            &cassie,
+            "INSERT INTO clear_source (id, body) VALUES ('a', 'hello'), ('b', 'hello'), ('c', 'null')",
+            vec![],
+        );
+        let null_text = embedding_of(&cassie, "clear_source", "c");
+
+        // Act
+        run(
+            &cassie,
+            "UPDATE clear_source SET body = NULL WHERE id = 'a'",
+            vec![],
+        );
+        run(
+            &cassie,
+            "UPDATE clear_source SET body = NULL, embedding = $1 WHERE id = 'b'",
+            vec![vector([0.0, 0.0, 1.0])],
+        );
+        run(
+            &cassie,
+            "INSERT INTO clear_source (id, body) VALUES ('d', NULL)",
+            vec![],
+        );
+
+        // Assert
+        assert_eq!(embedding_of(&cassie, "clear_source", "a"), Value::Null);
+        assert_eq!(
+            embedding_of(&cassie, "clear_source", "b"),
+            vector([0.0, 0.0, 1.0])
+        );
+        assert_eq!(embedding_of(&cassie, "clear_source", "d"), Value::Null);
+        assert!(matches!(null_text, Value::Vector(_)));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_embed_existing_rows_given_vector_index_created_on_populated_table() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_backfill");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO backfill (id, body) VALUES ('a', 'aa'), ('b', 'bb'), ('n', NULL)",
+            vec![],
+        );
+        run(
+            &cassie,
+            "INSERT INTO backfill (id, body, embedding) VALUES ('e', 'ee', $1)",
+            vec![vector([0.0, 0.0, 1.0])],
+        );
+
+        // Act
+        create_index(&cassie, "backfill");
+        run(
+            &cassie,
+            "INSERT INTO backfill (id, body) VALUES ('ref', 'aa')",
+            vec![],
+        );
+
+        // Assert
+        let reference = embedding_of(&cassie, "backfill", "ref");
+        assert!(matches!(reference, Value::Vector(_)));
+        assert_eq!(embedding_of(&cassie, "backfill", "a"), reference);
+        assert!(matches!(
+            embedding_of(&cassie, "backfill", "b"),
+            Value::Vector(_)
+        ));
+        assert_eq!(embedding_of(&cassie, "backfill", "n"), Value::Null);
+        assert_eq!(
+            embedding_of(&cassie, "backfill", "e"),
+            vector([0.0, 0.0, 1.0])
+        );
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_accept_vector_string_literal_given_insert_or_update() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_literal");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "literal", false);
+
+        // Act
+        run(
+            &cassie,
+            "INSERT INTO literal (id, embedding) VALUES ('a', '[1,2,3]')",
+            vec![],
+        );
+        run(
+            &cassie,
+            "INSERT INTO literal (id, embedding) VALUES ($1, $2)",
+            vec![
+                Value::String("b".to_string()),
+                Value::String("[4,5,6]".to_string()),
+            ],
+        );
+        run(
+            &cassie,
+            "INSERT INTO literal (id, embedding) VALUES ('c', '[0,0,0]')",
+            vec![],
+        );
+        run(
+            &cassie,
+            "UPDATE literal SET embedding = '[7,8,9]' WHERE id = 'c'",
+            vec![],
+        );
+
+        // Assert
+        assert_eq!(
+            embedding_of(&cassie, "literal", "a"),
+            vector([1.0, 2.0, 3.0])
+        );
+        assert_eq!(
+            embedding_of(&cassie, "literal", "b"),
+            vector([4.0, 5.0, 6.0])
+        );
+        assert_eq!(
+            embedding_of(&cassie, "literal", "c"),
+            vector([7.0, 8.0, 9.0])
+        );
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_report_range_error_given_vector_literal_component_exceeds_f32() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_write_literal_range");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "literal_range", false);
+        run(
+            &cassie,
+            "INSERT INTO literal_range (id, embedding) VALUES ('a', '[1,2,3]')",
+            vec![],
+        );
+
+        // Act
+        let update = error_text(
+            &cassie,
+            "UPDATE literal_range SET embedding = '[1e39,0,0]' WHERE id = 'a'",
+            vec![],
+        );
+        let insert = error_text(
+            &cassie,
+            "INSERT INTO literal_range (id, embedding) VALUES ('b', '[1e39,0,0]')",
+            vec![],
+        );
+
+        // Assert
+        assert!(update.contains("outside f32 range"), "update: {update}");
+        assert!(insert.contains("outside f32 range"), "insert: {insert}");
+        assert_eq!(
+            embedding_of(&cassie, "literal_range", "a"),
+            vector([1.0, 2.0, 3.0])
+        );
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 

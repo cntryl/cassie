@@ -134,8 +134,7 @@ pub(super) fn create_index(
     let vector_index = if matches!(statement.kind, catalog::IndexKind::Vector) {
         let metadata = super::vector_index_command::vector_index_metadata(cassie, statement)?;
         cassie
-            .midge
-            .put_vector_index(metadata.clone())
+            .put_vector_index_with_backfill(&metadata)
             .map_err(|error| QueryError::General(error.to_string()))?;
         Some(metadata)
     } else {

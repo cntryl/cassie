@@ -142,6 +142,16 @@ fn prepare_update_row(
         context.schema,
         &current.payload,
     )?;
+    let mut payload = payload;
+    context.cassie.discard_stale_vector_embeddings(
+        &context.statement.table,
+        &mut payload,
+        context
+            .statement
+            .assignments
+            .iter()
+            .map(|(field, _)| field.as_str()),
+    );
     let payload = context
         .cassie
         .prepare_document_write_for_session(

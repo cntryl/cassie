@@ -673,7 +673,8 @@ fn set_child_reference_values(
                 QueryError::General("stored row payload must be object".to_string())
             })?;
         payload.insert(child_field.to_string(), value.clone());
-        let payload = serde_json::Value::Object(payload);
+        let mut payload = serde_json::Value::Object(payload);
+        cassie.discard_stale_vector_embeddings(child_table, &mut payload, [child_field]);
         let payload = cassie
             .prepare_document_write_for_session(
                 session,

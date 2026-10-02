@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use super::{
-    catalog, projected_read, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta,
-    HashMap, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
+    catalog, BatchRow, Cassie, CassieSession, CteContext, Expr, FunctionMeta, HashMap, LogicalPlan,
+    QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
 };
 
 pub(super) fn try_execute_analytical_projection(
@@ -133,6 +133,15 @@ fn covered_analytical_projection(
             {
                 return None;
             }
+            if !super::materialized_projection::preserves_base_columns(
+                cassie,
+                &projection.collection,
+                &materialized.query,
+                source,
+                &needed,
+            ) {
+                return None;
+            }
             let output_fields = materialized
                 .output_schema
                 .fields
@@ -174,9 +183,7 @@ fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {
     for item in &plan.projection {
         match item {
             SelectItem::Column { name, .. } => {
-                if !projected_read::is_row_id_column(name) {
-                    columns.insert(name.to_ascii_lowercase());
-                }
+                columns.insert(name.to_ascii_lowercase());
             }
             SelectItem::Wildcard | SelectItem::WindowFunction { .. } => return None,
             SelectItem::Function { function, .. } => {
@@ -202,9 +209,7 @@ fn collect_expr_columns_from_slice(exprs: &[Expr], columns: &mut BTreeSet<String
 
 fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
     if let Expr::Column(name) = expr {
-        if !projected_read::is_row_id_column(name) {
-            columns.insert(name.to_ascii_lowercase());
-        }
+        columns.insert(name.to_ascii_lowercase());
     }
     expr.for_each_child(|child| collect_expr_columns(child, columns));
 }

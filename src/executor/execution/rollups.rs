@@ -621,6 +621,10 @@ fn eligible_plan_shape(plan: &LogicalPlan) -> bool {
         && plan.ctes.is_empty()
         && !plan.distinct
         && plan.distinct_on.is_empty()
+        && !plan
+            .projection
+            .iter()
+            .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
 }
 
 fn value_to_json(value: Value) -> serde_json::Value {

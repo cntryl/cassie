@@ -40,10 +40,27 @@ pub(super) fn execute_scored_search_top_k(
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if let QuerySource::Collection(collection) = &plan.source {
+        if cassie
+            .catalog
+            .collection_storage_mode(collection)
+            .is_some_and(
+                crate::catalog::collections::CollectionStorageMode::uses_column_store_storage,
+            )
+        {
+            return Ok(None);
+        }
+    }
     if let Some(spec) = fulltext_top_k_spec(plan, params) {
+        if spec.limit == 0 {
+            return Ok(Some(Vec::new()));
+        }
         return execute_fulltext_top_k(cassie, session, &spec, controls).map(Some);
     }
     if let Some(spec) = hybrid_top_k_spec(plan, params) {
+        if spec.limit == 0 {
+            return Ok(Some(Vec::new()));
+        }
         return execute_hybrid_top_k(cassie, session, user_functions, params, &spec, controls);
     }
     if let Some(spec) = fulltext_filtered_read_spec(plan, params) {
@@ -455,7 +472,7 @@ fn fulltext_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<FulltextT
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let limit = usize::try_from(plan.limit?).ok()?;
     let offset = plan
         .offset
         .and_then(|offset| usize::try_from(offset).ok())
@@ -612,7 +629,7 @@ fn hybrid_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<HybridTopKS
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?.max(1);
+    let limit = usize::try_from(plan.limit?).ok()?;
     let offset = plan
         .offset
         .and_then(|offset| usize::try_from(offset).ok())

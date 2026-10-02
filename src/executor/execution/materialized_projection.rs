@@ -1,3 +1,7 @@
+#[path = "materialized_projection/read_equivalence.rs"]
+mod read_equivalence;
+pub(super) use read_equivalence::preserves_base_columns;
+
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 

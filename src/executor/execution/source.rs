@@ -33,7 +33,7 @@ pub(super) fn execute_query_source(
     outer_row: Option<&BatchRow>,
     row_budget: Option<usize>,
 ) -> SourceExecution {
-    match source {
+    let (mut batches, text_fields) = match source {
         QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
         QuerySource::SingleRow => execute_single_row_source(env),
         QuerySource::TableFunction {
@@ -68,7 +68,11 @@ pub(super) fn execute_query_source(
             ensure_query_memory_budget(env.controls, &batches)?;
             Ok((batches, text_fields))
         }
+    }?;
+    if !matches!(source, QuerySource::Join { .. }) {
+        source_shape::attach_types(env, source, cte_context, &mut batches)?;
     }
+    Ok((batches, text_fields))
 }
 
 fn execute_collection_source(

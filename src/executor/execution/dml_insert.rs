@@ -69,6 +69,7 @@ pub(in crate::executor::execution) fn execute_insert(
             params,
             user_functions,
             command_prefix: "INSERT 0",
+            controls,
         },
         affected_count,
         returning_rows,
@@ -578,6 +579,9 @@ fn execute_insert_conflict_update(
         &current.payload,
         &context.statement.table,
     );
+    let _type_memory = context
+        .controls
+        .reserve_query_memory(crate::executor::batch::row_type_bytes([&existing_row]))?;
     let excluded_args = excluded_local_args(payload);
     if let Some(filter_expr) = conflict_filter {
         let filter_expr = crate::executor::execution::resolve_statement_exists(
@@ -640,14 +644,16 @@ fn conflict_existing_row(
     payload: &serde_json::Value,
     table: &str,
 ) -> BatchRow {
-    let row = inserted_row_to_batch_row(row_id, schema, payload);
+    let mut row = inserted_row_to_batch_row(row_id, schema, payload);
+    super::scan::attach_row_types(&mut row, Some(schema));
+    let types = row.shared_data_types();
     let (values, mut aliases) = row.into_parts();
     let local_table = table.rsplit('.').next().unwrap_or(table);
     for (index, (field, _)) in values.iter().enumerate() {
         aliases.push((format!("{table}.{field}"), index));
         aliases.push((format!("{local_table}.{field}"), index));
     }
-    BatchRow::with_aliases(values, aliases)
+    BatchRow::with_aliases(values, aliases).with_optional_data_types(types)
 }
 
 fn merged_conflict_payload(

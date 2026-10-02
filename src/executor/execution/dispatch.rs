@@ -906,5 +906,6 @@ fn estimate_batch_bytes(batches: &[batch::Batch]) -> usize {
                 .map(|bytes| bytes.len())
                 .unwrap_or_default()
         })
-        .sum()
+        .sum::<usize>()
+        .saturating_add(batch::row_type_bytes(batches.iter().flatten()))
 }

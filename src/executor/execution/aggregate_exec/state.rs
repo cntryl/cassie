@@ -5,7 +5,7 @@ use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::BatchRow;
 use crate::executor::filter;
-use crate::executor::semantic::compare_values;
+use crate::executor::semantic::{compare_values, SemanticValue};
 use crate::sql::ast::{Expr, FunctionCall};
 use crate::types::Value;
 
@@ -84,10 +84,18 @@ pub(super) struct RetainedChange {
 }
 
 impl RetainedChange {
-    fn replaced(before: Option<&Value>, after: &Value) -> Self {
+    fn replaced(
+        before: Option<&Value>,
+        after: &Value,
+        old_key: Option<&SemanticValue>,
+        new_key: Option<&SemanticValue>,
+    ) -> Self {
         Self {
-            before: before.map_or(0, value_retained_bytes),
-            after: value_retained_bytes(after),
+            before: before
+                .map_or(0, value_retained_bytes)
+                .saturating_add(old_key.map_or(0, SemanticValue::estimated_bytes)),
+            after: value_retained_bytes(after)
+                .saturating_add(new_key.map_or(0, SemanticValue::estimated_bytes)),
         }
     }
 
@@ -103,10 +111,22 @@ fn value_retained_bytes(value: &Value) -> usize {
 
 #[derive(Clone)]
 pub(super) enum AggregateAccumulator {
-    Count { count: i64 },
-    Sum { sum: NumericSum, seen: bool },
-    Avg { sum: AvgSum, count: usize },
-    MinMax { selected: Option<Value>, max: bool },
+    Count {
+        count: i64,
+    },
+    Sum {
+        sum: NumericSum,
+        seen: bool,
+    },
+    Avg {
+        sum: AvgSum,
+        count: usize,
+    },
+    MinMax {
+        selected: Option<Value>,
+        key: Option<SemanticValue>,
+        max: bool,
+    },
 }
 
 impl AggregateAccumulator {
@@ -117,8 +137,11 @@ impl AggregateAccumulator {
         match self {
             Self::MinMax {
                 selected: Some(value),
+                key,
                 ..
-            } => inline.saturating_add(value_retained_bytes(value)),
+            } => inline
+                .saturating_add(value_retained_bytes(value))
+                .saturating_add(key.as_ref().map_or(0, SemanticValue::estimated_bytes)),
             _ => inline,
         }
     }
@@ -130,6 +153,8 @@ impl AggregateAccumulator {
         context: &AggregateExecutionContext<'_>,
     ) -> Result<Value, QueryError> {
         let mut accumulator = Self::new(function);
+        let mut key_memory = super::group_memory::GroupMemory::new(context.controls)?;
+        let mut retained_key_bytes = 0;
         for row in rows {
             accumulator.update(
                 function,
@@ -139,6 +164,12 @@ impl AggregateAccumulator {
                 context.user_functions,
                 context.session,
             )?;
+            let bytes = match &accumulator {
+                Self::MinMax { key: Some(key), .. } => key.estimated_bytes(),
+                _ => 0,
+            };
+            key_memory.resize(retained_key_bytes, bytes)?;
+            retained_key_bytes = bytes;
         }
         accumulator.finish()
     }
@@ -156,10 +187,12 @@ impl AggregateAccumulator {
             },
             "max" => Self::MinMax {
                 selected: None,
+                key: None,
                 max: true,
             },
             _ => Self::MinMax {
                 selected: None,
+                key: None,
                 max: false,
             },
         }
@@ -188,8 +221,8 @@ impl AggregateAccumulator {
             Self::Avg { sum, count } => {
                 Self::update_avg(function, row, &value_context, sum, count)?;
             }
-            Self::MinMax { selected, max } => {
-                return Self::update_minmax(function, row, &value_context, selected, *max);
+            Self::MinMax { selected, key, max } => {
+                return Self::update_minmax(function, row, &value_context, selected, key, *max);
             }
         }
         Ok(RetainedChange::default())
@@ -223,14 +256,18 @@ impl AggregateAccumulator {
                 *count += other_count;
             }
             (
-                Self::MinMax { selected, max },
+                Self::MinMax { selected, key, max },
                 Self::MinMax {
                     selected: Some(value),
+                    key: other_key,
                     max: _,
                 },
             ) => {
                 let replace = selected.as_ref().is_none_or(|current| {
-                    let ordering = compare_values(value, current);
+                    let ordering = key.as_ref().zip(other_key.as_ref()).map_or_else(
+                        || compare_values(value, current),
+                        |(current, other)| other.cmp(current),
+                    );
                     if *max {
                         ordering.is_gt()
                     } else {
@@ -238,8 +275,14 @@ impl AggregateAccumulator {
                     }
                 });
                 if replace {
-                    let change = RetainedChange::replaced(selected.as_ref(), value);
+                    let change = RetainedChange::replaced(
+                        selected.as_ref(),
+                        value,
+                        key.as_ref(),
+                        other_key.as_ref(),
+                    );
                     *selected = Some(value.clone());
+                    key.clone_from(other_key);
                     return Ok(change);
                 }
             }
@@ -373,6 +416,7 @@ impl AggregateAccumulator {
         row: &BatchRow,
         context: &AggregateValueContext<'_>,
         selected: &mut Option<Value>,
+        key: &mut Option<SemanticValue>,
         max: bool,
     ) -> Result<RetainedChange, QueryError> {
         let stored = function
@@ -388,8 +432,18 @@ impl AggregateAccumulator {
         if matches!(value, Value::Null) {
             return Ok(RetainedChange::default());
         }
+        let new_key = function
+            .args
+            .first()
+            .map(|expr| {
+                crate::executor::array_order::key(row, expr, &value, context.user_functions)
+            })
+            .filter(|key| matches!(key, SemanticValue::Array(_)));
         let replace = selected.as_ref().is_none_or(|current| {
-            let ordering = compare_values(&value, current);
+            let ordering = key.as_ref().zip(new_key.as_ref()).map_or_else(
+                || compare_values(&value, current),
+                |(current, new)| new.cmp(current),
+            );
             if max {
                 ordering.is_gt()
             } else {
@@ -397,8 +451,10 @@ impl AggregateAccumulator {
             }
         });
         if replace {
-            let change = RetainedChange::replaced(selected.as_ref(), &value);
+            let change =
+                RetainedChange::replaced(selected.as_ref(), &value, key.as_ref(), new_key.as_ref());
             *selected = Some(value);
+            *key = new_key;
             return Ok(change);
         }
         Ok(RetainedChange::default())

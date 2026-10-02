@@ -38,6 +38,18 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
 | Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
 
+### ARRAY Ordering
+
+Declared one-dimensional ARRAY columns compare elementwise in ordered predicates,
+`ORDER BY` (including top-k and window ordering), and `MIN`/`MAX`. The first
+unequal element determines order; an equal prefix sorts before a longer array.
+NULL elements sort after non-NULL elements, independently of top-level SQL NULL
+ordering. Integer elements retain exact comparisons. JSON columns retain their
+existing JSON comparison behavior, even when their values are arrays. ARRAY
+stored values keep the existing JSON representation; scalar-function conversions
+are unchanged. This adds no new literal or cast syntax, nested ARRAY types, or
+storage encoding.
+
 ### Reserved Identity Column
 
 Every stored document carries an internal identity. It is exposed under the reserved name `_id`, which cannot be declared by `CREATE TABLE` or `ALTER TABLE` and cannot be dropped.

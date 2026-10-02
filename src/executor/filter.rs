@@ -785,6 +785,25 @@ fn eval_binary_expr<R: RowAccess + ?Sized>(
 ) -> Result<ScalarValue, QueryError> {
     let left_value = eval_scalar_with_context(row, left, context)?;
     let right_value = eval_scalar_with_context(row, right, context)?;
+    if matches!(
+        op,
+        BinaryOp::Lt | BinaryOp::Lte | BinaryOp::Gt | BinaryOp::Gte
+    ) {
+        if let Some(ordering) = super::array_order::compare(
+            row,
+            (left, &left_value.to_value()),
+            (right, &right_value.to_value()),
+            context.user_functions,
+            context.local_args,
+        ) {
+            return Ok(ScalarValue::Bool(match op {
+                BinaryOp::Lt => ordering.is_lt(),
+                BinaryOp::Lte => !ordering.is_gt(),
+                BinaryOp::Gt => ordering.is_gt(),
+                _ => !ordering.is_lt(),
+            }));
+        }
+    }
     binary_scalar(&left_value, op, &right_value)
 }
 
@@ -835,14 +854,30 @@ fn eval_between_expr<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
     let value = eval_scalar_with_context(row, expr, context)?;
-    let low = eval_scalar_with_context(row, low, context)?;
-    let high = eval_scalar_with_context(row, high, context)?;
-    let in_range = ordered_cmp(&value, &low, |ordering| !ordering.is_lt())
-        .map_or(PredicateResult::Unknown, bool_to_predicate)
-        .and(
-            ordered_cmp(&value, &high, |ordering| !ordering.is_gt())
-                .map_or(PredicateResult::Unknown, bool_to_predicate),
-        );
+    let low_value = eval_scalar_with_context(row, low, context)?;
+    let high_value = eval_scalar_with_context(row, high, context)?;
+    let in_range = super::array_order::compare(
+        row,
+        (expr, &value.to_value()),
+        (low, &low_value.to_value()),
+        context.user_functions,
+        context.local_args,
+    )
+    .map(|ordering| !ordering.is_lt())
+    .or_else(|| ordered_cmp(&value, &low_value, |ordering| !ordering.is_lt()))
+    .map_or(PredicateResult::Unknown, bool_to_predicate)
+    .and(
+        super::array_order::compare(
+            row,
+            (expr, &value.to_value()),
+            (high, &high_value.to_value()),
+            context.user_functions,
+            context.local_args,
+        )
+        .map(|ordering| !ordering.is_gt())
+        .or_else(|| ordered_cmp(&value, &high_value, |ordering| !ordering.is_gt()))
+        .map_or(PredicateResult::Unknown, bool_to_predicate),
+    );
     if negated {
         Ok(in_range.not().into_scalar())
     } else {

@@ -37,6 +37,16 @@ pub(super) fn execute_ordered_column_top_k(
     }
 
     let schema = cassie.catalog.get_schema(&spec.collection);
+    if schema.as_ref().is_some_and(|schema| {
+        schema.fields.iter().any(|field| {
+            field.name.eq_ignore_ascii_case(&spec.order_column)
+                && matches!(field.data_type, crate::types::DataType::Array(_))
+        })
+    }) {
+        // This shortcut compares untyped values. The shared typed top-k heap
+        // preserves elementwise ARRAY order in the projected read path.
+        return Ok(None);
+    }
     let Some(mut cursor) = cassie
         .open_session_row_cursor(
             session,

@@ -372,8 +372,12 @@ fn scalar_index_requires_json_scan(
     plan: &LogicalPlan,
 ) -> bool {
     let fields = index.normalized_fields();
-    let is_json_field =
-        |field: &str| cassie.catalog.field_type(collection, field) == Some(DataType::Json);
+    let is_json_field = |field: &str| {
+        matches!(
+            cassie.catalog.field_type(collection, field),
+            Some(DataType::Json | DataType::Array(_))
+        )
+    };
     let uses_json_range_key = shape
         .range_field_index
         .and_then(|field_index| fields.get(field_index))

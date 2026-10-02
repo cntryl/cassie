@@ -83,7 +83,22 @@ fn apply_single_window(
     let _value_memory = context
         .controls
         .reserve_query_memory(values.len().saturating_mul(std::mem::size_of::<Value>()))?;
-    append_window_values(rows, alias.unwrap_or(function.name.as_str()), values);
+    let data_type = match function_name.as_str() {
+        "first_value" | "last_value" | "lag" | "lead" => rows
+            .first()
+            .zip(function.args.first())
+            .and_then(|(row, expr)| {
+                crate::executor::array_order::expression_type(row, expr, context.user_functions)
+            })
+            .unwrap_or(crate::types::DataType::Null),
+        _ => crate::types::DataType::BigInt,
+    };
+    append_window_values(
+        rows,
+        alias.unwrap_or(function.name.as_str()),
+        values,
+        &data_type,
+    );
     Ok(())
 }
 
@@ -94,7 +109,8 @@ fn batch_rows_bytes(rows: &[BatchRow]) -> usize {
                 .map(|bytes| bytes.len())
                 .unwrap_or_default()
         })
-        .sum()
+        .sum::<usize>()
+        .saturating_add(batch::row_type_bytes(rows))
 }
 
 fn window_partition_bytes(partitions: &BTreeMap<SemanticKey, Vec<usize>>) -> usize {
@@ -187,7 +203,7 @@ fn evaluate_window_partition(
     sort_partition(rows, function, indices, context)?;
     let frame = effective_window_frame(function);
     let mut dense_rank = 1i64;
-    let mut previous_peer_key: Option<SemanticKey> = None;
+    let mut previous_peer_key: Option<WindowPeerKey> = None;
     for (position, index) in indices.iter().enumerate() {
         check_timeout(context.controls)?;
         let peer_key = window_peer_key(&rows[*index], &function.order_by, context)?;
@@ -223,6 +239,25 @@ fn sort_partition(
             window_sort_key(&rows[*index], &function.order_by, context).map(|key| (key, *index))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let key_bytes = keyed
+        .iter()
+        .map(|(key, _)| {
+            std::mem::size_of::<WindowSortKey>()
+                .saturating_add(key.tie_key.len())
+                .saturating_add(
+                    key.parts
+                        .len()
+                        .saturating_mul(std::mem::size_of::<WindowSortPart>()),
+                )
+                .saturating_add(
+                    key.parts
+                        .iter()
+                        .map(|part| part.value.estimated_bytes())
+                        .sum::<usize>(),
+                )
+        })
+        .sum();
+    let _keys_memory = context.controls.reserve_query_memory(key_bytes)?;
     keyed.sort_by(|(left, _), (right, _)| compare_window_sort_keys(left, right));
     for (target, (_, index)) in indices.iter_mut().zip(keyed) {
         *target = index;
@@ -668,11 +703,26 @@ fn rank_value(
     ))
 }
 
-fn append_window_values(rows: &mut [BatchRow], output_name: &str, values: Vec<Value>) {
+fn append_window_values(
+    rows: &mut [BatchRow],
+    output_name: &str,
+    values: Vec<Value>,
+    data_type: &crate::types::DataType,
+) {
+    let types: Option<std::sync::Arc<Vec<crate::types::DataType>>> = rows.first().and_then(|row| {
+        if row.data_types().is_empty() && !matches!(data_type, crate::types::DataType::Array(_)) {
+            return None;
+        }
+        let mut types = row.data_types().to_vec();
+        types.resize(row.entries().len(), crate::types::DataType::Null);
+        types.push(data_type.clone());
+        Some(types.into())
+    });
     for (row, value) in rows.iter_mut().zip(values) {
-        let mut entries = row.clone().into_entries();
-        entries.push((output_name.to_string(), value));
-        *row = BatchRow::new(entries);
+        row.append_value(output_name.to_string(), value);
+        if let Some(types) = &types {
+            row.set_data_types(types.clone());
+        }
     }
 }
 
@@ -699,15 +749,23 @@ fn window_arg_value(
     )
 }
 
+struct WindowPeerKey {
+    key: SemanticKey,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+
+impl PartialEq for WindowPeerKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
 fn window_peer_key(
     row: &BatchRow,
     order_by: &[crate::sql::ast::OrderExpr],
     context: &WindowExecutionContext<'_>,
-) -> Result<SemanticKey, QueryError> {
-    if order_by.is_empty() {
-        return Ok(SemanticKey::default());
-    }
-    let values = order_by
+) -> Result<WindowPeerKey, QueryError> {
+    let parts = order_by
         .iter()
         .map(|order| {
             filter::evaluate_expr_value(
@@ -719,9 +777,19 @@ fn window_peer_key(
                 context.session,
                 None,
             )
+            .map(|value| {
+                crate::executor::array_order::key(row, &order.expr, &value, context.user_functions)
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(SemanticKey::from_values(values.iter()))
+    let key = SemanticKey::from_semantic_values(parts);
+    let memory = context
+        .controls
+        .reserve_query_memory(key.estimated_bytes())?;
+    Ok(WindowPeerKey {
+        key,
+        _memory: memory,
+    })
 }
 
 struct WindowSortPart {
@@ -753,7 +821,12 @@ fn window_sort_key(
                 None,
             )
             .map(|value| WindowSortPart {
-                value: SemanticValue::from_value(&value),
+                value: crate::executor::array_order::key(
+                    row,
+                    &order.expr,
+                    &value,
+                    context.user_functions,
+                ),
                 direction: order.direction.clone(),
                 nulls: order.nulls,
             })

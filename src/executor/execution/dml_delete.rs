@@ -1,8 +1,8 @@
 use super::{
-    batch, check_timeout, dml_referential_actions, dml_returning_columns,
-    ensure_query_memory_budget, filter, inserted_row_to_batch_row, projection,
-    row_id_from_batch_row, scan, BatchRow, Cassie, CassieSession, FunctionMeta, HashMap,
-    QueryError, QueryExecutionControls, QueryResult, Value,
+    batch, build_dml_result, check_timeout, dml_referential_actions, ensure_query_memory_budget,
+    filter, inserted_row_to_batch_row, row_id_from_batch_row, scan, Cassie, CassieSession,
+    DmlResultContext, FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult,
+    Value,
 };
 
 pub(in crate::executor::execution) fn execute_delete(
@@ -106,30 +106,18 @@ fn execute_delete_with_held_referential_gates(
         deleted_count += 1;
     }
 
-    if statement.returning.is_empty() {
-        return Ok(QueryResult {
-            columns: Vec::new(),
-            rows: Vec::new(),
-            command: format!("DELETE {deleted_count}"),
-        });
-    }
-
-    let projected = projection::project_rows(
+    build_dml_result(
+        &DmlResultContext {
+            cassie,
+            session,
+            table: &statement.table,
+            returning: &statement.returning,
+            params,
+            user_functions,
+            command_prefix: "DELETE",
+            controls,
+        },
+        deleted_count,
         returning_rows,
-        &statement.returning,
-        params,
-        None,
-        user_functions,
-        session,
-    )?;
-
-    let column_schema = cassie.catalog.get_schema(&statement.table);
-    let columns =
-        dml_returning_columns(&statement.returning, column_schema.as_ref(), user_functions);
-
-    Ok(QueryResult {
-        columns,
-        rows: projected.into_iter().map(BatchRow::into_values).collect(),
-        command: format!("DELETE {deleted_count}"),
-    })
+    )
 }

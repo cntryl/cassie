@@ -187,6 +187,12 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     finalization: ProjectedReadFinalization<'_>,
     batches: &mut Vec<Vec<BatchRow>>,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    if let QuerySource::Collection(collection) = &finalization.plan.source {
+        let schema = finalization.cassie.catalog.get_schema(collection);
+        for row in batches.iter_mut().flatten() {
+            scan::attach_row_types(row, schema.as_ref());
+        }
+    }
     let mut batch_memory = ensure_query_memory_budget(finalization.controls, batches)?;
     let mut heap_top_k_collection_name = None;
     if finalization.apply_filter {

@@ -807,7 +807,7 @@ impl Midge {
         let Some(bucket_key) = bucket_key_for_timestamp(index, payload, timestamp) else {
             return Ok(None);
         };
-        let Some((partition_key, bucket_start)) = bucket_key.split_once('\t') else {
+        let Some((partition_key, bucket_start)) = bucket_key.rsplit_once('\t') else {
             return Ok(None);
         };
         let bucket_start_seconds = parse_timestamp_utc(bucket_start)

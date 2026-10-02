@@ -730,6 +730,12 @@ fn decode_value(type_tag: u8, cursor: &mut Cursor<'_>) -> Result<serde_json::Val
 fn decode_array(cursor: &mut Cursor<'_>) -> Result<serde_json::Value, CassieError> {
     let count = usize::try_from(cursor.read_varint()?)
         .map_err(|_| CassieError::Parse("array length out of range in row blob".to_string()))?;
+    // Even null, boolean and empty variable-width elements require two bytes.
+    if count > cursor.remaining().len() / 2 {
+        return Err(CassieError::Parse(
+            "array count exceeds remaining payload in row blob".to_string(),
+        ));
+    }
     let mut values = Vec::with_capacity(count);
     for _ in 0..count {
         let value_type = cursor.read_u8()?;

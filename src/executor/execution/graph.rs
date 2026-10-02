@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 
 use super::{check_timeout, filter, source, BatchRow, FunctionCall, QueryError, Value};
 use crate::midge::adapter::{
@@ -73,7 +73,10 @@ fn graph_neighbors(
                 node_id: next_id.to_owned(),
                 depth: 1,
                 cost: edge.weight,
-                path_nodes: vec![(node_type.clone(), node_id.clone())],
+                path_nodes: vec![
+                    (node_type.clone(), node_id.clone()),
+                    (next_type.to_owned(), next_id.to_owned()),
+                ],
                 path_edges: vec![edge.edge_id.clone()],
                 last_edge: Some(edge),
             }
@@ -228,8 +231,8 @@ fn graph_shortest_path(
     } = request;
     let (mut frontier, mut state_memory) =
         initial_graph_frontier(env.controls, source_type, source_id)?;
-    let mut best_seen = HashSet::new();
-    let mut best_seen_bytes = 0usize;
+    let mut visit_counts = HashMap::new();
+    let mut visit_counts_bytes = 0usize;
     let mut found = Vec::new();
     let mut evidence = GraphExecutionEvidence::default();
     let expansion = ShortestExpansion {
@@ -254,8 +257,9 @@ fn graph_shortest_path(
             &path,
             &target_type,
             &target_id,
-            &mut best_seen,
-            &mut best_seen_bytes,
+            max_paths,
+            &mut visit_counts,
+            &mut visit_counts_bytes,
             &mut state_memory,
         )?;
         if !(inserted || is_target) {
@@ -288,8 +292,8 @@ fn graph_shortest_path(
     let frontier_bytes = frontier.iter().map(graph_path_bytes).sum();
     drop(frontier);
     release_graph_bytes(&mut state_memory, frontier_bytes);
-    drop(best_seen);
-    release_graph_bytes(&mut state_memory, best_seen_bytes);
+    drop(visit_counts);
+    release_graph_bytes(&mut state_memory, visit_counts_bytes);
     let mut rows = AccountedVec::try_new(env.controls)?;
     for path in found {
         let path_bytes = graph_path_bytes(&path);

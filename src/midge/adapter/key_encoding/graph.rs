@@ -133,6 +133,7 @@ fn graph_weight_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bo
             record.edge_type.as_bytes(),
             other_type,
             other_id,
+            record.row_id.as_bytes(),
         ],
     )
 }
@@ -156,6 +157,7 @@ fn graph_type_edge_key(record: &GraphEdgeRecord, ordering: &[u8], outbound: bool
             record.edge_type.as_bytes(),
             other_type,
             other_id,
+            record.row_id.as_bytes(),
         ],
     )
 }

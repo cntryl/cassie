@@ -11,7 +11,7 @@ mod scan;
 
 /// Version 2 folds the anchor node type to lowercase in adjacency keys, so
 /// version 1 sidecars fall back to the row scan until reconcile rebuilds them.
-pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 2;
+pub(crate) const GRAPH_ADJACENCY_FORMAT_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub(crate) struct GraphAdjacencyManifest {
@@ -42,6 +42,9 @@ pub(crate) struct GraphEdgeScanRequest<'a> {
 pub(crate) struct GraphEdgeRecord {
     pub graph: String,
     pub graph_id: u64,
+    /// Storage row id; keeps adjacency keys unique per edge row even when
+    /// every other edge field matches another row.
+    pub row_id: String,
     pub edge_id: String,
     pub source_type: String,
     pub source_id: String,
@@ -360,6 +363,7 @@ pub(crate) fn graph_edge_record_from_payload(
     Ok(Some(GraphEdgeRecord {
         graph: graph.name.clone(),
         graph_id: graph.storage_id,
+        row_id: row_id.to_owned(),
         edge_id,
         source_type,
         source_id,

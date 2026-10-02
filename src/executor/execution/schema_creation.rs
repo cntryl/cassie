@@ -131,16 +131,6 @@ pub(super) fn create_index(
             "column indexes are not supported on column-store tables".to_string(),
         ));
     }
-    let vector_index = if matches!(statement.kind, catalog::IndexKind::Vector) {
-        let metadata = super::vector_index_command::vector_index_metadata(cassie, statement)?;
-        cassie
-            .midge
-            .put_vector_index(metadata.clone())
-            .map_err(|error| QueryError::General(error.to_string()))?;
-        Some(metadata)
-    } else {
-        None
-    };
     let metadata = catalog::IndexMeta {
         collection: statement.table.clone(),
         name: statement.name.clone(),
@@ -160,10 +150,12 @@ pub(super) fn create_index(
         unique: statement.unique,
         options: statement.options.clone(),
     };
-    cassie.midge.put_index(&metadata)?;
-    cassie.catalog.register_index(metadata);
-    if let Some(vector_index) = vector_index {
-        cassie.catalog.register_vector_index(vector_index);
+    if matches!(statement.kind, catalog::IndexKind::Vector) {
+        let vector = super::vector_index_command::vector_index_metadata(cassie, statement)?;
+        cassie.put_vector_index_with_backfill(&vector, Some(&metadata))?;
+    } else {
+        cassie.midge.put_index(&metadata)?;
+        cassie.catalog.register_index(metadata);
     }
     super::schema_command::refresh_table_cardinality_stats(cassie, &statement.table)?;
     Ok(CreationOutcome::created("CREATE INDEX"))

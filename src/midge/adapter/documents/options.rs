@@ -3,6 +3,7 @@ use super::super::WriteOptions;
 #[derive(Debug, Clone)]
 pub(crate) struct DocumentWriteBatchOptions {
     pub(crate) commit: WriteOptions,
+    pub(crate) publication_marker: Option<(Vec<u8>, Vec<u8>)>,
     pub(crate) refresh_after_commit: bool,
     pub(crate) normalized_vector_collection: Option<String>,
     pub(crate) record_rollup_maintenance_debt: bool,
@@ -13,6 +14,7 @@ impl DocumentWriteBatchOptions {
     pub(crate) fn sync(commit: WriteOptions) -> Self {
         Self {
             commit,
+            publication_marker: None,
             refresh_after_commit: true,
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,
@@ -23,6 +25,7 @@ impl DocumentWriteBatchOptions {
     pub(crate) fn buffered(commit: WriteOptions) -> Self {
         Self {
             commit,
+            publication_marker: None,
             refresh_after_commit: true,
             normalized_vector_collection: None,
             record_rollup_maintenance_debt: false,

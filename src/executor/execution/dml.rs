@@ -59,7 +59,42 @@ fn value_to_json_for_field(
         });
     }
 
+    if let (DataType::Vector(dimensions), Value::String(text)) = (data_type, value) {
+        return vector_literal_to_json(field, text, *dimensions);
+    }
+
     value_to_json(value)
+}
+
+/// Coerces a pgvector-style text literal such as `'[1,2,3]'` into a JSON array.
+///
+/// A literal that is not a vector of the declared width stays a string so schema
+/// validation reports the mismatch; a component outside the f32 range is a range error.
+fn vector_literal_to_json(
+    field: &str,
+    text: &str,
+    dimensions: usize,
+) -> Result<serde_json::Value, QueryError> {
+    let Ok(components) = serde_json::from_str::<Vec<f64>>(text) else {
+        return Ok(serde_json::Value::String(text.to_string()));
+    };
+    if components.len() != dimensions {
+        return Ok(serde_json::Value::String(text.to_string()));
+    }
+    components
+        .into_iter()
+        .map(|component| {
+            crate::vector::f64_to_finite_f32(component)
+                .and_then(|narrowed| serde_json::Number::from_f64(f64::from(narrowed)))
+                .map(serde_json::Value::Number)
+                .ok_or_else(|| {
+                    QueryError::General(format!(
+                        "field '{field}' vector element is outside f32 range"
+                    ))
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(serde_json::Value::Array)
 }
 
 fn update_assignment_to_json(
@@ -72,24 +107,6 @@ fn update_assignment_to_json(
         .iter()
         .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
     {
-        if let DataType::Vector(dimensions) = &field_meta.data_type {
-            if let Some(text) = value.as_str() {
-                if let Some(vector) = super::scored::parse_vector_literal(text) {
-                    if vector.len() == *dimensions {
-                        return Ok(serde_json::Value::Array(
-                            vector
-                                .into_iter()
-                                .map(|component| {
-                                    serde_json::Number::from_f64(f64::from(component))
-                                        .map(serde_json::Value::Number)
-                                })
-                                .collect::<Option<Vec<_>>>()
-                                .unwrap_or_default(),
-                        ));
-                    }
-                }
-            }
-        }
         if matches!(
             field_meta.data_type,
             DataType::SmallInt | DataType::Int | DataType::BigInt

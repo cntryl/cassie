@@ -65,6 +65,14 @@ impl Midge {
         &self,
         metadata: &IndexMeta,
     ) -> Result<PendingIndexPublication, CassieError> {
+        let metadata = self.prepare_index_metadata(metadata)?;
+        self.prepare_index_publication(&metadata)
+    }
+
+    pub(super) fn prepare_index_metadata(
+        &self,
+        metadata: &IndexMeta,
+    ) -> Result<IndexMeta, CassieError> {
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let relation_id = self
@@ -84,7 +92,7 @@ impl Midge {
                 id
             };
         metadata.set_storage_ids(relation_id, storage_id);
-        self.prepare_index_publication(&metadata)
+        Ok(metadata)
     }
 
     /// # Errors

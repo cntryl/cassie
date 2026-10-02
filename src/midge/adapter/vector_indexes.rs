@@ -3,6 +3,8 @@ use super::{
     DocumentWriteFailurePoint, Midge, NormalizedVectorRecord, Query, StorageFamily,
     VectorIndexRecord, VectorIndexState,
 };
+#[path = "vector_indexes/build.rs"]
+mod build;
 #[path = "vector_indexes/codec.rs"]
 pub(super) mod codec;
 #[path = "vector_indexes/ivfflat.rs"]
@@ -98,65 +100,6 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let field_id = vector_field_id(&row_schema, field)?;
         Ok((row_schema.relation_id, field_id))
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error when validation, storage, or execution fails.
-    pub fn put_vector_index(
-        &self,
-        mut metadata: crate::embeddings::VectorIndexRecord,
-    ) -> Result<(), CassieError> {
-        let requested_collection = metadata.collection.clone();
-        metadata.collection = self.canonical_collection_name(&metadata.collection);
-        let records = self.normalized_vector_records_for_index(&metadata)?;
-        let state = match metadata.metadata.index_type {
-            crate::embeddings::VectorIndexType::Hnsw => VectorIndexState {
-                built_generation: 0,
-                hnsw_graph: Some(Self::build_hnsw_graph_from_records(
-                    &metadata,
-                    records.clone(),
-                )),
-                ivfflat_training: None,
-            },
-            crate::embeddings::VectorIndexType::IvfFlat => VectorIndexState {
-                built_generation: 0,
-                hnsw_graph: None,
-                ivfflat_training: Some(Self::build_ivfflat_training_from_records(
-                    &metadata, &records,
-                )),
-            },
-            crate::embeddings::VectorIndexType::BruteForce => VectorIndexState::default(),
-        };
-        let hnsw_graph = state.hnsw_graph.clone();
-        let ivfflat_training = state.ivfflat_training.clone();
-        metadata.metadata.hnsw_graph = None;
-        metadata.metadata.ivfflat_training = None;
-        let mut stored_records = records;
-        for record in &mut stored_records {
-            record.collection.clone_from(&requested_collection);
-        }
-        let is_initial_build = self
-            .get_vector_index(&metadata.collection, &metadata.field)?
-            .is_none();
-        if is_initial_build {
-            self.write_initial_vector_index_sidecars(&metadata, &stored_records, &state)?;
-        } else {
-            self.write_normalized_vectors_for_index(&metadata, &stored_records)?;
-            self.write_vector_index_state(&metadata.collection, &metadata.field, state)?;
-        }
-        if let Some(graph) = hnsw_graph {
-            self.write_hnsw_source_summary(&metadata.collection, &metadata.field, &graph)?;
-        } else if let Some(training) = ivfflat_training {
-            self.write_ivfflat_source_summary(
-                &metadata.collection,
-                &metadata.field,
-                training.source_fingerprint,
-                training.row_count,
-            )?;
-        }
-        self.write_vector_index_metadata(&metadata)?;
-        Ok(())
     }
 
     /// # Errors

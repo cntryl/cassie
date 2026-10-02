@@ -57,6 +57,7 @@ mod session;
 mod session_schema;
 mod session_settings;
 mod state;
+mod vector_backfill;
 mod vector_write;
 mod write_options;
 

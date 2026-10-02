@@ -616,12 +616,18 @@ fn execute_insert_conflict_update(
     };
     let merged_payload =
         merged_conflict_payload(&current.payload, assignments, &assignment_context)?;
+    let mut merged_payload = serde_json::Value::Object(merged_payload);
+    context.cassie.discard_stale_vector_embeddings(
+        &context.statement.table,
+        &mut merged_payload,
+        assignments.iter().map(|(field, _)| field.as_str()),
+    );
     let prepared = context
         .cassie
         .prepare_document_write_for_session(
             context.session,
             &context.statement.table,
-            serde_json::Value::Object(merged_payload),
+            merged_payload,
             false,
             Some(conflict_id),
         )

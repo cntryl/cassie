@@ -24,6 +24,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Support, Release, and Security-Response Policy](support-policy.md)
 - [Product Roadmap](product-roadmap.md)
 - [Indexes and Constraints](indexes-and-constraints.md)
+- [Recoverable Vector Index Publication](vector-index-publication.md)
 - [Architecture Diagrams](architecture-diagrams.md)
 
 Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; run the normal developer suite with `cargo bench --locked --bench 'tier[1-4]_*'`. The Tier 1-6 contract and complete-suite commands live only in [Performance Contracts](performance-contracts.md).

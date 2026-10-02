@@ -8,11 +8,9 @@ use super::{
 
 pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if !trimmed.to_ascii_lowercase().starts_with("insert into ") {
-        return Err(SqlError::new("INSERT requires INTO clause".into()));
-    }
-
-    let remainder = trimmed[11..].trim();
+    let end = super::lexical::pattern_end(trimmed, 0, "insert into")
+        .ok_or_else(|| SqlError::new("INSERT requires INTO clause".into()))?;
+    let remainder = super::lexical::trim_separators(&trimmed[end..]);
     let (statement_source, returning) = split_statement_and_returning(remainder)?;
     let (statement_source, on_conflict) = split_insert_on_conflict(statement_source)?;
     if statement_source.trim().is_empty() {
@@ -31,7 +29,7 @@ pub(super) fn parse_insert_statement(sql: &str) -> Result<ParsedStatement, SqlEr
             ));
         }
 
-        let values_part = source[values_pos + 6..].trim();
+        let values_part = super::lexical::trim_separators(&source[values_pos + 6..]);
         if values_part.is_empty() {
             return Err(SqlError::new("INSERT requires VALUES list".into()));
         }
@@ -119,14 +117,12 @@ fn split_insert_on_conflict(
 }
 
 fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflictClause, SqlError> {
-    let lower = raw.to_ascii_lowercase();
-    if !lower.starts_with("on conflict") {
-        return Err(SqlError::new("invalid ON CONFLICT clause".into()));
-    }
-    let remainder = raw["on conflict".len()..].trim();
+    let end = super::lexical::pattern_end(raw, 0, "on conflict")
+        .ok_or_else(|| SqlError::new("invalid ON CONFLICT clause".into()))?;
+    let remainder = super::lexical::trim_separators(&raw[end..]);
     let do_pos = find_top_level_keyword(remainder, 0, "do")
         .ok_or_else(|| SqlError::new("ON CONFLICT requires DO clause".into()))?;
-    let target_raw = remainder[..do_pos].trim();
+    let target_raw = super::lexical::trim_separators(&remainder[..do_pos]);
     let action_raw = remainder[do_pos + 2..].trim();
 
     let target_fields = if target_raw.is_empty() {
@@ -137,7 +133,7 @@ fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflict
         split_csv(fields)
             .into_iter()
             .map(|field| {
-                let field = field.trim();
+                let field = super::lexical::trim_separators(field);
                 if field.is_empty() {
                     Err(SqlError::new(
                         "ON CONFLICT target field cannot be empty".into(),
@@ -157,17 +153,14 @@ fn parse_on_conflict_clause(raw: &str) -> Result<crate::sql::ast::InsertConflict
 }
 
 fn parse_on_conflict_action(raw: &str) -> Result<crate::sql::ast::InsertConflictAction, SqlError> {
+    let raw = super::lexical::trim_separators(raw);
     let lower = raw.to_ascii_lowercase();
     if lower == "nothing" {
         return Ok(crate::sql::ast::InsertConflictAction::DoNothing);
     }
-    if !lower.starts_with("update set") {
-        return Err(SqlError::new(
-            "ON CONFLICT supports DO NOTHING or DO UPDATE SET".into(),
-        ));
-    }
-
-    let after_set = raw["update set".len()..].trim();
+    let end = super::lexical::pattern_end(raw, 0, "update set")
+        .ok_or_else(|| SqlError::new("ON CONFLICT supports DO NOTHING or DO UPDATE SET".into()))?;
+    let after_set = super::lexical::trim_separators(&raw[end..]);
     let (assignments_raw, trailing) = split_trailing_update_clauses(after_set)?;
     let assignments = parse_assignment_list(assignments_raw)?;
     if assignments.is_empty() {
@@ -209,7 +202,7 @@ pub(super) fn split_statement_and_returning(
 
 pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr>>, SqlError> {
     let mut rows = Vec::new();
-    let mut rest = values_part.trim();
+    let mut rest = super::lexical::trim_separators(values_part);
 
     loop {
         if rest.is_empty() {
@@ -235,7 +228,7 @@ pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr
                 .collect::<Result<Vec<_>, _>>()?,
         );
 
-        rest = rest[close + 1..].trim_start();
+        rest = super::lexical::trim_separators(&rest[close + 1..]);
         if rest.is_empty() {
             break;
         }
@@ -277,7 +270,7 @@ pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &st
     let source_pos = source_pos
         .ok_or_else(|| SqlError::new("INSERT requires VALUES or SELECT source".to_string()))?;
 
-    let target = raw[..source_pos].trim();
+    let target = super::lexical::trim_separators(&raw[..source_pos]);
     let source = raw[source_pos..].trim();
     if source.is_empty() {
         return Err(SqlError::new(
@@ -338,7 +331,7 @@ pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &st
 
 pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    let remainder = trimmed[6..].trim();
+    let remainder = super::lexical::trim_separators(&trimmed[6..]);
     if remainder.is_empty() {
         return Err(SqlError::new("UPDATE requires a target table".into()));
     }
@@ -354,12 +347,12 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         return Err(SqlError::new("UPDATE requires a table name".into()));
     }
 
-    let table = remainder[..set_pos].trim();
+    let table = super::lexical::trim_separators(&remainder[..set_pos]);
     if table.is_empty() {
         return Err(SqlError::new("UPDATE requires a target table".into()));
     }
 
-    let after_set = remainder[(set_pos + 3)..].trim();
+    let after_set = super::lexical::trim_separators(&remainder[(set_pos + 3)..]);
     let (set_clause, remaining) = split_trailing_update_clauses(after_set)?;
     let assignments = parse_assignment_list(set_clause)?;
     if assignments.is_empty() {
@@ -382,22 +375,20 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
 
 pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
-    if !trimmed.to_ascii_lowercase().starts_with("delete from ") {
-        return Err(SqlError::new("DELETE requires FROM clause".into()));
-    }
-
-    let remainder = trimmed[11..].trim();
+    let end = super::lexical::pattern_end(trimmed, 0, "delete from")
+        .ok_or_else(|| SqlError::new("DELETE requires FROM clause".into()))?;
+    let remainder = super::lexical::trim_separators(&trimmed[end..]);
     if remainder.is_empty() {
         return Err(SqlError::new("DELETE requires a target table".into()));
     }
 
-    let remaining = match remainder.find(char::is_whitespace) {
+    let remaining = match super::lexical::first_separator(remainder) {
         Some(position) => {
             let table = remainder[..position].trim();
             if table.is_empty() {
                 return Err(SqlError::new("DELETE requires a target table".into()));
             }
-            let tail = remainder[position..].trim();
+            let tail = super::lexical::trim_separators(&remainder[position..]);
             (table, tail)
         }
         None => (remainder, ""),
@@ -479,30 +470,7 @@ pub(super) fn parse_assignment_list(raw: &str) -> Result<Vec<(String, Expr)>, Sq
 }
 
 pub(super) fn find_matching_paren(raw: &str, open_at: usize) -> Option<usize> {
-    if raw.as_bytes().get(open_at) != Some(&b'(') {
-        return None;
-    }
-
-    let mut depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-
-    for (idx, ch) in raw.char_indices().skip_while(|(idx, _)| *idx < open_at) {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(idx);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    None
+    super::lexical::matching_paren(raw, open_at)
 }
 
 pub(super) fn split_trailing_update_clauses(raw: &str) -> Result<(&str, &str), SqlError> {
@@ -524,7 +492,7 @@ pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {
         .ok_or_else(|| SqlError::new("UPDATE SET assignments require '='".into()))?;
 
     let (left, right) = raw.split_at(eq_pos);
-    let left = left.trim();
+    let left = super::lexical::trim_separators(left);
     if left.is_empty() {
         return Err(SqlError::new(
             "UPDATE SET assignment missing column name".into(),
@@ -539,25 +507,5 @@ pub(super) fn parse_assignment(raw: &str) -> Result<(String, Expr), SqlError> {
 }
 
 pub(super) fn split_top_level_assignment(raw: &str) -> Option<usize> {
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut depth = 0i32;
-    let mut square_depth = 0i32;
-
-    for (idx, ch) in raw.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth -= 1,
-            '[' if !in_single && !in_double => square_depth += 1,
-            ']' if !in_single && !in_double => square_depth -= 1,
-            '=' if !in_single && !in_double && depth == 0 && square_depth == 0 => {
-                return Some(idx);
-            }
-            _ => {}
-        }
-    }
-
-    None
+    super::clauses::find_top_level_keyword_span(raw, 0, "=").map(|(position, _)| position)
 }

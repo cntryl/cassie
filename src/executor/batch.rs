@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use crate::types::Value;
 
@@ -12,6 +12,7 @@ pub(crate) struct BatchRow {
     values: RowEntries,
     aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
+    outer_scope: Option<Arc<Self>>,
 }
 
 impl BatchRow {
@@ -27,6 +28,7 @@ impl BatchRow {
             values,
             aliases,
             lookup,
+            outer_scope: None,
         }
     }
 
@@ -35,6 +37,7 @@ impl BatchRow {
             values,
             aliases: Vec::new(),
             lookup: OnceLock::new(),
+            outer_scope: None,
         }
     }
 
@@ -48,7 +51,10 @@ impl BatchRow {
             .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
         let index = match lookup.get(name) {
             Some(index) => *index,
-            None => self.case_insensitive_index(name)?,
+            None => match self.case_insensitive_index(name) {
+                Some(index) => index,
+                None => return self.outer_scope.as_ref()?.get(name),
+            },
         };
         let entry = &self.values[index];
         Some(&entry.1)
@@ -81,6 +87,15 @@ impl BatchRow {
 
     pub(crate) fn aliases(&self) -> &[(String, usize)] {
         self.aliases.as_slice()
+    }
+
+    pub(crate) fn with_outer_scope(mut self, outer_scope: Arc<Self>) -> Self {
+        self.outer_scope = Some(outer_scope);
+        self
+    }
+
+    pub(crate) fn has_outer_scope(&self) -> bool {
+        self.outer_scope.is_some()
     }
 
     pub(crate) fn into_parts(self) -> (RowEntries, RowAliases) {

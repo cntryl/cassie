@@ -1,4 +1,4 @@
-use super::clauses::{split_top_level, split_top_level_last, strip_parentheses, update_case_depth};
+use super::clauses::{split_top_level, split_top_level_last, strip_parentheses};
 use super::identifiers::{normalize_identifier, parse_quoted_identifier_chain};
 use super::schema::{parse_data_type, starts_with_keyword};
 use super::{
@@ -10,7 +10,7 @@ use super::{
 mod case;
 
 pub(super) fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
-    let trimmed = input.trim();
+    let trimmed = super::lexical::trim_separators(input);
     if trimmed.is_empty() {
         return Ok(None);
     }
@@ -45,51 +45,12 @@ impl std::fmt::Display for ParserError {
 
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
-    let mut depth: i32 = 0;
-    let mut bracket_depth: i32 = 0;
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut case_depth = 0u32;
-    let mut start = 0;
-    let lower = s.to_ascii_lowercase();
-
-    for (i, ch) in s.char_indices() {
-        update_case_depth(
-            &lower,
-            i,
-            ch.to_ascii_lowercase(),
-            in_single,
-            in_double,
-            &mut case_depth,
-        );
-        match ch {
-            '\'' if !in_double => {
-                in_single = !in_single;
-            }
-            '"' if !in_single => {
-                in_double = !in_double;
-            }
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => {
-                depth = depth.saturating_sub(1);
-            }
-            '[' if !in_single && !in_double => bracket_depth += 1,
-            ']' if !in_single && !in_double => {
-                bracket_depth = bracket_depth.saturating_sub(1);
-            }
-            ',' if !in_single
-                && !in_double
-                && depth == 0
-                && bracket_depth == 0
-                && case_depth == 0 =>
-            {
-                out.push(&s[start..i]);
-                start = i + ch.len_utf8();
-            }
-            _ => {}
-        }
+    let mut cursor = 0;
+    while let Some((position, end)) = super::clauses::find_top_level_keyword_span(s, cursor, ",") {
+        out.push(&s[cursor..position]);
+        cursor = end;
     }
-    out.push(&s[start..]);
+    out.push(&s[cursor..]);
     out
 }
 
@@ -98,7 +59,7 @@ pub(super) fn split_csv_quoted_by_space(s: &str) -> Vec<&str> {
 }
 
 pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError> {
-    let Some(open) = raw.find('(') else {
+    let Some((open, _)) = super::clauses::find_top_level_keyword_span(raw, 0, "(") else {
         return Ok(None);
     };
     let Some(close) = raw.rfind(')') else {
@@ -107,7 +68,7 @@ pub(super) fn parse_function(raw: &str) -> Result<Option<FunctionCall>, SqlError
     if close < open {
         return Ok(None);
     }
-    let name = raw[..open].trim().to_string();
+    let name = super::lexical::trim_separators(&raw[..open]).to_string();
     if name.is_empty() {
         return Ok(None);
     }
@@ -132,7 +93,7 @@ fn parse_function_argument(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(crate) fn parse_expression(raw: &str) -> Result<Expr, SqlError> {
-    parse_or_expression(raw)
+    parse_or_expression(super::lexical::trim_separators(raw))
 }
 
 pub(super) fn parse_or_expression(raw: &str) -> Result<Expr, SqlError> {
@@ -160,7 +121,7 @@ pub(super) fn parse_and_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if starts_with_keyword(raw, "not") {
         let rest = raw["not".len()..].trim();
         if rest.is_empty() {
@@ -175,7 +136,7 @@ pub(super) fn parse_not_expression(raw: &str) -> Result<Expr, SqlError> {
 }
 
 pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
 
     if raw.starts_with('(') {
         let inner = strip_parentheses(raw);
@@ -300,15 +261,15 @@ fn split_top_level_conjunction(raw: &str) -> Option<(&str, &str)> {
         let rest = &raw[offset..];
         let and_at = split_top_level(rest, AND).map(|(left, _)| left.len())?;
         let between_at = split_top_level(rest, BETWEEN).map(|(left, _)| left.len());
-        if let Some(between_at) = between_at.filter(|between_at| *between_at < and_at) {
+        if between_at.is_some_and(|between_at| between_at < and_at) {
             open_betweens += 1;
-            offset += between_at + BETWEEN.len();
+            offset = raw.len() - split_top_level(rest, BETWEEN)?.1.len();
         } else if open_betweens > 0 {
             open_betweens -= 1;
-            offset += and_at + AND.len();
+            offset = raw.len() - split_top_level(rest, AND)?.1.len();
         } else {
             let split_at = offset + and_at;
-            return Some((&raw[..split_at], &raw[split_at + AND.len()..]));
+            return Some((&raw[..split_at], split_top_level(rest, AND)?.1));
         }
     }
 }
@@ -366,29 +327,23 @@ pub(super) fn parse_in_list_expression(
 pub(super) fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
     let mut items = Vec::new();
     for token in split_csv(raw) {
-        let token = token.trim();
-        let lower = token.to_ascii_lowercase();
-        let (token, nulls) = if lower.ends_with(" nulls first") {
-            (
-                token[..token.len() - " nulls first".len()].trim(),
-                Some(NullsOrder::First),
-            )
-        } else if lower.ends_with(" nulls last") {
-            (
-                token[..token.len() - " nulls last".len()].trim(),
-                Some(NullsOrder::Last),
-            )
-        } else {
-            (token, None)
-        };
-        let lower = token.to_ascii_lowercase();
-        let (expr, direction) = if lower.ends_with(" desc") {
-            (&token[..token.len() - 5], SortDirection::Desc)
-        } else if lower.ends_with(" asc") {
-            (&token[..token.len() - 4], SortDirection::Asc)
-        } else {
-            (token, SortDirection::Asc)
-        };
+        let token = super::lexical::trim_separators(token);
+        let (token, nulls) =
+            if let Some(token) = super::lexical::strip_keyword_suffix(token, " nulls first") {
+                (token, Some(NullsOrder::First))
+            } else if let Some(token) = super::lexical::strip_keyword_suffix(token, " nulls last") {
+                (token, Some(NullsOrder::Last))
+            } else {
+                (token, None)
+            };
+        let (expr, direction) =
+            if let Some(token) = super::lexical::strip_keyword_suffix(token, " desc") {
+                (token, SortDirection::Desc)
+            } else if let Some(token) = super::lexical::strip_keyword_suffix(token, " asc") {
+                (token, SortDirection::Asc)
+            } else {
+                (token, SortDirection::Asc)
+            };
         items.push(OrderExpr {
             expr: parse_expression(expr)?,
             direction,
@@ -399,7 +354,7 @@ pub(super) fn parse_order_by(raw: &str) -> Result<Vec<OrderExpr>, SqlError> {
 }
 
 pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
-    let raw = raw.trim();
+    let raw = super::lexical::trim_separators(raw);
     if raw.is_empty() {
         return Err(SqlError::new("invalid expression token".into()));
     }
@@ -502,7 +457,7 @@ pub(super) fn parse_exists_expression(raw: &str) -> Result<Option<Expr>, SqlErro
     if !starts_with_keyword(trimmed, "exists") {
         return Ok(None);
     }
-    let inner = strip_parentheses(trimmed[6..].trim())
+    let inner = strip_parentheses(super::lexical::trim_separators(&trimmed[6..]))
         .ok_or_else(|| SqlError::new("EXISTS requires a parenthesized subquery".into()))?;
     let parsed = parse_statement(inner)?;
     if !matches!(parsed.statement, QueryStatement::Select(_)) {
@@ -517,11 +472,11 @@ pub(super) fn parse_cast_expression(raw: &str) -> Result<Option<Expr>, SqlError>
     if !starts_with_keyword(trimmed, "cast") {
         return Ok(None);
     }
-    let inner = strip_parentheses(trimmed[4..].trim())
+    let inner = strip_parentheses(super::lexical::trim_separators(&trimmed[4..]))
         .ok_or_else(|| SqlError::new("CAST requires parenthesized expression".into()))?;
     let (expr_raw, type_raw) = split_top_level(inner, " as ")
         .ok_or_else(|| SqlError::new("CAST requires AS type clause".into()))?;
-    let data_type = parse_data_type(type_raw.trim())?;
+    let data_type = parse_data_type(super::lexical::trim_separators(type_raw))?;
 
     Ok(Some(Expr::Cast {
         expr: Box::new(parse_expression(expr_raw)?),
@@ -535,7 +490,7 @@ pub(super) fn parse_alias(raw: &str) -> (&str, Option<String>) {
         if right.trim().is_empty() {
             return (token, None);
         }
-        let alias = right.trim();
+        let alias = super::lexical::trim_separators(right);
         let alias = normalize_identifier(alias).unwrap_or_else(|_| alias.to_string());
         return (left.trim(), Some(alias));
     }

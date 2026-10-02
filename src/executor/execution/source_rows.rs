@@ -36,16 +36,14 @@ pub(super) fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch
         .collect()
 }
 
-pub(super) fn combine_batches_with_outer_row(
-    batches: Vec<Batch>,
-    outer_row: &BatchRow,
-) -> Vec<Batch> {
+pub(super) fn attach_outer_scope(batches: Vec<Batch>, outer_row: &BatchRow) -> Vec<Batch> {
+    let outer_scope = std::sync::Arc::new(outer_row.clone());
     batches
         .into_iter()
         .map(|batch| {
             batch
                 .into_iter()
-                .map(|row| combine_rows(outer_row, &row))
+                .map(|row| row.with_outer_scope(std::sync::Arc::clone(&outer_scope)))
                 .collect()
         })
         .collect()
@@ -118,37 +116,6 @@ pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &Batc
             .iter()
             .map(|(name, index)| (name.clone(), left_width + index)),
     );
-    BatchRow::with_aliases(values, aliases)
-}
-
-pub(in crate::executor::execution) fn combine_row_with_nulls(
-    left: &BatchRow,
-    right_columns: &[String],
-) -> BatchRow {
-    let mut values = left.entries().to_vec();
-    values.extend(
-        right_columns
-            .iter()
-            .map(|column| (column.clone(), Value::Null)),
-    );
-    BatchRow::with_aliases(values, left.aliases().to_vec())
-}
-
-pub(in crate::executor::execution) fn combine_nulls_with_row(
-    left_columns: &[String],
-    right: &BatchRow,
-) -> BatchRow {
-    let mut values = left_columns
-        .iter()
-        .map(|column| (column.clone(), Value::Null))
-        .collect::<Vec<_>>();
-    let left_width = values.len();
-    values.extend(right.entries().iter().cloned());
-    let aliases = right
-        .aliases()
-        .iter()
-        .map(|(name, index)| (name.clone(), left_width + index))
-        .collect();
     BatchRow::with_aliases(values, aliases)
 }
 

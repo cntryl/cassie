@@ -172,9 +172,11 @@ pub(crate) fn project_batches(
     let ops = compile_projection_ops(projection);
     if ops.iter().all(ProjectionOp::can_move_owned)
         && owned_sources_are_distinct(&ops)
-        && batches
-            .iter()
-            .all(|batch| batch.iter().all(|row| row.aliases().is_empty()))
+        && batches.iter().all(|batch| {
+            batch
+                .iter()
+                .all(|row| row.aliases().is_empty() && !row.has_outer_scope())
+        })
     {
         return Ok(batches
             .into_iter()

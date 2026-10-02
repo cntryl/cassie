@@ -43,6 +43,7 @@ pub(super) enum ClauseToken {
 #[derive(Debug)]
 pub(super) struct ClauseMatch {
     pub(super) position: usize,
+    pub(super) end: usize,
     pub(super) token: ClauseToken,
 }
 
@@ -69,9 +70,10 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
         ("except", ClauseToken::Unsupported("EXCEPT")),
     ] {
         let mut cursor = 0;
-        while let Some(position) = find_top_level_clause(rest, cursor, token.0) {
+        while let Some((position, end)) = find_top_level_keyword_span(rest, cursor, token.0) {
             matches.push(ClauseMatch {
                 position,
+                end,
                 token: token.1,
             });
             cursor = position + 1;
@@ -109,235 +111,51 @@ pub(super) fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> O
 /// length of the whole operator, and whether it is `UNION ALL`. `ALL` may be
 /// separated from `UNION` by any whitespace, including newlines.
 pub(super) fn find_top_level_union(rest: &str) -> Option<(usize, usize, bool)> {
-    const UNION: &str = "union";
-    const ALL: &[u8] = b"all";
-
-    let position = find_top_level_clause(rest, 0, UNION)?;
-    let tail = &rest[position + UNION.len()..];
-    let word = tail.trim_start();
-    let gap = tail.len() - word.len();
-    let is_all = gap > 0
-        && word
-            .as_bytes()
-            .get(..ALL.len())
-            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(ALL))
-        && is_clause_boundary_after(word.as_bytes(), ALL.len());
-    if is_all {
-        Some((position, UNION.len() + gap + ALL.len(), true))
-    } else {
-        Some((position, UNION.len(), false))
+    let (position, end) = find_top_level_keyword_span(rest, 0, "union")?;
+    let next = super::lexical::separator_end(rest, end);
+    if next > end {
+        if let Some(all_end) = super::lexical::pattern_end(rest, next, "all") {
+            return Some((position, all_end - position, true));
+        }
     }
+    Some((position, end - position, false))
 }
 
 pub(super) fn find_top_level_clause(rest: &str, start: usize, token: &str) -> Option<usize> {
-    let lower = rest.to_ascii_lowercase();
-    let token = token.as_bytes();
-    let bytes = lower.as_bytes();
-    let mut depth = 0i32;
-    let mut bracket_depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut case_depth = 0u32;
-
-    for (idx, ch) in lower.char_indices() {
-        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
-        if idx < start {
-            match ch {
-                '\'' if !in_double => in_single = !in_single,
-                '"' if !in_single => in_double = !in_double,
-                '(' if !in_single && !in_double => depth += 1,
-                ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
-                '[' if !in_single && !in_double => bracket_depth += 1,
-                ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
-                _ => {}
-            }
-            continue;
-        }
-
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
-            '[' if !in_single && !in_double => bracket_depth += 1,
-            ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
-            _ => {}
-        }
-
-        if depth != 0 || bracket_depth != 0 || case_depth != 0 || in_single || in_double {
-            continue;
-        }
-
-        if idx + token.len() > bytes.len() {
-            continue;
-        }
-
-        if &bytes[idx..idx + token.len()] == token
-            && is_clause_boundary_before(lower.as_bytes(), idx)
-            && is_clause_boundary_after(lower.as_bytes(), idx + token.len())
-        {
-            return Some(idx);
-        }
-    }
-
-    None
+    find_top_level_keyword_span(rest, start, token).map(|(position, _)| position)
 }
 
-pub(super) fn update_case_depth(
-    lower: &str,
-    idx: usize,
-    ch: char,
-    in_single: bool,
-    in_double: bool,
-    case_depth: &mut u32,
-) {
-    if in_single || in_double {
-        return;
-    }
-    let token = match ch {
-        'c' => "case",
-        'e' => "end",
-        _ => return,
-    };
-    let bytes = lower.as_bytes();
-    if bytes.get(idx..idx + token.len()) == Some(token.as_bytes())
-        && is_clause_boundary_before(bytes, idx)
-        && is_clause_boundary_after(bytes, idx + token.len())
-    {
-        if token == "case" {
-            *case_depth += 1;
-        } else {
-            *case_depth = case_depth.saturating_sub(1);
-        }
-    }
+pub(super) fn find_top_level_keyword_span(
+    rest: &str,
+    start: usize,
+    token: &str,
+) -> Option<(usize, usize)> {
+    super::lexical::find_top_level_span(rest, start, token)
 }
 
-pub(super) fn is_clause_boundary_before(bytes: &[u8], index: usize) -> bool {
-    index == 0 || !is_identifier_byte(*bytes.get(index.saturating_sub(1)).unwrap_or(&b' '))
-}
-
-pub(super) fn is_clause_boundary_after(bytes: &[u8], index: usize) -> bool {
-    index >= bytes.len() || !is_identifier_byte(*bytes.get(index).unwrap_or(&b' '))
-}
-
-pub(super) fn is_identifier_byte(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$'
-}
-
-pub(super) fn split_top_level<'a>(input: &'a str, keyword: &'a str) -> Option<(&'a str, &'a str)> {
-    let lower = input.to_ascii_lowercase();
-    let chars = lower.char_indices().collect::<Vec<_>>();
-    let token = keyword.as_bytes();
-    let mut depth = 0i32;
-    let mut bracket_depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut case_depth = 0u32;
-
-    for &(idx, ch) in &chars {
-        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
-        match ch {
-            '\'' => {
-                if !in_double {
-                    in_single = !in_single;
-                }
-            }
-            '"' => {
-                if !in_single {
-                    in_double = !in_double;
-                }
-            }
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
-            '[' if !in_single && !in_double => bracket_depth += 1,
-            ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
-            _ => {}
-        }
-
-        if depth == 0
-            && bracket_depth == 0
-            && case_depth == 0
-            && !in_single
-            && !in_double
-            && lower.as_bytes().get(idx..idx + token.len()) == Some(token)
-        {
-            return Some((&input[..idx], &input[idx + token.len()..]));
-        }
-    }
-
-    None
+pub(super) fn split_top_level<'a>(input: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
+    let (start, end) = find_top_level_keyword_span(input, 0, keyword)?;
+    Some((&input[..start], &input[end..]))
 }
 
 pub(super) fn split_top_level_last<'a>(
     input: &'a str,
     keyword: &str,
 ) -> Option<(&'a str, &'a str)> {
-    let lower = input.to_ascii_lowercase();
-    let chars = lower.char_indices().collect::<Vec<_>>();
-    let token = keyword.as_bytes();
-    let mut depth = 0i32;
-    let mut bracket_depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    let mut case_depth = 0u32;
+    let mut cursor = 0;
     let mut selected = None;
-
-    for &(idx, ch) in &chars {
-        update_case_depth(&lower, idx, ch, in_single, in_double, &mut case_depth);
-        match ch {
-            '\'' => {
-                if !in_double {
-                    in_single = !in_single;
-                }
-            }
-            '"' => {
-                if !in_single {
-                    in_double = !in_double;
-                }
-            }
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth = depth.saturating_sub(1),
-            '[' if !in_single && !in_double => bracket_depth += 1,
-            ']' if !in_single && !in_double => bracket_depth = bracket_depth.saturating_sub(1),
-            _ => {}
-        }
-
-        if depth == 0
-            && bracket_depth == 0
-            && case_depth == 0
-            && !in_single
-            && !in_double
-            && lower.as_bytes().get(idx..idx + token.len()) == Some(token)
-        {
-            selected = Some((&input[..idx], &input[idx + token.len()..]));
-        }
+    while let Some((start, end)) = find_top_level_keyword_span(input, cursor, keyword) {
+        selected = Some((&input[..start], &input[end..]));
+        cursor = end;
     }
-
     selected
 }
 
 pub(super) fn strip_parentheses(raw: &str) -> Option<&str> {
-    let trimmed = raw.trim();
-    if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
+    let trimmed = super::lexical::trim_separators(raw);
+    let close = super::lexical::matching_paren(trimmed, 0)?;
+    if close + 1 != trimmed.len() {
         return None;
     }
-
-    let mut depth = 0i32;
-    let mut in_single = false;
-    let mut in_double = false;
-    for (i, ch) in trimmed.char_indices() {
-        match ch {
-            '\'' if !in_double => in_single = !in_single,
-            '"' if !in_single => in_double = !in_double,
-            '(' if !in_single && !in_double => depth += 1,
-            ')' if !in_single && !in_double => depth -= 1,
-            _ => {}
-        }
-
-        if depth == 0 && i != trimmed.len().saturating_sub(1) {
-            return None;
-        }
-    }
-
-    Some(trimmed[1..trimmed.len() - 1].trim())
+    Some(super::lexical::trim_separators(&trimmed[1..close]))
 }

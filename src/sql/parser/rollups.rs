@@ -29,8 +29,9 @@ pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement
     }
 
     let rest = rest[using_pos + 5..].trim();
-    let group_pos = find_top_level_keyword(rest, 0, "group by")
-        .ok_or_else(|| SqlError::new("CREATE ROLLUP requires GROUP BY".to_string()))?;
+    let (group_pos, group_end) =
+        super::clauses::find_top_level_keyword_span(rest, 0, "group by")
+            .ok_or_else(|| SqlError::new("CREATE ROLLUP requires GROUP BY".to_string()))?;
     let bucket_raw = rest[..group_pos].trim();
     let Expr::Function(bucket) = parse_expression(bucket_raw)? else {
         return Err(SqlError::new(
@@ -38,7 +39,7 @@ pub(super) fn parse_create_rollup_statement(sql: &str) -> Result<ParsedStatement
         ));
     };
 
-    let rest = rest[group_pos + "group by".len()..].trim();
+    let rest = rest[group_end..].trim();
     let aggregates_pos = find_top_level_keyword(rest, 0, "aggregates")
         .ok_or_else(|| SqlError::new("CREATE ROLLUP requires AGGREGATES".to_string()))?;
     let group_raw = rest[..aggregates_pos].trim();

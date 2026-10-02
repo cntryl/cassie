@@ -21,6 +21,28 @@ use crate::types::row_identity::{
 
 type WildcardScope = HashMap<String, Vec<FieldSchema>>;
 
+pub(crate) fn source_row_fields(
+    source: &QuerySource,
+    scope: &HashMap<String, Vec<FieldSchema>>,
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<Vec<FieldSchema>, CassieError> {
+    source_fields(source, scope, catalog, user_functions)
+}
+
+pub(crate) fn cte_row_fields(
+    cte: &CommonTableExpression,
+    scope: &HashMap<String, Vec<FieldSchema>>,
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<Vec<FieldSchema>, CassieError> {
+    let resolved = cte_scope(std::slice::from_ref(cte), scope, catalog, user_functions)?;
+    Ok(resolved
+        .get(&cte.name.to_ascii_lowercase())
+        .cloned()
+        .unwrap_or_default())
+}
+
 /// Returns the fields `SELECT *` over `source` yields, in row order. The
 /// internal row identity of a table without a declared `id` field is reported
 /// under its `id` output name.
@@ -69,11 +91,9 @@ fn cte_scope(
         // renames the body's output positionally unless it holds `*`.
         if !cte.aliases.is_empty() && !cte.aliases.iter().any(|alias| alias == "*") {
             for (index, field) in fields.iter_mut().enumerate() {
-                field.name = cte
-                    .aliases
-                    .get(index)
-                    .cloned()
-                    .unwrap_or_else(|| format!("column_{}", index + 1));
+                if let Some(alias) = cte.aliases.get(index) {
+                    field.name.clone_from(alias);
+                }
             }
         }
         scope.insert(cte.name.to_ascii_lowercase(), fields);

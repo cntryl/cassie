@@ -7,8 +7,22 @@ use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
 
 pub(super) type CteRows = Vec<Vec<(String, Value)>>;
-pub(super) type CteContext = HashMap<String, CteRows>;
-type CteExecution<'a> = Result<CteRows, QueryError>;
+#[derive(Clone)]
+pub(super) struct CteRelation {
+    pub(super) rows: CteRows,
+    pub(super) fields: Vec<crate::types::FieldSchema>,
+}
+pub(super) type CteContext = HashMap<String, CteRelation>;
+type CteExecution<'a> = Result<CteRelation, QueryError>;
+
+pub(super) fn context_fields(
+    context: &CteContext,
+) -> HashMap<String, Vec<crate::types::FieldSchema>> {
+    context
+        .iter()
+        .map(|(name, relation)| (name.clone(), relation.fields.clone()))
+        .collect()
+}
 
 fn recursion_depth_exceeded(name: &str, depth: usize) -> QueryError {
     QueryError::General(format!(
@@ -30,11 +44,18 @@ pub(super) fn execute_cte<'a>(
     check_timeout(controls)?;
     let cte_name = cte.name.to_ascii_lowercase();
     let previous = cte_context.remove(&cte_name);
+    let fields = crate::sql::binder::cte_row_fields(
+        cte,
+        &context_fields(cte_context),
+        &cassie.catalog,
+        user_functions,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?;
 
     let output = match &cte.query {
         CteQuery::Simple(statement) => {
             let logical = build_logical_plan(&cassie.catalog, statement.as_ref())?;
-            execute_plan(
+            execute_cte_plan(
                 cassie,
                 session,
                 &logical,
@@ -43,9 +64,6 @@ pub(super) fn execute_cte<'a>(
                 params,
                 controls,
             )?
-            .into_iter()
-            .map(BatchRow::into_entries)
-            .collect::<Vec<_>>()
         }
         CteQuery::Recursive {
             operator,
@@ -54,7 +72,7 @@ pub(super) fn execute_cte<'a>(
         } => {
             let base_plan = build_logical_plan(&cassie.catalog, base.as_ref())?;
             let recursive_plan = build_logical_plan(&cassie.catalog, recursive.as_ref())?;
-            let mut rows = execute_plan(
+            let mut rows = execute_cte_plan(
                 cassie,
                 session,
                 &base_plan,
@@ -62,10 +80,7 @@ pub(super) fn execute_cte<'a>(
                 user_functions,
                 params,
                 controls,
-            )?
-            .into_iter()
-            .map(BatchRow::into_entries)
-            .collect::<Vec<_>>();
+            )?;
             rows = rename_cte_rows(rows, &cte.aliases);
 
             let mut seen: HashSet<SemanticKey> = HashSet::new();
@@ -74,12 +89,12 @@ pub(super) fn execute_cte<'a>(
             }
             let mut delta = rows.clone();
             let mut memory = replace_recursive_memory(None, controls, &rows, &delta)?;
-            cte_context.insert(cte_name.clone(), delta.clone());
+            store_working_rows(cte_context, &cte_name, &delta, &fields);
             let mut stabilized = false;
 
             for _ in 0..controls.cte_recursion_depth {
                 check_timeout(controls)?;
-                let recursive_rows = execute_plan(
+                let recursive_rows = execute_cte_plan(
                     cassie,
                     session,
                     &recursive_plan,
@@ -87,10 +102,7 @@ pub(super) fn execute_cte<'a>(
                     user_functions,
                     params,
                     controls,
-                )?
-                .into_iter()
-                .map(BatchRow::into_entries)
-                .collect::<Vec<_>>();
+                )?;
                 let recursive_rows = rename_cte_rows(recursive_rows, &cte.aliases);
 
                 let new_rows = match operator {
@@ -114,7 +126,7 @@ pub(super) fn execute_cte<'a>(
                 rows.extend(new_rows.iter().cloned());
                 delta = new_rows;
                 memory = replace_recursive_memory(Some(memory), controls, &rows, &delta)?;
-                cte_context.insert(cte_name.clone(), delta.clone());
+                store_working_rows(cte_context, &cte_name, &delta, &fields);
             }
 
             if !stabilized {
@@ -135,7 +147,46 @@ pub(super) fn execute_cte<'a>(
         cte_context.remove(&cte_name);
     }
 
-    Ok(output)
+    Ok(CteRelation {
+        rows: output,
+        fields,
+    })
+}
+
+fn store_working_rows(
+    context: &mut CteContext,
+    name: &str,
+    rows: &CteRows,
+    fields: &[crate::types::FieldSchema],
+) {
+    context.insert(
+        name.to_string(),
+        CteRelation {
+            rows: rows.clone(),
+            fields: fields.to_vec(),
+        },
+    );
+}
+
+fn execute_cte_plan(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &crate::planner::LogicalPlan,
+    context: &mut CteContext,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<CteRows, QueryError> {
+    execute_plan(
+        cassie,
+        session,
+        plan,
+        context,
+        user_functions,
+        params,
+        controls,
+    )
+    .map(|rows| rows.into_iter().map(BatchRow::into_entries).collect())
 }
 
 fn replace_recursive_memory(

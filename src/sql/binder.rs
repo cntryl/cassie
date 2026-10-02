@@ -89,7 +89,7 @@ use validation::{
     validate_expression_references, validate_function_calls, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
-pub(crate) use wildcard::wildcard_output_fields;
+pub(crate) use wildcard::{cte_row_fields, source_row_fields, wildcard_output_fields};
 
 pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)

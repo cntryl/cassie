@@ -104,6 +104,7 @@ mod dml;
 mod expr;
 #[path = "parser/identifiers.rs"]
 mod identifiers;
+mod lexical;
 #[path = "parser/materialized_projection.rs"]
 mod materialized_projection;
 #[path = "parser/order_ordinals.rs"]
@@ -170,6 +171,16 @@ use statements::{
 /// Returns an error when validation, storage, or execution fails.
 pub fn parse_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
     preflight_sql(sql)?;
+    let raw_sql = sql.trim().trim_end_matches(';').trim();
+    let start = lexical::separator_end(raw_sql, 0);
+    let parsed = parse_statement_body(&raw_sql[start..])?;
+    Ok(ParsedStatement {
+        raw_sql: raw_sql.to_string(),
+        statement: parsed.statement,
+    })
+}
+
+fn parse_statement_body(sql: &str) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let lower = trimmed.to_ascii_lowercase();
 
@@ -210,7 +221,7 @@ fn parse_query_or_dml_statement(
         Ok(Some(parse_update_statement(trimmed)?))
     } else if starts_statement(lower, "delete") {
         Ok(Some(parse_delete_statement(trimmed)?))
-    } else if lower.starts_with("select ") {
+    } else if lexical::pattern_end(lower, 0, "select").is_some() {
         Ok(Some(parse_select_statement(trimmed, Vec::new(), false)?))
     } else if is_transaction_control_statement(lower) {
         Ok(Some(parse_transaction_statement(trimmed)?))
@@ -391,5 +402,5 @@ fn starts_statement(lower: &str, keyword: &str) -> bool {
     lower == keyword
         || lower
             .strip_prefix(keyword)
-            .is_some_and(|remainder| remainder.starts_with(' '))
+            .is_some_and(|remainder| lexical::separator_end(remainder, 0) > 0)
 }

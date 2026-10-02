@@ -12,6 +12,9 @@ use super::{
 #[path = "source_join.rs"]
 mod source_join;
 
+#[path = "source_shape.rs"]
+mod source_shape;
+
 type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 pub(super) struct SourceExecutionEnv<'a> {
@@ -265,7 +268,7 @@ fn execute_cte_source(
     let key = name.to_ascii_lowercase();
     let rows = cte_context
         .get(&key)
-        .cloned()
+        .map(|relation| relation.rows.clone())
         .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
     let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
@@ -358,13 +361,12 @@ fn finalize_source_batches(
 mod source_rows;
 pub(crate) use source_rows::{aggregate_signature, expr_key, group_expr_name};
 use source_rows::{
-    apply_set_operation, combine_batches_with_outer_row, distinct_batches, distinct_on_batches,
+    apply_set_operation, attach_outer_scope, distinct_batches, distinct_on_batches,
     materialize_virtual_rows, plan_uses_aggregate, project_rows_to_schema, qualify_batches,
     schema_text_fields, source_row_budget,
 };
 pub(super) use source_rows::{
-    combine_nulls_with_row, combine_row_with_nulls, combine_rows, qualify_row, row_columns,
-    row_lookup_columns, slice_rows, source_contains_lateral,
+    combine_rows, qualify_row, row_lookup_columns, slice_rows, source_contains_lateral,
 };
 
 pub(super) fn execute_source_query_with_outer_row(
@@ -485,7 +487,7 @@ fn load_source_batches(
         source_row_budget(plan, env.controls.max_result_rows),
     )?;
     if let Some(outer_row) = outer_row {
-        batches = combine_batches_with_outer_row(batches, outer_row);
+        batches = attach_outer_scope(batches, outer_row);
     }
     Ok((batches, text_fields))
 }

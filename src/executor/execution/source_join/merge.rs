@@ -1,6 +1,5 @@
 use super::super::{
-    check_timeout, combine_nulls_with_row, combine_row_with_nulls, combine_rows, filter, BatchRow,
-    Expr, JoinKind, QueryError, SourceExecutionEnv,
+    check_timeout, combine_rows, filter, BatchRow, Expr, JoinKind, QueryError, SourceExecutionEnv,
 };
 use super::{batch_row_bytes, row_join_key, EquiJoinKeys, JoinRowsSpec};
 use crate::executor::semantic::SemanticKey;
@@ -99,7 +98,7 @@ impl MergeJoinState {
             &mut self.joined,
             spec.kind,
             &left_keyed[self.left_index..group_end],
-            spec.right_columns,
+            spec.right_template,
             self.output_budget,
         );
         self.left_index = group_end;
@@ -110,7 +109,7 @@ impl MergeJoinState {
         append_right_unmatched(
             &mut self.joined,
             spec.kind,
-            spec.left_columns,
+            spec.left_template,
             &right_keyed[self.right_index..group_end],
             self.output_budget,
         );
@@ -134,8 +133,8 @@ impl MergeJoinState {
                 MergeEqualGroupsSpec {
                     kind: spec.kind,
                     on: spec.on,
-                    left_columns: spec.left_columns,
-                    right_columns: spec.right_columns,
+                    left_template: spec.left_template,
+                    right_template: spec.right_template,
                     output_budget: self.output_budget.saturating_sub(self.joined.len()),
                 },
                 left_group,
@@ -148,13 +147,13 @@ impl MergeJoinState {
                 &mut self.joined,
                 spec.kind,
                 left_group,
-                spec.right_columns,
+                spec.right_template,
                 self.output_budget,
             );
             append_right_unmatched(
                 &mut self.joined,
                 spec.kind,
-                spec.left_columns,
+                spec.left_template,
                 right_group,
                 self.output_budget,
             );
@@ -174,13 +173,13 @@ impl MergeJoinState {
             &mut self.joined,
             spec.kind,
             &left_keyed[self.left_index..],
-            spec.right_columns,
+            spec.right_template,
             self.output_budget,
         );
         append_right_unmatched(
             &mut self.joined,
             spec.kind,
-            spec.left_columns,
+            spec.left_template,
             &right_keyed[self.right_index..],
             self.output_budget,
         );
@@ -215,8 +214,8 @@ struct MergeEqualGroupsResult {
 struct MergeEqualGroupsSpec<'a> {
     kind: JoinKind,
     on: &'a Expr,
-    left_columns: &'a [String],
-    right_columns: &'a [String],
+    left_template: &'a BatchRow,
+    right_template: &'a BatchRow,
     output_budget: usize,
 }
 
@@ -260,10 +259,7 @@ fn merge_equal_key_groups(
     if joined.len() < spec.output_budget && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
         for (offset, matched) in left_matched.iter().enumerate() {
             if !matched {
-                joined.push(combine_row_with_nulls(
-                    &left_group[offset].row,
-                    spec.right_columns,
-                ));
+                joined.push(combine_rows(&left_group[offset].row, spec.right_template));
                 if joined.len() >= spec.output_budget {
                     break;
                 }
@@ -273,10 +269,7 @@ fn merge_equal_key_groups(
     if joined.len() < spec.output_budget && matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
         for (offset, matched) in right_matched.iter().enumerate() {
             if !matched {
-                joined.push(combine_nulls_with_row(
-                    spec.left_columns,
-                    &right_group[offset].row,
-                ));
+                joined.push(combine_rows(spec.left_template, &right_group[offset].row));
                 if joined.len() >= spec.output_budget {
                     break;
                 }
@@ -294,7 +287,7 @@ fn append_left_unmatched(
     joined: &mut Vec<BatchRow>,
     kind: JoinKind,
     rows: &[KeyedRow],
-    right_columns: &[String],
+    right_template: &BatchRow,
     output_budget: usize,
 ) {
     if joined.len() >= output_budget {
@@ -302,7 +295,7 @@ fn append_left_unmatched(
     }
     if matches!(kind, JoinKind::Left | JoinKind::Full) {
         for left in rows {
-            joined.push(combine_row_with_nulls(&left.row, right_columns));
+            joined.push(combine_rows(&left.row, right_template));
             if joined.len() >= output_budget {
                 break;
             }
@@ -313,7 +306,7 @@ fn append_left_unmatched(
 fn append_right_unmatched(
     joined: &mut Vec<BatchRow>,
     kind: JoinKind,
-    left_columns: &[String],
+    left_template: &BatchRow,
     rows: &[KeyedRow],
     output_budget: usize,
 ) {
@@ -322,7 +315,7 @@ fn append_right_unmatched(
     }
     if matches!(kind, JoinKind::Right | JoinKind::Full) {
         for right in rows {
-            joined.push(combine_nulls_with_row(left_columns, &right.row));
+            joined.push(combine_rows(left_template, &right.row));
             if joined.len() >= output_budget {
                 break;
             }

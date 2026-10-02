@@ -33,10 +33,12 @@ pub(super) fn parse_create_retention_policy_statement(
     }
 
     let rest = rest[using_pos + 5..].trim();
-    let retain_pos = find_top_level_keyword(rest, 0, "retain for")
-        .ok_or_else(|| SqlError::new("CREATE RETENTION POLICY requires RETAIN FOR".to_string()))?;
+    let (retain_pos, retain_end) =
+        super::clauses::find_top_level_keyword_span(rest, 0, "retain for").ok_or_else(|| {
+            SqlError::new("CREATE RETENTION POLICY requires RETAIN FOR".to_string())
+        })?;
     let timestamp_field = rest[..retain_pos].trim();
-    let retention_duration = unquote_required(rest[retain_pos + "retain for".len()..].trim())?;
+    let retention_duration = unquote_required(rest[retain_end..].trim())?;
     if timestamp_field.is_empty() {
         return Err(SqlError::new(
             "CREATE RETENTION POLICY requires a timestamp field".to_string(),
@@ -60,15 +62,17 @@ pub(super) fn parse_alter_retention_policy_statement(
 ) -> Result<ParsedStatement, SqlError> {
     let trimmed = sql.trim().trim_end_matches(';').trim();
     let rest = trimmed["alter retention policy".len()..].trim();
-    let retain_pos = find_top_level_keyword(rest, 0, "retain for")
-        .ok_or_else(|| SqlError::new("ALTER RETENTION POLICY requires RETAIN FOR".to_string()))?;
+    let (retain_pos, retain_end) =
+        super::clauses::find_top_level_keyword_span(rest, 0, "retain for").ok_or_else(|| {
+            SqlError::new("ALTER RETENTION POLICY requires RETAIN FOR".to_string())
+        })?;
     let name = rest[..retain_pos].trim();
     if name.is_empty() {
         return Err(SqlError::new(
             "ALTER RETENTION POLICY requires a name".to_string(),
         ));
     }
-    let retention_duration = unquote_required(rest[retain_pos + "retain for".len()..].trim())?;
+    let retention_duration = unquote_required(rest[retain_end..].trim())?;
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::AlterRetentionPolicy(AlterRetentionPolicyStatement {

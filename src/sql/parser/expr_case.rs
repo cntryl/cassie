@@ -10,6 +10,8 @@ enum Keyword {
 }
 
 fn case_keywords(raw: &str) -> Result<Vec<(usize, Keyword)>, SqlError> {
+    let masked = super::super::lexical::without_comments(raw);
+    let raw = masked.as_ref();
     let bytes = raw.as_bytes();
     let mut tokens = Vec::new();
     let mut index = 0;
@@ -73,7 +75,7 @@ fn case_keywords(raw: &str) -> Result<Vec<(usize, Keyword)>, SqlError> {
 }
 
 fn segment<'a>(raw: &'a str, start: usize, end: usize, context: &str) -> Result<&'a str, SqlError> {
-    let value = raw[start..end].trim();
+    let value = super::super::lexical::trim_separators(&raw[start..end]);
     if value.is_empty() {
         Err(SqlError::new(format!("CASE requires {context}")))
     } else {
@@ -87,7 +89,7 @@ pub(super) fn parse_case(raw: &str) -> Result<Expr, SqlError> {
     let Some((first_when, Keyword::When)) = tokens.first().copied() else {
         return Err(SqlError::new("CASE requires WHEN and THEN".into()));
     };
-    let operand = if raw[4..first_when].trim().is_empty() {
+    let operand = if super::super::lexical::trim_separators(&raw[4..first_when]).is_empty() {
         None
     } else {
         Some(Box::new(parse_expression(segment(

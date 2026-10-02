@@ -1813,6 +1813,43 @@ mod column_batch_format_v2 {
     }
 
     #[test]
+    fn should_preserve_signed_zero_bits_in_constant_codec_candidates() {
+        // Arrange
+        for logical_type in ["float", "vector", "json"] {
+            for negative_first in [false, true] {
+                let mut scalars = vec![serde_json::json!(0.0); 41];
+                let position = if negative_first { 0 } else { 40 };
+                scalars[position] = serde_json::json!(-0.0);
+                let values = if logical_type == "float" {
+                    scalars
+                } else {
+                    scalars
+                        .into_iter()
+                        .map(|value| serde_json::json!([value]))
+                        .collect()
+                };
+
+                // Act
+                let encoded = encode(logical_type, &values);
+                let decoded = decode_column_chunk_for_test(&encoded).expect("decode chunk");
+
+                // Assert
+                for (expected, actual) in values.iter().zip(&decoded) {
+                    let (expected, actual) = if logical_type == "float" {
+                        (expected, actual)
+                    } else {
+                        (&expected[0], &actual[0])
+                    };
+                    assert_eq!(
+                        actual.as_f64().expect("float").to_bits(),
+                        expected.as_f64().expect("float").to_bits()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn should_emit_platform_independent_little_endian_plain_integer_bytes() {
         // Arrange
         let values = [serde_json::json!(1), serde_json::json!(-2)];

@@ -7,6 +7,10 @@ use super::binary::{
 };
 use super::bitpack;
 
+#[path = "constant.rs"]
+mod constant;
+use constant::constant_eligible;
+
 pub(super) const MAGIC: &[u8; 4] = b"CBC2";
 pub(super) const FORMAT_VERSION: u16 = 2;
 const HEADER_LEN: usize = 34;
@@ -275,7 +279,7 @@ fn codec_candidates(
     non_null: &[&serde_json::Value],
 ) -> Result<Vec<(Codec, Vec<u8>)>, CassieError> {
     let mut candidates = Vec::new();
-    if constant_eligible(non_null) {
+    if constant_eligible(logical_type, non_null)? {
         candidates.push((Codec::Constant, encode_constant(logical_type, non_null)?));
     }
     candidates.push((Codec::Rle, encode_rle(logical_type, non_null)?));
@@ -916,12 +920,6 @@ fn validate_scalar(
     value: &serde_json::Value,
 ) -> Result<(), CassieError> {
     scalar_bytes(logical_type, value).map(|_| ())
-}
-
-fn constant_eligible(values: &[&serde_json::Value]) -> bool {
-    values
-        .first()
-        .is_none_or(|first| values.iter().all(|value| *value == *first))
 }
 
 fn validity_bitmap(values: &[serde_json::Value]) -> Vec<u8> {

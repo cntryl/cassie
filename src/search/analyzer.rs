@@ -95,6 +95,71 @@ impl AnalyzerConfig {
             .collect()
     }
 
+    /// Returns the byte ranges of `input` whose analyzed tokens equal one of `terms`.
+    ///
+    /// Tokens are produced exactly as `analyze` produces them (case folding, accent
+    /// folding, tokenizer boundaries), then mapped back onto the original text so
+    /// callers can highlight the occurrences that made a search match.
+    #[must_use]
+    pub fn matching_spans(&self, input: &str, terms: &[String]) -> Vec<(usize, usize)> {
+        if terms.is_empty() {
+            return Vec::new();
+        }
+        let mut folded = String::with_capacity(input.len());
+        let mut origins: Vec<(usize, usize)> = Vec::with_capacity(input.len());
+        // `str::to_lowercase` is char-wise except for the context-sensitive final
+        // sigma, so consume its output per source character to match `analyze`.
+        let lowered = if self.case_folding {
+            input.to_lowercase()
+        } else {
+            String::new()
+        };
+        let mut lowered_chars = lowered.chars();
+        for (start, character) in input.char_indices() {
+            let end = start + character.len_utf8();
+            let before = folded.len();
+            if self.case_folding {
+                let produced = if character == '\u{3a3}' {
+                    1
+                } else {
+                    character.to_lowercase().count()
+                };
+                folded.extend(lowered_chars.by_ref().take(produced));
+            } else {
+                folded.push(character);
+            }
+            if self.accent_folding {
+                let tail = fold_accents(&folded[before..]);
+                folded.truncate(before);
+                folded.push_str(&tail);
+            }
+            origins.resize(folded.len(), (start, end));
+        }
+
+        let mut spans: Vec<(usize, usize)> = Vec::new();
+        let mut token_start: Option<usize> = None;
+        let boundaries = folded
+            .char_indices()
+            .map(|(index, character)| (index, is_token_boundary(&self.tokenizer, character)))
+            .chain(std::iter::once((folded.len(), true)));
+        for (index, boundary) in boundaries {
+            match (token_start, boundary) {
+                (None, false) => token_start = Some(index),
+                (Some(start), true) => {
+                    token_start = None;
+                    if terms.iter().any(|term| term == &folded[start..index]) {
+                        let span = (origins[start].0, origins[index - 1].1);
+                        if spans.last().is_none_or(|last| span.0 >= last.1) {
+                            spans.push(span);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        spans
+    }
+
     #[must_use]
     pub fn cache_key(&self) -> String {
         serde_json::to_string(self).unwrap_or_else(|_| self.name.clone())
@@ -126,11 +191,15 @@ fn parse_bool_option(name: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-fn tokenize_with<'a>(input: &'a str, tokenizer: &str) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+fn is_token_boundary(tokenizer: &str, character: char) -> bool {
     match tokenizer {
-        "whitespace" => Box::new(input.split_whitespace()),
-        _ => Box::new(input.split(|c: char| !c.is_alphanumeric())),
+        "whitespace" => character.is_whitespace(),
+        _ => !character.is_alphanumeric(),
     }
+}
+
+fn tokenize_with<'a>(input: &'a str, tokenizer: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+    input.split(move |character: char| is_token_boundary(tokenizer, character))
 }
 
 fn fold_accents(input: &str) -> String {
@@ -215,5 +284,36 @@ mod tests {
         // Assert
         let error = result.expect_err("unknown tokenizer should fail");
         assert_eq!(error, "unsupported tokenizer 'unsupported'");
+    }
+
+    #[test]
+    fn should_match_final_sigma_spans_like_analyze() {
+        // Arrange
+        let config = AnalyzerConfig::default();
+        let text = "\u{39f}\u{394}\u{3a5}\u{3a3}\u{3a3}\u{395}\u{3a5}\u{3a3} home";
+        let terms = config.analyze(text);
+
+        // Act
+        let spans = config.matching_spans(text, &terms[..1]);
+
+        // Assert
+        assert_eq!(spans, vec![(0, text.len() - " home".len())]);
+    }
+
+    #[test]
+    fn should_match_whitespace_tokens_without_splitting_punctuation() {
+        // Arrange
+        let config = AnalyzerConfig {
+            tokenizer: "whitespace".to_string(),
+            stop_words: "none".to_string(),
+            ..AnalyzerConfig::default()
+        };
+        let terms = config.analyze("alpha-beta");
+
+        // Act
+        let spans = config.matching_spans("x Alpha-Beta alpha", &terms);
+
+        // Assert
+        assert_eq!(spans, vec![(2, 12)]);
     }
 }

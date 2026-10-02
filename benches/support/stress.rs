@@ -5,10 +5,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cntryl_stress::{
-    artifact::{
-        BenchmarkBudgets, BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile,
-        TrustClass,
-    },
+    artifact::{BenchmarkModeKind, BenchmarkSpec, MeasurementIntent, RunProfile, TrustClass},
     black_box,
     runner::{evaluate_run_gate, RunGate},
     StressContext, StressRunner, StressRunnerConfig,
@@ -794,19 +791,18 @@ impl CassieStressRunner {
             .or_insert_with(|| "0".to_string());
 
         let id = format!("{}/{}/{}", self.suite, case.workload, case.fixture_scale);
-        BenchmarkSpec {
+        let mut spec = BenchmarkSpec::new(
             id,
-            name: format!("{}/{}", case.workload, case.fixture_scale),
-            tier: self.tier.number(),
-            mode: self
-                .config
+            format!("{}/{}", case.workload, case.fixture_scale),
+            self.tier.number(),
+            self.config
                 .mode_for_tier(self.tier.number())
                 .unwrap_or_else(|| self.config.mode_for_kind(case.mode)),
-            intent: case.intent,
-            budgets: BenchmarkBudgets::default(),
-            parameters: case.parameters,
-            metadata,
-        }
+        );
+        spec.intent = case.intent;
+        spec.parameters = case.parameters;
+        spec.metadata = metadata;
+        spec
     }
 }
 

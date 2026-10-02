@@ -2060,6 +2060,7 @@ mod integration_sql_fulltext_query {
 // Formerly tests/search_vector.rs.
 mod search_vector {
     use cassie::hybrid::hybrid_score;
+    use cassie::search::analyzer::AnalyzerConfig;
     use cassie::search::bm25;
     use cassie::search::tokenizer;
     use cassie::vector::{cosine_distance, dot_distance, dot_score, l2_distance};
@@ -2315,7 +2316,7 @@ mod search_vector {
         let terms = vec!["rust".to_string(), "systems".to_string()];
 
         // Act
-        let output = bm25::snippet(input, &terms);
+        let output = bm25::snippet(input, &terms, &AnalyzerConfig::default());
 
         // Assert
         assert_eq!(
@@ -2331,7 +2332,7 @@ mod search_vector {
         let terms = vec!["nice".to_string()];
 
         // Act
-        let output = bm25::snippet(input, &terms);
+        let output = bm25::snippet(input, &terms, &AnalyzerConfig::default());
 
         // Assert
         assert_eq!(output, "İstanbul is <mark>nice</mark>");
@@ -2701,6 +2702,207 @@ mod scored_read_equivalence {
             // Assert
             assert_eq!(baseline.rows.len(), 2);
             assert_eq!(narrowed.rows, baseline.rows);
+        });
+    }
+}
+
+// Analyzer and corpus-statistics consistency for scored fulltext reads.
+mod fulltext_analyzer_consistency {
+    use cassie::app::Cassie;
+    use cassie::types::{Value, Vector};
+
+    use super::support_sql as support;
+    use support::{data_dir, use_local_storage};
+
+    fn run(cassie: &Cassie, sql: &str) -> Vec<Vec<Value>> {
+        run_with(cassie, sql, vec![])
+    }
+
+    fn run_with(cassie: &Cassie, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(&session, sql, params)
+            .expect("statement should execute")
+            .rows
+    }
+
+    fn scored_ids(rows: &[Vec<Value>]) -> Vec<(String, f64)> {
+        rows.iter()
+            .map(|row| {
+                let (Value::String(id), Value::Float64(score)) = (&row[0], &row[1]) else {
+                    panic!("expected id and score columns");
+                };
+                (id.clone(), *score)
+            })
+            .collect()
+    }
+
+    fn hybrid_fixture(label: &str) -> Cassie {
+        use_local_storage();
+        let cassie = Cassie::new_with_data_dir(data_dir(label)).unwrap();
+        cassie.startup().unwrap();
+        run(
+            &cassie,
+            "CREATE TABLE ia (id TEXT NOT NULL, body TEXT, grp TEXT, embedding VECTOR(2))",
+        );
+        let mut rows = (0..10)
+            .map(|index| (format!("a{index:02}"), "alpha", "A"))
+            .collect::<Vec<_>>();
+        rows.push(("m_alpha".to_string(), "alpha", "B"));
+        rows.push(("z_beta".to_string(), "beta", "B"));
+        for (id, body, grp) in rows {
+            run_with(
+                &cassie,
+                "INSERT INTO ia (id, body, grp, embedding) VALUES ($1, $2, $3, $4)",
+                vec![
+                    Value::String(id),
+                    Value::String(body.to_string()),
+                    Value::String(grp.to_string()),
+                    Value::Vector(Vector::new(vec![1.0, 0.0])),
+                ],
+            );
+        }
+        run(
+            &cassie,
+            "CREATE INDEX ia_body_idx ON ia USING fulltext (body)",
+        );
+        cassie
+    }
+
+    #[test]
+    fn should_highlight_accent_folded_matches_in_snippet() {
+        // Arrange
+        use_local_storage();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(data_dir("snippet_accent")).unwrap();
+            cassie.startup().unwrap();
+            run(&cassie, "CREATE TABLE snip_accent (id INT NOT NULL, body TEXT)");
+            run(
+                &cassie,
+                "INSERT INTO snip_accent (id, body) VALUES (1, 'Cafe Bar'), (2, 'Caf\u{e9} Bar')",
+            );
+            run(
+                &cassie,
+                "CREATE INDEX snip_accent_ft ON snip_accent USING FULLTEXT (body) WITH (accent_folding = 'true')",
+            );
+
+            // Act
+            let rows = run(
+                &cassie,
+                "SELECT id, search(body, 'cafe') AS m, snippet(body, 'cafe') AS s FROM snip_accent ORDER BY id",
+            );
+
+            // Assert
+            assert_eq!(rows[0][1], Value::Bool(true));
+            assert_eq!(rows[0][2], Value::String("<mark>Cafe</mark> Bar".to_string()));
+            assert_eq!(rows[1][1], Value::Bool(true));
+            assert_eq!(
+                rows[1][2],
+                Value::String("<mark>Caf\u{e9}</mark> Bar".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn should_highlight_accent_folded_matches_in_filtered_fulltext_read_snippet() {
+        // Arrange
+        use_local_storage();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(data_dir("snippet_accent_read")).unwrap();
+            cassie.startup().unwrap();
+            run(&cassie, "CREATE TABLE snip_read (id INT NOT NULL, body TEXT)");
+            run(
+                &cassie,
+                "INSERT INTO snip_read (id, body) VALUES (2, 'Caf\u{e9} Bar')",
+            );
+            run(
+                &cassie,
+                "CREATE INDEX snip_read_ft ON snip_read USING FULLTEXT (body) WITH (accent_folding = 'true')",
+            );
+
+            // Act
+            let rows = run(
+                &cassie,
+                "SELECT id, snippet(body, 'cafe') AS s, search_score(body, 'cafe') AS score FROM snip_read WHERE search(body, 'cafe')",
+            );
+
+            // Assert
+            assert_eq!(rows.len(), 1);
+            assert_eq!(
+                rows[0][1],
+                Value::String("<mark>Caf\u{e9}</mark> Bar".to_string())
+            );
+        });
+    }
+
+    #[test]
+    fn should_not_highlight_case_mismatch_when_case_folding_is_disabled() {
+        // Arrange
+        use_local_storage();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(data_dir("snippet_case")).unwrap();
+            cassie.startup().unwrap();
+            run(&cassie, "CREATE TABLE snip_case (id INT NOT NULL, body TEXT)");
+            run(
+                &cassie,
+                "INSERT INTO snip_case (id, body) VALUES (1, 'Alpha beta')",
+            );
+            run(
+                &cassie,
+                "CREATE INDEX snip_case_ft ON snip_case USING FULLTEXT (body) WITH (case_folding = 'false')",
+            );
+
+            // Act
+            let rows = run(
+                &cassie,
+                "SELECT search(body, 'alpha') AS m, snippet(body, 'alpha') AS s FROM snip_case",
+            );
+
+            // Assert
+            assert_eq!(rows[0][0], Value::Bool(false));
+            assert_eq!(rows[0][1], Value::String("Alpha beta".to_string()));
+        });
+    }
+
+    #[test]
+    fn should_keep_fulltext_scores_stable_after_filtered_hybrid_query() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let scored = "SELECT _id, search_score(body, 'alpha beta') AS score FROM ia ORDER BY score DESC LIMIT 2";
+            let cold = hybrid_fixture("hybrid_stats_cold");
+            let baseline = scored_ids(&run(&cold, scored));
+            let warmed = hybrid_fixture("hybrid_stats_warmed");
+
+            // Act
+            run(
+                &warmed,
+                "SELECT _id, hybrid_score(search_score(body, 'alpha beta'), vector_score(embedding, '[1,0]')) AS hs FROM ia WHERE grp = 'B' ORDER BY hs DESC LIMIT 1",
+            );
+            let after_hybrid = scored_ids(&run(&warmed, scored));
+
+            // Assert
+            assert_eq!(baseline.len(), 2);
+            assert_eq!(after_hybrid.len(), baseline.len());
+            assert!(baseline[0].1 > baseline[1].1);
+            for (before, after) in baseline.iter().zip(&after_hybrid) {
+                assert!((before.1 - after.1).abs() < 1e-12);
+            }
         });
     }
 }

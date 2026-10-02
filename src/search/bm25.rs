@@ -1,3 +1,5 @@
+use super::analyzer::AnalyzerConfig;
+
 pub const DEFAULT_BM25_K1: f64 = 1.2;
 pub const DEFAULT_BM25_B: f64 = 0.75;
 pub const DEFAULT_FULLTEXT_BOOST: f64 = 1.0;
@@ -18,56 +20,24 @@ pub fn bm25_score(tf: f64, df: f64, n: f64, k1: f64, b: f64, dl: f64, avgdl: f64
     (idf * ((tf * (k1 + 1.0)) / denominator)).max(0.0)
 }
 
+/// Wraps every occurrence of an analyzed query term in `<mark>` tags, matching
+/// tokens with the same analyzer that indexing and `search()` use.
 #[must_use]
-pub fn snippet(text: &str, terms: &[String]) -> String {
-    let mut normalized_terms = terms
-        .iter()
-        .map(|term| term.trim().to_lowercase())
-        .filter(|term| !term.is_empty())
-        .collect::<Vec<_>>();
-    normalized_terms.sort_by_key(|term| std::cmp::Reverse(term.len()));
-    normalized_terms.dedup();
-    if normalized_terms.is_empty() {
+pub fn snippet(text: &str, terms: &[String], analyzer: &AnalyzerConfig) -> String {
+    let spans = analyzer.matching_spans(text, terms);
+    if spans.is_empty() {
         return text.to_string();
     }
 
-    let mut out = String::new();
+    let mut out = String::with_capacity(text.len() + spans.len() * 13);
     let mut cursor = 0usize;
-    while cursor < text.len() {
-        let matched = normalized_terms
-            .iter()
-            .find_map(|term| lowercase_match_end(&text[cursor..], term));
-
-        if let Some(matched_bytes) = matched {
-            let end = cursor + matched_bytes;
-            out.push_str("<mark>");
-            out.push_str(&text[cursor..end]);
-            out.push_str("</mark>");
-            cursor = end;
-            continue;
-        }
-
-        let Some(ch) = text[cursor..].chars().next() else {
-            break;
-        };
-        out.push(ch);
-        cursor += ch.len_utf8();
+    for (start, end) in spans {
+        out.push_str(&text[cursor..start]);
+        out.push_str("<mark>");
+        out.push_str(&text[start..end]);
+        out.push_str("</mark>");
+        cursor = end;
     }
-
+    out.push_str(&text[cursor..]);
     out
-}
-
-fn lowercase_match_end(text: &str, term: &str) -> Option<usize> {
-    let mut normalized = String::new();
-    for (index, character) in text.char_indices() {
-        normalized.extend(character.to_lowercase());
-        let original_end = index + character.len_utf8();
-        if normalized == term || normalized.starts_with(term) {
-            return Some(original_end);
-        }
-        if !term.starts_with(&normalized) {
-            return None;
-        }
-    }
-    None
 }

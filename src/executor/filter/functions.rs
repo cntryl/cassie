@@ -846,7 +846,9 @@ fn evaluate_snippet(
         _ => AnalyzerConfig::default(),
     };
     let terms = analyzer.analyze(&query);
-    Ok(Value::String(crate::search::snippet(&source, &terms)))
+    Ok(Value::String(crate::search::snippet(
+        &source, &terms, &analyzer,
+    )))
 }
 
 fn evaluate_hybrid_score(args: &[Value]) -> Result<Value, QueryError> {

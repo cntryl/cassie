@@ -300,6 +300,9 @@ fn score_row_fulltext_documents(
     request: &RowFulltextScoreRequest<'_>,
 ) -> Result<(Vec<BatchRow>, QueryMemoryReservation), QueryError> {
     let mut skipped = 0usize;
+    let analyzer = request
+        .search_context
+        .analyzer_for_field(&request.spec.text_field);
     let mut rows = AccountedVec::try_new(request.controls)?;
     for document in request.search_documents {
         super::super::check_timeout(request.controls)?;
@@ -350,7 +353,7 @@ fn score_row_fulltext_documents(
                     &document.payload,
                     score,
                     request.spec,
-                    request.query_terms,
+                    (request.query_terms, &analyzer),
                 )
             },
         )?;
@@ -381,6 +384,9 @@ fn try_execute_persisted_fulltext_filtered_read(
         controls,
     )?;
     let (matched, matched_memory) = matched.into_parts();
+    let analyzer = persisted
+        .search_context
+        .analyzer_for_field(&spec.text_field);
     let materialized = materialize_persisted_candidates(
         &PersistedMaterializeRequest {
             cassie,
@@ -390,6 +396,7 @@ fn try_execute_persisted_fulltext_filtered_read(
             spec,
             controls,
             query_terms: &persisted.query_terms,
+            analyzer: &analyzer,
         },
         matched,
     )?;
@@ -556,6 +563,7 @@ struct PersistedMaterializeRequest<'a> {
     spec: &'a FulltextFilteredReadSpec,
     controls: &'a QueryExecutionControls,
     query_terms: &'a [String],
+    analyzer: &'a AnalyzerConfig,
 }
 
 enum PersistedMaterialization {
@@ -619,7 +627,7 @@ fn materialize_persisted_candidates(
                     &document.payload,
                     score,
                     request.spec,
-                    request.query_terms,
+                    (request.query_terms, request.analyzer),
                 )
             },
         )?;
@@ -817,7 +825,7 @@ fn fulltext_result_row(
     payload: &serde_json::Value,
     score: f64,
     spec: &FulltextFilteredReadSpec,
-    query_terms: &[String],
+    highlight: (&[String], &AnalyzerConfig),
 ) -> BatchRow {
     let mut entries = Vec::with_capacity(
         spec.columns
@@ -837,7 +845,7 @@ fn fulltext_result_row(
         let value = json_projected_value(payload, &snippet.field)
             .and_then(serde_json::Value::as_str)
             .map_or(Value::Null, |source| {
-                Value::String(crate::search::snippet(source, query_terms))
+                Value::String(crate::search::snippet(source, highlight.0, highlight.1))
             });
         entries.push((snippet.output_name.clone(), value));
     }

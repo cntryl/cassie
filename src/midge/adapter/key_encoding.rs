@@ -458,6 +458,28 @@ pub(super) fn index_publication_prefix() -> Vec<u8> {
     prefix(FAMILY_INDEX_PUBLICATION, &[])
 }
 
+pub(super) fn vector_backfill_row_key(publication: &str, ordinal: u64) -> Vec<u8> {
+    key(
+        b"vector-backfill-row",
+        &[publication.as_bytes(), &ordinal.to_be_bytes()],
+    )
+}
+
+pub(super) fn vector_backfill_row_prefix(publication: Option<&str>) -> Vec<u8> {
+    publication.map_or_else(
+        || prefix(b"vector-backfill-row", &[]),
+        |id| prefix(b"vector-backfill-row", &[id.as_bytes()]),
+    )
+}
+
+pub(super) fn vector_backfill_applied_key(publication: &str) -> Vec<u8> {
+    key(b"vector-backfill-applied", &[publication.as_bytes()])
+}
+
+pub(super) fn vector_backfill_applied_prefix() -> Vec<u8> {
+    prefix(b"vector-backfill-applied", &[])
+}
+
 pub(super) fn schema_operation_key(current: &str, next: &str) -> Vec<u8> {
     scoped_key(FAMILY_SCHEMA_OPERATION, current, &[next.as_bytes()])
 }

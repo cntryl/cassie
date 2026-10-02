@@ -3,15 +3,17 @@ use serde::{Deserialize, Serialize};
 use super::{collect_scan, CassieError, IndexKind, IndexMeta, Midge, Query};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-enum IndexPublicationState {
+pub(super) enum IndexPublicationState {
     Prepared,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub(super) struct PendingIndexPublication {
-    state: IndexPublicationState,
-    index: IndexMeta,
-    target_generation: u64,
+    pub(super) state: IndexPublicationState,
+    pub(super) index: IndexMeta,
+    pub(super) target_generation: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) vector_backfill: Option<super::vector_publication::PendingVectorBackfill>,
 }
 
 impl Midge {
@@ -35,6 +37,7 @@ impl Midge {
     ) -> Result<PendingIndexPublication, CassieError> {
         let pending = PendingIndexPublication {
             state: IndexPublicationState::Prepared,
+            vector_backfill: None,
             index: index.clone(),
             target_generation: self.collection_generation(&index.collection)?,
         };
@@ -95,6 +98,10 @@ impl Midge {
         &self,
         mut publication: PendingIndexPublication,
     ) -> Result<(), CassieError> {
+        if publication.vector_backfill.is_some() {
+            self.publish_pending_vector_index(&publication)?;
+            return Ok(());
+        }
         loop {
             let generation = self.collection_generation(&publication.index.collection)?;
             if generation != publication.target_generation {

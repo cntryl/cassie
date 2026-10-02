@@ -7008,13 +7008,17 @@ mod vector_write_path {
     use super::support_sql as support;
     use support::{data_dir, use_local_storage};
 
-    fn start_vector_cassie(path: &str) -> Cassie {
+    fn new_vector_cassie(path: &str) -> Cassie {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
             model: "deterministic-test".to_string(),
             dimensions: 3,
         });
-        let cassie = Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie");
+        Cassie::new_with_data_dir_and_config(path, config).expect("create Cassie")
+    }
+
+    fn start_vector_cassie(path: &str) -> Cassie {
+        let cassie = new_vector_cassie(path);
         cassie.startup().expect("start Cassie");
         cassie
     }
@@ -7351,6 +7355,508 @@ mod vector_write_path {
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }
+
+    #[test]
+    fn should_preserve_constraints_before_vector_backfill_publication() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_check");
+        let cassie = start_vector_cassie(&path);
+        run(&cassie, "CREATE TABLE guarded (id TEXT, body TEXT, embedding VECTOR(3), CHECK (embedding = 'forbidden'))", vec![]);
+        run(
+            &cassie,
+            "INSERT INTO guarded (id, body) VALUES ('a', 'hello')",
+            vec![],
+        );
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie.execute_sql(&session, "CREATE INDEX guarded_idx ON guarded USING vector (embedding) WITH (source_field = body)", vec![]);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(embedding_of(&cassie, "guarded", "a"), Value::Null));
+        assert!(cassie
+            .midge
+            .get_vector_index("guarded", "embedding")
+            .expect("index metadata")
+            .is_none());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_leave_rows_unchanged_after_vector_backfill_provider_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_provider_failure");
+        let mut cassie = start_vector_cassie(&path);
+        cassie.embedding_provider =
+            std::sync::Arc::new(super::backfill_provider::FailSecondProvider::default());
+        create_table(&cassie, "partial_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO partial_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie.execute_sql(&session, "CREATE INDEX partial_idx ON partial_backfill USING vector (embedding) WITH (source_field = body)", vec![]);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "partial_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "partial_backfill", "b"),
+            Value::Null
+        ));
+        assert!(cassie
+            .midge
+            .get_vector_index("partial_backfill", "embedding")
+            .expect("index metadata")
+            .is_none());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn rest_index(
+        cassie: &Cassie,
+        table: &str,
+    ) -> Result<serde_json::Value, cassie::app::CassieError> {
+        cassie::rest::indexes::create(
+            cassie,
+            table,
+            br#"{"field":"embedding","options":{"source_field":"body"}}"#,
+        )
+    }
+
+    #[test]
+    fn should_preserve_constraints_before_rest_vector_backfill_publication() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("rest_vector_backfill_check");
+        let cassie = start_vector_cassie(&path);
+        run(&cassie, "CREATE TABLE guarded (id TEXT, body TEXT, embedding VECTOR(3), CHECK (embedding = 'forbidden'))", vec![]);
+        run(
+            &cassie,
+            "INSERT INTO guarded (id, body) VALUES ('a', 'hello')",
+            vec![],
+        );
+
+        // Act
+        let result = rest_index(&cassie, "guarded");
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(embedding_of(&cassie, "guarded", "a"), Value::Null));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_leave_rows_unchanged_after_rest_vector_backfill_provider_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("rest_vector_backfill_provider_failure");
+        let mut cassie = start_vector_cassie(&path);
+        cassie.embedding_provider =
+            std::sync::Arc::new(super::backfill_provider::FailSecondProvider::default());
+        create_table(&cassie, "partial_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO partial_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+
+        // Act
+        let result = rest_index(&cassie, "partial_backfill");
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "partial_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "partial_backfill", "b"),
+            Value::Null
+        ));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn reopen_without_provider_calls(path: &str) -> Cassie {
+        let mut cassie = new_vector_cassie(path);
+        let provider = std::sync::Arc::new(super::backfill_provider::FailSecondProvider::default());
+        cassie.embedding_provider = provider.clone();
+        cassie.startup().expect("recover publication");
+        assert_eq!(provider.call_count(), 0);
+        cassie
+    }
+
+    fn assert_recovered_backfill(cassie: &Cassie) {
+        assert!(matches!(
+            embedding_of(cassie, "recover_backfill", "a"),
+            Value::Vector(_)
+        ));
+        assert!(matches!(
+            embedding_of(cassie, "recover_backfill", "b"),
+            Value::Vector(_)
+        ));
+        assert!(cassie
+            .midge
+            .get_vector_index("recover_backfill", "embedding")
+            .expect("vector metadata")
+            .is_some());
+        assert!(cassie
+            .catalog
+            .get_vector_index("postgres.public.recover_backfill", "embedding")
+            .is_some());
+        cassie
+            .midge
+            .replay_pending_index_publications()
+            .expect("repeat replay");
+    }
+
+    #[test]
+    fn should_replay_unapplied_vector_backfill_after_publication_interruption() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_prepared_restart");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+        cassie::midge::adapter::set_index_publication_failure_point(true);
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie.execute_sql(&session, "CREATE INDEX recover_idx ON recover_backfill USING vector (embedding) WITH (source_field = body)", vec![]);
+        cassie::midge::adapter::set_index_publication_failure_point(false);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "b"),
+            Value::Null
+        ));
+        drop(cassie);
+        let cassie = reopen_without_provider_calls(&path);
+        assert_recovered_backfill(&cassie);
+        assert!(cassie
+            .midge
+            .get_index("recover_backfill", "recover_idx")
+            .expect("SQL index")
+            .is_some());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_atomic_vector_backfill_after_data_commit_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_atomic_restart");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+        cassie::midge::adapter::set_document_write_storage_failures(
+            cassie::midge::adapter::DocumentWriteStorageFailure::Fenced,
+            1,
+        );
+
+        // Act
+        let session = cassie.create_session("tester", None);
+        let result = cassie.execute_sql(&session, "CREATE INDEX recover_idx ON recover_backfill USING vector (embedding) WITH (source_field = body)", vec![]);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "b"),
+            Value::Null
+        ));
+        drop(cassie);
+        let cassie = reopen_without_provider_calls(&path);
+        assert_recovered_backfill(&cassie);
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_replay_committed_rest_vector_backfill_after_sidecar_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("rest_vector_backfill_committed_restart");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "b"),
+            Value::Null
+        ));
+        cassie::midge::adapter::set_document_write_failure_point(Some(
+            cassie::midge::adapter::DocumentWriteFailurePoint::VectorState,
+        ));
+
+        // Act
+        let result = rest_index(&cassie, "recover_backfill");
+        cassie::midge::adapter::set_document_write_failure_point(None);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Vector(_)
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "b"),
+            Value::Vector(_)
+        ));
+        assert!(cassie
+            .midge
+            .get_vector_index("recover_backfill", "embedding")
+            .expect("metadata")
+            .is_none());
+        drop(cassie);
+        let cassie = reopen_without_provider_calls(&path);
+        assert_recovered_backfill(&cassie);
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_expose_rollup_debt_after_committed_backfill_failure() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_rollup_debt");
+        let cassie = start_vector_cassie(&path);
+        run(&cassie, "CREATE TABLE recover_backfill (id TEXT, body TEXT, event_at TEXT, embedding VECTOR(3))", vec![]);
+        run(&cassie, "INSERT INTO recover_backfill (id, body, event_at) VALUES ('a', 'hello', '2026-01-01T00:05:00Z')", vec![]);
+        run(&cassie, "CREATE ROLLUP backfill_hourly ON recover_backfill USING time_bucket('1 hour', event_at) GROUP BY body AGGREGATES COUNT(*) AS total", vec![]);
+        let explain_sql = "EXPLAIN SELECT time_bucket('1 hour', event_at) AS bucket, body, COUNT(*) AS total FROM recover_backfill GROUP BY time_bucket('1 hour', event_at), body";
+        let before = run(&cassie, explain_sql, vec![]);
+        assert!(before
+            .iter()
+            .flatten()
+            .any(|value| value
+                .as_str()
+                .is_some_and(|plan| plan.contains("rollup_rewrite=")
+                    && !plan.contains("rollup_rewrite=none"))));
+        cassie::midge::adapter::set_document_write_failure_point(Some(
+            cassie::midge::adapter::DocumentWriteFailurePoint::VectorState,
+        ));
+
+        // Act
+        let result = rest_index(&cassie, "recover_backfill");
+        cassie::midge::adapter::set_document_write_failure_point(None);
+        let debt = run(&cassie, "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.recover_backfill' AND artifact = 'rollup'", vec![]);
+
+        let after = run(&cassie, explain_sql, vec![]);
+
+        // Assert
+        assert!(result.is_err());
+        assert!(after.iter().flatten().any(|value| value
+            .as_str()
+            .is_some_and(|plan| plan.contains("rollup_rewrite=none"))));
+        assert_eq!(debt.len(), 1);
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    fn interrupt_before_backfill(cassie: &Cassie) {
+        cassie::midge::adapter::set_index_publication_failure_point(true);
+        let session = cassie.create_session("tester", None);
+        let result = cassie.execute_sql(&session, "CREATE INDEX recover_idx ON recover_backfill USING vector (embedding) WITH (source_field = body)", vec![]);
+        cassie::midge::adapter::set_index_publication_failure_point(false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_fail_closed_on_unknown_vector_publication_version() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_unknown_version");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello')",
+            vec![],
+        );
+        interrupt_before_backfill(&cassie);
+        let (key, mut record) = super::vector_publication_support::pending_record(&cassie);
+        record["vector_backfill"]["version"] = serde_json::json!(99);
+        super::vector_publication_support::write_schema_record(&cassie, key, Some(&record));
+        drop(cassie);
+
+        // Act
+        let cassie = new_vector_cassie(&path);
+        let result = cassie.startup();
+
+        // Assert
+        assert!(result.is_err());
+        assert!(cassie
+            .midge
+            .get_vector_index("recover_backfill", "embedding")
+            .expect("metadata")
+            .is_none());
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_fail_closed_on_missing_vector_backfill_staging_row() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_missing_stage");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+        interrupt_before_backfill(&cassie);
+        let (key, _) = super::vector_publication_support::staged_record(&cassie);
+        super::vector_publication_support::write_schema_record(&cassie, key, None);
+
+        // Act
+        let result = cassie.midge.replay_pending_index_publications();
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "b"),
+            Value::Null
+        ));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_fail_closed_on_changed_vector_backfill_staging_digest() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_corrupt_stage");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello')",
+            vec![],
+        );
+        interrupt_before_backfill(&cassie);
+        let (key, mut record) = super::vector_publication_support::staged_record(&cassie);
+        record["payload"]["body"] = serde_json::json!("corrupted");
+        super::vector_publication_support::write_schema_record(&cassie, key, Some(&record));
+
+        // Act
+        let result = cassie.midge.replay_pending_index_publications();
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_preserve_newer_source_rows_when_vector_publication_generation_changes() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_generation_change");
+        let cassie = start_vector_cassie(&path);
+        create_table(&cassie, "recover_backfill", false);
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello')",
+            vec![],
+        );
+        interrupt_before_backfill(&cassie);
+        run(
+            &cassie,
+            "UPDATE recover_backfill SET body = 'newer' WHERE id = 'a'",
+            vec![],
+        );
+
+        // Act
+        let result = cassie.midge.replay_pending_index_publications();
+
+        // Assert
+        assert!(result.is_err());
+        assert!(matches!(
+            embedding_of(&cassie, "recover_backfill", "a"),
+            Value::Null
+        ));
+        let body = run(
+            &cassie,
+            "SELECT body FROM recover_backfill WHERE id = 'a'",
+            vec![],
+        );
+        assert!(matches!(&body[0][0], Value::String(value) if value == "newer"));
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_backfill_unique_rows_without_conflicting_with_their_own_identity() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("vector_backfill_unique_identity");
+        let cassie = start_vector_cassie(&path);
+        run(
+            &cassie,
+            "CREATE TABLE recover_backfill (id TEXT UNIQUE, body TEXT, embedding VECTOR(3))",
+            vec![],
+        );
+        run(
+            &cassie,
+            "INSERT INTO recover_backfill (id, body) VALUES ('a', 'hello'), ('b', 'world')",
+            vec![],
+        );
+
+        // Act
+        create_index(&cassie, "recover_backfill");
+
+        // Assert
+        assert_recovered_backfill(&cassie);
+        drop(cassie);
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 #[path = "support/read_equivalence.rs"]
@@ -7543,3 +8049,9 @@ mod vector_read_equivalence {
         });
     }
 }
+
+#[path = "support/backfill_provider.rs"]
+mod backfill_provider;
+
+#[path = "support/vector_publication.rs"]
+mod vector_publication_support;

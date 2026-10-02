@@ -314,6 +314,7 @@ mod index_publication;
 mod maintenance;
 mod unique_constraint_cleanup;
 mod unique_constraint_publication;
+mod vector_publication;
 pub use maintenance::{
     set_fulltext_maintenance_failure_point,
     set_materialized_projection_debt_persistence_failure_point,

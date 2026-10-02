@@ -60,8 +60,7 @@ pub fn create(cassie: &Cassie, collection: &str, body: &[u8]) -> Result<Value, C
         metadata,
     };
 
-    cassie.put_vector_index_with_backfill(&record)?;
-    cassie.register_vector_index(record.clone());
+    cassie.put_vector_index_with_backfill(&record, None)?;
     Ok(vector_index_response(&collection, &record, "created"))
 }
 

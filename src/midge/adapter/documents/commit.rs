@@ -64,6 +64,10 @@ impl Midge {
             generations.insert(collection.clone(), generation);
         }
         let epoch = Self::increment_data_epoch_in_tx(&mut tx)?;
+        if let Some((key, value)) = &options.publication_marker {
+            tx.put(key.clone(), value.clone(), None)
+                .map_err(CassieError::from)?;
+        }
         if let Err(error) = super::super::check_document_write_conflict_injection() {
             tx.rollback().map_err(CassieError::from)?;
             return Err(error);

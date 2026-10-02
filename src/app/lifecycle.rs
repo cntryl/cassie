@@ -129,6 +129,11 @@ impl Cassie {
                 CassieError::Storage(format!("index publication recovery: {error}"))
             })?;
         self.midge
+            .cleanup_vector_publication_staging()
+            .map_err(|error| {
+                CassieError::Storage(format!("vector publication cleanup: {error}"))
+            })?;
+        self.midge
             .retry_maintenance_debt()
             .map_err(|error| CassieError::Storage(format!("maintenance recovery: {error}")))?;
         self.midge

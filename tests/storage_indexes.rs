@@ -222,12 +222,17 @@ mod index_publication_recovery {
             .midge
             .get_vector_index("vector_index_publication_docs", "embedding")
             .expect("read prepared vector metadata")
-            .is_some());
+            .is_none());
 
         drop(cassie);
         let restarted = Cassie::new_with_data_dir_and_config(&path, openai_runtime_for_vectors())
             .expect("reopen Cassie");
         restarted.startup().expect("replay prepared vector index");
+        assert!(restarted
+            .midge
+            .get_vector_index("vector_index_publication_docs", "embedding")
+            .expect("read published vector metadata")
+            .is_some());
         assert_eq!(
             restarted
                 .catalog

@@ -183,6 +183,10 @@ Initial vector-index publication and vector-index removal page normalized vector
 IVFFlat memberships through data transactions of at most 5,000 sidecars. The vector manifest is
 published after initial batches and removed after cleanup batches, so a failed attempt remains
 retryable without exposing partial indexed state.
+Sourced-vector backfill uses the [recoverable publication contract](vector-index-publication.md):
+staged payload and sidecar transactions are bounded separately, while validated base-row updates
+and their applied marker share one atomic data transaction. This does not establish a bounded
+memory or large-scale backfill performance guarantee.
 Prepared scalar-index publication and cleanup use transactions of at most 5,000 entries and flush
 the owning database family after every four committed batches and after the final partial interval.
 This bounds encoded index-key memtable accumulation without forcing an L0 flush after every

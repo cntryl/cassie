@@ -16,18 +16,57 @@ impl Cassie {
     pub(crate) fn put_vector_index_with_backfill(
         &self,
         index: &VectorIndexRecord,
+        sql_index: Option<&crate::catalog::IndexMeta>,
     ) -> Result<(), CassieError> {
         let collections = self.referential_write_collections(&index.collection);
         self.midge.with_collection_write_gates(&collections, || {
-            self.backfill_vector_embeddings_with_held_gates(index)?;
-            self.midge.put_vector_index(index.clone())
+            let rows = self.prepare_vector_backfill_with_held_gates(index)?;
+            let options = self.document_write_options(&index.collection);
+            let publication = self
+                .midge
+                .publish_vector_index_with_backfill(index, sql_index, rows, &options);
+            let report = match publication {
+                Ok(report) => report,
+                Err(error) => {
+                    self.runtime.invalidate_execution_result_cache();
+                    if let Ok(epoch) = self.midge.data_epoch() {
+                        if epoch != self.runtime.data_epoch() {
+                            self.runtime.set_data_epoch(epoch);
+                            let _ = crate::executor::mark_source_projections_stale_external(
+                                self,
+                                &index.collection,
+                            );
+                            let _ = self.refresh_projection_metadata(&index.collection);
+                            let _ = crate::executor::sync_derived_maintenance_debt_external(
+                                self,
+                                &index.collection,
+                            );
+                        }
+                    }
+                    return Err(error);
+                }
+            };
+            self.register_vector_index(index.clone());
+            if let Some(metadata) = sql_index {
+                self.catalog.register_index(metadata.clone());
+            }
+            self.runtime
+                .record_projection_write_batch(index.collection.clone(), &report.stats);
+            if let Some(epoch) = report.data_epoch {
+                self.runtime.set_data_epoch(epoch);
+            }
+            let _ =
+                crate::executor::sync_derived_maintenance_debt_external(self, &index.collection);
+            self.refresh_document_write_metadata(&index.collection, report.row_delta, &report.stats)
         })
     }
 
-    fn backfill_vector_embeddings_with_held_gates(
+    fn prepare_vector_backfill_with_held_gates(
         &self,
         index: &VectorIndexRecord,
-    ) -> Result<(), CassieError> {
+    ) -> Result<Vec<(String, serde_json::Value)>, CassieError> {
+        let batch = self.new_statement_batch(None)?;
+        let mut rows = Vec::new();
         let documents = self.midge.scan_documents(&index.collection)?;
         let mut validated = false;
         for document in documents {
@@ -55,8 +94,21 @@ impl Cassie {
             if let Some(object) = payload.as_object_mut() {
                 object.insert(index.field.clone(), embedding);
             }
-            self.put_prepared_document_for_session(None, &index.collection, document.id, payload)?;
+            let payload = self.prepare_document_write_for_session(
+                Some(batch.session()),
+                &index.collection,
+                payload,
+                false,
+                Some(&document.id),
+            )?;
+            self.put_prepared_document_for_session(
+                Some(batch.session()),
+                &index.collection,
+                document.id.clone(),
+                payload.clone(),
+            )?;
+            rows.push((document.id, payload));
         }
-        Ok(())
+        Ok(rows)
     }
 }

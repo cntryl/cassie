@@ -7067,6 +7067,10 @@ mod vector_write_path {
         .remove(0)
     }
 
+    fn same(left: &Value, right: &Value) -> bool {
+        left == right
+    }
+
     fn vector(values: [f32; 3]) -> Value {
         Value::Vector(Vector::new(values.to_vec()))
     }
@@ -7092,12 +7096,12 @@ mod vector_write_path {
         );
 
         // Assert
-        assert_eq!(
-            embedding_of(&cassie, "explicit_insert", "a"),
-            vector([1.0, 0.0, 0.0])
-        );
+        assert!(same(
+            &embedding_of(&cassie, "explicit_insert", "a"),
+            &vector([1.0, 0.0, 0.0])
+        ));
         let derived = embedding_of(&cassie, "explicit_insert", "b");
-        assert_ne!(derived, vector([1.0, 0.0, 0.0]));
+        assert!(!same(&derived, &vector([1.0, 0.0, 0.0])));
         assert!(matches!(derived, Value::Vector(_)));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -7125,15 +7129,15 @@ mod vector_write_path {
         );
 
         // Assert
-        assert_ne!(derived, vector([0.0, 1.0, 0.0]));
-        assert_eq!(
-            returned,
-            vec![vec![Value::Json(serde_json::json!([0.0, 1.0, 0.0]))]]
-        );
-        assert_eq!(
-            embedding_of(&cassie, "explicit_update", "a"),
-            vector([0.0, 1.0, 0.0])
-        );
+        assert!(!same(&derived, &vector([0.0, 1.0, 0.0])));
+        assert!(same(
+            &returned[0][0],
+            &Value::Json(serde_json::json!([0.0, 1.0, 0.0]))
+        ));
+        assert!(same(
+            &embedding_of(&cassie, "explicit_update", "a"),
+            &vector([0.0, 1.0, 0.0])
+        ));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7162,8 +7166,8 @@ mod vector_write_path {
 
         // Assert
         let after = embedding_of(&cassie, "regenerate", "a");
-        assert_ne!(after, before);
-        assert_eq!(after, beta);
+        assert!(!same(&after, &before));
+        assert!(same(&after, &beta));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7200,12 +7204,18 @@ mod vector_write_path {
         );
 
         // Assert
-        assert_eq!(embedding_of(&cassie, "clear_source", "a"), Value::Null);
-        assert_eq!(
-            embedding_of(&cassie, "clear_source", "b"),
-            vector([0.0, 0.0, 1.0])
-        );
-        assert_eq!(embedding_of(&cassie, "clear_source", "d"), Value::Null);
+        assert!(same(
+            &embedding_of(&cassie, "clear_source", "a"),
+            &Value::Null
+        ));
+        assert!(same(
+            &embedding_of(&cassie, "clear_source", "b"),
+            &vector([0.0, 0.0, 1.0])
+        ));
+        assert!(same(
+            &embedding_of(&cassie, "clear_source", "d"),
+            &Value::Null
+        ));
         assert!(matches!(null_text, Value::Vector(_)));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
@@ -7240,16 +7250,16 @@ mod vector_write_path {
         // Assert
         let reference = embedding_of(&cassie, "backfill", "ref");
         assert!(matches!(reference, Value::Vector(_)));
-        assert_eq!(embedding_of(&cassie, "backfill", "a"), reference);
+        assert!(same(&embedding_of(&cassie, "backfill", "a"), &reference));
         assert!(matches!(
             embedding_of(&cassie, "backfill", "b"),
             Value::Vector(_)
         ));
-        assert_eq!(embedding_of(&cassie, "backfill", "n"), Value::Null);
-        assert_eq!(
-            embedding_of(&cassie, "backfill", "e"),
-            vector([0.0, 0.0, 1.0])
-        );
+        assert!(same(&embedding_of(&cassie, "backfill", "n"), &Value::Null));
+        assert!(same(
+            &embedding_of(&cassie, "backfill", "e"),
+            &vector([0.0, 0.0, 1.0])
+        ));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7288,18 +7298,18 @@ mod vector_write_path {
         );
 
         // Assert
-        assert_eq!(
-            embedding_of(&cassie, "literal", "a"),
-            vector([1.0, 2.0, 3.0])
-        );
-        assert_eq!(
-            embedding_of(&cassie, "literal", "b"),
-            vector([4.0, 5.0, 6.0])
-        );
-        assert_eq!(
-            embedding_of(&cassie, "literal", "c"),
-            vector([7.0, 8.0, 9.0])
-        );
+        assert!(same(
+            &embedding_of(&cassie, "literal", "a"),
+            &vector([1.0, 2.0, 3.0])
+        ));
+        assert!(same(
+            &embedding_of(&cassie, "literal", "b"),
+            &vector([4.0, 5.0, 6.0])
+        ));
+        assert!(same(
+            &embedding_of(&cassie, "literal", "c"),
+            &vector([7.0, 8.0, 9.0])
+        ));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }
@@ -7330,12 +7340,12 @@ mod vector_write_path {
         );
 
         // Assert
-        assert!(update.contains("outside f32 range"), "update: {update}");
-        assert!(insert.contains("outside f32 range"), "insert: {insert}");
-        assert_eq!(
-            embedding_of(&cassie, "literal_range", "a"),
-            vector([1.0, 2.0, 3.0])
-        );
+        assert!(update.contains("outside f32 range"));
+        assert!(insert.contains("outside f32 range"));
+        assert!(same(
+            &embedding_of(&cassie, "literal_range", "a"),
+            &vector([1.0, 2.0, 3.0])
+        ));
         drop(cassie);
         let _ = std::fs::remove_dir_all(path);
     }

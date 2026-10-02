@@ -421,15 +421,18 @@ fn cast_scalar(value: &ScalarValue, data_type: &DataType) -> Result<ScalarValue,
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to BYTEA".to_string()))?;
             decode_bytea(value)?;
-            Ok(ScalarValue::Str(value.to_string()))
+            Ok(ScalarValue::Str(format!(
+                "\\x{}",
+                value[2..].to_ascii_lowercase()
+            )))
         }
         DataType::Uuid => {
             let value = value
                 .as_str()
                 .ok_or_else(|| QueryError::General("cannot cast value to UUID".to_string()))?;
-            Uuid::parse_str(value)
+            let canonical = Uuid::parse_str(value)
                 .map_err(|_| QueryError::General("cannot cast value to UUID".to_string()))?;
-            Ok(ScalarValue::Str(value.to_string()))
+            Ok(ScalarValue::Str(canonical.to_string()))
         }
         DataType::Date => {
             cast_temporal_scalar(value, "DATE", crate::types::temporal::canonical_date)

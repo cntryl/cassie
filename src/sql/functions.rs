@@ -351,6 +351,14 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         bypass_arity_validation: false,
     },
     ScalarFunction {
+        id: FunctionId::CurrentSchema,
+        name: "pg_catalog.current_schema",
+        arity: FunctionArity::Exact(0),
+        return_type: FunctionReturnType::Text,
+        is_aggregate: false,
+        bypass_arity_validation: false,
+    },
+    ScalarFunction {
         id: FunctionId::CurrentDatabase,
         name: "current_database",
         arity: FunctionArity::Exact(0),

@@ -243,6 +243,86 @@ mod pgwire_binary_codecs {
     }
 
     #[test]
+    fn should_reject_incompatible_coalesce_before_sending_rows_over_pgwire() {
+        // Arrange
+        support::use_local_storage();
+        let path = support::data_dir("coalesce-wire-types");
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE wire_coalesce (flag BOOLEAN, name TEXT, score INT)",
+                    vec![],
+                )
+                .expect("table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO wire_coalesce VALUES (true, 'x', 5), (NULL, 'y', 0)",
+                    vec![],
+                )
+                .expect("seed");
+
+            // Act
+            for format in [0, 1] {
+                for sql in [
+                    "SELECT COALESCE(flag, name) FROM wire_coalesce",
+                    "SELECT COALESCE(flag, score) FROM wire_coalesce",
+                ] {
+                    let (frames, server) = start_extended_query(
+                        cassie.clone(),
+                        support::parse_frame("coalesce_stmt", sql),
+                        support::bind_frame_with_formats(
+                            "coalesce_portal",
+                            "coalesce_stmt",
+                            &[],
+                            &[],
+                            &[format],
+                        ),
+                        support::execute_frame("coalesce_portal"),
+                    )
+                    .await;
+
+                    // Assert
+                    assert!(
+                        frames.iter().any(|frame| frame.0 == b'E'),
+                        "expected planning error"
+                    );
+                    assert!(
+                        !frames.iter().any(|frame| matches!(frame.0, b'T' | b'D')),
+                        "no metadata or partial result before error"
+                    );
+                    server.stop().await;
+                }
+            }
+            let (frames, server) = start_extended_query(
+                cassie,
+                support::parse_frame_with_types(
+                    "coalesce_parameter_stmt",
+                    "SELECT COALESCE(flag, $1) FROM wire_coalesce",
+                    &[25],
+                ),
+                support::bind_frame_with_formats(
+                    "coalesce_parameter_portal",
+                    "coalesce_parameter_stmt",
+                    &[0],
+                    &[Some(b"text")],
+                    &[1],
+                ),
+                support::execute_frame("coalesce_parameter_portal"),
+            )
+            .await;
+            assert!(frames.iter().any(|frame| frame.0 == b'E'));
+            assert!(!frames.iter().any(|frame| matches!(frame.0, b'T' | b'D')));
+            server.stop().await;
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_describe_case_result_types_over_pgwire() {
         // Arrange
         support::use_local_storage();

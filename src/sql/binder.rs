@@ -1,3 +1,5 @@
+mod coalesce_results;
+pub(crate) use coalesce_results::validate_plan as validate_coalesce_plan;
 use std::collections::{HashMap, HashSet};
 use std::mem;
 

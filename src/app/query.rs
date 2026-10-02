@@ -439,6 +439,43 @@ impl Cassie {
             self.query_cache_context(session, &parsed, sql_fingerprint, &params, mode);
         let (physical, provenance) =
             self.resolve_statement_plan(parsed, &cache_context, session, controls)?;
+        if !params.is_empty()
+            && (crate::executor::plan_uses_function_including_views(
+                &physical.logical,
+                "coalesce",
+                &self.catalog,
+            ) || matches!(
+                physical.logical.command,
+                Some(
+                    crate::planner::logical::LogicalCommand::Insert(_)
+                        | crate::planner::logical::LogicalCommand::Update(_)
+                        | crate::planner::logical::LogicalCommand::Delete(_)
+                )
+            ))
+        {
+            let parameter_types = params
+                .iter()
+                .map(|value| match value {
+                    crate::types::Value::Null => 0,
+                    crate::types::Value::Bool(_) => 16,
+                    crate::types::Value::Int64(_) => 20,
+                    crate::types::Value::Float64(_) => 701,
+                    crate::types::Value::String(_) => 25,
+                    crate::types::Value::Vector(vector) => {
+                        i32::try_from(crate::types::DataType::Vector(vector.dimension()).type_oid())
+                            .unwrap_or(0)
+                    }
+                    crate::types::Value::Json(_) => 114,
+                })
+                .collect::<Vec<_>>();
+            crate::sql::binder::validate_coalesce_plan(
+                &physical.logical,
+                &self.catalog,
+                &self.binding_context_for_session(Some(session)),
+                &parameter_types,
+                true,
+            )?;
+        }
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
@@ -575,6 +612,15 @@ impl Cassie {
         }
         if logical_plan_uses_virtual_catalog(&physical.logical) {
             return Some("virtual_catalog");
+        }
+        if ["set_config", "pg_catalog.set_config"].iter().any(|name| {
+            crate::executor::plan_uses_function_including_views(
+                &physical.logical,
+                name,
+                &self.catalog,
+            )
+        }) {
+            return Some("session_mutating_function");
         }
         if crate::executor::plan_uses_function_including_views(
             &physical.logical,

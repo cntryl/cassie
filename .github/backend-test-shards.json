@@ -55,7 +55,12 @@
         "--test",
         "sql_derived_sources",
         "--test",
-        "sql_exists_subqueries",
+        "sql_exists_subqueries"
+      ]
+    },
+    {
+      "shard": "sql-semantics",
+      "cargo_test_args": [
         "--test",
         "sql_mutations",
         "--test",
@@ -79,7 +84,9 @@
     },
     {
       "shard": "documentation",
-      "cargo_test_args": ["--doc"]
+      "cargo_test_args": [
+        "--doc"
+      ]
     }
   ]
 }

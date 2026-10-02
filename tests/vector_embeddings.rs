@@ -7058,13 +7058,15 @@ mod vector_write_path {
     }
 
     fn embedding_of(cassie: &Cassie, table: &str, id: &str) -> Value {
-        run(
+        let rows = run(
             cassie,
             &format!("SELECT embedding FROM {table} WHERE id = '{id}'"),
             vec![],
-        )
-        .remove(0)
-        .remove(0)
+        );
+        rows.into_iter()
+            .next()
+            .and_then(|row| row.into_iter().next())
+            .unwrap_or(Value::Bool(false))
     }
 
     fn same(left: &Value, right: &Value) -> bool {

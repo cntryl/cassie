@@ -7184,8 +7184,8 @@ mod vector_read_equivalence {
                 .execute_vector_search("rest_vector_zero", "embedding", "alpha", None, 0, 0)
                 .expect("REST vector search executor");
             // Assert
-            assert!(result.rows.is_empty());
-            assert!(!result.columns.is_empty());
+            assert_eq!(result.rows, [] as [Vec<cassie::types::Value>; 0]);
+            assert_ne!(result.columns, [] as [cassie::executor::ColumnMeta; 0]);
         });
     }
 }

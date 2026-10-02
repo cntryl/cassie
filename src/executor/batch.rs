@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use crate::types::Value;
+use crate::types::{DataType, Value};
 
 pub(crate) type RowEntries = Vec<(String, Value)>;
 pub(crate) type RowAliases = Vec<(String, usize)>;
@@ -13,6 +13,7 @@ pub(crate) struct BatchRow {
     aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
     outer_scope: Option<Arc<Self>>,
+    data_types: Option<Arc<Vec<DataType>>>,
 }
 
 impl BatchRow {
@@ -29,6 +30,7 @@ impl BatchRow {
             aliases,
             lookup,
             outer_scope: None,
+            data_types: None,
         }
     }
 
@@ -38,6 +40,7 @@ impl BatchRow {
             aliases: Vec::new(),
             lookup: OnceLock::new(),
             outer_scope: None,
+            data_types: None,
         }
     }
 
@@ -102,6 +105,49 @@ impl BatchRow {
         (self.values, self.aliases)
     }
 
+    pub(crate) fn set_data_types(&mut self, data_types: Arc<Vec<DataType>>) {
+        self.data_types = (!data_types.is_empty()).then_some(data_types);
+    }
+
+    pub(crate) fn data_types(&self) -> &[DataType] {
+        self.data_types
+            .as_deref()
+            .map(Vec::as_slice)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn shared_data_types(&self) -> Option<Arc<Vec<DataType>>> {
+        self.data_types.clone()
+    }
+
+    pub(crate) fn with_optional_data_types(
+        mut self,
+        data_types: Option<Arc<Vec<DataType>>>,
+    ) -> Self {
+        self.data_types = data_types;
+        self
+    }
+
+    pub(crate) fn append_value(&mut self, name: String, value: Value) {
+        self.values.push((name, value));
+        self.lookup = OnceLock::new();
+    }
+
+    fn column_type(&self, name: &str) -> Option<&DataType> {
+        let lookup = self
+            .lookup
+            .get_or_init(|| build_lookup(&self.values, &self.aliases));
+        if let Some(index) = lookup
+            .get(name)
+            .copied()
+            .or_else(|| self.case_insensitive_index(name))
+        {
+            self.data_types().get(index)
+        } else {
+            self.outer_scope.as_ref()?.column_type(name)
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn lookup_initialized(&self) -> bool {
         self.lookup.get().is_some()
@@ -111,6 +157,15 @@ impl BatchRow {
 pub(crate) trait RowAccess {
     fn get(&self, name: &str) -> Option<&Value>;
     fn entries(&self) -> &[(String, Value)];
+    fn column_type(&self, _name: &str) -> Option<&DataType> {
+        None
+    }
+    fn has_array_types(&self) -> bool {
+        false
+    }
+    fn entry_type(&self, _index: usize) -> Option<&DataType> {
+        None
+    }
 }
 
 fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> HashMap<String, usize> {
@@ -125,6 +180,22 @@ fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> Hash
 }
 
 impl RowAccess for BatchRow {
+    fn entry_type(&self, index: usize) -> Option<&DataType> {
+        self.data_types().get(index)
+    }
+    fn has_array_types(&self) -> bool {
+        self.data_types()
+            .iter()
+            .any(|data_type| matches!(data_type, DataType::Array(_)))
+            || self
+                .outer_scope
+                .as_ref()
+                .is_some_and(|row| row.has_array_types())
+    }
+    fn column_type(&self, name: &str) -> Option<&DataType> {
+        BatchRow::column_type(self, name)
+    }
+
     fn get(&self, name: &str) -> Option<&Value> {
         BatchRow::get(self, name)
     }
@@ -166,6 +237,39 @@ fn entry_value<'a>(entries: &'a [(String, Value)], name: &str) -> Option<&'a Val
                 .find(|(column, _)| column.eq_ignore_ascii_case(name))
         })
         .map(|(_, value)| value)
+}
+
+/// Shared declared types are accounted once across rows retaining the same
+/// allocation. ARRAY element types own their boxed schema metadata too.
+pub(crate) fn row_type_bytes<'a>(rows: impl IntoIterator<Item = &'a BatchRow>) -> usize {
+    let mut seen = std::collections::HashSet::new();
+    rows.into_iter()
+        .filter_map(|row| row.data_types.as_ref())
+        .filter(|types| seen.insert(types.as_ptr()))
+        .fold(0_usize, |bytes, types| {
+            let retained = types
+                .capacity()
+                .saturating_mul(std::mem::size_of::<DataType>())
+                .saturating_add(
+                    types
+                        .iter()
+                        .map(|data_type| match data_type {
+                            DataType::Array(element) => data_type_bytes(element),
+                            _ => 0,
+                        })
+                        .sum::<usize>(),
+                )
+                .saturating_add(std::mem::size_of::<Vec<DataType>>())
+                .saturating_add(2 * std::mem::size_of::<usize>());
+            bytes.saturating_add(retained)
+        })
+}
+
+fn data_type_bytes(data_type: &DataType) -> usize {
+    std::mem::size_of::<DataType>().saturating_add(match data_type {
+        DataType::Array(element) => data_type_bytes(element),
+        _ => 0,
+    })
 }
 
 pub(crate) const DEFAULT_BATCH_SIZE: usize = 1024;
@@ -252,7 +356,8 @@ pub(crate) fn collect_batch_stream_accounted(
         let bytes = batch
             .iter()
             .map(|row| serde_json::to_vec(row.entries()).map_or(0, |bytes| bytes.len()))
-            .sum();
+            .sum::<usize>()
+            .saturating_add(row_type_bytes(&batch));
         reservations.push(controls.reserve_query_memory(bytes)?);
         rows.extend(batch);
     }

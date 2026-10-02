@@ -242,7 +242,7 @@ impl EvalInput<'_> {
             .iter()
             .map(|order| {
                 self.value(row, &order.expr).map(|value| KeyPart {
-                    value: SemanticValue::from_value(&value),
+                    value: super::array_order::key(row, &order.expr, &value, self.user_functions),
                     direction: order.direction.clone(),
                     nulls: order.nulls,
                 })

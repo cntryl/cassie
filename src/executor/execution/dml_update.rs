@@ -79,6 +79,7 @@ pub(in crate::executor::execution) fn execute_update(
             params,
             user_functions,
             command_prefix: "UPDATE",
+            controls,
         },
         updated_count,
         returning_rows,

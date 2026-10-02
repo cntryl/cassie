@@ -1,4 +1,5 @@
 pub mod aggregate;
+mod array_order;
 pub mod batch;
 mod execution;
 
@@ -19,6 +20,7 @@ pub(crate) fn delete_document_with_referential_actions(
 }
 pub mod filter;
 pub mod projection;
+mod projection_types;
 pub mod scan;
 pub(crate) mod semantic;
 pub mod sort;

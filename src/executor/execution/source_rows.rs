@@ -95,6 +95,7 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
 }
 
 pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
+    let data_types = row.shared_data_types();
     let qualifiers = qualifier_variants(qualifier);
     let (values, mut aliases) = row.into_parts();
     for (index, (name, _)) in values.iter().enumerate() {
@@ -102,10 +103,24 @@ pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str
             aliases.push((format!("{qualifier}.{name}"), index));
         }
     }
-    BatchRow::with_aliases(values, aliases)
+    BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types)
 }
 
 pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
+    let data_types = (!left.data_types().is_empty() || !right.data_types().is_empty()).then(|| {
+        [left, right]
+            .into_iter()
+            .flat_map(|row| {
+                (0..row.entries().len()).map(|index| {
+                    row.data_types()
+                        .get(index)
+                        .cloned()
+                        .unwrap_or(crate::types::DataType::Null)
+                })
+            })
+            .collect::<Vec<_>>()
+            .into()
+    });
     let mut values = left.entries().to_vec();
     let left_width = values.len();
     values.extend(right.entries().iter().cloned());
@@ -116,7 +131,7 @@ pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &Batc
             .iter()
             .map(|(name, index)| (name.clone(), left_width + index)),
     );
-    BatchRow::with_aliases(values, aliases)
+    BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types)
 }
 
 pub(in crate::executor::execution) fn row_columns(rows: &[BatchRow]) -> Vec<String> {
@@ -337,9 +352,10 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
     right
         .into_iter()
         .map(|row| {
+            let data_types = row.shared_data_types();
             let entries = row.into_entries();
             if entries.len() != left_names.len() {
-                return BatchRow::new(entries);
+                return BatchRow::new(entries).with_optional_data_types(data_types);
             }
             BatchRow::new(
                 left_names
@@ -348,6 +364,7 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
                     .zip(entries.into_iter().map(|(_, value)| value))
                     .collect(),
             )
+            .with_optional_data_types(data_types)
         })
         .collect()
 }

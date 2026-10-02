@@ -46,6 +46,7 @@ where
     let ops = compile_projection_ops(projection);
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
+        let data_types = super::projection_types::projected(&row, &ops, user_functions);
         let mut projected = Vec::with_capacity(ops.len());
         for op in &ops {
             match op {
@@ -110,7 +111,7 @@ where
                 }
             }
         }
-        out.push(BatchRow::from_projected_values(projected));
+        out.push(BatchRow::from_projected_values(projected).with_optional_data_types(data_types));
     }
 
     Ok(out)
@@ -224,6 +225,8 @@ fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Batch {
 }
 
 fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
+    let data_types =
+        super::projection_types::projected(&row, ops, &std::collections::HashMap::new());
     let mut entries = row
         .into_entries()
         .into_iter()
@@ -281,10 +284,10 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
         }
     }
 
-    BatchRow::from_projected_values(projected)
+    BatchRow::from_projected_values(projected).with_optional_data_types(data_types)
 }
 
-enum ProjectionOp {
+pub(super) enum ProjectionOp {
     Wildcard,
     Column {
         source: String,

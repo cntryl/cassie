@@ -602,7 +602,7 @@ fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&Collectio
                     }
                 }
             }
-            BatchRow::new(row)
+            typed_row(BatchRow::new(row), schema)
         })
         .collect::<Batch>()
 }
@@ -760,7 +760,34 @@ pub(crate) fn projected_document_to_row(
             });
         row.push((field.clone(), value));
     }
-    BatchRow::from_projected_values(row)
+    typed_row(BatchRow::from_projected_values(row), schema)
+}
+
+fn typed_row(mut row: BatchRow, schema: Option<&CollectionSchema>) -> BatchRow {
+    attach_row_types(&mut row, schema);
+    row
+}
+
+pub(crate) fn attach_row_types(row: &mut BatchRow, schema: Option<&CollectionSchema>) {
+    if !schema.is_some_and(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, DataType::Array(_)))
+    }) {
+        return;
+    }
+    let types = row
+        .entries()
+        .iter()
+        .map(|(name, _)| {
+            field_data_type(schema, name)
+                .cloned()
+                .unwrap_or(DataType::Null)
+        })
+        .collect::<Vec<_>>()
+        .into();
+    row.set_data_types(types);
 }
 
 fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {

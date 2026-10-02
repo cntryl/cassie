@@ -16,6 +16,7 @@ use super::{aggregate_signature, check_timeout, group_expr_name, QueryError};
 
 #[path = "aggregate_exec/group_memory.rs"]
 mod group_memory;
+mod output_types;
 #[path = "aggregate_exec/rewrite.rs"]
 mod rewrite;
 #[path = "aggregate_exec/state.rs"]
@@ -47,6 +48,17 @@ struct AggregateSpec {
 }
 
 pub(super) fn aggregate_query_batches(
+    cassie: &Cassie,
+    batches: Vec<Batch>,
+    context: &AggregateExecutionContext<'_>,
+) -> Result<Vec<Batch>, QueryError> {
+    let types = output_types::infer(&batches, context);
+    let mut output = aggregate_query_batches_inner(cassie, batches, context)?;
+    output_types::attach(&mut output, &types);
+    Ok(output)
+}
+
+fn aggregate_query_batches_inner(
     cassie: &Cassie,
     batches: Vec<Batch>,
     context: &AggregateExecutionContext<'_>,

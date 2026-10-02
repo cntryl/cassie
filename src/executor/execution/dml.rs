@@ -1,9 +1,10 @@
 use super::dml_referential_actions;
 use super::{
     aggregate, batch, check_timeout, ensure_query_memory_budget, execute_plan, filter, projection,
-    scan, BatchRow, Cassie, CassieSession, CollectionSchema, ColumnMeta, CteContext, DataType,
-    Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan, QueryError,
-    QueryExecutionControls, QueryResult, QuerySource, SelectItem, Value,
+    reserve_projection_output_before_building, scan, BatchRow, Cassie, CassieSession,
+    CollectionSchema, ColumnMeta, CteContext, DataType, Expr, FieldMeta, FunctionMeta, HashMap,
+    InsertSource, LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource,
+    SelectItem, Value,
 };
 use crate::types::row_identity::{is_legacy_id_column, ROW_IDENTITY_COLUMN};
 
@@ -203,12 +204,13 @@ struct DmlResultContext<'a> {
     params: &'a [Value],
     user_functions: &'a HashMap<String, FunctionMeta>,
     command_prefix: &'a str,
+    controls: &'a QueryExecutionControls,
 }
 
 fn build_dml_result(
     context: &DmlResultContext<'_>,
     affected_count: usize,
-    returning_rows: Vec<BatchRow>,
+    mut returning_rows: Vec<BatchRow>,
 ) -> Result<QueryResult, QueryError> {
     if context.returning.is_empty() {
         return Ok(QueryResult {
@@ -217,6 +219,36 @@ fn build_dml_result(
             command: format!("{} {affected_count}", context.command_prefix),
         });
     }
+    let column_schema = context.cassie.catalog.get_schema(context.table);
+    let has_arrays = column_schema.as_ref().is_some_and(|schema| {
+        schema
+            .fields
+            .iter()
+            .any(|field| matches!(field.data_type, DataType::Array(_)))
+    });
+    if has_arrays {
+        if let Some(first) = returning_rows.first_mut() {
+            scan::attach_row_types(first, column_schema.as_ref());
+            let types = first.shared_data_types();
+            if let Some(types) = types {
+                for row in &mut returning_rows[1..] {
+                    row.set_data_types(types.clone());
+                }
+            }
+        }
+    }
+    let _returning_memory = if has_arrays {
+        Some((
+            ensure_query_memory_budget(context.controls, std::slice::from_ref(&returning_rows))?,
+            reserve_projection_output_before_building(
+                context.controls,
+                std::slice::from_ref(&returning_rows),
+                context.returning,
+            )?,
+        ))
+    } else {
+        None
+    };
     let projected = projection::project_rows(
         returning_rows,
         context.returning,
@@ -225,7 +257,6 @@ fn build_dml_result(
         context.user_functions,
         context.session,
     )?;
-    let column_schema = context.cassie.catalog.get_schema(context.table);
     let columns = dml_returning_columns(
         context.returning,
         column_schema.as_ref(),

@@ -230,3 +230,65 @@ fn should_return_memory_limit_error_when_parallel_partials_exceed_budget() {
     );
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_bound_serial_array_extrema_comparison_keys() {
+    // Arrange
+    let plan = aggregate_plan("SELECT MIN(arr) FROM array_values");
+    let controls = controls_with_budget(2_000);
+    let functions = HashMap::new();
+    let context = aggregate_context(&plan, &functions, &controls);
+    let mut row = BatchRow::new(vec![(
+        "arr".into(),
+        Value::Json(serde_json::json!((0..100).collect::<Vec<_>>())),
+    )]);
+    row.set_data_types(
+        vec![crate::types::DataType::Array(Box::new(
+            crate::types::DataType::BigInt,
+        ))]
+        .into(),
+    );
+    let function = &aggregate_specs(&plan)[0].function;
+
+    // Act
+    let result = AggregateAccumulator::evaluate(function, &[row], &context);
+
+    // Assert
+    let error = result.expect_err("ARRAY comparison keys must respect the query budget");
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_bound_array_window_order_keys() {
+    // Arrange
+    let plan = aggregate_plan("SELECT ROW_NUMBER() OVER (ORDER BY arr) FROM array_values");
+    let controls = controls_with_budget(2_000);
+    let functions = HashMap::new();
+    let mut row = BatchRow::new(vec![(
+        "arr".into(),
+        Value::Json(serde_json::json!((0..100).collect::<Vec<_>>())),
+    )]);
+    row.set_data_types(
+        vec![crate::types::DataType::Array(Box::new(
+            crate::types::DataType::BigInt,
+        ))]
+        .into(),
+    );
+
+    // Act
+    let result = super::super::window_exec::apply_window_functions(
+        vec![vec![row]],
+        &plan.projection,
+        &[],
+        None,
+        &functions,
+        None,
+        &controls,
+    );
+
+    // Assert
+    let error = result.expect_err("ARRAY window keys must respect the query budget");
+    assert!(error.to_string().contains("query memory budget exceeded"));
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

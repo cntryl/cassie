@@ -32,6 +32,7 @@ impl ForeignKeyReferences {
         collection: &str,
         constraints: &[FieldConstraint],
         payload: &serde_json::Value,
+        schema: Option<&crate::catalog::CollectionSchema>,
     ) -> Result<(), CassieError> {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
@@ -46,7 +47,7 @@ impl ForeignKeyReferences {
             let Some(value) = object.get(&constraint.field) else {
                 continue;
             };
-            if value.is_null() {
+            if super::field_value_is_sql_null(Some(value), schema, &constraint.field) {
                 continue;
             }
             let value_key = foreign_key_value_key(value);
@@ -95,12 +96,13 @@ impl Cassie {
         }
 
         let mut references = ForeignKeyReferences::default();
+        let schema = self.catalog.get_schema(collection);
         for document in self
             .scan_documents_batched_for_session(None, collection, REFERENCE_SCAN_BATCH_SIZE)?
             .into_iter()
             .flatten()
         {
-            references.collect(collection, constraints, &document.payload)?;
+            references.collect(collection, constraints, &document.payload, schema.as_ref())?;
         }
         self.validate_foreign_key_references(None, collection, &references)
     }
@@ -260,7 +262,7 @@ mod tests {
         // Act
         for payload in &payloads {
             references
-                .collect("children", &constraints, payload)
+                .collect("children", &constraints, payload, None)
                 .expect("collect references");
         }
 

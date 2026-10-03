@@ -2,6 +2,16 @@ use std::collections::BTreeSet;
 
 use super::{check_timeout, Cassie, CassieSession, QueryError, QueryExecutionControls};
 
+fn stored_value_is_sql_null(
+    cassie: &Cassie,
+    collection: &str,
+    field: &str,
+    value: &serde_json::Value,
+) -> bool {
+    let schema = cassie.catalog.get_schema(collection);
+    crate::app::field_value_is_sql_null(Some(value), schema.as_ref(), field)
+}
+
 pub(super) fn delete_document_with_referential_actions(
     cassie: &Cassie,
     table: &str,
@@ -112,7 +122,7 @@ fn preflight_update_actions(
         let Some(old_value) = old_value else {
             continue;
         };
-        if old_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, old_value) {
             continue;
         }
         let child_rows = referencing_child_rows(
@@ -163,7 +173,7 @@ fn find_delete_restriction(
         let Some(parent_value) = object.get(reference_field) else {
             continue;
         };
-        if parent_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, parent_value) {
             continue;
         }
         let child_rows = referencing_child_rows(
@@ -236,7 +246,7 @@ fn collect_delete_action_collections(
         let Some(parent_value) = object.get(reference_field) else {
             continue;
         };
-        if parent_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, parent_value) {
             continue;
         }
         let child_rows = referencing_child_rows(
@@ -322,7 +332,7 @@ fn apply_delete_actions(
         let Some(parent_value) = object.get(reference_field) else {
             continue;
         };
-        if parent_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, parent_value) {
             continue;
         }
 
@@ -359,17 +369,20 @@ fn apply_delete_actions(
                 }
             }
             ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {
-                let value = action_update_value(
-                    foreign_key_action(constraint.foreign_key_on_delete.as_deref()),
-                    &constraint,
-                );
+                let action = foreign_key_action(constraint.foreign_key_on_delete.as_deref());
+                let value = action_update_value(action, &constraint);
+                let update = if matches!(action, ForeignKeyAction::SetNull) {
+                    ChildReferenceUpdate::SqlNull
+                } else {
+                    ChildReferenceUpdate::Value(&value)
+                };
                 set_child_reference_values(
                     cassie,
                     session,
                     &child_table,
                     &constraint.field,
                     child_rows,
-                    &value,
+                    update,
                     controls,
                 )?;
             }
@@ -413,7 +426,7 @@ fn assert_referenced_values_can_change(
         let Some(old_value) = old_value else {
             continue;
         };
-        if old_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, old_value) {
             continue;
         }
         let child_rows = referencing_child_rows(
@@ -472,7 +485,7 @@ fn apply_referenced_update_actions(
         let Some(old_value) = old_value else {
             continue;
         };
-        if old_value.is_null() {
+        if stored_value_is_sql_null(cassie, table, reference_field, old_value) {
             continue;
         }
         let child_rows = referencing_child_rows(
@@ -489,8 +502,35 @@ fn apply_referenced_update_actions(
 
         match foreign_key_action(constraint.foreign_key_on_update.as_deref()) {
             ForeignKeyAction::Cascade => {
-                let Some(new_value) = new_value else {
-                    continue;
+                if let Some(new_value) = new_value {
+                    set_child_reference_values(
+                        cassie,
+                        session,
+                        &child_table,
+                        &constraint.field,
+                        child_rows,
+                        ChildReferenceUpdate::Value(new_value),
+                        controls,
+                    )?;
+                } else {
+                    set_child_reference_values(
+                        cassie,
+                        session,
+                        &child_table,
+                        &constraint.field,
+                        child_rows,
+                        ChildReferenceUpdate::SqlNull,
+                        controls,
+                    )?;
+                }
+            }
+            ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {
+                let action = foreign_key_action(constraint.foreign_key_on_update.as_deref());
+                let value = action_update_value(action, &constraint);
+                let update = if matches!(action, ForeignKeyAction::SetNull) {
+                    ChildReferenceUpdate::SqlNull
+                } else {
+                    ChildReferenceUpdate::Value(&value)
                 };
                 set_child_reference_values(
                     cassie,
@@ -498,22 +538,7 @@ fn apply_referenced_update_actions(
                     &child_table,
                     &constraint.field,
                     child_rows,
-                    new_value,
-                    controls,
-                )?;
-            }
-            ForeignKeyAction::SetNull | ForeignKeyAction::SetDefault => {
-                let value = action_update_value(
-                    foreign_key_action(constraint.foreign_key_on_update.as_deref()),
-                    &constraint,
-                );
-                set_child_reference_values(
-                    cassie,
-                    session,
-                    &child_table,
-                    &constraint.field,
-                    child_rows,
-                    &value,
+                    update,
                     controls,
                 )?;
             }
@@ -657,22 +682,51 @@ fn without_deleted_row(
         .collect()
 }
 
+#[derive(Clone, Copy)]
+enum ChildReferenceUpdate<'a> {
+    Value(&'a serde_json::Value),
+    SqlNull,
+}
+
 fn set_child_reference_values(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     child_table: &str,
     child_field: &str,
     child_rows: Vec<crate::midge::adapter::DocumentRef>,
-    value: &serde_json::Value,
+    update: ChildReferenceUpdate<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<(), QueryError> {
+    let sql_null = serde_json::Value::Null;
+    let (value, set_sql_null) = match update {
+        ChildReferenceUpdate::Value(value) => (value, false),
+        ChildReferenceUpdate::SqlNull => (&sql_null, true),
+    };
     for child in child_rows {
         check_timeout(controls)?;
         let mut payload =
             child.payload.as_object().cloned().ok_or_else(|| {
                 QueryError::General("stored row payload must be object".to_string())
             })?;
-        payload.insert(child_field.to_string(), value.clone());
+        let child_schema = cassie.catalog.get_schema(child_table);
+        let json_field = child_schema.as_ref().and_then(|schema| {
+            schema
+                .fields
+                .iter()
+                .find(|field| field.name.eq_ignore_ascii_case(child_field))
+        });
+        if set_sql_null
+            && json_field
+                .is_some_and(|field| matches!(field.data_type, crate::types::DataType::Json))
+        {
+            if let Some(field_name) = json_field.map(|field| field.name.as_str()) {
+                payload.remove(field_name);
+            }
+        } else if let Some(field_name) = json_field.map(|field| field.name.as_str()) {
+            payload.insert(field_name.to_string(), value.clone());
+        } else {
+            payload.insert(child_field.to_string(), value.clone());
+        }
         let mut payload = serde_json::Value::Object(payload);
         cassie.discard_stale_vector_embeddings(child_table, &mut payload, [child_field]);
         let payload = cassie

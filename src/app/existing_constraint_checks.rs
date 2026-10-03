@@ -14,6 +14,7 @@ impl Cassie {
         }) {
             return Ok(());
         }
+        let schema = self.catalog.get_schema(collection);
 
         for document in self
             .scan_documents_batched_for_session(None, collection, CONSTRAINT_SCAN_BATCH_SIZE)?
@@ -26,7 +27,7 @@ impl Cassie {
             for constraint in constraints {
                 let existing = object.get(&constraint.field);
                 if (constraint.not_null || constraint.primary_key)
-                    && existing.is_none_or(serde_json::Value::is_null)
+                    && super::field_value_is_sql_null(existing, schema.as_ref(), &constraint.field)
                 {
                     let kind = if constraint.primary_key {
                         "PRIMARY KEY"
@@ -45,7 +46,11 @@ impl Cassie {
                 }
 
                 if let (Some(check), Some(value)) = (&constraint.check, existing) {
-                    if !Self::satisfies_check_constraint(value, check)? {
+                    if !Self::satisfies_check_constraint(
+                        value,
+                        check,
+                        super::field_value_is_sql_null(Some(value), schema.as_ref(), &check.field),
+                    )? {
                         return Err(CassieError::CheckViolation {
                             table: collection.to_string(),
                             column: check.field.clone(),

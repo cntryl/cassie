@@ -123,6 +123,7 @@ impl Cassie {
         let batch = session.fork_statement_batch()?;
         let staging = batch.session();
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
+        let schema = self.catalog.get_schema(&statement.table);
         let mut seen_ids = BTreeSet::new();
         let mut affected = 0usize;
 
@@ -151,6 +152,9 @@ impl Cassie {
                         row_id = Some(value);
                     }
                     CopyColumn::Field(field) => {
+                        if value.is_none() && matches!(field.data_type, DataType::Json) {
+                            continue;
+                        }
                         payload.insert(field.name.clone(), copy_value_to_json(value, field)?);
                     }
                 }
@@ -172,7 +176,7 @@ impl Cassie {
                 true,
                 None,
             )?;
-            references.collect(&statement.table, &constraints, &prepared)?;
+            references.collect(&statement.table, &constraints, &prepared, schema.as_ref())?;
             staging.stage_document_write(&statement.table, row_id, prepared)?;
             affected = affected.saturating_add(1);
         }

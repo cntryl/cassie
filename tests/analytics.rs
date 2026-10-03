@@ -4142,7 +4142,7 @@ mod column_batch_resilience {
     }
 
     #[test]
-    fn should_preserve_mixed_numeric_summary_semantics() {
+    fn should_preserve_mixed_numeric_row_fallback_semantics() {
         // Arrange
         let fixture = ordered_numeric_fixture(
             "column_batch_mixed_numerics",
@@ -4152,21 +4152,31 @@ mod column_batch_resilience {
                 serde_json::json!(2),
                 serde_json::json!(1.5),
                 serde_json::json!(-1),
-                serde_json::Value::Null,
             ],
             8,
         );
+        // An absent JSON field represents SQL NULL. An explicit JSON null is
+        // now a present value and is not silently ignored by numeric aggregates.
+        fixture
+            .cassie
+            .midge
+            .put_document(
+                &fixture.collection,
+                Some("row-0003".to_string()),
+                serde_json::json!({}),
+            )
+            .expect("insert SQL NULL as an absent JSON field");
 
         // Act
-        let accelerated = fixture
+        let fallback = fixture
         .cassie
         .execute_sql(
             &fixture.session,
-            "SELECT SUM(amount) AS accelerated_sum, AVG(amount) AS accelerated_avg, MIN(amount) AS accelerated_min, MAX(amount) AS accelerated_max FROM column_batch_mixed_numerics",
+            "SELECT SUM(amount) AS fallback_sum, AVG(amount) AS fallback_avg, MIN(amount) AS fallback_min, MAX(amount) AS fallback_max FROM column_batch_mixed_numerics",
             vec![],
         )
-        .expect("aggregate mixed numeric summary");
-        let accelerated_metrics = fixture.cassie.metrics();
+        .expect("aggregate mixed numerics from rows");
+        let fallback_metrics = fixture.cassie.metrics();
         fixture
             .cassie
             .execute_sql(
@@ -4186,7 +4196,7 @@ mod column_batch_resilience {
 
         // Assert
         assert_eq!(
-            accelerated.rows,
+            fallback.rows,
             vec![vec![
                 Value::Float64(2.5),
                 Value::Float64(2.5 / 3.0),
@@ -4194,8 +4204,12 @@ mod column_batch_resilience {
                 Value::Int64(2),
             ]]
         );
-        assert_eq!(exact.rows, accelerated.rows);
-        assert_eq!(accelerated_metrics["aggregate_acceleration"]["scans"], 1);
+        assert_eq!(exact.rows, fallback.rows);
+        assert_eq!(fallback_metrics["aggregate_acceleration"]["scans"], 0);
+        assert_eq!(
+            fallback_metrics["aggregate_acceleration"]["row_blob_fallbacks"],
+            1
+        );
 
         let _ = std::fs::remove_dir_all(&fixture.path);
     }

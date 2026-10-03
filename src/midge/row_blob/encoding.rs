@@ -11,7 +11,7 @@ pub(super) fn encode_value(
     data_type: &DataType,
     value: &serde_json::Value,
 ) -> Result<(u8, Vec<u8>), CassieError> {
-    if value.is_null() {
+    if value.is_null() && !matches!(data_type, DataType::Json) {
         return Ok((TYPE_NULL, Vec::new()));
     }
 

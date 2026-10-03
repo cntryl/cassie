@@ -42,6 +42,16 @@ pub(crate) fn decode_compact_value(bytes: &[u8]) -> Result<serde_json::Value, Ca
     decode_directory_value(type_tag, payload)
 }
 
+pub(crate) fn decode_compact_field_value(
+    data_type: &DataType,
+    bytes: &[u8],
+) -> Result<Option<serde_json::Value>, CassieError> {
+    if matches!(data_type, DataType::Json) && bytes.first() == Some(&TYPE_NULL) {
+        return Ok(None);
+    }
+    decode_compact_value(bytes).map(Some)
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RowSchema {
     #[serde(default)]
@@ -496,6 +506,11 @@ impl<'a> RowDirectory<'a> {
             return Ok(None);
         }
         if field_bit(self.nulls, field_id) {
+            if matches!(field.data_type, DataType::Json) {
+                // Older rows encoded JSON document null with the generic SQL
+                // NULL tag. Under the current contract those rows are SQL NULL.
+                return Ok(None);
+            }
             return Ok(Some(serde_json::Value::Null));
         }
         let (type_tag, offset, len) = self.entries.get(&field_id).copied().ok_or_else(|| {

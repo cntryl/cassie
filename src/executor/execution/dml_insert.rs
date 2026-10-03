@@ -1,9 +1,9 @@
 use super::{
     build_dml_result, check_timeout, dml_referential_actions, execute_plan, filter,
     inserted_row_to_batch_row, integral_json_number, json_to_value, update_assignment_to_json,
-    value_to_json, value_to_json_for_field, BatchRow, Cassie, CassieSession, CollectionSchema,
-    CteContext, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap, InsertSource,
-    LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
+    value_to_json_for_field, BatchRow, Cassie, CassieSession, CollectionSchema, CteContext,
+    DataType, DmlResultContext, Expr, FieldMeta, FunctionMeta, HashMap, InsertSource, LogicalPlan,
+    QueryError, QueryExecutionControls, QueryResult, QuerySource, Value,
 };
 
 pub(in crate::executor::execution) fn execute_insert(
@@ -76,15 +76,43 @@ pub(in crate::executor::execution) fn execute_insert(
     )
 }
 
+fn find_target_field_conflict_row_id(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    table: &str,
+    target_fields: &[String],
+    object: &serde_json::Map<String, serde_json::Value>,
+    schema: &CollectionSchema,
+) -> Result<Option<String>, QueryError> {
+    let mut values = Vec::with_capacity(target_fields.len());
+    for field in target_fields {
+        let Some(value) = object.get(field) else {
+            return Ok(None);
+        };
+        if crate::app::field_value_is_sql_null(Some(value), Some(schema), field) {
+            return Ok(None);
+        }
+        values.push((field.as_str(), value));
+    }
+    cassie
+        .find_document_id_by_fields(session, table, &values, None)
+        .map_err(QueryError::from)
+}
+
 fn find_insert_conflict_row_id(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     statement: &crate::sql::ast::InsertStatement,
     payload: &serde_json::Value,
+    schema: &CollectionSchema,
 ) -> Result<Option<String>, QueryError> {
     let Some(on_conflict) = statement.on_conflict.as_ref() else {
         return Ok(None);
     };
+    let row_schema = cassie
+        .midge
+        .row_schema(&statement.table)
+        .map_err(QueryError::from)?;
     let mut canonical_payload = payload.clone();
     if let Some(object) = canonical_payload.as_object_mut() {
         for (field, value) in object {
@@ -101,23 +129,14 @@ fn find_insert_conflict_row_id(
         .ok_or_else(|| QueryError::General("document payload must be an object".to_string()))?;
 
     if !on_conflict.target_fields.is_empty() {
-        let values = on_conflict
-            .target_fields
-            .iter()
-            .map(|field| {
-                object
-                    .get(field)
-                    .map(|value| (field.as_str(), value))
-                    .ok_or_else(|| {
-                        QueryError::General(format!(
-                            "ON CONFLICT target column '{field}' is missing from inserted row"
-                        ))
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        return cassie
-            .find_document_id_by_fields(session, &statement.table, &values, None)
-            .map_err(QueryError::from);
+        return find_target_field_conflict_row_id(
+            cassie,
+            session,
+            &statement.table,
+            &on_conflict.target_fields,
+            object,
+            schema,
+        );
     }
 
     let constraints = cassie.catalog.get_constraints(&statement.table);
@@ -128,7 +147,7 @@ fn find_insert_conflict_row_id(
         let Some(value) = object.get(&constraint.field) else {
             continue;
         };
-        if value.is_null() {
+        if crate::app::field_value_is_sql_null(Some(value), Some(schema), &constraint.field) {
             continue;
         }
         if let Some(id) = cassie
@@ -150,9 +169,14 @@ fn find_insert_conflict_row_id(
         }
         let fields = index.normalized_fields();
         if fields.is_empty() {
-            if let Some(id) =
-                find_expression_index_conflict(cassie, session, &statement.table, &index, payload)?
-            {
+            if let Some(id) = find_expression_index_conflict(
+                cassie,
+                session,
+                &statement.table,
+                &index,
+                payload,
+                &row_schema,
+            )? {
                 return Ok(Some(id));
             }
             continue;
@@ -164,7 +188,7 @@ fn find_insert_conflict_row_id(
                 complete = false;
                 break;
             };
-            if value.is_null() {
+            if crate::app::field_value_is_sql_null(Some(value), Some(schema), field) {
                 complete = false;
                 break;
             }
@@ -184,16 +208,25 @@ fn find_insert_conflict_row_id(
     Ok(None)
 }
 
-fn excluded_local_args(payload: &serde_json::Value) -> HashMap<String, Value> {
+fn excluded_local_args(
+    payload: &serde_json::Value,
+    schema: &CollectionSchema,
+) -> HashMap<String, Value> {
     let mut out = HashMap::new();
     let Some(object) = payload.as_object() else {
         return out;
     };
     for (field, value) in object {
-        out.insert(
-            format!("excluded.{}", field.to_ascii_lowercase()),
-            json_to_value(value),
-        );
+        let value = schema
+            .fields
+            .iter()
+            .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+            .filter(|candidate| {
+                matches!(candidate.data_type, DataType::Json)
+                    && (value.is_null() || value.is_string())
+            })
+            .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
+        out.insert(format!("excluded.{}", field.to_ascii_lowercase()), value);
     }
     out
 }
@@ -211,11 +244,7 @@ fn insert_source_rows(
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|expr| {
-                        insert_expr_to_json(expr, params)
-                            .map_err(QueryError::General)
-                            .map(|value| json_to_value(&value))
-                    })
+                    .map(|expr| insert_expr_to_value(expr, params).map_err(QueryError::General))
                     .collect::<Result<Vec<_>, _>>()
             })
             .collect::<Result<Vec<_>, _>>(),
@@ -297,6 +326,9 @@ fn payload_from_insert_row(
 ) -> Result<serde_json::Map<String, serde_json::Value>, QueryError> {
     let mut payload = serde_json::Map::with_capacity(target_fields.len());
     for (field, value) in target_fields.iter().zip(source_row.iter()) {
+        if matches!(field.data_type, DataType::Json) && matches!(value, Value::Null) {
+            continue;
+        }
         payload.insert(
             field.name.clone(),
             value_to_json_for_field(&field.name, value, &field.data_type)?,
@@ -338,8 +370,13 @@ fn execute_insert_source_row(
     affected_row_ids: &std::collections::HashSet<String>,
 ) -> Result<Option<String>, QueryError> {
     let payload = serde_json::Value::Object(payload_from_insert_row(target_fields, source_row)?);
-    let maybe_conflict_id =
-        find_insert_conflict_row_id(context.cassie, context.session, context.statement, &payload)?;
+    let maybe_conflict_id = find_insert_conflict_row_id(
+        context.cassie,
+        context.session,
+        context.statement,
+        &payload,
+        context.schema,
+    )?;
     match (context.statement.on_conflict.as_ref(), maybe_conflict_id) {
         (Some(on_conflict), Some(conflict_id)) => match &on_conflict.action {
             crate::sql::ast::InsertConflictAction::DoNothing => Ok(None),
@@ -421,8 +458,13 @@ pub(crate) fn resolve_transaction_conflict_intents(
             schema: &intent.schema,
             controls,
         };
-        let Some(conflict_id) =
-            find_insert_conflict_row_id(cassie, Some(session), &intent.statement, &intent.payload)?
+        let Some(conflict_id) = find_insert_conflict_row_id(
+            cassie,
+            Some(session),
+            &intent.statement,
+            &intent.payload,
+            &intent.schema,
+        )?
         else {
             session
                 .stage_document_write(
@@ -465,18 +507,20 @@ fn find_expression_index_conflict(
     table: &str,
     index: &crate::catalog::IndexMeta,
     payload: &serde_json::Value,
+    row_schema: &crate::midge::row_blob::RowSchema,
 ) -> Result<Option<String>, QueryError> {
     use crate::midge::adapter::Midge;
-    if !Midge::payload_matches_scalar_index_predicate(index, payload)? {
+    if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
         return Ok(None);
     }
-    let Some(key) = Midge::scalar_index_key_values(index, payload)? else {
+    let Some(key) = Midge::scalar_index_key_values(index, payload, row_schema)? else {
         return Ok(None);
     };
     for batch in cassie.scan_documents_batched_for_session(session, table, 1024)? {
         for document in batch {
-            if Midge::payload_matches_scalar_index_predicate(index, &document.payload)?
-                && Midge::scalar_index_key_values(index, &document.payload)?.as_ref() == Some(&key)
+            if Midge::payload_matches_scalar_index_predicate(index, &document.payload, row_schema)?
+                && Midge::scalar_index_key_values(index, &document.payload, row_schema)?.as_ref()
+                    == Some(&key)
             {
                 return Ok(Some(document.id));
             }
@@ -513,8 +557,13 @@ fn resolve_autocommit_insert_conflict(
         .on_conflict
         .as_ref()
         .expect("conflict clause checked by caller");
-    let Some(conflict_id) =
-        find_insert_conflict_row_id(context.cassie, context.session, context.statement, payload)?
+    let Some(conflict_id) = find_insert_conflict_row_id(
+        context.cassie,
+        context.session,
+        context.statement,
+        payload,
+        context.schema,
+    )?
     else {
         // Untargeted DO NOTHING skips a conflict on any unique key, including
         // expression indexes whose conflicting row cannot be looked up here.
@@ -583,7 +632,7 @@ fn execute_insert_conflict_update(
     let _type_memory = context
         .controls
         .reserve_query_memory(crate::executor::batch::row_type_bytes([&existing_row]))?;
-    let excluded_args = excluded_local_args(payload);
+    let excluded_args = excluded_local_args(payload, context.schema);
     if let Some(filter_expr) = conflict_filter {
         let filter_expr = crate::executor::execution::resolve_statement_exists(
             context.cassie,
@@ -783,17 +832,19 @@ fn insert_target_fields(
         .collect()
 }
 
-fn insert_expr_to_json(expr: &Expr, params: &[Value]) -> Result<serde_json::Value, String> {
+fn insert_expr_to_value(expr: &Expr, params: &[Value]) -> Result<Value, String> {
     match expr {
-        Expr::StringLiteral(value) => Ok(serde_json::Value::String(value.clone())),
-        Expr::NumberLiteral(value) => number_literal_to_json(*value),
-        Expr::IntegerLiteral(value) => Ok(serde_json::Value::Number((*value).into())),
-        Expr::BoolLiteral(value) => Ok(serde_json::Value::Bool(*value)),
-        Expr::Null => Ok(serde_json::Value::Null),
+        Expr::StringLiteral(value) => Ok(Value::String(value.clone())),
+        Expr::NumberLiteral(value) => {
+            number_literal_to_json(*value).map(|value| json_to_value(&value))
+        }
+        Expr::IntegerLiteral(value) => Ok(Value::Int64(*value)),
+        Expr::BoolLiteral(value) => Ok(Value::Bool(*value)),
+        Expr::Null => Ok(Value::Null),
         Expr::Param(index) => params
             .get(*index)
             .ok_or_else(|| format!("missing bind parameter ${}", index + 1))
-            .and_then(|value| value_to_json(value).map_err(|error| error.to_string())),
+            .cloned(),
         Expr::Column(_)
         | Expr::Case { .. }
         | Expr::Function(_)

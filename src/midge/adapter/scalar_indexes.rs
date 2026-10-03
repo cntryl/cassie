@@ -61,17 +61,18 @@ impl Midge {
         old_payload: Option<&serde_json::Value>,
         new_payload: Option<&serde_json::Value>,
         indexes: &[IndexMeta],
+        row_schema: &RowSchema,
     ) -> Result<(usize, usize), CassieError> {
         let mut deletes = 0usize;
         let mut puts = 0usize;
 
         for index in indexes {
             let old_entry = match old_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload)?,
+                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema)?,
                 None => None,
             };
             let new_entry = match new_payload {
-                Some(payload) => Self::scalar_index_entry(index, id, payload)?,
+                Some(payload) => Self::scalar_index_entry(index, id, payload, row_schema)?,
                 None => None,
             };
 
@@ -124,6 +125,7 @@ impl Midge {
         }
 
         let rows = self.scan_rows_for_rebuild(&index.collection, RowDecode::Full)?;
+        let row_schema = self.row_schema(&index.collection)?;
         let (relation_id, index_id) = Self::scalar_index_storage_ids(index)?;
         let mut tx = self.begin_data_rw_tx_for(&index.collection)?;
         Self::delete_keys_with_prefix(
@@ -132,7 +134,9 @@ impl Midge {
         )?;
 
         for row in rows {
-            if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &row.payload)? {
+            if let Some((key, value)) =
+                Self::scalar_index_entry(index, &row.id, &row.payload, &row_schema)?
+            {
                 tx.put(key, value, None).map_err(CassieError::from)?;
             }
         }
@@ -175,9 +179,9 @@ impl Midge {
             for row in &rows[range] {
                 let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
                 let reservation_values = if index.unique
-                    && Self::payload_matches_scalar_index_predicate(index, &canonical)?
+                    && Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)?
                 {
-                    Self::scalar_index_key_values(index, &canonical)?
+                    Self::scalar_index_key_values(index, &canonical, &row_schema)?
                 } else {
                     None
                 };
@@ -190,7 +194,9 @@ impl Midge {
                     tx.put(reservation, row.id.as_bytes().to_vec(), None)
                         .map_err(CassieError::from)?;
                 }
-                if let Some((key, value)) = Self::scalar_index_entry(index, &row.id, &canonical)? {
+                if let Some((key, value)) =
+                    Self::scalar_index_entry(index, &row.id, &canonical, &row_schema)?
+                {
                     tx.put(key, value, None).map_err(CassieError::from)?;
                 }
             }
@@ -212,10 +218,11 @@ impl Midge {
         let row_schema = self.row_schema(&index.collection)?;
         for row in rows {
             let canonical = scalar_index_canonical_payload(&row_schema, &row.payload);
-            if !Self::payload_matches_scalar_index_predicate(index, &canonical)? {
+            if !Self::payload_matches_scalar_index_predicate(index, &canonical, &row_schema)? {
                 continue;
             }
-            let Some(values) = Self::scalar_index_key_values(index, &canonical)? else {
+            let Some(values) = Self::scalar_index_key_values(index, &canonical, &row_schema)?
+            else {
                 continue;
             };
             let key = key_encoding::unique_scalar_index_reservation_key(
@@ -307,14 +314,15 @@ impl Midge {
         index: &IndexMeta,
         id: &str,
         payload: &serde_json::Value,
+        row_schema: &RowSchema,
     ) -> Result<Option<ScalarIndexEntry>, CassieError> {
         if !Self::scalar_index_supports_storage(index)
-            || !Self::payload_matches_scalar_index_predicate(index, payload)?
+            || !Self::payload_matches_scalar_index_predicate(index, payload, row_schema)?
         {
             return Ok(None);
         }
 
-        let Some(key_values) = Self::scalar_index_key_values(index, payload)? else {
+        let Some(key_values) = Self::scalar_index_key_values(index, payload, row_schema)? else {
             return Ok(None);
         };
         let (relation_id, index_id) = Self::scalar_index_storage_ids(index)?;
@@ -331,13 +339,19 @@ impl Midge {
     pub(crate) fn scalar_index_key_values(
         index: &IndexMeta,
         payload: &serde_json::Value,
+        row_schema: &RowSchema,
     ) -> Result<Option<Vec<serde_json::Value>>, CassieError> {
         let mut values = Vec::new();
         for field in index.normalized_fields() {
             let Some(value) = payload.get(&field) else {
                 return Ok(None);
             };
-            if value.is_null() {
+            if value.is_null()
+                && !row_schema.fields.iter().any(|field_meta| {
+                    field_meta.name.eq_ignore_ascii_case(&field)
+                        && matches!(field_meta.data_type, DataType::Json)
+                })
+            {
                 return Ok(None);
             }
             values.push(value.clone());
@@ -348,7 +362,7 @@ impl Midge {
             return Ok(Some(values));
         }
 
-        let row = payload_to_row(payload);
+        let row = payload_to_row(payload, row_schema);
         let user_functions = HashMap::new();
         for raw_expression in expressions {
             let expression = Self::scalar_index_expression(&index.name, &raw_expression)?;
@@ -404,6 +418,7 @@ impl Midge {
     pub(crate) fn payload_matches_scalar_index_predicate(
         index: &IndexMeta,
         payload: &serde_json::Value,
+        row_schema: &RowSchema,
     ) -> Result<bool, CassieError> {
         let Some(raw_predicate) = index.predicate.as_ref() else {
             return Ok(true);
@@ -414,7 +429,7 @@ impl Midge {
                 index.name
             ))
         })?;
-        let row = payload_to_row(payload);
+        let row = payload_to_row(payload, row_schema);
         let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
             .map_err(|error| {
                 CassieError::Parse(format!(
@@ -503,17 +518,27 @@ pub(crate) fn canonical_field_value(
         .map(serde_json::Value::String)
 }
 
-fn payload_to_row(payload: &serde_json::Value) -> Vec<(String, Value)> {
+fn payload_to_row(payload: &serde_json::Value, row_schema: &RowSchema) -> Vec<(String, Value)> {
     let Some(object) = payload.as_object() else {
         return Vec::new();
     };
     object
         .iter()
-        .map(|(field, value)| (field.clone(), json_to_query_value(value)))
+        .map(|(field, value)| {
+            let data_type = row_schema
+                .fields
+                .iter()
+                .find(|field_meta| field_meta.name.eq_ignore_ascii_case(field))
+                .map(|field_meta| &field_meta.data_type);
+            (field.clone(), json_to_query_value(value, data_type))
+        })
         .collect()
 }
 
-fn json_to_query_value(value: &serde_json::Value) -> Value {
+fn json_to_query_value(value: &serde_json::Value, data_type: Option<&DataType>) -> Value {
+    if matches!(data_type, Some(DataType::Json)) && (value.is_null() || value.is_string()) {
+        return Value::Json(value.clone());
+    }
     if value.is_null() {
         return Value::Null;
     }

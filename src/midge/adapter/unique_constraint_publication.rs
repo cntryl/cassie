@@ -109,6 +109,7 @@ impl Midge {
         publication: &PendingUniqueConstraintPublication,
     ) -> Result<(), CassieError> {
         self.validate_unique_constraint_rows(publication)?;
+        let row_schema = self.row_schema(&publication.collection)?;
         let rows = self.scan_rows_for_rebuild(&publication.collection, RowDecode::Full)?;
         for batch in rows.chunks(UNIQUE_BACKFILL_BATCH_SIZE) {
             let mut tx = self.begin_data_rw_tx_for(&publication.collection)?;
@@ -117,7 +118,12 @@ impl Midge {
                     let Some(value) = row.payload.get(&constraint.field) else {
                         continue;
                     };
-                    if value.is_null() {
+                    if value.is_null()
+                        && !row_schema.fields.iter().any(|field_meta| {
+                            field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                                && matches!(field_meta.data_type, crate::types::DataType::Json)
+                        })
+                    {
                         continue;
                     }
                     let key = key_encoding::unique_constraint_reservation_key(
@@ -154,13 +160,19 @@ impl Midge {
         publication: &PendingUniqueConstraintPublication,
     ) -> Result<(), CassieError> {
         let rows = self.scan_rows_for_rebuild(&publication.collection, RowDecode::Full)?;
+        let row_schema = self.row_schema(&publication.collection)?;
         for constraint in &publication.fields {
             let mut owners = std::collections::HashMap::<Vec<u8>, &str>::new();
             for row in &rows {
                 let Some(value) = row.payload.get(&constraint.field) else {
                     continue;
                 };
-                if value.is_null() {
+                if value.is_null()
+                    && !row_schema.fields.iter().any(|field_meta| {
+                        field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                            && matches!(field_meta.data_type, crate::types::DataType::Json)
+                    })
+                {
                     continue;
                 }
                 let key = key_encoding::unique_constraint_reservation_key(

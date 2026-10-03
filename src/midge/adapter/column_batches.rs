@@ -27,6 +27,7 @@ use crate::midge::adapter::column_batch_format_v2::{
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::row_identity::is_row_identity_column;
+use crate::types::DataType;
 
 pub(super) const CURRENT_COLUMN_BATCH_METADATA_FORMAT_VERSION: u32 = MANIFEST_FORMAT_VERSION as u32;
 pub(super) const CURRENT_COLUMN_BATCH_SUMMARY_FORMAT_VERSION: u32 = MANIFEST_SUMMARY_VERSION as u32;
@@ -59,6 +60,12 @@ struct ColumnBatchScanRequest<'a> {
     segment_filter: Option<&'a ColumnBatchScanFilter>,
     limit: Option<usize>,
     controls: Option<&'a QueryExecutionControls>,
+}
+
+#[derive(Clone, Copy)]
+struct ColumnBatchScanFilters<'a> {
+    row: Option<&'a RowFilter>,
+    segment: Option<&'a ColumnBatchScanFilter>,
 }
 
 enum PreparedColumnBatchScan {
@@ -175,13 +182,27 @@ impl Midge {
         controls: &QueryExecutionControls,
     ) -> Result<ColumnBatchAggregateDecision, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        let plan =
-            match self.prepare_column_batch_scan(&collection, 1, fields, None, Some(controls))? {
-                PreparedColumnBatchScan::Ready(plan) => *plan,
-                PreparedColumnBatchScan::Fallback(reason) => {
-                    return Ok(ColumnBatchAggregateDecision::Fallback(reason));
-                }
-            };
+        if self.column_batch_aggregate_uses_json_fields(&collection, fields, specs, filter)? {
+            return Ok(ColumnBatchAggregateDecision::Fallback(
+                ColumnBatchScanFallbackReason::TypedSummaryRequiresRows,
+            ));
+        }
+        let plan = match self.prepare_column_batch_scan(
+            &collection,
+            1,
+            fields,
+            None,
+            ColumnBatchScanFilters {
+                row: None,
+                segment: filter,
+            },
+            Some(controls),
+        )? {
+            PreparedColumnBatchScan::Ready(plan) => *plan,
+            PreparedColumnBatchScan::Fallback(reason) => {
+                return Ok(ColumnBatchAggregateDecision::Fallback(reason));
+            }
+        };
         for spec in specs {
             let Some(field) = spec.field.as_ref() else {
                 continue;
@@ -253,6 +274,23 @@ impl Midge {
                 selected_rows,
             },
         ))
+    }
+
+    fn column_batch_aggregate_uses_json_fields(
+        &self,
+        collection: &str,
+        fields: &[String],
+        specs: &[ColumnBatchAggregateSpec],
+        filter: Option<&ColumnBatchScanFilter>,
+    ) -> Result<bool, CassieError> {
+        let mut checked_fields = fields.to_vec();
+        checked_fields.extend(specs.iter().filter_map(|spec| spec.field.clone()));
+        self.column_batch_request_uses_json_fields(
+            collection,
+            checked_fields.as_slice(),
+            None,
+            filter,
+        )
     }
 
     /// # Errors
@@ -494,6 +532,10 @@ impl Midge {
             request.batch_size,
             request.fields,
             request.limit,
+            ColumnBatchScanFilters {
+                row: request.filter,
+                segment: request.segment_filter,
+            },
             request.controls,
         )? {
             PreparedColumnBatchScan::Ready(plan) => *plan,
@@ -510,6 +552,7 @@ impl Midge {
         batch_size: usize,
         fields: &[String],
         limit: Option<usize>,
+        filters: ColumnBatchScanFilters<'_>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<PreparedColumnBatchScan, CassieError> {
         let Some(index) = self.covering_column_index(collection, fields)? else {
@@ -517,6 +560,16 @@ impl Midge {
                 ColumnBatchScanFallbackReason::NoCoveringIndex,
             ));
         };
+        if self.column_batch_request_uses_json_fields(
+            collection,
+            fields,
+            filters.row,
+            filters.segment,
+        )? {
+            return Ok(PreparedColumnBatchScan::Fallback(
+                ColumnBatchScanFallbackReason::TypedSummaryRequiresRows,
+            ));
+        }
         let wanted = wanted_column_batch_fields(fields);
         let requested = wanted.iter().cloned().collect::<Vec<_>>();
         let (metadata, query_memory) = if let Some(controls) = controls {
@@ -555,6 +608,29 @@ impl Midge {
                 query_memory,
             },
         )))
+    }
+
+    pub(crate) fn column_batch_request_uses_json_fields(
+        &self,
+        collection: &str,
+        fields: &[String],
+        filter: Option<&RowFilter>,
+        segment_filter: Option<&ColumnBatchScanFilter>,
+    ) -> Result<bool, CassieError> {
+        let schema = self.row_schema(collection)?;
+        let is_json_field = |name: &str| {
+            schema.fields.iter().any(|field| {
+                field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Json)
+            })
+        };
+        Ok(fields.iter().any(|field| is_json_field(field))
+            || filter.is_some_and(|filter| is_json_field(&filter.field))
+            || segment_filter.is_some_and(|filter| {
+                filter
+                    .predicates
+                    .iter()
+                    .any(|predicate| is_json_field(&predicate.field))
+            }))
     }
 
     fn execute_column_batch_scan(

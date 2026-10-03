@@ -652,12 +652,13 @@ impl Cassie {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
+        let schema = self.catalog.get_schema(collection);
 
         for constraint in constraints {
             let existing = object.get(&constraint.field);
 
             if (constraint.not_null || constraint.primary_key)
-                && existing.is_none_or(serde_json::Value::is_null)
+                && super::field_value_is_sql_null(existing, schema.as_ref(), &constraint.field)
             {
                 let constraint_name = if constraint.primary_key {
                     Some(crate::catalog::generated_constraint_name(
@@ -685,7 +686,11 @@ impl Cassie {
                 let Some(value) = existing else {
                     continue;
                 };
-                if !Self::satisfies_check_constraint(value, check)? {
+                if !Self::satisfies_check_constraint(
+                    value,
+                    check,
+                    super::field_value_is_sql_null(Some(value), schema.as_ref(), &check.field),
+                )? {
                     return Err(CassieError::CheckViolation {
                         table: collection.to_string(),
                         column: check.field.clone(),
@@ -705,10 +710,11 @@ impl Cassie {
     pub(super) fn satisfies_check_constraint(
         value: &serde_json::Value,
         check: &ConstraintCheck,
+        value_is_sql_null: bool,
     ) -> Result<bool, CassieError> {
         // A CHECK whose comparison evaluates to NULL is satisfied under SQL
         // three-valued logic, so a NULL operand never violates it.
-        if value.is_null() || check.value.is_null() {
+        if value_is_sql_null || check.value.is_null() {
             return Ok(true);
         }
         Ok(match check.operator {
@@ -762,6 +768,7 @@ impl Cassie {
         constraints: &[FieldConstraint],
         exclude_id: Option<&str>,
     ) -> Result<(), CassieError> {
+        let schema = self.catalog.get_schema(collection);
         for constraint in constraints {
             if !crate::catalog::enforces_single_column_uniqueness(constraint, constraints) {
                 continue;
@@ -770,7 +777,7 @@ impl Cassie {
             let Some(value) = payload.get(&constraint.field) else {
                 continue;
             };
-            if value.is_null() {
+            if super::field_value_is_sql_null(Some(value), schema.as_ref(), &constraint.field) {
                 continue;
             }
 
@@ -802,7 +809,8 @@ impl Cassie {
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
         let mut references = super::foreign_key_checks::ForeignKeyReferences::default();
-        references.collect(collection, constraints, payload)?;
+        let schema = self.catalog.get_schema(collection);
+        references.collect(collection, constraints, payload, schema.as_ref())?;
         self.validate_foreign_key_references(session, collection, &references)
     }
 
@@ -816,6 +824,8 @@ impl Cassie {
         let object = payload.as_object().ok_or_else(|| {
             CassieError::InvalidVector("document payload must be a JSON object".to_string())
         })?;
+        let schema = self.catalog.get_schema(collection);
+        let row_schema = self.midge.row_schema(collection)?;
 
         for index in self.catalog.list_indexes(collection) {
             if !index.unique || index.kind != crate::catalog::IndexKind::Scalar {
@@ -823,7 +833,9 @@ impl Cassie {
             }
 
             if !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
-                &index, payload,
+                &index,
+                payload,
+                &row_schema,
             )? {
                 continue;
             }
@@ -835,7 +847,7 @@ impl Cassie {
                     values.clear();
                     break;
                 };
-                if value.is_null() {
+                if super::field_value_is_sql_null(Some(value), schema.as_ref(), field) {
                     values.clear();
                     break;
                 }
@@ -856,6 +868,7 @@ impl Cassie {
                     || !crate::midge::adapter::Midge::payload_matches_scalar_index_predicate(
                         &index,
                         &document.payload,
+                        &row_schema,
                     )?
                 {
                     continue;

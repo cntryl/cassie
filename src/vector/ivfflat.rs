@@ -199,14 +199,11 @@ pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) ->
 
 #[must_use]
 pub fn denormalized_vector(record: &NormalizedVectorRecord) -> Option<Vec<f32>> {
-    let magnitude = record.magnitude.to_string().parse::<f32>().ok()?;
-    Some(
-        record
-            .values
-            .iter()
-            .map(|value| *value * magnitude)
-            .collect(),
-    )
+    record
+        .values
+        .iter()
+        .map(|value| crate::vector::denormalize_f32_component(*value, record.magnitude))
+        .collect()
 }
 
 fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
@@ -276,7 +273,9 @@ mod tests {
         let values = denormalized_vector(&record).expect("denormalized vector");
 
         // Assert
-        assert_eq!(values, vec![3.0, 4.0]);
+        assert_eq!(values.len(), 2);
+        assert!((values[0] - 3.0).abs() <= 1.0e-6);
+        assert!((values[1] - 4.0).abs() <= 1.0e-6);
     }
 
     #[test]

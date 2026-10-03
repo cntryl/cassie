@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+use super::IdentifierPath;
 use crate::catalog::FieldConstraint;
 use crate::types::DataType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlterTableStatement {
-    pub table: String,
+    pub table: IdentifierPath,
     pub operation: AlterTableOperation,
 }
 

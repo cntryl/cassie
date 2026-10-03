@@ -63,10 +63,13 @@ use commands::{
 };
 pub(crate) use context::normalize_database_name;
 pub(crate) use context::normalize_new_relation_name;
+pub(crate) use context::normalize_new_relation_path;
 pub(crate) use context::normalize_relation_name;
 pub(crate) use context::resolve_existing_name;
 pub use context::BindingContext;
-use context::{normalize_schema_name, resolve_relation_name, resolve_schema_name};
+use context::{
+    normalize_schema_name, resolve_relation_name, resolve_relation_path, resolve_schema_name,
+};
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, infer_function_return_type, known_expr_type};
@@ -138,7 +141,7 @@ fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
 
 fn source_collection(source: &QuerySource) -> Option<String> {
     match source {
-        QuerySource::Collection(collection) => Some(collection.clone()),
+        QuerySource::Collection(collection) => Some(collection.to_string()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
         QuerySource::Cte(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => None,

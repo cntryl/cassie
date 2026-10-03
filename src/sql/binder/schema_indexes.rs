@@ -1,16 +1,16 @@
 use super::{
-    bm25, normalize_relation_name, resolve_relation_name, schema_index_options, BindingContext,
+    bm25, normalize_relation_name, resolve_relation_path, schema_index_options, BindingContext,
     CassieError, Catalog, CollectionSchema, DataType, Expr, HashSet,
 };
 use crate::catalog::{derive_scoped_name, parse_name, ParsedName};
-use crate::sql::ast::CreateIndexStatement;
+use crate::sql::ast::{CreateIndexStatement, IdentifierPath};
 
 pub(super) fn bind_create_index(
     mut statement: CreateIndexStatement,
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<CreateIndexStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "CREATE INDEX requires a collection name".into(),
@@ -30,7 +30,7 @@ pub(super) fn bind_create_index(
         ));
     }
     if statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
-        statement.table = table;
+        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         statement.name = name;
         return Ok(statement);
     }
@@ -99,7 +99,7 @@ pub(super) fn bind_create_index(
         )));
     }
 
-    statement.table = table;
+    statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     statement.name = name;
     statement.fields = fields;
     statement.expressions = expressions;

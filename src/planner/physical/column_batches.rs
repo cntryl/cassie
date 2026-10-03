@@ -29,7 +29,7 @@ pub(super) fn column_batch_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> O
     }
     indexes
         .iter()
-        .filter(|index| index.collection == *collection && index.kind == IndexKind::Column)
+        .filter(|index| *collection == index.collection && index.kind == IndexKind::Column)
         .find(|index| {
             let available = index
                 .normalized_fields()

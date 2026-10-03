@@ -3,6 +3,7 @@ use crate::catalog::{
     canonical_relation_name, canonical_schema_name, is_system_schema, parse_name, Catalog,
     ParsedName, DEFAULT_SCHEMA,
 };
+use crate::sql::ast::IdentifierPath;
 
 #[derive(Debug, Clone)]
 pub struct BindingContext {
@@ -87,17 +88,40 @@ pub fn normalize_search_path(path: Vec<String>) -> Vec<String> {
 ///
 /// Returns an error when the relation reference is malformed or cross-database.
 pub fn normalize_relation_name(raw: &str, context: &BindingContext) -> Result<String, CassieError> {
+    let path = IdentifierPath::parse(raw).map_err(CassieError::Planner)?;
+    normalize_relation_path(&path, context)
+}
+
+/// Normalizes a relation path without flattening its identifier components.
+///
+/// # Errors
+///
+/// Returns an error when the relation reference is malformed or cross-database.
+pub fn normalize_relation_path(
+    path: &IdentifierPath,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let parsed = path.parsed_name().map_err(CassieError::Planner)?;
     if !context.scopes_database_objects() {
-        return match parse_name(raw).map_err(CassieError::Planner)? {
+        return match parsed {
+            ParsedName::Unqualified(name) if requires_escaped_component(&name) => Ok(
+                canonical_relation_name(&context.database, context.current_schema(), &name),
+            ),
             ParsedName::Unqualified(name) => Ok(name),
-            ParsedName::SchemaQualified { schema, name } => Ok(format!("{schema}.{name}")),
+            ParsedName::SchemaQualified { schema, name } => {
+                if requires_escaped_component(&schema) || requires_escaped_component(&name) {
+                    Ok(canonical_relation_name(&context.database, &schema, &name))
+                } else {
+                    Ok(canonical_schema_name(&schema, &name))
+                }
+            }
             ParsedName::DatabaseQualified { .. } => Err(CassieError::Unsupported(
                 "cross-database relation references are not supported".to_string(),
             )),
         };
     }
 
-    match parse_name(raw).map_err(CassieError::Planner)? {
+    match parsed {
         ParsedName::Unqualified(name) => Ok(canonical_relation_name(
             &context.database,
             context.current_schema(),
@@ -105,7 +129,7 @@ pub fn normalize_relation_name(raw: &str, context: &BindingContext) -> Result<St
         )),
         ParsedName::SchemaQualified { schema, name } => {
             if is_system_schema(&schema) {
-                return Ok(format!("{schema}.{name}"));
+                return Ok(canonical_schema_name(&schema, &name));
             }
             Ok(canonical_relation_name(&context.database, &schema, &name))
         }
@@ -113,6 +137,10 @@ pub fn normalize_relation_name(raw: &str, context: &BindingContext) -> Result<St
             "cross-database relation references are not supported".to_string(),
         )),
     }
+}
+
+fn requires_escaped_component(name: &str) -> bool {
+    crate::catalog::canonical_identifier_component(name) != name
 }
 
 /// Normalizes the name of a relation or routine being created or renamed.
@@ -128,15 +156,31 @@ pub fn normalize_new_relation_name(
     context: &BindingContext,
     catalog: &Catalog,
 ) -> Result<String, CassieError> {
-    let target_schema = match parse_name(raw).map_err(CassieError::Planner)? {
+    let path = IdentifierPath::parse(raw).map_err(CassieError::Planner)?;
+    normalize_new_relation_path(&path, context, catalog)
+}
+
+/// Normalizes a new relation path and verifies its target schema.
+///
+/// # Errors
+///
+/// Returns `InsufficientPrivilege` for system schemas, or a catalog error when
+/// the target schema does not exist.
+pub fn normalize_new_relation_path(
+    path: &IdentifierPath,
+    context: &BindingContext,
+    catalog: &Catalog,
+) -> Result<String, CassieError> {
+    let parsed = path.parsed_name().map_err(CassieError::Planner)?;
+    let target_schema = match &parsed {
         ParsedName::Unqualified(_) => Some(context.current_schema().to_string()),
-        ParsedName::SchemaQualified { schema, .. } => Some(schema),
+        ParsedName::SchemaQualified { schema, .. } => Some(schema.clone()),
         ParsedName::DatabaseQualified { .. } => None,
     };
     if target_schema.is_some_and(|schema| is_system_schema(&schema)) {
         return Err(CassieError::InsufficientPrivilege);
     }
-    let name = normalize_relation_name(raw, context)?;
+    let name = normalize_relation_path(path, context)?;
     require_existing_schema(&name, catalog)?;
     Ok(name)
 }
@@ -242,11 +286,30 @@ pub fn resolve_relation_name(
     catalog: &crate::catalog::Catalog,
     context: &BindingContext,
 ) -> Result<String, CassieError> {
-    let parsed = parse_name(raw).map_err(CassieError::Planner)?;
+    let path = IdentifierPath::parse(raw).map_err(CassieError::Planner)?;
+    resolve_relation_path(&path, catalog, context)
+}
+
+/// Resolves a relation path after parsing has retained its component
+/// boundaries.
+///
+/// # Errors
+///
+/// Returns an error when the relation does not exist or uses an unsupported
+/// qualifier depth.
+pub fn resolve_relation_path(
+    path: &IdentifierPath,
+    catalog: &crate::catalog::Catalog,
+    context: &BindingContext,
+) -> Result<String, CassieError> {
+    let parsed = path.parsed_name().map_err(CassieError::Planner)?;
+    let allow_raw_unqualified_fallback = !path
+        .local_component()
+        .is_some_and(|component| requires_escaped_component(component.value()));
     let resolved = if context.scopes_database_objects() {
         resolve_scoped_relation_name(parsed, catalog, context)?
     } else {
-        resolve_unscoped_relation_name(parsed, catalog, context)?
+        resolve_unscoped_relation_name(parsed, catalog, context, allow_raw_unqualified_fallback)?
     };
     if crate::catalog::virtual_views::schema(&resolved).is_some() {
         return Ok(resolved);
@@ -269,6 +332,7 @@ fn resolve_unscoped_relation_name(
     parsed: ParsedName,
     catalog: &crate::catalog::Catalog,
     context: &BindingContext,
+    allow_raw_unqualified_fallback: bool,
 ) -> Result<String, CassieError> {
     match parsed {
         ParsedName::Unqualified(name) => {
@@ -284,9 +348,7 @@ fn resolve_unscoped_relation_name(
                     return Ok(scoped_candidate);
                 }
             }
-            // Preserve support for catalogs populated directly by older callers while
-            // preferring the canonical database-scoped name whenever it exists.
-            if catalog.relation_exists(&name) {
+            if allow_raw_unqualified_fallback && catalog.relation_exists(&name) {
                 return Ok(name);
             }
             for system_schema in ["pg_catalog", "information_schema"] {
@@ -311,11 +373,11 @@ fn resolve_unscoped_relation_name(
             {
                 return Ok(candidate);
             }
-            let legacy_candidate = format!("{schema}.{name}");
-            if catalog.relation_exists(&legacy_candidate)
-                || crate::catalog::virtual_views::schema(&legacy_candidate).is_some()
+            let unscoped_candidate = format!("{schema}.{name}");
+            if catalog.relation_exists(&unscoped_candidate)
+                || crate::catalog::virtual_views::schema(&unscoped_candidate).is_some()
             {
-                return Ok(legacy_candidate);
+                return Ok(unscoped_candidate);
             }
             Err(CassieError::CatalogObjectNotFound {
                 kind: CatalogObjectKind::Relation,

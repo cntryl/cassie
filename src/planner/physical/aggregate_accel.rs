@@ -35,7 +35,7 @@ pub(super) fn plan_supports_aggregate_acceleration(
     }
     indexes
         .iter()
-        .filter(|index| index.collection == *collection && index.kind == IndexKind::Column)
+        .filter(|index| *collection == index.collection && index.kind == IndexKind::Column)
         .any(|index| {
             let available = index
                 .normalized_fields()

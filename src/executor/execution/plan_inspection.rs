@@ -726,9 +726,8 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name)
-        | QuerySource::Cte(name)
-        | QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name) => name.to_string(),
+        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Join { .. } => "join".to_string(),

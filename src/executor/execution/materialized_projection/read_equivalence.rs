@@ -15,7 +15,7 @@ pub(in crate::executor::execution) fn preserves_base_columns(
         return false;
     };
     let plan = built.logical;
-    if !matches!(&plan.source, QuerySource::Collection(collection) if collection == source)
+    if !matches!(&plan.source, QuerySource::Collection(collection) if collection.as_str() == source)
         || plan.filter.is_some()
         || plan.limit.is_some()
         || plan.offset.is_some()

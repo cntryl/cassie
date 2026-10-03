@@ -59,7 +59,7 @@ pub(super) fn filter_rows_per_outer_row(
 fn outer_qualifier(source: &QuerySource) -> Option<String> {
     match source {
         QuerySource::Collection(name) => {
-            Some(name.rsplit('.').next().unwrap_or(name).to_ascii_lowercase())
+            Some(crate::catalog::local_name(name).to_ascii_lowercase())
         }
         QuerySource::Subquery { alias, .. } => Some(alias.to_ascii_lowercase()),
         _ => None,

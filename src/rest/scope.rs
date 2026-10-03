@@ -166,4 +166,26 @@ mod tests {
         // Assert
         assert!(matches!(error, CassieError::CollectionNotFound(name) if name == collection));
     }
+
+    #[test]
+    fn should_keep_quoted_dotted_rest_collection_distinct_from_schema_qualified_name() {
+        // Arrange
+        let dotted = canonical_relation_name("cassie", DEFAULT_SCHEMA, "triage.dot");
+        let qualified = canonical_relation_name("cassie", "triage", "dot");
+        let cassie = cassie_with_collections("quoted-dot", &[&dotted, &qualified]);
+        let session =
+            CassieSession::authenticated("reader".to_string(), Some("cassie".to_string()), false);
+        session.set_search_path(vec![DEFAULT_SCHEMA.to_string(), "triage".to_string()]);
+
+        // Act
+        let quoted = resolve_collection(&cassie, &session, "\"triage.dot\"");
+        let schema_qualified = resolve_collection(&cassie, &session, "triage.dot");
+
+        // Assert
+        assert_eq!(quoted.expect("resolve quoted collection"), dotted);
+        assert_eq!(
+            schema_qualified.expect("resolve schema-qualified collection"),
+            qualified
+        );
+    }
 }

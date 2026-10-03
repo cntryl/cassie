@@ -14,8 +14,10 @@ use crate::sql::ast::{
 /// Rewrites `select`'s own-qualified column references to bare names when its
 /// source is a single collection or CTE.
 pub(super) fn strip_select_own_qualifiers(select: &mut SelectStatement) {
-    let (QuerySource::Collection(name) | QuerySource::Cte(name)) = &select.source else {
-        return;
+    let name = match &select.source {
+        QuerySource::Collection(name) => name.as_str(),
+        QuerySource::Cte(name) => name.as_str(),
+        _ => return,
     };
     let qualifiers = crate::catalog::qualifier_variants(name);
     for item in &mut select.projection {

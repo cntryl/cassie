@@ -1,5 +1,5 @@
 use super::expr::{parse_expr_token, parse_expression, split_csv};
-use super::identifiers::normalize_identifier;
+use super::identifiers::{normalize_identifier, parse_relation_path_prefix};
 use super::query::parse_projection_items;
 use super::{
     find_top_level_keyword, parse_statement, strip_parentheses, Expr, InsertSource,
@@ -252,7 +252,9 @@ pub(super) fn parse_insert_values_rows(values_part: &str) -> Result<Vec<Vec<Expr
     Ok(rows)
 }
 
-pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &str), SqlError> {
+pub(super) fn parse_insert_target(
+    raw: &str,
+) -> Result<(crate::sql::ast::IdentifierPath, Vec<String>, &str), SqlError> {
     let raw = raw.trim();
     if raw.is_empty() {
         return Err(SqlError::new("INSERT INTO requires a table name".into()));
@@ -282,17 +284,14 @@ pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &st
     }
 
     let Some(open_paren) = target.find('(') else {
-        let mut split = target.splitn(2, char::is_whitespace);
-        let table = split.next().unwrap_or_default();
+        let (table, extra) = parse_relation_path_prefix(target)?;
         if table.is_empty() {
             return Err(SqlError::new("INSERT INTO requires a table name".into()));
         }
-        if let Some(extra) = split.next() {
-            if !extra.trim().is_empty() {
-                return Err(SqlError::new("INSERT INTO requires a table name".into()));
-            }
+        if !extra.is_empty() {
+            return Err(SqlError::new("INSERT INTO requires a table name".into()));
         }
-        return Ok((table.to_string(), Vec::new(), source));
+        return Ok((table, Vec::new(), source));
     };
 
     let close = find_matching_paren(target, open_paren)
@@ -326,7 +325,11 @@ pub(super) fn parse_insert_target(raw: &str) -> Result<(String, Vec<String>, &st
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok((table.to_string(), columns, source))
+    Ok((
+        crate::sql::ast::IdentifierPath::parse(table).map_err(SqlError::new)?,
+        columns,
+        source,
+    ))
 }
 
 pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlError> {
@@ -365,7 +368,7 @@ pub(super) fn parse_update_statement(sql: &str) -> Result<ParsedStatement, SqlEr
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Update(crate::sql::ast::UpdateStatement {
-            table: table.to_string(),
+            table: crate::sql::ast::IdentifierPath::parse(table).map_err(SqlError::new)?,
             assignments,
             filter,
             returning,
@@ -382,23 +385,16 @@ pub(super) fn parse_delete_statement(sql: &str) -> Result<ParsedStatement, SqlEr
         return Err(SqlError::new("DELETE requires a target table".into()));
     }
 
-    let remaining = match super::lexical::first_separator(remainder) {
-        Some(position) => {
-            let table = remainder[..position].trim();
-            if table.is_empty() {
-                return Err(SqlError::new("DELETE requires a target table".into()));
-            }
-            let tail = super::lexical::trim_separators(&remainder[position..]);
-            (table, tail)
-        }
-        None => (remainder, ""),
-    };
+    let (table, tail) = parse_relation_path_prefix(remainder)?;
+    if table.is_empty() {
+        return Err(SqlError::new("DELETE requires a target table".into()));
+    }
 
-    let (filter, returning) = parse_filter_and_returning(remaining.1)?;
+    let (filter, returning) = parse_filter_and_returning(tail)?;
     Ok(ParsedStatement {
         raw_sql: trimmed.to_string(),
         statement: QueryStatement::Delete(crate::sql::ast::DeleteStatement {
-            table: remaining.0.to_string(),
+            table,
             filter,
             returning,
         }),

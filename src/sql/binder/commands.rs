@@ -1,16 +1,17 @@
 use super::{
-    bind_select, collect_item, normalize_relation_name, resolve_relation_name, validate_expression,
-    validate_function_calls, virtual_views, BindingContext, CassieError, Catalog,
-    CatalogObjectKind, CollectionSchema, DataType, Expr, HashMap, HashSet, InsertSource,
-    SelectItem,
+    bind_select, collect_item, normalize_relation_name, resolve_relation_name,
+    resolve_relation_path, validate_expression, validate_function_calls, virtual_views,
+    BindingContext, CassieError, Catalog, CatalogObjectKind, CollectionSchema, DataType, Expr,
+    HashMap, HashSet, InsertSource, SelectItem,
 };
+use crate::sql::ast::IdentifierPath;
 
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::InsertStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "INSERT requires a target table".into(),
@@ -22,7 +23,7 @@ pub(super) fn bind_insert(
         )));
     }
     if catalog.is_materialized_projection(&table) {
-        statement.table = table;
+        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         return Ok(statement);
     }
     if !catalog.exists(&table) {
@@ -83,7 +84,7 @@ pub(super) fn bind_insert(
         context,
     )?;
 
-    statement.table = table;
+    statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     Ok(statement)
 }
 
@@ -169,9 +170,9 @@ fn validate_conflict_update(
             [name.clone(), format!("excluded.{name}")]
         })
         .collect::<HashSet<_>>();
-    let local_table = table.rsplit('.').next().unwrap_or(table);
+    let local_table = crate::catalog::local_name(table);
     known_fields.extend(super::select::base_table_fields(table, schema));
-    known_fields.extend(super::select::base_table_fields(local_table, schema));
+    known_fields.extend(super::select::base_table_fields(&local_table, schema));
     for field in &schema.fields {
         known_fields.insert(format!("{table}.{}", field.name).to_ascii_lowercase());
         known_fields.insert(format!("{local_table}.{}", field.name).to_ascii_lowercase());
@@ -243,7 +244,7 @@ pub(super) fn bind_update(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::UpdateStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "UPDATE requires a target table".into(),
@@ -255,7 +256,7 @@ pub(super) fn bind_update(
         )));
     }
     if catalog.is_materialized_projection(&table) {
-        statement.table = table;
+        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         return Ok(statement);
     }
     if !catalog.exists(&table) {
@@ -302,7 +303,7 @@ pub(super) fn bind_update(
         context,
     )?;
 
-    statement.table = table;
+    statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     super::own_qualifier::strip_update_own_qualifiers(&mut statement);
     if let Some(filter) = statement.filter.as_mut() {
         let field_types = crate::sql::source_field_type_map(
@@ -320,7 +321,7 @@ pub(super) fn bind_delete(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<crate::sql::ast::DeleteStatement, CassieError> {
-    let table = resolve_relation_name(statement.table.trim(), catalog, context)?;
+    let table = resolve_relation_path(&statement.table, catalog, context)?;
     if table.is_empty() {
         return Err(CassieError::Planner(
             "DELETE requires a target table".into(),
@@ -332,7 +333,7 @@ pub(super) fn bind_delete(
         )));
     }
     if catalog.is_materialized_projection(&table) {
-        statement.table = table;
+        statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
         return Ok(statement);
     }
     if !catalog.exists(&table) {
@@ -351,7 +352,7 @@ pub(super) fn bind_delete(
         context,
     )?;
 
-    statement.table = table;
+    statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     super::own_qualifier::strip_delete_own_qualifiers(&mut statement);
     if let Some(filter) = statement.filter.as_mut() {
         let field_types = crate::sql::source_field_type_map(
@@ -612,7 +613,9 @@ pub(super) fn validate_returning_items(
     known_fields.extend(super::select::base_table_fields(table, schema));
 
     let result_types = super::coalesce_results::ResultTypes::for_source(
-        &crate::sql::ast::QuerySource::Collection(table.to_string()),
+        &crate::sql::ast::QuerySource::Collection(
+            IdentifierPath::parse(table).map_err(CassieError::Planner)?,
+        ),
         &[],
         catalog,
         context,

@@ -9,10 +9,10 @@ use crate::sql::{
         DeleteStatement, DropDatabaseStatement, DropFunctionStatement, DropIndexStatement,
         DropMaterializedProjectionStatement, DropProcedureStatement, DropRetentionPolicyStatement,
         DropRoleStatement, DropRollupStatement, DropSchemaStatement, DropTableStatement,
-        DropViewStatement, EnforceRetentionPolicyStatement, Expr, InsertStatement, OrderExpr,
-        ProjectionStatementRef, QuerySource, RefreshRollupStatement, RetentionStatementRef,
-        RuntimeStatementRef, SelectItem, SelectStatement, SetStatement, ShowStatement,
-        StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
+        DropViewStatement, EnforceRetentionPolicyStatement, Expr, IdentifierPath, InsertStatement,
+        OrderExpr, ProjectionStatementRef, QuerySource, RefreshRollupStatement,
+        RetentionStatementRef, RuntimeStatementRef, SelectItem, SelectStatement, SetStatement,
+        ShowStatement, StatementRouteRef, UpdateStatement, VerifyProjectionStatement,
     },
     binder::BoundStatement,
 };
@@ -405,9 +405,10 @@ fn plan_table_command(
     command: LogicalCommand,
 ) -> Result<LogicalPlan, CassieError> {
     require_name(table, missing_message)?;
+    let collection = IdentifierPath::parse(table).map_err(CassieError::Planner)?;
     Ok(command_plan(
         command,
-        QuerySource::Collection(table.to_string()),
+        QuerySource::Collection(collection),
         table.to_string(),
         Some(0),
     ))
@@ -419,9 +420,10 @@ fn plan_named_command(
     command: LogicalCommand,
 ) -> Result<LogicalPlan, CassieError> {
     require_name(name, missing_message)?;
+    let collection = IdentifierPath::parse(name).map_err(CassieError::Planner)?;
     Ok(command_plan(
         command,
-        QuerySource::Collection(name.to_string()),
+        QuerySource::Collection(collection),
         name.to_string(),
         Some(0),
     ))
@@ -521,9 +523,8 @@ fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
 
 fn source_name(source: &QuerySource) -> String {
     match source {
-        QuerySource::Collection(name)
-        | QuerySource::Cte(name)
-        | QuerySource::TableFunction { name, .. } => name.clone(),
+        QuerySource::Collection(name) => name.to_string(),
+        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
         QuerySource::Subquery { alias, .. } => alias.clone(),
         QuerySource::Join { .. } => "join".to_string(),

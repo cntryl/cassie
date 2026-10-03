@@ -141,7 +141,7 @@ fn scalar_candidates<S: BuildHasher>(
         .unwrap_or_default();
     let mut scalar = indexes
         .iter()
-        .filter(|index| index.collection == *collection && index.kind == IndexKind::Scalar)
+        .filter(|index| *collection == index.collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
             scalar_index_matches_plan(

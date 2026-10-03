@@ -12,10 +12,11 @@ pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
     CatalogStatement, CatalogStatementRef, CommonTableExpression, CopyFormat, CopyStatement,
     CreateSchemaStatement, CreateTableStatement, CreateViewStatement, DeleteStatement,
-    DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition, InsertStatement,
-    ParsedStatement, ProjectionStatement, ProjectionStatementRef, QuerySource, QueryStatement,
-    RetentionStatement, RetentionStatementRef, RuntimeStatement, RuntimeStatementRef, SelectItem,
-    SelectStatement, StatementFamily, StatementRoute, StatementRouteRef, UpdateStatement,
+    DropSchemaStatement, DropTableStatement, DropViewStatement, FieldDefinition,
+    IdentifierComponent, IdentifierPath, InsertStatement, ParsedStatement, ProjectionStatement,
+    ProjectionStatementRef, QuerySource, QueryStatement, RetentionStatement, RetentionStatementRef,
+    RuntimeStatement, RuntimeStatementRef, SelectItem, SelectStatement, StatementFamily,
+    StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
 pub use functions::registry;

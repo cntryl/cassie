@@ -494,7 +494,7 @@ fn fulltext_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<FulltextT
     }
 
     Some(FulltextTopKSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         text_field,
         query,
         id_column,
@@ -553,7 +553,7 @@ pub(super) fn fulltext_filtered_read_spec(
         .unwrap_or(0);
 
     Some(FulltextFilteredReadSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         text_field,
         query,
         columns,
@@ -640,7 +640,7 @@ fn hybrid_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<HybridTopKS
     let (text_field, query, vector_field, vector_query) = hybrid_function_args(function, params)?;
 
     Some(HybridTopKSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         text_field,
         query,
         vector_field,

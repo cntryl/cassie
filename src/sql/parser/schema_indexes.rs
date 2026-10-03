@@ -1,5 +1,5 @@
 use super::super::expr::{parse_expression, split_csv};
-use super::schema_identifiers::parse_identifier;
+use super::schema_identifiers::{parse_identifier, parse_relation_path};
 use super::{
     find_matching_paren, find_top_level_keyword, CreateIndexStatement, DropIndexStatement, Expr,
     IndexKind, ParsedStatement, QueryStatement, SqlError,
@@ -116,7 +116,9 @@ pub(in crate::sql::parser) fn parse_drop_index_statement(
     })
 }
 
-pub(in crate::sql::parser) fn parse_index_target(raw: &str) -> Result<(String, &str), SqlError> {
+pub(in crate::sql::parser) fn parse_index_target(
+    raw: &str,
+) -> Result<(crate::sql::ast::IdentifierPath, &str), SqlError> {
     let raw = raw.trim_start();
     if raw.is_empty() {
         return Err(SqlError::new(
@@ -128,7 +130,7 @@ pub(in crate::sql::parser) fn parse_index_target(raw: &str) -> Result<(String, &
         .char_indices()
         .find_map(|(idx, ch)| (ch.is_whitespace() || ch == '(').then_some(idx))
         .unwrap_or(raw.len());
-    let table = parse_identifier(&raw[..split])?;
+    let table = parse_relation_path(&raw[..split])?;
     Ok((table, raw[split..].trim_start()))
 }
 

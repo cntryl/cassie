@@ -214,7 +214,7 @@ fn vector_distance_top_k_spec(
     }
     let (vector_field, query) = vector_distance_args(function, params)?;
     Some(VectorDistanceTopKSpec {
-        collection: collection.clone(),
+        collection: collection.to_string(),
         vector_field,
         query,
         id_column,

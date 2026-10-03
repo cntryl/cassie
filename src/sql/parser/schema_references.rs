@@ -1,4 +1,4 @@
-use super::schema_identifiers::{parse_identifier, parse_identifier_list};
+use super::schema_identifiers::{parse_identifier_list, parse_relation_path};
 use super::{find_matching_paren, SqlError};
 
 pub(super) fn parse_references_target(raw: &str) -> Result<(String, String), SqlError> {
@@ -15,8 +15,8 @@ pub(super) fn parse_references_target_with_rest(
         .ok_or_else(|| SqlError::new("REFERENCES requires target column list".into()))?;
     let close = find_matching_paren(raw, open)
         .ok_or_else(|| SqlError::new("REFERENCES requires closing ')'".into()))?;
-    let table = parse_identifier(raw[..open].trim())?;
-    if table.is_empty() {
+    let table = parse_relation_path(raw[..open].trim())?;
+    if table.components().is_empty() {
         return Err(SqlError::new("REFERENCES requires target table".into()));
     }
     let fields = parse_identifier_list(raw[open + 1..close].trim())?;
@@ -28,5 +28,9 @@ pub(super) fn parse_references_target_with_rest(
             "REFERENCES supports exactly one target column".into(),
         ));
     }
-    Ok((table, fields[0].clone(), raw[close + 1..].trim_start()))
+    Ok((
+        table.into_string(),
+        fields[0].clone(),
+        raw[close + 1..].trim_start(),
+    ))
 }

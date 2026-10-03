@@ -128,20 +128,6 @@ pub(super) fn trim_separators(input: &str) -> &str {
     &input[start..end]
 }
 
-pub(super) fn first_separator(input: &str) -> Option<usize> {
-    let mut index = 0;
-    while index < input.len() {
-        if let Some(end) = quoted_end(input, index) {
-            index = end;
-        } else if separator_end(input, index) > index {
-            return Some(index);
-        } else {
-            index += input[index..].chars().next().map_or(0, char::len_utf8);
-        }
-    }
-    None
-}
-
 pub(super) fn matching_paren(input: &str, open_at: usize) -> Option<usize> {
     if input.as_bytes().get(open_at) != Some(&b'(') {
         return None;

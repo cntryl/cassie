@@ -66,6 +66,8 @@
         "--test",
         "sql_queries",
         "--test",
+        "sql_relation_identifiers",
+        "--test",
         "sql_set_operations"
       ]
     },

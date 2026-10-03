@@ -39,14 +39,13 @@ pub(super) fn null_row(
     )
     .with_optional_data_types(data_types);
     let qualifier = match source {
-        QuerySource::Collection(name)
-        | QuerySource::Cte(name)
-        | QuerySource::TableFunction { name, .. } => Some(name),
-        QuerySource::Subquery { alias, .. } => Some(alias),
+        QuerySource::Collection(name) => Some(name.to_string()),
+        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
+        QuerySource::Subquery { alias, .. } => Some(alias.clone()),
         QuerySource::SingleRow | QuerySource::Join { .. } => None,
     };
     Ok(match qualifier {
-        Some(qualifier) => qualify_row(row, qualifier),
+        Some(qualifier) => qualify_row(row, &qualifier),
         None => row,
     })
 }

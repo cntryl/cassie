@@ -58,6 +58,8 @@ Inner-join planning exhaustively enumerates deterministic relation orders throug
 
 Full-text indexed execution reads persisted posting blocks and document statistics, computes exact BM25 scores, maintains a bounded result window, renders snippets from fetched candidates, and fetches only candidate rows. Eligible scalar equality indexes are intersected before row fetch. Transaction overlays and missing, stale, corrupt, or incomplete artifacts use an explicitly labelled row fallback under the same cancellation and memory controls.
 
+Hybrid indexed execution uses corpus-wide persisted BM25 statistics while intersecting text and ANN candidates, then fetches only selected candidate rows. Its exact row fallback derives the same corpus-wide statistics before applying structured filters and retains the same cancellation and memory controls.
+
 Exact vector search reads lazy Midge cursor batches and retains only a memory-accounted top-k heap. HNSW reads persisted node records; IVFFlat reads persisted membership prefixes. Approximate paths expand candidates deterministically within the configured cap and exact-rerank selected source rows. Each ANN candidate batch carries its persisted source generation, which is fenced before, during, and after reranking. A missing row, malformed or dimension-invalid vector, or generation change labels the attempt `concurrent-source-change`, discards all attempted-path rows and metrics, and executes the exact controlled path once. Structured filters and transaction overlays use an explicitly diagnosed exact fallback; candidate exhaustion produces an exact fallback or resource error rather than silent truncation.
 
 Descending vector-distance queries use exact scoring rather than nearest-list IVFFlat

@@ -1,7 +1,7 @@
 use super::{
     json_search_term_stats_value, value_to_vector, vector_prefilter_supported, BatchRow, Cassie,
-    CassieSession, CollectionSchema, FunctionMeta, HybridTopKSpec, QueryError,
-    TokenizedHybridDocument, Value,
+    CassieSession, CollectionSchema, FulltextIndexOptions, FunctionMeta, HybridTopKSpec,
+    QueryError, TokenizedHybridDocument, Value,
 };
 use crate::executor::{batch, filter, scan};
 use crate::midge::adapter::RowDecode;
@@ -44,6 +44,7 @@ pub(super) fn record_hybrid_diagnostics(
 
 pub(super) struct BoundedHybridRows {
     pub(super) rows: Vec<BatchRow>,
+    pub(super) search_context: filter::SearchContext,
     pub(super) posting_reads: usize,
     pub(super) ann_reads: usize,
     pub(super) ann_candidates: usize,
@@ -57,6 +58,7 @@ pub(super) struct BoundedHybridContext<'a> {
     pub(super) params: &'a [Value],
     pub(super) schema: &'a CollectionSchema,
     pub(super) analyzer: &'a AnalyzerConfig,
+    pub(super) search_index_options: &'a FulltextIndexOptions,
     pub(super) candidate_limit: usize,
 }
 
@@ -235,6 +237,24 @@ pub(super) fn bounded_hybrid_rows(
         diagnostics.select_candidate_budget_fallback(stats.len());
         return Ok(None);
     }
+    let search_context_memory =
+        controls.reserve_query_memory(super::fulltext_read::persisted_search_context_bytes(
+            &text_candidates,
+            context.search_index_options,
+            &spec.text_field,
+        ))?;
+    let search_context = filter::SearchContext::from_persisted_field_statistics(
+        &spec.text_field,
+        &filter::PersistedFieldStatistics {
+            total_documents: text_candidates.total_documents,
+            average_document_length: text_candidates.average_document_length,
+            document_frequency: &text_candidates.document_frequency,
+            field_boost: &context.search_index_options.field_boost,
+            field_k1: &context.search_index_options.field_k1,
+            field_b: &context.search_index_options.field_b,
+            field_analyzer: &context.search_index_options.field_analyzer,
+        },
+    );
     fetch_hybrid_candidate_rows(
         &HybridCandidateFetch {
             cassie,
@@ -248,7 +268,8 @@ pub(super) fn bounded_hybrid_rows(
             controls,
         },
         stats.keys(),
-        vec![vector_memory, text_memory],
+        search_context,
+        vec![vector_memory, text_memory, search_context_memory],
         diagnostics,
     )
 }
@@ -274,6 +295,7 @@ pub(super) fn select_hybrid_candidate_rows(
     };
     Ok(Some(BoundedHybridRows {
         rows: exact.rows,
+        search_context: exact.search_context,
         posting_reads: 0,
         ann_reads: 0,
         ann_candidates: 0,
@@ -479,6 +501,7 @@ struct HybridCandidateFetch<'a> {
 fn fetch_hybrid_candidate_rows<'a>(
     request: &HybridCandidateFetch<'_>,
     text_ids: impl Iterator<Item = &'a String>,
+    search_context: filter::SearchContext,
     mut retrieval_memory: Vec<QueryMemoryReservation>,
     diagnostics: &mut HybridSelectionDiagnostics,
 ) -> Result<Option<BoundedHybridRows>, QueryError> {
@@ -532,6 +555,7 @@ fn fetch_hybrid_candidate_rows<'a>(
     }
     Ok(Some(BoundedHybridRows {
         rows,
+        search_context,
         posting_reads: request.posting_reads,
         ann_reads: request.ann_reads,
         ann_candidates: request.ann_candidates,
@@ -544,6 +568,7 @@ fn fetch_hybrid_candidate_rows<'a>(
 struct AccountedHybridRows {
     rows: Vec<BatchRow>,
     memory: Vec<QueryMemoryReservation>,
+    search_context: filter::SearchContext,
 }
 
 fn prefilter_hybrid_rows(
@@ -588,10 +613,30 @@ fn prefilter_hybrid_rows(
             rows.push(row);
         }
     }
+    if spec
+        .filter
+        .as_ref()
+        .is_some_and(|filter_expr| !vector_prefilter_supported(filter_expr, context.schema))
+    {
+        return Ok(None);
+    }
+    let search_context_memory = super::memory::reserve_hybrid_fallback_search_context(
+        controls,
+        &rows,
+        &spec.text_field,
+        context.analyzer,
+        context.search_index_options,
+    )?;
+    let search_context = filter::SearchContext::from_rows(
+        rows.iter(),
+        std::slice::from_ref(&spec.text_field),
+        &context.search_index_options.field_boost,
+        &context.search_index_options.field_k1,
+        &context.search_index_options.field_b,
+        &context.search_index_options.field_analyzer,
+    );
+    memory.push(search_context_memory);
     if let Some(filter_expr) = &spec.filter {
-        if !vector_prefilter_supported(filter_expr, context.schema) {
-            return Ok(None);
-        }
         let before = rows.len();
         memory.push(
             controls
@@ -607,7 +652,11 @@ fn prefilter_hybrid_rows(
         )?;
         diagnostics.select_prefilter(before, rows.len());
     }
-    Ok(Some(AccountedHybridRows { rows, memory }))
+    Ok(Some(AccountedHybridRows {
+        rows,
+        memory,
+        search_context,
+    }))
 }
 
 fn projected_hybrid_row_bytes(

@@ -85,6 +85,8 @@ Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient t
 
 ## Rollup and Retention Operator Contract
 
+The durable expression and recovery contract is in [Rollup Lifecycle](rollup-lifecycle.md).
+
 Rollup refresh and retention enforcement are explicit, local, single-node maintenance commands.
 Run `ENFORCE RETENTION POLICY <policy> AT '<timestamp>'` with a recorded cutoff, inspect the
 policy catalog row and runtime metrics, then run `REFRESH ROLLUP <rollup>` when an explicit

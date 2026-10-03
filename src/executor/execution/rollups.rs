@@ -15,7 +15,24 @@ use super::{
 };
 use crate::midge::adapter::check_rollup_maintenance_failure_point;
 
+#[path = "rollup_expression.rs"]
+mod rollup_expression;
+
 pub(super) fn create_rollup(
+    cassie: &Cassie,
+    statement: &crate::sql::ast::CreateRollupStatement,
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryResult, QueryError> {
+    let output_collection = crate::catalog::output_collection_name(&statement.name);
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&output_collection), || {
+            create_rollup_gated(cassie, statement, user_functions, controls)
+        })
+}
+
+fn create_rollup_gated(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateRollupStatement,
     user_functions: &HashMap<String, FunctionMeta>,
@@ -25,14 +42,29 @@ pub(super) fn create_rollup(
         return Ok(empty_command("CREATE ROLLUP"));
     }
 
-    let meta = metadata_from_statement(cassie, statement)?;
-    create_rollup_collection(cassie, &meta)?;
+    let meta = metadata_from_statement(cassie, statement, user_functions)?;
+    ensure_current_rollup_format(&meta)?;
+    let source_generation = cassie
+        .midge
+        .collection_generation(&meta.source_collection)
+        .map_err(QueryError::Cassie)?;
+    let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
+    let rows = serialize_rollup_rows(rows)?;
+    ensure_source_generation(cassie, &meta, source_generation)?;
+
     cassie
         .midge
         .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
-    refresh_rollup(cassie, &meta.name, user_functions, controls)?;
+    if let Err(error) = publish_rollup_rows(cassie, meta.clone(), rows, source_generation) {
+        if let Err(cleanup_error) = drop_rollup(cassie, &meta.name, false) {
+            return Err(QueryError::General(format!(
+                "rollup build failed: {error}; cleanup failed: {cleanup_error}"
+            )));
+        }
+        return Err(error);
+    }
     Ok(empty_command("CREATE ROLLUP"))
 }
 
@@ -42,24 +74,100 @@ pub(super) fn refresh_rollup(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
-    let mut meta = cassie
+    let meta = cassie
         .catalog
         .get_rollup(name)
         .ok_or_else(|| QueryError::General(format!("rollup '{name}' does not exist")))?;
-    meta.state = RollupState::Building;
-    cassie.catalog.register_rollup(meta.clone());
-    cassie
-        .midge
-        .put_rollup(&meta)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-
-    let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
-    replace_rollup_rows(cassie, &meta, rows)?;
+    ensure_current_rollup_format(&meta)?;
     let source_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)
         .map_err(QueryError::Cassie)?;
-    meta.state = RollupState::Ready;
+    let rows = build_rollup_rows(cassie, &meta, user_functions, controls)?;
+    let rows = serialize_rollup_rows(rows)?;
+    ensure_source_generation(cassie, &meta, source_generation)?;
+    let current_meta = cassie
+        .catalog
+        .get_rollup(name)
+        .ok_or_else(|| QueryError::General(format!("rollup '{name}' does not exist")))?;
+    ensure_current_rollup_format(&current_meta)?;
+    if !same_rollup_definition(&meta, &current_meta) {
+        return Err(QueryError::General(format!(
+            "rollup '{name}' definition changed while refresh was being prepared; retry refresh"
+        )));
+    }
+    publish_rollup_rows(cassie, current_meta, rows, source_generation)?;
+    Ok(empty_command("REFRESH ROLLUP"))
+}
+
+fn ensure_source_generation(
+    cassie: &Cassie,
+    meta: &RollupMeta,
+    expected_generation: u64,
+) -> Result<(), QueryError> {
+    let current_generation = cassie
+        .midge
+        .collection_generation(&meta.source_collection)
+        .map_err(QueryError::Cassie)?;
+    if current_generation != expected_generation {
+        return Err(QueryError::General(
+            "source changed while rollup output was being prepared; retry refresh".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn publish_rollup_rows(
+    cassie: &Cassie,
+    meta: RollupMeta,
+    rows: Vec<serde_json::Value>,
+    source_generation: u64,
+) -> Result<(), QueryError> {
+    let output_collection = meta.output_collection.clone();
+    cassie
+        .midge
+        .with_collection_gates(std::slice::from_ref(&output_collection), || {
+            publish_rollup_rows_gated(cassie, meta, rows, source_generation)
+        })
+}
+
+fn publish_rollup_rows_gated(
+    cassie: &Cassie,
+    mut meta: RollupMeta,
+    rows: Vec<serde_json::Value>,
+    source_generation: u64,
+) -> Result<(), QueryError> {
+    ensure_current_rollup_format(&meta)?;
+    let current_meta = cassie
+        .catalog
+        .get_rollup(&meta.name)
+        .ok_or_else(|| QueryError::General(format!("rollup '{}' does not exist", meta.name)))?;
+    if !same_rollup_definition(&meta, &current_meta) {
+        return Err(QueryError::General(format!(
+            "rollup '{}' definition changed before publication; retry refresh",
+            meta.name
+        )));
+    }
+    ensure_source_generation(cassie, &meta, source_generation)?;
+    meta.state = RollupState::Building;
+    cassie
+        .midge
+        .put_rollup(&meta)
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    cassie.catalog.register_rollup(meta.clone());
+
+    crate::executor::pause_before_rollup_output_replace(&meta.name, source_generation);
+    replace_rollup_rows(cassie, &meta, rows)?;
+    crate::executor::pause_before_rollup_ready_metadata(&meta.name, source_generation);
+    let generation_after_publication = cassie
+        .midge
+        .collection_generation(&meta.source_collection)
+        .map_err(QueryError::Cassie)?;
+    meta.state = if generation_after_publication == source_generation {
+        RollupState::Ready
+    } else {
+        RollupState::Stale
+    };
     meta.refresh_cursor.last_refresh_ms = now_ms();
     meta.refresh_cursor.source_generation = source_generation;
     meta.refresh_cursor.source_epoch = cassie.runtime.data_epoch();
@@ -67,14 +175,47 @@ pub(super) fn refresh_rollup(
         .catalog
         .get_cardinality_stats(&meta.source_collection)
         .map_or(0, |stats| stats.row_count);
-    meta.refresh_cursor.lag_rows = 0;
+    meta.refresh_cursor.lag_rows = if generation_after_publication == source_generation {
+        0
+    } else {
+        meta.refresh_cursor.lag_rows.saturating_add(1)
+    };
     cassie
         .midge
         .put_rollup(&meta)
         .map_err(|error| QueryError::General(error.to_string()))?;
     cassie.catalog.register_rollup(meta.clone());
+    if generation_after_publication != source_generation {
+        return Err(QueryError::General(
+            "source changed while rollup output was being published; retry refresh".to_string(),
+        ));
+    }
     cassie.runtime.record_rollup_refresh(meta.name);
-    Ok(empty_command("REFRESH ROLLUP"))
+    Ok(())
+}
+
+fn ensure_current_rollup_format(meta: &RollupMeta) -> Result<(), QueryError> {
+    if meta.version != RollupMeta::CURRENT_VERSION {
+        return Err(QueryError::General(format!(
+            "rollup '{}' uses unsupported definition version {}; drop and recreate it",
+            meta.name, meta.version
+        )));
+    }
+    Ok(())
+}
+
+fn same_rollup_definition(left: &RollupMeta, right: &RollupMeta) -> bool {
+    left.name == right.name
+        && left.source_collection == right.source_collection
+        && left.output_collection == right.output_collection
+        && left.timestamp_field == right.timestamp_field
+        && left.bucket_width == right.bucket_width
+        && left.origin == right.origin
+        && left.bucket_expr == right.bucket_expr
+        && left.group_keys == right.group_keys
+        && left.aggregates == right.aggregates
+        && left.filter_expr == right.filter_expr
+        && left.version == right.version
 }
 
 pub(super) fn drop_rollup(
@@ -90,16 +231,30 @@ pub(super) fn drop_rollup(
             "rollup '{name}' does not exist"
         )));
     };
-    let _ = cassie.midge.drop_collection(&meta.output_collection);
-    let _ = cassie
-        .catalog
-        .unregister_collection(&meta.output_collection);
     cassie
         .midge
-        .delete_rollup(&meta.name)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    cassie.catalog.unregister_rollup(&meta.name);
-    Ok(empty_command("DROP ROLLUP"))
+        .with_collection_gates(std::slice::from_ref(&meta.output_collection), || {
+            let Some(current_meta) = cassie.catalog.get_rollup(name) else {
+                if if_exists {
+                    return Ok(empty_command("DROP ROLLUP"));
+                }
+                return Err(QueryError::General(format!(
+                    "rollup '{name}' does not exist"
+                )));
+            };
+            let _ = cassie
+                .midge
+                .drop_collection(&current_meta.output_collection);
+            let _ = cassie
+                .catalog
+                .unregister_collection(&current_meta.output_collection);
+            cassie
+                .midge
+                .delete_rollup(&current_meta.name)
+                .map_err(|error| QueryError::General(error.to_string()))?;
+            cassie.catalog.unregister_rollup(&current_meta.name);
+            Ok(empty_command("DROP ROLLUP"))
+        })
 }
 
 pub(super) fn refresh_rollups_for_source(
@@ -204,14 +359,24 @@ pub(super) fn try_execute_rollup_query(
 }
 
 pub(super) fn mark_source_rollups_stale(cassie: &Cassie, source: &str) -> Result<(), QueryError> {
-    for mut rollup in cassie.catalog.list_rollups_for_source(source) {
-        rollup.state = RollupState::Stale;
-        rollup.refresh_cursor.lag_rows = rollup.refresh_cursor.lag_rows.saturating_add(1);
-        cassie
-            .midge
-            .put_rollup(&rollup)
-            .map_err(|error| QueryError::General(error.to_string()))?;
-        cassie.catalog.register_rollup(rollup);
+    for rollup in cassie.catalog.list_rollups_for_source(source) {
+        cassie.midge.with_collection_gates(
+            std::slice::from_ref(&rollup.output_collection),
+            || -> Result<(), QueryError> {
+                let Some(mut current_rollup) = cassie.catalog.get_rollup(&rollup.name) else {
+                    return Ok(());
+                };
+                current_rollup.state = RollupState::Stale;
+                current_rollup.refresh_cursor.lag_rows =
+                    current_rollup.refresh_cursor.lag_rows.saturating_add(1);
+                cassie
+                    .midge
+                    .put_rollup(&current_rollup)
+                    .map_err(|error| QueryError::General(error.to_string()))?;
+                cassie.catalog.register_rollup(current_rollup);
+                Ok(())
+            },
+        )?;
     }
     Ok(())
 }
@@ -261,6 +426,7 @@ pub(super) fn sync_rollup_debt_catalog(cassie: &Cassie, source: &str) -> Result<
 fn metadata_from_statement(
     cassie: &Cassie,
     statement: &crate::sql::ast::CreateRollupStatement,
+    user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<RollupMeta, QueryError> {
     let Expr::StringLiteral(width) = &statement.bucket.args[0] else {
         return Err(QueryError::General(
@@ -276,7 +442,7 @@ fn metadata_from_statement(
     let aggregates = statement
         .aggregates
         .iter()
-        .map(|item| aggregate_meta(cassie, &statement.source, item))
+        .map(|item| aggregate_meta(cassie, &statement.source, item, user_functions))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(RollupMeta::new(RollupDefinition {
         name: statement.name.clone(),
@@ -295,6 +461,7 @@ fn aggregate_meta(
     cassie: &Cassie,
     source: &str,
     item: &SelectItem,
+    user_functions: &HashMap<String, FunctionMeta>,
 ) -> Result<RollupAggregateMeta, QueryError> {
     let SelectItem::Function { function, alias } = item else {
         return Err(QueryError::General(
@@ -304,36 +471,40 @@ fn aggregate_meta(
     let alias = alias
         .clone()
         .unwrap_or_else(|| aggregate_signature(function));
+    let expression =
+        rollup_expression::canonical_aggregate_expression(function).map_err(QueryError::General)?;
     Ok(RollupAggregateMeta {
         alias,
         function: function.name.to_ascii_lowercase(),
-        expression: aggregate_signature(function),
-        data_type: aggregate_data_type(cassie, source, function),
+        expression,
+        data_type: aggregate_data_type(cassie, source, function, user_functions),
     })
 }
 
-fn aggregate_data_type(cassie: &Cassie, source: &str, function: &FunctionCall) -> DataType {
+fn aggregate_data_type(
+    cassie: &Cassie,
+    source: &str,
+    function: &FunctionCall,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> DataType {
+    let source_schema = cassie
+        .midge
+        .collection_schema(source)
+        .unwrap_or_else(|| Schema { fields: Vec::new() });
+    let argument_type = function.args.first().and_then(|expression| {
+        crate::sql::binder::infer_expr_type(expression, &source_schema, user_functions, &[])
+    });
     match function.name.to_ascii_lowercase().as_str() {
         "count" => DataType::BigInt,
         // SUM widens every integer input to int8, exactly as the query path
         // types it (`FunctionReturnType::SumArgument`), so a bucket total
         // that exceeds the source column's range still fits.
-        "sum" => match function.args.first() {
-            Some(Expr::Column(name)) => match cassie.catalog.field_type(source, name) {
-                Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => DataType::BigInt,
-                _ => DataType::Float,
-            },
-            _ => DataType::Float,
+        "sum" => match argument_type {
+            Some(DataType::SmallInt | DataType::Int | DataType::BigInt) => DataType::BigInt,
+            Some(_) | None => DataType::Float,
         },
         "avg" => DataType::Float,
-        "min" | "max" => function
-            .args
-            .first()
-            .and_then(|expr| match expr {
-                Expr::Column(name) => cassie.catalog.field_type(source, name),
-                _ => None,
-            })
-            .unwrap_or(DataType::Text),
+        "min" | "max" => argument_type.unwrap_or(DataType::Text),
         _ => DataType::Text,
     }
 }
@@ -404,6 +575,7 @@ fn build_rollup_rows(
 }
 
 fn build_rollup_refresh_plan(meta: &RollupMeta) -> Result<LogicalPlan, QueryError> {
+    ensure_current_rollup_format(meta)?;
     Ok(LogicalPlan {
         command: None,
         source: QuerySource::Collection(
@@ -546,24 +718,32 @@ fn materialize_rollup_batches(
     )
 }
 
+fn serialize_rollup_rows(rows: Vec<BatchRow>) -> Result<Vec<serde_json::Value>, QueryError> {
+    rows.into_iter()
+        .map(|row| {
+            let payload = row
+                .into_entries()
+                .into_iter()
+                .map(|(name, value)| Ok((name, value_to_json(value)?)))
+                .collect::<Result<serde_json::Map<_, _>, QueryError>>()?;
+            Ok(serde_json::Value::Object(payload))
+        })
+        .collect()
+}
+
 fn replace_rollup_rows(
     cassie: &Cassie,
     meta: &RollupMeta,
-    rows: Vec<BatchRow>,
+    rows: Vec<serde_json::Value>,
 ) -> Result<(), QueryError> {
     create_rollup_collection(cassie, meta)?;
-    for (index, row) in rows.into_iter().enumerate() {
-        let payload = row
-            .into_entries()
-            .into_iter()
-            .map(|(name, value)| (name, value_to_json(value)))
-            .collect::<serde_json::Map<_, _>>();
+    for (index, payload) in rows.into_iter().enumerate() {
         cassie
             .midge
             .put_document(
                 &meta.output_collection,
                 Some(format!("rollup-row-{index:020}")),
-                serde_json::Value::Object(payload),
+                payload,
             )
             .map_err(|error| QueryError::General(error.to_string()))?;
     }
@@ -582,6 +762,9 @@ fn matching_rollup(cassie: &Cassie, source: &str, plan: &LogicalPlan) -> Option<
 }
 
 fn rollup_matches_plan(rollup: &RollupMeta, plan: &LogicalPlan) -> bool {
+    if rollup.version != RollupMeta::CURRENT_VERSION {
+        return false;
+    }
     let expected_groups = std::iter::once(rollup.bucket_expr.clone())
         .chain(rollup.group_keys.iter().cloned())
         .collect::<Vec<_>>();
@@ -592,13 +775,28 @@ fn rollup_matches_plan(rollup: &RollupMeta, plan: &LogicalPlan) -> bool {
     if plan.filter.as_ref().map(expr_key) != rollup.filter_expr {
         return false;
     }
-    let expected_aggregates = rollup
+    let Some(expected_aggregates) = rollup
         .aggregates
         .iter()
-        .map(|aggregate| aggregate.expression.clone())
-        .collect::<Vec<_>>();
+        .map(stored_aggregate_signature)
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
     let actual_aggregates = plan_aggregate_signatures(plan);
     actual_aggregates == expected_aggregates
+}
+
+fn stored_aggregate_signature(aggregate: &RollupAggregateMeta) -> Option<String> {
+    let Expr::Function(function) =
+        crate::sql::parser::parse_expression(&aggregate.expression).ok()?
+    else {
+        return None;
+    };
+    if !function.name.eq_ignore_ascii_case(&aggregate.function) {
+        return None;
+    }
+    Some(aggregate_signature(&function))
 }
 
 fn plan_aggregate_signatures(plan: &LogicalPlan) -> Vec<String> {
@@ -630,16 +828,21 @@ fn eligible_plan_shape(plan: &LogicalPlan) -> bool {
             .any(|item| matches!(item, SelectItem::WindowFunction { .. }))
 }
 
-fn value_to_json(value: Value) -> serde_json::Value {
+fn value_to_json(value: Value) -> Result<serde_json::Value, QueryError> {
     match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(value),
-        Value::Int64(value) => serde_json::Value::Number(value.into()),
+        Value::Null => Ok(serde_json::Value::Null),
+        Value::Bool(value) => Ok(serde_json::Value::Bool(value)),
+        Value::Int64(value) => Ok(serde_json::Value::Number(value.into())),
         Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value),
-        Value::Vector(value) => serde_json::json!(value.values),
-        Value::Json(value) => value,
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| {
+                QueryError::General(
+                    "non-finite FLOAT values cannot be stored in rollup outputs".to_string(),
+                )
+            }),
+        Value::String(value) => Ok(serde_json::Value::String(value)),
+        Value::Vector(value) => Ok(serde_json::json!(value.values)),
+        Value::Json(value) => Ok(value),
     }
 }
 

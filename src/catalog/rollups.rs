@@ -57,6 +57,9 @@ pub struct RollupRefreshCursor {
 }
 
 impl RollupMeta {
+    /// Current durable rollup definition format. Version 2 stores parseable SQL expressions.
+    pub const CURRENT_VERSION: u64 = 2;
+
     #[must_use]
     pub fn new(definition: RollupDefinition) -> Self {
         Self {
@@ -70,7 +73,7 @@ impl RollupMeta {
             group_keys: definition.group_keys,
             aggregates: definition.aggregates,
             filter_expr: definition.filter_expr,
-            version: 1,
+            version: Self::CURRENT_VERSION,
             state: RollupState::Building,
             refresh_cursor: RollupRefreshCursor::default(),
         }
@@ -78,7 +81,8 @@ impl RollupMeta {
 
     #[must_use]
     pub fn is_fresh(&self, source_generation: u64) -> bool {
-        self.state == RollupState::Ready
+        self.version == Self::CURRENT_VERSION
+            && self.state == RollupState::Ready
             && self.refresh_cursor.lag_rows == 0
             && self.refresh_cursor.source_generation == source_generation
     }

@@ -2553,7 +2553,7 @@ mod time_series_retention {
 // Formerly tests/time_series_rollups.rs.
 mod time_series_rollups {
     use cassie::app::Cassie;
-    use cassie::catalog::{canonical_relation_name, RollupState};
+    use cassie::catalog::{canonical_relation_name, output_collection_name, RollupState};
     use cassie::midge::adapter::set_rollup_maintenance_failure_point;
     use cassie::types::Value;
 
@@ -2614,6 +2614,56 @@ mod time_series_rollups {
     )
     }
 
+    fn simulate_interrupted_rollup_refresh(cassie: &Cassie, name: &str) {
+        let mut interrupted = cassie
+            .catalog
+            .get_rollup(&canonical_name(name))
+            .expect("rollup metadata");
+        interrupted.state = RollupState::Building;
+        cassie
+            .midge
+            .put_rollup(&interrupted)
+            .expect("persist interrupted refresh state");
+        cassie.catalog.register_rollup(interrupted.clone());
+        cassie
+            .midge
+            .drop_collection(&interrupted.output_collection)
+            .expect("remove output after replacement begins");
+    }
+
+    fn create_rollup_publication_fixture(
+        path: &str,
+    ) -> (std::sync::Arc<Cassie>, String, String, u64) {
+        let cassie = std::sync::Arc::new(Cassie::new_with_data_dir(path).unwrap());
+        cassie.startup().unwrap();
+        let setup = cassie.create_session("setup", None);
+        cassie
+            .execute_sql(
+                &setup,
+                "CREATE TABLE rollup_publication_events (tenant TEXT, event_at TEXT, amount INT)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &setup,
+                "INSERT INTO rollup_publication_events VALUES ('a', '2026-01-01T00:05:00Z', 1)",
+                vec![],
+            )
+            .unwrap();
+        cassie
+            .execute_sql(
+                &setup,
+                "CREATE ROLLUP rollup_publication_hourly ON rollup_publication_events USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES COUNT(*) AS total, SUM(amount) AS amount_sum",
+                vec![],
+            )
+            .unwrap();
+        let source = canonical_name("rollup_publication_events");
+        let rollup = canonical_name("rollup_publication_hourly");
+        let generation = cassie.midge.collection_generation(&source).unwrap();
+        (cassie, source, rollup, generation)
+    }
+
     #[test]
     fn should_rewrite_query_after_rollup_creation() {
         // Arrange
@@ -2666,6 +2716,311 @@ mod time_series_rollups {
                 Value::String(plan) if plan.contains(&format!("rollup_rewrite={rollup_name}"))
             ));
             assert!(cassie.catalog.get_rollup(&rollup_name).is_some());
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_recover_expression_rollup_after_restart() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_expression_restart");
+        let query = "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, MAX(amount * 10) AS maximum FROM expression_rollup_source GROUP BY time_bucket('1 hour', event_at), tenant ORDER BY tenant";
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE expression_rollup_source (tenant TEXT, event_at TEXT, amount FLOAT)",
+                    vec![],
+                )
+                .expect("create source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO expression_rollup_source (tenant, event_at, amount) VALUES ('a', '2026-01-01T00:05:00Z', 25.0)",
+                    vec![],
+                )
+                .expect("insert source row");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE ROLLUP expression_rollup ON expression_rollup_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES MAX(amount * 10) AS maximum",
+                    vec![],
+                )
+                .expect("create rollup");
+            let metadata = cassie
+                .catalog
+                .get_rollup(&canonical_name("expression_rollup"))
+                .expect("rollup metadata");
+
+            // Act
+            let before_restart = cassie
+                .execute_sql(&session, query, vec![])
+                .expect("query before restart");
+            drop(cassie);
+
+            let restarted = Cassie::new_with_data_dir(&path).expect("restart cassie");
+            restarted.startup().expect("restart startup");
+            let restarted_session = restarted.create_session("tester", None);
+            let after_restart = restarted
+                .execute_sql(&restarted_session, query, vec![])
+                .expect("query after restart");
+            let after_restart_rewrite_hits =
+                restarted.metrics()["rollups"]["rewrite_hits"].as_u64();
+
+            // Simulate a crash after refresh persisted Building and removed the output table.
+            simulate_interrupted_rollup_refresh(&restarted, "expression_rollup");
+            drop(restarted);
+
+            let recovery = Cassie::new_with_data_dir(&path).expect("recovery cassie");
+            recovery.startup().expect("recovery startup");
+            let recovery_session = recovery.create_session("tester", None);
+            let fallback = recovery
+                .execute_sql(&recovery_session, query, vec![])
+                .expect("query from authoritative source during recovery");
+            let fallback_plan = recovery
+                .execute_sql(&recovery_session, &format!("EXPLAIN {query}"), vec![])
+                .expect("explain source fallback");
+            recovery
+                .execute_sql(
+                    &recovery_session,
+                    "REFRESH ROLLUP expression_rollup",
+                    vec![],
+                )
+                .expect("recover interrupted rollup refresh");
+            let after_recovery = recovery
+                .execute_sql(&recovery_session, query, vec![])
+                .expect("query rebuilt rollup");
+
+            // Assert
+            let expected_rows = vec![vec![
+                Value::String("2026-01-01T00:00:00Z".to_string()),
+                Value::String("a".to_string()),
+                Value::Float64(250.0),
+            ]];
+            assert_eq!(before_restart.rows, expected_rows);
+            assert_eq!(after_restart.rows, expected_rows);
+            assert_eq!(after_restart_rewrite_hits, Some(1));
+            assert_eq!(fallback.rows, expected_rows);
+            assert!(matches!(
+                &fallback_plan.rows[0][0],
+                Value::String(plan) if plan.contains("rollup_rewrite=none")
+            ));
+            assert_eq!(after_recovery.rows, expected_rows);
+            assert_eq!(
+                recovery.metrics()["rollups"]["rewrite_hits"].as_u64(),
+                Some(1)
+            );
+            assert_eq!(metadata.version, 2);
+            assert_eq!(metadata.aggregates[0].expression, "max((\"amount\" * 10))");
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_reject_non_finite_rollup_output_before_publication() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_non_finite_output");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE non_finite_rollup_source (tenant TEXT, event_at TEXT, amount FLOAT)",
+                    vec![],
+                )
+                .expect("create source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO non_finite_rollup_source (tenant, event_at, amount) VALUES ('a', '2026-01-01T00:05:00Z', 1e308)",
+                    vec![],
+                )
+                .expect("insert source row");
+
+            // Act
+            let create = cassie.execute_sql(
+                &session,
+                "CREATE ROLLUP non_finite_rollup ON non_finite_rollup_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES MAX(amount * 10) AS maximum",
+                vec![],
+            );
+            let source_rows = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, MAX(amount * 10) AS maximum FROM non_finite_rollup_source GROUP BY time_bucket('1 hour', event_at), tenant",
+                    vec![],
+                )
+                .expect("read authoritative source result");
+            let rollup_name = canonical_name("non_finite_rollup");
+            let output_name = output_collection_name(&rollup_name);
+
+            // Assert
+            assert!(
+                create.is_err(),
+                "non-finite rollup output must be rejected before publication"
+            );
+            assert!(cassie.catalog.get_rollup(&rollup_name).is_none());
+            assert!(cassie.midge.collection_schema(&output_name).is_none());
+            assert!(matches!(
+                source_rows.rows.as_slice(),
+                [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
+            ));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_preserve_rollup_output_after_non_finite_refresh_failure() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_non_finite_refresh");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE non_finite_refresh_source (tenant TEXT, event_at TEXT, amount FLOAT)",
+                    vec![],
+                )
+                .expect("create source");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO non_finite_refresh_source (tenant, event_at, amount) VALUES ('a', '2026-01-01T00:05:00Z', 1e307)",
+                    vec![],
+                )
+                .expect("insert source row");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE ROLLUP non_finite_refresh_rollup ON non_finite_refresh_source USING time_bucket('1 hour', event_at) GROUP BY tenant AGGREGATES MAX(amount * 10) AS maximum",
+                    vec![],
+                )
+                .expect("create finite rollup");
+            let rollup_name = canonical_name("non_finite_refresh_rollup");
+            let output_name = output_collection_name(&rollup_name);
+            let output_local_name = output_name.rsplit('.').next().expect("rollup local name");
+            let output_query = format!("SELECT maximum FROM {output_local_name}");
+            let previous_output = cassie
+                .execute_sql(&session, &output_query, vec![])
+                .expect("read previous rollup output");
+
+            // Act
+            cassie
+                .execute_sql(
+                    &session,
+                    "UPDATE non_finite_refresh_source SET amount = 1e308 WHERE tenant = 'a'",
+                    vec![],
+                )
+                .expect("source update remains committed");
+            let source_query = "SELECT time_bucket('1 hour', event_at) AS bucket, tenant, MAX(amount * 10) AS maximum FROM non_finite_refresh_source GROUP BY time_bucket('1 hour', event_at), tenant";
+            let authoritative = cassie
+                .execute_sql(&session, source_query, vec![])
+                .expect("read authoritative source result");
+            let output_after = cassie
+                .execute_sql(&session, &output_query, vec![])
+                .expect("read retained rollup output");
+            let metadata = cassie
+                .catalog
+                .get_rollup(&rollup_name)
+                .expect("rollup metadata");
+            let source_generation = cassie
+                .midge
+                .collection_generation("non_finite_refresh_source")
+                .expect("source generation");
+            let debt = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT artifact FROM pg_catalog.pg_maintenance_debt WHERE collection = 'postgres.public.non_finite_refresh_source'",
+                    vec![],
+                )
+                .expect("read maintenance debt");
+
+            // Assert
+            assert!(matches!(
+                previous_output.rows.as_slice(),
+                [row] if matches!(row.first(), Some(Value::Float64(value)) if value.is_finite() && *value > 9.9e307)
+            ));
+            assert_eq!(output_after.rows, previous_output.rows);
+            assert_eq!(metadata.state, RollupState::Ready);
+            assert!(!metadata.is_fresh(source_generation));
+            assert_eq!(debt.rows, vec![vec![Value::String("rollup".to_string())]]);
+            assert!(matches!(
+                authoritative.rows.as_slice(),
+                [row] if matches!(row.get(2), Some(Value::Float64(value)) if value.is_infinite())
+            ));
+
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
+    fn should_fail_closed_for_legacy_rollup_definition_version() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_legacy_definition_version");
+
+        runtime().block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+            cassie.startup().expect("startup");
+            let session = cassie.create_session("tester", None);
+            seed_events(&cassie, &session, "legacy_rollup_events");
+            create_hourly_rollup(&cassie, &session, "legacy_rollup_events");
+            let rollup_name = canonical_name("legacy_rollup_events_hourly");
+            let mut metadata = cassie
+                .catalog
+                .get_rollup(&rollup_name)
+                .expect("rollup metadata");
+            metadata.version = 1;
+            cassie
+                .midge
+                .put_rollup(&metadata)
+                .expect("persist old format");
+            cassie.catalog.register_rollup(metadata);
+
+            // Act
+            let query = hourly_query("legacy_rollup_events");
+            let selected = cassie
+                .execute_sql(&session, &query, vec![])
+                .expect("source fallback query");
+            let explain = cassie
+                .execute_sql(&session, &format!("EXPLAIN {query}"), vec![])
+                .expect("explain fallback query");
+            let refresh = cassie.execute_sql(
+                &session,
+                "REFRESH ROLLUP legacy_rollup_events_hourly",
+                vec![],
+            );
+
+            // Assert
+            assert_eq!(selected.rows.len(), 2);
+            assert!(matches!(
+                &explain.rows[0][0],
+                Value::String(plan) if plan.contains("rollup_rewrite=none")
+            ));
+            assert!(refresh.is_err());
+            assert_eq!(
+                cassie.metrics()["rollups"]["rewrite_hits"].as_u64(),
+                Some(0)
+            );
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -2786,6 +3141,115 @@ mod time_series_rollups {
 
             let _ = std::fs::remove_dir_all(path);
         });
+    }
+
+    #[test]
+    fn should_serialize_concurrent_rollup_publication_after_source_change() {
+        // Arrange
+        use_local_storage();
+        let _rollup_guard = ROLLUP_FAILPOINT_GUARD.lock().unwrap();
+        let path = data_dir("rollup_publication_concurrency");
+        let (cassie, source, rollup, initial_generation) = create_rollup_publication_fixture(&path);
+        let updated_generation = initial_generation.saturating_add(1);
+
+        let first_paused = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let first_resume = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let newer_paused = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let newer_resume = std::sync::Arc::new(std::sync::Barrier::new(2));
+        cassie::executor::set_rollup_publication_before_replace_barriers(
+            Some(rollup.clone()),
+            initial_generation,
+            Some(std::sync::Arc::clone(&first_paused)),
+            Some(std::sync::Arc::clone(&first_resume)),
+        );
+        cassie::executor::set_rollup_publication_before_ready_barriers(
+            Some(rollup.clone()),
+            updated_generation,
+            Some(std::sync::Arc::clone(&newer_paused)),
+            Some(std::sync::Arc::clone(&newer_resume)),
+        );
+
+        // Act
+        let first_cassie = std::sync::Arc::clone(&cassie);
+        let (first_finished_sender, first_finished_receiver) = std::sync::mpsc::channel();
+        let first = std::thread::spawn(move || {
+            let session = first_cassie.create_session("first refresh", None);
+            let result = first_cassie.execute_sql(
+                &session,
+                "REFRESH ROLLUP rollup_publication_hourly",
+                vec![],
+            );
+            first_finished_sender
+                .send(())
+                .expect("signal first refresh completion");
+            result
+        });
+        first_paused.wait();
+
+        let writer_cassie = std::sync::Arc::clone(&cassie);
+        let writer = std::thread::spawn(move || {
+            let session = writer_cassie.create_session("source writer", None);
+            writer_cassie.execute_sql(
+                &session,
+                "INSERT INTO rollup_publication_events VALUES ('a', '2026-01-01T00:15:00Z', 100)",
+                vec![],
+            )
+        });
+        let generation_deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while cassie.midge.collection_generation(&source).unwrap() < updated_generation
+            && std::time::Instant::now() < generation_deadline
+        {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let observed_generation = cassie.midge.collection_generation(&source).unwrap();
+        if observed_generation < updated_generation {
+            first_resume.wait();
+            let _ = first.join().expect("first refresh thread");
+            let _ = writer.join().expect("source writer thread");
+            panic!("source write did not advance the collection generation");
+        }
+
+        let release_first = std::sync::Arc::clone(&first_resume);
+        let releaser = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(250));
+            release_first.wait();
+        });
+        newer_paused.wait();
+        releaser.join().expect("first refresh release thread");
+        first_finished_receiver
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("older refresh should finish before the newer publication resumes");
+        newer_resume.wait();
+        let first_result = first.join().expect("first refresh thread");
+        let writer_result = writer.join().expect("source writer thread");
+        let session = cassie.create_session("verify", None);
+        let selected = cassie
+            .execute_sql(&session, &hourly_query("rollup_publication_events"), vec![])
+            .unwrap();
+        let metadata = cassie.catalog.get_rollup(&rollup).expect("rollup metadata");
+
+        // Assert
+        assert!(
+            first_result.is_err(),
+            "older refresh should detect the newer source generation"
+        );
+        writer_result.expect("source write and maintenance refresh should succeed");
+        assert_eq!(metadata.state, RollupState::Ready);
+        assert_eq!(
+            metadata.refresh_cursor.source_generation,
+            updated_generation
+        );
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("2026-01-01T00:00:00Z".to_string()),
+                Value::String("a".to_string()),
+                Value::Int64(2),
+                Value::Int64(101),
+            ]]
+        );
+
+        let _ = std::fs::remove_dir_all(path);
     }
 
     #[test]

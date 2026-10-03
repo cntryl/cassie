@@ -39,6 +39,18 @@ static MATERIALIZED_PROJECTION_REPLACE_BARRIERS: std::sync::OnceLock<
 static MATERIALIZED_PROJECTION_REPLACE_START_BARRIERS: std::sync::OnceLock<
     std::sync::Mutex<Option<MaterializedProjectionReplaceBarriers>>,
 > = std::sync::OnceLock::new();
+type RollupPublicationTestBarriers = (
+    String,
+    u64,
+    std::sync::Arc<std::sync::Barrier>,
+    std::sync::Arc<std::sync::Barrier>,
+);
+static ROLLUP_PUBLICATION_BEFORE_REPLACE_BARRIERS: std::sync::OnceLock<
+    std::sync::Mutex<Option<RollupPublicationTestBarriers>>,
+> = std::sync::OnceLock::new();
+static ROLLUP_PUBLICATION_BEFORE_READY_BARRIERS: std::sync::OnceLock<
+    std::sync::Mutex<Option<RollupPublicationTestBarriers>>,
+> = std::sync::OnceLock::new();
 
 #[doc(hidden)]
 pub fn set_materialized_projection_replace_start_barriers(
@@ -84,6 +96,77 @@ pub(crate) fn pause_before_materialized_projection_replace() {
         ready.wait();
         resume.wait();
     }
+}
+
+#[doc(hidden)]
+pub fn set_rollup_publication_before_replace_barriers(
+    name: Option<String>,
+    source_generation: u64,
+    ready: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    *ROLLUP_PUBLICATION_BEFORE_REPLACE_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("rollup publication before-replace barrier mutex") = name
+        .zip(ready.zip(resume))
+        .map(|(name, (ready, resume))| (name, source_generation, ready, resume));
+}
+
+#[doc(hidden)]
+pub fn set_rollup_publication_before_ready_barriers(
+    name: Option<String>,
+    source_generation: u64,
+    ready: Option<std::sync::Arc<std::sync::Barrier>>,
+    resume: Option<std::sync::Arc<std::sync::Barrier>>,
+) {
+    *ROLLUP_PUBLICATION_BEFORE_READY_BARRIERS
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("rollup publication before-ready barrier mutex") = name
+        .zip(ready.zip(resume))
+        .map(|(name, (ready, resume))| (name, source_generation, ready, resume));
+}
+
+fn pause_at_rollup_publication_barrier(
+    barriers: &'static std::sync::OnceLock<std::sync::Mutex<Option<RollupPublicationTestBarriers>>>,
+    name: &str,
+    source_generation: u64,
+) {
+    let configured = barriers
+        .get_or_init(|| std::sync::Mutex::new(None))
+        .lock()
+        .expect("rollup publication test barrier mutex");
+    let mut configured = configured;
+    let matched = configured
+        .as_ref()
+        .is_some_and(|(expected_name, expected_generation, _, _)| {
+            expected_name == name && *expected_generation == source_generation
+        });
+    if !matched {
+        return;
+    }
+    if let Some((_, _, ready, resume)) = configured.take() {
+        drop(configured);
+        ready.wait();
+        resume.wait();
+    }
+}
+
+pub(crate) fn pause_before_rollup_output_replace(name: &str, source_generation: u64) {
+    pause_at_rollup_publication_barrier(
+        &ROLLUP_PUBLICATION_BEFORE_REPLACE_BARRIERS,
+        name,
+        source_generation,
+    );
+}
+
+pub(crate) fn pause_before_rollup_ready_metadata(name: &str, source_generation: u64) {
+    pause_at_rollup_publication_barrier(
+        &ROLLUP_PUBLICATION_BEFORE_READY_BARRIERS,
+        name,
+        source_generation,
+    );
 }
 
 #[doc(hidden)]

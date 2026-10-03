@@ -32,7 +32,7 @@ mod tests {
     use crate::types::{Value, Vector};
 
     #[test]
-    fn should_reject_nan_and_both_infinities_from_json_numbers() {
+    fn should_reject_nonfinite_float_values() {
         // Arrange
         let values = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY];
 

@@ -670,11 +670,12 @@ fn exact_distance(
 }
 
 fn denormalize(vector: &[f32], magnitude: f64) -> Vec<f32> {
-    let magnitude = magnitude
-        .to_string()
-        .parse::<f32>()
-        .unwrap_or(f32::INFINITY);
-    vector.iter().map(|value| *value * magnitude).collect()
+    vector
+        .iter()
+        .map(|value| {
+            crate::vector::denormalize_f32_component(*value, magnitude).unwrap_or(f32::INFINITY)
+        })
+        .collect()
 }
 
 fn build_node_distance(

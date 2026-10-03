@@ -303,10 +303,13 @@ pub fn resolve_relation_path(
     context: &BindingContext,
 ) -> Result<String, CassieError> {
     let parsed = path.parsed_name().map_err(CassieError::Planner)?;
+    let allow_raw_unqualified_fallback = !path
+        .local_component()
+        .is_some_and(|component| requires_escaped_component(component.value()));
     let resolved = if context.scopes_database_objects() {
         resolve_scoped_relation_name(parsed, catalog, context)?
     } else {
-        resolve_unscoped_relation_name(parsed, catalog, context)?
+        resolve_unscoped_relation_name(parsed, catalog, context, allow_raw_unqualified_fallback)?
     };
     if crate::catalog::virtual_views::schema(&resolved).is_some() {
         return Ok(resolved);
@@ -329,6 +332,7 @@ fn resolve_unscoped_relation_name(
     parsed: ParsedName,
     catalog: &crate::catalog::Catalog,
     context: &BindingContext,
+    allow_raw_unqualified_fallback: bool,
 ) -> Result<String, CassieError> {
     match parsed {
         ParsedName::Unqualified(name) => {
@@ -344,9 +348,7 @@ fn resolve_unscoped_relation_name(
                     return Ok(scoped_candidate);
                 }
             }
-            // Preserve support for catalogs populated directly by older callers while
-            // preferring the canonical database-scoped name whenever it exists.
-            if catalog.relation_exists(&name) {
+            if allow_raw_unqualified_fallback && catalog.relation_exists(&name) {
                 return Ok(name);
             }
             for system_schema in ["pg_catalog", "information_schema"] {
@@ -371,11 +373,11 @@ fn resolve_unscoped_relation_name(
             {
                 return Ok(candidate);
             }
-            let legacy_candidate = format!("{schema}.{name}");
-            if catalog.relation_exists(&legacy_candidate)
-                || crate::catalog::virtual_views::schema(&legacy_candidate).is_some()
+            let unscoped_candidate = format!("{schema}.{name}");
+            if catalog.relation_exists(&unscoped_candidate)
+                || crate::catalog::virtual_views::schema(&unscoped_candidate).is_some()
             {
-                return Ok(legacy_candidate);
+                return Ok(unscoped_candidate);
             }
             Err(CassieError::CatalogObjectNotFound {
                 kind: CatalogObjectKind::Relation,

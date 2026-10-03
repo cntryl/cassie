@@ -800,7 +800,7 @@ fn rename_target_in_source_schema(
         )));
     };
     if !context.scopes_database_objects() {
-        return normalize_relation_name(&name, context);
+        return normalize_relation_name(target, context);
     }
     match parse_name(source).map_err(CassieError::Planner)? {
         ParsedName::DatabaseQualified {

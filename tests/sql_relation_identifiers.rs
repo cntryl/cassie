@@ -105,7 +105,7 @@ fn should_copy_rows_into_a_quoted_dotted_relation() {
         .copy_from_csv_stdin(&fixture.session, &statement, b"12\n");
 
     // Assert
-    assert!(copied.is_ok(), "COPY failed: {copied:?}");
+    assert!(copied.is_ok(), "COPY should succeed");
     assert_eq!(
         fixture.rows("SELECT id FROM \"triage.dot\""),
         vec![vec![cassie::types::Value::Int64(12)]]
@@ -143,6 +143,24 @@ fn should_distinguish_scoped_quoted_relation_from_schema_qualified_relation() {
 }
 
 #[test]
+fn should_not_resolve_a_missing_quoted_dotted_relation_to_a_schema_qualified_relation() {
+    // Arrange
+    let fixture = relation_fixture("quoted_relation_no_fallback", false);
+    fixture
+        .execute("INSERT INTO triage.dot (id) VALUES (99)")
+        .expect("insert schema-qualified relation");
+
+    // Act
+    let missing_quoted_relation = fixture.execute("SELECT id FROM \"triage.dot\"");
+
+    // Assert
+    assert!(
+        missing_quoted_relation.is_err(),
+        "missing quoted relation must not resolve to a schema-qualified relation"
+    );
+}
+
+#[test]
 fn should_preserve_quoted_relation_name_through_ddl_lifecycle() {
     // Arrange
     let fixture = relation_fixture("quoted_relation_rename_drop", false);
@@ -155,6 +173,7 @@ fn should_preserve_quoted_relation_name_through_ddl_lifecycle() {
 
     // Act
     let renamed = fixture.execute("ALTER TABLE \"triage.rename\" RENAME TO \"triage.renamed\"");
+    assert!(renamed.is_ok(), "ALTER TABLE rename should succeed");
     let renamed_rows = fixture.rows("SELECT id FROM \"triage.renamed\"");
     let old_relation = fixture.execute("SELECT id FROM \"triage.rename\"");
     let dropped = fixture.execute("DROP TABLE \"triage.renamed\"");
@@ -165,13 +184,12 @@ fn should_preserve_quoted_relation_name_through_ddl_lifecycle() {
         .expect("read renamed relation metadata");
 
     // Assert
-    assert!(renamed.is_ok(), "ALTER TABLE rename failed: {renamed:?}");
     assert_eq!(renamed_rows, vec![vec![cassie::types::Value::Int64(1)]]);
     assert!(
         old_relation.is_err(),
         "old relation name should not resolve"
     );
-    assert!(dropped.is_ok(), "DROP TABLE failed: {dropped:?}");
+    assert!(dropped.is_ok(), "DROP TABLE should succeed");
     assert!(
         renamed_metadata.is_none(),
         "renamed collection metadata should be removed"
@@ -193,9 +211,9 @@ fn should_preserve_quoted_view_name_through_ddl_lifecycle() {
     let after_drop = fixture.execute("SELECT id FROM \"triage.view\"");
 
     // Assert
-    assert!(created.is_ok(), "CREATE VIEW failed: {created:?}");
+    assert!(created.is_ok(), "CREATE VIEW should succeed");
     assert_eq!(view_rows, vec![vec![cassie::types::Value::Int64(11)]]);
-    assert!(dropped.is_ok(), "DROP VIEW failed: {dropped:?}");
+    assert!(dropped.is_ok(), "DROP VIEW should succeed");
     assert!(after_drop.is_err(), "dropped view should not resolve");
 }
 
@@ -233,35 +251,23 @@ fn assert_quoted_and_qualified_relations_are_distinct(fixture: &support_sql_fixt
     let qualified_rows = fixture.rows("SELECT id FROM triage.dot");
 
     // Assert
-    assert!(created.is_ok(), "CREATE TABLE failed: {created:?}");
-    assert!(
-        created_index.is_ok(),
-        "CREATE INDEX failed: {created_index:?}"
-    );
+    assert!(created.is_ok(), "CREATE TABLE should succeed");
+    assert!(created_index.is_ok(), "CREATE INDEX should succeed");
     assert!(
         created_foreign_key.is_ok(),
-        "foreign key target failed: {created_foreign_key:?}"
+        "foreign key target should succeed"
     );
-    assert!(
-        inserted_dotted.is_ok(),
-        "quoted INSERT failed: {inserted_dotted:?}"
-    );
+    assert!(inserted_dotted.is_ok(), "quoted INSERT should succeed");
     assert!(
         inserted_qualified.is_ok(),
-        "qualified INSERT failed: {inserted_qualified:?}"
+        "qualified INSERT should succeed"
     );
     assert!(
         inserted_dotted_for_delete.is_ok(),
-        "quoted INSERT for DELETE failed: {inserted_dotted_for_delete:?}"
+        "quoted INSERT for DELETE should succeed"
     );
-    assert!(
-        updated_dotted.is_ok(),
-        "quoted UPDATE failed: {updated_dotted:?}"
-    );
-    assert!(
-        deleted_dotted.is_ok(),
-        "quoted DELETE failed: {deleted_dotted:?}"
-    );
+    assert!(updated_dotted.is_ok(), "quoted UPDATE should succeed");
+    assert!(deleted_dotted.is_ok(), "quoted DELETE should succeed");
     assert_eq!(dotted_rows, vec![vec![cassie::types::Value::Int64(71)]]);
     assert_eq!(qualified_rows, vec![vec![cassie::types::Value::Int64(9)]]);
     let dotted_relation = fixture

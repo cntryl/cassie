@@ -63,5 +63,5 @@ pub fn vector_search(
         offset,
     )?;
 
-    Ok(RestQueryResult::from(result))
+    RestQueryResult::try_from(result)
 }

@@ -1,8 +1,8 @@
 use super::{
     batch, build_dml_result, check_timeout, dml_referential_actions, ensure_query_memory_budget,
     filter, inserted_row_to_batch_row, row_id_from_batch_row, scan, update_assignment_to_json,
-    BatchRow, Cassie, CassieSession, CollectionSchema, DmlResultContext, Expr, FunctionMeta,
-    HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
+    BatchRow, Cassie, CassieSession, CollectionSchema, DataType, DmlResultContext, Expr,
+    FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult, Value,
 };
 
 struct PreparedUpdateRow {
@@ -188,6 +188,22 @@ fn updated_payload_from_row(
         crate::planner::logical::rewrite_expr_for_schema(&mut expr, schema_has_id);
         let value =
             filter::evaluate_expr_value(row, &expr, params, None, user_functions, session, None)?;
+        if matches!(value, Value::Null)
+            && schema.fields.iter().any(|candidate| {
+                candidate.name.eq_ignore_ascii_case(field)
+                    && matches!(candidate.data_type, DataType::Json)
+            })
+        {
+            if let Some(canonical_name) = schema
+                .fields
+                .iter()
+                .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+                .map(|candidate| candidate.name.as_str())
+            {
+                payload.remove(canonical_name);
+            }
+            continue;
+        }
         payload.insert(
             field.clone(),
             update_assignment_to_json(field, &value, schema)?,

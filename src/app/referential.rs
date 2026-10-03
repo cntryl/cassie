@@ -102,9 +102,10 @@ impl Cassie {
                 continue;
             }
             let mut references = ForeignKeyReferences::default();
+            let schema = self.catalog.get_schema(&collection);
             for change in session.collection_changes(&collection).values() {
                 if let TransactionRowChange::Upsert(payload) = change {
-                    references.collect(&collection, &constraints, payload)?;
+                    references.collect(&collection, &constraints, payload, schema.as_ref())?;
                 }
             }
             self.validate_foreign_key_references(Some(session), &collection, &references)?;
@@ -186,6 +187,7 @@ impl Cassie {
         collection: &str,
     ) -> Result<RemovedParentKeys, CassieError> {
         let referencing = self.referencing_constraints(collection);
+        let schema = self.catalog.get_schema(collection);
         let mut removed = RemovedParentKeys::new();
         if referencing.is_empty() {
             return Ok(removed);
@@ -201,7 +203,11 @@ impl Cassie {
                 let Some(old_value) = committed.payload.get(referenced_column) else {
                     continue;
                 };
-                if old_value.is_null() {
+                if super::field_value_is_sql_null(
+                    Some(old_value),
+                    schema.as_ref(),
+                    referenced_column,
+                ) {
                     continue;
                 }
                 let key_removed = match &change {

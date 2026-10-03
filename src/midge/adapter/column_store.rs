@@ -292,7 +292,11 @@ impl Midge {
             else {
                 continue;
             };
-            let value = crate::midge::row_blob::decode_compact_value(&raw)?;
+            let Some(value) =
+                crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
+            else {
+                continue;
+            };
             payload.insert(field.name.clone(), value);
         }
 
@@ -534,7 +538,11 @@ impl Midge {
             else {
                 return Ok(None);
             };
-            let value = crate::midge::row_blob::decode_compact_value(&raw)?;
+            let Some(value) =
+                crate::midge::row_blob::decode_compact_field_value(&filter_field.data_type, &raw)?
+            else {
+                return Ok(None);
+            };
             if value != filter.value {
                 return Ok(None);
             }
@@ -557,7 +565,11 @@ impl Midge {
             else {
                 continue;
             };
-            let value = crate::midge::row_blob::decode_compact_value(&raw)?;
+            let Some(value) =
+                crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
+            else {
+                continue;
+            };
             object.insert(field.name.clone(), value);
         }
         Ok(Some(serde_json::Value::Object(object)))

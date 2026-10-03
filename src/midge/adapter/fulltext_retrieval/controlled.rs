@@ -457,7 +457,11 @@ impl Midge {
                     field_key.len(),
                     raw.len(),
                 )?)?;
-                let value = crate::midge::row_blob::decode_compact_value(&raw)?;
+                let Some(value) =
+                    crate::midge::row_blob::decode_compact_field_value(&field.data_type, &raw)?
+                else {
+                    continue;
+                };
                 check_controls(controls)?;
                 payload.insert(field.name.clone(), value);
             }

@@ -38,6 +38,22 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
 | Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
 
+### JSON Document Null and SQL NULL
+
+For a declared `JSON` field, an absent key in the stored document represents SQL
+`NULL`; an explicit key whose value is JSON `null` represents a non-NULL JSON
+document value. SQL `NULL` writes through `INSERT`, `UPDATE`, or CSV `COPY` omit
+the field from the raw document payload. JSON text `'null'`, a non-empty CSV
+token `null`, typed JSON binds, and REST document input with `"field": null`
+preserve the explicit JSON value. REST reads therefore omit SQL-NULL fields and
+return JSON-null fields with their key present.
+
+SQL treats explicit JSON `null` as a value: it satisfies `NOT NULL`,
+`field IS NULL` is false, and `COUNT(field)` includes it. Query projection of an
+absent field returns SQL `NULL`. Rows written by earlier builds that encoded
+JSON `null` with the generic SQL-NULL tag are interpreted as SQL `NULL` because
+that historical representation cannot distinguish the values.
+
 ### ARRAY Ordering
 
 Declared one-dimensional ARRAY columns compare elementwise in ordered predicates,

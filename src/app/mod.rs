@@ -45,6 +45,23 @@ use crate::sql::ast::{
 };
 use crate::sql::{binder, parser};
 use crate::types::{Value, Vector};
+
+pub(crate) fn field_value_is_sql_null(
+    value: Option<&serde_json::Value>,
+    schema: Option<&CollectionSchema>,
+    field: &str,
+) -> bool {
+    let Some(value) = value else {
+        return true;
+    };
+    value.is_null()
+        && !schema.is_some_and(|schema| {
+            schema.fields.iter().any(|candidate| {
+                candidate.name.eq_ignore_ascii_case(field)
+                    && matches!(candidate.data_type, crate::types::DataType::Json)
+            })
+        })
+}
 use crate::vector::{
     cosine_distance_from_normalized_query, dot_distance_from_normalized_target,
     normalize as normalize_vector,

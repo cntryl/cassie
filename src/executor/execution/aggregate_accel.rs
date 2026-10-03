@@ -93,6 +93,18 @@ fn execute_summary_aggregate(
     fields: &[String],
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    if cassie
+        .midge
+        .column_batch_request_uses_json_fields(collection, fields, None, None)?
+    {
+        cassie
+            .runtime
+            .record_column_batch_fallback("typed_summary_requires_rows");
+        cassie
+            .runtime
+            .record_aggregate_acceleration_row_blob_fallback();
+        return Ok(None);
+    }
     let controlled = match cassie
         .midge
         .prepare_column_batch_summaries_controlled(collection, index, fields, controls)

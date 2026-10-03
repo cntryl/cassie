@@ -1,6 +1,6 @@
 use super::{
     key_encoding, CassieError, DocumentWriteBatchContext, FieldConstraint, IndexMeta, Midge,
-    PreparedWrite,
+    PreparedWrite, RowSchema,
 };
 
 #[derive(Debug)]
@@ -55,12 +55,14 @@ impl Midge {
             collection,
             &context.unique_constraints,
             &context.unique_scalar_indexes,
+            &context.row_schema,
             previous_payload,
         )?;
         let next_targets = Self::collect_unique_reservation_targets(
             collection,
             &context.unique_constraints,
             &context.unique_scalar_indexes,
+            &context.row_schema,
             next_payload,
         )?;
 
@@ -102,6 +104,7 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint],
         unique_indexes: &[IndexMeta],
+        row_schema: &RowSchema,
         payload: Option<&serde_json::Value>,
     ) -> Result<Vec<(Vec<u8>, UniqueReservationDescriptor)>, CassieError> {
         let Some(payload) = payload else {
@@ -113,7 +116,12 @@ impl Midge {
             let Some(value) = payload.get(&constraint.field) else {
                 continue;
             };
-            if value.is_null() {
+            if value.is_null()
+                && !row_schema.fields.iter().any(|field_meta| {
+                    field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                        && matches!(field_meta.data_type, crate::types::DataType::Json)
+                })
+            {
                 continue;
             }
 
@@ -133,10 +141,10 @@ impl Midge {
         }
 
         for index in unique_indexes {
-            if !Self::payload_matches_scalar_index_predicate(index, payload)? {
+            if !Self::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
                 continue;
             }
-            let Some(values) = Self::scalar_index_key_values(index, payload)? else {
+            let Some(values) = Self::scalar_index_key_values(index, payload, row_schema)? else {
                 continue;
             };
             let key = key_encoding::unique_scalar_index_reservation_key(

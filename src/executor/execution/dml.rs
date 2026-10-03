@@ -143,8 +143,9 @@ fn inserted_row_to_batch_row(
 
     for field in &schema.fields {
         let value = payload.get(&field.name).map_or(Value::Null, |value| {
-            // A json column's JSON string stays a document, quotes included.
-            if matches!(field.data_type, DataType::Json) && value.is_string() {
+            // JSON strings and JSON null stay typed document values. A missing
+            // key remains SQL NULL, as INSERT/UPDATE omit SQL-null JSON fields.
+            if matches!(field.data_type, DataType::Json) && (value.is_string() || value.is_null()) {
                 Value::Json(value.clone())
             } else {
                 json_to_value(value)

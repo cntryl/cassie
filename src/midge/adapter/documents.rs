@@ -808,6 +808,7 @@ impl Midge {
             previous,
             next,
             &context.scalar_indexes,
+            &context.row_schema,
         )?;
         let (time_series_deleted, time_series_puts) = Self::sync_time_series_indexes_for_document(
             tx,

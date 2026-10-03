@@ -40,7 +40,7 @@ pub(super) fn reserve_search_context(
         .map_err(QueryError::from)
 }
 
-pub(super) fn persisted_search_context_bytes(
+pub(in crate::executor::execution::scored) fn persisted_search_context_bytes(
     candidates: &crate::midge::adapter::fulltext_retrieval::PersistedFulltextCandidateSet,
     options: &FulltextIndexOptions,
     field: &str,

@@ -2709,6 +2709,7 @@ mod scored_read_equivalence {
 // Analyzer and corpus-statistics consistency for scored fulltext reads.
 mod fulltext_analyzer_consistency {
     use cassie::app::Cassie;
+    use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
     use cassie::types::{Value, Vector};
 
     use super::support_sql as support;
@@ -2740,6 +2741,21 @@ mod fulltext_analyzer_consistency {
     fn hybrid_fixture(label: &str) -> Cassie {
         use_local_storage();
         let cassie = Cassie::new_with_data_dir(data_dir(label)).unwrap();
+        seed_hybrid_fixture(cassie)
+    }
+
+    fn hybrid_fixture_with_local_provider(label: &str) -> Cassie {
+        use_local_storage();
+        let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
+        config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+            model: "deterministic-test".to_string(),
+            dimensions: 2,
+        });
+        let cassie = Cassie::new_with_data_dir_and_config(data_dir(label), config).unwrap();
+        seed_hybrid_fixture(cassie)
+    }
+
+    fn seed_hybrid_fixture(cassie: Cassie) -> Cassie {
         cassie.startup().unwrap();
         run(
             &cassie,
@@ -2902,6 +2918,150 @@ mod fulltext_analyzer_consistency {
             assert!(baseline[0].1 > baseline[1].1);
             for (before, after) in baseline.iter().zip(&after_hybrid) {
                 assert!((before.1 - after.1).abs() < 1e-12);
+            }
+        });
+    }
+
+    #[test]
+    fn should_score_hybrid_candidates_with_full_indexed_corpus_statistics() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = hybrid_fixture("hybrid_stats_corpus_scoring");
+            let candidate_ids = run(&cassie, "SELECT _id FROM ia WHERE grp = 'B'")
+                .into_iter()
+                .filter_map(|row| match &row[0] {
+                    Value::String(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let whole_corpus = scored_ids(&run(
+                &cassie,
+                "SELECT _id, search_score(body, 'alpha beta') AS score FROM ia WHERE search(body, 'alpha beta') ORDER BY score DESC LIMIT 12",
+            ));
+            let vector_scores = scored_ids(&run(
+                &cassie,
+                "SELECT _id, vector_score(embedding, '[1,0]') AS score FROM ia WHERE grp = 'B'",
+            ));
+            let expected = whole_corpus
+                .into_iter()
+                .filter(|(id, _)| candidate_ids.contains(id))
+                .map(|(id, text_score)| {
+                    let vector_score = vector_scores
+                        .iter()
+                        .find(|(candidate_id, _)| candidate_id == &id)
+                        .expect("whole-corpus result has a vector score")
+                        .1;
+                    (
+                        id,
+                        cassie::hybrid::hybrid_score(text_score, vector_score, None),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let mut expected = expected;
+            expected.sort_by(|left, right| {
+                right
+                    .1
+                    .total_cmp(&left.1)
+                    .then_with(|| left.0.cmp(&right.0))
+            });
+
+            // Act
+            let before = cassie.metrics();
+            let actual = scored_ids(&run(
+                &cassie,
+                "SELECT _id, hybrid_score(search_score(body, 'alpha beta'), vector_score(embedding, '[1,0]')) AS hs FROM ia WHERE grp = 'B' ORDER BY hs DESC LIMIT 12",
+            ));
+            let after = cassie.metrics();
+
+            // Assert
+            assert!(
+                after["hybrid"]["retrieval_stage_queries_total"]
+                    .as_u64()
+                    .unwrap()
+                    > before["hybrid"]["retrieval_stage_queries_total"]
+                        .as_u64()
+                        .unwrap()
+            );
+            assert_eq!(actual, expected);
+        });
+    }
+
+    #[test]
+    fn should_use_persisted_corpus_statistics_for_bounded_hybrid_candidates() {
+        // Arrange
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cassie = hybrid_fixture_with_local_provider("hybrid_bounded_stats_corpus");
+            run(
+                &cassie,
+                "CREATE INDEX ia_embedding_hnsw ON ia USING vector (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, m = 8, ef_construction = 64, ef_search = 32)",
+            );
+            for index in 0..100 {
+                run_with(
+                    &cassie,
+                    "INSERT INTO ia (id, body, grp, embedding) VALUES ($1, 'unrelated', 'A', $2)",
+                    vec![
+                        Value::String(format!("unrelated_{index:03}")),
+                        Value::Vector(Vector::new(vec![100.0, 100.0])),
+                    ],
+                );
+            }
+            let whole_corpus = scored_ids(&run(
+                &cassie,
+                "SELECT _id, search_score(body, 'alpha beta') AS score FROM ia WHERE search(body, 'alpha beta') ORDER BY score DESC LIMIT 12",
+            ));
+            let vector_scores = scored_ids(&run(
+                &cassie,
+                "SELECT _id, vector_score(embedding, '[1,0]') AS score FROM ia WHERE grp = 'B'",
+            ));
+
+            // Act
+            let before = cassie.metrics();
+            let actual = scored_ids(&run(
+                &cassie,
+                "SELECT _id, hybrid_score(search_score(body, 'alpha beta'), vector_score(embedding, '[1,0]')) AS hs FROM ia WHERE grp = 'B' ORDER BY hs DESC LIMIT 12",
+            ));
+            let after = cassie.metrics();
+
+            // Assert
+            assert!(
+                after["hybrid"]["ann_reads_total"].as_u64().unwrap()
+                    > before["hybrid"]["ann_reads_total"].as_u64().unwrap()
+            );
+            assert!(
+                after["hybrid"]["candidate_row_fetches_total"].as_u64().unwrap()
+                    > before["hybrid"]["candidate_row_fetches_total"].as_u64().unwrap()
+            );
+            assert!(
+                after["hybrid"]["candidate_row_fetches_total"]
+                    .as_u64()
+                    .unwrap()
+                    - before["hybrid"]["candidate_row_fetches_total"]
+                        .as_u64()
+                        .unwrap()
+                    < 112
+            );
+            assert_ne!(actual.len(), 0);
+            for (id, actual_score) in actual {
+                let text_score = whole_corpus
+                    .iter()
+                    .find(|(candidate_id, _)| candidate_id == &id)
+                    .expect("bounded hybrid result belongs to full-text candidates")
+                    .1;
+                let vector_score = vector_scores
+                    .iter()
+                    .find(|(candidate_id, _)| candidate_id == &id)
+                    .expect("bounded hybrid result has a vector score")
+                    .1;
+                let expected_score = cassie::hybrid::hybrid_score(text_score, vector_score, None);
+                assert!((actual_score - expected_score).abs() < 1e-12);
             }
         });
     }

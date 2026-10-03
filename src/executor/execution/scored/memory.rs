@@ -1,7 +1,7 @@
 use super::candidate::{push_top_k, ScoredSearchCandidate};
 use super::{
-    AnalyzerConfig, BatchRow, BinaryHeap, HybridTopKSpec, QueryError, QueryExecutionControls,
-    TokenizedFulltextDocument, TokenizedHybridDocument, Value,
+    AnalyzerConfig, BatchRow, BinaryHeap, FulltextIndexOptions, HybridTopKSpec, QueryError,
+    QueryExecutionControls, TokenizedFulltextDocument, TokenizedHybridDocument, Value,
 };
 
 type Reservation = crate::runtime::QueryMemoryReservation;
@@ -114,6 +114,58 @@ pub(super) fn reserve_hybrid_documents(
     });
     controls
         .reserve_query_memory(bytes)
+        .map_err(QueryError::from)
+}
+
+pub(super) fn reserve_hybrid_fallback_search_context(
+    controls: &QueryExecutionControls,
+    rows: &[BatchRow],
+    text_field: &str,
+    analyzer: &AnalyzerConfig,
+    options: &FulltextIndexOptions,
+) -> Result<Reservation, QueryError> {
+    let text_bytes = rows.iter().fold(0usize, |total, row| {
+        let text_bytes = row
+            .get(text_field)
+            .and_then(Value::as_str)
+            .map_or(0, |text| tokenized_text_upper_bound(text, analyzer));
+        total.saturating_add(text_bytes)
+    });
+    let scalar_option_bytes = options
+        .field_boost
+        .iter()
+        .chain(options.field_k1.iter())
+        .chain(options.field_b.iter())
+        .fold(0usize, |total, (field, _)| {
+            total
+                .saturating_add(field.len())
+                .saturating_add(std::mem::size_of::<(String, f64)>())
+        });
+    let analyzer_option_bytes =
+        options
+            .field_analyzer
+            .iter()
+            .fold(0usize, |total, (field, config)| {
+                total
+                    .saturating_add(field.len())
+                    .saturating_add(std::mem::size_of::<(String, AnalyzerConfig)>())
+                    .saturating_add(config.name.len())
+                    .saturating_add(config.tokenizer.len())
+                    .saturating_add(config.stop_words.len())
+                    .saturating_add(config.stemming.len())
+            });
+    let field_entry_bytes = text_field
+        .len()
+        .saturating_add(std::mem::size_of::<String>())
+        .saturating_add(3 * std::mem::size_of::<usize>());
+    controls
+        .reserve_query_memory(
+            std::mem::size_of::<crate::executor::filter::SearchContext>()
+                .saturating_add(text_bytes)
+                .saturating_add(scalar_option_bytes)
+                .saturating_add(analyzer_option_bytes)
+                .saturating_add(6usize.saturating_mul(field_entry_bytes)),
+        )
         .map_err(QueryError::from)
 }
 

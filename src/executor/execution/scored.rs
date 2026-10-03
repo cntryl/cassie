@@ -303,6 +303,7 @@ fn execute_hybrid_top_k(
             params,
             schema: &schema,
             analyzer: &analyzer,
+            search_index_options: &search_index_options,
             candidate_limit: adaptive
                 .ann_candidate_budget(cassie.runtime.limits().adaptive_candidate_max),
         },
@@ -318,6 +319,7 @@ fn execute_hybrid_top_k(
     let candidate_row_fetches = selected.candidate_row_fetches;
     let retrieval_memory = selected.retrieval_memory;
     let selection_diagnostics = selected.diagnostics;
+    let search_context = selected.search_context;
     if rows.is_empty() {
         return Ok(None);
     }
@@ -331,16 +333,6 @@ fn execute_hybrid_top_k(
     let _search_document_memory =
         memory::reserve_hybrid_documents(controls, &rows, spec, &analyzer)?;
     let search_documents = hybrid_search_documents(rows, spec, &analyzer);
-    // The candidate set is a query-specific subset, so its statistics must never
-    // be read from or stored under the collection-wide fulltext stats cache key.
-    let search_context = filter::SearchContext::from_term_stats(
-        &spec.text_field,
-        search_documents.iter().map(PostingListDocument::term_stats),
-        &search_index_options.field_boost,
-        &search_index_options.field_k1,
-        &search_index_options.field_b,
-        &search_index_options.field_analyzer,
-    );
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let (candidate_ids, _candidate_memory) =
         posting_list_candidate_ids_controlled(&search_documents, &query_terms, controls)?;

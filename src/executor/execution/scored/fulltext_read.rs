@@ -12,9 +12,10 @@ use crate::search::analyzer::AnalyzerConfig;
 #[path = "fulltext_read/accounting.rs"]
 mod accounting;
 
+pub(super) use accounting::persisted_search_context_bytes;
 use accounting::{
-    document_filter_row_bytes, fulltext_result_row_variable_bytes, persisted_search_context_bytes,
-    reserve_analyzed_text, reserve_search_context,
+    document_filter_row_bytes, fulltext_result_row_variable_bytes, reserve_analyzed_text,
+    reserve_search_context,
 };
 
 pub(in crate::executor::execution) struct SearchProjectionColumn {

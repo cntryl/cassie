@@ -54,6 +54,14 @@ absent field returns SQL `NULL`. Rows written by earlier builds that encoded
 JSON `null` with the generic SQL-NULL tag are interpreted as SQL `NULL` because
 that historical representation cannot distinguish the values.
 
+JSON responses cannot encode floating-point `NaN`, positive infinity, or
+negative infinity. REST query and vector-search responses return an error when
+a result contains one of these values; SQL `NULL` continues to serialize as
+JSON `null`. Materialized projection refresh validates its complete output
+before replacing stored rows. A rejected value leaves the previous version's
+rows in place, and projection freshness determines whether those rows can
+serve reads.
+
 ### ARRAY Ordering
 
 Declared one-dimensional ARRAY columns compare elementwise in ordered predicates,

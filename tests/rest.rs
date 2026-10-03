@@ -2030,6 +2030,61 @@ mod rest_admin_query {
     }
 
     #[test]
+    fn should_reject_nonfinite_admin_query_result() {
+        // Arrange
+        use_local_storage();
+        let data_dir = data_dir("nonfinite-query-json");
+        let cassie = Cassie::new_with_data_dir(&data_dir).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE rest_nonfinite (value FLOAT)",
+                vec![],
+            )
+            .expect("create table");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO rest_nonfinite VALUES (1e308)",
+                vec![],
+            )
+            .expect("insert finite value");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (base_url, shutdown, server) = spawn_rest_server(cassie).await;
+            let client = Client::new();
+
+            // Act
+            let nonfinite = post_admin_query(
+                &client,
+                &base_url,
+                "/api/v1/admin/query/execute",
+                "SELECT value * 10 AS result FROM rest_nonfinite",
+            )
+            .await;
+            let nonfinite_status = nonfinite.status();
+            let nonfinite_payload = nonfinite
+                .json::<serde_json::Value>()
+                .await
+                .expect("non-finite error payload");
+            // Assert
+            assert_eq!(nonfinite_status, StatusCode::BAD_REQUEST);
+            assert!(nonfinite_payload["error"]
+                .as_str()
+                .is_some_and(|message| message.contains("non-finite")));
+
+            stop_rest_server(shutdown, server).await;
+        });
+        let _ = std::fs::remove_dir_all(data_dir);
+    }
+
+    #[test]
     fn should_complete_admin_query_workflow_given_one_authenticated_session() {
         // Arrange
         use_local_storage();

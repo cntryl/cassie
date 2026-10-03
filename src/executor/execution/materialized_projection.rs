@@ -11,6 +11,7 @@ use super::{
     QuerySource, QueryStatement, Schema, SelectItem, Value,
 };
 use crate::midge::adapter::RootHashRecord;
+use crate::types::json::try_value_to_json;
 
 pub(super) use super::materialized_projection_maintenance::mark_source_projections_stale;
 
@@ -781,6 +782,27 @@ fn replace_output_rows_gated(
     schema: &Schema,
     rows: Vec<BatchRow>,
 ) -> Result<RootHashRecord, QueryError> {
+    let output_rows = rows
+        .into_iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let payload = row
+                .into_entries()
+                .into_iter()
+                .map(|(name, value)| {
+                    try_value_to_json(value)
+                        .map(|value| (name, value))
+                        .map_err(|error| {
+                            QueryError::General(format!("materialized projection output {error}"))
+                        })
+                })
+                .collect::<Result<serde_json::Map<_, _>, _>>()?;
+            let payload = serde_json::Value::Object(payload);
+            let id = deterministic_row_id(index, &payload);
+            Ok((id, payload))
+        })
+        .collect::<Result<Vec<_>, QueryError>>()?;
+
     if cassie.midge.collection_schema(output_collection).is_some() {
         let _ = cassie.midge.drop_collection(output_collection);
         let _ = cassie.catalog.unregister_collection(output_collection);
@@ -799,19 +821,6 @@ fn replace_output_rows_gated(
             .collect(),
     );
 
-    let mut output_rows = Vec::with_capacity(rows.len());
-    for (index, row) in rows.into_iter().enumerate() {
-        let entries = row.into_entries();
-        let payload = serde_json::Value::Object(
-            entries
-                .iter()
-                .map(|(name, value)| (name.clone(), value_to_json(value.clone())))
-                .collect(),
-        );
-        let id = deterministic_row_id(index, &payload);
-        output_rows.push((id, payload));
-    }
-
     let (report, root) = cassie
         .midge
         .write_fresh_projection_output_rows(output_collection, output_rows)
@@ -822,19 +831,6 @@ fn replace_output_rows_gated(
         report.stats.batch_flushes,
     );
     Ok(root)
-}
-
-fn value_to_json(value: Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(value),
-        Value::Int64(value) => serde_json::Value::Number(value.into()),
-        Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value),
-        Value::Vector(value) => serde_json::json!(value.values),
-        Value::Json(value) => value,
-    }
 }
 
 fn collect_source_collections(source: &QuerySource) -> Vec<String> {

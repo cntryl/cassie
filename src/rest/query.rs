@@ -4,7 +4,7 @@ use crate::catalog::RelationId;
 use crate::executor::{ColumnMeta, QueryResult};
 use crate::runtime::QueryCancellationHandle;
 use crate::sql::ast::{QueryStatement, TransactionAction};
-use crate::types::Value;
+use crate::types::json::try_value_to_json;
 
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -129,7 +129,7 @@ pub fn execute_with_session_and_cancellation(
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie
         .execute_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
-        .map(RestQueryResult::from)
+        .and_then(RestQueryResult::try_from)
 }
 
 /// # Errors
@@ -209,7 +209,7 @@ pub(crate) fn explain_with_session_and_cancellation(
         serde_json::from_slice(body).map_err(|error| CassieError::Parse(error.to_string()))?;
     cassie
         .explain_sql_with_cancellation(session, request.sql.as_str(), Vec::new(), cancellation)
-        .map(RestQueryExplainResponse::from)
+        .and_then(RestQueryExplainResponse::try_from)
 }
 
 #[must_use]
@@ -542,54 +542,46 @@ impl From<ColumnMeta> for RestColumnMeta {
     }
 }
 
-impl From<QueryResult> for RestQueryResult {
-    fn from(result: QueryResult) -> Self {
-        Self {
+impl TryFrom<QueryResult> for RestQueryResult {
+    type Error = CassieError;
+
+    fn try_from(result: QueryResult) -> Result<Self, Self::Error> {
+        let rows = result
+            .rows
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(try_value_to_json)
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(rest_json_conversion_error)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
             columns: result
                 .columns
                 .into_iter()
                 .map(RestColumnMeta::from)
                 .collect(),
-            rows: result
-                .rows
-                .into_iter()
-                .map(|row| row.into_iter().map(query_value_to_json).collect())
-                .collect(),
+            rows,
             command: result.command,
-        }
+        })
     }
 }
 
-impl From<QueryExplainOutput> for RestQueryExplainResponse {
-    fn from(output: QueryExplainOutput) -> Self {
-        let result = RestQueryResult::from(output.result);
-        Self {
+impl TryFrom<QueryExplainOutput> for RestQueryExplainResponse {
+    type Error = CassieError;
+
+    fn try_from(output: QueryExplainOutput) -> Result<Self, Self::Error> {
+        let result = RestQueryResult::try_from(output.result)?;
+        Ok(Self {
             columns: result.columns,
             rows: result.rows,
             command: result.command,
             plan: output.plan,
-        }
+        })
     }
 }
 
-fn query_value_to_json(value: Value) -> serde_json::Value {
-    match value {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(value) => serde_json::Value::Bool(value),
-        Value::Int64(value) => serde_json::Value::Number(value.into()),
-        Value::Float64(value) => serde_json::Number::from_f64(value)
-            .map_or(serde_json::Value::Null, serde_json::Value::Number),
-        Value::String(value) => serde_json::Value::String(value),
-        Value::Vector(value) => serde_json::Value::Array(
-            value
-                .values
-                .into_iter()
-                .map(|value| {
-                    serde_json::Number::from_f64(f64::from(value))
-                        .map_or(serde_json::Value::Null, serde_json::Value::Number)
-                })
-                .collect(),
-        ),
-        Value::Json(value) => value,
-    }
+fn rest_json_conversion_error(error: &'static str) -> CassieError {
+    CassieError::Execution(format!("REST query result {error}"))
 }

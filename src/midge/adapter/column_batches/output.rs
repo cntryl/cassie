@@ -72,7 +72,7 @@ fn projected_value<'a>(row: &'a ColumnBatchRow, field: &str) -> &'a serde_json::
     static NULL: serde_json::Value = serde_json::Value::Null;
     row.values
         .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(field))
+        .find(|(name, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, name))
         .map_or(&NULL, |(_, value)| value)
 }
 

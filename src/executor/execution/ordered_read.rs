@@ -39,7 +39,8 @@ pub(super) fn execute_ordered_column_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection);
     if schema.as_ref().is_some_and(|schema| {
         schema.fields.iter().any(|field| {
-            field.name.eq_ignore_ascii_case(&spec.order_column)
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.order_column)
                 && matches!(field.data_type, crate::types::DataType::Array(_))
         })
     }) {

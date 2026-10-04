@@ -620,11 +620,21 @@ pub(super) fn parse_cte_header(raw: &str) -> Result<(String, Vec<String>), SqlEr
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }
 
-        let aliases = raw[(open + 1)..close]
-            .split(',')
-            .map(|alias| super::lexical::trim_separators(alias).to_string())
+        let aliases = split_csv(&raw[(open + 1)..close])
+            .into_iter()
+            .map(super::lexical::trim_separators)
             .filter(|alias| !alias.is_empty())
-            .collect::<Vec<_>>();
+            .map(|alias| {
+                let column =
+                    crate::sql::ColumnIdentifierPath::parse(alias).map_err(SqlError::new)?;
+                if column.is_qualified() {
+                    return Err(SqlError::new(format!(
+                        "invalid column identifier '{alias}'"
+                    )));
+                }
+                Ok(column.declared_name())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         if aliases.is_empty() {
             return Err(SqlError::new(format!("invalid CTE header '{raw}'")));
         }

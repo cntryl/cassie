@@ -87,7 +87,10 @@ fn validate_alter_column_field(
             "ALTER TABLE ALTER COLUMN {operation} requires a field"
         )));
     }
-    if !existing_fields.contains(&name.to_ascii_lowercase()) {
+    if !existing_fields
+        .iter()
+        .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(name, field))
+    {
         return Err(CassieError::Planner(format!(
             "ALTER TABLE '{table}' has no field '{name}'"
         )));

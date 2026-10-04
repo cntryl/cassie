@@ -132,11 +132,9 @@ pub(super) async fn execute_streaming_portal_page(
                 return execute_offset_portal_page(cassie, write_half, request).await;
             };
             for field in &schema.fields {
-                if !spec
-                    .source_fields
-                    .iter()
-                    .any(|source| source.eq_ignore_ascii_case(&field.name))
-                {
+                if !spec.source_fields.iter().any(|source| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(source, &field.name)
+                }) {
                     spec.source_fields.push(field.name.clone());
                 }
             }
@@ -421,19 +419,9 @@ fn portal_document_rows(
         .collect()
 }
 
-/// Reads `name` from a projected row, falling back to a case-insensitive
-/// match so a column spelled differently from its declaration still resolves
-/// to the one value the read fetched for it.
+/// Reads an exact SQL column key from a projected row.
 fn portal_row_value(row: &crate::executor::batch::BatchRow, name: &str) -> Value {
-    row.get(name)
-        .or_else(|| {
-            row.entries()
-                .iter()
-                .find(|(entry, _)| entry.eq_ignore_ascii_case(name))
-                .map(|(_, value)| value)
-        })
-        .cloned()
-        .unwrap_or(Value::Null)
+    row.get(name).cloned().unwrap_or(Value::Null)
 }
 
 pub(super) fn streamable_portal_query(prepared: &PreparedStatement, max_rows: usize) -> bool {

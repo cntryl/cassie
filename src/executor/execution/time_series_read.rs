@@ -272,7 +272,7 @@ fn scan_fields_with_timestamp(scan_fields: &[String], timestamp_field: &str) -> 
     let mut fields = scan_fields.to_vec();
     if !fields
         .iter()
-        .any(|field| field.eq_ignore_ascii_case(timestamp_field))
+        .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(field, timestamp_field))
     {
         fields.push(timestamp_field.to_string());
     }
@@ -560,14 +560,13 @@ fn set_partition_value(
 ) {
     if let Some(position) = fields
         .iter()
-        .position(|field| field.eq_ignore_ascii_case(column))
+        .position(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(column, field))
     {
         values[position] = match schema
             .and_then(|schema| {
-                schema
-                    .fields
-                    .iter()
-                    .find(|field| field.name.eq_ignore_ascii_case(column))
+                schema.fields.iter().find(|field| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(column, &field.name)
+                })
             })
             .map(|field| &field.data_type)
         {
@@ -708,7 +707,7 @@ fn comparison_timestamp_range(
 }
 
 fn is_timestamp_column(expr: &Expr, timestamp_field: &str) -> bool {
-    matches!(expr, Expr::Column(field) if field.eq_ignore_ascii_case(timestamp_field))
+    matches!(expr, Expr::Column(field) if crate::sql::ColumnIdentifierPath::matches_stored_field(field, timestamp_field))
 }
 
 /// Returns a range bound only for canonical-shaped timestamp text, widened to
@@ -872,10 +871,9 @@ fn document_to_row(
 fn typed_value(value: &serde_json::Value, schema: Option<&CollectionSchema>, field: &str) -> Value {
     match schema
         .and_then(|schema| {
-            schema
-                .fields
-                .iter()
-                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+            schema.fields.iter().find(|entry| {
+                crate::sql::ColumnIdentifierPath::matches_stored_field(field, &entry.name)
+            })
         })
         .map(|entry| &entry.data_type)
     {
@@ -893,14 +891,7 @@ fn typed_value(value: &serde_json::Value, schema: Option<&CollectionSchema>, fie
 }
 
 fn payload_field<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a serde_json::Value> {
-    payload.as_object().and_then(|object| {
-        object.get(field).or_else(|| {
-            object
-                .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case(field))
-                .map(|(_, value)| value)
-        })
-    })
+    crate::executor::scan::projected_field_value(payload.as_object()?, field)
 }
 
 fn timestamp_sort_key<'a>(

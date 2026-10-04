@@ -380,7 +380,9 @@ fn join_field_stats<'a>(
         stats
             .fields
             .iter()
-            .find(|(candidate, _)| candidate.eq_ignore_ascii_case(field))
+            .find(|(candidate, _)| {
+                crate::sql::ColumnIdentifierPath::matches_stored_field(field, candidate)
+            })
             .map(|(_, stats)| stats)
     })
 }

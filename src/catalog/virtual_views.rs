@@ -979,9 +979,10 @@ fn constraint_for_field<'a>(
     constraints: &'a [FieldConstraint],
     field: &str,
 ) -> Option<&'a FieldConstraint> {
-    constraints
-        .iter()
-        .find(|constraint| constraint.field.eq_ignore_ascii_case(field))
+    constraints.iter().find(|constraint| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+    })
 }
 
 fn is_not_nullable(constraint: Option<&FieldConstraint>) -> bool {

@@ -52,32 +52,24 @@ impl BatchRow {
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(self.values.as_slice(), self.aliases.as_slice()));
-        let index = match lookup.get(name) {
-            Some(index) => *index,
-            None => match self.case_insensitive_index(name) {
-                Some(index) => index,
-                None => return self.outer_scope.as_ref()?.get(name),
-            },
+        let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
+        let index = lookup.get(name).copied().or_else(|| {
+            column.as_ref().and_then(|column| {
+                let candidates = column.row_lookup_candidates();
+                let candidate_count = candidates.len().saturating_sub(usize::from(
+                    self.outer_scope.is_some() && column.is_qualified(),
+                ));
+                candidates
+                    .iter()
+                    .take(candidate_count)
+                    .find_map(|candidate| lookup.get(candidate).copied())
+            })
+        });
+        let Some(index) = index else {
+            return self.outer_scope.as_ref()?.get(name);
         };
         let entry = &self.values[index];
         Some(&entry.1)
-    }
-
-    /// Resolves `name` against entry and alias names ignoring ASCII case.
-    /// Unquoted SQL identifiers are case-insensitive, so a reference spelled
-    /// in a different case than the stored column still reads its value. An
-    /// exact-case match always wins first, so distinct quoted spellings keep
-    /// resolving to their own columns.
-    fn case_insensitive_index(&self, name: &str) -> Option<usize> {
-        self.values
-            .iter()
-            .position(|(column, _)| column.eq_ignore_ascii_case(name))
-            .or_else(|| {
-                self.aliases
-                    .iter()
-                    .find(|(alias, _)| alias.eq_ignore_ascii_case(name))
-                    .map(|(_, index)| *index)
-            })
     }
 
     pub(crate) fn into_entries(self) -> RowEntries {
@@ -137,11 +129,20 @@ impl BatchRow {
         let lookup = self
             .lookup
             .get_or_init(|| build_lookup(&self.values, &self.aliases));
-        if let Some(index) = lookup
-            .get(name)
-            .copied()
-            .or_else(|| self.case_insensitive_index(name))
-        {
+        let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
+        let index = lookup.get(name).copied().or_else(|| {
+            column.as_ref().and_then(|column| {
+                let candidates = column.row_lookup_candidates();
+                let candidate_count = candidates.len().saturating_sub(usize::from(
+                    self.outer_scope.is_some() && column.is_qualified(),
+                ));
+                candidates
+                    .iter()
+                    .take(candidate_count)
+                    .find_map(|candidate| lookup.get(candidate).copied())
+            })
+        });
+        if let Some(index) = index {
             self.data_types().get(index)
         } else {
             self.outer_scope.as_ref()?.column_type(name)
@@ -225,18 +226,21 @@ impl RowAccess for [(String, Value)] {
     }
 }
 
-/// Looks `name` up in row entries, preferring an exact-case match and falling
-/// back to an ASCII case-insensitive one (see [`BatchRow::get`]).
+/// Looks a canonical SQL column reference up in row entries.
 fn entry_value<'a>(entries: &'a [(String, Value)], name: &str) -> Option<&'a Value> {
-    entries
+    let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
+    let exact = entries
         .iter()
         .find(|(column, _)| column == name)
         .or_else(|| {
-            entries
-                .iter()
-                .find(|(column, _)| column.eq_ignore_ascii_case(name))
-        })
-        .map(|(_, value)| value)
+            column.as_ref().and_then(|column| {
+                column
+                    .row_lookup_candidates()
+                    .iter()
+                    .find_map(|candidate| entries.iter().find(|(entry, _)| entry == candidate))
+            })
+        });
+    exact.map(|(_, value)| value)
 }
 
 /// Shared declared types are accounted once across rows retaining the same

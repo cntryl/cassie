@@ -18,7 +18,8 @@ impl Catalog {
     ) -> bool {
         let constraints = self.get_constraints(table);
         constraints.iter().any(|candidate| {
-            candidate.field.eq_ignore_ascii_case(field)
+            crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
                 && crate::catalog::enforces_single_column_uniqueness(candidate, &constraints)
         }) || self
             .list_indexes(table)
@@ -29,7 +30,9 @@ impl Catalog {
             })
             .any(|index| {
                 let fields = index.normalized_fields();
-                fields.len() == 1 && fields[0].eq_ignore_ascii_case(field)
+                fields.len() == 1
+                    && crate::sql::ColumnIdentifierPath::stored_field_key(&fields[0])
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(field)
             })
     }
 

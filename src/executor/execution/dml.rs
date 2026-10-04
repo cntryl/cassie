@@ -105,7 +105,7 @@ fn update_assignment_to_json(
     if let Some(field_meta) = schema
         .fields
         .iter()
-        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+        .find(|candidate| candidate.name == field)
     {
         if matches!(
             field_meta.data_type,
@@ -122,7 +122,7 @@ fn update_assignment_to_json(
     if let Some(field_meta) = schema
         .fields
         .iter()
-        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+        .find(|candidate| candidate.name == field)
     {
         return value_to_json_for_field(field, value, &field_meta.data_type);
     }

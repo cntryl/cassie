@@ -248,7 +248,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| field.to_ascii_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut memory = controls.reserve_query_memory(0)?;

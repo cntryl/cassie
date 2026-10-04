@@ -514,7 +514,10 @@ fn unregister_vector_indexes_on_column(cassie: &Cassie, table: &str, field: &str
         }
     }
     for index in cassie.catalog.list_vector_indexes(table) {
-        if index.field.eq_ignore_ascii_case(field) || index.source_field.eq_ignore_ascii_case(field)
+        if crate::sql::ColumnIdentifierPath::stored_field_key(&index.field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            || crate::sql::ColumnIdentifierPath::stored_field_key(&index.source_field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
         {
             cassie
                 .catalog

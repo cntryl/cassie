@@ -1,4 +1,4 @@
-use super::schema_identifiers::{parse_identifier_list, parse_relation_path};
+use super::schema_identifiers::{parse_column_identifier_list, parse_relation_path};
 use super::{find_matching_paren, SqlError};
 
 pub(super) fn parse_references_target(raw: &str) -> Result<(String, String), SqlError> {
@@ -19,7 +19,7 @@ pub(super) fn parse_references_target_with_rest(
     if table.components().is_empty() {
         return Err(SqlError::new("REFERENCES requires target table".into()));
     }
-    let fields = parse_identifier_list(raw[open + 1..close].trim())?;
+    let fields = parse_column_identifier_list(raw[open + 1..close].trim())?;
     if fields.is_empty() || fields.iter().any(|field| field.trim().is_empty()) {
         return Err(SqlError::new("REFERENCES requires target column".into()));
     }

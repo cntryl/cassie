@@ -1646,6 +1646,88 @@ mod hnsw_indexes {
     }
 
     #[test]
+    fn should_not_use_a_vector_index_on_a_case_distinct_sibling_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("hnsw_case_distinct_vector_fields");
+        let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+        cassie.startup().expect("start Cassie");
+        let collection = "hnsw_case_distinct_vector_fields";
+        cassie
+            .execute_sql(
+                &cassie.create_session("tester", None),
+                "CREATE TABLE hnsw_case_distinct_vector_fields (content TEXT, \
+                 \"a\" VECTOR(3), \"A\" VECTOR(3))",
+                vec![],
+            )
+            .expect("create case-distinct vector table");
+        let canonical_collection = canonical_hnsw_collection(collection);
+        for (id, lower, upper) in [
+            ("lower-near", [0.0, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            ("upper-near", [1.0, 0.0, 0.0], [0.0, 0.0, 0.0]),
+        ] {
+            cassie
+                .midge
+                .put_document(
+                    &canonical_collection,
+                    Some(id.to_string()),
+                    serde_json::json!({
+                        "content": id,
+                        "a": lower,
+                        "A": upper
+                    }),
+                )
+                .expect("seed case-distinct vector document");
+        }
+        let mut index = hnsw_index_record(collection, 2);
+        index.field = "a".to_string();
+        index.source_field = "content".to_string();
+        index.metadata.dimensions = 3;
+        cassie
+            .midge
+            .put_vector_index(index.clone())
+            .expect("publish lower-field HNSW index");
+        cassie.register_vector_index(index);
+        let session = cassie.create_session("tester", None);
+        let before = cassie.metrics();
+
+        // Act
+        let lower = cassie
+            .execute_sql(
+                &session,
+                "SELECT _id, vector_distance(\"a\", '[0,0,0]') AS distance \
+                 FROM hnsw_case_distinct_vector_fields ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .expect("query indexed lower-case vector field");
+        let after_lower = cassie.metrics();
+        let upper = cassie
+            .execute_sql(
+                &session,
+                "SELECT _id, vector_distance(\"A\", '[0,0,0]') AS distance \
+                 FROM hnsw_case_distinct_vector_fields ORDER BY distance ASC LIMIT 1",
+                vec![],
+            )
+            .expect("query exact case-distinct vector field");
+        let after_upper = cassie.metrics();
+
+        // Assert
+        assert_eq!(lower.rows[0][0], Value::String("lower-near".to_string()));
+        assert_eq!(
+            after_lower["vector"]["hnsw_executions"].as_u64().unwrap()
+                - before["vector"]["hnsw_executions"].as_u64().unwrap(),
+            1
+        );
+        assert_eq!(upper.rows[0][0], Value::String("upper-near".to_string()));
+        assert_eq!(
+            after_upper["vector"]["hnsw_executions"].as_u64(),
+            after_lower["vector"]["hnsw_executions"].as_u64()
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_exclude_null_vector_rows_from_sql_top_k() {
         // Arrange
         use_local_storage();

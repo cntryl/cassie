@@ -102,7 +102,7 @@ pub(super) fn scoped_outer_row(
         .iter()
         .enumerate()
         .filter_map(|(index, (name, _))| {
-            let column = name.rsplit('.').next().unwrap_or(name).to_ascii_lowercase();
+            let column = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
             (!inner_columns.contains(&column)).then_some((column, index))
         })
         .collect();
@@ -114,10 +114,9 @@ fn collect_source_columns(cassie: &Cassie, source: &QuerySource, columns: &mut H
         QuerySource::Collection(name) => {
             if let Some(schema) = cassie.catalog.get_schema(name) {
                 columns.extend(
-                    schema
-                        .fields
-                        .iter()
-                        .map(|field| field.name.to_ascii_lowercase()),
+                    schema.fields.iter().map(|field| {
+                        crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                    }),
                 );
             }
         }

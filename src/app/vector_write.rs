@@ -80,11 +80,7 @@ impl Cassie {
             return;
         };
         let assigned = assigned.into_iter().collect::<Vec<_>>();
-        let was_assigned = |name: &str| {
-            assigned
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(name))
-        };
+        let was_assigned = |name: &str| assigned.contains(&name);
         for index in &indexes {
             if was_assigned(&index.source_field) && !was_assigned(&index.field) {
                 object.remove(&index.field);

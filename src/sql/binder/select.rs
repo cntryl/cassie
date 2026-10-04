@@ -159,13 +159,8 @@ fn cte_column_aliases(
     } else {
         Vec::new()
     };
-    let aliases = declared
-        .iter()
-        .map(|alias| alias.to_ascii_lowercase())
-        .chain(rest.iter().cloned())
-        .collect();
-    let stored = declared.iter().cloned().chain(rest).collect();
-    Ok((aliases, stored))
+    let stored: Vec<String> = declared.iter().cloned().chain(rest).collect();
+    Ok((stored.clone(), stored))
 }
 
 /// The output column names of a wildcard CTE body, in row order.
@@ -187,13 +182,7 @@ fn wildcard_cte_columns(
         catalog,
         &HashMap::new(),
     )?;
-    Some(
-        schema
-            .fields
-            .into_iter()
-            .map(|field| field.name.to_ascii_lowercase())
-            .collect(),
-    )
+    Some(schema.fields.into_iter().map(|field| field.name).collect())
 }
 
 pub(super) fn canonicalize_typed_predicate_literals(
@@ -393,10 +382,11 @@ fn names_projection_output(
     projection_aliases: &HashSet<String>,
     name: &str,
 ) -> bool {
-    projection_aliases.contains(&name.to_ascii_lowercase())
+    projection_aliases.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(name))
         || select.projection.iter().any(|item| {
             matches!(item, SelectItem::Function { function, alias: None }
-                if function.name.eq_ignore_ascii_case(name))
+                if crate::sql::ColumnIdentifierPath::stored_field_key(&function.name)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(name))
         })
 }
 
@@ -585,8 +575,11 @@ pub(super) fn projected_column_names(projection: &[SelectItem]) -> Vec<String> {
                 name: _,
                 alias: Some(alias),
                 ..
-            } => alias.to_ascii_lowercase(),
-            SelectItem::Column { name, alias: None } => name.to_ascii_lowercase(),
+            } => alias.clone(),
+            SelectItem::Column { name, alias: None } => {
+                crate::sql::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.clone(), |column| column.display_name())
+            }
             SelectItem::Function { function, alias } => alias
                 .as_deref()
                 .unwrap_or(&function.name)
@@ -731,7 +724,7 @@ pub(super) fn source_fields(
                         .output_schema
                         .fields
                         .into_iter()
-                        .map(|field| field.name.to_ascii_lowercase()),
+                        .map(|field| field.name),
                 ))
             } else {
                 let schema = catalog
@@ -766,7 +759,11 @@ pub(super) fn source_fields(
                 || right_fields.contains(IDENTITY_ALIAS_MARKER);
             let ambiguous = fields
                 .intersection(&right_fields)
-                .filter(|field| !field.contains('.') && !field.starts_with("__cassie_ambiguous__."))
+                .filter(|field| {
+                    !field.starts_with("__cassie_ambiguous__.")
+                        && crate::sql::ColumnIdentifierPath::parse(field)
+                            .is_ok_and(|column| !column.is_qualified())
+                })
                 .filter(|field| {
                     !(is_row_identity_column(field)
                         || (id_is_identity && is_legacy_id_column(field)))
@@ -797,7 +794,7 @@ pub(super) fn base_table_fields(
     let mut names = schema
         .fields
         .iter()
-        .map(|field| field.name.to_ascii_lowercase())
+        .map(|field| field.name.clone())
         .collect::<Vec<_>>();
     names.push(ROW_IDENTITY_COLUMN.to_string());
     let alias_is_identity = !schema.declares_id();

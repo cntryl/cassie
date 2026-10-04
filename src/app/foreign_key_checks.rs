@@ -114,11 +114,10 @@ impl Cassie {
         self.catalog
             .get_schema(&reference.referenced_table)
             .and_then(|schema| {
-                schema.fields.into_iter().find(|field| {
-                    field
-                        .name
-                        .eq_ignore_ascii_case(&reference.referenced_column)
-                })
+                schema
+                    .fields
+                    .into_iter()
+                    .find(|field| field.name == reference.referenced_column)
             })
             .and_then(|field| {
                 crate::midge::adapter::canonical_field_value(&field.data_type, &reference.value)

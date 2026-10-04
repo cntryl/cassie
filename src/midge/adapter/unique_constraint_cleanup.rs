@@ -27,8 +27,11 @@ impl Midge {
     ) -> Result<(), CassieError> {
         let collection = collection.to_string();
         let mut fields = fields.to_vec();
-        fields.sort_by_key(|field| field.to_ascii_lowercase());
-        fields.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
+        fields.sort_by_key(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field));
+        fields.dedup_by(|left, right| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(left)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(right)
+        });
         self.with_collection_write_gates(std::slice::from_ref(&collection), || {
             if fields.is_empty() {
                 return self.save_constraints(&collection, constraints);

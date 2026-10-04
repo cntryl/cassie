@@ -173,7 +173,8 @@ fn try_execute_persisted_fulltext_top_k(
         .into_iter()
         .find(|index| {
             index.kind == crate::catalog::IndexKind::FullText
-                && index.field.eq_ignore_ascii_case(&spec.text_field)
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&index.field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.text_field)
         })
     else {
         return Ok(PersistedFulltextTopK::Exact("missing_index"));

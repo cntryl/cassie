@@ -1,5 +1,5 @@
 use super::schema_fields::apply_default_constraint;
-use super::schema_identifiers::parse_identifier;
+use super::schema_identifiers::{parse_column_reference, parse_identifier};
 use super::{
     parse_if_exists, parse_if_not_exists, split_first_token, AlterTableOperation,
     CreateSequenceStatement, DataType, DropSequenceStatement, FieldConstraint, ParsedStatement,
@@ -9,7 +9,7 @@ use super::{
 pub(super) fn parse_alter_column_operation(raw: &str) -> Result<AlterTableOperation, SqlError> {
     let (field, action) = split_first_token(raw)
         .ok_or_else(|| SqlError::new("ALTER COLUMN requires a column name".into()))?;
-    let field = parse_identifier(&field)?;
+    let field = parse_column_reference(&field)?;
     let action = action.trim();
     let lower = action.to_ascii_lowercase();
 

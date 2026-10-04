@@ -89,7 +89,7 @@ fn analytical_projection_fallback(
                 .output_schema
                 .fields
                 .iter()
-                .map(|field| field.name.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
                 .collect::<BTreeSet<_>>();
             if needed.iter().all(|field| output_fields.contains(field)) {
                 None
@@ -148,7 +148,7 @@ fn covered_analytical_projection(
                 .output_schema
                 .fields
                 .iter()
-                .map(|field| field.name.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
                 .collect::<BTreeSet<_>>();
             if needed.iter().all(|field| output_fields.contains(field)) {
                 projection
@@ -185,7 +185,7 @@ fn plan_needed_columns(plan: &LogicalPlan) -> Option<BTreeSet<String>> {
     for item in &plan.projection {
         match item {
             SelectItem::Column { name, .. } => {
-                columns.insert(name.to_ascii_lowercase());
+                columns.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
             SelectItem::Wildcard | SelectItem::WindowFunction { .. } => return None,
             SelectItem::Function { function, .. } => {
@@ -211,7 +211,7 @@ fn collect_expr_columns_from_slice(exprs: &[Expr], columns: &mut BTreeSet<String
 
 fn collect_expr_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
     if let Expr::Column(name) = expr {
-        columns.insert(name.to_ascii_lowercase());
+        columns.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
     }
     expr.for_each_child(|child| collect_expr_columns(child, columns));
 }

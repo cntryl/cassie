@@ -100,6 +100,66 @@ mod aggregate_acceleration {
     }
 
     #[test]
+    fn should_accelerate_aggregates_for_case_distinct_columns_independently() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("aggregate_accel_case_distinct_columns");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE aggregate_case_fields (\"a\" INT, \"A\" INT)",
+                    vec![],
+                )
+                .expect("create case-distinct table");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO aggregate_case_fields (\"a\", \"A\") VALUES (1, 10)",
+                    vec![],
+                )
+                .expect("insert first case-distinct row");
+            cassie
+                .execute_sql(
+                    &session,
+                    "INSERT INTO aggregate_case_fields (\"a\", \"A\") VALUES (2, 20)",
+                    vec![],
+                )
+                .expect("insert second case-distinct row");
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX aggregate_case_fields_idx ON aggregate_case_fields \
+                 USING column (\"a\", \"A\")",
+                    vec![],
+                )
+                .expect("create column index");
+
+            // Act
+            let result = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT SUM(\"a\"), SUM(\"A\") FROM aggregate_case_fields",
+                    vec![],
+                )
+                .expect("aggregate exact case-distinct fields");
+
+            // Assert
+            assert_eq!(result.rows, vec![vec![Value::Int64(3), Value::Int64(30)]]);
+            assert_eq!(cassie.metrics()["aggregate_acceleration"]["scans"], 1);
+        });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_maintain_aggregate_summaries_after_update_delete() {
         // Arrange
         use_local_storage();
@@ -1791,6 +1851,154 @@ mod column_batch_encoded_scans {
                 3
             );
         });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_keep_case_distinct_columns_in_encoded_scans() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("column_batch_case_distinct_columns");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE encoded_case_fields (\"a\" TEXT, \"A\" TEXT)",
+                    vec![],
+                )
+                .expect("create case-distinct table");
+            for index in 0..8 {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "INSERT INTO encoded_case_fields (\"a\", \"A\") \
+                         VALUES ('lower-{index}', 'upper-{index}')"
+                        ),
+                        vec![],
+                    )
+                    .expect("insert case-distinct row");
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX encoded_case_fields_idx ON encoded_case_fields \
+                 USING column (\"a\", \"A\") WITH (segment_size = 8)",
+                    vec![],
+                )
+                .expect("create column index");
+            let before = cassie.metrics();
+
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT \"a\", \"A\" FROM encoded_case_fields \
+                 WHERE \"A\" = 'upper-3'",
+                    vec![],
+                )
+                .expect("scan case-distinct encoded columns");
+            let after = cassie.metrics();
+
+            // Assert
+            assert_eq!(
+                selected.rows,
+                vec![vec![
+                    Value::String("lower-3".to_string()),
+                    Value::String("upper-3".to_string()),
+                ]]
+            );
+            assert_eq!(metric(&after, "scans") - metric(&before, "scans"), 1);
+            assert_eq!(
+                metric(&after, "fallback_scans") - metric(&before, "fallback_scans"),
+                0
+            );
+        });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_recover_case_distinct_column_batch_fields_after_restart() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("column_batch_case_distinct_restart");
+        {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE TABLE encoded_case_restart (\"a\" TEXT, \"A\" TEXT)",
+                    vec![],
+                )
+                .expect("create case-distinct table");
+            for index in 0..8 {
+                cassie
+                    .execute_sql(
+                        &session,
+                        &format!(
+                            "INSERT INTO encoded_case_restart (\"a\", \"A\") \
+                             VALUES ('lower-{index}', 'upper-{index}')"
+                        ),
+                        vec![],
+                    )
+                    .expect("insert case-distinct row");
+            }
+            cassie
+                .execute_sql(
+                    &session,
+                    "CREATE INDEX encoded_case_restart_idx ON encoded_case_restart \
+                     USING column (\"a\", \"A\") WITH (segment_size = 8)",
+                    vec![],
+                )
+                .expect("create case-distinct column index");
+        }
+
+        let restarted = Cassie::new_with_data_dir(&path).expect("reopen Cassie");
+        restarted.startup().expect("restart Cassie");
+        let session = restarted.create_session("tester", None);
+        let before = restarted.metrics();
+
+        // Act
+        let metadata = restarted
+            .midge
+            .get_column_batch_metadata("encoded_case_restart", "encoded_case_restart_idx")
+            .expect("read hydrated column batch metadata")
+            .expect("column batch metadata should survive restart");
+        let selected = restarted
+            .execute_sql(
+                &session,
+                "SELECT \"a\", \"A\" FROM encoded_case_restart WHERE \"A\" = 'upper-3'",
+                vec![],
+            )
+            .expect("read the exact case-distinct fields after restart");
+        let after = restarted.metrics();
+
+        // Assert
+        assert_eq!(metadata.fields, vec!["a".to_string(), "A".to_string()]);
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                Value::String("lower-3".to_string()),
+                Value::String("upper-3".to_string()),
+            ]]
+        );
+        assert_eq!(metric(&after, "scans") - metric(&before, "scans"), 1);
+        assert_eq!(
+            metric(&after, "fallback_scans") - metric(&before, "fallback_scans"),
+            0
+        );
 
         let _ = std::fs::remove_dir_all(path);
     }

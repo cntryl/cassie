@@ -193,7 +193,7 @@ fn projection_fields(physical: &crate::planner::physical::PhysicalPlan) -> Strin
         match item {
             SelectItem::Wildcard => return "all".to_string(),
             SelectItem::Column { name, .. } => {
-                fields.insert(name.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
             SelectItem::Function { function, .. } => {
                 for argument in &function.args {
@@ -214,7 +214,7 @@ fn projection_fields(physical: &crate::planner::physical::PhysicalPlan) -> Strin
 fn collect_expr_columns(expr: &Expr, fields: &mut BTreeSet<String>) {
     match expr {
         Expr::Column(field) => {
-            fields.insert(field.to_ascii_lowercase());
+            fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
         }
         Expr::Binary { left, right, .. } => {
             collect_expr_columns(left, fields);

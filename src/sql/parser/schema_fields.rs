@@ -1,4 +1,4 @@
-use super::schema_identifiers::parse_identifier;
+use super::schema_identifiers::parse_column_identifier;
 use super::schema_references::parse_references_target;
 use super::{
     parse_check_constraint, parse_constant_literal, parse_data_type, tokenize_schema_field,
@@ -62,7 +62,7 @@ fn parse_field_name(parts: &mut impl Iterator<Item = String>) -> Result<String, 
     let name = parts
         .next()
         .ok_or_else(|| SqlError::new("invalid column definition".into()))?;
-    let name = parse_identifier(name.trim())?;
+    let name = parse_column_identifier(name.trim())?;
     if name.is_empty() {
         return Err(SqlError::new("invalid column definition".into()));
     }
@@ -98,7 +98,7 @@ fn apply_field_constraint(
             let name = parts
                 .next()
                 .ok_or_else(|| SqlError::new("CONSTRAINT requires a name".into()))?;
-            *pending_constraint_name = Some(parse_identifier(&name)?);
+            *pending_constraint_name = Some(super::schema_identifiers::parse_identifier(&name)?);
         }
         "not" => {
             let next = parts

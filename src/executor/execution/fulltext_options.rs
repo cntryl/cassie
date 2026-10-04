@@ -28,7 +28,7 @@ pub(crate) fn load_fulltext_index_options(
             continue;
         }
 
-        let field = index.field.to_ascii_lowercase();
+        let field = crate::sql::ColumnIdentifierPath::stored_field_key(&index.field);
         if !requested_fields.contains(&field) {
             continue;
         }

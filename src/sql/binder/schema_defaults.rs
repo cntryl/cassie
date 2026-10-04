@@ -72,11 +72,10 @@ pub(super) fn bind_alter_defaults(
             default_expression,
             default_sequence,
         } => {
-            let Some(declared) = schema
-                .fields
-                .iter()
-                .find(|entry| entry.name.eq_ignore_ascii_case(field.trim()))
-            else {
+            let Some(declared) = schema.fields.iter().find(|entry| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&entry.name)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(field.trim())
+            }) else {
                 return Ok(());
             };
             bind_column_default(

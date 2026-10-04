@@ -59,8 +59,8 @@ fn parse_copy_target(raw: &str) -> Result<(String, Vec<String>), SqlError> {
 
     let columns = split_csv(columns_raw)
         .into_iter()
-        .map(|column| column.trim().to_string())
-        .collect::<Vec<_>>();
+        .map(|column| super::identifiers::normalize_column_identifier(column.trim()))
+        .collect::<Result<Vec<_>, _>>()?;
     if columns.iter().any(std::string::String::is_empty) {
         return Err(SqlError::new(
             "COPY column list cannot include empty columns".into(),

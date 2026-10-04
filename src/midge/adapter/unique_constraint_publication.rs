@@ -73,7 +73,8 @@ impl Midge {
             .filter(|constraint| {
                 crate::catalog::enforces_single_column_uniqueness(constraint, constraints)
                     && !previous.iter().any(|existing| {
-                        existing.field.eq_ignore_ascii_case(&constraint.field)
+                        crate::sql::ColumnIdentifierPath::stored_field_key(&existing.field)
+                            == crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
                             && crate::catalog::enforces_single_column_uniqueness(
                                 existing, &previous,
                             )
@@ -120,7 +121,7 @@ impl Midge {
                     };
                     if value.is_null()
                         && !row_schema.fields.iter().any(|field_meta| {
-                            field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                            field_meta.name == constraint.field
                                 && matches!(field_meta.data_type, crate::types::DataType::Json)
                         })
                     {
@@ -169,7 +170,7 @@ impl Midge {
                 };
                 if value.is_null()
                     && !row_schema.fields.iter().any(|field_meta| {
-                        field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                        field_meta.name == constraint.field
                             && matches!(field_meta.data_type, crate::types::DataType::Json)
                     })
                 {

@@ -158,26 +158,34 @@ pub(crate) fn maintain_top_k_kernel(
 pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
     match expr {
         Expr::Column(alias) => projection.iter().find_map(|item| {
-            let alias_lower = alias.to_ascii_lowercase();
+            let reference_key = crate::sql::ColumnIdentifierPath::reference_field_key(alias);
             match item {
                 SelectItem::Column {
                     name,
                     alias: Some(project_alias),
                     ..
-                } if project_alias.to_ascii_lowercase() == alias_lower => {
+                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
+                    == reference_key =>
+                {
                     Some(Expr::Column(name.clone()))
                 }
                 SelectItem::Function {
                     function,
                     alias: Some(project_alias),
                     ..
-                } if project_alias.to_ascii_lowercase() == alias_lower => {
+                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
+                    == reference_key =>
+                {
                     Some(Expr::Function(function.clone()))
                 }
                 SelectItem::Expr {
                     expr,
                     alias: Some(project_alias),
-                } if project_alias.to_ascii_lowercase() == alias_lower => Some(expr.clone()),
+                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
+                    == reference_key =>
+                {
+                    Some(expr.clone())
+                }
                 _ => None,
             }
         }),

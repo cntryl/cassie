@@ -287,26 +287,29 @@ fn copy_columns(
         return Ok(fields.iter().cloned().map(CopyColumn::Field).collect());
     }
 
-    let fields_by_name = fields
-        .iter()
-        .map(|field| (field.name.to_ascii_lowercase(), field.clone()))
-        .collect::<BTreeMap<_, _>>();
     let has_id_field =
         crate::types::row_identity::declares_id(fields.iter().map(|field| field.name.as_str()));
     let mut out = Vec::with_capacity(statement.columns.len());
 
     for column in &statement.columns {
-        let normalized = column.to_ascii_lowercase();
-        if crate::types::row_identity::is_identity_reference(&normalized, has_id_field) {
+        if crate::types::row_identity::is_identity_reference(column, has_id_field) {
             out.push(CopyColumn::RowId);
             continue;
         }
-        let field = fields_by_name.get(&normalized).ok_or_else(|| {
-            CassieError::Planner(format!(
-                "COPY target column '{column}' does not exist in '{}'",
-                statement.table
-            ))
-        })?;
+        let field = fields
+            .iter()
+            .find(|field| field.name == *column)
+            .or_else(|| {
+                fields.iter().find(|field| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(column, &field.name)
+                })
+            })
+            .ok_or_else(|| {
+                CassieError::Planner(format!(
+                    "COPY target column '{column}' does not exist in '{}'",
+                    statement.table
+                ))
+            })?;
         out.push(CopyColumn::Field(field.clone()));
     }
 

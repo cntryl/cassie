@@ -22,7 +22,7 @@ pub(super) fn column_batch_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> O
     let needed = fields
         .into_iter()
         .filter(|field| !is_row_id_column(field))
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(&field))
         .collect::<BTreeSet<_>>();
     if needed.is_empty() {
         return None;
@@ -34,7 +34,7 @@ pub(super) fn column_batch_index(plan: &LogicalPlan, indexes: &[IndexMeta]) -> O
             let available = index
                 .normalized_fields()
                 .into_iter()
-                .map(|field| field.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
                 .collect::<BTreeSet<_>>();
             needed.is_subset(&available)
         })

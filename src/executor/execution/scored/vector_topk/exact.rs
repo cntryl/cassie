@@ -19,6 +19,7 @@ use super::{filter, scan, value_to_vector, vector_prefilter_supported, QueryErro
 
 pub(super) struct ExactVectorRequest<'a> {
     pub(super) session: Option<&'a CassieSession>,
+    pub(super) stored_vector_field: &'a str,
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) params: &'a [Value],
     pub(super) filter_expr: Option<&'a Expr>,
@@ -79,7 +80,7 @@ pub(super) fn execute_exact_vector_top_k(
     for candidate in candidates {
         super::super::super::check_timeout(request.controls)?;
         let Some(value) = candidate
-            .get(&spec.vector_field)
+            .get(request.stored_vector_field)
             .filter(|value| !value.is_null())
         else {
             continue;
@@ -132,7 +133,10 @@ fn stream_exact_vector_candidates(
     let decode = if request.filter_expr.is_some() {
         crate::midge::adapter::RowDecode::Full
     } else {
-        crate::midge::adapter::RowDecode::ProjectedHistorical(vec![spec.vector_field.clone()])
+        crate::midge::adapter::RowDecode::ProjectedHistorical(vec![
+            crate::sql::ColumnIdentifierPath::from_field_name(request.stored_vector_field)
+                .canonical_sql(),
+        ])
     };
     let Some(mut cursor) = cassie.midge.open_row_cursor(&spec.collection, decode)? else {
         return Ok(None);
@@ -159,7 +163,7 @@ fn stream_exact_vector_candidates(
             }
             let Some(value) = document
                 .payload
-                .get(&spec.vector_field)
+                .get(request.stored_vector_field)
                 .filter(|value| !value.is_null())
             else {
                 continue;

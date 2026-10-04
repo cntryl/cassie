@@ -160,18 +160,20 @@ impl FieldConstraint {
         }
     }
 
-    /// Rewrites a constraint written against `declared` in a different ASCII
-    /// case to the column's declared spelling, which is the key that stored
-    /// payloads use.
+    /// Rewrites a constraint written against `declared` to the exact spelling
+    /// that stored payloads use.
     pub fn use_declared_field_spelling(&mut self, declared: &str) {
-        if !self.field.eq_ignore_ascii_case(declared) {
+        if self.field != declared
+            && crate::sql::ColumnIdentifierPath::reference_field_key(&self.field)
+                != crate::sql::ColumnIdentifierPath::stored_field_key(declared)
+        {
             return;
         }
-        if let Some(check) = self
-            .check
-            .as_mut()
-            .filter(|check| check.field.eq_ignore_ascii_case(declared))
-        {
+        if let Some(check) = self.check.as_mut().filter(|check| {
+            check.field == declared
+                || crate::sql::ColumnIdentifierPath::reference_field_key(&check.field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(declared)
+        }) {
             check.field = declared.to_string();
         }
         self.field = declared.to_string();
@@ -230,10 +232,10 @@ pub fn merge_constraint_set(
         if !is_constraint_populated(&addition) {
             continue;
         }
-        if let Some(current) = existing
-            .iter_mut()
-            .find(|entry| entry.field.eq_ignore_ascii_case(&addition.field))
-        {
+        if let Some(current) = existing.iter_mut().find(|entry| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&entry.field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(&addition.field)
+        }) {
             merge_constraint(current, addition);
         } else {
             existing.push(addition);

@@ -1,5 +1,5 @@
 use super::super::expr::{parse_expression, split_csv};
-use super::schema_identifiers::{parse_identifier, parse_relation_path};
+use super::schema_identifiers::{parse_column_reference, parse_identifier, parse_relation_path};
 use super::{
     find_matching_paren, find_top_level_keyword, CreateIndexStatement, DropIndexStatement, Expr,
     IndexKind, ParsedStatement, QueryStatement, SqlError,
@@ -198,7 +198,7 @@ pub(in crate::sql::parser) fn parse_index_fields(
             ));
         }
         if field.starts_with('"') || is_index_field_identifier(field) {
-            fields.push(parse_identifier(field)?);
+            fields.push(parse_column_reference(field)?);
         } else {
             if field.contains(';') {
                 return Err(SqlError::new(

@@ -281,7 +281,9 @@ fn collection_field_data_type(
         .get_schema(collection)?
         .fields
         .into_iter()
-        .find(|metadata| metadata.name.eq_ignore_ascii_case(field))
+        .find(|metadata| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(field, &metadata.name)
+        })
         .map(|metadata| metadata.data_type)
 }
 
@@ -800,10 +802,9 @@ fn scalar_join_index(
             index.kind == catalog::IndexKind::Scalar
                 && index.predicate.is_none()
                 && index.normalized_expressions().is_empty()
-                && index
-                    .normalized_fields()
-                    .first()
-                    .is_some_and(|candidate| candidate.eq_ignore_ascii_case(field))
+                && index.normalized_fields().first().is_some_and(|candidate| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(field, candidate)
+                })
                 && crate::executor::execution::index_read::index_trailing_keys_not_null(
                     env.cassie, collection, index,
                 )

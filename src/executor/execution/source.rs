@@ -547,7 +547,10 @@ fn search_context_options(
     let mut field_boost = HashMap::with_capacity(cassie.catalog.text_fields(name).len());
     for field in cassie.catalog.text_fields(name) {
         if let Some(value) = cassie.catalog.get_field_boost(name, &field) {
-            field_boost.insert(field, f64::from(value));
+            field_boost.insert(
+                crate::sql::ColumnIdentifierPath::stored_field_key(&field),
+                f64::from(value),
+            );
         }
     }
 

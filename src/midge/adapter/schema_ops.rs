@@ -578,11 +578,7 @@ impl Midge {
             CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
         })?;
         let original_schema = schema.clone();
-        if schema
-            .fields
-            .iter()
-            .any(|entry| entry.name.eq_ignore_ascii_case(next_name))
-        {
+        if schema.fields.iter().any(|entry| entry.name == next_name) {
             return Err(CassieError::Unsupported(format!(
                 "field '{next_name}' already exists on collection '{collection}'"
             )));
@@ -591,7 +587,7 @@ impl Midge {
         let Some(field) = schema
             .fields
             .iter_mut()
-            .find(|entry| entry.name.eq_ignore_ascii_case(current_name))
+            .find(|entry| entry.name == current_name)
         else {
             return Err(CassieError::Unsupported(format!(
                 "field '{current_name}' not found in collection '{collection}'"
@@ -871,7 +867,7 @@ impl Midge {
                     schema
                         .fields
                         .iter()
-                        .any(|entry| entry.name.eq_ignore_ascii_case(&add.field.name))
+                        .any(|entry| entry.name == add.field.name)
                 });
             if committed {
                 self.complete_field_add_data(&add)?;
@@ -910,11 +906,11 @@ impl Midge {
                         schema
                             .fields
                             .iter()
-                            .any(|field| field.name.eq_ignore_ascii_case(&rename.next_name))
+                            .any(|field| field.name == rename.next_name)
                             && !schema
                                 .fields
                                 .iter()
-                                .any(|field| field.name.eq_ignore_ascii_case(&rename.current_name))
+                                .any(|field| field.name == rename.current_name)
                     });
             if schema_rename_committed {
                 schema_ops_field_maintenance::complete_field_rename_data(self, &rename)?;
@@ -958,12 +954,7 @@ impl Midge {
         for drop in pending {
             let committed = self
                 .collection_schema(&drop.collection)
-                .is_some_and(|schema| {
-                    !schema
-                        .fields
-                        .iter()
-                        .any(|entry| entry.name.eq_ignore_ascii_case(&drop.field))
-                });
+                .is_some_and(|schema| !schema.fields.iter().any(|entry| entry.name == drop.field));
             if committed {
                 schema_ops_field_maintenance::complete_field_drop_data(self, &drop)?;
             }

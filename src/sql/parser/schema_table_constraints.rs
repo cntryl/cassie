@@ -1,4 +1,4 @@
-use super::schema_identifiers::{parse_identifier, parse_identifier_list};
+use super::schema_identifiers::{parse_column_identifier_list, parse_identifier};
 use super::schema_references::parse_references_target_with_rest;
 use super::{
     parse_check_constraint, starts_with_keyword, FieldConstraint, FieldDefinition, SqlError,
@@ -71,10 +71,9 @@ pub(super) fn apply_table_constraints(
         return Err(SqlError::unsupported(message));
     }
     for mut constraint in constraints {
-        let Some(field) = fields
-            .iter_mut()
-            .find(|field| field.name.eq_ignore_ascii_case(&constraint.field))
-        else {
+        let Some(field) = fields.iter_mut().find(|field| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name) == constraint.field
+        }) else {
             return Err(SqlError::new(format!(
                 "table constraint references unknown column '{}'",
                 constraint.field
@@ -228,7 +227,7 @@ fn parse_parenthesized_field_list_with_rest(raw: &str) -> Result<(Vec<String>, &
     }
     let close = super::find_matching_paren(raw, 0)
         .ok_or_else(|| SqlError::new("constraint field list missing closing ')'".into()))?;
-    let fields = parse_identifier_list(&raw[1..close])?;
+    let fields = parse_column_identifier_list(&raw[1..close])?;
     if fields.is_empty() || fields.iter().any(|field| field.trim().is_empty()) {
         return Err(SqlError::new(
             "constraint field list cannot be empty".into(),

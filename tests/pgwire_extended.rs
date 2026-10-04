@@ -2380,6 +2380,90 @@ mod pgwire_portal_safety {
     }
 
     #[test]
+    fn should_stream_case_distinct_columns_without_crossing_identifier_keys() {
+        // Arrange
+        let (cassie, config, path) = configured_cassie("portal-case-distinct-columns", 16);
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE portal_case_distinct (\"a\" INT, \"A\" INT)",
+                vec![],
+            )
+            .expect("create case-distinct columns");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO portal_case_distinct (\"a\", \"A\") VALUES (11, 22), (33, 44)",
+                vec![],
+            )
+            .expect("seed case-distinct rows");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let (address, server) = spawn_server(cassie, config).await;
+            let mut socket = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect");
+            let (read_half, mut write_half) = socket.split();
+            let mut reader = BufReader::new(read_half);
+            support::complete_startup(&mut reader, &mut write_half).await;
+
+            // Act
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::parse_frame(
+                        "case_distinct_stmt",
+                        "SELECT \"a\", \"A\" FROM portal_case_distinct",
+                    ),
+                    support::bind_frame("case_distinct_portal", "case_distinct_stmt", &[]),
+                    support::execute_limited_frame("case_distinct_portal", 1),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let first_page = support::read_frames_until_ready(&mut reader).await;
+            support::write_frames(
+                &mut write_half,
+                vec![
+                    support::execute_limited_frame("case_distinct_portal", 1),
+                    support::sync_frame(),
+                ],
+            )
+            .await;
+            let second_page = support::read_frames_until_ready(&mut reader).await;
+
+            // Assert
+            let mut rows = first_page
+                .iter()
+                .chain(&second_page)
+                .filter(|(tag, _)| *tag == b'D')
+                .map(|(_, payload)| support::parse_data_row(payload))
+                .collect::<Vec<_>>();
+            rows.sort();
+            assert_eq!(
+                rows,
+                vec![
+                    vec![Some("11".to_string()), Some("22".to_string())],
+                    vec![Some("33".to_string()), Some("44".to_string())],
+                ]
+            );
+            assert_eq!(support::row_description_names(&first_page), vec!["a", "A"]);
+            assert!(first_page.iter().any(|(tag, _)| *tag == b's'));
+            assert!(second_page.iter().any(|(tag, _)| *tag == b'C'));
+
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+        });
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_enforce_result_row_cap_cumulatively_across_portal_resumes() {
         // Arrange
         let (cassie, config, path) = configured_cassie("portal-cumulative-cap", 3);

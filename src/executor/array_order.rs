@@ -145,7 +145,8 @@ impl<R: RowAccess + ?Sized> RowAccess for ComparisonScope<'_, R> {
     }
     fn column_type(&self, name: &str) -> Option<&DataType> {
         self.row.column_type(name).or_else(|| {
-            let key = name.to_ascii_lowercase();
+            let key = crate::sql::ColumnIdentifierPath::parse(name)
+                .map_or_else(|_| name.to_ascii_lowercase(), |column| column.lookup_key());
             let local_args = self.local_args?;
             if !local_args.contains_key(&key) {
                 return None;

@@ -34,23 +34,34 @@ pub(crate) fn execute_vector_distance_top_k(
     let schema = cassie.catalog.get_schema(&spec.collection).ok_or_else(|| {
         QueryError::General(format!("collection '{}' not found", spec.collection))
     })?;
-    validate_vector_top_k_dimensions(&schema, &spec)?;
+    let stored_vector_field = validate_vector_top_k_dimensions(&schema, &spec)?;
     if spec.limit == 0 {
         return Ok(Some(Vec::new()));
     }
 
     if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
-        diagnostics::record_transaction_overlay_exact_fallback(cassie, &spec)?;
+        diagnostics::record_transaction_overlay_exact_fallback(
+            cassie,
+            &spec,
+            &stored_vector_field,
+        )?;
     } else if plan.filter.is_none() {
-        if let Some(rows) = hnsw::execute_hnsw_vector_top_k(cassie, session, &spec, controls)? {
-            return Ok(Some(rows));
-        }
-        if let Some(rows) = ivfflat::execute_ivfflat_vector_top_k(cassie, session, &spec, controls)?
+        if let Some(rows) =
+            hnsw::execute_hnsw_vector_top_k(cassie, session, &spec, &stored_vector_field, controls)?
         {
             return Ok(Some(rows));
         }
+        if let Some(rows) = ivfflat::execute_ivfflat_vector_top_k(
+            cassie,
+            session,
+            &spec,
+            &stored_vector_field,
+            controls,
+        )? {
+            return Ok(Some(rows));
+        }
     } else {
-        diagnostics::record_filtered_ann_exact_fallback(cassie, &spec)?;
+        diagnostics::record_filtered_ann_exact_fallback(cassie, &spec, &stored_vector_field)?;
     }
 
     exact::execute_exact_vector_top_k(
@@ -58,6 +69,7 @@ pub(crate) fn execute_vector_distance_top_k(
         &spec,
         &exact::ExactVectorRequest {
             session,
+            stored_vector_field: &stored_vector_field,
             user_functions,
             params,
             filter_expr: plan.filter.as_ref(),
@@ -137,12 +149,11 @@ pub(super) fn record_adaptive_candidate_decision(
 fn validate_vector_top_k_dimensions(
     schema: &crate::catalog::CollectionSchema,
     spec: &VectorDistanceTopKSpec,
-) -> Result<(), QueryError> {
-    let Some(field) = schema
-        .fields
-        .iter()
-        .find(|field| field.name.eq_ignore_ascii_case(&spec.vector_field))
-    else {
+) -> Result<String, QueryError> {
+    let Some(field) = schema.fields.iter().find(|field| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.vector_field)
+    }) else {
         return Err(QueryError::General(format!(
             "vector field '{}' does not exist on collection '{}'",
             spec.vector_field, spec.collection
@@ -163,7 +174,7 @@ fn validate_vector_top_k_dimensions(
             spec.query.len()
         )));
     }
-    Ok(())
+    Ok(field.name.clone())
 }
 
 pub(super) struct VectorDistanceTopKSpec {
@@ -258,7 +269,9 @@ fn order_matches_vector_distance_score(
     params: &[Value],
 ) -> bool {
     match &order.expr {
-        Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
+        Expr::Column(column) => {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(column, score_column)
+        }
         Expr::Function(order_function) => {
             order_function.name.eq_ignore_ascii_case("vector_distance")
                 && vector_distance_args(order_function, params)

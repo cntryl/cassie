@@ -149,10 +149,7 @@ pub(super) fn project_payload_fields(
 
     let mut projected = serde_json::Map::new();
     for field in fields {
-        if let Some((_, value)) = object
-            .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-        {
+        if let Some(value) = object.get(field) {
             projected.insert(field.clone(), value.clone());
         }
     }

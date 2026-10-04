@@ -382,7 +382,10 @@ fn field_number(catalog: &Catalog, collection: &str, field: &str) -> String {
             schema
                 .fields
                 .iter()
-                .position(|candidate| candidate.name.eq_ignore_ascii_case(field))
+                .position(|candidate| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.name)
+                        == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                })
                 .map(|index| (index + 1).to_string())
         })
         .unwrap_or_default()
@@ -430,19 +433,28 @@ fn referenced_unique_constraint_name(catalog: &Catalog, constraint: &FieldConstr
     };
 
     for candidate in catalog.get_constraints(table) {
-        if candidate.field.eq_ignore_ascii_case(field) && candidate.primary_key {
+        if crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.field)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+            && candidate.primary_key
+        {
             return constraint_name(table, &candidate, ConstraintKind::PrimaryKey);
         }
     }
     for candidate in catalog.get_constraints(table) {
-        if candidate.field.eq_ignore_ascii_case(field) && candidate.unique {
+        if crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.field)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+            && candidate.unique
+        {
             return constraint_name(table, &candidate, ConstraintKind::Unique);
         }
     }
     for index in catalog.list_indexes(table) {
         if index.unique && index.kind == IndexKind::Scalar {
             let fields = index.normalized_fields();
-            if fields.len() == 1 && fields[0].eq_ignore_ascii_case(field) {
+            if fields.len() == 1
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&fields[0])
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+            {
                 return index.name;
             }
         }

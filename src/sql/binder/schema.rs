@@ -84,7 +84,7 @@ pub(super) fn bind_create_table(
             &mut field.constraints,
         )?;
 
-        if !seen.insert(field_name.to_ascii_lowercase()) {
+        if !seen.insert(field_name.to_string()) {
             return Err(CassieError::Planner(format!(
                 "CREATE TABLE field '{field_name}' is defined more than once"
             )));
@@ -141,10 +141,10 @@ fn bind_self_foreign_key_reference(
     if !normalize_relation_name(referenced_table.trim(), context)?.eq_ignore_ascii_case(table) {
         return Ok(false);
     }
-    let Some(declared) = own_unique_fields
-        .iter()
-        .find(|field| field.eq_ignore_ascii_case(referenced_field))
-    else {
+    let Some(declared) = own_unique_fields.iter().find(|field| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(referenced_field)
+    }) else {
         return Err(CassieError::Planner(format!(
             "foreign key on '{field_label}' must reference a primary or unique key on '{table}.{referenced_field}'"
         )));
@@ -382,7 +382,7 @@ fn validate_graph_fields(
                 "CREATE GRAPH {section} field names cannot be empty"
             )));
         }
-        if !seen.insert(field_name.to_ascii_lowercase()) {
+        if !seen.insert(field_name.to_string()) {
             return Err(CassieError::Planner(format!(
                 "CREATE GRAPH {section} field '{field_name}' is defined more than once"
             )));
@@ -547,7 +547,7 @@ pub(super) fn bind_alter_table(
     let existing_fields = schema
         .fields
         .iter()
-        .map(|field| field.name.to_ascii_lowercase())
+        .map(|field| field.name.clone())
         .collect::<HashSet<_>>();
 
     if let AlterTableOperation::RenameTo { table: target } = &mut statement.operation {
@@ -629,17 +629,25 @@ pub(super) fn validate_alter_schema(
                     "ALTER TABLE RENAME COLUMN cannot rename to reserved field '_id'".into(),
                 ));
             }
-            if from.eq_ignore_ascii_case(to) {
+            if crate::sql::ColumnIdentifierPath::reference_field_key(from)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(to)
+            {
                 return Err(CassieError::Planner(
                     "ALTER TABLE cannot rename column to same name".into(),
                 ));
             }
-            if !existing_fields.contains(&from.to_ascii_lowercase()) {
+            if !existing_fields
+                .iter()
+                .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(from, field))
+            {
                 return Err(CassieError::Planner(format!(
                     "ALTER TABLE '{table}' has no field '{from}'"
                 )));
             }
-            if existing_fields.contains(&to.to_ascii_lowercase()) {
+            if existing_fields.iter().any(|field| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(to)
+            }) {
                 return Err(CassieError::Planner(format!(
                     "cannot rename column to existing field '{to}' on collection '{table}'"
                 )));
@@ -705,7 +713,7 @@ fn requalify_alter_add_column_sequences(
 /// `executor::scan::push_row_identity`); a field declared with that name
 /// would be a dead column no query can ever reach.
 fn validate_not_internal_identity_field(name: &str) -> Result<(), CassieError> {
-    if crate::types::row_identity::is_row_identity_column(name) {
+    if name == "_id" {
         return Err(CassieError::Planner(
             "field '_id' conflicts with Cassie's reserved internal document identity".into(),
         ));
@@ -725,7 +733,10 @@ fn validate_alter_add_column(
         ));
     }
     validate_not_internal_identity_field(name)?;
-    if existing_fields.contains(&name.to_ascii_lowercase()) {
+    if existing_fields.iter().any(|field| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(name)
+    }) {
         return Err(CassieError::Planner(format!(
             "cannot add existing column '{name}' on collection '{table}'"
         )));
@@ -750,7 +761,10 @@ fn validate_alter_add_constraints(
                 "ALTER TABLE ADD CONSTRAINT requires a field".into(),
             ));
         }
-        if !existing_fields.contains(&name.to_ascii_lowercase()) {
+        if !existing_fields
+            .iter()
+            .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(name, field))
+        {
             return Err(CassieError::Planner(format!(
                 "ALTER TABLE '{table}' has no field '{name}'"
             )));
@@ -774,12 +788,15 @@ fn validate_alter_drop_column(
     // `id` is an ordinary column when the table declares one, so it is
     // droppable like any other; when the table does not declare it, the
     // `existing_fields` check below reports it as unknown.
-    if crate::types::row_identity::is_row_identity_column(name) {
+    if name == "_id" {
         return Err(CassieError::Planner(format!(
             "ALTER TABLE DROP COLUMN cannot remove reserved field '{name}'"
         )));
     }
-    if !existing_fields.contains(&name.to_ascii_lowercase()) {
+    if !existing_fields
+        .iter()
+        .any(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(name, field))
+    {
         return Err(CassieError::Planner(format!(
             "ALTER TABLE '{table}' has no field '{name}'"
         )));

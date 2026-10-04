@@ -348,8 +348,7 @@ impl Midge {
             };
             if value.is_null()
                 && !row_schema.fields.iter().any(|field_meta| {
-                    field_meta.name.eq_ignore_ascii_case(&field)
-                        && matches!(field_meta.data_type, DataType::Json)
+                    field_meta.name == field && matches!(field_meta.data_type, DataType::Json)
                 })
             {
                 return Ok(None);
@@ -528,7 +527,7 @@ fn payload_to_row(payload: &serde_json::Value, row_schema: &RowSchema) -> Vec<(S
             let data_type = row_schema
                 .fields
                 .iter()
-                .find(|field_meta| field_meta.name.eq_ignore_ascii_case(field))
+                .find(|field_meta| field_meta.name == *field)
                 .map(|field_meta| &field_meta.data_type);
             (field.clone(), json_to_query_value(value, data_type))
         })

@@ -759,7 +759,8 @@ fn eval_column_value<R: RowAccess + ?Sized>(
     local_args: Option<&HashMap<String, Value>>,
 ) -> ScalarValue {
     if let Some(local_args) = local_args {
-        let key = name.to_ascii_lowercase();
+        let key = crate::sql::ColumnIdentifierPath::parse(name)
+            .map_or_else(|_| name.to_ascii_lowercase(), |column| column.lookup_key());
         if let Some(value) = local_args.get(&key) {
             return scalar_from_value(value);
         }

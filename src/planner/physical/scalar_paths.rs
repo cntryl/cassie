@@ -54,7 +54,7 @@ impl FieldConstraintShape {
 /// Rows whose index key contains NULL are not stored in scalar indexes, so a
 /// shape is only returned when every key component is proven non-null for the
 /// matching rows (the filter compares it with a value, or the field is named in
-/// `not_null_fields`, the lowercase names of NOT NULL or primary key columns),
+/// `not_null_fields`, the canonical keys of NOT NULL or primary key columns),
 /// or when the single unproven key is the leading ORDER BY key with NULLs
 /// sorting last under a LIMIT, reported as `ScalarIndexNullKeys::SortAfterLimit`.
 pub(crate) fn scalar_index_plan_shape(
@@ -80,18 +80,22 @@ pub(crate) fn scalar_index_plan_shape(
     }
 
     let constraints = filter_constraint_shapes(plan.filter.as_ref())?;
-    let fields = index.normalized_fields();
+    let fields = index
+        .normalized_fields()
+        .iter()
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+        .collect::<Vec<_>>();
     if fields.is_empty()
-        || constraints.keys().any(|field| {
-            !fields
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(field))
-        })
+        || constraints
+            .keys()
+            .any(|field| !fields.iter().any(|candidate| candidate == field))
     {
         return None;
     }
-    let null_keys = key_null_proof(plan, &fields, &constraints, not_null_fields)?;
-    let shape = field_index_plan_shape(plan, index, &fields, &constraints)?;
+    let null_keys = key_null_proof(plan, &fields, &constraints, not_null_fields);
+    let shape = field_index_plan_shape(plan, index, &fields, &constraints);
+    let null_keys = null_keys?;
+    let shape = shape?;
     if null_keys == ScalarIndexNullKeys::SortAfterLimit
         && !constraints_are_represented(&fields, &constraints, &shape)
     {
@@ -110,13 +114,13 @@ fn field_index_plan_shape(
         .iter()
         .take_while(|field| {
             constraints
-                .get(&field.to_ascii_lowercase())
+                .get(*field)
                 .is_some_and(|constraint| constraint.equality)
         })
         .count();
     let range_field_index = fields
         .get(equality_prefix_len)
-        .and_then(|field| constraints.get(&field.to_ascii_lowercase()))
+        .and_then(|field| constraints.get(field))
         .and_then(|constraint| constraint.has_range().then_some(equality_prefix_len));
     let order_shape = order_shape(plan, fields, equality_prefix_len)?;
 
@@ -204,13 +208,15 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
     let Some(constraints) = filter_constraint_shapes(plan.filter.as_ref()) else {
         return false;
     };
-    let fields = index.normalized_fields();
+    let fields = index
+        .normalized_fields()
+        .iter()
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+        .collect::<Vec<_>>();
     if fields.is_empty()
-        || constraints.keys().any(|field| {
-            !fields
-                .iter()
-                .any(|candidate| candidate.eq_ignore_ascii_case(field))
-        })
+        || constraints
+            .keys()
+            .any(|field| !fields.iter().any(|candidate| candidate == field))
         || plan.order.iter().any(|order| order.nulls.is_some())
         || key_null_proof(plan, &fields, &constraints, not_null_fields).is_none()
     {
@@ -221,7 +227,7 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
         .iter()
         .take_while(|field| {
             constraints
-                .get(&field.to_ascii_lowercase())
+                .get(*field)
                 .is_some_and(|constraint| constraint.equality)
         })
         .count();
@@ -246,9 +252,9 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
     let effective_order = order_terms
         .into_iter()
         .filter(|(column, _)| {
-            !fields[..equality_prefix_len]
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(column))
+            !fields[..equality_prefix_len].iter().any(|field| {
+                field == &crate::sql::ColumnIdentifierPath::reference_field_key(column)
+            })
         })
         .collect::<Vec<_>>();
     if effective_order.len() < 2 {
@@ -259,7 +265,9 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
     let matched = remaining
         .iter()
         .zip(effective_order.iter())
-        .take_while(|(field, (column, _))| field.eq_ignore_ascii_case(column))
+        .take_while(|(field, (column, _))| {
+            field.as_str() == crate::sql::ColumnIdentifierPath::reference_field_key(column)
+        })
         .count();
     if matched != effective_order.len() {
         return false;
@@ -338,10 +346,7 @@ fn expression_index_plan_shape(
     }
 
     let equality = exact_expression_index_equalities(plan.filter.as_ref())?;
-    let required_fields = fields
-        .iter()
-        .map(|field| field.to_ascii_lowercase())
-        .collect::<BTreeSet<_>>();
+    let required_fields = fields.iter().cloned().collect::<BTreeSet<_>>();
     let required_expressions = expressions.into_iter().collect::<BTreeSet<_>>();
     if equality.fields != required_fields || equality.expressions != required_expressions {
         return None;
@@ -510,11 +515,15 @@ fn collect_exact_expression_index_equality(
 ) -> Option<()> {
     match (left, right) {
         (Expr::Column(field), value) if bound_can_be_materialized(value) => {
-            equality.fields.insert(field.to_ascii_lowercase());
+            equality
+                .fields
+                .insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
             Some(())
         }
         (value, Expr::Column(field)) if bound_can_be_materialized(value) => {
-            equality.fields.insert(field.to_ascii_lowercase());
+            equality
+                .fields
+                .insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
             Some(())
         }
         (expr, value)
@@ -576,9 +585,9 @@ fn order_shape(
     let effective_order = order_terms
         .into_iter()
         .filter(|(column, _)| {
-            !fields[..equality_prefix_len]
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(column))
+            !fields[..equality_prefix_len].iter().any(|field| {
+                field == &crate::sql::ColumnIdentifierPath::reference_field_key(column)
+            })
         })
         .collect::<Vec<_>>();
 
@@ -608,7 +617,9 @@ fn order_shape(
     let matched = remaining
         .iter()
         .zip(effective_order.iter())
-        .take_while(|(field, (column, _))| field.eq_ignore_ascii_case(column))
+        .take_while(|(field, (column, _))| {
+            field.as_str() == crate::sql::ColumnIdentifierPath::reference_field_key(column)
+        })
         .count();
     if matched == 0 {
         return None;
@@ -658,8 +669,8 @@ fn key_null_proof(
 ) -> Option<ScalarIndexNullKeys> {
     let mut unproven = fields
         .iter()
-        .map(|field| field.to_ascii_lowercase())
-        .filter(|field| !constraints.contains_key(field) && !not_null_fields.contains(field));
+        .filter(|field| !constraints.contains_key(*field) && !not_null_fields.contains(*field))
+        .cloned();
     let Some(unproven_field) = unproven.next() else {
         return Some(ScalarIndexNullKeys::Excluded);
     };
@@ -668,11 +679,11 @@ fn key_null_proof(
     }
     let leading_order = plan.order.iter().find(|order| {
         !matches!(&order.expr, Expr::Column(column) if constraints
-            .get(&column.to_ascii_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(column))
             .is_some_and(|constraint| constraint.equality))
     })?;
     let leads = matches!(&leading_order.expr, Expr::Column(column)
-        if column.eq_ignore_ascii_case(&unproven_field));
+        if crate::sql::ColumnIdentifierPath::reference_field_key(column) == unproven_field);
     (leads && nulls_sort_last(leading_order)).then_some(ScalarIndexNullKeys::SortAfterLimit)
 }
 
@@ -694,7 +705,7 @@ fn constraints_are_represented(
     constraints.keys().all(|constraint| {
         fields
             .iter()
-            .position(|field| field.eq_ignore_ascii_case(constraint))
+            .position(|field| field == constraint)
             .is_some_and(|position| {
                 position < shape.equality_prefix_len || shape.range_field_index == Some(position)
             })
@@ -748,7 +759,9 @@ fn collect_filter_constraint_shapes(
             if !bound_can_be_materialized(low) || !bound_can_be_materialized(high) {
                 return None;
             }
-            let entry = constraints.entry(field.to_ascii_lowercase()).or_default();
+            let entry = constraints
+                .entry(crate::sql::ColumnIdentifierPath::reference_field_key(field))
+                .or_default();
             entry.lower = true;
             entry.upper = true;
             Some(())
@@ -763,12 +776,14 @@ fn field_constraint_shape<'a>(
     right: &'a Expr,
 ) -> Option<(String, BinaryOp)> {
     match (left, right) {
-        (Expr::Column(field), other) if bound_can_be_materialized(other) => {
-            Some((field.to_ascii_lowercase(), op.clone()))
-        }
-        (other, Expr::Column(field)) if bound_can_be_materialized(other) => {
-            Some((field.to_ascii_lowercase(), reverse_binary_op(op)?))
-        }
+        (Expr::Column(field), other) if bound_can_be_materialized(other) => Some((
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
+            op.clone(),
+        )),
+        (other, Expr::Column(field)) if bound_can_be_materialized(other) => Some((
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
+            reverse_binary_op(op)?,
+        )),
         _ => None,
     }
 }

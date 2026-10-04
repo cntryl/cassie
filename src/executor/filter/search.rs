@@ -90,7 +90,7 @@ impl SingleFieldSearchContext {
     where
         I: IntoIterator<Item = &'a SearchTermStats>,
     {
-        let field = field.to_ascii_lowercase();
+        let field = crate::sql::ColumnIdentifierPath::reference_field_key(field);
         let mut context = Self {
             boost: field_boost.get(&field).copied().unwrap_or(1.0),
             k1: field_k1
@@ -167,7 +167,7 @@ impl SearchContext {
         field: &str,
         statistics: &PersistedFieldStatistics<'_>,
     ) -> Self {
-        let field = field.to_ascii_lowercase();
+        let field = crate::sql::ColumnIdentifierPath::reference_field_key(field);
         Self {
             total_documents: statistics.total_documents,
             doc_frequency: HashMap::from([(
@@ -208,7 +208,7 @@ impl SearchContext {
 
         let text_fields = text_fields
             .iter()
-            .map(|field| field.to_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::stored_row_field_key(field))
             .collect::<HashSet<_>>();
         let mut term_occurrence = HashMap::<String, usize>::new();
         let mut text_length = HashMap::<String, usize>::new();
@@ -216,25 +216,26 @@ impl SearchContext {
         for row in rows {
             context.total_documents += 1;
             for (name, value) in row.entries() {
-                let name = name.to_lowercase();
-                if !text_fields.is_empty() && !text_fields.contains(&name) {
+                let field = crate::sql::ColumnIdentifierPath::stored_row_lookup_key(name);
+                let field_name = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
+                if !text_fields.is_empty() && !text_fields.contains(&field_name) {
                     continue;
                 }
 
                 let Value::String(text) = value else {
                     continue;
                 };
-                let analyzer = context.analyzer_for_field(&name);
+                let analyzer = context.analyzer_for_field(&field);
                 let term_stats = SearchTermStats::from_text_with_analyzer(Some(text), &analyzer);
                 text_length
-                    .entry(name.clone())
+                    .entry(field.clone())
                     .and_modify(|value| *value += term_stats.doc_length)
                     .or_insert(term_stats.doc_length);
-                *term_occurrence.entry(name.clone()).or_insert(0) += 1;
+                *term_occurrence.entry(field.clone()).or_insert(0) += 1;
                 for term in term_stats.term_counts.keys() {
                     context
                         .doc_frequency
-                        .entry(name.clone())
+                        .entry(field.clone())
                         .or_default()
                         .entry(term.clone())
                         .and_modify(|count| *count += 1)
@@ -270,7 +271,7 @@ impl SearchContext {
     where
         I: IntoIterator<Item = &'a SearchTermStats>,
     {
-        let field = field.to_lowercase();
+        let field = crate::sql::ColumnIdentifierPath::reference_field_key(field);
         let mut context = Self {
             doc_boost: field_boost.clone(),
             field_k1: field_k1.clone(),
@@ -311,12 +312,18 @@ impl SearchContext {
     }
 
     fn average_doc_length(&self, field: &str) -> Option<f64> {
-        self.avg_doc_length.get(&field.to_lowercase()).copied()
+        self.avg_doc_length
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
+            .copied()
     }
 
     fn document_frequency(&self, field: &str, term: &str) -> Option<usize> {
         self.doc_frequency
-            .get(&field.to_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
             .and_then(|terms| terms.get(term).copied())
     }
 
@@ -329,21 +336,27 @@ impl SearchContext {
 
     fn field_boost(&self, field: &str) -> f64 {
         self.doc_boost
-            .get(&field.to_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
             .copied()
             .unwrap_or(1.0)
     }
 
     fn field_k1(&self, field: &str) -> f64 {
         self.field_k1
-            .get(&field.to_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
             .copied()
             .unwrap_or(crate::search::bm25::DEFAULT_BM25_K1)
     }
 
     fn field_b(&self, field: &str) -> f64 {
         self.field_b
-            .get(&field.to_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
             .copied()
             .unwrap_or(crate::search::bm25::DEFAULT_BM25_B)
     }
@@ -359,7 +372,9 @@ impl SearchContext {
 
     pub(crate) fn analyzer_for_field(&self, field: &str) -> AnalyzerConfig {
         self.field_analyzer
-            .get(&field.to_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                field,
+            ))
             .cloned()
             .unwrap_or_default()
     }
@@ -375,7 +390,7 @@ impl SearchContext {
         }
         let dl = usize_to_f64(source_stats.doc_length);
         let docs = usize_to_f64(self.total_documents.max(1));
-        let field = field.map(str::to_lowercase);
+        let field = field.map(crate::sql::ColumnIdentifierPath::reference_field_key);
         let avg_dl = field
             .as_deref()
             .and_then(|field| self.average_doc_length(field))

@@ -133,7 +133,10 @@ fn format_binary_operator(operator: &BinaryOp) -> &'static str {
 }
 
 fn quote_identifier(identifier: &str) -> String {
-    format!("\"{}\"", identifier.replace('"', "\"\""))
+    crate::sql::ColumnIdentifierPath::parse(identifier).map_or_else(
+        |_| format!("\"{}\"", identifier.replace('"', "\"\"")),
+        |column| column.canonical_sql(),
+    )
 }
 
 #[cfg(test)]

@@ -705,7 +705,7 @@ impl Midge {
         let row_schema = self.row_schema(collection)?;
         let projection = fields
             .iter()
-            .map(|field| field.to_ascii_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
             .collect::<std::collections::HashSet<_>>();
         let tx = self.begin_data_readonly_tx_for(collection)?;
         let mut documents = Vec::with_capacity(hits.len());
@@ -907,12 +907,5 @@ fn partition_value(value: &serde_json::Value) -> String {
 }
 
 fn payload_field<'a>(payload: &'a serde_json::Value, field: &str) -> Option<&'a serde_json::Value> {
-    payload.as_object().and_then(|object| {
-        object.get(field).or_else(|| {
-            object
-                .iter()
-                .find(|(name, _)| name.eq_ignore_ascii_case(field))
-                .map(|(_, value)| value)
-        })
-    })
+    payload.as_object().and_then(|object| object.get(field))
 }

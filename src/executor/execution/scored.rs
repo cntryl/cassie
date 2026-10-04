@@ -116,7 +116,9 @@ where
     let data_epoch = cassie.runtime.data_epoch();
     let analyzer_key = tuning
         .analyzer
-        .get(&field.to_ascii_lowercase())
+        .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+            field,
+        ))
         .cloned()
         .unwrap_or_default()
         .cache_key();
@@ -477,7 +479,9 @@ fn fulltext_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<FulltextT
         None => false,
         Some(Expr::Function(filter)) => {
             let (filter_field, filter_query) = search_predicate_args_with_params(filter, params)?;
-            filter_field.eq_ignore_ascii_case(&text_field) && filter_query == query
+            crate::sql::ColumnIdentifierPath::reference_field_key(&filter_field)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(&text_field)
+                && filter_query == query
         }
         _ => return None,
     };
@@ -518,10 +522,11 @@ pub(super) fn fulltext_filtered_read_spec(
     let (columns, snippets, function, score_column) =
         fulltext_filtered_projection(plan.projection.as_slice(), params)?;
     let (text_field, query) = search_function_args_with_params(function, params)?;
-    if snippets
-        .iter()
-        .any(|snippet| !snippet.field.eq_ignore_ascii_case(&text_field) || snippet.query != query)
-    {
+    if snippets.iter().any(|snippet| {
+        crate::sql::ColumnIdentifierPath::reference_field_key(&snippet.field)
+            != crate::sql::ColumnIdentifierPath::reference_field_key(&text_field)
+            || snippet.query != query
+    }) {
         return None;
     }
     let residual_filter = match fulltext_read::extract_fulltext_residual_filter(
@@ -692,7 +697,9 @@ fn order_matches_function_score(
     score_column: &str,
 ) -> bool {
     match &order.expr {
-        Expr::Column(column) => column.eq_ignore_ascii_case(score_column),
+        Expr::Column(column) => {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(column, score_column)
+        }
         Expr::Function(order_function) => {
             function_call_key(order_function) == function_call_key(function)
         }
@@ -831,7 +838,9 @@ fn json_search_term_stats_value(
 fn analyzer_for_search_field(options: &FulltextIndexOptions, field: &str) -> AnalyzerConfig {
     options
         .field_analyzer
-        .get(&field.to_ascii_lowercase())
+        .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
+            field,
+        ))
         .cloned()
         .unwrap_or_default()
 }
@@ -849,7 +858,10 @@ pub(crate) fn vector_prefilter_supported(expr: &Expr, schema: &CollectionSchema)
         Expr::Column(name) => schema
             .fields
             .iter()
-            .find(|field| field.name.eq_ignore_ascii_case(name))
+            .find(|field| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+            })
             .is_none_or(|field| !matches!(field.data_type, DataType::Vector(_))),
         Expr::StringLiteral(_)
         | Expr::NumberLiteral(_)
@@ -906,7 +918,9 @@ pub(crate) fn vector_prefilter_fallback_reason(
 fn contains_vector_field(expr: &Expr, schema: &CollectionSchema) -> bool {
     match expr {
         Expr::Column(name) => schema.fields.iter().any(|field| {
-            field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Vector(_))
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+                && matches!(field.data_type, DataType::Vector(_))
         }),
         Expr::Exists(_) => true,
         _ => expr.any_child(|child| contains_vector_field(child, schema)),

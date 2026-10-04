@@ -57,7 +57,7 @@ pub(crate) fn field_value_is_sql_null(
     value.is_null()
         && !schema.is_some_and(|schema| {
             schema.fields.iter().any(|candidate| {
-                candidate.name.eq_ignore_ascii_case(field)
+                candidate.name == field
                     && matches!(candidate.data_type, crate::types::DataType::Json)
             })
         })

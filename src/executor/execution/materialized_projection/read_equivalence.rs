@@ -36,13 +36,13 @@ pub(in crate::executor::execution) fn preserves_base_columns(
                 return None;
             };
             if crate::types::row_identity::is_row_identity_column(name)
-                || alias
-                    .as_ref()
-                    .is_some_and(|alias| !alias.eq_ignore_ascii_case(name))
+                || alias.as_ref().is_some_and(|alias| {
+                    !crate::sql::ColumnIdentifierPath::matches_stored_field(name, alias)
+                })
             {
                 return None;
             }
-            Some(name.to_ascii_lowercase())
+            Some(crate::sql::ColumnIdentifierPath::reference_field_key(name))
         })
         .collect::<BTreeSet<_>>();
     needed.iter().all(|name| identity_columns.contains(name))

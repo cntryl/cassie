@@ -129,11 +129,10 @@ pub(super) fn drop_composite_unique_constraints_on_column(
 ) -> Result<(), QueryError> {
     let constraints = cassie.catalog.get_constraints(table);
     for composite in crate::catalog::composite_unique_constraints(&constraints) {
-        if composite
-            .fields
-            .iter()
-            .any(|member| member.eq_ignore_ascii_case(field))
-        {
+        if composite.fields.iter().any(|member| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(member)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        }) {
             alter_table_drop_constraint(cassie, table, &composite.name, false)?;
         }
     }
@@ -191,7 +190,8 @@ pub(super) fn unique_fields_without_constraints(
         .into_iter()
         .filter(|field| {
             !constraints.iter().any(|constraint| {
-                constraint.field.eq_ignore_ascii_case(field)
+                crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(field)
                     && (constraint.unique || constraint.primary_key)
             })
         })

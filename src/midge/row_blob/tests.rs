@@ -29,6 +29,35 @@ fn should_decode_sparse_rows_without_field_names() {
 }
 
 #[test]
+fn should_project_exact_case_from_persisted_row_metadata() {
+    // Arrange
+    let mut persisted_schema = RowSchema::from_schema(&Schema {
+        fields: vec![FieldSchema {
+            name: "Email".to_string(),
+            data_type: DataType::Text,
+            nullable: true,
+        }],
+    });
+    persisted_schema.fields[0].normalized_name = "email".to_string();
+    let serialized_schema = serde_json::to_vec(&persisted_schema).expect("serialize row schema");
+    let reopened_schema: RowSchema =
+        serde_json::from_slice(&serialized_schema).expect("reopen persisted row schema");
+    let row = encode_row(&reopened_schema, &serde_json::json!({"Email": "e@x"}))
+        .expect("encode persisted row");
+    let projection = HashSet::from([crate::sql::ColumnIdentifierPath::reference_field_key(
+        "\"Email\"",
+    )]);
+
+    // Act
+    let projected = decode_projected_row(&reopened_schema, &row, &projection)
+        .expect("project from reopened row");
+
+    // Assert
+    assert_eq!(reopened_schema.fields[0].normalized_name, "email");
+    assert_eq!(projected, serde_json::json!({"Email": "e@x"}));
+}
+
+#[test]
 fn should_roundtrip_binary_temporal_uuid_array_fields() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
@@ -275,7 +304,7 @@ fn should_retain_retired_field_ids() {
 }
 
 #[test]
-fn should_decode_projected_row_with_case_insensitive_field_names() {
+fn should_decode_projected_row_with_exact_delimited_field_name() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {
         fields: vec![
@@ -291,7 +320,11 @@ fn should_decode_projected_row_with_case_insensitive_field_names() {
             },
         ],
     });
-    let projection = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let projection = [crate::sql::ColumnIdentifierPath::reference_field_key(
+        "\"Title\"",
+    )]
+    .into_iter()
+    .collect::<HashSet<_>>();
     let encoded = encode_row(
         &schema,
         &serde_json::json!({
@@ -306,6 +339,10 @@ fn should_decode_projected_row_with_case_insensitive_field_names() {
 
     // Assert
     assert_eq!(decoded, serde_json::json!({"Title": "alpha"}));
+
+    let undelimited = ["title".to_string()].into_iter().collect::<HashSet<_>>();
+    let decoded = decode_projected_row(&schema, &encoded, &undelimited).unwrap();
+    assert_eq!(decoded, serde_json::json!({}));
 }
 
 #[test]

@@ -211,7 +211,9 @@ impl Midge {
                 segment
                     .field_chunks
                     .iter()
-                    .find(|(name, _)| name.eq_ignore_ascii_case(field))
+                    .find(|(name, _)| {
+                        crate::sql::ColumnIdentifierPath::matches_stored_field(field, name)
+                    })
                     .is_some_and(|(_, chunk)| {
                         matches!(chunk.logical_type.as_str(), "int64" | "float64")
                     })
@@ -225,7 +227,7 @@ impl Midge {
         let data_tx = self.begin_data_readonly_tx_for(&collection)?;
         let wanted = fields
             .iter()
-            .map(|field| field.to_ascii_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
             .collect::<BTreeSet<_>>();
         let mut accumulators = specs
             .iter()
@@ -250,11 +252,9 @@ impl Midge {
                     accumulator.update_count(loaded.selected_rows)?;
                     continue;
                 };
-                let Some((_, values)) = loaded
-                    .values
-                    .iter()
-                    .find(|(name, _)| name.eq_ignore_ascii_case(field))
-                else {
+                let Some((_, values)) = loaded.values.iter().find(|(name, _)| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(field, name)
+                }) else {
                     return Ok(ColumnBatchAggregateDecision::Fallback(
                         ColumnBatchScanFallbackReason::FieldCoverageMismatch,
                     ));
@@ -620,7 +620,8 @@ impl Midge {
         let schema = self.row_schema(collection)?;
         let is_json_field = |name: &str| {
             schema.fields.iter().any(|field| {
-                field.name.eq_ignore_ascii_case(name) && matches!(field.data_type, DataType::Json)
+                crate::sql::ColumnIdentifierPath::matches_stored_field(name, &field.name)
+                    && matches!(field.data_type, DataType::Json)
             })
         };
         Ok(fields.iter().any(|field| is_json_field(field))
@@ -709,7 +710,7 @@ impl Midge {
         let wanted = fields
             .iter()
             .filter(|field| !is_row_identity_column(field))
-            .map(|field| field.to_ascii_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
             .collect::<BTreeSet<_>>();
         if wanted.is_empty() {
             return Ok(None);
@@ -723,7 +724,7 @@ impl Midge {
                 let available = index
                     .normalized_fields()
                     .into_iter()
-                    .map(|field| field.to_ascii_lowercase())
+                    .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
                     .collect::<BTreeSet<_>>();
                 wanted.is_subset(&available)
             }))
@@ -830,7 +831,7 @@ fn wanted_column_batch_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
         .filter(|field| !is_row_identity_column(field))
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
         .collect()
 }
 
@@ -841,7 +842,9 @@ fn segment_requested_bytes(segment: &ColumnBatchSegmentMeta, wanted: &BTreeSet<S
             let retained = segment
                 .field_chunks
                 .iter()
-                .find(|(field, _)| field.eq_ignore_ascii_case(wanted_field))
+                .find(|(field, _)| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+                })
                 .map_or(0, |(_, chunk)| chunk.decoded_len.max(chunk.encoded_len));
             bytes.saturating_add(retained)
         },
@@ -889,7 +892,9 @@ fn segment_may_match_predicate(
     let Some(summary) = segment
         .summaries
         .iter()
-        .find(|(field, _)| field.eq_ignore_ascii_case(&predicate.field))
+        .find(|(field, _)| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+        })
         .map(|(_, summary)| summary)
     else {
         return true;
@@ -994,7 +999,9 @@ fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&RowFilter>) ->
     };
     row.values
         .iter()
-        .find(|(field, _)| field.eq_ignore_ascii_case(&filter.field))
+        .find(|(field, _)| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(&filter.field, field)
+        })
         .is_some_and(|(_, value)| value == &filter.value)
 }
 

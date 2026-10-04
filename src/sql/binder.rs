@@ -1046,12 +1046,14 @@ fn bind_copy(
                 "COPY column list cannot include empty columns".into(),
             ));
         }
-        if crate::types::row_identity::is_identity_reference(column, schema.declares_id())
-            || schema
-                .fields
-                .iter()
-                .any(|field| field.name.eq_ignore_ascii_case(column))
-        {
+        if crate::types::row_identity::is_identity_reference(column, schema.declares_id()) {
+            continue;
+        }
+        if let Some(field) = schema.fields.iter().find(|field| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(column)
+        }) {
+            column.clone_from(&field.name);
             continue;
         }
         return Err(CassieError::Planner(format!(

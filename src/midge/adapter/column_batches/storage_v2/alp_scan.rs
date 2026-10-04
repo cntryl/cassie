@@ -22,11 +22,10 @@ pub(super) fn single_alp_predicate_field<'a>(
     filter: &ColumnBatchScanFilter,
 ) -> Option<(&'a String, &'a ColumnBatchChunkMeta)> {
     let first = filter.predicates.first()?;
-    if !filter
-        .predicates
-        .iter()
-        .all(|predicate| predicate.field.eq_ignore_ascii_case(&first.field))
-    {
+    if !filter.predicates.iter().all(|predicate| {
+        crate::sql::ColumnIdentifierPath::reference_field_key(&predicate.field)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(&first.field)
+    }) {
         return None;
     }
     find_field_chunk(segment, &first.field).filter(|(_, meta)| {

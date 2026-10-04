@@ -15,14 +15,7 @@ pub(super) fn column_values(
         .iter()
         .map(|field| {
             let value = object
-                .and_then(|object| {
-                    object.get(field).or_else(|| {
-                        object
-                            .iter()
-                            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-                            .map(|(_, value)| value)
-                    })
-                })
+                .and_then(|object| object.get(field))
                 .cloned()
                 .unwrap_or(serde_json::Value::Null);
             (field.clone(), value)
@@ -43,11 +36,8 @@ pub(super) fn column_batch_summaries(
                 .iter()
                 .find(|candidate| {
                     !candidate.retired
-                        && (candidate.name.eq_ignore_ascii_case(field)
-                            || candidate
-                                .aliases
-                                .iter()
-                                .any(|alias| alias.eq_ignore_ascii_case(field)))
+                        && (candidate.name == *field
+                            || candidate.aliases.iter().any(|alias| alias == field))
                 })
                 .map(|candidate| &candidate.data_type);
             (
@@ -123,7 +113,7 @@ fn column_batch_field_summary(
         let value = row
             .values
             .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
+            .find(|(name, _)| name.as_str() == field)
             .map_or(&serde_json::Value::Null, |(_, value)| value);
         if value.is_null() {
             continue;

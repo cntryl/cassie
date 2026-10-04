@@ -19,9 +19,10 @@ pub(super) fn execute_ivfflat_vector_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(snapshot) = ivfflat_training(cassie, spec, controls)? else {
+    let Some(snapshot) = ivfflat_training(cassie, spec, stored_vector_field, controls)? else {
         return Ok(None);
     };
     if !matches!(spec.direction, super::SortDirection::Asc) {
@@ -49,7 +50,7 @@ pub(super) fn execute_ivfflat_vector_top_k(
     )?;
     let batch = match cassie.midge.ivfflat_candidate_vectors_controlled(
         &spec.collection,
-        &spec.vector_field,
+        stored_vector_field,
         &training,
         &probed_lists,
         controls,
@@ -71,10 +72,13 @@ pub(super) fn execute_ivfflat_vector_top_k(
     let adaptive = adaptive_candidate_decision(cassie, &spec.collection, top_needed)?;
     let Some((top, top_memory, candidate_count)) = rerank_ivfflat_candidates(
         cassie,
-        session,
-        spec,
-        controls,
-        built_generation,
+        IvfFlatRerankContext {
+            session,
+            spec,
+            controls,
+            generation: built_generation,
+            stored_vector_field,
+        },
         records,
         top_needed,
     )?
@@ -114,11 +118,12 @@ pub(super) fn execute_ivfflat_vector_top_k(
 fn ivfflat_training(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
     controls: &QueryExecutionControls,
 ) -> Result<Option<crate::midge::adapter::PersistedIvfFlatTrainingSnapshot>, QueryError> {
     let index = cassie
         .midge
-        .get_vector_index_definition(&spec.collection, &spec.vector_field)?;
+        .get_vector_index_definition(&spec.collection, stored_vector_field)?;
     let Some(index) = index else {
         return Ok(None);
     };
@@ -133,7 +138,7 @@ fn ivfflat_training(
     }
     let training = cassie.midge.get_ivfflat_training_manifest_controlled(
         &spec.collection,
-        &spec.vector_field,
+        stored_vector_field,
         controls,
     )?;
     if training.is_none() {
@@ -142,12 +147,18 @@ fn ivfflat_training(
     Ok(training)
 }
 
+#[derive(Clone, Copy)]
+struct IvfFlatRerankContext<'a> {
+    session: Option<&'a CassieSession>,
+    spec: &'a VectorDistanceTopKSpec,
+    controls: &'a QueryExecutionControls,
+    generation: u64,
+    stored_vector_field: &'a str,
+}
+
 fn rerank_ivfflat_candidates(
     cassie: &Cassie,
-    session: Option<&CassieSession>,
-    spec: &VectorDistanceTopKSpec,
-    controls: &QueryExecutionControls,
-    generation: u64,
+    context: IvfFlatRerankContext<'_>,
     records: Vec<crate::embeddings::NormalizedVectorRecord>,
     top_needed: usize,
 ) -> Result<
@@ -158,6 +169,13 @@ fn rerank_ivfflat_candidates(
     )>,
     QueryError,
 > {
+    let IvfFlatRerankContext {
+        session,
+        spec,
+        controls,
+        generation,
+        stored_vector_field,
+    } = context;
     let mut top = AccountedVectorTopK::try_new(controls)?;
     let mut candidate_count = 0usize;
     for record in records {
@@ -171,7 +189,7 @@ fn rerank_ivfflat_candidates(
             record_ivfflat_concurrent_source_change(cassie);
             return Ok(None);
         };
-        let Some(vector) = vector_from_json(&document.payload[&spec.vector_field]) else {
+        let Some(vector) = vector_from_json(&document.payload[stored_vector_field]) else {
             record_ivfflat_concurrent_source_change(cassie);
             return Ok(None);
         };

@@ -62,6 +62,8 @@
       "shard": "sql-semantics",
       "cargo_test_args": [
         "--test",
+        "expression_index_upsert",
+        "--test",
         "sql_mutations",
         "--test",
         "sql_queries",

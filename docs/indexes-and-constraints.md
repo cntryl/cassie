@@ -120,6 +120,7 @@ Current guarantee:
 - Supported expression metadata is persisted and hydrated.
 - Planner matching uses Cassie expression normalization.
 - Exact equality predicates on deterministic expression keys are storage-backed scalar index seeks.
+- Untargeted `ON CONFLICT` resolves unique expression-index conflicts through committed reservation keys and checks only staged transaction changes by iteration.
 - Projection fields that are not stored in the index are fetched from row blobs.
 - Non-equivalent or unsupported expressions fall back to non-expression paths.
 
@@ -208,9 +209,11 @@ FROM graph_expand('social', 'person', 'alice', 2, 'out', 'knows', 10);
 
 Current guarantee:
 
-- Node identity is `(node_type, node_id)`.
+- Node identity is `(node_type, node_id)`, with ASCII case-insensitive node types and case-sensitive node ids.
 - Edge rows use typed source/target ids, `edge_type`, and non-negative numeric `weight`.
 - `graph_neighbors`, `graph_expand`, and `graph_shortest_path` are SQL table functions.
+- `graph_shortest_path` returns up to `max_paths` lowest-cost simple paths within `max_depth`, ordered by total weight. A path cannot visit the same typed node twice; traversal is limited by the query's timeout and memory budget.
+- Exact simple-path enumeration can grow exponentially. Exceeding the timeout or memory budget fails the query instead of returning a truncated set of paths.
 - Adjacency sidecars are accelerators; edge row blobs remain authoritative.
 - Dropping a graph node or edge backing collection removes its outbound/inbound adjacency sidecars,
   including replay after an interrupted schema commit.

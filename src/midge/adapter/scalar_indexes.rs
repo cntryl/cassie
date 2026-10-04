@@ -10,6 +10,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 
 mod codec;
+mod reservation_owner;
 mod scan;
 
 use self::codec::encode_covering_fields;

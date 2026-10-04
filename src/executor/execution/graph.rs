@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use super::{check_timeout, filter, source, BatchRow, FunctionCall, QueryError, Value};
 use crate::midge::adapter::{
     GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest, RowDecode,
@@ -11,8 +9,9 @@ mod graph_support;
 use graph_support::{
     compare_graph_edge_records, graph_edge_bytes, graph_edge_document_bytes,
     graph_output_variable_bytes, graph_path_bytes, initial_graph_frontier, initial_graph_queue,
-    neighbor_graph_path_bytes, next_graph_path_bytes, record_shortest_visit, release_graph_bytes,
-    same_executor_graph_edge, try_reserve_graph_slot, GraphEdgeRequest, GraphExecutionEvidence,
+    neighbor_graph_path_bytes, next_graph_path_bytes, reconcile_graph_path_memory,
+    release_graph_bytes, release_graph_path_memory, same_executor_graph_edge,
+    try_reserve_graph_path_slot, try_reserve_graph_slot, GraphEdgeRequest, GraphExecutionEvidence,
     GraphPath, GraphTableRows, LoadedGraphEdges,
 };
 
@@ -66,7 +65,7 @@ fn graph_neighbors(
             let (next_type, next_id) = adjacent_node_ref(&edge, &node_type, &node_id);
             neighbor_graph_path_bytes(&edge, &node_type, &node_id, next_type, next_id)
         };
-        rows.try_push_with(graph_output_variable_bytes(path_bytes), || {
+        rows.try_push_with(graph_output_variable_bytes(path_bytes, 2), || {
             let (next_type, next_id) = adjacent_node_ref(&edge, &node_type, &node_id);
             GraphPath {
                 node_type: next_type.to_owned(),
@@ -142,29 +141,21 @@ fn graph_expand(
         for edge in edges {
             check_timeout(env.controls)?;
             let (next_type, next_id) = adjacent_node_ref(&edge, &path.node_type, &path.node_id);
-            if path
-                .path_nodes
-                .iter()
-                .any(|(node_type, node_id)| node_type == next_type && node_id == next_id)
-            {
+            if path.path_nodes.iter().any(|(node_type, node_id)| {
+                node_type.eq_ignore_ascii_case(next_type) && node_id == next_id
+            }) {
                 continue;
             }
-            let next_bytes = next_graph_path_bytes(&path, &edge, next_type, next_id);
-            queue_memory.try_grow(next_bytes)?;
-            let mut next = path.clone();
-            next_type.clone_into(&mut next.node_type);
-            next_id.clone_into(&mut next.node_id);
-            next.depth += 1;
-            next.cost += edge.weight;
-            next.path_nodes
-                .push((next.node_type.clone(), next.node_id.clone()));
-            next.path_edges.push(edge.edge_id.clone());
-            next.last_edge = Some(edge);
-            debug_assert_eq!(graph_path_bytes(&next), next_bytes);
+            let estimated_next_bytes = next_graph_path_bytes(&path, &edge, next_type, next_id);
+            queue_memory.try_grow(estimated_next_bytes)?;
+            let next = path.with_next_edge(edge)?;
+            let next_bytes = graph_path_bytes(&next);
+            reconcile_graph_path_memory(&mut queue_memory, estimated_next_bytes, next_bytes)?;
             let rank = path_rank(rows.len());
-            rows.try_push_with(graph_output_variable_bytes(next_bytes), || {
-                next.clone().into_row(rank)
-            })?;
+            rows.try_push_with(
+                graph_output_variable_bytes(next_bytes, next.path_nodes.len()),
+                || next.clone().into_row(rank),
+            )?;
             if rows.len() >= max_results {
                 drop(next);
                 release_graph_bytes(&mut queue_memory, next_bytes);
@@ -231,8 +222,6 @@ fn graph_shortest_path(
     } = request;
     let (mut frontier, mut state_memory) =
         initial_graph_frontier(env.controls, source_type, source_id)?;
-    let mut visit_counts = HashMap::new();
-    let mut visit_counts_bytes = 0usize;
     let mut found = Vec::new();
     let mut evidence = GraphExecutionEvidence::default();
     let expansion = ShortestExpansion {
@@ -243,38 +232,21 @@ fn graph_shortest_path(
 
     while !frontier.is_empty() && found.len() < max_paths {
         check_timeout(env.controls)?;
-        frontier.sort_by(|left, right| {
-            right
-                .cost
-                .total_cmp(&left.cost)
-                .then_with(|| right.node_id.cmp(&left.node_id))
-        });
+        sort_shortest_frontier(&mut frontier, env.controls)?;
         let Some(path) = frontier.pop() else {
             break;
         };
         let path_bytes = graph_path_bytes(&path);
-        let (inserted, is_target) = record_shortest_visit(
-            &path,
-            &target_type,
-            &target_id,
-            max_paths,
-            &mut visit_counts,
-            &mut visit_counts_bytes,
-            &mut state_memory,
-        )?;
-        if !(inserted || is_target) {
-            drop(path);
-            release_graph_bytes(&mut state_memory, path_bytes);
-            continue;
-        }
+        let is_target =
+            path.node_type.eq_ignore_ascii_case(&target_type) && path.node_id == target_id;
         if is_target && path.depth > 0 {
-            try_reserve_graph_slot(|| found.try_reserve(1))?;
+            try_reserve_graph_path_slot(&mut found, &mut state_memory)?;
             found.push(path);
             continue;
         }
         if usize::try_from(path.depth).unwrap_or(usize::MAX) >= max_depth {
             drop(path);
-            release_graph_bytes(&mut state_memory, path_bytes);
+            release_graph_path_memory(&mut state_memory, path_bytes);
             continue;
         }
         extend_shortest_frontier(
@@ -286,28 +258,60 @@ fn graph_shortest_path(
             &mut evidence,
         )?;
         drop(path);
-        release_graph_bytes(&mut state_memory, path_bytes);
+        release_graph_path_memory(&mut state_memory, path_bytes);
     }
 
-    let frontier_bytes = frontier.iter().map(graph_path_bytes).sum();
+    let frontier_bytes = frontier
+        .iter()
+        .map(|path| graph_path_bytes(path).saturating_sub(std::mem::size_of::<GraphPath>()))
+        .sum::<usize>()
+        .saturating_add(
+            frontier
+                .capacity()
+                .saturating_mul(std::mem::size_of::<GraphPath>()),
+        );
     drop(frontier);
     release_graph_bytes(&mut state_memory, frontier_bytes);
-    drop(visit_counts);
-    release_graph_bytes(&mut state_memory, visit_counts_bytes);
     let mut rows = AccountedVec::try_new(env.controls)?;
+    let found_slots = found
+        .capacity()
+        .saturating_mul(std::mem::size_of::<GraphPath>());
     for path in found {
         let path_bytes = graph_path_bytes(&path);
         let rank = path_rank(rows.len());
-        rows.try_push_with(graph_output_variable_bytes(path_bytes), || {
-            path.into_row(rank)
-        })?;
-        release_graph_bytes(&mut state_memory, path_bytes);
+        rows.try_push_with(
+            graph_output_variable_bytes(path_bytes, path.path_nodes.len()),
+            || path.into_row(rank),
+        )?;
+        release_graph_path_memory(&mut state_memory, path_bytes);
     }
+    release_graph_bytes(&mut state_memory, found_slots);
     debug_assert_eq!(state_memory.bytes(), 0);
     let (rows, memory) = rows.into_parts();
     record_shortest_path(env, &graph, max_depth, &rows);
     evidence.publish(env);
     Ok(GraphTableRows { rows, memory })
+}
+
+fn sort_shortest_frontier(
+    frontier: &mut [GraphPath],
+    controls: &crate::runtime::QueryExecutionControls,
+) -> Result<(), QueryError> {
+    // Rust's stable sort uses insertion sort through twenty elements, then
+    // allocates at least forty-eight scratch slots for the general path.
+    let scratch_slots = match frontier.len() {
+        0..=20 => 0,
+        len => len.max(48),
+    };
+    let _sort_memory = controls
+        .reserve_query_memory(scratch_slots.saturating_mul(std::mem::size_of::<GraphPath>()))?;
+    frontier.sort_by(|left, right| {
+        right
+            .cost
+            .total_cmp(&left.cost)
+            .then_with(|| right.node_id.cmp(&left.node_id))
+    });
+    check_timeout(controls)
 }
 
 fn graph_edges(
@@ -515,26 +519,18 @@ fn extend_shortest_frontier(
     for edge in edges {
         check_timeout(env.controls)?;
         let (next_type, next_id) = adjacent_node_ref(&edge, &path.node_type, &path.node_id);
-        if path
-            .path_nodes
-            .iter()
-            .any(|(node_type, node_id)| node_type == next_type && node_id == next_id)
-        {
+        if path.path_nodes.iter().any(|(node_type, node_id)| {
+            node_type.eq_ignore_ascii_case(next_type) && node_id == next_id
+        }) {
             continue;
         }
-        let next_bytes = next_graph_path_bytes(path, &edge, next_type, next_id);
-        state_memory.try_grow(next_bytes)?;
-        try_reserve_graph_slot(|| frontier.try_reserve(1))?;
-        let mut next = path.clone();
-        next_type.clone_into(&mut next.node_type);
-        next_id.clone_into(&mut next.node_id);
-        next.depth += 1;
-        next.cost += edge.weight;
-        next.path_nodes
-            .push((next.node_type.clone(), next.node_id.clone()));
-        next.path_edges.push(edge.edge_id.clone());
-        next.last_edge = Some(edge);
-        debug_assert_eq!(graph_path_bytes(&next), next_bytes);
+        let estimated_next_bytes = next_graph_path_bytes(path, &edge, next_type, next_id)
+            .saturating_sub(std::mem::size_of::<GraphPath>());
+        state_memory.try_grow(estimated_next_bytes)?;
+        try_reserve_graph_path_slot(frontier, state_memory)?;
+        let next = path.with_next_edge(edge)?;
+        let next_bytes = graph_path_bytes(&next).saturating_sub(std::mem::size_of::<GraphPath>());
+        reconcile_graph_path_memory(state_memory, estimated_next_bytes, next_bytes)?;
         frontier.push(next);
     }
     Ok(())
@@ -658,6 +654,33 @@ fn adjacent_node_ref<'a>(
 }
 
 impl GraphPath {
+    fn with_next_edge(&self, edge: GraphEdgeRecord) -> Result<Self, QueryError> {
+        let (next_type, next_id) = adjacent_node_ref(&edge, &self.node_type, &self.node_id);
+        let node_type = next_type.to_owned();
+        let node_id = next_id.to_owned();
+        let mut path_nodes = Vec::new();
+        try_reserve_graph_slot(|| {
+            path_nodes.try_reserve_exact(self.path_nodes.len().saturating_add(1))
+        })?;
+        path_nodes.extend(self.path_nodes.iter().cloned());
+        path_nodes.push((node_type.clone(), node_id.clone()));
+        let mut path_edges = Vec::new();
+        try_reserve_graph_slot(|| {
+            path_edges.try_reserve_exact(self.path_edges.len().saturating_add(1))
+        })?;
+        path_edges.extend(self.path_edges.iter().cloned());
+        path_edges.push(edge.edge_id.clone());
+        Ok(Self {
+            node_type,
+            node_id,
+            depth: self.depth + 1,
+            cost: self.cost + edge.weight,
+            path_nodes,
+            path_edges,
+            last_edge: Some(edge),
+        })
+    }
+
     fn into_row(self, path_rank: i64) -> BatchRow {
         let edge = self.last_edge;
         let path_nodes = serde_json::Value::Array(
@@ -713,5 +736,119 @@ impl GraphPath {
             ("path_nodes".to_string(), Value::Json(path_nodes)),
             ("path_edges".to_string(), Value::Json(path_edges)),
         ])
+    }
+}
+
+#[cfg(test)]
+mod frontier_tests {
+    use std::time::Instant;
+
+    use crate::config::CassieRuntimeLimits;
+    use crate::runtime::{QueryCancellationHandle, QueryExecutionControls};
+
+    use super::{sort_shortest_frontier, GraphPath};
+
+    #[test]
+    fn should_budget_minimum_frontier_sort_scratch_allocation() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 21 * std::mem::size_of::<GraphPath>(),
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let mut frontier = (0..21)
+            .map(|cost| GraphPath {
+                node_type: "n".to_string(),
+                node_id: "s".to_string(),
+                depth: 1,
+                cost: f64::from(cost),
+                path_nodes: Vec::new(),
+                path_edges: Vec::new(),
+                last_edge: None,
+            })
+            .collect::<Vec<_>>();
+
+        // Act
+        let result = sort_shortest_frontier(&mut frontier, &controls);
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(super::QueryError::Cassie(
+                crate::app::CassieError::ResourceLimit(_)
+            ))
+        ));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_reject_frontier_sort_when_scratch_exceeds_query_budget() {
+        // Arrange
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 1_024 * std::mem::size_of::<GraphPath>(),
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let path = |cost| GraphPath {
+            node_type: "n".to_string(),
+            node_id: "s".to_string(),
+            depth: 1,
+            cost,
+            path_nodes: Vec::new(),
+            path_edges: Vec::new(),
+            last_edge: None,
+        };
+        let mut frontier = (0..1_025)
+            .map(|cost| path(f64::from(cost)))
+            .collect::<Vec<_>>();
+
+        // Act
+        let result = sort_shortest_frontier(&mut frontier, &controls);
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(super::QueryError::Cassie(
+                crate::app::CassieError::ResourceLimit(_)
+            ))
+        ));
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+
+    #[test]
+    fn should_recheck_cancellation_after_sorting_the_shortest_path_frontier() {
+        // Arrange
+        let cancellation = QueryCancellationHandle::new();
+        cancellation.cancel();
+        let controls = QueryExecutionControls::with_cancellation(
+            &CassieRuntimeLimits::default(),
+            Instant::now(),
+            cancellation,
+        );
+        let path = |cost, node_id: &str| GraphPath {
+            node_type: "n".to_string(),
+            node_id: node_id.to_string(),
+            depth: 1,
+            cost,
+            path_nodes: vec![("n".to_string(), node_id.to_string())],
+            path_edges: Vec::new(),
+            last_edge: None,
+        };
+        let mut frontier = vec![path(1.0, "earlier"), path(2.0, "later")];
+
+        // Act
+        let result = sort_shortest_frontier(&mut frontier, &controls);
+
+        // Assert
+        assert!(result.is_err(), "cancelled query must fail after sorting");
+        assert_eq!(
+            frontier.iter().map(|path| path.cost).collect::<Vec<_>>(),
+            vec![2.0, 1.0],
+            "the post-sort timeout check must run after frontier ordering"
+        );
     }
 }

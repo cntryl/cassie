@@ -1409,6 +1409,64 @@ mod graph_resilience {
     }
 
     #[test]
+    fn should_bound_shortest_path_search_by_query_memory() {
+        // Arrange
+        let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
+        use_local_storage();
+        let path = data_dir("graph_shortest_path_low_memory");
+        let runtime = current_thread_runtime();
+        runtime.block_on(async {
+            let cassie = configured_cassie(&path, 64);
+            let session = cassie.create_session("tester", None);
+            execute(&cassie, &session, "CREATE GRAPH social");
+            let edges = (0..8)
+                .map(|index| {
+                    let edge_id = format!("edge-{index:02}");
+                    let target_id = format!("neighbor-{index:02}");
+                    (
+                        Some(edge_id.clone()),
+                        graph_edge_payload(&edge_id, "alice", &target_id, "knows", 1.0),
+                    )
+                })
+                .collect();
+            cassie
+                .midge
+                .put_fresh_graph_documents("social_edges", edges)
+                .expect("seed graph edges");
+            let before = cassie.metrics();
+
+            // Act
+            let error = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT node_id FROM graph_shortest_path('social', 'person', 'alice', 'person', 'missing', 2, 'out', 'knows', 2)",
+                    vec![],
+                )
+                .expect_err("retained path states should exceed the query budget");
+            let after = cassie.metrics();
+
+            // Assert
+            assert!(
+                matches!(error, CassieError::ResourceLimit(_)),
+                "expected SQLSTATE 54000 resource limit, got {error:?}"
+            );
+            assert_eq!(
+                after["graph"]["traversals"], before["graph"]["traversals"],
+                "a failed traversal must not publish success metrics"
+            );
+            assert_eq!(
+                after["graph"]["rows"], before["graph"]["rows"],
+                "a failed traversal must not publish partial rows"
+            );
+            assert_eq!(
+                after["query"]["current_accounted_memory_bytes"].as_u64(),
+                Some(0)
+            );
+            let _ = std::fs::remove_dir_all(path);
+        });
+    }
+
+    #[test]
     fn should_cancel_graph_scan_at_a_deterministic_entry_without_partial_metrics() {
         // Arrange
         let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();

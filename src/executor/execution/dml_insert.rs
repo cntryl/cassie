@@ -500,8 +500,7 @@ pub(crate) fn resolve_transaction_conflict_intents(
 }
 
 /// Finds the row an expression unique index says `payload` conflicts with,
-/// by evaluating the index expression on the new row and on each stored or
-/// staged row.
+/// by reading its committed reservation owner and reconciling staged rows.
 fn find_expression_index_conflict(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -517,17 +516,51 @@ fn find_expression_index_conflict(
     let Some(key) = Midge::scalar_index_key_values(index, payload, row_schema)? else {
         return Ok(None);
     };
-    for batch in cassie.scan_documents_batched_for_session(session, table, 1024)? {
-        for document in batch {
-            if Midge::payload_matches_scalar_index_predicate(index, &document.payload, row_schema)?
-                && Midge::scalar_index_key_values(index, &document.payload, row_schema)?.as_ref()
-                    == Some(&key)
+    let staged_snapshot = session.map(|session| session.staged_write_snapshot(table));
+    let staged_changes = staged_snapshot
+        .as_ref()
+        .map(crate::app::StagedWriteSnapshot::ordered_changes);
+    let committed_owner =
+        cassie
+            .midge
+            .unique_scalar_index_reservation_owner(table, &index.name, &key)?;
+
+    if let Some(owner_id) = committed_owner.as_ref() {
+        match staged_changes.and_then(|changes| changes.get(owner_id)) {
+            None => return Ok(Some(owner_id.clone())),
+            Some(crate::app::TransactionRowChange::Upsert(owner_payload))
+                if expression_index_key_matches(index, owner_payload, row_schema, &key)? =>
             {
-                return Ok(Some(document.id));
+                return Ok(Some(owner_id.clone()));
+            }
+            Some(_) => {}
+        }
+    }
+
+    if let Some(changes) = staged_changes {
+        for (id, change) in changes {
+            let crate::app::TransactionRowChange::Upsert(staged_payload) = change else {
+                continue;
+            };
+            if expression_index_key_matches(index, staged_payload, row_schema, &key)? {
+                return Ok(Some(id.clone()));
             }
         }
     }
     Ok(None)
+}
+
+fn expression_index_key_matches(
+    index: &crate::catalog::IndexMeta,
+    payload: &serde_json::Value,
+    row_schema: &crate::midge::row_blob::RowSchema,
+    key: &[serde_json::Value],
+) -> Result<bool, QueryError> {
+    use crate::midge::adapter::Midge;
+    if !Midge::payload_matches_scalar_index_predicate(index, payload, row_schema)? {
+        return Ok(false);
+    }
+    Ok(Midge::scalar_index_key_values(index, payload, row_schema)?.as_deref() == Some(key))
 }
 
 /// Like PostgreSQL, one INSERT ... ON CONFLICT DO UPDATE may not affect the

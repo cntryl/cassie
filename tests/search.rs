@@ -2708,6 +2708,8 @@ mod scored_read_equivalence {
 
 // Analyzer and corpus-statistics consistency for scored fulltext reads.
 mod fulltext_analyzer_consistency {
+    use std::fmt::Write;
+
     use cassie::app::Cassie;
     use cassie::config::{CassieRuntimeConfig, EmbeddingsRuntimeConfig, LocalRuntimeConfig};
     use cassie::types::{Value, Vector};
@@ -2752,7 +2754,41 @@ mod fulltext_analyzer_consistency {
             dimensions: 2,
         });
         let cassie = Cassie::new_with_data_dir_and_config(data_dir(label), config).unwrap();
-        seed_hybrid_fixture(cassie)
+        cassie.startup().unwrap();
+        run(
+            &cassie,
+            "CREATE TABLE ia (id TEXT NOT NULL, body TEXT, grp TEXT, embedding VECTOR(2))",
+        );
+        let mut rows = String::new();
+        for index in 0..10 {
+            writeln!(rows, "a{index:02},a{index:02},alpha,A,\"[1,0]\"").expect("write seeded row");
+        }
+        rows.push_str("m_alpha,m_alpha,alpha,B,\"[1,0]\"\nz_beta,z_beta,beta,B,\"[1,0]\"\n");
+        copy_hybrid_fixture_rows(&cassie, &rows);
+        run(
+            &cassie,
+            "CREATE INDEX ia_body_idx ON ia USING fulltext (body)",
+        );
+        cassie
+    }
+
+    fn copy_hybrid_fixture_rows(cassie: &Cassie, rows: &str) {
+        let statement = cassie::sql::ast::CopyStatement {
+            table: "ia".to_string(),
+            columns: ["_id", "id", "body", "grp", "embedding"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            format: cassie::sql::ast::CopyFormat::Csv,
+            header: false,
+        };
+        cassie
+            .copy_from_csv_stdin(
+                &cassie.create_session("tester", None),
+                &statement,
+                rows.as_bytes(),
+            )
+            .expect("copy rows with stable internal identities");
     }
 
     fn seed_hybrid_fixture(cassie: Cassie) -> Cassie {
@@ -2999,20 +3035,21 @@ mod fulltext_analyzer_consistency {
             .expect("runtime");
         runtime.block_on(async {
             let cassie = hybrid_fixture_with_local_provider("hybrid_bounded_stats_corpus");
+            // Retain links across equal-vector clusters so this corpus-statistics
+            // fixture deterministically exercises the persisted ANN path.
             run(
                 &cassie,
-                "CREATE INDEX ia_embedding_hnsw ON ia USING vector (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, m = 8, ef_construction = 64, ef_search = 32)",
+                "CREATE INDEX ia_embedding_hnsw ON ia USING vector (embedding) WITH (source_field = body, metric = l2, index_type = hnsw, m = 128, ef_construction = 128, ef_search = 32)",
             );
+            let mut rows = String::new();
             for index in 0..100 {
-                run_with(
-                    &cassie,
-                    "INSERT INTO ia (id, body, grp, embedding) VALUES ($1, 'unrelated', 'A', $2)",
-                    vec![
-                        Value::String(format!("unrelated_{index:03}")),
-                        Value::Vector(Vector::new(vec![100.0, 100.0])),
-                    ],
-                );
+                writeln!(
+                    rows,
+                    "unrelated_{index:03},unrelated_{index:03},unrelated,A,\"[100,100]\""
+                )
+                .expect("write unrelated row");
             }
+            copy_hybrid_fixture_rows(&cassie, &rows);
             let whole_corpus = scored_ids(&run(
                 &cassie,
                 "SELECT _id, search_score(body, 'alpha beta') AS score FROM ia WHERE search(body, 'alpha beta') ORDER BY score DESC LIMIT 12",

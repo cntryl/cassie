@@ -481,7 +481,9 @@ impl From<&Expr> for NormalizedExprShape {
                     .as_ref()
                     .map(|expr| Box::new(Self::from(expr.as_ref()))),
             },
-            Expr::Column(name) => Self::Column(name.to_ascii_lowercase()),
+            Expr::Column(name) => {
+                Self::Column(crate::sql::ColumnIdentifierPath::reference_field_key(name))
+            }
             Expr::Param(_)
             | Expr::StringLiteral(_)
             | Expr::NumberLiteral(_)
@@ -544,7 +546,9 @@ impl From<&SelectItem> for NormalizedProjectionShape {
     fn from(item: &SelectItem) -> Self {
         match item {
             SelectItem::Wildcard => Self::Wildcard,
-            SelectItem::Column { name, .. } => Self::Column(name.to_ascii_lowercase()),
+            SelectItem::Column { name, .. } => {
+                Self::Column(crate::sql::ColumnIdentifierPath::reference_field_key(name))
+            }
             SelectItem::Function { function, .. } => Self::Function {
                 name: function.name.to_ascii_lowercase(),
                 arity: function.args.len(),

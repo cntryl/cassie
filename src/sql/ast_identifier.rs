@@ -20,6 +20,22 @@ impl IdentifierComponent {
     pub const fn is_delimited(&self) -> bool {
         self.delimited
     }
+
+    #[must_use]
+    pub fn delimited(value: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            delimited: true,
+        }
+    }
+
+    #[must_use]
+    pub fn undelimited(value: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            delimited: false,
+        }
+    }
 }
 
 /// A one-to-three-part SQL name that keeps quoted component boundaries.
@@ -121,6 +137,13 @@ impl IdentifierPath {
         )
     }
 
+    /// Builds an exact single-component path for a name already resolved from
+    /// catalog metadata.
+    #[must_use]
+    pub fn from_field_name(value: impl Into<String>) -> Self {
+        Self::from_components(vec![IdentifierComponent::delimited(value)])
+    }
+
     #[must_use]
     pub fn from_components(components: Vec<IdentifierComponent>) -> Self {
         let rendered = components
@@ -161,6 +184,50 @@ impl IdentifierPath {
     #[must_use]
     pub fn local_component(&self) -> Option<&IdentifierComponent> {
         self.components.last()
+    }
+
+    /// Returns the resolved spelling of the final column component. An
+    /// undelimited SQL identifier folds to lowercase; a delimited component
+    /// retains its exact catalog spelling.
+    #[must_use]
+    pub fn column_name(&self) -> Option<String> {
+        self.local_component().map(|component| {
+            if component.is_delimited() {
+                component.value().to_string()
+            } else {
+                component.value().to_ascii_lowercase()
+            }
+        })
+    }
+
+    /// Returns an unambiguous lookup key for a column reference. Relation
+    /// qualifiers retain Cassie's existing case-insensitive behavior; only
+    /// the final column component distinguishes delimited case.
+    #[must_use]
+    pub fn column_lookup_key(&self) -> String {
+        let last = self.components.len().saturating_sub(1);
+        self.components
+            .iter()
+            .enumerate()
+            .map(|(index, component)| {
+                let preserve_case = index == last && component.is_delimited();
+                let value = if preserve_case {
+                    component.value().to_string()
+                } else {
+                    component.value().to_ascii_lowercase()
+                };
+                if preserve_case
+                    && (value != value.to_ascii_lowercase()
+                        || value.contains(['.', '"'])
+                        || value.chars().any(char::is_whitespace))
+                {
+                    format!("\"{}\"", value.replace('"', "\"\""))
+                } else {
+                    crate::catalog::canonical_identifier_component(&value)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(".")
     }
 
     /// Converts the retained components to the catalog's one-, two-, or

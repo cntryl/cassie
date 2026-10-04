@@ -187,15 +187,14 @@ impl Expr {
         !self.any_child(|child| !predicate(child))
     }
 
-    /// Compares two expressions structurally, ignoring ASCII case in column
-    /// and function names, so `GROUP BY` matching does not depend on how the
-    /// query spelled identifiers.
+    /// Compares two expressions structurally, retaining identifier case for
+    /// columns while ignoring ASCII case in function names.
     #[must_use]
     pub fn structurally_eq(&self, other: &Expr) -> bool {
         match (self, other) {
-            (Self::Column(left), Self::Column(right)) => left.eq_ignore_ascii_case(right),
+            (Self::Column(left), Self::Column(right))
+            | (Self::StringLiteral(left), Self::StringLiteral(right)) => left == right,
             (Self::Param(left), Self::Param(right)) => left == right,
-            (Self::StringLiteral(left), Self::StringLiteral(right)) => left == right,
             (Self::NumberLiteral(left), Self::NumberLiteral(right)) => {
                 left.to_bits() == right.to_bits()
             }

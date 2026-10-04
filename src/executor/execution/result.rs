@@ -121,9 +121,9 @@ pub(super) fn deduce_text_fields<R: RowAccess>(rows: &[R]) -> Vec<String> {
                 continue;
             }
 
-            let name = name.to_ascii_lowercase();
-            if fields.insert(name.clone()) {
-                ordered.push(name);
+            let field_key = crate::sql::ColumnIdentifierPath::stored_row_lookup_key(name);
+            if fields.insert(field_key) {
+                ordered.push(name.clone());
             }
         }
     }

@@ -709,12 +709,9 @@ fn set_child_reference_values(
                 QueryError::General("stored row payload must be object".to_string())
             })?;
         let child_schema = cassie.catalog.get_schema(child_table);
-        let json_field = child_schema.as_ref().and_then(|schema| {
-            schema
-                .fields
-                .iter()
-                .find(|field| field.name.eq_ignore_ascii_case(child_field))
-        });
+        let json_field = child_schema
+            .as_ref()
+            .and_then(|schema| schema.fields.iter().find(|field| field.name == child_field));
         if set_sql_null
             && json_field
                 .is_some_and(|field| matches!(field.data_type, crate::types::DataType::Json))

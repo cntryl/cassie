@@ -521,11 +521,11 @@ impl Midge {
         filter: Option<&RowFilter>,
     ) -> Result<Option<serde_json::Value>, CassieError> {
         if let Some(filter) = filter {
-            let Some(filter_field) = row_schema
-                .fields
-                .iter()
-                .find(|field| !field.retired && field.name.eq_ignore_ascii_case(&filter.field))
-            else {
+            let Some(filter_field) = row_schema.fields.iter().find(|field| {
+                !field.retired
+                    && crate::sql::ColumnIdentifierPath::parse(&filter.field)
+                        .is_ok_and(|reference| reference.matches_field_name(&field.name))
+            }) else {
                 return Ok(None);
             };
             let Some(raw) = tx
@@ -550,8 +550,9 @@ impl Midge {
 
         let mut object = serde_json::Map::new();
         for field in row_schema.fields.iter().filter(|field| !field.retired) {
-            let include = projection
-                .is_none_or(|projection| projection.contains(&field.name.to_ascii_lowercase()));
+            let field_key =
+                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+            let include = projection.is_none_or(|projection| projection.contains(&field_key));
             if !include {
                 continue;
             }

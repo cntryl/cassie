@@ -83,7 +83,7 @@ impl RowSchema {
             .map(|(index, field)| RowFieldMeta {
                 field_id: field_id_from_index(index),
                 name: field.name.clone(),
-                normalized_name: field.name.to_ascii_lowercase(),
+                normalized_name: crate::sql::ColumnIdentifierPath::stored_field_key(&field.name),
                 aliases: Vec::new(),
                 data_type: field.data_type.clone(),
                 nullable: field.nullable,
@@ -119,7 +119,7 @@ impl RowSchema {
         if self
             .fields
             .iter()
-            .any(|entry| entry.name.eq_ignore_ascii_case(&field.name) && !entry.retired)
+            .any(|entry| entry.name == field.name && !entry.retired)
         {
             return Err(CassieError::Unsupported(format!(
                 "field '{0}' already exists",
@@ -127,7 +127,7 @@ impl RowSchema {
             )));
         }
 
-        let normalized_name = field.name.to_ascii_lowercase();
+        let normalized_name = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
         self.fields.push(RowFieldMeta {
             field_id: self.next_field_id,
             name: field.name,
@@ -146,7 +146,7 @@ impl RowSchema {
         if self
             .fields
             .iter()
-            .any(|entry| entry.name.eq_ignore_ascii_case(next) && !entry.retired)
+            .any(|entry| entry.name == next && !entry.retired)
         {
             return Err(CassieError::Unsupported(format!(
                 "field '{next}' already exists"
@@ -156,19 +156,19 @@ impl RowSchema {
         let Some(field_index) = self
             .fields
             .iter()
-            .position(|entry| entry.name.eq_ignore_ascii_case(current) && !entry.retired)
+            .position(|entry| entry.name == current && !entry.retired)
         else {
             return Err(CassieError::Unsupported(format!(
                 "field '{current}' not found"
             )));
         };
 
-        let next_normalized = next.to_ascii_lowercase();
+        let next_normalized = crate::sql::ColumnIdentifierPath::stored_field_key(next);
         for (index, entry) in self.fields.iter_mut().enumerate() {
             if index != field_index {
-                entry
-                    .aliases
-                    .retain(|alias| !alias.eq_ignore_ascii_case(&next_normalized));
+                entry.aliases.retain(|alias| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(alias) != next_normalized
+                });
             }
         }
         let field = &mut self.fields[field_index];
@@ -202,7 +202,7 @@ impl RowSchema {
 fn hydrate_normalized_names(fields: &mut [RowFieldMeta]) {
     for field in fields {
         if field.normalized_name.is_empty() {
-            field.normalized_name = field.name.to_ascii_lowercase();
+            field.normalized_name = crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
         }
     }
 }
@@ -219,11 +219,10 @@ fn next_field_id_for_len(len: usize) -> u32 {
 }
 
 fn push_field_alias(field: &mut RowFieldMeta, alias: String) {
-    if field
-        .aliases
-        .iter()
-        .any(|candidate| candidate.eq_ignore_ascii_case(&alias))
-    {
+    if field.aliases.iter().any(|candidate| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(&alias)
+    }) {
         return;
     }
     field.aliases.push(alias);
@@ -355,7 +354,10 @@ pub(crate) fn decode_projected_row_matching_with_aliases(
     include_historical_aliases: bool,
 ) -> Result<Option<serde_json::Value>, CassieError> {
     let directory = RowDirectory::parse(row)?;
-    let filter_field = filter_field.to_ascii_lowercase();
+    let filter_field = crate::sql::ColumnIdentifierPath::parse(filter_field).map_or_else(
+        |_| filter_field.to_ascii_lowercase(),
+        |field| field.field_lookup_key(),
+    );
     let mut object = serde_json::Map::new();
     let mut matched_filter = false;
     let mut saw_filter = false;
@@ -612,14 +614,16 @@ fn included_field_names(
     };
 
     let mut names = Vec::new();
-    if !field.retired && projection.contains(&field.normalized_name) {
+    let field_key = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+    if !field.retired && projection.contains(&field_key) {
         names.push(field.name.clone());
     }
     if include_historical_aliases {
         for alias in &field.aliases {
-            if projection.contains(&alias.to_ascii_lowercase())
-                && !active_field_names.contains(&alias.to_ascii_lowercase())
-                && !names.iter().any(|name| name.eq_ignore_ascii_case(alias))
+            let alias_key = crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key();
+            if projection.contains(&alias_key)
+                && !active_field_names.contains(&alias_key)
+                && !names.iter().any(|name| name == alias)
             {
                 names.push(alias.clone());
             }
@@ -630,17 +634,19 @@ fn included_field_names(
 
 fn field_matches_name(
     field: &RowFieldMeta,
-    normalized_name: &str,
+    requested_key: &str,
     include_historical_aliases: bool,
     active_field_names: &HashSet<String>,
 ) -> bool {
-    (!field.retired && field.normalized_name == normalized_name)
+    (!field.retired
+        && crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key()
+            == requested_key)
         || (include_historical_aliases
-            && field
-                .aliases
-                .iter()
-                .any(|alias| alias.eq_ignore_ascii_case(normalized_name))
-            && !active_field_names.contains(normalized_name))
+            && field.aliases.iter().any(|alias| {
+                crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key()
+                    == requested_key
+            })
+            && !active_field_names.contains(requested_key))
 }
 
 fn active_field_names(schema: &RowSchema) -> HashSet<String> {
@@ -648,7 +654,7 @@ fn active_field_names(schema: &RowSchema) -> HashSet<String> {
         .fields
         .iter()
         .filter(|field| !field.retired)
-        .map(|field| field.normalized_name.clone())
+        .map(|field| crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key())
         .collect()
 }
 

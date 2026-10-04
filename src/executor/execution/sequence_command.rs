@@ -204,9 +204,10 @@ fn mutate_field_constraint(
     mutate: impl FnOnce(&mut crate::catalog::FieldConstraint),
 ) -> Result<(), QueryError> {
     let mut constraints = cassie.catalog.get_constraints(table);
-    let position = constraints
-        .iter()
-        .position(|constraint| constraint.field.eq_ignore_ascii_case(field));
+    let position = constraints.iter().position(|constraint| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+    });
     let mut constraint = position
         .and_then(|position| constraints.get(position).cloned())
         .unwrap_or_else(|| crate::catalog::FieldConstraint::new(field));

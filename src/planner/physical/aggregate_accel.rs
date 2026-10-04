@@ -40,7 +40,7 @@ pub(super) fn plan_supports_aggregate_acceleration(
             let available = index
                 .normalized_fields()
                 .into_iter()
-                .map(|field| field.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
                 .collect::<BTreeSet<_>>();
             fields.iter().all(|field| available.contains(field))
         })
@@ -71,13 +71,17 @@ fn encoded_filter_fields(expr: &Expr) -> Option<BTreeSet<String>> {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
             };
-            (!is_row_id_column(field)).then(|| BTreeSet::from([field.to_ascii_lowercase()]))
+            (!is_row_id_column(field)).then(|| {
+                BTreeSet::from([crate::sql::ColumnIdentifierPath::reference_field_key(field)])
+            })
         }
         Expr::IsNull { expr, .. } => {
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
             };
-            (!is_row_id_column(field)).then(|| BTreeSet::from([field.to_ascii_lowercase()]))
+            (!is_row_id_column(field)).then(|| {
+                BTreeSet::from([crate::sql::ColumnIdentifierPath::reference_field_key(field)])
+            })
         }
         _ => None,
     }
@@ -88,7 +92,9 @@ fn encoded_binary_filter_field(left: &Expr, right: &Expr) -> Option<BTreeSet<Str
         (Expr::Column(field), literal) | (literal, Expr::Column(field))
             if encoded_literal(literal) =>
         {
-            (!is_row_id_column(field)).then(|| BTreeSet::from([field.to_ascii_lowercase()]))
+            (!is_row_id_column(field)).then(|| {
+                BTreeSet::from([crate::sql::ColumnIdentifierPath::reference_field_key(field)])
+            })
         }
         _ => None,
     }
@@ -120,7 +126,9 @@ fn aggregate_acceleration_fields(plan: &LogicalPlan) -> (BTreeSet<String>, bool)
                 count_star_only = true;
             }
             [Expr::Column(column)] if column != "*" => {
-                fields.insert(column.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(
+                    column,
+                ));
             }
             _ => return (BTreeSet::new(), false),
         }

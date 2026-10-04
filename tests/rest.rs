@@ -1046,7 +1046,7 @@ mod rest {
                 "name": "rest_duplicate_fields",
                 "fields": [
                     {"name": "Title", "type": "text"},
-                    {"name": "title", "type": "int"}
+                    {"name": "Title", "type": "int"}
                 ]
             }),
             serde_json::json!({
@@ -1079,6 +1079,64 @@ mod rest {
         assert!(
             cassie.midge.list_collections().is_empty(),
             "a rejected collection definition must not be persisted"
+        );
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn should_allow_case_distinct_rest_collection_fields() {
+        // Arrange
+        std::env::set_var("CASSIE_STORAGE_MODE", "local");
+        let path = data_dir("collection-case-distinct-fields");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("root", None);
+        let body = serde_json::json!({
+            "name": "rest_case_distinct_fields",
+            "fields": [
+                {"name": "Title", "type": "text"},
+                {"name": "title", "type": "text"}
+            ]
+        });
+
+        // Act
+        let created = collections::create(&cassie, body.to_string().as_bytes());
+        let insert = cassie.execute_sql(
+            &session,
+            "INSERT INTO rest_case_distinct_fields (\"Title\", \"title\") VALUES ('upper', 'lower')",
+            Vec::new(),
+        );
+        let selected = cassie.execute_sql(
+            &session,
+            "SELECT \"Title\", \"title\" FROM rest_case_distinct_fields",
+            Vec::new(),
+        );
+
+        // Assert
+        assert!(
+            created.is_ok(),
+            "REST collection creation failed: {created:?}"
+        );
+        assert!(
+            insert.is_ok(),
+            "SQL insert should accept both case-distinct fields"
+        );
+        let selected = selected.expect("select case-distinct fields");
+        assert_eq!(
+            selected
+                .columns
+                .iter()
+                .map(|column| column.name.as_str())
+                .collect::<Vec<_>>(),
+            ["Title", "title"]
+        );
+        assert_eq!(
+            selected.rows,
+            vec![vec![
+                cassie::types::Value::String("upper".to_string()),
+                cassie::types::Value::String("lower".to_string())
+            ]]
         );
 
         let _ = std::fs::remove_dir_all(path);

@@ -16,10 +16,9 @@ pub(super) fn selected_time_series_index(
             name_matches(&index.collection, collection) && index.kind == IndexKind::TimeSeries
         })
         .find(|index| {
-            index
-                .normalized_fields()
-                .first()
-                .is_some_and(|field| range_fields.contains(&field.to_ascii_lowercase()))
+            index.normalized_fields().first().is_some_and(|field| {
+                range_fields.contains(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
+            })
         })
         .map(|index| index.name.clone())
 }
@@ -46,15 +45,15 @@ fn collect_range_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
             right,
         } => {
             if let Expr::Column(name) = left.as_ref() {
-                fields.insert(name.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
             if let Expr::Column(name) = right.as_ref() {
-                fields.insert(name.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
         }
         Expr::Between { expr, .. } => {
             if let Expr::Column(name) = expr.as_ref() {
-                fields.insert(name.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
         }
         _ => {}

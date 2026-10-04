@@ -422,7 +422,10 @@ fn index_keys(catalog: &Catalog, index: &IndexMeta) -> String {
             schema
                 .fields
                 .iter()
-                .position(|candidate| candidate.name.eq_ignore_ascii_case(&field))
+                .position(|candidate| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&candidate.name)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(&field)
+                })
                 .map_or_else(|| "0".to_string(), |position| (position + 1).to_string())
         })
         .chain(
@@ -452,9 +455,10 @@ fn constraint_for_field<'a>(
     constraints: &'a [FieldConstraint],
     field: &str,
 ) -> Option<&'a FieldConstraint> {
-    constraints
-        .iter()
-        .find(|constraint| constraint.field.eq_ignore_ascii_case(field))
+    constraints.iter().find(|constraint| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+    })
 }
 
 fn is_not_null(constraint: Option<&FieldConstraint>) -> bool {

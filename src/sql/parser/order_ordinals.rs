@@ -36,9 +36,12 @@ fn ensure_unambiguous(
     let Expr::Column(name) = expr else {
         return Ok(());
     };
-    let captured_by = projection
-        .iter()
-        .position(|item| alias_of(item).is_some_and(|alias| alias.eq_ignore_ascii_case(name)));
+    let captured_by = projection.iter().position(|item| {
+        alias_of(item).is_some_and(|alias| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(alias)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+        })
+    });
     let target = usize::try_from(position - 1).ok();
     match captured_by {
         Some(index) if Some(index) != target => Err(SqlError::unsupported(format!(
@@ -79,9 +82,10 @@ fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, Sq
     }
     match projection.get(index).ok_or_else(not_in_list)? {
         SelectItem::Wildcard => Err(wildcard()),
-        SelectItem::Column { name, alias } => {
-            Ok(Expr::Column(alias.clone().unwrap_or_else(|| name.clone())))
-        }
+        SelectItem::Column { name, alias } => Ok(Expr::Column(alias.as_deref().map_or_else(
+            || name.clone(),
+            crate::sql::ColumnIdentifierPath::stored_field_key,
+        ))),
         SelectItem::Function {
             alias: Some(alias), ..
         }
@@ -90,7 +94,9 @@ fn output_column_at(position: i64, projection: &[SelectItem]) -> Result<Expr, Sq
         }
         | SelectItem::WindowFunction {
             alias: Some(alias), ..
-        } => Ok(Expr::Column(alias.clone())),
+        } => Ok(Expr::Column(
+            crate::sql::ColumnIdentifierPath::stored_field_key(alias),
+        )),
         SelectItem::Function {
             function,
             alias: None,

@@ -43,23 +43,23 @@ pub(super) fn bind_insert(
             ));
         }
 
-        if !schema
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case(&column_name))
-        {
+        let Some(declared) = schema.fields.iter().find(|field| {
+            crate::sql::ColumnIdentifierPath::parse(&column_name)
+                .is_ok_and(|reference| reference.matches_field_name(&field.name))
+        }) else {
             return Err(CassieError::Planner(format!(
                 "INSERT target column '{column_name}' does not exist in '{table}'"
             )));
-        }
+        };
+        let resolved_name = declared.name.clone();
 
-        if !seen_columns.insert(column_name.clone()) {
+        if !seen_columns.insert(resolved_name.clone()) {
             return Err(CassieError::Planner(format!(
                 "INSERT column '{column_name}' is duplicated"
             )));
         }
 
-        *column = column_name;
+        *column = resolved_name;
     }
 
     bind_on_conflict(
@@ -104,11 +104,10 @@ fn bind_on_conflict(
                     "ON CONFLICT target fields cannot be empty".into(),
                 ));
             }
-            let Some(declared) = schema
-                .fields
-                .iter()
-                .find(|candidate| candidate.name.eq_ignore_ascii_case(field_name))
-            else {
+            let Some(declared) = schema.fields.iter().find(|candidate| {
+                crate::sql::ColumnIdentifierPath::parse(field_name)
+                    .is_ok_and(|reference| reference.matches_field_name(&candidate.name))
+            }) else {
                 return Err(CassieError::Planner(format!(
                     "ON CONFLICT target column '{field_name}' does not exist in '{table}'"
                 )));
@@ -166,7 +165,7 @@ fn validate_conflict_update(
         .fields
         .iter()
         .flat_map(|field| {
-            let name = field.name.to_ascii_lowercase();
+            let name = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
             [name.clone(), format!("excluded.{name}")]
         })
         .collect::<HashSet<_>>();
@@ -174,24 +173,25 @@ fn validate_conflict_update(
     known_fields.extend(super::select::base_table_fields(table, schema));
     known_fields.extend(super::select::base_table_fields(&local_table, schema));
     for field in &schema.fields {
-        known_fields.insert(format!("{table}.{}", field.name).to_ascii_lowercase());
-        known_fields.insert(format!("{local_table}.{}", field.name).to_ascii_lowercase());
+        let field = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+        known_fields.insert(format!("{table}.{field}"));
+        known_fields.insert(format!("{local_table}.{field}"));
     }
 
     let mut seen = HashSet::new();
     let mut functions = Vec::new();
     for (target, expression) in assignments {
-        let normalized = target.trim().to_string();
-        if !schema
-            .fields
-            .iter()
-            .any(|field| field.name.eq_ignore_ascii_case(&normalized))
-        {
+        let requested = target.trim();
+        let Some(declared) = schema.fields.iter().find(|field| {
+            crate::sql::ColumnIdentifierPath::parse(requested)
+                .is_ok_and(|reference| reference.matches_field_name(&field.name))
+        }) else {
             return Err(CassieError::Planner(format!(
-                "ON CONFLICT assignment target '{normalized}' does not exist in '{table}'"
+                "ON CONFLICT assignment target '{requested}' does not exist in '{table}'"
             )));
-        }
-        if !seen.insert(normalized.to_ascii_lowercase()) {
+        };
+        let normalized = declared.name.clone();
+        if !seen.insert(normalized.clone()) {
             return Err(CassieError::Planner(format!(
                 "ON CONFLICT assignment target '{normalized}' is duplicated"
             )));
@@ -216,7 +216,7 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
     // `ON CONFLICT (b, a)` matches a key declared on `(a, b)`.
     let column_set = |fields: &mut dyn Iterator<Item = &String>| {
         let mut set = fields
-            .map(|field| field.to_ascii_lowercase())
+            .map(std::string::ToString::to_string)
             .collect::<Vec<_>>();
         set.sort();
         set.dedup();
@@ -227,7 +227,7 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
     let constraints = catalog.get_constraints(table);
     if constraints.iter().any(|constraint| {
         crate::catalog::enforces_single_column_uniqueness(constraint, &constraints)
-            && normalized_target == [constraint.field.to_ascii_lowercase()]
+            && normalized_target == [constraint.field.clone()]
     }) {
         return true;
     }
@@ -275,23 +275,23 @@ pub(super) fn bind_update(
                 "UPDATE assignment names cannot be empty".into(),
             ));
         }
-        if !schema
-            .fields
-            .iter()
-            .any(|entry| entry.name.eq_ignore_ascii_case(&normalized_field))
-        {
+        let Some(declared) = schema.fields.iter().find(|entry| {
+            crate::sql::ColumnIdentifierPath::parse(&normalized_field)
+                .is_ok_and(|reference| reference.matches_field_name(&entry.name))
+        }) else {
             return Err(CassieError::Planner(format!(
                 "UPDATE assignment target '{normalized_field}' does not exist in '{table}'"
             )));
-        }
+        };
+        let resolved_name = declared.name.clone();
 
-        if !seen.insert(normalized_field.clone()) {
+        if !seen.insert(resolved_name.clone()) {
             return Err(CassieError::Planner(format!(
                 "UPDATE assignment target '{normalized_field}' is duplicated"
             )));
         }
 
-        *field = normalized_field;
+        *field = resolved_name;
     }
 
     validate_returning_items(
@@ -413,11 +413,13 @@ pub(super) fn bind_create_rollup(
     let known_fields = schema
         .fields
         .iter()
-        .map(|field| field.name.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
         .collect::<HashSet<_>>();
     let mut expression_fields = known_fields.clone();
     expression_fields.extend(super::select::base_table_fields(&source, &schema));
-    if !known_fields.contains(&timestamp_field.to_ascii_lowercase()) {
+    if !known_fields.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(
+        timestamp_field,
+    )) {
         return Err(CassieError::Planner(format!(
             "rollup timestamp column '{timestamp_field}' does not exist in '{source}'"
         )));
@@ -429,7 +431,7 @@ pub(super) fn bind_create_rollup(
                 "rollup GROUP BY supports source columns only".into(),
             ));
         };
-        if !known_fields.contains(&name.to_ascii_lowercase()) {
+        if !known_fields.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(name)) {
             return Err(CassieError::Planner(format!(
                 "rollup group column '{name}' does not exist in '{source}'"
             )));
@@ -608,7 +610,7 @@ pub(super) fn validate_returning_items(
     let mut known_fields = schema
         .fields
         .iter()
-        .map(|field| field.name.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
         .collect::<HashSet<_>>();
     known_fields.extend(super::select::base_table_fields(table, schema));
 
@@ -630,11 +632,10 @@ pub(super) fn validate_returning_items(
                     continue;
                 }
 
-                if !schema
-                    .fields
-                    .iter()
-                    .any(|field| field.name.eq_ignore_ascii_case(name))
-                {
+                if !schema.fields.iter().any(|field| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                        == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+                }) {
                     return Err(CassieError::Planner(format!(
                         "{operation} RETURNING column '{name}' does not exist in '{table}'"
                     )));

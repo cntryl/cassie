@@ -3,7 +3,6 @@ use super::{
     FieldSchema, FunctionCall, HashMap, QuerySource, QueryStatement, Schema, SelectItem,
     SelectStatement,
 };
-use crate::catalog::name_matches;
 
 /// # Errors
 ///
@@ -309,7 +308,10 @@ pub(super) fn infer_projection_schema(
         match item {
             SelectItem::Wildcard => fields.extend(source_schema.fields.iter().cloned()),
             SelectItem::Column { name, alias } => {
-                let output_name = alias.clone().unwrap_or_else(|| name.clone());
+                let output_name = alias.clone().unwrap_or_else(|| {
+                    crate::sql::ColumnIdentifierPath::parse(name)
+                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                });
                 fields.push(FieldSchema {
                     name: output_name,
                     data_type: schema_field_type(source_schema, name).unwrap_or(DataType::Text),
@@ -366,10 +368,23 @@ pub(super) fn infer_projection_schema(
 }
 
 pub(super) fn schema_field_type(schema: &Schema, name: &str) -> Option<DataType> {
+    let column = crate::sql::ColumnIdentifierPath::parse(name).ok()?;
+    let field_key = column.field_lookup_key();
     schema
         .fields
         .iter()
-        .find(|field| field.name.eq_ignore_ascii_case(name) || name_matches(&field.name, name))
+        .find(|field| {
+            column.is_qualified()
+                && crate::sql::ColumnIdentifierPath::parse(&field.name).is_ok_and(|candidate| {
+                    candidate.is_qualified() && candidate.lookup_key() == column.lookup_key()
+                })
+        })
+        .or_else(|| {
+            schema.fields.iter().find(|field| {
+                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key()
+                    == field_key
+            })
+        })
         .map(|field| field.data_type.clone())
 }
 

@@ -279,8 +279,7 @@ fn table_items(cassie: &Cassie, database: &str) -> Result<Vec<QuerySchemaItem>, 
                         name: field.name.clone(),
                         data_type: field.data_type.type_name().clone(),
                         primary_key: constraints.iter().any(|constraint| {
-                            constraint.field.eq_ignore_ascii_case(&field.name)
-                                && constraint.primary_key
+                            constraint.field == field.name && constraint.primary_key
                         }),
                     })
                     .collect()

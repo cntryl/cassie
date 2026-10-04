@@ -783,7 +783,10 @@ fn projected_scan_filter_columns(expr: &Expr) -> Option<Vec<String>> {
 fn collect_projected_scan_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Option<()> {
     match expr {
         Expr::Column(name) => {
-            if !fields.iter().any(|field| field.eq_ignore_ascii_case(name)) {
+            let name_key = crate::sql::ColumnIdentifierPath::reference_field_key(name);
+            if !fields.iter().any(|field| {
+                crate::sql::ColumnIdentifierPath::reference_field_key(field) == name_key
+            }) {
                 fields.push(name.clone());
             }
             Some(())

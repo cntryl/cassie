@@ -17,7 +17,7 @@ pub(super) fn search_context_for_fields(
 ) -> Result<super::FulltextIndexOptions, QueryError> {
     let requested_fields = fields
         .iter()
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
         .collect::<std::collections::HashSet<_>>();
     super::load_fulltext_index_options(cassie, collection, &requested_fields)
 }
@@ -189,7 +189,8 @@ pub(super) fn bounded_hybrid_rows(
         .into_iter()
         .find(|index| {
             index.kind == crate::catalog::IndexKind::FullText
-                && index.field.eq_ignore_ascii_case(&spec.text_field)
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&index.field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.text_field)
         })
     else {
         diagnostics.select_fallback("missing-text-index", None);

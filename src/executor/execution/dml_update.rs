@@ -190,14 +190,13 @@ fn updated_payload_from_row(
             filter::evaluate_expr_value(row, &expr, params, None, user_functions, session, None)?;
         if matches!(value, Value::Null)
             && schema.fields.iter().any(|candidate| {
-                candidate.name.eq_ignore_ascii_case(field)
-                    && matches!(candidate.data_type, DataType::Json)
+                candidate.name == *field && matches!(candidate.data_type, DataType::Json)
             })
         {
             if let Some(canonical_name) = schema
                 .fields
                 .iter()
-                .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+                .find(|candidate| candidate.name == *field)
                 .map(|candidate| candidate.name.as_str())
             {
                 payload.remove(canonical_name);

@@ -5,6 +5,7 @@ use super::{
     FulltextFilteredReadSpec, FunctionMeta, HashMap, HashSet, Instant, PostingListDocument,
     QueryError, Value,
 };
+use crate::executor::scan;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{FulltextIndexOptions, QueryExecutionControls, QueryMemoryReservation};
 use crate::search::analyzer::AnalyzerConfig;
@@ -68,7 +69,8 @@ pub(super) fn extract_fulltext_residual_filter(
     if let Expr::Function(function) = expr {
         let (filter_field, filter_query) =
             super::search_predicate_args_with_params(function, params)?;
-        return (filter_field.eq_ignore_ascii_case(field) && filter_query == query)
+        return (crate::sql::ColumnIdentifierPath::matches_stored_field(field, &filter_field)
+            && filter_query == query)
             .then_some(FulltextFilterMatch::Exact);
     }
     let Expr::Binary {
@@ -94,7 +96,8 @@ fn matches_fulltext_predicate(expr: &Expr, field: &str, query: &str, params: &[V
     };
     super::search_predicate_args_with_params(function, params).is_some_and(
         |(filter_field, filter_query)| {
-            filter_field.eq_ignore_ascii_case(field) && filter_query == query
+            crate::sql::ColumnIdentifierPath::matches_stored_field(field, &filter_field)
+                && filter_query == query
         },
     )
 }
@@ -225,10 +228,10 @@ fn load_tokenized_read_documents(
     if spec.residual_filter.is_some() {
         if let Some(schema) = cassie.catalog.get_schema(&spec.collection) {
             for field in schema.fields {
-                if !scan_fields
-                    .iter()
-                    .any(|existing| existing.eq_ignore_ascii_case(&field.name))
-                {
+                if !scan_fields.iter().any(|existing| {
+                    crate::sql::ColumnIdentifierPath::reference_field_key(existing)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                }) {
                     scan_fields.push(field.name);
                 }
             }
@@ -460,7 +463,8 @@ fn load_persisted_fulltext_read(
         .into_iter()
         .find(|index| {
             index.kind == crate::catalog::IndexKind::FullText
-                && index.field.eq_ignore_ascii_case(&spec.text_field)
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&index.field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.text_field)
         })
     else {
         return Ok(PersistedFulltextReadSelection::Exact("missing_index"));
@@ -673,10 +677,10 @@ fn scalar_prefilter_ids(
         .find(|index| {
             index.kind == crate::catalog::IndexKind::Scalar
                 && index.predicate.is_none()
-                && index
-                    .normalized_fields()
-                    .first()
-                    .is_some_and(|indexed| indexed.eq_ignore_ascii_case(&field))
+                && index.normalized_fields().first().is_some_and(|indexed| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(indexed)
+                        == crate::sql::ColumnIdentifierPath::reference_field_key(&field)
+                })
                 && super::super::index_read::index_trailing_keys_not_null(
                     cassie,
                     &spec.collection,
@@ -858,19 +862,20 @@ fn fulltext_filtered_scan_fields(spec: &FulltextFilteredReadSpec) -> Vec<String>
     let mut fields = vec![spec.text_field.clone()];
     for column in &spec.columns {
         if is_row_id_column(&column.name)
-            || fields
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(&column.name))
+            || fields.iter().any(|field| {
+                crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(&column.name)
+            })
         {
             continue;
         }
         fields.push(column.name.clone());
     }
     for snippet in &spec.snippets {
-        if !fields
-            .iter()
-            .any(|field| field.eq_ignore_ascii_case(&snippet.field))
-        {
+        if !fields.iter().any(|field| {
+            crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(&snippet.field)
+        }) {
             fields.push(snippet.field.clone());
         }
     }
@@ -880,9 +885,5 @@ fn json_projected_value<'a>(
     payload: &'a serde_json::Value,
     field: &str,
 ) -> Option<&'a serde_json::Value> {
-    payload
-        .as_object()?
-        .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(field))
-        .map(|(_, value)| value)
+    scan::projected_field_value(payload.as_object()?, field)
 }

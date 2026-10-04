@@ -483,7 +483,7 @@ pub(super) fn qualified_fields(
     let qualifiers = crate::catalog::qualifier_variants(qualifier);
     let mut out = HashSet::new();
     for field in fields {
-        let field = field.to_ascii_lowercase();
+        let field = crate::sql::ColumnIdentifierPath::from_field_name(&field).lookup_key();
         out.insert(field.clone());
         for qualifier in &qualifiers {
             out.insert(format!("{qualifier}.{field}"));
@@ -508,7 +508,7 @@ pub(super) fn collect_projection_aliases(select: &SelectStatement) -> HashSet<St
             | SelectItem::Expr {
                 alias: Some(alias), ..
             } => {
-                aliases.insert(alias.to_ascii_lowercase());
+                aliases.insert(crate::sql::ColumnIdentifierPath::stored_field_key(alias));
             }
             _ => {}
         }
@@ -677,7 +677,7 @@ pub(super) fn validate_distinct_on_order_prefix(
 
 pub(super) fn distinct_on_expr_matches_order(left: &Expr, right: &Expr) -> bool {
     match (left, right) {
-        (Expr::Column(left), Expr::Column(right)) => left.eq_ignore_ascii_case(right),
+        (Expr::Column(left), Expr::Column(right)) => left == right,
         _ => format!("{left:?}") == format!("{right:?}"),
     }
 }
@@ -688,16 +688,21 @@ fn validate_column_reference(
     projection_aliases: &HashSet<String>,
     allow_projection_alias: bool,
 ) -> Result<(), CassieError> {
-    let name = name.to_ascii_lowercase();
-    if !name.contains('.') && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
+    let column = crate::sql::ColumnIdentifierPath::parse(name).ok();
+    let is_qualified = column
+        .as_ref()
+        .is_some_and(crate::sql::ColumnIdentifierPath::is_qualified);
+    if !is_qualified && known_fields.contains(&format!("__cassie_ambiguous__.{name}")) {
         return Err(CassieError::Planner(format!(
             "column reference '{name}' is ambiguous"
         )));
     }
-    if known_fields.contains("*") || known_fields.contains(&name) {
+    if known_fields.contains("*") || known_fields.contains(name) {
         return Ok(());
     }
-    if allow_projection_alias && projection_aliases.contains(&name) {
+    if allow_projection_alias
+        && projection_aliases.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(name))
+    {
         return Ok(());
     }
     Err(CassieError::Planner(format!(

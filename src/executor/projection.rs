@@ -122,10 +122,16 @@ fn compile_projection_ops(projection: &[SelectItem]) -> Vec<ProjectionOp> {
         .iter()
         .map(|item| match item {
             SelectItem::Wildcard => ProjectionOp::Wildcard,
-            SelectItem::Column { name, alias } => ProjectionOp::Column {
-                source: name.clone(),
-                key: alias.as_deref().unwrap_or(name).to_string(),
-            },
+            SelectItem::Column { name, alias } => {
+                let key = alias.clone().unwrap_or_else(|| {
+                    crate::sql::ColumnIdentifierPath::parse(name)
+                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                });
+                ProjectionOp::Column {
+                    source: name.clone(),
+                    key,
+                }
+            }
             SelectItem::Function { function, alias } => {
                 let key = alias
                     .as_deref()
@@ -201,8 +207,8 @@ pub(crate) fn project_batches(
 }
 
 /// Moving values out of a row is only sound when no entry is read twice. A
-/// column referenced more than once (in any spelling, since references are
-/// case-insensitive) or next to a wildcard needs the cloning path so every
+/// column referenced more than once or next to a wildcard needs the cloning
+/// path so every
 /// output keeps its value.
 fn owned_sources_are_distinct(ops: &[ProjectionOp]) -> bool {
     if ops.len() > 1 && ops.iter().any(|op| matches!(op, ProjectionOp::Wildcard)) {
@@ -210,8 +216,12 @@ fn owned_sources_are_distinct(ops: &[ProjectionOp]) -> bool {
     }
     let mut sources = std::collections::HashSet::new();
     ops.iter().all(|op| match op {
-        ProjectionOp::Column { source, .. } => sources.insert(source.to_ascii_lowercase()),
-        ProjectionOp::WindowFunction { key } => sources.insert(key.to_ascii_lowercase()),
+        ProjectionOp::Column { source, .. } => sources.insert(
+            crate::sql::ColumnIdentifierPath::reference_field_key(source),
+        ),
+        ProjectionOp::WindowFunction { key } => {
+            sources.insert(crate::sql::ColumnIdentifierPath::reference_field_key(key))
+        }
         _ => true,
     })
 }
@@ -252,13 +262,16 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
                 }
             }
             ProjectionOp::Column { source, key } => {
+                let column = crate::sql::ColumnIdentifierPath::parse(source).ok();
                 let value = entries
                     .iter()
                     .position(|(name, _)| name == source)
                     .or_else(|| {
-                        entries
-                            .iter()
-                            .position(|(name, _)| name.eq_ignore_ascii_case(source))
+                        column.as_ref().and_then(|column| {
+                            column.row_lookup_candidates().iter().find_map(|candidate| {
+                                entries.iter().position(|(name, _)| name == candidate)
+                            })
+                        })
                     })
                     .and_then(|index| entries[index].1.take())
                     .unwrap_or(Value::Null);

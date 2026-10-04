@@ -387,7 +387,7 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Ok(Expr::BoolLiteral(false));
     }
     if let Some(column) = parse_quoted_identifier_chain(raw)? {
-        return Ok(Expr::Column(column));
+        return Ok(Expr::Column(column.lookup_key()));
     }
     if let Some(value) = parse_single_string_literal(raw) {
         return Ok(Expr::StringLiteral(value));
@@ -422,7 +422,8 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
 
-    Ok(Expr::Column(raw.to_string()))
+    let path = crate::sql::ColumnIdentifierPath::parse(raw).map_err(SqlError::new)?;
+    Ok(Expr::Column(path.lookup_key()))
 }
 
 /// Parses `raw` as exactly one single-quoted literal: the opening quote's

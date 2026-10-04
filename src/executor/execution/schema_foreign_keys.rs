@@ -103,7 +103,8 @@ pub(super) fn reject_referenced_column_drop(
     for collection in cassie.catalog.list_collections_canonical() {
         for constraint in cassie.catalog.get_constraints(&collection.name) {
             let declared_on_dropped_column = collection.name.eq_ignore_ascii_case(table)
-                && constraint.field.eq_ignore_ascii_case(field);
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(field);
             if references_table(&constraint, table)
                 && references_field(&constraint, field)
                 && !declared_on_dropped_column
@@ -129,7 +130,10 @@ pub(super) fn drop_foreign_keys_on_column(
     let mut constraints = cassie.catalog.get_constraints(table);
     let mut changed = false;
     for constraint in &mut constraints {
-        if constraint.field.eq_ignore_ascii_case(field) && constraint.references_table.is_some() {
+        if crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+            == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            && constraint.references_table.is_some()
+        {
             constraint.clear_foreign_key();
             changed = true;
         }
@@ -213,5 +217,8 @@ fn references_field(constraint: &FieldConstraint, field: &str) -> bool {
     constraint
         .references_field
         .as_deref()
-        .is_some_and(|target| target.eq_ignore_ascii_case(field))
+        .is_some_and(|target| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(target)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        })
 }

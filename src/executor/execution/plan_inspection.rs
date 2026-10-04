@@ -696,7 +696,7 @@ fn collect_fulltext_fields_from_function(
     let name = function.name.to_ascii_lowercase();
     if matches!(name.as_str(), "search" | "search_score") {
         if let Some(crate::sql::ast::Expr::Column(field)) = function.args.first() {
-            fields.insert(field.to_ascii_lowercase());
+            fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
         }
     }
 

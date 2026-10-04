@@ -116,7 +116,11 @@ impl Midge {
                 let generation = self.collection_generation(&collection)?;
                 self.complete_column_batch_maintenance(&collection, generation, None)?;
             }
-            let fields = index.normalized_fields();
+            let fields = index
+                .normalized_fields()
+                .iter()
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
+                .collect::<Vec<_>>();
             let valid = matches!(
                 self.validate_column_batch_index(
                     &collection,
@@ -312,16 +316,33 @@ impl Midge {
         if metadata.schema_version != self.row_schema(collection)?.schema_version {
             return Ok(Err(ColumnBatchScanFallbackReason::SchemaVersionMismatch));
         }
-        let index_fields = normalized_fields(index.normalized_fields().as_slice());
-        let metadata_fields = normalized_fields(metadata.fields.as_slice());
+        let index_fields = stored_fields(index.normalized_fields().as_slice());
+        let metadata_fields = stored_fields(metadata.fields.as_slice());
         if metadata_fields != index_fields {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         }
         if metadata.segment_size != column_index_segment_size(index)? {
             return Ok(Err(ColumnBatchScanFallbackReason::SegmentSizeMismatch));
         }
-        let requested = normalized_fields(requested_fields);
-        if !requested.is_subset(&metadata_fields) {
+        let requested = requested_fields
+            .iter()
+            .filter_map(|field| {
+                metadata
+                    .fields
+                    .iter()
+                    .find(|stored| {
+                        crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored)
+                    })
+                    .map(|stored| crate::sql::ColumnIdentifierPath::stored_field_key(stored))
+            })
+            .collect::<BTreeSet<_>>();
+        if requested_fields.iter().any(|field| {
+            !metadata
+                .fields
+                .iter()
+                .any(|stored| crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored))
+        }) || !requested.is_subset(&metadata_fields)
+        {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         }
         if let Some(reason) = invalid_segment_manifest_reason(metadata) {
@@ -376,10 +397,10 @@ impl Midge {
             }
             previous_end = segment.row_id_end.as_deref();
             if metadata.fields.iter().any(|field| {
-                !segment
-                    .summaries
-                    .keys()
-                    .any(|stored| stored.eq_ignore_ascii_case(field))
+                !segment.summaries.keys().any(|stored| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(stored)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                })
             }) {
                 return Ok(Err(ColumnBatchScanFallbackReason::SummaryMissing));
             }
@@ -501,10 +522,10 @@ fn controlled_segment_retained_bytes(
     )
 }
 
-fn normalized_fields(fields: &[String]) -> BTreeSet<String> {
+fn stored_fields(fields: &[String]) -> BTreeSet<String> {
     fields
         .iter()
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
         .collect()
 }
 

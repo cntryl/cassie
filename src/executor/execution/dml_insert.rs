@@ -119,7 +119,7 @@ fn find_insert_conflict_row_id(
             crate::executor::execution::index_probe_canonicalization::canonicalize_index_probe_value(
                 cassie,
                 &statement.table,
-                field,
+                &crate::sql::ColumnIdentifierPath::stored_field_key(field),
                 value,
             );
         }
@@ -220,13 +220,14 @@ fn excluded_local_args(
         let value = schema
             .fields
             .iter()
-            .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+            .find(|candidate| candidate.name == *field)
             .filter(|candidate| {
                 matches!(candidate.data_type, DataType::Json)
                     && (value.is_null() || value.is_string())
             })
             .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
-        out.insert(format!("excluded.{}", field.to_ascii_lowercase()), value);
+        let key = crate::sql::ColumnIdentifierPath::from_field_name(field).lookup_key();
+        out.insert(format!("excluded.{key}"), value);
     }
     out
 }
@@ -748,7 +749,10 @@ fn conflict_assignment_value(
 ) -> Result<Value, QueryError> {
     match expr {
         Expr::Column(name) => Ok(excluded_args
-            .get(&name.to_ascii_lowercase())
+            .get(
+                &crate::sql::ColumnIdentifierPath::parse(name)
+                    .map_or_else(|_| name.to_ascii_lowercase(), |column| column.lookup_key()),
+            )
             .cloned()
             .or_else(|| existing_row.get(name).cloned())
             .unwrap_or(Value::Null)),
@@ -820,7 +824,7 @@ fn insert_target_fields(
             schema
                 .fields
                 .iter()
-                .find(|field| field.name.eq_ignore_ascii_case(column))
+                .find(|field| field.name == *column)
                 .cloned()
                 .ok_or_else(|| {
                     QueryError::General(format!(

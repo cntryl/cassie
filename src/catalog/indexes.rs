@@ -158,22 +158,25 @@ impl IndexMeta {
     #[must_use]
     pub fn references_field(&self, field: &str) -> bool {
         let partition_references_field = self.options.get("partition_by").is_some_and(|fields| {
-            fields
-                .split(',')
-                .map(str::trim)
-                .any(|candidate| candidate.eq_ignore_ascii_case(field))
+            fields.split(',').map(str::trim).any(|candidate| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+            })
         });
-        let source_references_field = self
-            .options
-            .get("source_field")
-            .is_some_and(|source| source.eq_ignore_ascii_case(field));
+        let source_references_field = self.options.get("source_field").is_some_and(|source| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(source)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+        });
         partition_references_field
             || source_references_field
             || self
                 .normalized_fields()
                 .iter()
                 .chain(self.normalized_include_fields().iter())
-                .any(|candidate| candidate.eq_ignore_ascii_case(field))
+                .any(|candidate| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(candidate)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                })
     }
 
     /// The 23505 error for a duplicate key in this unique index, named as
@@ -210,7 +213,9 @@ impl IndexMeta {
         let mut fields = self.normalized_fields();
 
         for field in &mut fields {
-            if field.eq_ignore_ascii_case(current) {
+            if crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(current)
+            {
                 *field = next.to_string();
                 changed = true;
             }

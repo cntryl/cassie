@@ -97,10 +97,11 @@ pub(crate) fn columns_from_projection_with_wildcard<S: BuildHasher>(
             SelectItem::Wildcard => wildcard_columns(collection_schema, wildcard_fields),
             SelectItem::Column { name, alias } => {
                 let data_type = column_data_type(name, collection_schema);
-                vec![ColumnMeta::from_data_type(
-                    alias.clone().unwrap_or_else(|| name.clone()),
-                    &data_type,
-                )]
+                let output_name = alias.clone().unwrap_or_else(|| {
+                    crate::sql::ColumnIdentifierPath::parse(name)
+                        .map_or_else(|_| name.clone(), |column| column.display_name())
+                });
+                vec![ColumnMeta::from_data_type(output_name, &data_type)]
             }
             SelectItem::Function { function, alias } => {
                 let data_type = crate::sql::binder::infer_function_return_type(
@@ -171,7 +172,9 @@ fn wildcard_columns(
                 ));
             }
             for field in &collection_schema.fields {
-                if seen.insert(field.name.to_ascii_lowercase()) {
+                if seen.insert(crate::sql::ColumnIdentifierPath::stored_field_key(
+                    &field.name,
+                )) {
                     columns.push(ColumnMeta::from_data_type(
                         field.name.clone(),
                         &field.data_type,
@@ -247,7 +250,10 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
     schema
         .fields
         .iter()
-        .find(|field| field.name.eq_ignore_ascii_case(name))
+        .find(|field| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+        })
         .map_or(DataType::Text, |field| field.data_type.clone())
 }
 

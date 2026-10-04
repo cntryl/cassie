@@ -2,9 +2,8 @@
 //! declares them.
 //!
 //! `search_score(BODY, 'q')` and `vector_distance(EMBEDDING, ...)` name their
-//! field as a column reference. The scored read paths use that name as an
-//! exact payload and index key, so an other-case spelling of an unquoted
-//! (case-insensitive) identifier silently scored zero or matched nothing.
+//! field as a column reference. The scored read paths use the canonical SQL
+//! lookup key so delimited names retain exact spelling.
 
 use crate::catalog::Catalog;
 use crate::sql::ast::{Expr, FunctionCall, QuerySource, SelectItem, SelectStatement};
@@ -18,7 +17,8 @@ const FIELD_FUNCTIONS: [&str; 5] = [
 ];
 
 /// Rewrites the column arguments of search and vector functions in `select`
-/// to the declared field spelling when its source is a single collection.
+/// to the canonical key for its declared field when its source is a single
+/// collection.
 pub(super) fn canonicalize_search_field_arguments(select: &mut SelectStatement, catalog: &Catalog) {
     let QuerySource::Collection(name) = &select.source else {
         return;
@@ -65,7 +65,7 @@ fn canonicalize_function(function: &mut FunctionCall, fields: &[String]) {
         match arg {
             Expr::Column(column) if is_field_function => {
                 if let Some(declared) = declared_field(fields, column) {
-                    *column = declared.to_string();
+                    *column = declared;
                 }
             }
             _ => *arg = canonicalize_expr(arg, fields),
@@ -73,12 +73,9 @@ fn canonicalize_function(function: &mut FunctionCall, fields: &[String]) {
     }
 }
 
-fn declared_field<'a>(fields: &'a [String], column: &str) -> Option<&'a str> {
-    if fields.iter().any(|field| field == column) {
-        return None;
-    }
+fn declared_field(fields: &[String], column: &str) -> Option<String> {
     fields
         .iter()
-        .find(|field| field.eq_ignore_ascii_case(column))
-        .map(String::as_str)
+        .find(|field| crate::sql::ColumnIdentifierPath::matches_stored_field(column, field))
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
 }

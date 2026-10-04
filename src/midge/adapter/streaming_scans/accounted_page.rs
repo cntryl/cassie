@@ -162,9 +162,9 @@ pub(super) fn provisional_document_bytes(
                 .iter()
                 .filter(|alias| {
                     projection.is_some_and(|fields| {
-                        fields
-                            .iter()
-                            .any(|projected| projected.eq_ignore_ascii_case(alias))
+                        fields.contains(
+                            &crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                        )
                     })
                 })
                 .try_fold(0usize, |total, alias| checked_add(total, alias.len()))?
@@ -199,15 +199,16 @@ fn decoded_field_name_count(
     let Some(projection) = projection else {
         return usize::from(!field.retired);
     };
-    let current_name = usize::from(!field.retired && projection.contains(&field.normalized_name));
+    let current_key = crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+    let current_name = usize::from(!field.retired && projection.contains(&current_key));
     let aliases = if include_historical_aliases {
         field
             .aliases
             .iter()
             .filter(|alias| {
-                projection
-                    .iter()
-                    .any(|projected| projected.eq_ignore_ascii_case(alias))
+                projection.contains(
+                    &crate::sql::ColumnIdentifierPath::from_field_name(alias).lookup_key(),
+                )
             })
             .count()
     } else {

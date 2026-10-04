@@ -21,9 +21,10 @@ pub(super) fn execute_hnsw_vector_top_k(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    let Some(index) = hnsw_index(cassie, spec)? else {
+    let Some(index) = hnsw_index(cassie, spec, stored_vector_field)? else {
         return Ok(None);
     };
     if !matches!(spec.direction, SortDirection::Asc) {
@@ -54,7 +55,7 @@ pub(super) fn execute_hnsw_vector_top_k(
     let started_at = Instant::now();
     let batch = match cassie.midge.search_hnsw_graph_point_read_controlled(
         &spec.collection,
-        &spec.vector_field,
+        stored_vector_field,
         &spec.query,
         options,
         candidate_limit,
@@ -81,6 +82,7 @@ pub(super) fn execute_hnsw_vector_top_k(
         spec,
         controls,
         built_generation,
+        stored_vector_field,
         candidates,
     )?
     else {
@@ -110,10 +112,11 @@ pub(super) fn execute_hnsw_vector_top_k(
 fn hnsw_index(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
 ) -> Result<Option<crate::embeddings::VectorIndexRecord>, QueryError> {
     let index = cassie
         .midge
-        .get_vector_index_definition(&spec.collection, &spec.vector_field)?;
+        .get_vector_index_definition(&spec.collection, stored_vector_field)?;
     let Some(index) = index else {
         return Ok(None);
     };
@@ -130,6 +133,7 @@ fn rerank_hnsw_candidates(
     spec: &VectorDistanceTopKSpec,
     controls: &QueryExecutionControls,
     generation: u64,
+    stored_vector_field: &str,
     candidates: Vec<crate::vector::hnsw::HnswCandidate>,
 ) -> Result<
     Option<(
@@ -150,7 +154,7 @@ fn rerank_hnsw_candidates(
             record_hnsw_concurrent_source_change(cassie);
             return Ok(None);
         };
-        let Some(vector) = vector_from_json(&document.payload[&spec.vector_field]) else {
+        let Some(vector) = vector_from_json(&document.payload[stored_vector_field]) else {
             record_hnsw_concurrent_source_change(cassie);
             return Ok(None);
         };

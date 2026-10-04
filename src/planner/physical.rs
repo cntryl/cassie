@@ -407,7 +407,7 @@ fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
         .normalized_fields()
         .into_iter()
         .chain(index.normalized_include_fields())
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
         .collect::<BTreeSet<_>>();
     let mut needed_fields = BTreeSet::new();
 
@@ -415,7 +415,7 @@ fn plan_is_covered_by_index(plan: &LogicalPlan, index: &IndexMeta) -> bool {
         match item {
             SelectItem::Column { name, .. } if is_row_id_column(name) => {}
             SelectItem::Column { name, .. } => {
-                needed_fields.insert(name.to_ascii_lowercase());
+                needed_fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
             }
             _ => return false,
         }
@@ -466,7 +466,7 @@ fn filter_supports_covering_index(expr: &Expr) -> bool {
 fn collect_expr_column_refs(expr: &Expr, fields: &mut BTreeSet<String>) {
     if let Expr::Column(name) = expr {
         if !is_row_id_column(name) {
-            fields.insert(name.to_ascii_lowercase());
+            fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(name));
         }
     }
     expr.for_each_child(|child| collect_expr_column_refs(child, fields));
@@ -549,7 +549,7 @@ fn collect_equality_filter_fields(expr: &Expr, fields: &mut BTreeSet<String>) {
             (Expr::Column(field), value) | (value, Expr::Column(field))
                 if !matches!(value, Expr::Column(_)) =>
             {
-                fields.insert(field.to_ascii_lowercase());
+                fields.insert(crate::sql::ColumnIdentifierPath::reference_field_key(field));
             }
             _ => {}
         },
@@ -666,7 +666,7 @@ fn projected_filter_columns(expr: &Expr) -> Option<Vec<String>> {
 fn collect_projected_filter_columns(expr: &Expr, fields: &mut Vec<String>) -> Option<()> {
     match expr {
         Expr::Column(name) => {
-            if !fields.iter().any(|field| field.eq_ignore_ascii_case(name)) {
+            if !fields.iter().any(|field| field == name) {
                 fields.push(name.clone());
             }
             return Some(());

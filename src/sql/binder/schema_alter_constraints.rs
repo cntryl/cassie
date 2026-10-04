@@ -27,17 +27,20 @@ pub(super) fn bind_alter_constraint_targets(
             use_declared_column_spelling(field, schema);
             return Ok(());
         }
+        AlterTableOperation::RenameColumn { from, .. } => {
+            use_declared_column_spelling(from, schema);
+            return Ok(());
+        }
         _ => return Ok(()),
     };
 
     for constraint in constraints {
         if let Some(field) = new_field {
             constraint.use_declared_field_spelling(field);
-        } else if let Some(declared) = schema
-            .fields
-            .iter()
-            .find(|field| field.name.eq_ignore_ascii_case(constraint.field.trim()))
-        {
+        } else if let Some(declared) = schema.fields.iter().find(|field| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(constraint.field.trim())
+        }) {
             constraint.use_declared_field_spelling(&declared.name);
         }
         let label = constraint.field.clone();
@@ -49,13 +52,13 @@ pub(super) fn bind_alter_constraint_targets(
 
 /// Rewrites a column named by `ALTER COLUMN` or `DROP COLUMN` to the declared
 /// spelling, which is the key stored payloads and constraint
-/// metadata use; the binder already matched it without regard to ASCII case.
+/// metadata use; the parser preserved the SQL delimiter state in its lookup
+/// key.
 fn use_declared_column_spelling(field: &mut String, schema: &CollectionSchema) {
-    if let Some(declared) = schema
-        .fields
-        .iter()
-        .find(|declared| declared.name.eq_ignore_ascii_case(field.trim()))
-    {
+    if let Some(declared) = schema.fields.iter().find(|declared| {
+        crate::sql::ColumnIdentifierPath::stored_field_key(&declared.name)
+            == crate::sql::ColumnIdentifierPath::reference_field_key(field.trim())
+    }) {
         declared.name.clone_into(field);
     }
 }
@@ -85,7 +88,10 @@ pub(super) fn bind_foreign_key_reference(
     let Some(reference_field) = referenced_schema
         .fields
         .iter()
-        .find(|entry| entry.name.eq_ignore_ascii_case(reference_field))
+        .find(|entry| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&entry.name)
+                == crate::sql::ColumnIdentifierPath::reference_field_key(reference_field)
+        })
         .map(|entry| entry.name.clone())
     else {
         return Err(CassieError::Planner(format!(

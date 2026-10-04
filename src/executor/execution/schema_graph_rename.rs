@@ -77,7 +77,7 @@ pub(super) fn rename_graph_columns(
     update_graphs(cassie, |graph| {
         let mut changed = false;
         for field in graph_fields_on_table(cassie, graph, table) {
-            if field.eq_ignore_ascii_case(from) {
+            if field == from {
                 *field = to.to_string();
                 changed = true;
             }
@@ -96,7 +96,7 @@ pub(super) fn reject_graph_column_drop(
         let name = graph.name.clone();
         if graph_fields_on_table(cassie, &mut graph, table)
             .into_iter()
-            .any(|column| column.eq_ignore_ascii_case(field))
+            .any(|column| column == field)
         {
             return Err(QueryError::General(format!(
                 "cannot drop column '{field}' of '{table}' because graph '{name}' depends on it"

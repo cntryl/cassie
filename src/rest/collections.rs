@@ -88,7 +88,7 @@ fn create_in_namespace(
                     .to_string(),
             ));
         }
-        if !field_names.insert(field_name.to_ascii_lowercase()) {
+        if !field_names.insert(field_name.to_string()) {
             return Err(CassieError::Planner(format!(
                 "collection field '{field_name}' is defined more than once"
             )));

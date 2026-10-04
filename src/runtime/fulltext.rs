@@ -22,7 +22,7 @@ impl FulltextIndexOptionsCacheKey {
     {
         let mut normalized_fields = fields
             .into_iter()
-            .map(|field| field.to_ascii_lowercase())
+            .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(&field))
             .collect::<Vec<_>>();
         normalized_fields.sort();
         normalized_fields.dedup();

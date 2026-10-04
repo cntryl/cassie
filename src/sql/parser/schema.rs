@@ -27,7 +27,9 @@ mod schema_sequences;
 mod schema_table_constraints;
 use schema_fields::parse_field_definition;
 use schema_fields::parse_field_definition_for_table;
-use schema_identifiers::{parse_identifier, parse_relation_path};
+use schema_identifiers::{
+    parse_column_identifier, parse_column_reference, parse_identifier, parse_relation_path,
+};
 pub(super) use schema_indexes::{
     parse_create_index_statement, parse_drop_index_statement, parse_index_options,
 };
@@ -91,7 +93,7 @@ pub(super) fn parse_create_table_statement(sql: &str) -> Result<ParsedStatement,
 
     let mut seen = HashSet::new();
     for field in &fields {
-        let name = field.name.to_ascii_lowercase();
+        let name = field.name.clone();
         if !seen.insert(name.clone()) {
             return Err(SqlError::new(format!("duplicate column name '{name}'")));
         }
@@ -398,7 +400,7 @@ pub(super) fn parse_alter_table_operation(
         return Ok(AlterTableOperation::DropConstraint { name, if_exists });
     }
     if lower.starts_with("drop column") {
-        let field = parse_identifier(raw["drop column".len()..].trim())?;
+        let field = parse_column_reference(raw["drop column".len()..].trim())?;
         if field.is_empty() {
             return Err(SqlError::new("DROP COLUMN requires a column name".into()));
         }
@@ -419,8 +421,8 @@ pub(super) fn parse_alter_table_operation(
             ));
         }
         return Ok(AlterTableOperation::RenameColumn {
-            from: parse_identifier(from)?,
-            to: parse_identifier(to)?,
+            from: parse_column_reference(from)?,
+            to: parse_column_identifier(to)?,
         });
     }
     if lower.starts_with("rename to") {

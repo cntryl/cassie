@@ -869,12 +869,8 @@ fn build_state(
     for (document_id, payload) in documents {
         let Some(text) = payload
             .as_object()
-            .and_then(|fields| {
-                fields
-                    .iter()
-                    .find(|(name, _)| name.eq_ignore_ascii_case(&index.field))
-            })
-            .and_then(|(_, value)| value.as_str())
+            .and_then(|fields| fields.get(&index.field))
+            .and_then(serde_json::Value::as_str)
         else {
             continue;
         };

@@ -468,7 +468,8 @@ fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String
     let wanted = fields
         .iter()
         .filter(|field| !is_row_identity_column(field))
-        .map(|field| field.to_ascii_lowercase())
+        .filter_map(|field| crate::sql::ColumnIdentifierPath::parse(field).ok())
+        .map(|field| field.field_lookup_key())
         .collect::<HashSet<_>>();
     !wanted.is_empty()
         && cassie
@@ -478,10 +479,11 @@ fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String
             .any(|index| {
                 index.kind == IndexKind::Column
                     && wanted.iter().all(|field| {
-                        index
-                            .normalized_fields()
-                            .iter()
-                            .any(|candidate| candidate.eq_ignore_ascii_case(field))
+                        index.normalized_fields().iter().any(|candidate| {
+                            crate::sql::ColumnIdentifierPath::from_field_name(candidate)
+                                .lookup_key()
+                                == *field
+                        })
                     })
             })
 }
@@ -791,10 +793,11 @@ pub(crate) fn attach_row_types(row: &mut BatchRow, schema: Option<&CollectionSch
 }
 
 fn field_data_type<'a>(schema: Option<&'a CollectionSchema>, field: &str) -> Option<&'a DataType> {
+    let reference = crate::sql::ColumnIdentifierPath::parse(field).ok()?;
     schema?
         .fields
         .iter()
-        .find(|entry| entry.name.eq_ignore_ascii_case(field))
+        .find(|entry| reference.matches_field_name(&entry.name))
         .map(|entry| &entry.data_type)
 }
 
@@ -809,18 +812,18 @@ fn projected_document_matches(
         .is_some_and(|value| value == filter.value)
 }
 
-/// Reads `field` from a document payload, preferring an exact key and falling
-/// back to an ASCII case-insensitive match, because unquoted SQL identifiers
-/// are case-insensitive while payload keys keep their declared case.
+/// Reads a canonical SQL column reference from a document payload, preserving
+/// exact matching for delimited final components.
 pub(crate) fn projected_field_value<'a>(
     object: &'a serde_json::Map<String, serde_json::Value>,
     field: &str,
 ) -> Option<&'a serde_json::Value> {
+    let column = crate::sql::ColumnIdentifierPath::parse(field).ok()?;
     object.get(field).or_else(|| {
-        object
+        column
+            .row_lookup_candidates()
             .iter()
-            .find(|(name, _)| name.eq_ignore_ascii_case(field))
-            .map(|(_, value)| value)
+            .find_map(|candidate| object.get(candidate))
     })
 }
 

@@ -201,9 +201,9 @@ fn normalize_fields(fields: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Spells each index field the way the table declares it. Column references
-/// are case-insensitive, so `CREATE INDEX ON t (AMOUNT)` indexes the column
-/// declared as `amount`; an unknown name is kept so validation reports it.
+/// Spells each index field the way the table declares it. Unquoted references
+/// have already folded to lowercase; delimited references retain exact case.
+/// An unknown name is kept so validation reports it.
 fn declared_field_names(schema: &CollectionSchema, fields: Vec<String>) -> Vec<String> {
     fields
         .into_iter()
@@ -212,13 +212,11 @@ fn declared_field_names(schema: &CollectionSchema, fields: Vec<String>) -> Vec<S
 }
 
 fn declared_field_name(schema: &CollectionSchema, field: String) -> String {
-    if schema.fields.iter().any(|entry| entry.name == field) {
-        return field;
-    }
+    let reference = crate::sql::ColumnIdentifierPath::reference_field_key(&field);
     schema
         .fields
         .iter()
-        .find(|entry| entry.name.eq_ignore_ascii_case(&field))
+        .find(|entry| crate::sql::ColumnIdentifierPath::stored_field_key(&entry.name) == reference)
         .map_or(field, |entry| entry.name.clone())
 }
 
@@ -277,10 +275,10 @@ fn validate_include_fields(
     let mut seen_include_fields = std::collections::BTreeSet::new();
     let key_fields = fields
         .iter()
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field))
         .collect::<std::collections::BTreeSet<_>>();
     for field in include_fields {
-        let normalized = field.to_ascii_lowercase();
+        let normalized = crate::sql::ColumnIdentifierPath::stored_field_key(field);
         if !seen_include_fields.insert(normalized.clone()) {
             return Err(CassieError::Planner(format!(
                 "INCLUDE field '{field}' is duplicated"
@@ -413,17 +411,14 @@ fn validate_fulltext_uniqueness(
 ) -> Result<(), CassieError> {
     let existing_fulltext_index = catalog.list_indexes(table).into_iter().find(|metadata| {
         metadata.kind == crate::catalog::IndexKind::FullText
-            && metadata.field.eq_ignore_ascii_case(field)
+            && crate::sql::ColumnIdentifierPath::stored_field_key(&metadata.field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(field)
     });
     if let Some(existing_fulltext_index) = existing_fulltext_index {
         let existing_index = catalog
             .get_index(table, name)
             .filter(|metadata| metadata.kind == crate::catalog::IndexKind::FullText)
-            .filter(|metadata| {
-                metadata
-                    .field
-                    .eq_ignore_ascii_case(&existing_fulltext_index.field)
-            });
+            .filter(|metadata| metadata.field == existing_fulltext_index.field);
 
         if existing_index.is_none() {
             return Err(CassieError::Planner(format!(
@@ -496,7 +491,7 @@ fn bind_column_index_options(
 
     let mut seen_fields = std::collections::BTreeSet::new();
     for field in fields {
-        if !seen_fields.insert(field.to_ascii_lowercase()) {
+        if !seen_fields.insert(crate::sql::ColumnIdentifierPath::stored_field_key(field)) {
             return Err(CassieError::Planner(format!(
                 "column index field '{field}' is duplicated"
             )));

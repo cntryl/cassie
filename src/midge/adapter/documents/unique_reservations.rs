@@ -118,7 +118,7 @@ impl Midge {
             };
             if value.is_null()
                 && !row_schema.fields.iter().any(|field_meta| {
-                    field_meta.name.eq_ignore_ascii_case(&constraint.field)
+                    field_meta.name == constraint.field
                         && matches!(field_meta.data_type, crate::types::DataType::Json)
                 })
             {

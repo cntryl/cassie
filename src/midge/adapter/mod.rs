@@ -871,7 +871,8 @@ impl Midge {
         })?;
         for field in &mut row_schema.fields {
             if field.normalized_name.is_empty() {
-                field.normalized_name = field.name.to_ascii_lowercase();
+                field.normalized_name =
+                    crate::sql::ColumnIdentifierPath::stored_field_key(&field.name);
             }
         }
         Ok(Some(row_schema))

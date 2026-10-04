@@ -65,10 +65,9 @@ pub(in crate::executor::execution) fn index_trailing_keys_not_null(
         return true;
     }
     let not_null_fields = cassie.catalog.not_null_fields(collection);
-    fields
-        .iter()
-        .skip(1)
-        .all(|field| not_null_fields.contains(&field.to_ascii_lowercase()))
+    fields.iter().skip(1).all(|field| {
+        not_null_fields.contains(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
+    })
 }
 
 /// Widens a canonical-shaped timestamp probe (`...SSZ`) to the fixed-width
@@ -499,7 +498,9 @@ fn collect_concrete_constraints(
             let Expr::Column(field) = expr.as_ref() else {
                 return None;
             };
-            let entry = constraints.entry(field.to_ascii_lowercase()).or_default();
+            let entry = constraints
+                .entry(crate::sql::ColumnIdentifierPath::reference_field_key(field))
+                .or_default();
             intersect_constraint(entry, &BinaryOp::Gte, expr_to_json(low, params)?)?;
             intersect_constraint(entry, &BinaryOp::Lte, expr_to_json(high, params)?)
         }
@@ -515,12 +516,12 @@ fn concrete_constraint(
 ) -> Option<(String, BinaryOp, serde_json::Value)> {
     match (left, right) {
         (Expr::Column(field), other) => Some((
-            field.to_ascii_lowercase(),
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
             op.clone(),
             expr_to_json(other, params)?,
         )),
         (other, Expr::Column(field)) => Some((
-            field.to_ascii_lowercase(),
+            crate::sql::ColumnIdentifierPath::reference_field_key(field),
             reverse_binary_op(op)?,
             expr_to_json(other, params)?,
         )),

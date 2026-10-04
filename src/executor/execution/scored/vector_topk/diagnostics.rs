@@ -43,25 +43,33 @@ pub(super) fn source_generation_matches(
 pub(super) fn record_transaction_overlay_exact_fallback(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
 ) -> Result<(), QueryError> {
-    record_ann_exact_fallback(cassie, spec, "transaction-overlay-exact")
+    record_ann_exact_fallback(
+        cassie,
+        spec,
+        stored_vector_field,
+        "transaction-overlay-exact",
+    )
 }
 
 pub(super) fn record_filtered_ann_exact_fallback(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
 ) -> Result<(), QueryError> {
-    record_ann_exact_fallback(cassie, spec, "structured-filter-exact")
+    record_ann_exact_fallback(cassie, spec, stored_vector_field, "structured-filter-exact")
 }
 
 fn record_ann_exact_fallback(
     cassie: &Cassie,
     spec: &VectorDistanceTopKSpec,
+    stored_vector_field: &str,
     reason: &str,
 ) -> Result<(), QueryError> {
     let index = cassie
         .midge
-        .get_vector_index_definition(&spec.collection, &spec.vector_field)
+        .get_vector_index_definition(&spec.collection, stored_vector_field)
         .map_err(QueryError::from)?;
     match index.map(|record| record.metadata.index_type) {
         Some(crate::embeddings::VectorIndexType::Hnsw) => {

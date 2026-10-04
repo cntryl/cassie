@@ -40,7 +40,9 @@ fn vector_field_id(row_schema: &super::RowSchema, field: &str) -> Result<u32, Ca
     row_schema
         .fields
         .iter()
-        .find(|candidate| candidate.name.eq_ignore_ascii_case(field))
+        .find(|candidate| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(field, &candidate.name)
+        })
         .map(|candidate| candidate.field_id)
         .ok_or_else(|| CassieError::Parse(format!("missing vector field storage id: {field}")))
 }

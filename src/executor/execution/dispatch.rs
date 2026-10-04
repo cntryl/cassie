@@ -655,7 +655,7 @@ fn build_exists_logical_plan(
             let columns = rows
                 .fields
                 .iter()
-                .map(|field| field.name.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
                 .collect();
             (name.clone(), columns)
         })
@@ -666,9 +666,10 @@ fn build_exists_logical_plan(
             row.entries()
                 .iter()
                 .flat_map(|(name, _)| {
-                    let name = name.to_ascii_lowercase();
-                    let column = name.rsplit('.').next().unwrap_or(&name).to_string();
-                    [name, column]
+                    [
+                        crate::sql::ColumnIdentifierPath::stored_row_lookup_key(name),
+                        crate::sql::ColumnIdentifierPath::stored_row_field_key(name),
+                    ]
                 })
                 .collect()
         })

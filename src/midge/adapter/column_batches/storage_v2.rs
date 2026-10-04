@@ -94,7 +94,9 @@ pub(super) fn scan_aggregate_segment(
         .map(|field| {
             let (_, values) = decoded
                 .iter()
-                .find(|(stored, _)| stored.eq_ignore_ascii_case(field))
+                .find(|(stored, _)| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored)
+                })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             Ok((
                 field.clone(),
@@ -176,7 +178,7 @@ fn encode_segment_with_policy(
             .map(|row| {
                 row.values
                     .iter()
-                    .find(|(name, _)| name.eq_ignore_ascii_case(field))
+                    .find(|(name, _)| name.as_str() == field.as_str())
                     .map_or(serde_json::Value::Null, |(_, value)| value.clone())
             })
             .collect::<Vec<_>>();
@@ -306,11 +308,9 @@ pub(super) fn load_segment(
     let mut chunks_read = 1usize;
     let mut values_decoded = 0usize;
     for wanted_field in wanted {
-        let Some((field, chunk_meta)) = segment
-            .field_chunks
-            .iter()
-            .find(|(field, _)| field.eq_ignore_ascii_case(wanted_field))
-        else {
+        let Some((field, chunk_meta)) = segment.field_chunks.iter().find(|(field, _)| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+        }) else {
             return Ok(Err(ColumnBatchScanFallbackReason::FieldCoverageMismatch));
         };
         if chunk_meta.codec_version != CURRENT_COLUMN_BATCH_CODEC_VERSION {
@@ -467,9 +467,10 @@ fn load_predicate_fields(
         if let Some((selection, predicate_values)) =
             alp_selection_for_filter(&loaded.values, loaded.scale, filter)
         {
-            let projects_alp_field = wanted
-                .iter()
-                .any(|wanted_field| wanted_field.eq_ignore_ascii_case(field));
+            let projects_alp_field = wanted.iter().any(|wanted_field| {
+                crate::sql::ColumnIdentifierPath::reference_field_key(wanted_field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+            });
             if wanted.len() == 1 && projects_alp_field {
                 result.alp_projection = Some((field.clone(), loaded.scale, loaded.values));
             } else if projects_alp_field {
@@ -495,11 +496,9 @@ fn load_predicate_fields(
         return Ok(Ok(result));
     }
     for predicate in &filter.predicates {
-        if result
-            .decoded
-            .keys()
-            .any(|field| field.eq_ignore_ascii_case(&predicate.field))
-        {
+        if result.decoded.keys().any(|field| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+        }) {
             continue;
         }
         let Some((field, meta)) = find_field_chunk(segment, &predicate.field) else {
@@ -534,7 +533,12 @@ fn materialize_selected_rows(
                     .filter_map(|wanted_field| {
                         decoded_fields
                             .iter()
-                            .find(|(field, _)| field.eq_ignore_ascii_case(wanted_field))
+                            .find(|(field, _)| {
+                                crate::sql::ColumnIdentifierPath::matches_stored_field(
+                                    wanted_field,
+                                    field,
+                                )
+                            })
                             .and_then(|(field, values)| {
                                 values
                                     .get(position)
@@ -581,10 +585,9 @@ fn load_projection_fields(
     let mut decoded_bytes = 0usize;
     let mut chunks_read = 0usize;
     for wanted_field in wanted {
-        if decoded_fields
-            .keys()
-            .any(|field| field.eq_ignore_ascii_case(wanted_field))
-        {
+        if decoded_fields.keys().any(|field| {
+            crate::sql::ColumnIdentifierPath::matches_stored_field(wanted_field, field)
+        }) {
             continue;
         }
         let Some((field, meta)) = find_field_chunk(segment, wanted_field) else {
@@ -621,7 +624,9 @@ fn encoded_selection(
         for predicate in &filter.predicates {
             let (_, values) = decoded_fields
                 .iter()
-                .find(|(field, _)| field.eq_ignore_ascii_case(&predicate.field))
+                .find(|(field, _)| {
+                    crate::sql::ColumnIdentifierPath::matches_stored_field(&predicate.field, field)
+                })
                 .ok_or(ColumnBatchScanFallbackReason::FieldCoverageMismatch)?;
             for (selected, value) in selection.iter_mut().zip(values) {
                 if *selected {
@@ -657,11 +662,7 @@ fn field_logical_type(row_schema: &RowSchema, field: &str) -> LogicalType {
         .iter()
         .find(|candidate| {
             !candidate.retired
-                && (candidate.name.eq_ignore_ascii_case(field)
-                    || candidate
-                        .aliases
-                        .iter()
-                        .any(|alias| alias.eq_ignore_ascii_case(field)))
+                && (candidate.name == field || candidate.aliases.iter().any(|alias| alias == field))
         })
         .and_then(|candidate| LogicalType::from_name(&candidate.data_type.type_name()).ok())
         .unwrap_or(LogicalType::Complex)
@@ -684,7 +685,7 @@ fn find_field_chunk<'a>(
     segment
         .field_chunks
         .iter()
-        .find(|(stored, _)| stored.eq_ignore_ascii_case(field))
+        .find(|(stored, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored))
 }
 
 fn load_field_chunk(

@@ -21,16 +21,19 @@ impl RowDecode {
     pub(crate) fn into_projection(self) -> (Option<HashSet<String>>, bool) {
         match self {
             RowDecode::Full => (None, false),
-            RowDecode::Projected(fields) => (Some(normalized_projection(fields)), false),
-            RowDecode::ProjectedHistorical(fields) => (Some(normalized_projection(fields)), true),
+            RowDecode::Projected(fields) => (Some(canonical_projection(fields)), false),
+            RowDecode::ProjectedHistorical(fields) => (Some(canonical_projection(fields)), true),
         }
     }
 }
 
-fn normalized_projection(fields: Vec<String>) -> HashSet<String> {
+fn canonical_projection(fields: Vec<String>) -> HashSet<String> {
     fields
         .into_iter()
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| {
+            crate::sql::ColumnIdentifierPath::parse(&field)
+                .map_or_else(|_| field.to_ascii_lowercase(), |column| column.lookup_key())
+        })
         .collect()
 }
 

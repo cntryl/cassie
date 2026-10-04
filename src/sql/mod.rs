@@ -5,6 +5,7 @@ use crate::types::DataType;
 
 pub mod ast;
 pub mod binder;
+mod column_identifier;
 pub mod functions;
 pub mod parser;
 
@@ -19,6 +20,7 @@ pub use ast::{
     StatementRoute, StatementRouteRef, UpdateStatement,
 };
 pub use binder::{bind, BoundStatement};
+pub(crate) use column_identifier::ColumnIdentifierPath;
 pub use functions::registry;
 pub use parser::{parse_statement, SqlError, SqlErrorKind};
 
@@ -134,7 +136,10 @@ fn infer_insert_parameter_type_oids(
                 schema
                     .fields
                     .iter()
-                    .find(|field| field.name.eq_ignore_ascii_case(column))
+                    .find(|field| {
+                        crate::sql::ColumnIdentifierPath::parse(column)
+                            .is_ok_and(|reference| reference.matches_field_name(&field.name))
+                    })
                     .cloned()
             })
             .collect::<Vec<_>>()
@@ -488,7 +493,12 @@ fn infer_projected_field_types(
 fn field_type_map<'a>(fields: impl IntoIterator<Item = &'a FieldMeta>) -> FieldTypeMap {
     fields
         .into_iter()
-        .map(|field| (field.name.to_ascii_lowercase(), field.data_type.clone()))
+        .map(|field| {
+            (
+                crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key(),
+                field.data_type.clone(),
+            )
+        })
         .collect()
 }
 
@@ -504,14 +514,8 @@ pub(crate) fn field_type_for_column<'a>(
     field_types: &'a FieldTypeMap,
     column: &str,
 ) -> Option<&'a DataType> {
-    let column = column
-        .trim_matches('"')
-        .rsplit('.')
-        .next()
-        .unwrap_or(column)
-        .trim_matches('"')
-        .to_ascii_lowercase();
-    field_types.get(&column)
+    let column = crate::sql::ColumnIdentifierPath::parse(column).ok()?;
+    field_types.get(&column.field_lookup_key())
 }
 
 fn parameter_count_query(statement: &QueryStatement) -> usize {

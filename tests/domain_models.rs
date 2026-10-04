@@ -1271,6 +1271,88 @@ mod time_series_indexes {
     }
 
     #[test]
+    fn should_select_the_exact_case_distinct_time_series_timestamp_field() {
+        // Arrange
+        use_local_storage();
+        let path = data_dir("time_series_case_distinct_timestamp_fields");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+
+        runtime.block_on(async {
+            let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+            cassie.startup().expect("start Cassie");
+            let session = cassie.create_session("tester", None);
+            for statement in [
+                "CREATE TABLE ts_case_distinct (tenant TEXT, id INT, \
+                 event_at TIMESTAMP, \"Event_At\" TIMESTAMP)",
+                "INSERT INTO ts_case_distinct (tenant, id, event_at, \"Event_At\") VALUES \
+                 ('acme', 1, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'), \
+                 ('acme', 2, '2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z')",
+                "CREATE INDEX ts_case_distinct_lower_idx ON ts_case_distinct \
+                 USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)",
+                "CREATE INDEX ts_case_distinct_upper_idx ON ts_case_distinct \
+                 USING time_series (\"Event_At\") WITH (bucket_width = '1 hour', partition_by = tenant)",
+            ] {
+                cassie
+                    .execute_sql(&session, statement, vec![])
+                    .unwrap_or_else(|error| panic!("{statement}: {error}"));
+            }
+
+            // Act
+            let selected = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT id FROM ts_case_distinct WHERE \"Event_At\" >= \
+                     '2026-01-02T00:00:00Z' ORDER BY id",
+                    vec![],
+                )
+                .expect("query exact case-distinct timestamp field");
+            let explained = cassie
+                .execute_sql(
+                    &session,
+                    "EXPLAIN SELECT id FROM ts_case_distinct WHERE \"Event_At\" >= \
+                     '2026-01-02T00:00:00Z' ORDER BY id",
+                    vec![],
+                )
+                .expect("explain exact case-distinct timestamp field");
+            let metrics = cassie.metrics();
+            let upper_index = canonical_test_index(
+                &cassie,
+                "ts_case_distinct",
+                "ts_case_distinct_upper_idx",
+            );
+            let lower_index = canonical_test_index(
+                &cassie,
+                "ts_case_distinct",
+                "ts_case_distinct_lower_idx",
+            );
+
+            // Assert
+            assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
+            let Value::String(plan) = &explained.rows[0][0] else {
+                panic!("expected textual plan");
+            };
+            assert!(
+                plan.contains(&format!("index={upper_index}")),
+                "the exact-case query should select its time-series index"
+            );
+            assert!(
+                !plan.contains(&format!("index={lower_index}")),
+                "the sibling-case query should not select the other time-series index"
+            );
+            assert_eq!(metrics["time_series"]["scans"].as_u64(), Some(1));
+            assert_eq!(
+                metrics["time_series"]["last_index"].as_str(),
+                Some(upper_index.as_str())
+            );
+        });
+
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
     fn should_execute_timestamp_range_with_time_series_metrics() {
         // Arrange
         use_local_storage();

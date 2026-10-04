@@ -243,12 +243,12 @@ pub(super) fn rename_constraints_in_tx(
         })?;
     let mut changed = false;
     for constraint in &mut constraints {
-        if constraint.field.eq_ignore_ascii_case(current_name) {
+        if constraint.field == current_name {
             constraint.field = next_name.to_string();
             changed = true;
         }
         if let Some(check) = constraint.check.as_mut() {
-            if check.field.eq_ignore_ascii_case(current_name) {
+            if crate::sql::ColumnIdentifierPath::matches_stored_field(&check.field, current_name) {
                 check.field = next_name.to_string();
                 changed = true;
             }
@@ -293,7 +293,7 @@ pub(super) fn rename_indexes_in_tx(
                     .map(str::trim)
                     .filter(|field| !field.is_empty())
                     .map(|field| {
-                        if field.eq_ignore_ascii_case(current_name) {
+                        if field == current_name {
                             next_name.to_string()
                         } else {
                             field.to_string()
@@ -346,12 +346,12 @@ pub(super) fn rename_vector_indexes_in_tx(
 
         let mut changed = false;
         let mut next_key = key.clone();
-        if record.field.eq_ignore_ascii_case(current_name) {
+        if record.field == current_name {
             record.field = next_name.to_string();
             next_key = Midge::vector_index_key(&record.collection, &record.field);
             changed = true;
         }
-        if record.source_field.eq_ignore_ascii_case(current_name) {
+        if record.source_field == current_name {
             record.source_field = next_name.to_string();
             changed = true;
         }

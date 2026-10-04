@@ -121,10 +121,11 @@ pub fn conflicting_unique_membership(
     let mut combined = existing.to_vec();
     combined.extend(additions.iter().cloned());
     for addition in additions.iter().filter(|addition| addition.unique) {
-        let Some(current) = existing
-            .iter()
-            .find(|entry| entry.unique && entry.field.eq_ignore_ascii_case(&addition.field))
-        else {
+        let Some(current) = existing.iter().find(|entry| {
+            entry.unique
+                && crate::sql::ColumnIdentifierPath::stored_field_key(&entry.field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(&addition.field)
+        }) else {
             continue;
         };
         let current_name = unique_name(collection, current);

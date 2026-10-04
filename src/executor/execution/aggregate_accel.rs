@@ -41,18 +41,19 @@ pub(super) fn try_execute_column_batch_aggregate(
     let mut fields = specs
         .iter()
         .filter_map(|spec| spec.field.as_ref())
-        .map(|field| field.to_ascii_lowercase())
+        .map(|field| crate::sql::ColumnIdentifierPath::reference_field_key(field))
         .collect::<Vec<_>>();
     let encoded_filter = if let Some(filter) = plan.filter.as_ref() {
         let Some(encoded_filter) = projected_read::column_batch_scan_filter(filter) else {
             return Ok(None);
         };
         for predicate in &encoded_filter.predicates {
-            if !fields
-                .iter()
-                .any(|field| field.eq_ignore_ascii_case(&predicate.field))
-            {
-                fields.push(predicate.field.to_ascii_lowercase());
+            if !fields.iter().any(|field| {
+                field == &crate::sql::ColumnIdentifierPath::reference_field_key(&predicate.field)
+            }) {
+                fields.push(crate::sql::ColumnIdentifierPath::reference_field_key(
+                    &predicate.field,
+                ));
             }
         }
         Some(encoded_filter)
@@ -277,9 +278,13 @@ fn covering_column_index(
             let available = index
                 .normalized_fields()
                 .into_iter()
-                .map(|field| field.to_ascii_lowercase())
+                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field))
                 .collect::<HashSet<_>>();
-            fields.iter().all(|field| available.contains(field)) || fields.is_empty()
+            fields.iter().all(|field| {
+                available.contains(&crate::sql::ColumnIdentifierPath::reference_field_key(
+                    field,
+                ))
+            }) || fields.is_empty()
         })
 }
 
@@ -469,7 +474,7 @@ fn field_summary<'a>(
     segment
         .summaries
         .iter()
-        .find(|(name, _)| name.eq_ignore_ascii_case(field))
+        .find(|(name, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, name))
         .map(|(_, summary)| summary)
 }
 

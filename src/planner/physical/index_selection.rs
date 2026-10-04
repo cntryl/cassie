@@ -175,10 +175,9 @@ fn scalar_index_matches_plan(
     equality_expressions: &BTreeSet<String>,
 ) -> bool {
     if index.expressions.is_empty() {
-        let field_match = index
-            .normalized_fields()
-            .iter()
-            .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
+        let field_match = index.normalized_fields().iter().all(|field| {
+            equality_fields.contains(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
+        });
         return scalar_index_plan_shape(plan, index, not_null_fields).is_some()
             || field_match
             || super::scalar_paths::scalar_index_order_proof_missing_candidate(
@@ -188,10 +187,9 @@ fn scalar_index_matches_plan(
             );
     }
 
-    let field_match = index
-        .normalized_fields()
-        .iter()
-        .all(|field| equality_fields.contains(&field.to_ascii_lowercase()));
+    let field_match = index.normalized_fields().iter().all(|field| {
+        equality_fields.contains(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
+    });
     let expression_match = index
         .normalized_expressions()
         .iter()

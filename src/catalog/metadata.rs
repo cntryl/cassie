@@ -296,7 +296,10 @@ impl Catalog {
             .and_then(|constraints| {
                 constraints
                     .iter()
-                    .find(|constraint| constraint.field.eq_ignore_ascii_case(field))
+                    .find(|constraint| {
+                        crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                            == crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                    })
                     .cloned()
             })
     }
@@ -307,7 +310,7 @@ impl Catalog {
         self.get_constraints(collection)
             .into_iter()
             .filter(|constraint| constraint.not_null || constraint.primary_key)
-            .map(|constraint| constraint.field.to_ascii_lowercase())
+            .map(|constraint| crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field))
             .collect()
     }
 
@@ -469,7 +472,10 @@ impl Catalog {
             schema
                 .fields
                 .into_iter()
-                .find(|entry| entry.name.eq_ignore_ascii_case(field))
+                .find(|entry| {
+                    crate::sql::ColumnIdentifierPath::parse(field)
+                        .is_ok_and(|reference| reference.matches_field_name(&entry.name))
+                })
                 .map(|entry| entry.data_type)
         })
     }
@@ -503,13 +509,15 @@ impl Catalog {
         self.indexes.write().retain(|_, index| {
             index.collection != collection
                 || index.kind != IndexKind::Column
-                || !index
-                    .normalized_fields()
-                    .iter()
-                    .any(|field| field.eq_ignore_ascii_case(name))
+                || !index.normalized_fields().iter().any(|field| {
+                    crate::sql::ColumnIdentifierPath::stored_field_key(field)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(name)
+                })
         });
         self.retention_policies.write().retain(|_, policy| {
-            policy.collection != collection || !policy.timestamp_field.eq_ignore_ascii_case(name)
+            policy.collection != collection
+                || crate::sql::ColumnIdentifierPath::stored_field_key(&policy.timestamp_field)
+                    != crate::sql::ColumnIdentifierPath::stored_field_key(name)
         });
         self.bump_version();
     }
@@ -616,11 +624,10 @@ impl Catalog {
             return;
         };
 
-        let Some(field) = schema
-            .fields
-            .iter_mut()
-            .find(|entry| entry.name.eq_ignore_ascii_case(current_name))
-        else {
+        let Some(field) = schema.fields.iter_mut().find(|entry| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(&entry.name)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+        }) else {
             return;
         };
         field.name = next_name.to_string();
@@ -628,11 +635,15 @@ impl Catalog {
         let mut constraints = self.constraints.write();
         if let Some(entries) = constraints.get_mut(collection) {
             for constraint in entries {
-                if constraint.field.eq_ignore_ascii_case(current_name) {
+                if crate::sql::ColumnIdentifierPath::stored_field_key(&constraint.field)
+                    == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+                {
                     constraint.field = next_name.to_string();
                 }
                 if let Some(check) = constraint.check.as_mut() {
-                    if check.field.eq_ignore_ascii_case(current_name) {
+                    if crate::sql::ColumnIdentifierPath::stored_field_key(&check.field)
+                        == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+                    {
                         check.field = next_name.to_string();
                     }
                 }
@@ -664,11 +675,15 @@ impl Catalog {
                 continue;
             };
             let mut changed_key = false;
-            if field.eq_ignore_ascii_case(current_name) {
+            if crate::sql::ColumnIdentifierPath::stored_field_key(&field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+            {
                 record.field = next_name.to_string();
                 changed_key = true;
             }
-            if source_field.eq_ignore_ascii_case(current_name) {
+            if crate::sql::ColumnIdentifierPath::stored_field_key(&source_field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+            {
                 record.source_field = next_name.to_string();
             }
             let next_key = if changed_key {
@@ -684,7 +699,9 @@ impl Catalog {
             .values_mut()
             .filter(|policy| policy.collection == collection)
         {
-            if policy.timestamp_field.eq_ignore_ascii_case(current_name) {
+            if crate::sql::ColumnIdentifierPath::stored_field_key(&policy.timestamp_field)
+                == crate::sql::ColumnIdentifierPath::stored_field_key(current_name)
+            {
                 policy.timestamp_field = next_name.to_string();
             }
         }
@@ -870,8 +887,7 @@ impl Catalog {
             let matching_key = indexes
                 .iter()
                 .find(|(_, record)| {
-                    name_matches(&record.collection, collection)
-                        && record.field.eq_ignore_ascii_case(field)
+                    name_matches(&record.collection, collection) && record.field == field
                 })
                 .map(|(stored_key, _)| stored_key.clone());
             if let Some(stored_key) = matching_key {
@@ -896,7 +912,10 @@ impl Catalog {
                     .values()
                     .find(|record| {
                         name_matches(&record.collection, collection)
-                            && record.field.eq_ignore_ascii_case(vector_field)
+                            && crate::sql::ColumnIdentifierPath::matches_stored_field(
+                                vector_field,
+                                &record.field,
+                            )
                     })
                     .cloned()
             })?;

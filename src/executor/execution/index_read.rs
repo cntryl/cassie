@@ -137,7 +137,11 @@ pub(super) fn signed_zero_probe_counterpart(
     field: &str,
     value: &serde_json::Value,
 ) -> Option<serde_json::Value> {
-    if cassie.catalog.field_type(collection, field) != Some(DataType::Float) {
+    if cassie.catalog.field_type(
+        collection,
+        &crate::sql::ColumnIdentifierPath::stored_field_key(field),
+    ) != Some(DataType::Float)
+    {
         return None;
     }
     let number = value.as_f64()?;
@@ -257,9 +261,12 @@ fn scalar_index_reads_unsafe_numeric_bounds(
     let field_constraint_reads_zero =
         concrete_constraints(Some(filter), params).is_some_and(|constraints| {
             index.normalized_fields().iter().any(|field| {
-                cassie.catalog.field_type(collection, field) == Some(DataType::Float)
+                cassie.catalog.field_type(
+                    collection,
+                    &crate::sql::ColumnIdentifierPath::stored_field_key(field),
+                ) == Some(DataType::Float)
                     && constraints
-                        .get(&field.to_ascii_lowercase())
+                        .get(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
                         .is_some_and(constraint_contains_zero)
             })
         });
@@ -374,7 +381,10 @@ fn scalar_index_requires_json_scan(
     let fields = index.normalized_fields();
     let is_json_field = |field: &str| {
         matches!(
-            cassie.catalog.field_type(collection, field),
+            cassie.catalog.field_type(
+                collection,
+                &crate::sql::ColumnIdentifierPath::stored_field_key(field),
+            ),
             Some(DataType::Json | DataType::Array(_))
         )
     };
@@ -401,7 +411,9 @@ fn range_constraint_for_shape<'a>(
     let range_index = shape.range_field_index?;
     let fields = index.normalized_fields();
     if range_index < fields.len() {
-        return field_constraints.get(&fields[range_index].to_ascii_lowercase());
+        return field_constraints.get(&crate::sql::ColumnIdentifierPath::stored_field_key(
+            &fields[range_index],
+        ));
     }
 
     let expression_index = range_index.checked_sub(fields.len())?;
@@ -421,7 +433,9 @@ fn scalar_index_bounds_are_exact(
     let fields_are_represented = field_constraints.keys().all(|constraint| {
         fields
             .iter()
-            .position(|field| field.eq_ignore_ascii_case(constraint))
+            .position(|field| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(field) == *constraint
+            })
             .is_some_and(|position| constraint_position_is_represented(position, shape))
     });
     let expressions_are_represented = expression_constraints.keys().all(|constraint| {
@@ -487,7 +501,10 @@ fn expression_index_read_spec(
 fn collect_expression_columns(expr: &Expr, fields: &mut Vec<String>) {
     if let Expr::Column(name) = expr {
         if !projected_read::is_row_id_column(name)
-            && !fields.iter().any(|field| field.eq_ignore_ascii_case(name))
+            && !fields.iter().any(|field| {
+                crate::sql::ColumnIdentifierPath::reference_field_key(field)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+            })
         {
             fields.push(name.clone());
         }
@@ -515,7 +532,7 @@ fn scalar_index_equality_prefix(
     let field_prefix_len = shape.equality_prefix_len.min(fields.len());
     for field in fields.iter().take(field_prefix_len) {
         let value = constraints
-            .get(&field.to_ascii_lowercase())
+            .get(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
             .and_then(|constraint| constraint.equality.clone())
             .ok_or_else(|| QueryError::General(format!("missing equality bound for '{field}'")))?;
         equality_prefix.push(value);
@@ -647,7 +664,7 @@ fn scalar_index_requires_semantic_scan(
     concrete_constraints(plan.filter.as_ref(), params).is_some_and(|constraints| {
         fields.iter().any(|field| {
             constraints
-                .get(&field.to_ascii_lowercase())
+                .get(&crate::sql::ColumnIdentifierPath::stored_field_key(field))
                 .is_some_and(|constraint| {
                     constraint
                         .equality
@@ -681,7 +698,10 @@ fn scalar_index_order_needs_sql_sort(
         .take(shape.order_columns_used)
         .any(|field| {
             matches!(
-                cassie.catalog.field_type(collection, field),
+                cassie.catalog.field_type(
+                    collection,
+                    &crate::sql::ColumnIdentifierPath::stored_field_key(field),
+                ),
                 Some(DataType::Text | DataType::Char { .. } | DataType::Varchar { .. })
             )
         })

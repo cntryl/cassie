@@ -2754,8 +2754,7 @@ mod sql_quoted_identifiers {
             assert_eq!(scored.rows[1][1], Value::Float64(0.0));
             assert!(
                 matches!(scored.rows[1][2], Value::Float64(score) if score > 0.0),
-                "expected the exact Body score to match amber, got {:?}",
-                scored.rows
+                "expected the exact Body score to match amber"
             );
             let Value::Float64(lower_score) = scored.rows[2][1] else {
                 panic!("expected lower-field full-text score");
@@ -3183,13 +3182,11 @@ mod sql_quoted_identifiers {
                 session,
                 "EXPLAIN SELECT \"A\" FROM indexed_case WHERE \"A\" = 10",
             );
-            let sibling_plan = match &sibling_plan.rows[0][0] {
-                Value::String(plan) => plan,
-                other => panic!("expected sibling explain string, got {other:?}"),
+            let Value::String(sibling_plan) = &sibling_plan.rows[0][0] else {
+                panic!("expected sibling explain string");
             };
-            let matching_plan = match &matching_plan.rows[0][0] {
-                Value::String(plan) => plan,
-                other => panic!("expected matching explain string, got {other:?}"),
+            let Value::String(matching_plan) = &matching_plan.rows[0][0] else {
+                panic!("expected matching explain string");
             };
             let selected = run(
                 cassie,
@@ -3203,10 +3200,13 @@ mod sql_quoted_identifiers {
             );
 
             // Assert
-            assert!(sibling_plan.contains("index=none"), "{sibling_plan}");
+            assert!(
+                sibling_plan.contains("index=none"),
+                "the case-distinct sibling should not use the upper-case index"
+            );
             assert!(
                 matching_plan.contains("index=postgres.public.indexed_case_upper_idx"),
-                "{matching_plan}"
+                "the exact-case query should use the matching upper-case index"
             );
             assert_eq!(selected.rows, vec![vec![Value::Int64(1)]]);
             assert_eq!(matching.rows, vec![vec![Value::Int64(10)]]);

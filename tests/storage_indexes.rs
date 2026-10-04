@@ -2770,7 +2770,7 @@ mod index_field_case {
         );
         assert!(
             !sibling_plan.contains("scalar_case_distinct_lower_idx"),
-            "the index on \"a\" must not serve \"A\": {sibling_plan}"
+            "the index on \"a\" must not serve \"A\""
         );
 
         let _ = std::fs::remove_dir_all(path);

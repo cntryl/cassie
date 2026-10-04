@@ -1118,7 +1118,10 @@ mod rest {
             created.is_ok(),
             "REST collection creation failed: {created:?}"
         );
-        assert!(insert.is_ok(), "SQL insert failed: {insert:?}");
+        assert!(
+            insert.is_ok(),
+            "SQL insert should accept both case-distinct fields"
+        );
         let selected = selected.expect("select case-distinct fields");
         assert_eq!(
             selected

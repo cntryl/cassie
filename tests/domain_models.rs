@@ -1334,8 +1334,14 @@ mod time_series_indexes {
             let Value::String(plan) = &explained.rows[0][0] else {
                 panic!("expected textual plan");
             };
-            assert!(plan.contains(&format!("index={upper_index}")), "{plan}");
-            assert!(!plan.contains(&format!("index={lower_index}")), "{plan}");
+            assert!(
+                plan.contains(&format!("index={upper_index}")),
+                "the exact-case query should select its time-series index"
+            );
+            assert!(
+                !plan.contains(&format!("index={lower_index}")),
+                "the sibling-case query should not select the other time-series index"
+            );
             assert_eq!(metrics["time_series"]["scans"].as_u64(), Some(1));
             assert_eq!(
                 metrics["time_series"]["last_index"].as_str(),

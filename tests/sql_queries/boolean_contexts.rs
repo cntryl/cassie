@@ -48,7 +48,7 @@ fn should_distinguish_boolean_search_predicates_from_numeric_search_scores() {
 fn assert_static_type_error(result: &Result<QueryResult, CassieError>, sql: &str) {
     assert!(
         matches!(result, Err(CassieError::Planner(_))),
-        "a statically typed Boolean-context error must fail in binding: {sql}: {result:?}"
+        "a statically typed Boolean-context error must fail in binding: {sql}"
     );
 }
 
@@ -606,14 +606,8 @@ fn should_treat_embedded_string_parameters_as_typed_text_in_boolean_contexts() {
             .execute_sql(&fixture.session, sql, vec![Value::Int64(1)]);
 
         // Assert
-        assert!(
-            string.is_err(),
-            "embedded String is typed TEXT: {sql}: {string:?}"
-        );
-        assert!(
-            integer.is_err(),
-            "embedded Int64 is typed numeric: {sql}: {integer:?}"
-        );
+        assert!(string.is_err(), "embedded String is typed TEXT: {sql}");
+        assert!(integer.is_err(), "embedded Int64 is typed numeric: {sql}");
     }
     // Evaluate the accepted values under the same embedded-parameter contract.
     let false_value = fixture
@@ -819,7 +813,7 @@ fn should_contextualize_boolean_between_inputs_before_storage_path_selection() {
         );
         assert!(
             matches!(typed_text, Err(CassieError::Planner(_))),
-            "typed TEXT range input: {label}: {typed_text:?}"
+            "typed TEXT range input: {label}"
         );
         assert_eq!(
             null.expect("SQL NULL range expression").rows,
@@ -857,11 +851,11 @@ fn should_preserve_exported_lateral_boolean_output_types() {
     );
     assert!(
         matches!(integer, Err(CassieError::Planner(_))),
-        "a typed INT output must reject before LIMIT 0: {integer:?}"
+        "a typed INT output must reject before LIMIT 0"
     );
     assert!(
         matches!(shadow, Err(CassieError::Planner(_))),
-        "inner unqualified INT wins over outer BOOLEAN: {shadow:?}"
+        "inner unqualified INT wins over outer BOOLEAN"
     );
     assert_eq!(
         qualified

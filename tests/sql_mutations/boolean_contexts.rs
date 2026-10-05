@@ -34,7 +34,7 @@ fn should_reject_non_boolean_mutation_predicates_before_publication() {
         // Assert
         assert!(
             matches!(result, Err(CassieError::Planner(_))),
-            "static predicate: {sql}: {result:?}"
+            "static predicate: {sql}"
         );
         assert_eq!(
             retained,
@@ -99,7 +99,7 @@ fn should_reject_typed_conflict_update_predicates_without_modifying_the_existing
         // Assert
         assert!(
             matches!(result, Err(CassieError::Planner(_))),
-            "conflict Boolean context: {sql}: {result:?}"
+            "conflict Boolean context: {sql}"
         );
         assert_eq!(retained, vec![vec![Value::Int64(10), Value::Bool(false)]]);
     }
@@ -334,11 +334,11 @@ fn should_validate_typed_boolean_assignment_parameters_before_empty_mutations() 
         );
         assert!(
             matches!(text, Err(CassieError::Planner(_))),
-            "typed TEXT assignment: {sql}: {text:?}"
+            "typed TEXT assignment: {sql}"
         );
         assert!(
             matches!(numeric, Err(CassieError::Planner(_))),
-            "typed numeric assignment: {sql}: {numeric:?}"
+            "typed numeric assignment: {sql}"
         );
     }
     assert_eq!(
@@ -381,7 +381,7 @@ fn should_validate_window_parameter_types_at_boolean_insert_destinations() {
     assert_eq!(null.columns[0].type_oid, 16);
     assert!(
         matches!(text, Err(CassieError::Planner(_))),
-        "typed TEXT window output must reject before the empty source: {text:?}"
+        "typed TEXT window output must reject before the empty source"
     );
     assert_eq!(stored, Vec::<Vec<Value>>::new());
 }
@@ -426,11 +426,112 @@ fn should_validate_exported_wildcard_parameter_types_at_boolean_insert_destinati
         );
         assert!(
             matches!(text, Err(CassieError::Planner(_))),
-            "typed TEXT wildcard output: {sql}: {text:?}"
+            "typed TEXT wildcard output: {sql}"
         );
     }
     assert_eq!(
         fixture.rows("SELECT flag FROM bool_wildcard_target"),
         Vec::<Vec<Value>>::new()
+    );
+}
+
+#[test]
+fn should_preserve_lateral_wildcard_boolean_insert_types() {
+    // Arrange
+    let fixture = sql_fixture(
+        "bool-lateral-wildcard-insert-types",
+        &[
+            "CREATE TABLE bool_lateral_source (id INT, flag BOOLEAN)",
+            "INSERT INTO bool_lateral_source VALUES (1, FALSE)",
+            "CREATE TABLE bool_lateral_empty (id INT, flag BOOLEAN)",
+            "CREATE TABLE bool_lateral_target (id INT, flag BOOLEAN, qflag BOOLEAN)",
+        ],
+    );
+    let empty_sql = "INSERT INTO bool_lateral_target (id, flag, qflag) SELECT * FROM bool_lateral_empty JOIN LATERAL (SELECT bool_lateral_empty.flag AS qflag) AS q ON TRUE RETURNING qflag";
+    let boolean_sql = "INSERT INTO bool_lateral_target (id, flag, qflag) SELECT * FROM bool_lateral_source JOIN LATERAL (SELECT bool_lateral_source.flag AS qflag) AS q ON TRUE RETURNING qflag";
+    let integer_sql = "INSERT INTO bool_lateral_target (id, flag, qflag) SELECT * FROM bool_lateral_source JOIN LATERAL (SELECT bool_lateral_source.id AS qflag) AS q ON TRUE RETURNING qflag";
+
+    // Act
+    let control = fixture.execute("SELECT * FROM bool_lateral_source JOIN LATERAL (SELECT bool_lateral_source.flag AS qflag) AS q ON TRUE");
+    let empty = fixture.execute(empty_sql);
+    let boolean = fixture.execute(boolean_sql);
+    let integer = fixture.execute(integer_sql);
+    let stored = fixture.rows("SELECT id, flag, qflag FROM bool_lateral_target ORDER BY id");
+
+    // Assert
+    assert_eq!(
+        control
+            .expect("the standalone wildcard LATERAL source is supported")
+            .rows,
+        vec![vec![
+            Value::Int64(1),
+            Value::Bool(false),
+            Value::Bool(false)
+        ]]
+    );
+    let empty = empty.expect("a supported empty LATERAL Boolean wildcard source stays assignable");
+    let boolean =
+        boolean.expect("a supported LATERAL Boolean wildcard source keeps its outer type");
+    assert_eq!(empty.rows, Vec::<Vec<Value>>::new());
+    assert_eq!(empty.columns[0].type_oid, 16);
+    assert_eq!(boolean.rows, vec![vec![Value::Bool(false)]]);
+    assert_eq!(boolean.columns[0].type_oid, 16);
+    assert!(
+        matches!(integer, Err(CassieError::Planner(_))),
+        "typed INT wildcard output must reject: {integer_sql}"
+    );
+    assert_eq!(
+        stored,
+        vec![vec![
+            Value::Int64(1),
+            Value::Bool(false),
+            Value::Bool(false)
+        ]]
+    );
+}
+
+#[test]
+fn should_preserve_lateral_wildcard_boolean_scope_precedence() {
+    // Arrange
+    let fixture = sql_fixture(
+        "bool-lateral-wildcard-scope-precedence",
+        &[
+            "CREATE TABLE bool_lateral_scope_source (id INT, flag BOOLEAN)",
+            "INSERT INTO bool_lateral_scope_source VALUES (1, FALSE)",
+            "CREATE TABLE bool_lateral_scope_shadow (flag INT)",
+            "INSERT INTO bool_lateral_scope_shadow VALUES (7)",
+            "CREATE TABLE bool_lateral_scope_target (id INT, flag BOOLEAN, qflag BOOLEAN)",
+        ],
+    );
+    let outer_sql = "INSERT INTO bool_lateral_scope_target (id, flag, qflag) SELECT * FROM bool_lateral_scope_source JOIN LATERAL (SELECT bool_lateral_scope_source.flag AS qflag FROM bool_lateral_scope_shadow) AS q ON TRUE RETURNING qflag";
+    let inner_sql = "INSERT INTO bool_lateral_scope_target (id, flag, qflag) SELECT * FROM bool_lateral_scope_source JOIN LATERAL (SELECT flag AS qflag FROM bool_lateral_scope_shadow) AS q ON TRUE RETURNING qflag";
+    let non_lateral_sql = "INSERT INTO bool_lateral_scope_target (id, flag, qflag) SELECT * FROM bool_lateral_scope_source JOIN (SELECT bool_lateral_scope_source.flag AS qflag FROM bool_lateral_scope_shadow) AS q ON TRUE RETURNING qflag";
+
+    // Act
+    let outer = fixture.execute(outer_sql);
+    let inner = fixture.execute(inner_sql);
+    let non_lateral = fixture.execute(non_lateral_sql);
+    let stored = fixture.rows("SELECT id, flag, qflag FROM bool_lateral_scope_target ORDER BY id");
+
+    // Assert
+    let outer =
+        outer.expect("qualified outer Boolean output stays assignable despite an inner INT name");
+    assert_eq!(outer.rows, vec![vec![Value::Bool(false)]]);
+    assert_eq!(outer.columns[0].type_oid, 16);
+    assert!(
+        matches!(inner, Err(CassieError::Planner(_))),
+        "inner INT must precede bare outer Boolean spelling: {inner_sql}"
+    );
+    assert!(
+        non_lateral.is_err(),
+        "outer correlation stays unavailable without LATERAL: {non_lateral_sql}"
+    );
+    assert_eq!(
+        stored,
+        vec![vec![
+            Value::Int64(1),
+            Value::Bool(false),
+            Value::Bool(false)
+        ]]
     );
 }

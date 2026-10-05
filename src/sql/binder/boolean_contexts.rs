@@ -127,10 +127,14 @@ fn validate_source_predicates(
 
 fn require_boolean(expr: &mut Expr, types: &ResultTypes, context: &str) -> Result<(), CassieError> {
     if let Expr::StringLiteral(text) = expr {
-        let value = crate::types::boolean::parse_text(text).ok_or_else(|| {
-            CassieError::Planner(format!("invalid input syntax for type boolean: {text:?}"))
-        })?;
-        *expr = Expr::BoolLiteral(value);
+        match crate::types::boolean::parse_text(text) {
+            Some(value) => *expr = Expr::BoolLiteral(value),
+            None => {
+                return Err(CassieError::Planner(format!(
+                    "invalid input syntax for type boolean: {text:?}"
+                )));
+            }
+        }
     }
     match types.expression_type(expr) {
         Some(DataType::Boolean | DataType::Null) | None => Ok(()),

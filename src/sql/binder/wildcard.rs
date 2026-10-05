@@ -10,8 +10,8 @@
 //! identity-hiding rule the executor applies to a joined row can be mirrored.
 
 use super::inference::{
-    infer_projection_schema_with_parameters, infer_source_schema_with_parameters,
-    relation_output_schema,
+    append_source_qualifiers, infer_projection_schema_with_parameters,
+    infer_source_schema_with_outer, relation_output_schema,
 };
 use super::select::table_function_columns;
 use super::{
@@ -30,7 +30,7 @@ pub(crate) fn source_row_fields(
     catalog: &Catalog,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
-    source_fields(source, scope, catalog, user_functions, &[])
+    source_fields(source, scope, catalog, user_functions, &[], None)
 }
 
 pub(crate) fn cte_row_fields(
@@ -88,6 +88,7 @@ pub(super) fn wildcard_output_fields_with_parameters(
         catalog,
         user_functions,
         parameter_types,
+        None,
     )?);
     Ok(fields
         .into_iter()
@@ -118,7 +119,14 @@ fn cte_scope(
                 "CTE body must be a SELECT statement".into(),
             ));
         };
-        let mut fields = select_fields(select, &scope, catalog, user_functions, parameter_types)?;
+        let mut fields = select_fields(
+            select,
+            &scope,
+            catalog,
+            user_functions,
+            parameter_types,
+            None,
+        )?;
         // Same rule as the executor's CTE row renaming: the column list
         // renames the body's output positionally unless it holds `*`.
         if !cte.aliases.is_empty() && !cte.aliases.iter().any(|alias| alias == "*") {
@@ -139,6 +147,7 @@ fn select_fields(
     catalog: &Catalog,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
     let scope = cte_scope(
         &select.ctes,
@@ -157,35 +166,29 @@ fn select_fields(
                 catalog,
                 user_functions,
                 parameter_types,
+                outer_fields,
             )?;
             fields.extend(hide_shadowed_identity(source));
             continue;
         }
         if lookup.is_none() {
-            let cte_schemas = scope
-                .iter()
-                .map(|(name, fields)| {
-                    let fields = fields
-                        .iter()
-                        .cloned()
-                        .map(|mut field| {
-                            if is_row_identity_column(&field.name) {
-                                field.name = LEGACY_ID_COLUMN.to_string();
-                            }
-                            field
-                        })
-                        .collect();
-                    (name.clone(), Schema { fields })
-                })
-                .collect::<HashMap<_, _>>();
-            lookup = Some(infer_source_schema_with_parameters(
+            let cte_schemas = lookup_cte_schemas(&scope);
+            let mut schema = infer_source_schema_with_outer(
                 &select.source,
                 catalog,
                 &cte_schemas,
                 user_functions,
                 false,
                 parameter_types,
-            )?);
+                outer_fields,
+            )?;
+            if let Some(outer) = outer_fields {
+                // Inner names precede outer names; outer fields are available
+                // only for typing explicit items, never wildcard expansion.
+                append_source_qualifiers(&select.source, catalog, &mut schema)?;
+                schema.fields.extend(outer.fields.iter().cloned());
+            }
+            lookup = Some(schema);
         }
         if let Some(schema) = &lookup {
             fields.extend(
@@ -208,6 +211,7 @@ fn source_fields(
     catalog: &Catalog,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
     match source {
         QuerySource::Collection(name) => {
@@ -231,21 +235,105 @@ fn source_fields(
                 nullable: true,
             })
             .collect()),
-        QuerySource::Subquery { select, .. } => {
-            select_fields(select, scope, catalog, user_functions, parameter_types)
-        }
+        QuerySource::Subquery {
+            select, lateral, ..
+        } => select_fields(
+            select,
+            scope,
+            catalog,
+            user_functions,
+            parameter_types,
+            if *lateral { outer_fields } else { None },
+        ),
         QuerySource::Join { left, right, .. } => {
-            let mut fields = source_fields(left, scope, catalog, user_functions, parameter_types)?;
+            let mut fields = source_fields(
+                left,
+                scope,
+                catalog,
+                user_functions,
+                parameter_types,
+                outer_fields,
+            )?;
+            let lateral_scope = if source_consumes_outer_fields(right) {
+                Some(lateral_lookup(
+                    left,
+                    scope,
+                    catalog,
+                    user_functions,
+                    parameter_types,
+                    outer_fields,
+                )?)
+            } else {
+                None
+            };
             fields.extend(source_fields(
                 right,
                 scope,
                 catalog,
                 user_functions,
                 parameter_types,
+                lateral_scope.as_ref(),
             )?);
             Ok(fields)
         }
     }
+}
+
+fn source_consumes_outer_fields(source: &QuerySource) -> bool {
+    match source {
+        QuerySource::Subquery { lateral, .. } => *lateral,
+        QuerySource::Join { left, right, .. } => {
+            source_consumes_outer_fields(left) || source_consumes_outer_fields(right)
+        }
+        QuerySource::Collection(_)
+        | QuerySource::Cte(_)
+        | QuerySource::SingleRow
+        | QuerySource::TableFunction { .. } => false,
+    }
+}
+
+fn lateral_lookup(
+    left: &QuerySource,
+    scope: &WildcardScope,
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
+) -> Result<Schema, CassieError> {
+    let cte_schemas = lookup_cte_schemas(scope);
+    let mut lookup = infer_source_schema_with_outer(
+        left,
+        catalog,
+        &cte_schemas,
+        user_functions,
+        true,
+        parameter_types,
+        outer_fields,
+    )?;
+    append_source_qualifiers(left, catalog, &mut lookup)?;
+    if let Some(outer) = outer_fields {
+        lookup.fields.extend(outer.fields.iter().cloned());
+    }
+    Ok(lookup)
+}
+
+fn lookup_cte_schemas(scope: &WildcardScope) -> HashMap<String, Schema> {
+    scope
+        .iter()
+        .map(|(name, fields)| {
+            let fields = fields
+                .iter()
+                .cloned()
+                .map(|mut field| {
+                    if is_row_identity_column(&field.name) {
+                        field.name = LEGACY_ID_COLUMN.to_string();
+                    }
+                    field
+                })
+                .collect();
+            (name.clone(), Schema { fields })
+        })
+        .collect()
 }
 
 fn relation_fields(catalog: &Catalog, name: &str) -> Result<Vec<FieldSchema>, CassieError> {

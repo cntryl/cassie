@@ -283,7 +283,7 @@ pub(super) fn infer_source_schema_with_parameters(
     )
 }
 
-fn infer_source_schema_with_outer(
+pub(super) fn infer_source_schema_with_outer(
     source: &QuerySource,
     catalog: &Catalog,
     cte_schemas: &HashMap<String, Schema>,

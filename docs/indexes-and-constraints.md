@@ -1,27 +1,29 @@
 # Indexes and Constraints
 
-Cassie keeps row blobs as the source of truth and uses indexes, constraints, and analytical overlays to preserve correctness and accelerate reads. Midge remains the direct storage layer for all persisted index and constraint metadata.
+Cassie keeps stored row and field values as the source of truth and uses indexes, constraints, and analytical overlays to preserve correctness and accelerate reads. Midge remains the direct storage layer for all persisted index and constraint metadata.
 
 ## Support Summary
 
+Status is owned by [Feature Support](feature-support.md); this summary follows that canonical owner.
+
 | Area | Status | Guarantee |
 | --- | --- | --- |
-| Primary key indexes | Stable | Identity, point lookup, duplicate rejection, catalog metadata |
-| Unique constraints | Stable | Duplicate rejection over supported keys |
-| NOT NULL | Stable | Write-time validation |
-| CHECK | Stable | Deterministic scalar validation |
-| DEFAULT | Stable | Default value application on supported write paths |
-| Foreign keys | Stable/Experimental | Projection validation with documented limits |
-| Generated columns | Stable/Experimental | Generated value support with documented limits |
-| Secondary scalar indexes | Stable | Equality and range acceleration |
-| Composite indexes | Stable | Left-prefix planning for supported predicates |
-| Covering indexes | Stable | INCLUDE metadata and covered-read planning |
+| Primary key indexes | Experimental | Identity, point lookup, duplicate rejection, catalog metadata |
+| Unique constraints | Experimental | Duplicate rejection over supported keys |
+| NOT NULL | Experimental | Write-time validation |
+| CHECK | Experimental | Deterministic scalar validation |
+| DEFAULT | Experimental | Default value application on supported write paths |
+| Foreign keys | Experimental | Projection validation with documented limits |
+| Generated columns | Experimental | Generated value support with documented limits |
+| Secondary scalar indexes | Experimental | Equality and range acceleration |
+| Composite indexes | Experimental | Left-prefix planning for supported predicates |
+| Covering indexes | Experimental | INCLUDE metadata and covered-read planning |
 | Partial indexes | Experimental | Exact normalized predicate matching |
 | Expression indexes | Experimental | Deterministic expression matching |
 | Full-text indexes | Stable | Cassie inverted index and BM25 support |
-| Vector indexes | Stable/Experimental | Brute force, HNSW, and IVFFlat surfaces by support level |
+| Vector indexes | Stable | Declared exact, HNSW and IVFFlat candidate/reranking contracts; no pgvector extension ABI promise |
 | Graph adjacency sidecars | Experimental | Outbound/inbound edge traversal for `CREATE GRAPH` backing tables |
-| Time-series indexes | Experimental | Timestamp range planning, bucket-native membership, row-backed fallback, bucket diagnostics, restart-safe metadata |
+| Time-series indexes | Stable | Fixed positive minute/hour/day UTC widths, bucket-native membership, authoritative fallback, diagnostics and restart-safe metadata |
 | Column-batch indexes | Stable | Covered scans, segment pruning, aggregate acceleration |
 | Retention policies | Experimental | Explicit timestamp-based cleanup with catalog and metrics diagnostics |
 
@@ -184,9 +186,10 @@ Current HNSW support:
 - Compatible unfiltered top-k vector-distance searches use the graph candidate path, then fetch row
   vectors and re-rank exactly before returning SQL or REST-visible rows.
 - Document writes and deletes refresh graph state for affected collections under a per-collection
-  write gate. HNSW remains
-  experimental; missing, stale, incompatible, empty, or unsupported graph shapes fall back to the
-  exact row/vector path with a deterministic fallback reason.
+  write gate. HNSW is Stable within the declared candidate-selection and source-row reranking
+  contract. Missing, stale, incompatible, empty or unsupported graph shapes fall back to the
+  exact row/vector path with a deterministic fallback reason. Exact candidate reranking does
+  not promise globally exact ANN top-k; recall evidence remains a separate contract.
 
 Current IVFFlat support:
 
@@ -194,7 +197,10 @@ Current IVFFlat support:
   Changed collection batches commit normalized-vector sidecars and training state together.
 - SQL and REST top-k searches over compatible L2 vector-distance shapes probe trained lists, then
   fetch row vectors and re-rank exactly before returning visible rows.
-- Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat remains experimental; unsupported shapes fall back to the exact row/vector path.
+- Document writes and deletes refresh IVFFlat training state for affected collections. IVFFlat
+  is Stable within the declared candidate-selection and source-row reranking contract;
+  unsupported shapes fall back to the exact row/vector path. Candidate exhaustion, resource
+  bounds and recall retain their [Performance Contracts](performance-contracts.md) requirements.
 
 ## Graph Adjacency Sidecars
 
@@ -247,7 +253,13 @@ Current guarantee:
 
 Current limitation:
 
-- Bucket-native v1 supports fixed minute/hour/day widths. Other non-empty widths are accepted as metadata but fall back to row-backed execution until a future format explicitly defines them.
+- Time-series index DDL accepts positive integer minute(s), hour(s) or day(s) bucket widths
+  interpreted as fixed UTC durations. Second, week, month, calendar-aware, local-time,
+  daylight-saving, zero, negative and malformed widths are rejected; they are not accepted
+  as index metadata for fallback. Missing, stale, corrupt, interrupted or unsupported derived
+  artifacts for an otherwise supported index fall back atomically to authoritative rows.
+  Unsupported index DDL and supported-index artifact fallback are separate outcomes. This
+  index-width restriction does not expand or narrow the scalar `time_bucket` or rollup contracts.
 
 ## Column-Batch Indexes
 

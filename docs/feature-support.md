@@ -28,7 +28,8 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` | Stable |
 | Join syntax | Inner, left, right, full outer, cross, lateral, apply, semi, and anti forms with legality-preserving planning | Experimental |
-| Subqueries | Scalar, table, predicate, lateral, and correlated forms | Experimental |
+| Subqueries | Implemented table, predicate (including EXISTS), lateral, and correlated forms; scalar expression subqueries are absent. | Experimental |
+| Scalar expression subqueries | Absent; selected syntax, type, correlation and cardinality semantics are tracked in [#762](https://github.com/cntryl/cassie/issues/762). | Planned |
 | Common table expressions | Non-recursive and recursive `WITH` | Experimental |
 | Set operations | `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT` | Stable |
 | Window functions | Ranking, offset, value functions, and documented row frames | Experimental |
@@ -97,6 +98,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Database and schema scope | Databases, schemas, persisted `search_path`, qualified names, and administrator-managed `CONNECT` grants with live-session revalidation | Stable |
 | Tables and constraints | Table DDL, name-idempotent `CREATE TABLE IF NOT EXISTS`, defaults, unique, check, foreign key | Experimental |
 | Scalar indexes | Primary, secondary, composite, unique, covering, partial, expression, and name-idempotent `CREATE INDEX IF NOT EXISTS` | Experimental |
+| Physical ColumnStore tables | Field-key table layout in the owning Midge database family; separate from Stable CBM2 sidecars and the Planned common typed-column pipeline. Layout, lifecycle and typed-reader qualification remain under [#768](https://github.com/cntryl/cassie/issues/768). | Experimental |
 | `information_schema.tables` | Stable named-client table/view discovery columns documented in the catalog support contract | Stable |
 | `information_schema.columns` | Stable named-client column discovery columns documented in the catalog support contract | Stable |
 | Remaining virtual catalogs | PostgreSQL-like and Cassie runtime views outside the stable named-client subset; no PostgreSQL-internal parity claim | Experimental |
@@ -134,12 +136,15 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Adaptive scalar reads and join switching | Opt-in feedback-informed scalar read selection and vectorized-to-merge inner/left equi-join switching under the named profiles | Stable |
 | Broader adaptive planning | Candidate expansion, other operator pairs, automatic profile selection, and default enablement | Experimental |
 | Pull execution | Bounded batch streams and early termination | Experimental |
+| Common typed-column relational execution | Absent common scan/filter/projection/join/aggregate/order/set/window pipeline; batched scalar rows and Stable CBM2 acceleration remain separate. The private contract and stages are defined in [Query Engine Target 1](query-engine-target.md). | Planned |
 | Query controls | Deadline, cancellation, SQL complexity, transport write, result, candidate, worker, and memory bounds | Experimental |
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |
 | Limited procedures and `CALL` | One persisted Cassie SQL statement with positional arguments and pgwire command metadata; PL/pgSQL, triggers, dynamic SQL, transaction control, recursion, and business-procedure workflows are unsupported. See [Limited Procedures and CALL](procedure-support.md). | Stable |
 | REST | Secondary administrative and resource API | Experimental |
 | Admin UI | Supported local operational interface over REST with login, database navigation and creation, SQL editing and completion, validation, explain, execution, result inspection, cancellation, and logout workflows. Native Askr shell, control, query/mutation, error-boundary, resizable-panel, and Monaco composition is covered by 116 repository tests, 20 desktop/mobile mock-browser cases, 2 real-Cassie production-browser cases, axe state coverage, and four committed visual baselines on Askr `0.2.1`, Askr UI `0.2.0`, `@askrjs/themes` `0.2.1`, and `@askrjs/monaco` `0.2.0`. Dynamic schema fan-out retains a narrow application controller pending [askrjs/askr#327](https://github.com/askrjs/askr/issues/327); it does not duplicate the Askr query cache. | Stable |
+
+The [Query Engine Target 1](query-engine-target.md) and [invariant ownership ledger](query-engine-invariant-ownership.md) define finite delivery and qualification gates without promoting these support labels.
 
 The [Query Promotion Evidence](query-promotion-evidence.md) inventory records deterministic
 baselines and remaining promotion owners for the Experimental query families above. Completing an

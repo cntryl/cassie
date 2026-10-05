@@ -443,3 +443,19 @@ and cannot support shard-wide or repository-wide readiness claims.
 ## Benchmark Scope Boundary
 
 Benchmark source and test files remain under 1,000 lines. Cassie's suite does not add coverage for Midge durability, WAL, snapshot, or recovery mechanics; those remain Midge responsibilities. Benchmark completion does not by itself close deployment-profile or disk-backed production evidence.
+
+## Typed Execution and Physical Storage Boundary
+
+The [finite query-engine target](query-engine-target.md) separates Midge column
+families (database namespaces), experimental ColumnStore field-key tables, Stable
+CBM2 derived acceleration, and the Planned common typed-column relational
+pipeline. Existing typed buffers and selected encoded kernels in this document
+describe specialized acceleration; they do not claim that every relational
+operator currently carries one common column-batch representation.
+
+The private batch/type/kernel laws precede adoption under [#752](https://github.com/cntryl/cassie/issues/752)/[#753](https://github.com/cntryl/cassie/issues/753), followed by
+dependency-ordered scan/filter/projection, aggregate/join and order/set/window
+work. Current codec tags, latest-only layouts, generation fences, authoritative
+fallback, query-accounting scope and measured benchmark objectives remain
+unchanged. No disk-spill implementation, public batch ABI, durable encoding or
+native capacity/SLO is introduced by this foundation.

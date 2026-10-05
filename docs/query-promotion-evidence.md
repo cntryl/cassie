@@ -66,3 +66,19 @@ concatenated and compared with the ordered full result; and an empty-result pred
 Reusable generators, environment guards, and assertions belong under `tests/support/`. Family
 tests remain in their existing flat subsystem suite so Cargo integration-test discovery and
 ownership stay clear.
+
+## Finite Typed-Execution Target
+
+[Query Engine Target 1](query-engine-target.md) and its
+[ownership ledger](query-engine-invariant-ownership.md) retain this inventory's
+independent family oracles. The common typed-column operator pipeline is Planned,
+not implied by current CBM2 codecs or batched scalar rows. Scalar expression
+subqueries are also absent and Planned until the bounded implementation/acceptance
+under [#762](https://github.com/cntryl/cassie/issues/762) completes; implemented table/predicate/lateral/correlated forms retain
+their existing Experimental classification.
+
+Reuse current family corruption, cancellation, memory and lifecycle evidence.
+Add only concrete gaps across the selected native type/kernel boundaries and
+record bags/order, descriptors, NULLs, errors, visibility, side effects and final
+path diagnostics. ANN recall is not an exact relational oracle. Per-child
+completion and feature promotion remain separate explicit reviews.

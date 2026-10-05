@@ -166,3 +166,23 @@ and implemented by the opt-in [Compatibility Probes workflow](../.github/workflo
 - No trigger or stored-procedure business-logic platform.
 - No cross-database queries.
 - Cassie-specific search, vector, graph, time-series, projection, and administrative features may use PostgreSQL-compatible syntax without promising PostgreSQL semantics beyond their documented behavior.
+
+## Finite Query Engine Target
+
+[Query Engine Target 1](query-engine-target.md) records the finite type, protocol,
+SQL and exact-version client workflows; the
+[ownership ledger](query-engine-invariant-ownership.md) records qualification
+owners and blockers. PostgreSQL 18 is a comparison reference, not a newly certified
+server/client target. The bounded Query/Sync transaction profile was selected
+for [#755](https://github.com/cntryl/cassie/issues/755) in [the durable direction](https://github.com/cntryl/cassie/issues/755#issuecomment-5982444561).
+Its state tables, independent-session/unnamed-object and extended-to-simple
+interleaving probes remain pending. Current explicit transactions and unsupported
+isolation/DDL/extended-COPY behavior remain the implementation baseline until
+that selected contract is implemented and qualified. This foundation neither
+claims runtime completion nor adds transactional DDL or stronger isolation.
+
+Scalar expression subqueries are not implemented; implemented table/predicate/
+lateral/correlated forms remain evaluation surfaces. Full PostgreSQL server,
+internal catalog, extension and pgvector ABI parity remain unclaimed. External
+driver, trace replay and actual live desktop evidence remain separate; new client
+versions need new finite-workflow evidence.

@@ -159,3 +159,23 @@ projection lifecycle remain outside this contract.
 A Production-ready claim must link to the exact commit, toolchain, deployment profile, configuration, fixture, complete owner-suite artifacts, restart or recovery evidence, resource-bound measurements, and known limitations. Evidence must include result correctness, selected access paths, fallback reasons, storage reads, candidates, peak accounted query memory, workers, and cancellation latency. Local fallback-storage results remain developer diagnostics.
 
 Midge evidence owns persistence, durability, and recovery mechanics. Cassie readiness evidence owns logical layout compatibility, query-visible failure behavior, adapter integration, restart hydration, and query semantics over recovered data.
+
+## Query Engine Target 1 Promotion Boundary
+
+[Query Engine Target 1](query-engine-target.md) separates the finite PostgreSQL
+wire/dialect/client, physical ColumnStore, CBM2 acceleration, typed relational
+execution and embedding-vector retrieval axes. The
+[invariant ownership ledger](query-engine-invariant-ownership.md) maps all baseline
+obligations to child acceptance and existing operational owners.
+
+This foundation does not promote a capability or change Production Candidate to
+Production-ready. Mapped tests, fixed P0 defects, a completed milestone, trace
+replay and short smoke runs remain distinct from retained native qualification.
+[#8](https://github.com/cntryl/cassie/issues/8) retains native profile objectives,
+measurement windows, repeated-run variance, recovery/scale/soak and fail-closed
+artifact requirements. [#29](https://github.com/cntryl/cassie/issues/29) retains local
+diagnostic promotion after that evidence; its already delivered local field
+contracts are not duplicated. [#781](https://github.com/cntryl/cassie/issues/781)
+consolidates the final exact revision/image/profile/client/known-limit ledger only
+after its dependencies complete. Existing deployment profiles and evidence
+manifest formats remain unchanged; no self-hosted runner work is introduced.

@@ -12,6 +12,40 @@ Work is dependency-ordered. A later item does not begin while an earlier correct
 - exercise backup, restore, rebuild, repair, and failure-injection runbooks;
 - promote feature families only when implementation, compatibility, performance, and readiness owners agree.
 
+## Typed Column Execution Target
+
+The finite [Query Engine Target 1](query-engine-target.md) and complete
+[ownership ledger](query-engine-invariant-ownership.md) define the milestone gates,
+exact child blockers, semantic oracles and promotion boundaries. Existing Stable
+CBM2 codecs and selected column acceleration do not establish a common typed
+relational pipeline; that pipeline remains Planned.
+
+1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs and the merged [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract; reconcile [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754);
+   pin current types/codecs in [#752](https://github.com/cntryl/cassie/issues/752) and the private batch/view contract in [#753](https://github.com/cntryl/cassie/issues/753).
+   [#755](https://github.com/cntryl/cassie/issues/755) implements and qualifies the user-selected bounded wire-cycle visibility
+   contract; selecting its profile does not complete that runtime dependency.
+2. Typed batches and streaming: [#756](https://github.com/cntryl/cassie/issues/756) follows [#753](https://github.com/cntryl/cassie/issues/753)/[#749](https://github.com/cntryl/cassie/issues/749)/[#432](https://github.com/cntryl/cassie/issues/432)/[#755](https://github.com/cntryl/cassie/issues/755) and carries
+   scan/filter/projection through the selected type/kernel matrix, with bounded
+   scalar fallback and explicit row/wire conversion. [#757](https://github.com/cntryl/cassie/issues/757) follows [#755](https://github.com/cntryl/cassie/issues/755)/[#752](https://github.com/cntryl/cassie/issues/752) and
+   qualifies portal ownership.
+3. Relational kernels: [#758](https://github.com/cntryl/cassie/issues/758) aggregates and [#759](https://github.com/cntryl/cassie/issues/759) joins follow [#756](https://github.com/cntryl/cassie/issues/756); [#760](https://github.com/cntryl/cassie/issues/760) ordering,
+   sets and windows follows both; [#761](https://github.com/cntryl/cassie/issues/761) qualifies completed relational paths;
+   [#762](https://github.com/cntryl/cassie/issues/762) then adds the selected bounded scalar expression subquery surface.
+4. Storage and retrieval qualification: [#763](https://github.com/cntryl/cassie/issues/763)–[#776](https://github.com/cntryl/cassie/issues/776) follow their individual ledger
+   dependencies for visibility, constraints, cache/auth, columns/codecs, derived
+   state, providers, ANN/text/hybrid/graph/time-series and portable kernel laws.
+5. Compatibility and release evidence: [#777](https://github.com/cntryl/cassie/issues/777)–[#780](https://github.com/cntryl/cassie/issues/780) qualify the completed selected
+   client/wire/control/cross-path subset; [#8](https://github.com/cntryl/cassie/issues/8) owns native operational objectives
+   and repeated evidence, [#29](https://github.com/cntryl/cassie/issues/29) owns local diagnostic promotion after [#8](https://github.com/cntryl/cassie/issues/8), and [#781](https://github.com/cntryl/cassie/issues/781)
+   consolidates one immutable release ledger.
+
+No public batch API, persistent encoding, migration, new numeric/temporal/extension
+ABI, disk spilling or distributed execution is selected by these tracking stages.
+Portable kernels are the oracle; optional SIMD requires measured benefit and
+explicit feature/alignment/tail/mask semantics. A later stage waits for its named
+dependencies; mapped source/tests and issue closure do not promote support.
+
+
 ## Query Depth
 
 - Promote Experimental query families only through their documented promotion criteria.

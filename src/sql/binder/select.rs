@@ -105,6 +105,7 @@ pub(super) fn bind_select_with_lateral_fields(
 
     let projection_aliases = collect_projection_aliases(&select);
     validate_bound_select_references(&select, &known_fields, &projection_aliases)?;
+    super::boolean_contexts::validate_select(&mut select, catalog, context)?;
     validate_select_operand_families(&select, catalog)?;
     super::coalesce_results::validate_select(&select, catalog, context)?;
 
@@ -691,8 +692,13 @@ pub(super) fn bind_query_source_with_lateral_fields(
             let known_fields = source_fields(catalog, &joined, scope)?;
             validate_expression(&on, &known_fields, &HashSet::new(), false)?;
             let field_types = crate::sql::source_field_type_map(&joined, catalog);
-            validate_expression_operand_families(&on, &field_types)?;
+            let types =
+                super::coalesce_results::ResultTypes::for_source(&joined, &[], catalog, context)?;
             if let QuerySource::Join { on, .. } = &mut joined {
+                super::boolean_contexts::validate_predicate(
+                    on, &types, "JOIN ON", catalog, context,
+                )?;
+                validate_expression_operand_families(on, &field_types)?;
                 super::json_predicates::rewrite(on, &field_types);
             }
             Ok(joined)

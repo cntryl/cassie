@@ -501,6 +501,7 @@ async fn handle_execute(
     }
     let session = session.clone();
     let params = portal.params.clone();
+    let parameter_type_oids = prepared.parameter_types.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
     let registration = state
         .backend_registration
@@ -516,7 +517,7 @@ async fn handle_execute(
             &session,
             parsed,
             sql_fingerprint,
-            params,
+            (params, &parameter_type_oids),
             ExecutionMode::ExtendedQuery,
             &cancellation_handle,
         )

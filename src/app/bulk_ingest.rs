@@ -377,11 +377,7 @@ fn copy_value_to_json(
 }
 
 fn parse_copy_bool(raw: &str) -> Option<bool> {
-    match raw.to_ascii_lowercase().as_str() {
-        "true" | "t" | "1" | "yes" | "on" => Some(true),
-        "false" | "f" | "0" | "no" | "off" => Some(false),
-        _ => None,
-    }
+    crate::types::boolean::parse_text(raw)
 }
 
 fn parse_csv_payload(payload: &[u8]) -> Result<Vec<Vec<Option<String>>>, CassieError> {

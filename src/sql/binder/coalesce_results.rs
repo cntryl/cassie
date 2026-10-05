@@ -10,6 +10,90 @@ pub(super) struct ResultTypes {
 }
 
 impl ResultTypes {
+    pub(super) fn expression_type(&self, expr: &Expr) -> Option<DataType> {
+        if self.has_unresolved_qualified_column(expr) {
+            return None;
+        }
+        super::inference::infer_expr_type(
+            expr,
+            &self.schema,
+            &self.functions,
+            &self.parameter_types,
+        )
+    }
+
+    pub(super) fn projection_type(&self, item: &SelectItem) -> Option<DataType> {
+        super::inference::infer_projection_schema_with_parameters(
+            std::slice::from_ref(item),
+            &self.schema,
+            &self.functions,
+            &self.parameter_types,
+        )
+        .fields
+        .into_iter()
+        .next()
+        .map(|field| field.data_type)
+    }
+
+    fn has_unresolved_qualified_column(&self, expr: &Expr) -> bool {
+        if let Expr::Column(name) = expr {
+            if let Ok(column) = crate::sql::ColumnIdentifierPath::parse(name) {
+                if column.is_qualified() {
+                    return !self.schema.fields.iter().any(|field| {
+                        crate::sql::ColumnIdentifierPath::parse(&field.name).is_ok_and(
+                            |candidate| {
+                                candidate.is_qualified()
+                                    && candidate.lookup_key() == column.lookup_key()
+                            },
+                        )
+                    });
+                }
+            }
+        }
+        expr.try_visit_children(|child| {
+            if self.has_unresolved_qualified_column(child) {
+                Err(())
+            } else {
+                Ok(())
+            }
+        })
+        .is_err()
+    }
+
+    pub(super) fn parameter_types(&self) -> &[i32] {
+        &self.parameter_types
+    }
+
+    pub(super) fn cte_schemas(&self) -> &std::collections::HashMap<String, Schema> {
+        &self.cte_schemas
+    }
+
+    pub(super) fn with_outer_fields(mut self, outer: &Self) -> Self {
+        // Inner fields lead the unqualified lookup; qualified outer fields
+        // remain available to correlated expressions.
+        self.schema
+            .fields
+            .extend(outer.schema.fields.iter().cloned());
+        self
+    }
+
+    pub(super) fn with_excluded_fields(mut self, schema: &super::CollectionSchema) -> Self {
+        let excluded = schema
+            .fields
+            .iter()
+            .map(|field| crate::types::FieldSchema {
+                name: format!(
+                    "excluded.{}",
+                    crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key()
+                ),
+                data_type: field.data_type.clone(),
+                nullable: true,
+            })
+            .collect::<Vec<_>>();
+        self.schema.fields.extend(excluded);
+        self
+    }
+
     pub(super) fn for_source(
         source: &crate::sql::ast::QuerySource,
         ctes: &[crate::sql::ast::CommonTableExpression],
@@ -25,12 +109,40 @@ impl ResultTypes {
         )
     }
 
-    fn for_scope(
+    pub(super) fn for_source_with_parameters(
+        source: &crate::sql::ast::QuerySource,
+        ctes: &[crate::sql::ast::CommonTableExpression],
+        catalog: &Catalog,
+        context: &BindingContext,
+        parameter_types: &[i32],
+    ) -> Result<Self, CassieError> {
+        Self::for_scope_with_parameters(
+            source,
+            ctes,
+            catalog,
+            context,
+            &std::collections::HashMap::new(),
+            parameter_types,
+        )
+    }
+
+    pub(super) fn for_scope(
         source: &crate::sql::ast::QuerySource,
         ctes: &[crate::sql::ast::CommonTableExpression],
         catalog: &Catalog,
         context: &BindingContext,
         outer: &std::collections::HashMap<String, Schema>,
+    ) -> Result<Self, CassieError> {
+        Self::for_scope_with_parameters(source, ctes, catalog, context, outer, &[])
+    }
+
+    pub(super) fn for_scope_with_parameters(
+        source: &crate::sql::ast::QuerySource,
+        ctes: &[crate::sql::ast::CommonTableExpression],
+        catalog: &Catalog,
+        context: &BindingContext,
+        outer: &std::collections::HashMap<String, Schema>,
+        parameter_types: &[i32],
     ) -> Result<Self, CassieError> {
         let functions = crate::catalog::function_resolution::functions_for_scope(
             &catalog.list_functions(),
@@ -41,14 +153,29 @@ impl ResultTypes {
         let mut schemas = outer.clone();
         let infer = (|| {
             for cte in ctes {
-                let schema =
-                    super::inference::infer_cte_schema(cte, catalog, &schemas, &functions)?;
+                let schema = super::inference::infer_cte_schema_with_parameters(
+                    cte,
+                    catalog,
+                    &schemas,
+                    &functions,
+                    parameter_types,
+                )?;
                 schemas.insert(cte.name.to_ascii_lowercase(), schema);
             }
-            super::inference::infer_source_schema(source, catalog, &schemas, &functions, true)
+            super::inference::infer_source_schema_with_parameters(
+                source,
+                catalog,
+                &schemas,
+                &functions,
+                true,
+                parameter_types,
+            )
         })();
         let schema = match infer {
-            Ok(schema) => schema,
+            Ok(mut schema) => {
+                super::inference::append_source_qualifiers(source, catalog, &mut schema)?;
+                schema
+            }
             Err(CassieError::CollectionNotFound(name))
                 if source_references_cte(source, &name)
                     || ctes.iter().any(|cte| cte_references_name(cte, &name)) =>
@@ -63,7 +190,7 @@ impl ResultTypes {
             schema,
             cte_schemas: schemas,
             functions,
-            parameter_types: Vec::new(),
+            parameter_types: parameter_types.to_vec(),
             contextual_parameters: false,
         })
     }
@@ -226,8 +353,14 @@ fn validate_plan_in_scope(
     if !plan_contains_coalesce(plan) {
         return Ok(());
     }
-    let mut types = ResultTypes::for_scope(&plan.source, &plan.ctes, catalog, context, outer)?;
-    types.parameter_types = parameter_types.to_vec();
+    let mut types = ResultTypes::for_scope_with_parameters(
+        &plan.source,
+        &plan.ctes,
+        catalog,
+        context,
+        outer,
+        parameter_types,
+    )?;
     types.contextual_parameters = contextual_parameters;
     for item in &plan.projection {
         types.item(item)?;
@@ -255,11 +388,12 @@ fn validate_plan_in_scope(
             }
             _ => return Ok(()),
         };
-        types.schema = ResultTypes::for_source(
+        types.schema = ResultTypes::for_source_with_parameters(
             &crate::sql::ast::QuerySource::Collection(table.clone()),
             &[],
             catalog,
             context,
+            parameter_types,
         )?
         .schema;
         for item in returning {
@@ -285,7 +419,25 @@ fn validate_plan_in_scope(
             &types.cte_schemas,
         )?;
     }
-    for cte in &plan.ctes {
+    validate_parameter_ctes(
+        &plan.ctes,
+        catalog,
+        context,
+        parameter_types,
+        contextual_parameters,
+        &types.cte_schemas,
+    )
+}
+
+fn validate_parameter_ctes(
+    ctes: &[crate::sql::ast::CommonTableExpression],
+    catalog: &Catalog,
+    context: &BindingContext,
+    parameter_types: &[i32],
+    contextual_parameters: bool,
+    outer: &std::collections::HashMap<String, Schema>,
+) -> Result<(), CassieError> {
+    for cte in ctes {
         match &cte.query {
             crate::sql::ast::CteQuery::Simple(statement) => validate_parameter_statement(
                 statement,
@@ -293,7 +445,7 @@ fn validate_plan_in_scope(
                 context,
                 parameter_types,
                 contextual_parameters,
-                &types.cte_schemas,
+                outer,
             )?,
             crate::sql::ast::CteQuery::Recursive {
                 base, recursive, ..
@@ -304,7 +456,7 @@ fn validate_plan_in_scope(
                     context,
                     parameter_types,
                     contextual_parameters,
-                    &types.cte_schemas,
+                    outer,
                 )?;
                 validate_parameter_statement(
                     recursive,
@@ -312,7 +464,7 @@ fn validate_plan_in_scope(
                     context,
                     parameter_types,
                     contextual_parameters,
-                    &types.cte_schemas,
+                    outer,
                 )?;
             }
         }

@@ -10,6 +10,17 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "sql_mutations/boolean_adapters.rs"]
+mod sql_boolean_adapters;
+#[path = "sql_mutations/boolean_checks.rs"]
+mod sql_boolean_checks;
+#[path = "sql_mutations/boolean_ddl_predicates.rs"]
+mod sql_boolean_ddl_predicates;
+#[path = "sql_mutations/boolean_contexts.rs"]
+mod sql_boolean_mutations;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};

@@ -8,6 +8,9 @@ mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "sql_exists_subqueries/boolean_contexts.rs"]
+mod sql_boolean_exists;
+
 mod exists_in_dml {
     use cassie::types::Value;
 

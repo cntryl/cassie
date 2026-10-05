@@ -268,7 +268,7 @@ fn execute_lateral_join<'a>(
                         None,
                         env.session,
                     )?
-                    .is_true();
+                    .is_true()?;
                 Ok(passes.then_some(combined))
             })?;
             if accepted {

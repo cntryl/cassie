@@ -164,11 +164,9 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
                 .map(JsonValue::Number)
                 .ok_or_else(|| "non-finite float array element".to_string())
         }
-        DataType::Boolean => match value.to_ascii_lowercase().as_str() {
-            "true" | "t" | "yes" | "y" | "on" | "1" => Ok(JsonValue::Bool(true)),
-            "false" | "f" | "no" | "n" | "off" | "0" => Ok(JsonValue::Bool(false)),
-            _ => Err(format!("invalid boolean array element '{value}'")),
-        },
+        DataType::Boolean => crate::types::boolean::parse_text(&value)
+            .map(JsonValue::Bool)
+            .ok_or_else(|| format!("invalid boolean array element '{value}'")),
         DataType::Json | DataType::Vector(_) => serde_json::from_str(&value)
             .map_err(|error| format!("invalid JSON array element: {error}")),
         DataType::Array(_) => Err("array-of-array types are not supported".to_string()),

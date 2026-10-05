@@ -103,9 +103,9 @@ fn expression_operand_family(
     field_types: &crate::sql::FieldTypeMap,
 ) -> Result<Option<OperandFamily>, CassieError> {
     match expr {
-        Expr::Column(name) => {
-            Ok(crate::sql::field_type_for_column(field_types, name).map(data_type_family))
-        }
+        Expr::Column(name) => Ok(crate::sql::field_type_for_column(field_types, name)
+            .filter(|data_type| !matches!(data_type, DataType::Null))
+            .map(data_type_family)),
         Expr::StringLiteral(value) => Ok(Some(string_literal_family(value))),
         Expr::NumberLiteral(_) | Expr::IntegerLiteral(_) => Ok(Some(OperandFamily::Numeric)),
         Expr::BoolLiteral(_) => Ok(Some(OperandFamily::Boolean)),

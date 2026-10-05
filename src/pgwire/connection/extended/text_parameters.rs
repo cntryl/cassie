@@ -70,20 +70,8 @@ pub(super) fn decode_text_parameter(
 /// `true`/`false`/`yes`/`no`, `on`/`off`, and `1`/`0`, case-insensitively and
 /// with surrounding whitespace ignored.
 pub(super) fn parse_bool(text: &str) -> Result<bool, ExtendedQueryError> {
-    let value = text.trim().to_ascii_lowercase();
-    let is_prefix_of = |word: &str| !value.is_empty() && word.starts_with(value.as_str());
-    if value == "1" || value == "on" || is_prefix_of("true") || is_prefix_of("yes") {
-        return Ok(true);
-    }
-    if value == "0" || (value.len() >= 2 && is_prefix_of("off")) {
-        return Ok(false);
-    }
-    if is_prefix_of("false") || is_prefix_of("no") {
-        return Ok(false);
-    }
-    Err(ExtendedQueryError::protocol(
-        "invalid boolean bind parameter",
-    ))
+    crate::types::boolean::parse_text(text)
+        .ok_or_else(|| ExtendedQueryError::protocol("invalid boolean bind parameter"))
 }
 
 fn parse_integer(text: &str, min: i64, max: i64) -> Result<Value, ExtendedQueryError> {

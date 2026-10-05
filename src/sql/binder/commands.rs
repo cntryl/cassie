@@ -6,6 +6,9 @@ use super::{
 };
 use crate::sql::ast::IdentifierPath;
 
+#[path = "commands/insert_boolean.rs"]
+mod insert_boolean;
+
 pub(super) fn bind_insert(
     mut statement: crate::sql::ast::InsertStatement,
     catalog: &Catalog,
@@ -75,8 +78,10 @@ pub(super) fn bind_insert(
         statement.source = InsertSource::Select(Box::new(source));
     }
 
+    insert_boolean::validate(&mut statement, &schema, catalog, context)?;
+
     validate_returning_items(
-        &statement.returning,
+        &mut statement.returning,
         &schema,
         &table,
         "INSERT",
@@ -86,6 +91,22 @@ pub(super) fn bind_insert(
 
     statement.table = IdentifierPath::parse(&table).map_err(CassieError::Planner)?;
     Ok(statement)
+}
+
+pub(super) fn bind_insert_boolean_parameters(
+    statement: &mut crate::sql::ast::InsertStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+    parameter_types: &[i32],
+) -> Result<(), CassieError> {
+    // Preserve the existing special projection INSERT route.
+    if catalog.is_materialized_projection(&statement.table) {
+        return Ok(());
+    }
+    let schema = catalog
+        .get_schema(&statement.table)
+        .ok_or_else(|| CassieError::CollectionNotFound(statement.table.to_string()))?;
+    insert_boolean::validate_with_parameters(statement, &schema, catalog, context, parameter_types)
 }
 
 fn bind_on_conflict(
@@ -142,7 +163,7 @@ fn bind_on_conflict(
         {
             validate_conflict_update(
                 assignments,
-                filter.as_ref(),
+                filter.as_mut(),
                 schema,
                 table,
                 catalog,
@@ -155,7 +176,7 @@ fn bind_on_conflict(
 
 fn validate_conflict_update(
     assignments: &mut [(String, Expr)],
-    filter: Option<&Expr>,
+    filter: Option<&mut Expr>,
     schema: &CollectionSchema,
     table: &str,
     catalog: &Catalog,
@@ -178,6 +199,15 @@ fn validate_conflict_update(
         known_fields.insert(format!("{local_table}.{field}"));
     }
 
+    let result_types = super::coalesce_results::ResultTypes::for_source(
+        &crate::sql::ast::QuerySource::Collection(
+            IdentifierPath::parse(table).map_err(CassieError::Planner)?,
+        ),
+        &[],
+        catalog,
+        context,
+    )?
+    .with_excluded_fields(schema);
     let mut seen = HashSet::new();
     let mut functions = Vec::new();
     for (target, expression) in assignments {
@@ -197,14 +227,31 @@ fn validate_conflict_update(
             )));
         }
         validate_expression(expression, &known_fields, &HashSet::new(), false)?;
+        super::boolean_contexts::validate_value(
+            expression,
+            &result_types,
+            Some(&declared.data_type),
+            catalog,
+            context,
+        )?;
         super::collect_expr(expression, &mut functions);
         *target = normalized;
     }
-    if let Some(filter) = filter {
+    if let Some(filter) = filter.as_deref() {
         validate_expression(filter, &known_fields, &HashSet::new(), false)?;
         super::collect_expr(filter, &mut functions);
     }
-    validate_function_calls(functions, catalog, context)
+    validate_function_calls(functions, catalog, context)?;
+    if let Some(filter) = filter {
+        super::boolean_contexts::validate_predicate(
+            filter,
+            &result_types,
+            "ON CONFLICT WHERE",
+            catalog,
+            context,
+        )?;
+    }
+    Ok(())
 }
 
 fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[String]) -> bool {
@@ -239,6 +286,27 @@ fn conflict_target_supported(catalog: &Catalog, table: &str, target_fields: &[St
         .any(|index| column_set(&mut index.normalized_fields().iter()) == normalized_target)
 }
 
+fn bind_boolean_filter(
+    filter: Option<&mut Expr>,
+    table: &str,
+    label: &str,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    let Some(filter) = filter else {
+        return Ok(());
+    };
+    let types = super::coalesce_results::ResultTypes::for_source(
+        &crate::sql::ast::QuerySource::Collection(
+            IdentifierPath::parse(table).map_err(CassieError::Planner)?,
+        ),
+        &[],
+        catalog,
+        context,
+    )?;
+    super::boolean_contexts::validate_predicate(filter, &types, label, catalog, context)
+}
+
 pub(super) fn bind_update(
     mut statement: crate::sql::ast::UpdateStatement,
     catalog: &Catalog,
@@ -267,8 +335,16 @@ pub(super) fn bind_update(
         .get_schema(&table)
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
+    let result_types = super::coalesce_results::ResultTypes::for_source(
+        &crate::sql::ast::QuerySource::Collection(
+            IdentifierPath::parse(&table).map_err(CassieError::Planner)?,
+        ),
+        &[],
+        catalog,
+        context,
+    )?;
     let mut seen = HashSet::new();
-    for (field, _) in &mut statement.assignments {
+    for (field, expression) in &mut statement.assignments {
         let normalized_field = field.trim().to_string();
         if normalized_field.is_empty() {
             return Err(CassieError::Planner(
@@ -291,11 +367,18 @@ pub(super) fn bind_update(
             )));
         }
 
+        super::boolean_contexts::validate_value(
+            expression,
+            &result_types,
+            Some(&declared.data_type),
+            catalog,
+            context,
+        )?;
         *field = resolved_name;
     }
 
     validate_returning_items(
-        &statement.returning,
+        &mut statement.returning,
         &schema,
         &table,
         "UPDATE",
@@ -313,6 +396,13 @@ pub(super) fn bind_update(
         super::select::canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
     super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
+    bind_boolean_filter(
+        statement.filter.as_mut(),
+        &statement.table,
+        "UPDATE WHERE",
+        catalog,
+        context,
+    )?;
     Ok(statement)
 }
 
@@ -344,7 +434,7 @@ pub(super) fn bind_delete(
         .ok_or_else(|| CassieError::CollectionNotFound(table.clone()))?;
 
     validate_returning_items(
-        &statement.returning,
+        &mut statement.returning,
         &schema,
         &table,
         "DELETE",
@@ -362,6 +452,13 @@ pub(super) fn bind_delete(
         super::select::canonicalize_typed_predicate_literals(filter, &field_types)?;
     }
     super::json_predicates::rewrite_filter(statement.filter.as_mut(), &schema);
+    bind_boolean_filter(
+        statement.filter.as_mut(),
+        &statement.table,
+        "DELETE WHERE",
+        catalog,
+        context,
+    )?;
     Ok(statement)
 }
 
@@ -462,6 +559,13 @@ pub(super) fn bind_create_rollup(
     if let Some(filter) = &statement.filter {
         validate_expression(filter, &expression_fields, &HashSet::new(), false)?;
     }
+    bind_boolean_filter(
+        statement.filter.as_mut(),
+        &source,
+        "ROLLUP WHERE",
+        catalog,
+        context,
+    )?;
 
     statement.name = name;
     statement.source = source;
@@ -600,7 +704,7 @@ fn validate_retention_timestamp(raw: &str) -> Result<(), CassieError> {
 }
 
 pub(super) fn validate_returning_items(
-    returning: &[SelectItem],
+    returning: &mut [SelectItem],
     schema: &CollectionSchema,
     table: &str,
     operation: &str,
@@ -648,10 +752,26 @@ pub(super) fn validate_returning_items(
                     &HashSet::new(),
                     false,
                 )?;
+                for argument in &mut function.args {
+                    super::boolean_contexts::validate_value(
+                        argument,
+                        &result_types,
+                        None,
+                        catalog,
+                        context,
+                    )?;
+                }
                 collect_item(item, &mut functions);
             }
             SelectItem::Expr { expr, .. } => {
                 validate_expression(expr, &known_fields, &HashSet::new(), false)?;
+                super::boolean_contexts::validate_value(
+                    expr,
+                    &result_types,
+                    None,
+                    catalog,
+                    context,
+                )?;
             }
             SelectItem::WindowFunction { .. } => {
                 return Err(CassieError::Planner(format!(

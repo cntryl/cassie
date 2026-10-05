@@ -79,17 +79,28 @@ impl Cassie {
             .then(|| {
                 self.plan_cache_key_from_fingerprint(
                     sql_fingerprint,
-                    Vec::new(),
+                    super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
                     crate::runtime::ExecutionMode::DescribeQuery,
                     database,
                     &search_path,
                 )
             });
         let (physical, provenance) = if let Some(key) = cache_key.clone() {
-            self.resolve_physical_plan(parsed, key, session, Some(&controls))?
+            self.resolve_physical_plan_with_parameter_oids(
+                parsed,
+                key,
+                session,
+                Some(&controls),
+                parameter_type_oids,
+            )?
         } else {
             (
-                self.compile_physical_plan(parsed, session, Some(&controls))?,
+                self.compile_physical_plan_with_parameter_oids(
+                    parsed,
+                    session,
+                    Some(&controls),
+                    parameter_type_oids,
+                )?,
                 PlanCacheProvenance::Compiled,
             )
         };
@@ -106,32 +117,20 @@ impl Cassie {
             parameter_type_oids,
             false,
         )?;
+        crate::sql::binder::validate_boolean_parameter_plan(
+            &physical.logical,
+            &self.catalog,
+            &self.binding_context_for_session(session),
+            parameter_type_oids,
+        )?;
         let collection_schema = self.describe_collection_schema(&physical.logical, &user_functions);
 
-        if let Some(command) = physical.logical.command.as_ref() {
-            let returning = match command {
-                crate::planner::logical::LogicalCommand::Insert(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                crate::planner::logical::LogicalCommand::Update(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                crate::planner::logical::LogicalCommand::Delete(statement) => {
-                    Some(statement.returning.as_slice())
-                }
-                crate::planner::logical::LogicalCommand::Show(statement) => {
-                    return Ok(crate::executor::show_result_columns(statement));
-                }
-                _ => None,
-            };
-            if let Some(returning) = returning {
-                return Ok(crate::executor::columns_from_projection(
-                    returning,
-                    collection_schema.as_ref(),
-                    &user_functions,
-                ));
-            }
-            return Ok(Vec::new());
+        if let Some(columns) = Self::describe_command_columns(
+            &physical.logical,
+            collection_schema.as_ref(),
+            &user_functions,
+        ) {
+            return Ok(columns);
         }
 
         if let Some(key) = cache_key.as_ref() {
@@ -152,6 +151,27 @@ impl Cassie {
                 parameter_type_oids,
             ),
         )
+    }
+
+    fn describe_command_columns(
+        logical: &crate::planner::logical::LogicalPlan,
+        collection_schema: Option<&crate::catalog::CollectionSchema>,
+        user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    ) -> Option<Vec<crate::executor::ColumnMeta>> {
+        let returning = match logical.command.as_ref()? {
+            crate::planner::logical::LogicalCommand::Insert(statement) => &statement.returning,
+            crate::planner::logical::LogicalCommand::Update(statement) => &statement.returning,
+            crate::planner::logical::LogicalCommand::Delete(statement) => &statement.returning,
+            crate::planner::logical::LogicalCommand::Show(statement) => {
+                return Some(crate::executor::show_result_columns(statement));
+            }
+            _ => return Some(Vec::new()),
+        };
+        Some(crate::executor::columns_from_projection(
+            returning,
+            collection_schema,
+            user_functions,
+        ))
     }
 
     fn describe_collection_schema(

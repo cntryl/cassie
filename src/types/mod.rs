@@ -1,4 +1,5 @@
 pub(crate) mod array;
+pub(crate) mod boolean;
 pub mod char_text;
 pub(crate) mod json;
 pub mod numeric;

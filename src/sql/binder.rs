@@ -1,5 +1,13 @@
 mod coalesce_results;
 pub(crate) use coalesce_results::validate_plan as validate_coalesce_plan;
+#[path = "binder/boolean_parameters.rs"]
+mod boolean_parameters;
+pub(crate) use boolean_parameters::validate_plan as validate_boolean_parameter_plan;
+#[path = "binder/boolean_bindings.rs"]
+mod boolean_bindings;
+#[path = "binder/boolean_contexts.rs"]
+mod boolean_contexts;
+pub(crate) use boolean_bindings::bind_boolean_parameters;
 use std::collections::{HashMap, HashSet};
 use std::mem;
 
@@ -36,6 +44,8 @@ mod inference;
 mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
+#[path = "binder/projections.rs"]
+mod projections;
 #[path = "binder/recursive.rs"]
 mod recursive;
 #[path = "binder/routines.rs"]
@@ -73,6 +83,14 @@ use context::{
 pub(crate) use inference::cte_collection_schema_with_functions;
 pub use inference::{cte_collection_schema, infer_select_schema, infer_select_schema_with_context};
 pub(crate) use inference::{infer_expr_type, infer_function_return_type, known_expr_type};
+use projections::{
+    bind_alter_materialized_projection_statement, bind_compare_projection_statement,
+    bind_create_materialized_projection_statement, bind_diff_projection_statement,
+    bind_drop_materialized_projection_statement,
+    bind_drop_materialized_projection_version_statement, bind_plan_repair_projection_statement,
+    bind_refresh_materialized_projection_statement, bind_repair_projection_statement,
+    bind_verify_projection_statement,
+};
 use recursive::bind_recursive_cte_query;
 use routines::{
     bind_call_procedure, bind_create_function, bind_create_procedure, bind_drop_function,
@@ -671,225 +689,6 @@ fn bind_drop_rollup_statement(
         raw_sql,
         QueryStatement::DropRollup(crate::sql::ast::DropRollupStatement { name, if_exists }),
     ))
-}
-
-fn bind_create_materialized_projection_statement(
-    mut statement: crate::sql::ast::CreateMaterializedProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = normalize_new_relation_name(statement.name.trim(), context, catalog)?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "CREATE MATERIALIZED PROJECTION requires a name".into(),
-        ));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::CreateMaterializedProjection(statement),
-    ))
-}
-
-fn bind_refresh_materialized_projection_statement(
-    mut statement: crate::sql::ast::RefreshMaterializedProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "REFRESH MATERIALIZED PROJECTION requires a name".into(),
-        ));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::RefreshMaterializedProjection(statement),
-    ))
-}
-
-fn bind_drop_materialized_projection_statement(
-    mut statement: crate::sql::ast::DropMaterializedProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "DROP MATERIALIZED PROJECTION requires a name".into(),
-        ));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DropMaterializedProjection(statement),
-    ))
-}
-
-fn bind_alter_materialized_projection_statement(
-    mut statement: crate::sql::ast::AlterMaterializedProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "ALTER MATERIALIZED PROJECTION requires a name".into(),
-        ));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::AlterMaterializedProjection(statement),
-    ))
-}
-
-fn bind_drop_materialized_projection_version_statement(
-    mut statement: crate::sql::ast::DropMaterializedProjectionVersionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "DROP MATERIALIZED PROJECTION VERSION requires a name".into(),
-        ));
-    }
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DropMaterializedProjectionVersion(statement),
-    ))
-}
-
-fn bind_verify_projection_statement(
-    mut statement: crate::sql::ast::VerifyProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.name = resolve_existing_name(statement.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if statement.name.is_empty() {
-        return Err(CassieError::Planner(
-            "VERIFY PROJECTION requires a name".into(),
-        ));
-    }
-    ensure_projection_target_exists(&statement.name, statement.version_id.as_deref(), catalog)?;
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::VerifyProjection(statement),
-    ))
-}
-
-fn bind_diff_projection_statement(
-    mut statement: crate::sql::ast::DiffProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.left = normalize_projection_target(statement.left, catalog, context)?;
-    statement.right = normalize_projection_target(statement.right, catalog, context)?;
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::DiffProjection(statement),
-    ))
-}
-
-fn bind_compare_projection_statement(
-    mut statement: crate::sql::ast::CompareProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, catalog, context)?;
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::CompareProjection(statement),
-    ))
-}
-
-fn bind_plan_repair_projection_statement(
-    mut statement: crate::sql::ast::PlanRepairProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, catalog, context)?;
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::PlanRepairProjection(statement),
-    ))
-}
-
-fn bind_repair_projection_statement(
-    mut statement: crate::sql::ast::RepairProjectionStatement,
-    catalog: &Catalog,
-    raw_sql: &str,
-    context: &BindingContext,
-) -> Result<ParsedStatement, CassieError> {
-    statement.target = normalize_projection_target(statement.target, catalog, context)?;
-    Ok(parsed_statement(
-        raw_sql,
-        QueryStatement::RepairProjection(statement),
-    ))
-}
-
-fn normalize_projection_target(
-    mut target: crate::sql::ast::ProjectionDiffTarget,
-    catalog: &Catalog,
-    context: &BindingContext,
-) -> Result<crate::sql::ast::ProjectionDiffTarget, CassieError> {
-    target.name = resolve_existing_name(target.name.trim(), context, |name| {
-        catalog.is_materialized_projection(name)
-    })?;
-    if target.name.is_empty() {
-        return Err(CassieError::Planner(
-            "projection targets require a name".into(),
-        ));
-    }
-    ensure_projection_target_exists(&target.name, target.version_id.as_deref(), catalog)?;
-    Ok(target)
-}
-
-fn ensure_projection_target_exists(
-    name: &str,
-    version_id: Option<&str>,
-    catalog: &Catalog,
-) -> Result<(), CassieError> {
-    if let Some(projection) = catalog.get_materialized_projection(name) {
-        let Some(version_id) = version_id else {
-            return Ok(());
-        };
-        if projection
-            .versions
-            .iter()
-            .any(|version| version.version_id == version_id)
-        {
-            return Ok(());
-        }
-        return Err(CassieError::CatalogObjectNotFound {
-            kind: CatalogObjectKind::ProjectionVersion,
-            name: format!("{name} VERSION {version_id}"),
-        });
-    }
-    if catalog.relation_exists(name) || catalog.get_projection_metadata(name).is_some() {
-        return Ok(());
-    }
-    Err(CassieError::CatalogObjectNotFound {
-        kind: CatalogObjectKind::Relation,
-        name: name.to_string(),
-    })
 }
 
 fn bind_drop_retention_policy_statement(

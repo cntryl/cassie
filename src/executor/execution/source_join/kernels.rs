@@ -35,7 +35,7 @@ pub(super) fn execute_nested_loop_join(
                         None,
                         env.session,
                     )?
-                    .is_true();
+                    .is_true()?;
                 Ok(passes.then_some(combined))
             })?;
             if accepted {

@@ -97,42 +97,22 @@ impl PredicateResult {
 }
 
 impl ScalarValue {
-    pub(crate) fn predicate_result(&self) -> PredicateResult {
+    pub(crate) fn predicate_result(&self) -> Result<PredicateResult, QueryError> {
         match self {
-            ScalarValue::Bool(value) => {
-                if *value {
-                    PredicateResult::True
-                } else {
-                    PredicateResult::False
-                }
-            }
-            ScalarValue::Int(value) => {
-                if *value == 0 {
-                    PredicateResult::False
-                } else {
-                    PredicateResult::True
-                }
-            }
-            ScalarValue::Float(value) => {
-                if *value == 0.0 {
-                    PredicateResult::False
-                } else {
-                    PredicateResult::True
-                }
-            }
-            ScalarValue::Str(value) | ScalarValue::Json(value) => {
-                if value.is_empty() {
-                    PredicateResult::False
-                } else {
-                    PredicateResult::True
-                }
-            }
-            ScalarValue::Null => PredicateResult::Unknown,
+            ScalarValue::Bool(true) => Ok(PredicateResult::True),
+            ScalarValue::Bool(false) => Ok(PredicateResult::False),
+            ScalarValue::Null => Ok(PredicateResult::Unknown),
+            ScalarValue::Int(_)
+            | ScalarValue::Float(_)
+            | ScalarValue::Str(_)
+            | ScalarValue::Json(_) => Err(QueryError::General(
+                "Boolean expression requires BOOLEAN or SQL NULL".to_string(),
+            )),
         }
     }
 
-    pub(crate) fn is_true(&self) -> bool {
-        self.predicate_result().is_true()
+    pub(crate) fn is_true(&self) -> Result<bool, QueryError> {
+        self.predicate_result().map(PredicateResult::is_true)
     }
 
     pub(crate) fn as_str(&self) -> Option<&str> {
@@ -264,7 +244,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             session,
         },
     )?;
-    Ok(value.is_true())
+    value.is_true()
 }
 
 pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
@@ -471,13 +451,9 @@ fn cast_boolean_scalar(value: &ScalarValue) -> Result<ScalarValue, QueryError> {
         ScalarValue::Int(value) => Ok(ScalarValue::Bool(*value != 0)),
         ScalarValue::Float(value) => Ok(ScalarValue::Bool(*value != 0.0)),
         ScalarValue::Str(value) | ScalarValue::Json(value) => {
-            match value.to_ascii_lowercase().as_str() {
-                "true" | "t" | "1" => Ok(ScalarValue::Bool(true)),
-                "false" | "f" | "0" => Ok(ScalarValue::Bool(false)),
-                _ => Err(QueryError::General(
-                    "cannot cast value to BOOLEAN".to_string(),
-                )),
-            }
+            crate::types::boolean::parse_text(value)
+                .map(ScalarValue::Bool)
+                .ok_or_else(|| QueryError::General("cannot cast value to BOOLEAN".to_string()))
         }
         ScalarValue::Null => Ok(ScalarValue::Null),
     }
@@ -561,12 +537,12 @@ fn binary_scalar(
 ) -> Result<ScalarValue, QueryError> {
     let result = match op {
         BinaryOp::And => left
-            .predicate_result()
-            .and(right.predicate_result())
+            .predicate_result()?
+            .and(right.predicate_result()?)
             .into_scalar(),
         BinaryOp::Or => left
-            .predicate_result()
-            .or(right.predicate_result())
+            .predicate_result()?
+            .or(right.predicate_result()?)
             .into_scalar(),
         BinaryOp::Eq => comparison_result(eq_value(left, right)),
         BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
@@ -891,8 +867,8 @@ fn eval_not_expr<R: RowAccess + ?Sized>(
     expr: &Expr,
     context: EvalContext<'_>,
 ) -> Result<ScalarValue, QueryError> {
-    eval_scalar_with_context(row, expr, context)
-        .map(|value| value.predicate_result().not().into_scalar())
+    let value = eval_scalar_with_context(row, expr, context)?;
+    Ok(value.predicate_result()?.not().into_scalar())
 }
 
 fn bool_to_predicate(value: bool) -> PredicateResult {

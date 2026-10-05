@@ -178,7 +178,7 @@ const SCALAR_FUNCTIONS: &[ScalarFunction] = &[
         id: FunctionId::Search,
         name: "search",
         arity: FunctionArity::Exact(2),
-        return_type: FunctionReturnType::Float,
+        return_type: FunctionReturnType::Boolean,
         is_aggregate: false,
         bypass_arity_validation: false,
     },

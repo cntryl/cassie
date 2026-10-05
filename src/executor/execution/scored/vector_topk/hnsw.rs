@@ -57,7 +57,7 @@ pub(super) fn execute_hnsw_vector_top_k(
         &spec.collection,
         stored_vector_field,
         &spec.query,
-        options,
+        &index.metadata,
         candidate_limit,
         controls,
     ) {
@@ -68,6 +68,7 @@ pub(super) fn execute_hnsw_vector_top_k(
         }
         Err(error) => return handle_hnsw_storage_error(cassie, error),
     };
+    let source_row_count = batch.source_row_count;
     let (built_generation, candidates, candidate_count, ann_reads, candidate_memory) =
         batch.into_parts();
 
@@ -90,6 +91,10 @@ pub(super) fn execute_hnsw_vector_top_k(
     };
     if !source_generation_matches(cassie, spec, built_generation)? {
         record_hnsw_concurrent_source_change(cassie);
+        return Ok(None);
+    }
+    if reranked.len() < top_needed.min(source_row_count) {
+        cassie.runtime.record_hnsw_fallback("candidate-exhausted");
         return Ok(None);
     }
     reranked.sort_by(compare_sql_vector_candidates);

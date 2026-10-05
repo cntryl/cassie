@@ -4,7 +4,14 @@ use super::{
     SelectItem, SortDirection, Value,
 };
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
+use crate::runtime::accounted::{Accounted, AccountedVec};
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
+
+#[cfg(test)]
+mod tests;
+
+#[path = "ordered_read/column_top_k.rs"]
+mod column_top_k;
 
 pub(super) fn execute_ordered_column_top_k(
     cassie: &Cassie,
@@ -12,6 +19,24 @@ pub(super) fn execute_ordered_column_top_k(
     params: &[Value],
     plan: &LogicalPlan,
     controls: &QueryExecutionControls,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    execute_ordered_column_top_k_with_projection_probe(
+        cassie,
+        session,
+        params,
+        plan,
+        controls,
+        || Ok(()),
+    )
+}
+
+fn execute_ordered_column_top_k_with_projection_probe(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    params: &[Value],
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+    mut projection_probe: impl FnMut() -> Result<(), crate::app::CassieError>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     if let QuerySource::Collection(collection) = &plan.source {
         if cassie
@@ -24,7 +49,7 @@ pub(super) fn execute_ordered_column_top_k(
             return Ok(None);
         }
     }
-    if let Some(rows) = execute_ordered_row_id_page(cassie, session, params, plan)? {
+    if let Some(rows) = execute_ordered_row_id_page(cassie, session, params, plan, controls)? {
         return Ok(Some(rows));
     }
 
@@ -36,86 +61,7 @@ pub(super) fn execute_ordered_column_top_k(
         return Ok(Some(Vec::new()));
     }
 
-    let schema = cassie.catalog.get_schema(&spec.collection);
-    if schema.as_ref().is_some_and(|schema| {
-        schema.fields.iter().any(|field| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
-                == crate::sql::ColumnIdentifierPath::reference_field_key(&spec.order_column)
-                && matches!(field.data_type, crate::types::DataType::Array(_))
-        })
-    }) {
-        // This shortcut compares untyped values. The shared typed top-k heap
-        // preserves elementwise ARRAY order in the projected read path.
-        return Ok(None);
-    }
-    let Some(mut cursor) = cassie
-        .open_session_row_cursor(
-            session,
-            &spec.collection,
-            RowDecode::ProjectedHistorical(spec.projected_scan_fields()),
-            controls,
-        )
-        .map_err(QueryError::from)?
-    else {
-        return Ok(None);
-    };
-    let mut top = BinaryHeap::with_capacity(spec.top_needed().saturating_add(1));
-
-    loop {
-        check_timeout(controls)?;
-        let accounted = cursor
-            .next_accounted_documents(&cassie.midge, batch::DEFAULT_BATCH_SIZE, controls)
-            .map_err(QueryError::from)?;
-        if accounted.is_empty() {
-            break;
-        }
-        for document in accounted {
-            check_timeout(controls)?;
-            let candidate_bytes = document.accounted_bytes().saturating_mul(2).saturating_add(
-                spec.projection
-                    .iter()
-                    .map(|column| column.output_name.len())
-                    .sum(),
-            );
-            let candidate_memory = controls.reserve_query_memory(candidate_bytes)?;
-            let (document, document_memory) = document.into_parts();
-            let document_id = document.id.clone();
-            let order_value = document
-                .payload
-                .as_object()
-                .and_then(|object| scan::projected_field_value(object, &spec.order_column))
-                .map_or(Value::Null, super::projected_read::json_to_query_value);
-            let values = ordered_projection_row(&document, &spec.projection, schema.as_ref());
-            let candidate = OrderedColumnCandidate {
-                order_value,
-                id: document_id,
-                values: values.into_entries(),
-                direction: spec.direction.clone(),
-                memory: candidate_memory,
-            };
-            drop(document_memory);
-            push_ordered_column_top_k(&mut top, spec.top_needed(), candidate);
-        }
-    }
-
-    let mut ranked = top.into_vec();
-    ranked.sort_by(compare_ordered_column_candidates);
-    let mut row_memory = Vec::with_capacity(ranked.len());
-    let rows = ranked
-        .into_iter()
-        .skip(spec.offset)
-        .take(spec.limit)
-        .map(|candidate| {
-            row_memory.push(candidate.memory);
-            BatchRow::new(candidate.values)
-        })
-        .collect::<Vec<_>>();
-
-    cassie
-        .runtime
-        .record_read_path_heap_top_k(&spec.collection, rows.len());
-
-    Ok(Some(rows))
+    column_top_k::execute(cassie, session, &spec, controls, &mut projection_probe)
 }
 
 fn execute_ordered_row_id_page(
@@ -123,6 +69,25 @@ fn execute_ordered_row_id_page(
     session: Option<&CassieSession>,
     params: &[Value],
     plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Vec<BatchRow>>, QueryError> {
+    execute_ordered_row_id_page_with_projection_probe(
+        cassie,
+        session,
+        params,
+        plan,
+        controls,
+        || Ok(()),
+    )
+}
+
+fn execute_ordered_row_id_page_with_projection_probe(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    params: &[Value],
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+    mut projection_probe: impl FnMut() -> Result<(), crate::app::CassieError>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let Some(spec) = ordered_row_id_page_spec(plan, params) else {
         return Ok(None);
@@ -132,83 +97,120 @@ fn execute_ordered_row_id_page(
         return Ok(Some(Vec::new()));
     }
 
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| !session.collection_changes(spec.collection).is_empty()) {
         return Ok(None);
     }
 
-    let schema = cassie.catalog.get_schema(&spec.collection);
+    check_timeout(controls)?;
+    let (schema, _schema_memory) = cassie
+        .catalog
+        .clone_schema_with_controls(spec.collection, controls)?;
+    let projection = spec.accounted_projection(controls)?;
+    let (scan_fields, _scan_field_memory) = spec.accounted_scan_fields(controls)?.into_parts();
+    let start_bound = accounted_bound(spec.start_bound.as_ref(), controls)?;
+    let end_bound = accounted_bound(spec.end_bound.as_ref(), controls)?;
     let scan_limit = spec.limit.saturating_add(spec.offset);
-    let (documents, _timings) = cassie
+    let mut cursor = cassie
         .midge
-        .scan_ordered_rows_batched_by_id_limit_with_timings(
+        .open_controlled_ordered_row_cursor(
             crate::midge::adapter::OrderedRowScanRequest {
-                collection: &spec.collection,
-                batch_size: batch::DEFAULT_BATCH_SIZE,
-                decode: RowDecode::ProjectedHistorical(spec.scan_fields()),
-                start_bound: spec.start_bound.as_ref(),
-                end_bound: spec.end_bound.as_ref(),
+                collection: spec.collection,
+                decode: RowDecode::ProjectedHistorical(scan_fields),
+                start_bound: start_bound.as_ref().map(Accounted::get),
+                end_bound: end_bound.as_ref().map(Accounted::get),
                 reverse: matches!(spec.direction, SortDirection::Desc),
                 limit: Some(scan_limit),
             },
+            controls,
         )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-
-    let mut rows = documents
-        .into_iter()
-        .flatten()
-        .map(|document| ordered_projection_row(&document, &spec.projection, schema.as_ref()))
-        .collect::<Vec<_>>();
-
-    if spec.offset > 0 {
-        rows = rows
-            .into_iter()
-            .skip(spec.offset)
-            .take(spec.limit)
-            .collect();
+        .map_err(QueryError::from)?;
+    let mut rows = AccountedVec::try_new(controls)?;
+    let mut skipped = 0;
+    while rows.len() < spec.limit {
+        check_timeout(controls)?;
+        let Some(document) = cursor.next_accounted_document(&cassie.midge, controls)? else {
+            break;
+        };
+        if skipped < spec.offset {
+            skipped += 1;
+            continue;
+        }
+        if rows.len() >= controls.max_result_rows {
+            return Err(crate::app::CassieError::ResourceLimit(format!(
+                "query result row limit exceeded: {} > {}",
+                rows.len().saturating_add(1),
+                controls.max_result_rows
+            ))
+            .into());
+        }
+        let shape = scan::ordered_projection_shape(
+            document.document(),
+            projection
+                .as_slice()
+                .iter()
+                .map(|column| (column.name.as_str(), column.output_name.as_str())),
+            schema.as_ref(),
+            None,
+            controls,
+        )?;
+        rows.try_push_with_result(shape.bytes, || {
+            projection_probe()?;
+            Ok(ordered_projection_row(
+                document.document(),
+                projection.as_slice(),
+                schema.as_ref(),
+            ))
+        })?;
     }
-
+    check_timeout(controls)?;
+    let (rows, _row_memory) = rows.into_parts();
     match spec.read_path_mode() {
         OrderedReadPathMode::StorageTopK => cassie
             .runtime
-            .record_read_path_storage_top_k(&spec.collection, rows.len()),
+            .record_read_path_storage_top_k(spec.collection, rows.len()),
         OrderedReadPathMode::Keyset => cassie
             .runtime
-            .record_read_path_keyset(&spec.collection, rows.len()),
+            .record_read_path_keyset(spec.collection, rows.len()),
         OrderedReadPathMode::DegradedOffset => cassie
             .runtime
-            .record_read_path_degraded_offset(&spec.collection, rows.len()),
+            .record_read_path_degraded_offset(spec.collection, rows.len()),
     }
 
     Ok(Some(rows))
 }
 
-struct OrderedColumnTopKSpec {
-    collection: String,
-    order_column: String,
+struct OrderedColumnTopKSpec<'a> {
+    collection: &'a str,
+    order_column: &'a str,
     direction: SortDirection,
-    projection: Vec<OrderedProjectionColumn>,
+    projection: &'a [SelectItem],
     limit: usize,
     offset: usize,
 }
 
-impl OrderedColumnTopKSpec {
+impl OrderedColumnTopKSpec<'_> {
     fn top_needed(&self) -> usize {
         self.limit.saturating_add(self.offset).max(1)
     }
 
-    fn projected_scan_fields(&self) -> Vec<String> {
-        let mut fields = Vec::new();
-        if !super::projected_read::is_row_id_column(&self.order_column) {
-            fields.push(self.order_column.clone());
+    fn accounted_scan_fields(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<AccountedVec<String>, QueryError> {
+        let mut fields = AccountedVec::try_new(controls)?;
+        if !super::projected_read::is_row_id_column(self.order_column) {
+            fields.try_push_with(self.order_column.len(), || self.order_column.to_owned())?;
         }
-        for column in &self.projection {
-            if !super::projected_read::is_row_id_column(&column.name)
-                && !fields.contains(&column.name)
-            {
-                fields.push(column.name.clone());
+        for item in self.projection {
+            if let SelectItem::Column { name, .. } = item {
+                if !super::projected_read::is_row_id_column(name)
+                    && !fields.as_slice().contains(name)
+                {
+                    fields.try_push_clone(name, name.len())?;
+                }
             }
         }
-        fields
+        Ok(fields)
     }
 }
 
@@ -243,23 +245,42 @@ enum OrderedReadPathMode {
     DegradedOffset,
 }
 
-struct OrderedRowIdPageSpec {
-    collection: String,
+struct OrderedRowIdPageSpec<'a> {
+    collection: &'a str,
     direction: SortDirection,
-    projection: Vec<OrderedProjectionColumn>,
+    projection: &'a [SelectItem],
     limit: usize,
     offset: usize,
-    start_bound: Option<OrderedRowBound>,
-    end_bound: Option<OrderedRowBound>,
+    start_bound: Option<OrderedRowBoundRef<'a>>,
+    end_bound: Option<OrderedRowBoundRef<'a>>,
 }
 
-impl OrderedRowIdPageSpec {
-    fn scan_fields(&self) -> Vec<String> {
-        self.projection
-            .iter()
-            .filter(|column| !super::projected_read::is_row_id_column(&column.name))
-            .map(|column| column.name.clone())
-            .collect()
+struct OrderedRowBoundRef<'a> {
+    id: &'a str,
+    inclusive: bool,
+}
+
+impl OrderedRowIdPageSpec<'_> {
+    fn accounted_scan_fields(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<AccountedVec<String>, QueryError> {
+        let mut fields = AccountedVec::try_new(controls)?;
+        for item in self.projection {
+            if let SelectItem::Column { name, .. } = item {
+                if !super::projected_read::is_row_id_column(name) {
+                    fields.try_push_clone(name, name.len())?;
+                }
+            }
+        }
+        Ok(fields)
+    }
+
+    fn accounted_projection(
+        &self,
+        controls: &QueryExecutionControls,
+    ) -> Result<AccountedVec<OrderedProjectionColumn>, QueryError> {
+        accounted_ordered_projection(self.projection, controls)
     }
 
     fn read_path_mode(&self) -> OrderedReadPathMode {
@@ -273,7 +294,7 @@ impl OrderedRowIdPageSpec {
     }
 }
 
-fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec> {
+fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec<'_>> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
@@ -302,32 +323,29 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
     if super::projected_read::is_row_id_column(order_column) {
         return None;
     }
-    let projection = plan
-        .projection
-        .iter()
-        .map(|item| match item {
-            SelectItem::Column { name, alias } => Some(OrderedProjectionColumn {
-                name: name.clone(),
-                output_name: alias.clone().unwrap_or_else(|| name.clone()),
-            }),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if projection.is_empty() {
+    if plan.projection.is_empty()
+        || plan
+            .projection
+            .iter()
+            .any(|item| !matches!(item, SelectItem::Column { .. }))
+    {
         return None;
     }
 
     Some(OrderedColumnTopKSpec {
-        collection: collection.to_string(),
-        order_column: order_column.clone(),
+        collection,
+        order_column,
         direction: plan.order[0].direction.clone(),
-        projection,
+        projection: &plan.projection,
         limit,
         offset,
     })
 }
 
-fn ordered_row_id_page_spec(plan: &LogicalPlan, params: &[Value]) -> Option<OrderedRowIdPageSpec> {
+fn ordered_row_id_page_spec<'a>(
+    plan: &'a LogicalPlan,
+    params: &'a [Value],
+) -> Option<OrderedRowIdPageSpec<'a>> {
     if plan.command.is_some()
         || !plan.ctes.is_empty()
         || plan.distinct
@@ -353,18 +371,12 @@ fn ordered_row_id_page_spec(plan: &LogicalPlan, params: &[Value]) -> Option<Orde
 
     let limit = usize::try_from(plan.limit?.max(0)).ok()?;
     let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
-    let projection = plan
-        .projection
-        .iter()
-        .map(|item| match item {
-            SelectItem::Column { name, alias } => Some(OrderedProjectionColumn {
-                name: name.clone(),
-                output_name: alias.clone().unwrap_or_else(|| name.clone()),
-            }),
-            _ => None,
-        })
-        .collect::<Option<Vec<_>>>()?;
-    if projection.is_empty() {
+    if plan.projection.is_empty()
+        || plan
+            .projection
+            .iter()
+            .any(|item| !matches!(item, SelectItem::Column { .. }))
+    {
         return None;
     }
 
@@ -374,9 +386,9 @@ fn ordered_row_id_page_spec(plan: &LogicalPlan, params: &[Value]) -> Option<Orde
     };
 
     Some(OrderedRowIdPageSpec {
-        collection: collection.to_string(),
+        collection,
         direction: plan.order[0].direction.clone(),
-        projection,
+        projection: &plan.projection,
         limit,
         offset,
         start_bound,
@@ -384,10 +396,13 @@ fn ordered_row_id_page_spec(plan: &LogicalPlan, params: &[Value]) -> Option<Orde
     })
 }
 
-fn ordered_row_id_range_bounds(
-    filter: &Expr,
-    params: &[Value],
-) -> Option<(Option<OrderedRowBound>, Option<OrderedRowBound>)> {
+fn ordered_row_id_range_bounds<'a>(
+    filter: &'a Expr,
+    params: &'a [Value],
+) -> Option<(
+    Option<OrderedRowBoundRef<'a>>,
+    Option<OrderedRowBoundRef<'a>>,
+)> {
     let Expr::Binary { left, op, right } = filter else {
         return None;
     };
@@ -403,9 +418,9 @@ fn ordered_row_id_range_bounds(
     };
 
     let row_id = match other.0 {
-        Expr::StringLiteral(value) => value.clone(),
+        Expr::StringLiteral(value) => value.as_str(),
         Expr::Param(index) => match params.get(*index)? {
-            Value::String(value) => value.clone(),
+            Value::String(value) => value.as_str(),
             _ => return None,
         },
         _ => return None,
@@ -413,14 +428,14 @@ fn ordered_row_id_range_bounds(
 
     match (other.1, op) {
         (false, BinaryOp::Gt) | (true, BinaryOp::Lt) => Some((
-            Some(OrderedRowBound {
+            Some(OrderedRowBoundRef {
                 id: row_id,
                 inclusive: false,
             }),
             None,
         )),
         (false, BinaryOp::Gte) | (true, BinaryOp::Lte) => Some((
-            Some(OrderedRowBound {
+            Some(OrderedRowBoundRef {
                 id: row_id,
                 inclusive: true,
             }),
@@ -428,20 +443,72 @@ fn ordered_row_id_range_bounds(
         )),
         (false, BinaryOp::Lt) | (true, BinaryOp::Gt) => Some((
             None,
-            Some(OrderedRowBound {
+            Some(OrderedRowBoundRef {
                 id: row_id,
                 inclusive: false,
             }),
         )),
         (false, BinaryOp::Lte) | (true, BinaryOp::Gte) => Some((
             None,
-            Some(OrderedRowBound {
+            Some(OrderedRowBoundRef {
                 id: row_id,
                 inclusive: true,
             }),
         )),
         _ => None,
     }
+}
+
+fn accounted_bound(
+    bound: Option<&OrderedRowBoundRef<'_>>,
+    controls: &QueryExecutionControls,
+) -> Result<Option<Accounted<OrderedRowBound>>, QueryError> {
+    bound
+        .map(|bound| {
+            let bytes = std::mem::size_of::<OrderedRowBound>()
+                .checked_add(bound.id.len())
+                .ok_or_else(ordered_accounting_overflow)?;
+            Accounted::try_new(controls, bytes, || OrderedRowBound {
+                id: bound.id.to_owned(),
+                inclusive: bound.inclusive,
+            })
+            .map_err(QueryError::from)
+        })
+        .transpose()
+}
+
+fn ordered_accounting_overflow() -> crate::app::CassieError {
+    crate::app::CassieError::ResourceLimit("ordered query accounting overflow".to_owned())
+}
+
+fn accounted_ordered_projection(
+    projection: &[SelectItem],
+    controls: &QueryExecutionControls,
+) -> Result<AccountedVec<OrderedProjectionColumn>, QueryError> {
+    let mut columns = AccountedVec::try_new(controls)?;
+    for item in projection {
+        if let SelectItem::Column { name, alias } = item {
+            let output_name = alias.as_ref().unwrap_or(name);
+            let bytes = name
+                .len()
+                .checked_add(output_name.len())
+                .ok_or_else(ordered_accounting_overflow)?;
+            columns.try_push_with(bytes, || OrderedProjectionColumn {
+                name: name.clone(),
+                output_name: output_name.clone(),
+            })?;
+        }
+    }
+    Ok(columns)
+}
+
+fn ordered_column_heap(
+    controls: &QueryExecutionControls,
+) -> Result<(BinaryHeap<OrderedColumnCandidate>, QueryMemoryReservation), QueryError> {
+    let memory =
+        controls.reserve_query_memory(std::mem::size_of::<BinaryHeap<OrderedColumnCandidate>>())?;
+    let heap = BinaryHeap::new();
+    Ok((heap, memory))
 }
 
 #[derive(Debug)]
@@ -504,8 +571,29 @@ fn push_ordered_column_top_k(
     top: &mut BinaryHeap<OrderedColumnCandidate>,
     top_needed: usize,
     candidate: OrderedColumnCandidate,
-) {
+    heap_memory: &mut QueryMemoryReservation,
+) -> Result<(), QueryError> {
     if top.len() < top_needed {
+        if top.len() == top.capacity() {
+            let target = if top.capacity() == 0 {
+                1
+            } else {
+                top.capacity()
+                    .checked_mul(2)
+                    .unwrap_or(top_needed)
+                    .min(top_needed)
+            };
+            let additional = target - top.capacity();
+            let bytes = additional
+                .checked_mul(std::mem::size_of::<OrderedColumnCandidate>())
+                .ok_or_else(ordered_accounting_overflow)?;
+            heap_memory.try_grow(bytes)?;
+            top.try_reserve_exact(additional).map_err(|error| {
+                crate::app::CassieError::ResourceLimit(format!(
+                    "unable to retain ordered column heap: {error}"
+                ))
+            })?;
+        }
         top.push(candidate);
     } else if let Some(worst) = top.peek() {
         if candidate.is_better_than(worst) {
@@ -513,4 +601,5 @@ fn push_ordered_column_top_k(
             top.push(candidate);
         }
     }
+    Ok(())
 }

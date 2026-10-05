@@ -23,6 +23,39 @@ One shared tracker accounts query-owned materialization: sorts, distinct sets, h
 
 Execution-result caching is configured by `CASSIE_EXECUTION_RESULT_CACHE_ENABLED` (default `true`), `CASSIE_EXECUTION_RESULT_CACHE_MAX_ENTRIES` (default `64`), and `CASSIE_EXECUTION_RESULT_CACHE_MAX_BYTES` (default `67108864`). Eligibility is decided from the resolved physical plan. Active transactions, virtual catalogs, provider-backed work, session-mutating builtins (including qualified calls and calls through views), and non-immutable user functions bypass the cache. Safe keys include normalized user, database, search path, parameters, execution mode, schema epoch, and data epoch.
 
+ColumnStore table scans enumerate bounded marker pages and reconstruct only requested fields
+under the same shared controls as RowStore. Field reservations grow from fetched compact bytes
+before decoding or retaining output, and the marker and fields use one readonly storage
+transaction. The controlled cursor remains selected when multiple scan workers are configured;
+ordered row-only shortcuts continue to decline ColumnStore. Staged replacements and deletes
+merge through the existing session cursor. These are bounds on accounted query-owned state;
+planning, storage caches and total process RSS are separate observations.
+
+Full-shape RowStore scans use the controlled source cursor before conversion with any configured
+worker count. Source reservations overlap converted row buffers, lookup state and type metadata;
+parallel conversion uses the shared worker permits and joins every admitted worker on failure.
+Ordered row-ID pages use bounded reads from one readonly transaction, accounting continuation
+keys, both source lookaheads and projection copies before decoding or constructing rows. Their
+forward/reverse merge preserves authoritative row precedence over legacy document keys.
+
+Scalar join kernels admit copied build keys, tables and combined rows before construction.
+The output reservation continues through text-field discovery and exact-sized batch construction,
+then remains attached to the returned rows. Join success and adaptive replacement success are
+published after that handoff and the final control check. Bounded join probes use controlled
+source and point readers, retaining source decode guards through projected and qualified copies.
+RowStore probe cursors merge authoritative rows and legacy documents by row identity; queries
+without `ORDER BY` do not promise the earlier modern-first visitation order.
+
+Scalar sorting accounts owned semantic keys, copied type metadata, tie strings, run and heap
+backing, and actual output batch slots. Key admission starts after scalar expression evaluation;
+the typed expression pipeline has its own roadmap acceptance. Simultaneous build/replacement
+owners retain their reservations until the replacement is complete.
+
+Cancellation and deadline checkpoints bracket storage/decode calls and row conversion, and
+check aggregate merge and adaptive replacement before success diagnostics. Checkpoints do not
+interrupt an individual Midge, decoder or native sorting call, so this contract specifies
+publication and cleanup boundaries rather than a universal cancellation latency.
+
 Streaming scan, filter, projection, limit, scoring, and eligible aggregation paths must keep memory proportional to batch size or the requested result window. Blocking operators may materialize only accounted state. Result-row limits are enforced while producing rows. Embedded APIs may materialize the final bounded result; pgwire portals retain resumable execution state. A portal's result-row limit is cumulative across resumes, and retained portal memory is charged cumulatively across all live portals on the connection. A resume or bind that would exceed either limit fails with `54000` without publishing a partial page; close, rollback, and disconnect release the retained state.
 
 SQL parsing rejects text over 1 MiB, more than 100,000 lexical tokens, nesting deeper than 128, nested block comments deeper than 128, and pgwire simple-query batches over 256 statements. These failures are HTTP `400` or SQLSTATE `54000`. REST request bodies are collected through an 8 MiB limiter. Once a body crosses the bound, Cassie discards subsequent frames through end-of-stream before returning HTTP `413`; excess bytes are never retained, and a well-formed HTTP/1 connection remains reusable. Body idle and complete-request deadlines continue to bound that drain. Pgwire emits row descriptions, rows, and command completion incrementally, caps each backend frame at 16 MiB, and retains the generic 16 MiB frontend-frame cap for non-SQL bind and COPY data. Admin UI files retain their 8 MiB cap and stream in chunks no larger than 64 KiB.
@@ -62,10 +95,32 @@ Hybrid indexed execution uses corpus-wide persisted BM25 statistics while inters
 
 Exact vector search reads lazy Midge cursor batches and retains only a memory-accounted top-k heap. HNSW reads persisted node records; IVFFlat reads persisted membership prefixes. Approximate paths expand candidates deterministically within the configured cap and exact-rerank selected source rows. Each ANN candidate batch carries its persisted source generation, which is fenced before, during, and after reranking. A missing row, malformed or dimension-invalid vector, or generation change labels the attempt `concurrent-source-change`, discards all attempted-path rows and metrics, and executes the exact controlled path once. Structured filters and transaction overlays use an explicitly diagnosed exact fallback; candidate exhaustion produces an exact fallback or resource error rather than silent truncation.
 
+ANN candidate sufficiency is checked before applying OFFSET against the smaller of the
+requested limit-plus-offset window and the validated indexed-vector count. If candidates cannot
+fill that window, `candidate-exhausted` selects the controlled exact path. Rows without vectors
+do not inflate this count. The discarded ANN attempt contributes no successful ANN execution,
+read, or rerank diagnostics.
+
+REST vector search applies the same per-query retained-memory budget to embeddings, candidate
+state, normalized data, cached-result copies and output rows. Reservations precede retained
+construction and survive until their values are consumed; failed attempts release them and return
+no partial result. Optional result-cache insertion can be skipped when its extra copy would
+exceed the remaining query budget.
+Accounting includes simultaneously live raw and decoded normalized vectors, owned query-cache
+keys, JSON tree-node and vector backing capacity, and JSON conversion buffers. JSON decode
+estimates conservatively bound allocation before parsing; they do not describe process RSS.
+Shared ANN adapters also reserve binary manifest decode growth, sparse membership-tree nodes
+and simultaneous identity copies before constructing them. Binary and JSON decode bounds
+require requalification when their decoder or backing-container allocation strategy changes.
+`CASSIE_MAX_RESULT_ROWS` applies to actual REST vector output, including cached results. A larger
+requested limit is allowed when the eligible output remains within the configured row cap.
+
 Descending vector-distance queries use exact scoring rather than nearest-list IVFFlat
 probing. Vector top-k preserves the identity projection's own output alias independently of
 the score alias; zero-limit SQL queries retain vector dimension validation. REST vector search
 also preserves a requested zero limit after index/provider compatibility validation.
+The empty REST path builds only catalog-derived result descriptors, which remain planning
+metadata outside the materialization budget; it performs no embedding, candidate, or cache work.
 
 Retained HNSW release rows at 10k, 100k, and the declared upper scaling fixture compute exact
 top-k membership outside the timed region and record recall, the immutable 0.90 floor, top-k,
@@ -208,11 +263,25 @@ Execution-result caching is disabled for every benchmark owner except the dedica
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
 
 Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
-The Tier 5 250k analytical curve records a separate 96 MiB benchmark-only profile; it remains a
+The Tier 5 250k analytical curve records a separate 100 MiB benchmark-only profile; it remains a
 hard bound and uses a 120-second per-query timeout so the curve measures completion rather than the
 30-second runtime default. Neither setting widens runtime defaults or the 100k representative
 contract.
-The preserved dense-join row is the explicit exception: it records `benchmark_resource_profile=dense_stream_selection_4k` and uses a 4 KiB algorithm-selection profile, while the 64 MiB rule applies to column-analytical cases.
+The preserved dense-join row records `benchmark_resource_profile=dense_stream_selection_64k` and uses a benchmark-only 64 KiB query-memory budget with a join batch size of 64. This paired profile admits controlled source rows and retained output while preserving `dense_stream_preemptive_temp_budget` selection: the batch estimate is also 64 KiB. Its 100k fixture, SQL, two-row result and runtime read/cleanup evidence remain unchanged; the 64 MiB profile continues to apply to column-analytical cases, and runtime defaults are unchanged.
+
+The isolated `perf.core_read.recursive_cte.100k` row uses
+`benchmark_resource_profile=recursive_cte_materialized_fanout_2g`, a finite
+2 GiB query-memory budget and no query deadline. Its unchanged depth-six SQL
+joins each recursive delta with ten fanout rows before filtering. The final
+100,000-row delta therefore materializes 1,000,000 joined rows that the filter
+rejects. Qualification requires 111,111 final rows, six nested-loop joins,
+1,111,110 total joined rows, an accounted peak within 2 GiB, and complete query
+memory and worker cleanup. Only recursive fixtures above 100,000 expected result
+rows use this profile; smaller recursive fixtures retain 64 MiB. This profile
+describes the current materializing execution path and does not qualify future
+typed or streaming execution. A filtered development-profile smoke run supplies
+diagnostic evidence; production performance still requires the complete native
+benchmark acceptance gates.
 
 The adaptive column acceptance gates are:
 

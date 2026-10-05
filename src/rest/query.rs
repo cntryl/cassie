@@ -584,3 +584,41 @@ impl TryFrom<QueryExplainOutput> for RestQueryExplainResponse {
 fn rest_json_conversion_error(error: &'static str) -> CassieError {
     CassieError::Execution(format!("REST query result {error}"))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{QueryResult, RestQueryResult};
+    use crate::types::Value;
+
+    #[test]
+    fn should_bound_rest_json_row_storage_by_reserved_shape() {
+        // Arrange
+        let shapes = [(1, 2), (3, 3), (8193, 2), (1, 8193)];
+
+        // Act
+        let outputs = shapes.map(|(row_count, column_count)| {
+            RestQueryResult::try_from(QueryResult {
+                columns: Vec::new(),
+                rows: vec![vec![Value::Int64(1); column_count]; row_count],
+                command: "SELECT".to_owned(),
+            })
+            .expect("finite output")
+        });
+
+        // Assert
+        for (output, (row_count, column_count)) in outputs.iter().zip(shapes) {
+            assert_eq!(output.rows.len(), row_count);
+            assert!(
+                output.rows.capacity() <= row_count,
+                "outer row capacity exceeds the query reservation"
+            );
+            for row in &output.rows {
+                assert_eq!(row.len(), column_count);
+                assert!(
+                    row.capacity() <= column_count,
+                    "JSON column capacity exceeds the query reservation"
+                );
+            }
+        }
+    }
+}

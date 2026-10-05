@@ -286,7 +286,7 @@ mod column_batches;
 mod column_store;
 mod database_catalog_rewrite;
 mod databases;
-pub(crate) use column_store::{ColumnStoreScanRequest, OrderedColumnStoreScanRequest};
+pub(crate) use column_store::ColumnStoreScanRequest;
 pub(crate) use database_catalog_rewrite::validate_database_catalog_entry;
 pub(super) use databases::DatabaseFamily;
 pub(crate) use databases::StagedDatabaseFamily;

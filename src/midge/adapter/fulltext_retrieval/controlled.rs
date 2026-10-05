@@ -8,6 +8,7 @@ use super::{
 };
 use crate::app::CassieError;
 use crate::midge::adapter::{DocumentRef, Midge};
+use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
@@ -48,10 +49,17 @@ fn checked_accounting_mul(left: usize, right: usize) -> Result<usize, CassieErro
     })
 }
 
-const fn column_decode_expansion_factor(data_type: &DataType) -> usize {
+fn column_decode_expansion_factor(data_type: &DataType) -> usize {
     match data_type {
-        DataType::Array(_) => 40,
-        DataType::Json => 24,
+        DataType::Array(inner) => {
+            let inner_factor = column_decode_expansion_factor(inner);
+            if inner_factor > 40 {
+                inner_factor
+            } else {
+                40
+            }
+        }
+        DataType::Json => json::JSON_DECODE_EXPANSION_FACTOR,
         DataType::Vector(_) => 10,
         DataType::Bytea => 3,
         _ => 2,
@@ -69,7 +77,8 @@ fn provisional_column_field_bytes(
     [
         raw_key_bytes,
         raw_value_bytes,
-        retained_string_bytes(field_name),
+        json::JSON_MAP_ENTRY_BYTES,
+        field_name.len(),
         std::mem::size_of::<serde_json::Value>(),
         decoded_bytes,
     ]
@@ -490,9 +499,13 @@ impl Midge {
         let Some(raw) = raw else {
             return Ok(None);
         };
-        let retained_bytes = raw_key_bytes
-            .saturating_add(raw.len().saturating_mul(3))
-            .saturating_add(retained_string_bytes(id));
+        let retained_bytes = super::super::streaming_scans::provisional_controlled_document_bytes(
+            &row_schema,
+            None,
+            false,
+            raw_key_bytes,
+            raw.len(),
+        )?;
         let memory = controls.reserve_query_memory(retained_bytes)?;
         let payload = super::decode_row(&row_schema, &raw)?;
         check_controls(controls)?;

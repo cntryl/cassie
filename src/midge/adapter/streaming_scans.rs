@@ -1,12 +1,16 @@
 use super::{
     decode_projected_row, decode_projected_row_with_aliases, decode_row, key_encoding, CassieError,
-    DocumentRef, HashSet, Midge, Query, RowDecode,
+    DocumentRef, HashSet, Midge, OrderedRowScanRequest, Query, RowDecode,
 };
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 mod accounted_page;
+mod column_store;
+#[cfg(test)]
+mod tests;
 
 use accounted_page::provisional_document_bytes;
+pub(crate) use accounted_page::provisional_document_bytes as provisional_controlled_document_bytes;
 pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
 
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
@@ -21,6 +25,7 @@ pub(crate) struct MidgeRowCursor {
     exhausted: bool,
     pending: Option<AccountedDocument>,
     last_key_memory: Option<QueryMemoryReservation>,
+    column_store: bool,
 }
 
 impl std::fmt::Debug for MidgeRowCursor {
@@ -159,6 +164,13 @@ impl MidgeRowCursor {
             self.last_key = Some(next_key);
             self.last_key_memory = Some(next_key_memory);
 
+            if self.column_store {
+                if let Some(document) = self.decode_column_store_document(&raw_key, controls)? {
+                    push_accounted_document(documents, document)?;
+                }
+                continue;
+            }
+
             let retained_bytes = provisional_document_bytes(
                 &self.row_schema,
                 self.projection.as_ref(),
@@ -166,8 +178,10 @@ impl MidgeRowCursor {
                 raw_key.len(),
                 raw_value.len(),
             )?;
-            let Some(document) =
-                AccountedDocument::try_build_optional(controls, retained_bytes, || {
+            let Some(document) = AccountedDocument::try_build_fresh_decode_optional(
+                controls,
+                retained_bytes,
+                || {
                     let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &self.prefix)
                     else {
                         return Ok(None);
@@ -189,7 +203,8 @@ impl MidgeRowCursor {
                         None => decode_row(&self.row_schema, &raw_value)?,
                     };
                     Ok(Some(DocumentRef { id, payload }))
-                })?
+                },
+            )?
             else {
                 continue;
             };
@@ -227,11 +242,13 @@ impl Midge {
         decode: RowDecode,
     ) -> Result<Option<MidgeRowCursor>, CassieError> {
         let collection = self.canonical_collection_name(collection);
-        if self.collection_uses_column_store(&collection)? {
-            return Ok(None);
-        }
+        let column_store = self.collection_uses_column_store(&collection)?;
         let row_schema = self.row_schema(&collection)?;
-        let prefix = Self::row_prefix(row_schema.relation_id);
+        let prefix = if column_store {
+            Self::column_store_row_prefix(row_schema.relation_id)
+        } else {
+            Self::row_prefix(row_schema.relation_id)
+        };
         let (projection, include_historical_aliases) = decode.into_projection();
         Ok(Some(MidgeRowCursor {
             tx: self.begin_data_readonly_tx_for(&collection)?,
@@ -243,6 +260,7 @@ impl Midge {
             exhausted: false,
             pending: None,
             last_key_memory: None,
+            column_store,
         }))
     }
 
@@ -250,73 +268,71 @@ impl Midge {
         &self,
         collection: &str,
         decode: RowDecode,
+        controls: &QueryExecutionControls,
         mut visit: F,
     ) -> Result<usize, E>
     where
         E: From<CassieError>,
         F: FnMut(DocumentRef) -> Result<bool, E>,
     {
+        check_controls(controls).map_err(E::from)?;
         let collection = self.canonical_collection_name(collection);
         if self
             .collection_uses_column_store(&collection)
             .map_err(E::from)?
         {
-            let (batches, _) = self
-                .scan_rows_batched(&collection, 1024, decode, None, None)
-                .map_err(E::from)?;
+            let mut cursor = self
+                .open_row_cursor(&collection, decode)
+                .map_err(E::from)?
+                .ok_or_else(|| {
+                    E::from(CassieError::Execution(
+                        "controlled ColumnStore cursor unavailable".to_owned(),
+                    ))
+                })?;
             let mut emitted = 0usize;
-            for document in batches.into_iter().flatten() {
+            while let Some(accounted) = cursor
+                .next_accounted_document(self, controls)
+                .map_err(E::from)?
+            {
+                let (document, _document_memory) = accounted.into_parts();
                 emitted += 1;
-                if !visit(document)? {
+                let keep_scanning = visit(document)?;
+                check_controls(controls).map_err(E::from)?;
+                if !keep_scanning {
                     break;
                 }
             }
+            check_controls(controls).map_err(E::from)?;
             return Ok(emitted);
         }
 
-        let row_schema = self.row_schema(&collection).map_err(E::from)?;
-        let (projection, include_historical_aliases) = decode.into_projection();
-        let tx = self
-            .begin_data_readonly_tx_for(&collection)
+        let mut cursor = self
+            .open_controlled_ordered_row_cursor(
+                OrderedRowScanRequest {
+                    collection: &collection,
+                    decode,
+                    start_bound: None,
+                    end_bound: None,
+                    reverse: false,
+                    limit: None,
+                },
+                controls,
+            )
             .map_err(E::from)?;
-        let mut seen_ids = HashSet::new();
         let mut emitted = 0usize;
-
-        for (prefix, include_seen) in [
-            (Self::row_prefix(row_schema.relation_id), true),
-            (Self::doc_prefix(&collection), false),
-        ] {
-            let scan = tx
-                .scan(&Query::new().prefix(prefix.clone().into()))
-                .map_err(CassieError::from)
-                .map_err(E::from)?;
-            for entry in scan {
-                let (raw_key, raw_value) = entry.map_err(CassieError::from).map_err(E::from)?;
-                self.record_query_scan_entry();
-                let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &prefix) else {
-                    continue;
-                };
-                if id.is_empty() || (!include_seen && seen_ids.contains(&id)) {
-                    continue;
-                }
-                seen_ids.insert(id.clone());
-
-                let payload = match projection.as_ref() {
-                    Some(projection) if include_historical_aliases => {
-                        decode_projected_row_with_aliases(&row_schema, &raw_value, projection)
-                            .map_err(E::from)?
-                    }
-                    Some(projection) => decode_projected_row(&row_schema, &raw_value, projection)
-                        .map_err(E::from)?,
-                    None => decode_row(&row_schema, &raw_value).map_err(E::from)?,
-                };
-                emitted += 1;
-                if !visit(DocumentRef { id, payload })? {
-                    return Ok(emitted);
-                }
+        while let Some(accounted) = cursor
+            .next_accounted_document(self, controls)
+            .map_err(E::from)?
+        {
+            let (document, _document_memory) = accounted.into_parts();
+            emitted += 1;
+            let keep_scanning = visit(document)?;
+            check_controls(controls).map_err(E::from)?;
+            if !keep_scanning {
+                break;
             }
         }
-
+        check_controls(controls).map_err(E::from)?;
         Ok(emitted)
     }
 }

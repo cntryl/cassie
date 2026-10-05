@@ -350,16 +350,16 @@ fn controlled_vector_candidate_ids(
     };
     match index.metadata.index_type {
         crate::embeddings::VectorIndexType::Hnsw => {
-            let Some(options) = index.metadata.hnsw.as_ref() else {
+            if index.metadata.hnsw.is_none() {
                 return Err(crate::app::CassieError::Execution(
                     "hnsw fallback:missing-options".to_string(),
                 ));
-            };
+            }
             let Some(batch) = cassie.midge.search_hnsw_graph_point_read_controlled(
                 &spec.collection,
                 &spec.vector_field,
                 &spec.vector_query,
-                options,
+                &index.metadata,
                 limit,
                 controls,
             )?

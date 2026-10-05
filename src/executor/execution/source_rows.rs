@@ -96,6 +96,7 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
 
 pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
     let data_types = row.shared_data_types();
+    let query_memory = row.query_memory();
     let qualifiers = qualifier_variants(qualifier);
     let (values, mut aliases) = row.into_parts();
     for (index, (name, _)) in values.iter().enumerate() {
@@ -103,28 +104,34 @@ pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str
             aliases.push((format!("{qualifier}.{name}"), index));
         }
     }
-    BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types)
+    BatchRow::with_aliases(values, aliases)
+        .with_optional_data_types(data_types)
+        .with_query_memory(query_memory)
 }
 
 pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
+    let width = left.entries().len().saturating_add(right.entries().len());
     let data_types = (!left.data_types().is_empty() || !right.data_types().is_empty()).then(|| {
-        [left, right]
-            .into_iter()
-            .flat_map(|row| {
-                (0..row.entries().len()).map(|index| {
+        let mut types = Vec::with_capacity(width);
+        for row in [left, right] {
+            for index in 0..row.entries().len() {
+                types.push(
                     row.data_types()
                         .get(index)
                         .cloned()
-                        .unwrap_or(crate::types::DataType::Null)
-                })
-            })
-            .collect::<Vec<_>>()
-            .into()
+                        .unwrap_or(crate::types::DataType::Null),
+                );
+            }
+        }
+        types.into()
     });
-    let mut values = left.entries().to_vec();
+    let mut values = Vec::with_capacity(width);
+    values.extend(left.entries().iter().cloned());
     let left_width = values.len();
     values.extend(right.entries().iter().cloned());
-    let mut aliases = left.aliases().to_vec();
+    let mut aliases =
+        Vec::with_capacity(left.aliases().len().saturating_add(right.aliases().len()));
+    aliases.extend(left.aliases().iter().cloned());
     aliases.extend(
         right
             .aliases()

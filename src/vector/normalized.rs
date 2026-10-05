@@ -37,13 +37,12 @@ pub fn normalize(values: &[f32]) -> Option<NormalizedVector> {
     let values = if magnitude == 0.0 {
         vec![0.0; values.len()]
     } else {
-        values
-            .iter()
-            .map(|value| {
-                let normalized = f64::from(*value) / magnitude;
-                normalized.to_string().parse::<f32>().ok()
-            })
-            .collect::<Option<Vec<_>>>()?
+        let mut normalized_values = Vec::with_capacity(values.len());
+        for value in values {
+            let normalized = f64::from(*value) / magnitude;
+            normalized_values.push(normalized.to_string().parse::<f32>().ok()?);
+        }
+        normalized_values
     };
 
     Some(NormalizedVector { values, magnitude })
@@ -89,4 +88,26 @@ pub fn cosine_distance_from_normalized_query(
     }
 
     1.0 - dot(normalized_query, normalized_target)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn should_bound_normalized_vector_storage_by_reserved_dimensions() {
+        // Arrange
+        let dimensions = [1, 3, 8193];
+
+        // Act
+        let normalized = dimensions
+            .map(|count| super::normalize(&vec![1.0; count]).expect("finite normalized vector"));
+
+        // Assert
+        for (vector, count) in normalized.iter().zip(dimensions) {
+            assert_eq!(vector.values.len(), count);
+            assert!(
+                vector.values.capacity() <= count,
+                "normalization capacity exceeds the query reservation"
+            );
+        }
+    }
 }

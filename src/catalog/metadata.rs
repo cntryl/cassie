@@ -16,6 +16,9 @@ use crate::catalog::{
 use crate::embeddings::VectorIndexRecord;
 use crate::types::{DataType, Schema};
 
+#[path = "metadata/controlled_schema.rs"]
+mod controlled_schema;
+
 #[derive(Debug, Clone)]
 pub struct Catalog {
     pub(super) databases: Arc<RwLock<HashMap<String, DatabaseMeta>>>,

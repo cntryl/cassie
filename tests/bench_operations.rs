@@ -2672,19 +2672,27 @@ mod benchmark_harness_contract {
     fn should_label_dense_join_algorithm_selection_profile() {
         // Arrange
         let owner_source = include_str!("../benches/tier5_scaling_query.rs");
+        let join_source = include_str!("../benches/support/workloads/join_context.rs");
         let contract = include_str!("../docs/performance-contracts.md");
 
         // Act
-        let artifact_profile_is_declared = owner_source.contains(
-            "case.metadata(\"benchmark_resource_profile\", \"dense_stream_selection_4k\")",
-        );
+        let shared_profile_is_declared = join_source
+            .contains("pub const DENSE_STREAM_BENCHMARK_RESOURCE_PROFILE")
+            && join_source.contains("\"dense_stream_selection_64k\"");
+        let owner_uses_shared_profile =
+            owner_source.contains("workloads::DENSE_STREAM_BENCHMARK_RESOURCE_PROFILE");
+        let owner_uses_shared_budget =
+            owner_source.contains("workloads::DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES");
         let contract_names_profile =
-            contract.contains("`benchmark_resource_profile=dense_stream_selection_4k`");
+            contract.contains("`benchmark_resource_profile=dense_stream_selection_64k`");
 
         // Assert
-        assert!(artifact_profile_is_declared);
+        assert!(shared_profile_is_declared);
+        assert!(owner_uses_shared_profile);
+        assert!(owner_uses_shared_budget);
         assert!(contract_names_profile);
-        assert!(contract.contains("4 KiB algorithm-selection profile"));
+        assert!(contract.contains("64 KiB query-memory budget"));
+        assert!(contract.contains("join batch size of 64"));
     }
 
     // Merged from tests/benchmark_soak_contract.rs to cut a separate test binary.
@@ -5088,13 +5096,40 @@ mod benchmark_kernels {
                 6,
             ))
             .expect("recursive CTE context");
+        let before = context.cassie.metrics();
 
         // Act
         let rows = runtime.block_on(workloads::recursive_cte_query(&context, 6));
+        let after = context.cassie.metrics();
 
         // Assert
         assert_eq!(rows, 111_111);
         assert!(owner.contains("workloads::recursive_cte_context("));
+        let join_delta = |field: &str| {
+            after["joins"][field].as_u64().expect("join counter")
+                - before["joins"][field].as_u64().expect("join counter")
+        };
+        assert_eq!(after["joins"]["last_strategy"], "nested_loop");
+        assert_eq!(join_delta("executions"), 6);
+        assert_eq!(join_delta("left_input_rows_total"), 111_111);
+        assert_eq!(join_delta("right_input_rows_total"), 60);
+        assert_eq!(join_delta("matched_rows_total"), 1_111_110);
+        assert_eq!(join_delta("output_rows_total"), 1_111_110);
+        let peak = after["query"]["peak_accounted_memory_bytes"]
+            .as_u64()
+            .expect("accounted memory peak");
+        assert!(peak > 100 * 1024 * 1024);
+        assert!(peak <= 2 * 1024 * 1024 * 1024);
+        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(after["runtime"]["running_queries"], 0);
+        assert_eq!(after["runtime"]["active_operator_workers"], 0);
+        assert_eq!(
+            after["query"]["errors_total"],
+            before["query"]["errors_total"]
+        );
+        assert_eq!(after["execution_result_cache"]["entries"], 0);
+        assert_eq!(after["execution_result_cache"]["hits"], 0);
+        println!("recursive CTE accounted memory peak: {peak} bytes");
         let data_dir = context.data_dir.clone();
         context.cassie.shutdown();
         drop(context);

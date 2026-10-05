@@ -2,6 +2,8 @@
 // Keeping them in one flat test target prevents unrelated scans from consuming
 // an armed hook while preserving parallel setup through shared test guards.
 
+#[path = "support/column_store_controls.rs"]
+mod support_column_store_controls;
 #[path = "support/graph_evidence.rs"]
 mod support_graph_evidence;
 #[path = "support/pgwire.rs"]
@@ -10,6 +12,404 @@ mod support_pgwire;
 mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
+
+mod rest_normalized_query_controls {
+    use cassie::app::{Cassie, CassieError};
+    use cassie::config::{
+        CassieRuntimeConfig, CassieRuntimeLimits, EmbeddingsRuntimeConfig, LocalRuntimeConfig,
+    };
+    use cassie::midge::adapter::{
+        query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
+    };
+
+    #[test]
+    fn should_reserve_cold_normalized_decode_overlap_before_the_next_read() {
+        // Arrange
+        let _guard = query_scan_control_test_guard();
+        let path = super::support_sql::data_dir("rest-normalized-decode-overlap");
+        let config = CassieRuntimeConfig {
+            embeddings: EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {
+                model: "normalized-controls".to_owned(),
+                dimensions: 4096,
+            }),
+            limits: CassieRuntimeLimits {
+                query_memory_budget_bytes: 40 * 1024,
+                ..CassieRuntimeLimits::default()
+            },
+            ..CassieRuntimeConfig::default()
+        };
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("engine");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE normalized_overlap (content TEXT, embedding VECTOR(4096))",
+                vec![],
+            )
+            .expect("table");
+        cassie
+            .midge
+            .put_fresh_documents(
+                "normalized_overlap",
+                (0..2)
+                    .map(|index| {
+                        (
+                            Some(format!("row-{index}")),
+                            serde_json::json!({
+                                "content": "query", "embedding": vec![1.0; 4096]
+                            }),
+                        )
+                    })
+                    .collect(),
+            )
+            .expect("vectors");
+        cassie.execute_sql(&session,
+            "CREATE INDEX normalized_overlap_idx ON normalized_overlap USING vector (embedding) WITH (source_field = content, metric = cosine, index_type = bruteforce)", vec![])
+            .expect("index");
+        let before = cassie.metrics();
+        let before_reads = cassie.midge.query_scan_entries_for_diagnostics();
+        set_query_scan_cancellation_after_entries(Some(2));
+
+        // Act
+        let result = cassie::rest::search::vector_search(
+            &cassie,
+            "normalized_overlap",
+            br#"{"field":"embedding","query":"query","metric":"cosine","limit":1}"#,
+        );
+        set_query_scan_cancellation_after_entries(None);
+        let after = cassie.metrics();
+        let error = result
+            .err()
+            .expect("query must reject the first record overlap");
+
+        // Assert
+        assert!(matches!(error, CassieError::ResourceLimit(_)), "{error:?}");
+        assert_eq!(
+            cassie.midge.query_scan_entries_for_diagnostics() - before_reads,
+            1
+        );
+        assert_eq!(after["vector"]["count"], before["vector"]["count"]);
+        assert_eq!(
+            after["vector"]["normalized_candidate_count_total"],
+            before["vector"]["normalized_candidate_count_total"]
+        );
+        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("cleanup fixture");
+    }
+}
+
+mod column_store_query_controls {
+    use cassie::app::CassieError;
+    use cassie::midge::adapter::{
+        query_scan_control_test_guard, set_query_scan_cancellation_after_entries,
+    };
+    use cassie::types::Value;
+
+    use super::support_column_store_controls::{payload, Fixture, COLLECTION};
+
+    #[test]
+    fn should_reject_each_storage_layout_at_the_first_wide_row_boundary() {
+        let _guard = query_scan_control_test_guard();
+        for column_store in [false, true] {
+            // Arrange
+            let fixture = if column_store {
+                Fixture::new("paired-column-memory", 512, 1, 128, 8_192)
+            } else {
+                Fixture::row_store("paired-row-memory", 512, 128, 8_192)
+            };
+            fixture.poison_payload(127);
+            let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+            set_query_scan_cancellation_after_entries(Some(2));
+
+            // Act
+            let result = fixture.cassie.execute_sql(
+                &fixture.session,
+                &format!("SELECT payload FROM {COLLECTION}"),
+                vec![],
+            );
+            set_query_scan_cancellation_after_entries(None);
+            let error = result.expect_err("first wide row must exceed the budget");
+
+            // Assert
+            assert!(
+                matches!(error, CassieError::ResourceLimit(_)),
+                "column_store={column_store}: {error:?}"
+            );
+            assert_eq!(fixture.reads_since(before_reads), 1);
+            fixture.assert_cleanup();
+        }
+    }
+
+    #[test]
+    fn should_bound_full_shape_scans_before_later_decode_errors_with_each_worker_count() {
+        let _guard = query_scan_control_test_guard();
+        for workers in [1, 4] {
+            for column_store in [true, false] {
+                // Arrange
+                let fixture = if column_store {
+                    Fixture::new("full-shape-column-memory", 512, workers, 128, 8_192)
+                } else {
+                    Fixture::row_store_with_workers(
+                        "full-shape-row-memory",
+                        512,
+                        workers,
+                        128,
+                        8_192,
+                    )
+                };
+                fixture.poison_payload(127);
+                let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+                let before_metrics = fixture.cassie.metrics();
+
+                // Act
+                let error = fixture
+                    .cassie
+                    .execute_sql(
+                        &fixture.session,
+                        &format!("SELECT length(payload) AS payload_length FROM {COLLECTION}"),
+                        vec![],
+                    )
+                    .expect_err("first full-shape row must exhaust the budget before its canary");
+                let reads = fixture.reads_since(before_reads);
+                let after_metrics = fixture.cassie.metrics();
+
+                // Assert
+                assert!(
+                    matches!(error, CassieError::ResourceLimit(_)),
+                    "column_store={column_store}, workers={workers}, reads={reads}: {error:?}"
+                );
+                assert_eq!(reads, 1, "column_store={column_store}, workers={workers}");
+                assert_eq!(
+                    after_metrics["query"]["rows_returned_total"],
+                    before_metrics["query"]["rows_returned_total"]
+                );
+                assert_eq!(after_metrics["runtime"]["active_operator_workers"], 0);
+                fixture.assert_cleanup();
+            }
+        }
+    }
+
+    #[test]
+    fn should_cancel_a_bounded_column_store_join_before_decoding_the_remaining_probe_rows() {
+        // Arrange
+        let _guard = query_scan_control_test_guard();
+        let fixture = Fixture::new("column-store-bounded-join", 4 * 1_024 * 1_024, 1, 16, 64);
+        fixture.poison_payload(15);
+        fixture
+            .cassie
+            .execute_sql(
+                &fixture.session,
+                "CREATE TABLE controlled_column_join_rhs (payload TEXT)",
+                vec![],
+            )
+            .expect("create build relation");
+        fixture
+            .cassie
+            .midge
+            .put_document(
+                "controlled_column_join_rhs",
+                Some("right".to_owned()),
+                serde_json::json!({"payload": "unmatched"}),
+            )
+            .expect("seed build relation");
+        let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+        set_query_scan_cancellation_after_entries(Some(3));
+
+        // Act
+        let result = fixture.cassie.execute_sql(
+            &fixture.session,
+            &format!("SELECT {COLLECTION}._id FROM {COLLECTION} INNER JOIN controlled_column_join_rhs ON {COLLECTION}.payload = controlled_column_join_rhs.payload LIMIT 1"),
+            vec![],
+        );
+        set_query_scan_cancellation_after_entries(None);
+        let error = result.expect_err("bounded join must stop at its controlled probe boundary");
+
+        // Assert
+        assert!(matches!(error, CassieError::QueryCancelled), "{error:?}");
+        assert_eq!(
+            fixture.reads_since(before_reads),
+            3,
+            "one build row and two probe markers must reach cancellation before the canary"
+        );
+        fixture.assert_cleanup();
+    }
+
+    #[test]
+    fn should_reject_wide_column_store_scans_before_decoding_later_rows() {
+        let _guard = query_scan_control_test_guard();
+        for workers in [1, 4] {
+            // Arrange
+            let fixture = Fixture::new("column-store-pre-decode-budget", 512, workers, 128, 8_192);
+            fixture.poison_payload(127);
+            for projection in [
+                format!("SELECT payload FROM {COLLECTION}"),
+                format!("SELECT length(payload) FROM {COLLECTION}"),
+                format!("SELECT payload FROM {COLLECTION} ORDER BY payload LIMIT 5"),
+            ] {
+                let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+                let before_metrics = fixture.cassie.metrics();
+                set_query_scan_cancellation_after_entries(Some(2));
+
+                // Act
+                let result = fixture
+                    .cassie
+                    .execute_sql(&fixture.session, &projection, vec![]);
+                set_query_scan_cancellation_after_entries(None);
+                let error = result.expect_err("the first wide row must exhaust the budget");
+
+                // Assert
+                assert!(
+                    matches!(error, CassieError::ResourceLimit(_)),
+                    "workers={workers}, {projection}: {error:?}"
+                );
+                assert_eq!(fixture.reads_since(before_reads), 1, "the first-row reservation must fail before the second controlled read or later canary decode");
+                assert_eq!(
+                    fixture.cassie.metrics()["query"]["rows_returned_total"],
+                    before_metrics["query"]["rows_returned_total"],
+                    "failed scan published rows"
+                );
+                fixture.assert_cleanup();
+            }
+        }
+    }
+
+    #[test]
+    fn should_cancel_each_column_store_scan_shape_after_three_reads() {
+        let _guard = query_scan_control_test_guard();
+        for workers in [1, 4] {
+            // Arrange
+            let fixture = Fixture::new(
+                "column-store-mid-scan-cancel",
+                4 * 1_024 * 1_024,
+                workers,
+                16,
+                64,
+            );
+            for statement in [
+                format!("SELECT payload FROM {COLLECTION}"),
+                format!("SELECT length(payload) FROM {COLLECTION}"),
+                format!("SELECT payload FROM {COLLECTION} ORDER BY payload LIMIT 3"),
+                format!("SELECT payload FROM {COLLECTION} ORDER BY _id DESC LIMIT 3"),
+            ] {
+                let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+                let before_metrics = fixture.cassie.metrics();
+                set_query_scan_cancellation_after_entries(Some(3));
+
+                // Act
+                let result = fixture
+                    .cassie
+                    .execute_sql(&fixture.session, &statement, vec![]);
+                set_query_scan_cancellation_after_entries(None);
+                let error =
+                    result.expect_err("ColumnStore must observe the controlled cancellation hook");
+
+                // Assert
+                assert!(
+                    matches!(error, CassieError::QueryCancelled),
+                    "workers={workers}, {statement}: {error:?}"
+                );
+                assert_eq!(
+                    fixture.reads_since(before_reads),
+                    3,
+                    "workers={workers}, {statement}"
+                );
+                assert_eq!(
+                    fixture.cassie.metrics()["query"]["rows_returned_total"],
+                    before_metrics["query"]["rows_returned_total"],
+                    "cancelled scan published rows"
+                );
+                fixture.assert_cleanup();
+            }
+        }
+    }
+
+    #[test]
+    fn should_stop_column_store_identity_limit_before_reading_unneeded_wide_fields() {
+        let _guard = query_scan_control_test_guard();
+        for workers in [1, 4] {
+            // Arrange
+            let fixture = Fixture::new("column-store-bounded-limit", 512, workers, 128, 8_192);
+            fixture.poison_payload(0);
+            let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+            set_query_scan_cancellation_after_entries(Some(2));
+
+            // Act
+            let result = fixture.cassie.execute_sql(
+                &fixture.session,
+                &format!("SELECT _id FROM {COLLECTION} LIMIT 1"),
+                vec![],
+            );
+            set_query_scan_cancellation_after_entries(None);
+            let result = result.expect("identity-only LIMIT should not decode payload fields");
+
+            // Assert
+            assert_eq!(
+                result.rows,
+                vec![vec![Value::String("doc-0000".to_owned())]]
+            );
+            assert_eq!(
+                fixture.reads_since(before_reads),
+                1,
+                "LIMIT must enumerate exactly one live marker"
+            );
+            fixture.assert_cleanup();
+        }
+    }
+
+    #[test]
+    fn should_merge_column_store_staged_changes_without_an_eager_scan() {
+        // Arrange
+        let _guard = query_scan_control_test_guard();
+        let fixture = Fixture::new("column-store-staged-limit", 64 * 1_024, 1, 16, 64);
+        for statement in [
+            "BEGIN".to_owned(),
+            format!("UPDATE {COLLECTION} SET payload = 'staged' WHERE _id = 'doc-0000'"),
+            format!("DELETE FROM {COLLECTION} WHERE _id = 'doc-0001'"),
+        ] {
+            fixture
+                .cassie
+                .execute_sql(&fixture.session, &statement, vec![])
+                .expect("stage ColumnStore mutation");
+        }
+        let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
+        set_query_scan_cancellation_after_entries(Some(4));
+
+        // Act
+        let result = fixture.cassie.execute_sql(
+            &fixture.session,
+            &format!("SELECT _id, payload FROM {COLLECTION} LIMIT 2"),
+            vec![],
+        );
+        set_query_scan_cancellation_after_entries(None);
+        let result = result.expect("staged merge should retain its existing row-ID order");
+
+        // Assert
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![
+                    Value::String("doc-0000".to_owned()),
+                    Value::String("staged".to_owned())
+                ],
+                vec![
+                    Value::String("doc-0002".to_owned()),
+                    Value::String(payload(2, 64))
+                ],
+            ]
+        );
+        assert_eq!(
+            fixture.reads_since(before_reads),
+            3,
+            "two outputs plus the staged delete must consume three persisted markers"
+        );
+        fixture.assert_cleanup();
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, "ROLLBACK", vec![])
+            .expect("rollback");
+    }
+}
 
 // Formerly tests/column_batch_controls.rs.
 mod column_batch_controls {
@@ -1959,6 +2359,37 @@ mod query_resource_controls {
             .map(|(_, value)| value.as_str())
     }
 
+    fn assert_failed_query_after_source_scan(
+        cassie: &Cassie,
+        before_metrics: &serde_json::Value,
+        before_entries: u64,
+        expected_entries: u64,
+    ) {
+        assert_eq!(
+            cassie.midge.query_scan_entries_for_diagnostics() - before_entries,
+            expected_entries,
+            "resource rejection must follow complete source materialization"
+        );
+        let after = cassie.metrics();
+        assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+        assert_eq!(after["runtime"]["running_queries"], 0);
+        assert_eq!(after["runtime"]["active_operator_workers"], 0);
+        assert_eq!(
+            after["query"]["rows_returned_total"], before_metrics["query"]["rows_returned_total"],
+            "failed operators must not publish successful rows"
+        );
+    }
+
+    fn assert_join_success_was_not_published(
+        before_metrics: &serde_json::Value,
+        after_metrics: &serde_json::Value,
+    ) {
+        assert_eq!(
+            after_metrics["joins"], before_metrics["joins"],
+            "a rejected joined output must not publish successful join diagnostics"
+        );
+    }
+
     #[test]
     fn should_reject_unbounded_scan_without_partial_rows_given_low_memory_budget() {
         // Arrange
@@ -2044,7 +2475,9 @@ mod query_resource_controls {
     fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("exists-early-stop", 768);
+        // Fit one outer JSON-backed row plus one identity-only inner row, including
+        // their tree-node allowances. The full inner scan cannot fit this budget.
+        let (cassie, path) = configured_cassie("exists-early-stop", 2 * 1024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2192,7 +2625,8 @@ mod query_resource_controls {
         std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let path = data_dir("join-sqlstate");
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        config.limits.query_memory_budget_bytes = 4 * 1_024;
+        // Both complete inputs fit; the 256-row joined output exceeds the shared cap.
+        config.limits.query_memory_budget_bytes = 32 * 1_024;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2219,6 +2653,23 @@ mod query_resource_controls {
             .expect("create right table");
         seed_documents(&cassie, "controlled_join_left", 16, 48);
         seed_documents(&cassie, "controlled_join_right", 16, 48);
+        for table in ["controlled_join_left", "controlled_join_right"] {
+            let input = cassie
+                .execute_sql(&session, &format!("SELECT payload FROM {table}"), vec![])
+                .expect("each complete join input must fit the shared query budget");
+            assert_eq!(input.rows.len(), 16);
+        }
+        let sql = "SELECT controlled_join_left.payload, controlled_join_right.payload FROM controlled_join_left CROSS JOIN controlled_join_right";
+        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+        let before_metrics = cassie.metrics();
+
+        // Act
+        let error = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect_err("joined state must exceed the budget after loading both inputs");
+        assert!(matches!(error, CassieError::ResourceLimit(_)));
+        assert_failed_query_after_source_scan(&cassie, &before_metrics, before_entries, 32);
+        assert_join_success_was_not_published(&before_metrics, &cassie.metrics());
         let server = wire::spawn_server(cassie).await;
         let socket = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -2226,12 +2677,9 @@ mod query_resource_controls {
         let (mut reader, mut writer) = tokio::io::split(socket);
         wire::complete_startup(&mut reader, &mut writer).await;
 
-        // Act
         wire::write_frames(
             &mut writer,
-            vec![wire::simple_query_frame(
-                "SELECT controlled_join_left.payload, controlled_join_right.payload FROM controlled_join_left CROSS JOIN controlled_join_right",
-            )],
+            vec![wire::simple_query_frame(sql)],
         )
         .await;
         let frames = wire::read_frames_until_ready(&mut reader).await;
@@ -2246,6 +2694,7 @@ mod query_resource_controls {
         assert!(error_field(&fields, 'M')
             .expect("error message")
             .contains("query memory budget exceeded"));
+        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
 
         server.stop().await;
     });
@@ -2256,8 +2705,9 @@ mod query_resource_controls {
     #[test]
     fn should_stop_cross_join_after_limit_without_materializing_both_inputs() {
         // Arrange
+        const FIXTURE_BUDGET_BYTES: usize = 16 * 1_024;
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("cross-join-limit", 8 * 1_024);
+        let (cassie, path) = configured_cassie("cross-join-limit", FIXTURE_BUDGET_BYTES);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2289,6 +2739,7 @@ mod query_resource_controls {
             .midge
             .query_scan_entries_for_diagnostics()
             .saturating_sub(before);
+        let metrics = cassie.metrics();
 
         // Assert
         assert_eq!(result.rows.len(), 1);
@@ -2296,10 +2747,23 @@ mod query_resource_controls {
             visited <= 2,
             "LIMIT 1 cross join should consume at most one row from each input, visited {visited}"
         );
+        assert_eq!(metrics["joins"]["last_strategy"], "cross");
+        assert_eq!(metrics["joins"]["executions"], 1);
+        assert_eq!(metrics["joins"]["left_input_rows_total"], 1);
+        assert_eq!(metrics["joins"]["right_input_rows_total"], 1);
+        assert_eq!(metrics["joins"]["matched_rows_total"], 1);
+        assert_eq!(metrics["joins"]["output_rows_total"], 1);
+        let peak = metrics["query"]["peak_accounted_memory_bytes"]
+            .as_u64()
+            .expect("accounted memory peak");
+        assert!(peak <= u64::try_from(FIXTURE_BUDGET_BYTES).expect("fixture memory budget"));
+        assert_eq!(metrics["runtime"]["running_queries"], 0);
+        assert_eq!(metrics["runtime"]["active_operator_workers"], 0);
         assert_eq!(
             cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
         );
+        println!("bounded CROSS accounted memory peak: {peak} bytes; native entries: {visited}");
 
         let _ = std::fs::remove_dir_all(path);
     }
@@ -2393,7 +2857,7 @@ mod query_resource_controls {
     fn should_reject_unindexed_heap_top_k_before_exceeding_memory_budget() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("heap-top-k-memory", 1_024);
+        let (cassie, path) = configured_cassie("heap-top-k-memory", 8 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2402,24 +2866,33 @@ mod query_resource_controls {
                 vec![],
             )
             .expect("create table");
-        seed_documents(&cassie, "controlled_heap_top_k_memory", 64, 256);
+        seed_documents(&cassie, "controlled_heap_top_k_memory", 4, 16);
+        let input = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM controlled_heap_top_k_memory",
+                vec![],
+            )
+            .expect("complete top-k input must fit before ordering-key retention");
+        assert_eq!(input.rows.len(), 4);
+        // A computed order declines the simple-column shortcut. Two retained keys
+        // contain 2 * 256 * 21 TEXT bytes, exceeding 8 KiB after the narrow input fits.
+        let key_arguments = vec!["payload"; 256].join(", ");
+        let sql = format!(
+            "SELECT payload FROM controlled_heap_top_k_memory ORDER BY concat({key_arguments}) LIMIT 2"
+        );
+        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+        let before_metrics = cassie.metrics();
 
         // Act
         let error = cassie
-            .execute_sql(
-                &session,
-                "SELECT payload FROM controlled_heap_top_k_memory ORDER BY payload LIMIT 10",
-                vec![],
-            )
+            .execute_sql(&session, &sql, vec![])
             .expect_err("heap top-k should respect query memory budget");
 
         // Assert
         assert!(matches!(error, CassieError::ResourceLimit(_)));
         assert!(error.to_string().contains("query memory budget exceeded"));
-        assert_eq!(
-            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
-            Some(0)
-        );
+        assert_failed_query_after_source_scan(&cassie, &before_metrics, before_entries, 4);
         let _ = std::fs::remove_dir_all(path);
     }
 
@@ -2427,7 +2900,7 @@ mod query_resource_controls {
     fn should_reject_expanding_projection_before_building_output() {
         let _hook_guard = query_scan_control_test_guard();
         // Arrange
-        let (cassie, path) = configured_cassie("expanding-projection-memory", 1_024);
+        let (cassie, path) = configured_cassie("expanding-projection-memory", 4 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2437,16 +2910,27 @@ mod query_resource_controls {
             )
             .expect("create table");
         seed_documents(&cassie, "controlled_expanding_projection", 1, 256);
+        let input = cassie
+            .execute_sql(
+                &session,
+                "SELECT * FROM controlled_expanding_projection",
+                vec![],
+            )
+            .expect("projection input must fit before output expansion");
+        assert_eq!(input.rows.len(), 1);
+        // Keep source decode/handoff below the cap while reserving sixteen payload copies.
+        let projection_arguments = vec!["payload"; 16].join(", ");
+        let sql = format!(
+            "SELECT concat({projection_arguments}) AS expanded FROM controlled_expanding_projection"
+        );
+        let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
+        let before_metrics = cassie.metrics();
         set_projection_build_failure_point(true);
 
         // Act
         let error = cassie
-        .execute_sql(
-            &session,
-            "SELECT concat(payload, payload, payload, payload) AS expanded FROM controlled_expanding_projection",
-            vec![],
-        )
-        .expect_err("projection should reserve expansion before building");
+            .execute_sql(&session, &sql, vec![])
+            .expect_err("projection should reserve expansion before building");
         set_projection_build_failure_point(false);
 
         // Assert
@@ -2455,10 +2939,7 @@ mod query_resource_controls {
             "unexpected expanding projection error: {error:?}"
         );
         assert!(error.to_string().contains("query memory budget exceeded"));
-        assert_eq!(
-            cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
-            Some(0)
-        );
+        assert_failed_query_after_source_scan(&cassie, &before_metrics, before_entries, 1);
         let _ = std::fs::remove_dir_all(path);
     }
 

@@ -1,5 +1,5 @@
 use std::cmp::Ordering as CmpOrdering;
-use std::collections::{BTreeMap, BinaryHeap};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -131,6 +131,7 @@ mod statement_mutation;
 mod transaction_semantics;
 mod vector_helpers;
 mod vector_search;
+pub(crate) use vector_search::VectorSearchInput;
 mod write_refresh;
 
 pub use consistency::ProjectionManifestExportOptions;

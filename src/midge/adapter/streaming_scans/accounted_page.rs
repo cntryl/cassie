@@ -3,6 +3,7 @@ use std::mem::size_of;
 
 use crate::app::CassieError;
 use crate::midge::row_blob::RowSchema;
+use crate::runtime::accounted::json;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 use crate::types::DataType;
 
@@ -33,20 +34,59 @@ impl AccountedDocument {
         retained_bytes: usize,
         build: impl FnOnce() -> Result<Option<DocumentRef>, CassieError>,
     ) -> Result<Option<Self>, CassieError> {
-        let mut reservation = controls.reserve_query_memory(retained_bytes)?;
+        let reservation = controls.reserve_query_memory(retained_bytes)?;
         let Some(document) = build()? else {
             return Ok(None);
         };
+        Self::from_reserved_document(document, reservation).map(Some)
+    }
+
+    pub(super) fn from_reserved_document(
+        document: DocumentRef,
+        reservation: QueryMemoryReservation,
+    ) -> Result<Self, CassieError> {
         let actual_bytes = Self::estimated_retained_bytes(&document)?;
+        Self::from_reserved_bytes(document, reservation, actual_bytes)
+    }
+
+    pub(crate) fn try_build_fresh_decode_optional(
+        controls: &QueryExecutionControls,
+        retained_bytes: usize,
+        build: impl FnOnce() -> Result<Option<DocumentRef>, CassieError>,
+    ) -> Result<Option<Self>, CassieError> {
+        let reservation = controls.reserve_query_memory(retained_bytes)?;
+        let Some(document) = build()? else {
+            return Ok(None);
+        };
+        Self::from_reserved_decoded_document(document, reservation).map(Some)
+    }
+
+    pub(super) fn from_reserved_decoded_document(
+        document: DocumentRef,
+        reservation: QueryMemoryReservation,
+    ) -> Result<Self, CassieError> {
+        let actual_bytes = checked_sum(&[
+            size_of::<AccountedDocument>(),
+            document.id.len(),
+            json::retained_decoded_bytes(&document.payload)?,
+        ])?;
+        Self::from_reserved_bytes(document, reservation, actual_bytes)
+    }
+
+    fn from_reserved_bytes(
+        document: DocumentRef,
+        mut reservation: QueryMemoryReservation,
+        actual_bytes: usize,
+    ) -> Result<Self, CassieError> {
         if actual_bytes > reservation.bytes() {
             reservation.try_grow(actual_bytes - reservation.bytes())?;
         } else {
             reservation.shrink_to(actual_bytes);
         }
-        Ok(Some(Self {
+        Ok(Self {
             document,
             reservation,
-        }))
+        })
     }
 
     #[must_use]
@@ -132,7 +172,7 @@ impl AccountedDocumentPage {
     }
 }
 
-pub(super) fn provisional_document_bytes(
+pub(crate) fn provisional_document_bytes(
     row_schema: &RowSchema,
     projection: Option<&HashSet<String>>,
     include_historical_aliases: bool,
@@ -171,10 +211,7 @@ pub(super) fn provisional_document_bytes(
         } else {
             0
         };
-        let entry_overhead = checked_mul(
-            size_of::<serde_json::Value>().saturating_add(size_of::<String>()),
-            output_names,
-        )?;
+        let entry_overhead = checked_mul(json::JSON_MAP_ENTRY_BYTES, output_names)?;
         checked_add(
             bytes,
             entry_overhead
@@ -217,10 +254,17 @@ fn decoded_field_name_count(
     current_name.saturating_add(aliases)
 }
 
-const fn decode_expansion_factor(data_type: &DataType) -> usize {
+pub(super) fn decode_expansion_factor(data_type: &DataType) -> usize {
     match data_type {
-        DataType::Array(_) => 40,
-        DataType::Json => 24,
+        DataType::Array(inner) => {
+            let inner_factor = decode_expansion_factor(inner);
+            if inner_factor > 40 {
+                inner_factor
+            } else {
+                40
+            }
+        }
+        DataType::Json => json::JSON_DECODE_EXPANSION_FACTOR,
         DataType::Vector(_) => 10,
         DataType::Bytea => 3,
         _ => 2,
@@ -231,31 +275,8 @@ fn document_retained_bytes(document: &DocumentRef) -> Result<usize, CassieError>
     checked_sum(&[
         size_of::<AccountedDocument>(),
         document.id.len(),
-        json_retained_bytes(&document.payload)?,
+        json::retained_bytes(&document.payload)?,
     ])
-}
-
-fn json_retained_bytes(value: &serde_json::Value) -> Result<usize, CassieError> {
-    let inline = size_of::<serde_json::Value>();
-    match value {
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
-            Ok(inline)
-        }
-        serde_json::Value::String(value) => checked_add(inline, value.len()),
-        serde_json::Value::Array(values) => values.iter().try_fold(inline, |bytes, value| {
-            checked_add(bytes, json_retained_bytes(value)?)
-        }),
-        serde_json::Value::Object(values) => {
-            values.iter().try_fold(inline, |bytes, (key, value)| {
-                checked_sum(&[
-                    bytes,
-                    size_of::<String>(),
-                    key.len(),
-                    json_retained_bytes(value)?,
-                ])
-            })
-        }
-    }
 }
 
 fn checked_sum(values: &[usize]) -> Result<usize, CassieError> {

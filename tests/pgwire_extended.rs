@@ -2580,9 +2580,12 @@ mod pgwire_portal_safety {
     #[test]
     fn should_enforce_retained_memory_budget_across_named_portal_lifecycle() {
         // Arrange
+        // The source page and its handoff reservation must fit before portal retention.
+        // Wider rows keep three retained results below the cap and the fourth above it;
+        // closing one portal must release enough memory for the replacement result.
         let (cassie, config, path) =
-            configured_cassie_with_memory("portal-shared-memory", 1_000, 40 * 1_024);
-        seed_large_rows(&cassie, "portal_shared_memory", 64, 128);
+            configured_cassie_with_memory("portal-shared-memory", 1_000, 256 * 1_024);
+        seed_large_rows(&cassie, "portal_shared_memory", 64, 1_024);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()

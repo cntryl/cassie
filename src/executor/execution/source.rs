@@ -52,22 +52,18 @@ pub(super) fn execute_query_source(
             right,
             kind,
             on,
-        } => {
-            let (batches, text_fields) = source_join::execute_join_source(
-                env,
-                source_join::JoinExecutionSpec {
-                    left,
-                    right,
-                    kind: *kind,
-                    on,
-                    outer_row,
-                    row_budget,
-                },
-                cte_context,
-            )?;
-            ensure_query_memory_budget(env.controls, &batches)?;
-            Ok((batches, text_fields))
-        }
+        } => source_join::execute_join_source(
+            env,
+            source_join::JoinExecutionSpec {
+                left,
+                right,
+                kind: *kind,
+                on,
+                outer_row,
+                row_budget,
+            },
+            cte_context,
+        ),
     }?;
     if !matches!(source, QuerySource::Join { .. }) {
         source_shape::attach_types(env, source, cte_context, &mut batches)?;
@@ -692,6 +688,8 @@ fn apply_aggregate_phase(
             user_functions: env.user_functions,
             session: env.session,
             controls: env.controls,
+            #[cfg(test)]
+            after_partition_row: None,
         },
     )?;
     ensure_query_memory_budget(env.controls, &batches)?;

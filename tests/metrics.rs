@@ -908,56 +908,86 @@ mod metrics_adaptive {
         use_local_storage();
         let path = data_dir("operator_switch_failure");
         let mut config = operator_switch_config(true, 0);
-        config.limits.query_memory_budget_bytes = 1_200;
+        config.limits.query_memory_budget_bytes = 8 * 1_024;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("runtime");
 
         runtime.block_on(async {
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
-        let session = cassie.create_session("tester", None);
-        create_switch_join_tables(
-            &cassie,
-            &session,
-            "metrics_switch_failure_users",
-            "metrics_switch_failure_orders",
-        );
-        let before = cassie.metrics();
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            let session = cassie.create_session("tester", None);
+            // Literal sources isolate replacement failure from storage-tree decode reservations.
+            // Complete source rows fit; their independently owned keyed merge copies exceed
+            // the shared budget, preserving failure at the replacement operator itself.
+            let padding = "x".repeat(128);
+            let left_sql = format!(
+                "SELECT 1 AS user_key, 'ada' AS name, '{padding}' AS padding \
+                 UNION ALL SELECT 2 AS user_key, 'grace' AS name, '{padding}' AS padding"
+            );
+            let right_sql = "SELECT 1 AS order_user_key, 10 AS total \
+                             UNION ALL SELECT 2 AS order_user_key, 20 AS total";
+            for input_sql in [left_sql.as_str(), right_sql] {
+                let input = cassie
+                    .execute_sql(&session, input_sql, vec![])
+                    .expect("each complete replacement input must fit");
+                assert_eq!(input.rows.len(), 2);
+            }
+            let sql = format!(
+                "SELECT u.name, o.total \
+             FROM ({left_sql}) AS u \
+             JOIN ({right_sql}) AS o \
+             ON u.user_key = o.order_user_key"
+            );
+            let before = cassie.metrics();
 
-        // Act
-        let result = cassie.execute_sql(
-            &session,
-            "SELECT metrics_switch_failure_users.name, metrics_switch_failure_orders.total FROM metrics_switch_failure_users JOIN metrics_switch_failure_orders ON metrics_switch_failure_users.user_key = metrics_switch_failure_orders.order_user_key",
-            vec![],
-        );
-        let after = cassie.metrics();
+            // Act
+            let result = cassie.execute_sql(&session, &sql, vec![]);
+            let after = cassie.metrics();
 
-        // Assert
-        assert!(result.is_err(), "the replacement operator must exhaust the fixture budget");
-        assert_eq!(
-            snapshot_delta(
-                &after,
-                &before,
-                &["adaptive_candidates", "operator_switch_successes"]
-            ),
-            0
-        );
-        assert_eq!(
-            snapshot_delta(
-                &after,
-                &before,
-                &["adaptive_candidates", "operator_switch_fallbacks"]
-            ),
-            1
-        );
-        assert_eq!(
-            after["adaptive_candidates"]["last_operator_switch_reason"],
-            "replacement_failed"
-        );
+            // Assert
+            let error =
+                result.expect_err("the replacement operator must exhaust the fixture budget");
+            assert!(
+                matches!(error, cassie::app::CassieError::ResourceLimit(_)),
+                "replacement must fail at retained-state admission: {error:?}"
+            );
+            for path in [
+                ["query", "rows_returned_total"],
+                ["joins", "executions"],
+                ["joins", "merge_joins"],
+                ["joins", "vectorized_joins"],
+                ["joins", "matched_rows_total"],
+                ["joins", "output_rows_total"],
+            ] {
+                assert_eq!(snapshot_delta(&after, &before, &path), 0);
+            }
+            assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(after["runtime"]["running_queries"], 0);
+            assert_eq!(after["runtime"]["active_operator_workers"], 0);
+            assert_eq!(
+                snapshot_delta(
+                    &after,
+                    &before,
+                    &["adaptive_candidates", "operator_switch_successes"]
+                ),
+                0
+            );
+            assert_eq!(
+                snapshot_delta(
+                    &after,
+                    &before,
+                    &["adaptive_candidates", "operator_switch_fallbacks"]
+                ),
+                1
+            );
+            assert_eq!(
+                after["adaptive_candidates"]["last_operator_switch_reason"],
+                "replacement_failed"
+            );
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -2675,63 +2705,51 @@ mod metrics_joins {
             .expect("runtime");
 
         runtime.block_on(async {
-        let mut config = vectorized_join_config(2);
-        config.limits.query_memory_budget_bytes = 800;
-        let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
-        cassie.startup().unwrap();
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE metrics_spill_users (user_key INT, name TEXT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "CREATE TABLE metrics_spill_orders (order_user_key INT, total INT)",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO metrics_spill_users (user_key, name) VALUES (1, 'ada')",
-                vec![],
-            )
-            .unwrap();
-        cassie
-            .execute_sql(
-                &session,
-                "INSERT INTO metrics_spill_orders (order_user_key, total) VALUES (2, 42)",
-                vec![],
-            )
-            .unwrap();
+            let mut config = vectorized_join_config(2);
+            config.limits.query_memory_budget_bytes = 1_023;
+            let cassie = Cassie::new_with_data_dir_and_config(&path, config).unwrap();
+            cassie.startup().unwrap();
+            let session = cassie.create_session("tester", None);
+            // Literal sources isolate the join strategy from storage-tree decode reservations.
+            // Each minimal complete source fits the budget; the vectorized estimate is 1,024.
+            // The merge replacement must still admit its own copies, so insufficient space
+            // returns a resource error after recording the attempted strategy's fallback.
+            for input_sql in ["SELECT 1 AS a", "SELECT 2 AS b"] {
+                let input = cassie
+                    .execute_sql(&session, input_sql, vec![])
+                    .expect("the complete spill input must fit");
+                assert_eq!(input.rows.len(), 1);
+            }
 
-        // Act
-        let selected = cassie
-            .execute_sql(
-                &session,
-                "SELECT metrics_spill_users.name, metrics_spill_orders.total FROM metrics_spill_users JOIN metrics_spill_orders ON metrics_spill_users.user_key = metrics_spill_orders.order_user_key",
-                vec![],
-            )
-            .unwrap();
+            // Act
+            let error = cassie
+                .execute_sql(
+                    &session,
+                    "SELECT u.a FROM (SELECT 1 AS a) AS u JOIN (SELECT 2 AS b) AS v ON u.a = v.b",
+                    vec![],
+                )
+                .expect_err("the merge replacement must respect the shared retained-state cap");
 
-        // Assert
-        assert_eq!(selected.rows, [] as [std::vec::Vec<cassie::types::Value>; 0]);
-        let metrics = cassie.metrics();
-        assert_eq!(metrics["joins"]["vectorized_joins"], 0);
-        assert_eq!(metrics["joins"]["vectorized_fallbacks"], 1);
-        assert_eq!(metrics["joins"]["vectorized_spill_fallbacks"], 1);
-        assert_eq!(
-            metrics["joins"]["last_vectorized_fallback_reason"],
-            "spill_budget_exceeded"
-        );
-        assert_eq!(metrics["joins"]["last_strategy"], "merge");
+            // Assert
+            assert!(
+                matches!(error, cassie::app::CassieError::ResourceLimit(_)),
+                "the selected spill path must fail at retained-state admission: {error:?}"
+            );
+            let metrics = cassie.metrics();
+            assert_eq!(metrics["joins"]["vectorized_joins"], 0);
+            assert_eq!(metrics["joins"]["vectorized_fallbacks"], 1);
+            assert_eq!(metrics["joins"]["vectorized_spill_fallbacks"], 1);
+            assert_eq!(
+                metrics["joins"]["last_vectorized_fallback_reason"],
+                "spill_budget_exceeded"
+            );
+            assert_eq!(metrics["joins"]["executions"], 0);
+            assert_eq!(metrics["query"]["current_accounted_memory_bytes"], 0);
+            assert_eq!(metrics["runtime"]["running_queries"], 0);
+            assert_eq!(metrics["runtime"]["active_operator_workers"], 0);
 
-        let _ = std::fs::remove_dir_all(path);
-    });
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 }
 

@@ -1,7 +1,7 @@
 use super::{
     collect_scan, key_encoding, CassieError, CollectionCardinalityStats, CollectionMeta,
-    CollectionStorageMode, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, OrderedRowBound,
-    ProjectionMeta, Query, RowFilter, RowSchema, Schema,
+    CollectionStorageMode, DocumentRef, HashSet, Instant, Midge, MidgeScanTimings, ProjectionMeta,
+    Query, RowFilter, RowSchema, Schema,
 };
 use std::time::Duration;
 
@@ -12,18 +12,6 @@ pub(crate) struct ColumnStoreScanRequest<'a> {
     pub batch_size: usize,
     pub projection: Option<&'a HashSet<String>>,
     pub filter: Option<&'a RowFilter>,
-    pub limit: usize,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct OrderedColumnStoreScanRequest<'a> {
-    pub collection: &'a str,
-    pub row_schema: &'a RowSchema,
-    pub batch_size: usize,
-    pub projection: Option<&'a HashSet<String>>,
-    pub start_bound: Option<&'a OrderedRowBound>,
-    pub end_bound: Option<&'a OrderedRowBound>,
-    pub reverse: bool,
     pub limit: usize,
 }
 
@@ -441,77 +429,6 @@ impl Midge {
         ))
     }
 
-    pub(crate) fn scan_ordered_column_store_rows_batched_by_id(
-        tx: &cntryl_midge::Transaction,
-        request: OrderedColumnStoreScanRequest<'_>,
-    ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
-        let scan_started = Instant::now();
-        let mut row_decode = Duration::ZERO;
-        let mut results = Vec::new();
-        if request.limit == 0 {
-            return Ok((
-                results,
-                MidgeScanTimings {
-                    scan: scan_started.elapsed(),
-                    row_decode,
-                },
-            ));
-        }
-
-        let row_prefix = Self::column_store_row_prefix(request.row_schema.relation_id);
-        let mut ids = Vec::new();
-        let scan = collect_scan(
-            tx.scan(&Query::new().prefix(row_prefix.clone().into()))
-                .map_err(CassieError::from)?,
-        )?;
-        for (raw_key, _raw_value) in scan {
-            let Some(id) = key_encoding::utf8_suffix_after_prefix(&raw_key, &row_prefix) else {
-                continue;
-            };
-            if Self::within_ordered_bounds(&id, request.start_bound, request.end_bound) {
-                ids.push(id);
-            }
-        }
-        ids.sort();
-        if request.reverse {
-            ids.reverse();
-        }
-
-        let mut current = Vec::with_capacity(request.batch_size.max(1));
-        for id in ids.into_iter().take(request.limit) {
-            let decode_started = Instant::now();
-            let payload = Self::project_column_store_document(
-                tx,
-                request.collection,
-                &id,
-                request.row_schema,
-                request.projection,
-                None,
-            )?;
-            row_decode += decode_started.elapsed();
-            let Some(payload) = payload else {
-                continue;
-            };
-            current.push(DocumentRef { id, payload });
-            if current.len() >= request.batch_size.max(1) {
-                results.push(current);
-                current = Vec::with_capacity(request.batch_size.max(1));
-            }
-        }
-
-        if !current.is_empty() {
-            results.push(current);
-        }
-
-        Ok((
-            results,
-            MidgeScanTimings {
-                scan: scan_started.elapsed().saturating_sub(row_decode),
-                row_decode,
-            },
-        ))
-    }
-
     fn project_column_store_document(
         tx: &cntryl_midge::Transaction,
         _collection: &str,
@@ -576,28 +493,6 @@ impl Midge {
         Ok(Some(serde_json::Value::Object(object)))
     }
 
-    fn within_ordered_bounds(
-        id: &str,
-        start_bound: Option<&OrderedRowBound>,
-        end_bound: Option<&OrderedRowBound>,
-    ) -> bool {
-        let start_ok = start_bound.is_none_or(|bound| {
-            if bound.inclusive {
-                id >= bound.id.as_str()
-            } else {
-                id > bound.id.as_str()
-            }
-        });
-        let end_ok = end_bound.is_none_or(|bound| {
-            if bound.inclusive {
-                id <= bound.id.as_str()
-            } else {
-                id < bound.id.as_str()
-            }
-        });
-        start_ok && end_ok
-    }
-
     fn collection_metadata_key(name: &str) -> Vec<u8> {
         key_encoding::collection_metadata_key(name)
     }
@@ -618,7 +513,7 @@ impl Midge {
         key_encoding::column_store_deleted_key(relation_id, id)
     }
 
-    fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
+    pub(super) fn column_store_field_key(relation_id: u64, field_id: u32, id: &str) -> Vec<u8> {
         key_encoding::column_store_field_key(relation_id, field_id, id)
     }
 }

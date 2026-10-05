@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 
+use crate::app::CassieError;
+use crate::executor::retained_memory::data_type_clone_bytes;
 use crate::types::{DataType, Value};
 
 pub(crate) type RowEntries = Vec<(String, Value)>;
@@ -14,6 +16,8 @@ pub(crate) struct BatchRow {
     lookup: OnceLock<HashMap<String, usize>>,
     outer_scope: Option<Arc<Self>>,
     data_types: Option<Arc<Vec<DataType>>>,
+    // A clone keeps its origin alive; this lease never admits the clone's new allocations.
+    query_memory: Option<Arc<crate::runtime::QueryMemoryReservation>>,
 }
 
 impl BatchRow {
@@ -31,6 +35,7 @@ impl BatchRow {
             lookup,
             outer_scope: None,
             data_types: None,
+            query_memory: None,
         }
     }
 
@@ -41,6 +46,7 @@ impl BatchRow {
             lookup: OnceLock::new(),
             outer_scope: None,
             data_types: None,
+            query_memory: None,
         }
     }
 
@@ -112,6 +118,18 @@ impl BatchRow {
         self.data_types.clone()
     }
 
+    pub(crate) fn query_memory(&self) -> Option<Arc<crate::runtime::QueryMemoryReservation>> {
+        self.query_memory.clone()
+    }
+
+    pub(crate) fn with_query_memory(
+        mut self,
+        query_memory: Option<Arc<crate::runtime::QueryMemoryReservation>>,
+    ) -> Self {
+        self.query_memory = query_memory;
+        self
+    }
+
     pub(crate) fn with_optional_data_types(
         mut self,
         data_types: Option<Arc<Vec<DataType>>>,
@@ -149,7 +167,6 @@ impl BatchRow {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn lookup_initialized(&self) -> bool {
         self.lookup.get().is_some()
     }
@@ -167,6 +184,13 @@ pub(crate) trait RowAccess {
     fn entry_type(&self, _index: usize) -> Option<&DataType> {
         None
     }
+    fn maximum_type_heap_bytes(&self) -> Result<usize, CassieError> {
+        (0..self.entries().len()).try_fold(0, |maximum, index| {
+            self.entry_type(index).map_or(Ok(maximum), |data_type| {
+                Ok(maximum.max(data_type_clone_bytes(data_type)?))
+            })
+        })
+    }
 }
 
 fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> HashMap<String, usize> {
@@ -181,6 +205,15 @@ fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> Hash
 }
 
 impl RowAccess for BatchRow {
+    fn maximum_type_heap_bytes(&self) -> Result<usize, CassieError> {
+        let own = self.data_types().iter().try_fold(0, |maximum, data_type| {
+            Ok::<_, CassieError>(maximum.max(data_type_clone_bytes(data_type)?))
+        })?;
+        self.outer_scope.as_ref().map_or(Ok(own), |outer| {
+            Ok(own.max(outer.maximum_type_heap_bytes()?))
+        })
+    }
+
     fn entry_type(&self, index: usize) -> Option<&DataType> {
         self.data_types().get(index)
     }

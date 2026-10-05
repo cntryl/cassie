@@ -12,16 +12,17 @@ pub(crate) fn try_value_to_json(value: Value) -> Result<serde_json::Value, &'sta
             .map(serde_json::Value::Number)
             .ok_or(NON_FINITE_JSON_NUMBER),
         Value::String(value) => Ok(serde_json::Value::String(value)),
-        Value::Vector(value) => value
-            .values
-            .into_iter()
-            .map(|component| {
-                serde_json::Number::from_f64(f64::from(component))
-                    .map(serde_json::Value::Number)
-                    .ok_or(NON_FINITE_JSON_NUMBER)
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(serde_json::Value::Array),
+        Value::Vector(value) => {
+            // Fallible iterator collection loses the exact size hint and can grow beyond
+            // the component count reserved by controlled query output.
+            let mut values = Vec::with_capacity(value.values.len());
+            for component in value.values {
+                let number = serde_json::Number::from_f64(f64::from(component))
+                    .ok_or(NON_FINITE_JSON_NUMBER)?;
+                values.push(serde_json::Value::Number(number));
+            }
+            Ok(serde_json::Value::Array(values))
+        }
         Value::Json(value) => Ok(value),
     }
 }
@@ -30,6 +31,31 @@ pub(crate) fn try_value_to_json(value: Value) -> Result<serde_json::Value, &'sta
 mod tests {
     use super::try_value_to_json;
     use crate::types::{Value, Vector};
+
+    #[test]
+    fn should_bound_json_vector_storage_by_the_reserved_component_count() {
+        // Arrange
+        let dimensions = [1, 3, 8193];
+
+        // Act
+        let arrays = dimensions.map(|count| {
+            let converted = try_value_to_json(Value::Vector(Vector::new(vec![1.0; count])))
+                .expect("finite vector");
+            let serde_json::Value::Array(values) = converted else {
+                panic!("vector must produce a JSON array");
+            };
+            values
+        });
+
+        // Assert
+        for (values, count) in arrays.iter().zip(dimensions) {
+            assert_eq!(values.len(), count);
+            assert!(
+                values.capacity() <= count,
+                "spare capacity exceeds the query reservation"
+            );
+        }
+    }
 
     #[test]
     fn should_reject_nonfinite_float_values() {

@@ -317,3 +317,185 @@ fn should_compare_json_numbers_by_numeric_value() {
     assert_eq!(equality, Some(true));
     assert_eq!(rounded_equality, Some(false));
 }
+
+#[test]
+fn should_preserve_direct_parameter_value_carriers() {
+    // Arrange
+    let row = BatchRow::new(Vec::new());
+    let functions = HashMap::new();
+    let values = [
+        Value::Null,
+        Value::Bool(false),
+        Value::Int64(9_007_199_254_740_993),
+        Value::Float64(3.5),
+        Value::String("null".to_string()),
+        Value::Vector(crate::types::Vector::new(vec![1.5, -2.0])),
+        Value::Json(serde_json::json!([[null]])),
+        Value::Json(serde_json::json!(null)),
+        Value::Json(serde_json::json!("null")),
+        Value::Json(serde_json::json!(18_446_744_073_709_551_615_u64)),
+    ];
+
+    for value in values {
+        let params = [value.clone()];
+
+        // Act
+        let result =
+            evaluate_expr_value(&row, &Expr::Param(0), &params, None, &functions, None, None);
+
+        // Assert
+        assert_eq!(result.expect("direct parameter value"), value);
+    }
+}
+
+#[test]
+fn should_preserve_parameter_null_classes_through_coalesce() {
+    // Arrange
+    let row = BatchRow::new(Vec::new());
+    let functions = HashMap::new();
+    let expression = Expr::Function(FunctionCall {
+        name: "coalesce".to_string(),
+        args: vec![Expr::Param(0), Expr::Param(1)],
+    });
+    let cases = [
+        (
+            [Value::Null, Value::Json(serde_json::json!([[null]]))],
+            Value::Json(serde_json::json!([[null]])),
+        ),
+        (
+            [
+                Value::Json(serde_json::json!(null)),
+                Value::String("fallback".to_string()),
+            ],
+            Value::Json(serde_json::json!(null)),
+        ),
+        (
+            [
+                Value::String("null".to_string()),
+                Value::Json(serde_json::json!([[null]])),
+            ],
+            Value::String("null".to_string()),
+        ),
+    ];
+
+    for (params, expected) in cases {
+        // Act
+        let result = evaluate_expr_value(&row, &expression, &params, None, &functions, None, None);
+
+        // Assert
+        assert_eq!(result.expect("selected COALESCE value"), expected);
+    }
+}
+
+#[test]
+fn should_preserve_direct_column_value_carriers() {
+    // Arrange
+    let functions = HashMap::new();
+    let values = [
+        Value::Null,
+        Value::Bool(false),
+        Value::Int64(9_007_199_254_740_993),
+        Value::Float64(3.5),
+        Value::String("null".to_string()),
+        Value::Vector(crate::types::Vector::new(vec![f32::MAX, f32::MIN])),
+        Value::Json(serde_json::json!([[null]])),
+        Value::Json(serde_json::json!(null)),
+        Value::Json(serde_json::json!("null")),
+        Value::Json(serde_json::json!(u64::MAX)),
+    ];
+    for value in values {
+        let row = BatchRow::new(vec![("v".to_string(), value.clone())]);
+
+        // Act
+        let result = evaluate_expr_value(
+            &row,
+            &Expr::Column("v".to_string()),
+            &[],
+            None,
+            &functions,
+            None,
+            None,
+        );
+
+        // Assert
+        assert_eq!(result.expect("direct column value"), value);
+    }
+}
+
+#[test]
+fn should_preserve_column_document_classes_through_coalesce() {
+    // Arrange
+    let functions = HashMap::new();
+    let expression = Expr::Function(FunctionCall {
+        name: "coalesce".to_string(),
+        args: vec![Expr::Column("doc".to_string()), Expr::Null],
+    });
+    let values = [
+        Value::Null,
+        Value::Json(serde_json::json!(null)),
+        Value::Json(serde_json::json!("null")),
+        Value::Json(serde_json::json!([[null]])),
+        Value::Json(serde_json::json!(u64::MAX)),
+    ];
+    for value in values {
+        let row = BatchRow::new(vec![("doc".to_string(), value.clone())]);
+
+        // Act
+        let result = evaluate_expr_value(&row, &expression, &[], None, &functions, None, None);
+
+        // Assert
+        assert_eq!(result.expect("COALESCE document value"), value);
+    }
+}
+
+#[test]
+fn should_preserve_canonical_local_argument_precedence_at_value_boundaries() {
+    // Arrange
+    let functions = HashMap::new();
+    let vector = Value::Vector(crate::types::Vector::new(vec![f32::MAX, f32::MIN]));
+    let row = BatchRow::new(vec![
+        ("Gate".to_string(), Value::Bool(false)),
+        ("v".to_string(), Value::Null),
+    ]);
+    let key = crate::sql::ColumnIdentifierPath::parse("\"Gate\"")
+        .expect("quoted local argument")
+        .lookup_key();
+    let local = HashMap::from([(key, Value::Bool(true)), ("v".to_string(), vector.clone())]);
+
+    // Act
+    let value = evaluate_expr_value(
+        &row,
+        &Expr::Column("v".to_string()),
+        &[],
+        None,
+        &functions,
+        None,
+        Some(&local),
+    );
+    let boolean = evaluate_expr_value(
+        &row,
+        &Expr::Column("\"Gate\"".to_string()),
+        &[],
+        None,
+        &functions,
+        None,
+        Some(&local),
+    );
+    let scalar = eval_scalar(
+        &row,
+        &Expr::Column("\"Gate\"".to_string()),
+        &[],
+        None,
+        &functions,
+        Some(&local),
+        None,
+    );
+
+    // Assert
+    assert_eq!(value.expect("typed local argument"), vector);
+    assert_eq!(boolean.expect("Boolean local argument"), Value::Bool(true));
+    assert!(matches!(
+        scalar.expect("scalar local argument"),
+        ScalarValue::Bool(true)
+    ));
+}

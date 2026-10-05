@@ -22,6 +22,7 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameter_type_oids,
+            false,
         )
     }
 
@@ -37,6 +38,23 @@ impl Cassie {
             parsed,
             sql_fingerprint,
             parameter_type_oids,
+            false,
+        )
+    }
+
+    pub(crate) fn describe_pgwire_parsed_statement_for_session(
+        &self,
+        session: &super::CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameter_type_oids: &[i32],
+    ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
+        self.describe_parsed_statement_in_session(
+            Some(session),
+            parsed,
+            sql_fingerprint,
+            parameter_type_oids,
+            true,
         )
     }
 
@@ -46,6 +64,7 @@ impl Cassie {
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameter_type_oids: &[i32],
+        wire_output: bool,
     ) -> Result<Vec<crate::executor::ColumnMeta>, CassieError> {
         if let Some(session) = session {
             self.ensure_session_database_access(session)?;
@@ -105,11 +124,6 @@ impl Cassie {
             )
         };
 
-        let user_functions = if crate::executor::plan_needs_user_functions(&physical.logical) {
-            self.user_functions_for_session(session)
-        } else {
-            HashMap::new()
-        };
         crate::sql::binder::validate_coalesce_plan(
             &physical.logical,
             &self.catalog,
@@ -123,33 +137,52 @@ impl Cassie {
             &self.binding_context_for_session(session),
             parameter_type_oids,
         )?;
-        let collection_schema = self.describe_collection_schema(&physical.logical, &user_functions);
 
-        if let Some(columns) = Self::describe_command_columns(
-            &physical.logical,
-            collection_schema.as_ref(),
-            &user_functions,
-        ) {
-            return Ok(columns);
-        }
-
+        let columns = if wire_output {
+            self.pgwire_columns_for_plan(
+                &physical.logical,
+                session,
+                parameter_type_oids,
+                &controls,
+            )?
+        } else {
+            self.columns_for_plan(&physical.logical, session, parameter_type_oids)
+        };
         if let Some(key) = cache_key.as_ref() {
             self.observe_query_plan_usage(key, &physical, &provenance)?;
         }
 
+        Ok(columns)
+    }
+
+    pub(super) fn columns_for_plan(
+        &self,
+        logical: &crate::planner::logical::LogicalPlan,
+        session: Option<&super::CassieSession>,
+        parameter_type_oids: &[i32],
+    ) -> Vec<crate::executor::ColumnMeta> {
+        let user_functions = if crate::executor::plan_needs_user_functions(logical) {
+            self.user_functions_for_session(session)
+        } else {
+            HashMap::new()
+        };
+        let collection_schema = self.describe_collection_schema(logical, &user_functions);
+        if let Some(columns) =
+            Self::describe_command_columns(logical, collection_schema.as_ref(), &user_functions)
+        {
+            return columns;
+        }
         let wildcard_fields = crate::executor::aggregate::wildcard_fields_for_plan(
             &self.catalog,
-            &physical.logical,
+            logical,
             &user_functions,
         );
-        Ok(
-            crate::executor::aggregate::columns_from_projection_with_wildcard(
-                &physical.logical.projection,
-                collection_schema.as_ref(),
-                wildcard_fields.as_deref(),
-                &user_functions,
-                parameter_type_oids,
-            ),
+        crate::executor::aggregate::columns_from_projection_with_wildcard(
+            &logical.projection,
+            collection_schema.as_ref(),
+            wildcard_fields.as_deref(),
+            &user_functions,
+            parameter_type_oids,
         )
     }
 
@@ -167,6 +200,9 @@ impl Cassie {
             }
             _ => return Some(Vec::new()),
         };
+        if returning.is_empty() {
+            return Some(Vec::new());
+        }
         Some(crate::executor::columns_from_projection(
             returning,
             collection_schema,
@@ -185,6 +221,14 @@ impl Cassie {
             &self.catalog,
             user_functions,
         )
+        .or_else(|| {
+            crate::sql::binder::joined_source_schema(
+                &logical.source,
+                &logical.ctes,
+                &self.catalog,
+                user_functions,
+            )
+        })
         .or_else(|| self.catalog.get_schema(&logical.collection))
         .or_else(|| crate::catalog::CollectionSchema::virtual_view(&logical.collection))
         .or_else(|| {

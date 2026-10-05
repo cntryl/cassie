@@ -59,7 +59,14 @@ pub(super) fn decode_text_parameter(
             Some(DataType::Array(element_type)) => {
                 crate::types::array::parse_text_array(text, &element_type)
                     .map(Value::Json)
-                    .map_err(|_| ExtendedQueryError::protocol("invalid text array parameter"))
+                    .map_err(|error| match error {
+                        crate::types::array::TextArrayError::Invalid(_) => {
+                            ExtendedQueryError::protocol("invalid text array parameter")
+                        }
+                        crate::types::array::TextArrayError::UnsupportedJsonDocumentNull => {
+                            ExtendedQueryError::unsupported(error.to_string())
+                        }
+                    })
             }
             _ => Ok(Value::String(text.to_string())),
         },

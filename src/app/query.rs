@@ -12,13 +12,13 @@ use super::{
 // Discard compiled plans from the earlier Boolean expression semantics.
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 3;
 
-struct QueryCacheContext {
-    is_select: bool,
-    cache_key: Option<PlanCacheKey>,
-    exec_cache_key: Option<crate::runtime::ExecutionResultCacheKey>,
+pub(super) struct QueryCacheContext {
+    pub(super) is_select: bool,
+    pub(super) cache_key: Option<PlanCacheKey>,
+    pub(super) exec_cache_key: Option<crate::runtime::ExecutionResultCacheKey>,
 }
 
-struct QueryFeedbackCapture {
+pub(super) struct QueryFeedbackCapture {
     keys: Option<Vec<crate::runtime::RuntimeFeedbackKey>>,
     before: Option<crate::runtime::RuntimeMetricsSnapshot>,
     started_at: Instant,
@@ -429,123 +429,7 @@ impl Cassie {
         self.execute_parsed_statement_core(session, parsed, sql_fingerprint, params, mode, controls)
     }
 
-    pub(crate) fn execute_parsed_statement_core(
-        &self,
-        session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-        params: Vec<crate::types::Value>,
-        mode: ExecutionMode,
-        controls: &QueryExecutionControls,
-    ) -> Result<QueryResult, CassieError> {
-        self.execute_parsed_statement_core_with_parameter_oids(
-            session,
-            parsed,
-            sql_fingerprint,
-            (params, &[]),
-            mode,
-            controls,
-        )
-    }
-
-    pub(crate) fn execute_parsed_statement_core_with_parameter_oids(
-        &self,
-        session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
-        sql_fingerprint: u64,
-        parameters: (Vec<crate::types::Value>, &[i32]),
-        mode: ExecutionMode,
-        controls: &QueryExecutionControls,
-    ) -> Result<QueryResult, CassieError> {
-        let (mut params, declared_oids) = parameters;
-        self.ensure_session_database_access(session)?;
-        Self::ensure_statement_can_execute(session, &parsed, controls)?;
-        let parameter_type_oids =
-            super::query_parameters::effective_parameter_type_oids(&params, declared_oids);
-        let parameter_type_oids = parameter_type_oids.as_slice();
-        super::query_parameters::canonicalize_string_parameters(
-            &parsed,
-            &self.catalog,
-            &mut params,
-        );
-        if let QueryStatement::Explain(statement) = &parsed.statement {
-            return self.explain_statement(
-                session,
-                statement.statement.as_ref().clone(),
-                (params, parameter_type_oids),
-                statement.analyze,
-                controls,
-            );
-        }
-        if let QueryStatement::Transaction(statement) = &parsed.statement {
-            return self.execute_transaction_statement(session, statement);
-        }
-
-        let cache_context = self.query_cache_context(
-            session,
-            &parsed,
-            sql_fingerprint,
-            &params,
-            mode,
-            parameter_type_oids,
-        );
-        let (physical, provenance) = self.resolve_statement_plan(
-            parsed,
-            &cache_context,
-            session,
-            controls,
-            parameter_type_oids,
-        )?;
-        super::query_parameters::validate_plan_parameters(
-            &physical.logical,
-            &self.catalog,
-            &self.binding_context_for_session(Some(session)),
-            parameter_type_oids,
-        )?;
-        self.record_select_plan_decision(cache_context.is_select, &physical);
-
-        let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
-        if let Some(reason) = result_cache_bypass {
-            self.runtime.record_execution_result_cache_bypass(reason);
-        } else if let Some(cached) = self.try_execution_result_cache(&cache_context) {
-            if let Some(key) = cache_context.cache_key.as_ref() {
-                self.observe_query_plan_usage(key, &physical, &provenance)?;
-            }
-            return Ok(cached);
-        }
-
-        if controls.is_cancelled() {
-            return Err(CassieError::QueryCancelled);
-        }
-        if controls.is_timed_out() {
-            return Err(CassieError::DeadlineExceeded);
-        }
-
-        let feedback = self.capture_query_feedback(
-            cache_context.is_select,
-            session.database.as_deref(),
-            &session.search_path(),
-            &physical,
-        );
-        let execution = self.execute_physical_statement(session, &physical, params, controls);
-        self.record_query_feedback(feedback, &execution);
-
-        let result = execution?;
-
-        Self::validate_result_limit(&result, controls)?;
-
-        if result_cache_bypass.is_none() {
-            self.store_execution_result(&cache_context, &result);
-        }
-
-        if let Some(key) = cache_context.cache_key.as_ref() {
-            self.observe_query_plan_usage(key, &physical, &provenance)?;
-        }
-
-        Ok(result)
-    }
-
-    fn ensure_statement_can_execute(
+    pub(super) fn ensure_statement_can_execute(
         session: &CassieSession,
         parsed: &crate::sql::ast::ParsedStatement,
         controls: &QueryExecutionControls,
@@ -579,7 +463,7 @@ impl Cassie {
         )
     }
 
-    fn query_cache_context(
+    pub(super) fn query_cache_context(
         &self,
         session: &CassieSession,
         parsed: &crate::sql::ast::ParsedStatement,
@@ -616,12 +500,15 @@ impl Cassie {
         }
     }
 
-    fn try_execution_result_cache(&self, cache_context: &QueryCacheContext) -> Option<QueryResult> {
+    pub(super) fn try_execution_result_cache(
+        &self,
+        cache_context: &QueryCacheContext,
+    ) -> Option<QueryResult> {
         let exec_cache_key = cache_context.exec_cache_key.as_ref()?;
         self.runtime.execution_result_cache_lookup(exec_cache_key)
     }
 
-    fn execution_result_cache_bypass_reason(
+    pub(super) fn execution_result_cache_bypass_reason(
         &self,
         session: &CassieSession,
         physical: &crate::planner::physical::PhysicalPlan,
@@ -668,7 +555,7 @@ impl Cassie {
         None
     }
 
-    fn resolve_statement_plan(
+    pub(super) fn resolve_statement_plan(
         &self,
         parsed: crate::sql::ast::ParsedStatement,
         cache_context: &QueryCacheContext,
@@ -705,7 +592,7 @@ impl Cassie {
         ))
     }
 
-    fn record_select_plan_decision(
+    pub(super) fn record_select_plan_decision(
         &self,
         is_select: bool,
         physical: &crate::planner::physical::PhysicalPlan,
@@ -716,7 +603,7 @@ impl Cassie {
         }
     }
 
-    fn capture_query_feedback(
+    pub(super) fn capture_query_feedback(
         &self,
         is_select: bool,
         database: Option<&str>,
@@ -736,7 +623,7 @@ impl Cassie {
         }
     }
 
-    fn execute_physical_statement(
+    pub(super) fn execute_physical_statement(
         &self,
         session: &CassieSession,
         physical: &Arc<crate::planner::physical::PhysicalPlan>,
@@ -747,7 +634,7 @@ impl Cassie {
             .map_err(CassieError::from)
     }
 
-    fn record_query_feedback(
+    pub(super) fn record_query_feedback(
         &self,
         capture: QueryFeedbackCapture,
         execution: &Result<QueryResult, CassieError>,
@@ -768,7 +655,7 @@ impl Cassie {
         self.record_feedback_for_keys(keys, &observation);
     }
 
-    fn validate_result_limit(
+    pub(super) fn validate_result_limit(
         result: &QueryResult,
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
@@ -782,14 +669,18 @@ impl Cassie {
         )))
     }
 
-    fn store_execution_result(&self, cache_context: &QueryCacheContext, result: &QueryResult) {
+    pub(super) fn store_execution_result(
+        &self,
+        cache_context: &QueryCacheContext,
+        result: &QueryResult,
+    ) {
         if let Some(exec_cache_key) = cache_context.exec_cache_key.as_ref() {
             self.runtime
                 .execution_result_cache_store(exec_cache_key, result.clone());
         }
     }
 
-    fn explain_statement(
+    pub(super) fn explain_statement(
         &self,
         session: &CassieSession,
         statement: crate::sql::ast::ParsedStatement,

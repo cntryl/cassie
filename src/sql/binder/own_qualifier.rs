@@ -97,13 +97,21 @@ fn strip_expr(expr: &Expr, qualifiers: &[String]) -> Expr {
 }
 
 fn strip_name(name: &mut String, qualifiers: &[String]) {
-    let Some((qualifier, column)) = name.rsplit_once('.') else {
+    let Ok(column) = crate::sql::ColumnIdentifierPath::parse(name) else {
         return;
     };
-    if column.is_empty() || !qualifiers.contains(&qualifier.to_ascii_lowercase()) {
+    if !column.is_qualified() {
         return;
     }
-    *name = column.to_string();
+    let field = column.field_lookup_key();
+    let lookup_path = column.lookup_key();
+    let Some(qualifier) = lookup_path.strip_suffix(&format!(".{field}")) else {
+        return;
+    };
+    if !qualifiers.iter().any(|candidate| candidate == qualifier) {
+        return;
+    }
+    *name = field;
 }
 
 #[cfg(test)]

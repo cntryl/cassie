@@ -223,7 +223,7 @@ fn excluded_local_args(
             .find(|candidate| candidate.name == *field)
             .filter(|candidate| {
                 matches!(candidate.data_type, DataType::Json)
-                    && (value.is_null() || value.is_string())
+                    && crate::types::json::requires_document_carrier(value)
             })
             .map_or_else(|| json_to_value(value), |_| Value::Json(value.clone()));
         let key = crate::sql::ColumnIdentifierPath::from_field_name(field).lookup_key();

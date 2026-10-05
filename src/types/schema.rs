@@ -130,7 +130,7 @@ impl DataType {
     #[must_use]
     pub fn typlen(&self) -> i16 {
         match self {
-            Self::Null => 0,
+            Self::Null => -2,
             Self::SmallInt => 2,
             Self::Int | Self::Date => 4,
             Self::BigInt | Self::Float | Self::Time | Self::Timestamp => 8,

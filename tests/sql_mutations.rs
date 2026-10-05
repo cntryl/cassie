@@ -21,6 +21,9 @@ mod sql_boolean_mutations;
 #[path = "support/sql_fixture.rs"]
 mod support_sql_fixture;
 
+#[path = "sql_mutations/type_json_array_copy.rs"]
+mod type_json_array_copy;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};
@@ -11913,3 +11916,5 @@ mod alter_column_declared_case {
         let _ = std::fs::remove_dir_all(path);
     }
 }
+#[path = "sql_mutations/type_array_input_copy.rs"]
+mod type_array_input_copy;

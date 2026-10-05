@@ -43,7 +43,7 @@ pub(super) fn encode_value(
         DataType::Char { length } => encode_bounded_string(
             value,
             *length,
-            1,
+            Some(1),
             crate::types::char_text::canonical_char_text,
             "char field expects string",
             "char field expects up to {length} characters",
@@ -51,7 +51,7 @@ pub(super) fn encode_value(
         DataType::Varchar { length } => encode_bounded_string(
             value,
             *length,
-            0,
+            None,
             |text| text,
             "varchar field expects string",
             "varchar field expects up to {length} characters",
@@ -157,7 +157,7 @@ fn encode_temporal_string(
 fn encode_bounded_string(
     value: &serde_json::Value,
     length: Option<u32>,
-    default_length: u32,
+    default_length: Option<u32>,
     canonicalize: fn(&str) -> &str,
     type_error: &str,
     length_error: &str,
@@ -167,12 +167,13 @@ fn encode_bounded_string(
             .as_str()
             .ok_or_else(|| CassieError::InvalidVector(type_error.to_string()))?,
     );
-    let length = length.unwrap_or(default_length);
-    let max_chars = usize::try_from(length).expect("string length limits fit in usize");
-    if value.chars().count() > max_chars {
-        return Err(CassieError::InvalidVector(
-            length_error.replace("{length}", &length.to_string()),
-        ));
+    if let Some(length) = length.or(default_length) {
+        let max_chars = usize::try_from(length).expect("string length limits fit in usize");
+        if value.chars().count() > max_chars {
+            return Err(CassieError::InvalidVector(
+                length_error.replace("{length}", &length.to_string()),
+            ));
+        }
     }
     Ok((TYPE_STRING, value.as_bytes().to_vec()))
 }

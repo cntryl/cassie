@@ -220,6 +220,10 @@ fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     match expr {
+        Expr::Param(index) => Ok(context.params.get(*index).cloned().unwrap_or(Value::Null)),
+        Expr::Column(name) => Ok(column_value_ref(row, name, context.local_args)
+            .cloned()
+            .unwrap_or(Value::Null)),
         Expr::Function(function) => evaluate_function(function, row, context),
         _ => Ok(eval_scalar_with_context(row, expr, context)?.to_value()),
     }
@@ -734,15 +738,24 @@ fn eval_column_value<R: RowAccess + ?Sized>(
     name: &str,
     local_args: Option<&HashMap<String, Value>>,
 ) -> ScalarValue {
+    column_value_ref(row, name, local_args).map_or(ScalarValue::Null, scalar_from_value)
+}
+
+// Both evaluators resolve the same canonical local binding before the row.
+// Only the value-returning evaluator clones the original rich Value carrier.
+fn column_value_ref<'a, R: RowAccess + ?Sized>(
+    row: &'a R,
+    name: &str,
+    local_args: Option<&'a HashMap<String, Value>>,
+) -> Option<&'a Value> {
     if let Some(local_args) = local_args {
         let key = crate::sql::ColumnIdentifierPath::parse(name)
             .map_or_else(|_| name.to_ascii_lowercase(), |column| column.lookup_key());
         if let Some(value) = local_args.get(&key) {
-            return scalar_from_value(value);
+            return Some(value);
         }
     }
-
-    row.get(name).map_or(ScalarValue::Null, scalar_from_value)
+    row.get(name)
 }
 
 fn evaluate_function_scalar<R: RowAccess + ?Sized>(

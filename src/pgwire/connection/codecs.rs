@@ -4,6 +4,11 @@ use crate::types::Value;
 use std::{io, str};
 use time::{Date, PrimitiveDateTime, Time};
 
+#[path = "codecs/vector.rs"]
+mod vector;
+
+use vector::{decode_vector, encode_vector};
+
 const OID_BOOL: i64 = 16;
 const OID_BYTEA: i64 = 17;
 const OID_INT8: i64 = 20;
@@ -316,53 +321,6 @@ pub(super) fn binary_to_value(parameter: &[u8], type_oid: i64) -> io::Result<Val
     }
 }
 
-fn encode_vector(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
-    let Value::Vector(vector) = value else {
-        return invalid_value("vector");
-    };
-    let dimensions =
-        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
-    if vector.values.len() != dimensions || dimensions > i16::MAX as usize {
-        return Err(invalid_data("vector"));
-    }
-    let mut encoded = Vec::with_capacity(4 + dimensions.saturating_mul(4));
-    encoded.extend_from_slice(
-        &i16::try_from(dimensions)
-            .map_err(|_| invalid_data("vector"))?
-            .to_be_bytes(),
-    );
-    encoded.extend_from_slice(&0_i16.to_be_bytes());
-    for value in vector.values {
-        if !value.is_finite() {
-            return Err(invalid_data("vector"));
-        }
-        encoded.extend_from_slice(&value.to_be_bytes());
-    }
-    Ok(encoded)
-}
-
-fn decode_vector(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
-    if parameter.len() < 4 {
-        return Err(invalid_data("vector"));
-    }
-    let dimensions = usize::from(u16::from_be_bytes([parameter[0], parameter[1]]));
-    let reserved = i16::from_be_bytes([parameter[2], parameter[3]]);
-    let expected =
-        vector_dimensions_for_oid(type_oid).ok_or_else(|| unsupported_codec(type_oid))?;
-    if dimensions != expected || reserved != 0 || parameter.len() != 4 + dimensions * 4 {
-        return Err(invalid_data("vector"));
-    }
-    let mut values = Vec::with_capacity(dimensions);
-    for bytes in parameter[4..].as_chunks::<4>().0 {
-        let value = f32::from_be_bytes(*bytes);
-        if !value.is_finite() {
-            return Err(invalid_data("vector"));
-        }
-        values.push(value);
-    }
-    Ok(Value::Vector(crate::types::Vector::new(values)))
-}
-
 fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
     let Value::Json(serde_json::Value::Array(values)) = value else {
         return invalid_value("array");
@@ -395,7 +353,11 @@ fn encode_array(value: Value, type_oid: i64) -> io::Result<Vec<u8>> {
             encoded.extend_from_slice(&(-1_i32).to_be_bytes());
             continue;
         }
-        let value = json_to_value(value, codec.name)?;
+        let value = if element_oid == OID_JSON {
+            Value::Json(value)
+        } else {
+            json_to_value(value, codec.name)?
+        };
         let element = value_to_binary(value, element_oid)?;
         encoded.extend_from_slice(
             &i32::try_from(element.len())
@@ -436,9 +398,12 @@ fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
         return Err(invalid_data("array"));
     }
     let mut values = Vec::with_capacity(length);
+    let mut sql_null_frame = false;
+    let mut document_null = false;
     for _ in 0..length {
         let element_length = read_i32(parameter, &mut cursor, "array")?;
         if element_length == -1 {
+            sql_null_frame = true;
             values.push(serde_json::Value::Null);
             continue;
         }
@@ -450,11 +415,21 @@ fn decode_array(parameter: &[u8], type_oid: i64) -> io::Result<Value> {
             .get(cursor..end)
             .ok_or_else(|| invalid_data("array"))?;
         cursor = end;
-        values.push(value_to_json(binary_to_value(bytes, element_oid)?));
+        let value = binary_to_value(bytes, element_oid)?;
+        if element_oid == 114 && matches!(value, Value::Json(serde_json::Value::Null)) {
+            document_null = true;
+            continue;
+        }
+        values.push(value_to_json(value));
     }
-    if cursor != parameter.len() || (has_null == 0 && values.iter().any(serde_json::Value::is_null))
-    {
+    if cursor != parameter.len() || (has_null == 0 && sql_null_frame) {
         return Err(invalid_data("array"));
+    }
+    if document_null {
+        return Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            crate::types::array::TextArrayError::UnsupportedJsonDocumentNull.to_string(),
+        ));
     }
     Ok(Value::Json(serde_json::Value::Array(values)))
 }

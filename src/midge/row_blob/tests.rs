@@ -508,6 +508,67 @@ fn should_roundtrip_extended_scalar_types() {
 }
 
 #[test]
+fn should_preserve_unlimited_varchar_storage() {
+    // Arrange
+    let schema = RowSchema::from_schema(&Schema {
+        fields: vec![
+            FieldSchema {
+                name: "scalar".into(),
+                data_type: DataType::Varchar { length: None },
+                nullable: true,
+            },
+            FieldSchema {
+                name: "array".into(),
+                data_type: DataType::Array(Box::new(DataType::Varchar { length: None })),
+                nullable: true,
+            },
+        ],
+    });
+    let payload = serde_json::json!({"scalar":"long μ string", "array":["long μ string",null,"é"]});
+
+    // Act
+    let encoded = encode_row(&schema, &payload).expect("unlimited VARCHAR storage");
+    let decoded = decode_row(&schema, &encoded).expect("unlimited VARCHAR read");
+
+    // Assert
+    assert_eq!(decoded, payload);
+}
+
+#[test]
+fn should_retain_explicit_character_storage_bounds() {
+    // Arrange
+    let cases = [
+        (DataType::Char { length: None }, "μ  ", "μx", "μ"),
+        (DataType::Char { length: Some(2) }, "μx  ", "μxy", "μx"),
+        (DataType::Varchar { length: Some(2) }, "μx", "μxy", "μx"),
+        (DataType::Varchar { length: Some(0) }, "", "x", ""),
+    ];
+
+    // Act
+    let results = cases.map(|(data_type, valid, invalid, expected)| {
+        let schema = RowSchema::from_schema(&Schema {
+            fields: vec![FieldSchema {
+                name: "v".into(),
+                data_type,
+                nullable: true,
+            }],
+        });
+        let valid = encode_row(&schema, &serde_json::json!({"v":valid}));
+        let invalid = encode_row(&schema, &serde_json::json!({"v":invalid}));
+        (schema, valid, invalid, expected)
+    });
+
+    // Assert
+    for (schema, valid, invalid, expected) in results {
+        assert_eq!(
+            decode_row(&schema, &valid.expect("valid declared bound")).expect("bounded read"),
+            serde_json::json!({"v":expected})
+        );
+        assert!(invalid.is_err());
+    }
+}
+
+#[test]
 fn should_reject_invalid_bytea_payloads_for_row_blob_encoding() {
     // Arrange
     let schema = RowSchema::from_schema(&Schema {

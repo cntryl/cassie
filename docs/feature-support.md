@@ -39,6 +39,11 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
 | Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
 
+The [finite SQL type and wire contract](type-contract.md) records current logical
+types, private wire identities, codec and metadata boundaries, exactness, NULL
+meaning and explicit exclusions. Its qualification does not promote the broader
+types/casts family.
+
 ### JSON Document Null and SQL NULL
 
 For a declared `JSON` field, an absent key in the stored document represents SQL

@@ -608,10 +608,9 @@ async fn execute_simple_statement(
     let cancellation_handle = cancellation.handle();
     let execution_session = session.clone();
     let query_result = run_pgwire_blocking(cassie, "pgwire_simple_query", move |cassie| {
-        cassie.execute_sql_with_cancellation(
+        cassie.execute_pgwire_sql_with_cancellation(
             &execution_session,
             &statement,
-            Vec::new(),
             &cancellation_handle,
         )
     })

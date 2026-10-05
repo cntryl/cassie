@@ -5,7 +5,9 @@
 //! column `uid`, whatever type a same-named column of `t` (or a table named
 //! `d`) has.
 
-use super::inference::{infer_cte_schema, infer_select_schema_with_scope};
+use super::inference::{
+    infer_cte_schema, infer_select_schema_with_scope, infer_source_schema_with_parameters,
+};
 use super::{Catalog, CommonTableExpression, HashMap, QuerySource, Schema};
 
 /// Returns the output schema of `source` when it is a derived table or a CTE
@@ -33,6 +35,38 @@ pub(crate) fn derived_source_schema(
     };
     Some(crate::catalog::CollectionSchema {
         collection: name.clone(),
+        fields: schema
+            .fields
+            .into_iter()
+            .map(|field| crate::catalog::FieldMeta {
+                name: field.name,
+                data_type: field.data_type,
+                is_indexed: false,
+                boost: None,
+            })
+            .collect(),
+    })
+}
+
+/// Resolves the existing join source's fields for ordinary result metadata.
+/// This schema is not a physical row identity or result-filtering decision.
+#[must_use]
+pub(crate) fn joined_source_schema(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Option<crate::catalog::CollectionSchema> {
+    if !matches!(source, QuerySource::Join { .. }) {
+        return None;
+    }
+    let schemas = cte_schemas(ctes, catalog, user_functions);
+    let schema =
+        infer_source_schema_with_parameters(source, catalog, &schemas, user_functions, true, &[])
+            .ok()?;
+    Some(crate::catalog::CollectionSchema {
+        // This is the existing logical::source_name label, not a catalog object.
+        collection: "join".to_string(),
         fields: schema
             .fields
             .into_iter()

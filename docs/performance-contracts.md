@@ -453,7 +453,8 @@ pipeline. Existing typed buffers and selected encoded kernels in this document
 describe specialized acceleration; they do not claim that every relational
 operator currently carries one common column-batch representation.
 
-The private batch/type/kernel laws precede adoption under [#752](https://github.com/cntryl/cassie/issues/752)/[#753](https://github.com/cntryl/cassie/issues/753), followed by
+The [finite type contract](type-contract.md) and private batch/type/kernel laws
+precede adoption under [#752](https://github.com/cntryl/cassie/issues/752)/[#753](https://github.com/cntryl/cassie/issues/753), followed by
 dependency-ordered scan/filter/projection, aggregate/join and order/set/window
 work. Current codec tags, latest-only layouts, generation fences, authoritative
 fallback, query-accounting scope and measured benchmark objectives remain

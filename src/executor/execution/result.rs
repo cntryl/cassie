@@ -36,35 +36,33 @@ pub(super) fn build_select_result(
             user_functions,
         )
     });
-    let wildcard_fields =
-        aggregate::wildcard_fields_for_plan(&cassie.catalog, &plan.logical, user_functions);
+    let wildcard_shape =
+        aggregate::wildcard_shape_for_plan(&cassie.catalog, &plan.logical, user_functions);
+    let wildcard_fields = wildcard_shape.as_ref().map(|(fields, _)| fields.as_slice());
     let columns = aggregate::columns_from_projection_with_wildcard(
         &plan.logical.projection,
         collection_schema.as_ref(),
-        wildcard_fields.as_deref(),
+        wildcard_fields,
         user_functions,
         &[],
     );
-    // Every row carries the reserved `_id` internal-identity entry (see
-    // `scan::push_row_identity`) as working state for DML/retention/scored-
-    // candidate resolution; it is never a `SELECT` output column, so it's
-    // dropped here rather than earlier, to keep it available to every
-    // internal consumer up to this final boundary. `SELECT *` against a
-    // table with no declared `id` field is the one exception: its `id`
-    // output column *is* that same internal identity (see
-    // `aggregate::columns_from_projection`'s wildcard branch and
-    // `scan::push_row_identity`'s doc comment), and rather than pay for a
-    // second physical copy of the value in every row, that single `_id`
-    // entry is kept instead of dropped, landing in the `id` column's
-    // position because both list it first.
-    let keep_internal_identity_as_id = plan
-        .logical
-        .projection
-        .iter()
-        .any(|item| matches!(item, crate::sql::ast::SelectItem::Wildcard))
-        && !collection_schema
-            .as_ref()
-            .is_some_and(crate::catalog::CollectionSchema::declares_id);
+    // Derived wildcard schemas display physical `_id` as `id`, so
+    // declares_id alone cannot distinguish it from a real declared field.
+    // Retain only the identity that survives the same source-row hiding rule
+    // used to infer these wildcard columns. Base tables keep their saved-plan
+    // collection-schema rule when no derived wildcard shape is needed.
+    let keep_internal_identity_as_id = wildcard_shape.as_ref().map_or_else(
+        || {
+            plan.logical
+                .projection
+                .iter()
+                .any(|item| matches!(item, crate::sql::ast::SelectItem::Wildcard))
+                && !collection_schema
+                    .as_ref()
+                    .is_some_and(crate::catalog::CollectionSchema::declares_id)
+        },
+        |(_, carries_identity)| *carries_identity,
+    );
     // A query can also name `_id` as an output column of its own, either by
     // selecting it directly or by aliasing an expression to it. Dropping the
     // matching entry would emit a row narrower than its own `RowDescription`

@@ -68,6 +68,17 @@ pub(crate) fn wildcard_output_fields(
     wildcard_output_fields_with_parameters(source, ctes, catalog, user_functions, &[])
 }
 
+/// Returns displayed wildcard fields together with whether the projected row
+/// still carries an internal identity after declared-id hiding.
+pub(crate) fn wildcard_output_fields_and_identity(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+) -> Result<(Vec<FieldSchema>, bool), CassieError> {
+    wildcard_output_shape_with_parameters(source, ctes, catalog, user_functions, &[])
+}
+
 pub(super) fn wildcard_output_fields_with_parameters(
     source: &QuerySource,
     ctes: &[CommonTableExpression],
@@ -75,6 +86,17 @@ pub(super) fn wildcard_output_fields_with_parameters(
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     parameter_types: &[i32],
 ) -> Result<Vec<FieldSchema>, CassieError> {
+    wildcard_output_shape_with_parameters(source, ctes, catalog, user_functions, parameter_types)
+        .map(|(fields, _)| fields)
+}
+
+fn wildcard_output_shape_with_parameters(
+    source: &QuerySource,
+    ctes: &[CommonTableExpression],
+    catalog: &Catalog,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Result<(Vec<FieldSchema>, bool), CassieError> {
     let scope = cte_scope(
         ctes,
         &WildcardScope::new(),
@@ -90,7 +112,10 @@ pub(super) fn wildcard_output_fields_with_parameters(
         parameter_types,
         None,
     )?);
-    Ok(fields
+    let carries_identity = fields
+        .iter()
+        .any(|field| is_row_identity_column(&field.name));
+    let displayed = fields
         .into_iter()
         .map(|mut field| {
             if is_row_identity_column(&field.name) {
@@ -98,7 +123,8 @@ pub(super) fn wildcard_output_fields_with_parameters(
             }
             field
         })
-        .collect())
+        .collect();
+    Ok((displayed, carries_identity))
 }
 
 fn cte_scope(

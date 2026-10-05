@@ -4467,8 +4467,8 @@ mod column_batch_resilience {
         assert_eq!(
             accelerated.rows,
             vec![vec![
-                Value::String("[0,10]".to_string()),
-                Value::String("[1,2]".to_string()),
+                Value::Vector(cassie::types::Vector::new(vec![0.0, 10.0])),
+                Value::Vector(cassie::types::Vector::new(vec![1.0, 2.0])),
             ]]
         );
         assert_eq!(exact.rows, accelerated.rows);

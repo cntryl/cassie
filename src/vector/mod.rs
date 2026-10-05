@@ -8,6 +8,7 @@ pub mod l2;
 pub mod normalized;
 mod simd;
 pub mod source_fingerprint;
+pub(crate) mod text;
 
 pub use brute_force::top_k;
 pub use cosine::{distance as cosine_distance, score as cosine_score};

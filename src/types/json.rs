@@ -1,5 +1,15 @@
 use crate::types::Value;
 
+/// Keep JSON-only scalar documents that the existing primitive carriers cannot preserve.
+/// Ordinary signed/floating numeric and Boolean JSON scalar semantics stay unchanged.
+pub(crate) fn requires_document_carrier(value: &serde_json::Value) -> bool {
+    value.is_null()
+        || value.is_string()
+        || value
+            .as_u64()
+            .is_some_and(|number| i64::try_from(number).is_err())
+}
+
 pub(crate) const NON_FINITE_JSON_NUMBER: &str =
     "non-finite floating-point values cannot be represented in JSON";
 

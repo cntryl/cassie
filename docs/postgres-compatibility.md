@@ -97,6 +97,23 @@ The CHAR, numeric-width, temporal, and other type boundaries in this document co
 
 ## Numeric Typing
 
+The [finite SQL type and wire contract](type-contract.md) lists every current
+logical type, its metadata, storage representation, supported codecs and
+explicit ABI exclusions. Unknown result/catalog metadata uses OID 705, typlen
+−2 and typmod −1; SQL NULL fields retain wire length −1.
+
+Text OIDs 700 and 1700 are numeric input adapters. Unconstrained output whose
+type remains ambiguous requires an explicit cast to a current type and otherwise
+fails with `0A000` before result descriptors or rows. Supported constrained
+assignments, predicates and independently fixed result types retain their numeric
+input behavior. Binary codecs for these two input OIDs remain unsupported.
+
+Scalar arrays use Cassie's private identities and bounded one-dimensional
+framing. ARRAY(VECTOR) wire identities and distinct JSON document-null scalar
+elements inside ARRAY(JSON) are excluded with `0A000`; SQL-null elements and
+nonNULL nested JSON documents containing null remain supported. These boundaries
+do not change stored types or introduce PostgreSQL standard-array or pgvector ABI.
+
 Cassie has no `numeric`/`decimal` type, so exact arithmetic is carried in `int8` and everything
 else in `float8`. The rules below are stable and deliberately chosen to stay close to PostgreSQL.
 

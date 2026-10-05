@@ -15,6 +15,9 @@ mod support_temp_dirs;
 #[path = "sql_queries/boolean_contexts.rs"]
 mod sql_boolean_contexts;
 
+#[path = "sql_queries/type_output_wildcard_boundary.rs"]
+mod sql_type_output_wildcard_boundary;
+
 mod relational_promotion_evidence {
     use super::support_relational_evidence::SeededRelationalFixture;
 
@@ -678,12 +681,12 @@ mod integration_sql_aggregates {
         .map(|sql| fixture.error(sql).to_string());
 
         // Assert
-        assert!(
-            errors
-                == [
-                    "execution error: function sum(text) does not exist",
-                    "execution error: function avg(text) does not exist",
-                ],
+        assert_eq!(
+            errors,
+            [
+                "execution error: function sum(json) does not exist",
+                "execution error: function avg(json) does not exist",
+            ],
             "a non-numeric row in a mixed column must fail the aggregate"
         );
     }

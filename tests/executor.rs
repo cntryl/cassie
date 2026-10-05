@@ -5999,7 +5999,7 @@ mod typed_array_ordering {
                 ["b", "a"].map(|item| vec![Value::String(item.into())])
             );
             assert_eq!(sql(cassie, session, "SELECT item, ROW_NUMBER() OVER (ORDER BY arr) AS rank FROM array_values ORDER BY arr").rows, ["c", "d", "a", "b"].into_iter().zip(1..=4).map(|(item, rank)| vec![Value::String(item.into()), Value::Int64(rank)]).collect::<Vec<_>>());
-            assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows, vec![vec![Value::String("c".into()), Value::String("[]".into())]]);
+            assert_eq!(sql(cassie, session, "SELECT item, FIRST_VALUE(arr) OVER (PARTITION BY item ORDER BY item) AS first_arr FROM array_values ORDER BY first_arr LIMIT 1").rows, vec![vec![Value::String("c".into()), Value::Json(serde_json::json!([]))]]);
             assert_eq!(sql(cassie, session, "SELECT left_arrays.item FROM (SELECT item, arr FROM array_values) AS left_arrays JOIN (SELECT item, arr FROM array_values) AS right_arrays ON left_arrays.arr > right_arrays.arr WHERE right_arrays.item='a'").rows, vec![vec![Value::String("b".into())]]);
             let bounded = cassie
                 .execute_sql(

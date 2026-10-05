@@ -5,6 +5,9 @@ use super::*;
 use crate::config::CassieRuntimeLimits;
 use crate::executor::execution::build_logical_plan;
 
+#[path = "control_tests.rs"]
+mod controls;
+
 const SERIAL_ROW_COUNT: usize = 50_000;
 const SERIAL_GROUP_COUNT: usize = 4;
 
@@ -43,6 +46,7 @@ fn should_account_serial_aggregate_groups_without_rescanning_buffered_rows() {
         user_functions: &user_functions,
         session: None,
         controls: &controls,
+        after_partition_row: None,
     };
     let rows = (0..SERIAL_ROW_COUNT).map(tenant_row).collect::<Vec<_>>();
     let expected_peak = (0..SERIAL_GROUP_COUNT)
@@ -109,6 +113,7 @@ fn aggregate_context<'a>(
         user_functions,
         session: None,
         controls,
+        after_partition_row: None,
     }
 }
 

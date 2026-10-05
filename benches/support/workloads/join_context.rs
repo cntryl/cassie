@@ -12,6 +12,10 @@ use super::context::{
 };
 use super::document_batches::bench_document_write_batch_ranges;
 
+pub const DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1_024;
+pub const DENSE_STREAM_BENCHMARK_BATCH_SIZE: usize = 64;
+pub const DENSE_STREAM_BENCHMARK_RESOURCE_PROFILE: &str = "dense_stream_selection_64k";
+
 pub fn vectorized_join_context(
     label: &str,
     dataset_rows: usize,
@@ -99,7 +103,7 @@ pub fn vectorized_dense_join_context(
         JoinLoadShape::DenseRight {
             order_rows: dataset_rows,
         },
-        Some(4 * 1024),
+        Some(DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES),
     ))
 }
 
@@ -164,7 +168,12 @@ fn vectorized_join_context_with_budget(
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
     config.limits.vectorized_joins_enabled = true;
-    config.limits.vectorized_join_batch_size = 1024;
+    config.limits.vectorized_join_batch_size = if matches!(shape, JoinLoadShape::DenseRight { .. })
+    {
+        DENSE_STREAM_BENCHMARK_BATCH_SIZE
+    } else {
+        1_024
+    };
     config.limits.operator_switch_join_row_threshold = dataset_rows.saturating_mul(2).max(1);
     config.limits.query_memory_budget_bytes =
         temp_budget_bytes.unwrap_or(ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES);

@@ -10,6 +10,10 @@ use super::{
     HnswSearchResult, OrderedCandidateSet, SearchCandidate,
 };
 
+#[cfg(test)]
+#[path = "controlled/tests.rs"]
+mod tests;
+
 /// Searches a persisted graph through an unaccounted point-read node loader.
 pub fn search_graph_with_node_loader(
     metric: DistanceMetric,
@@ -54,11 +58,19 @@ struct ControlledLayerContext<'a> {
     controls: &'a QueryExecutionControls,
 }
 
+struct ControlledCachedNode {
+    node: Option<Arc<HnswGraphNode>>,
+    _memory: QueryMemoryReservation,
+}
+
 pub(crate) fn search_graph_with_controlled_node_loader(
     request: &ControlledHnswSearchRequest<'_>,
     controls: &QueryExecutionControls,
-    mut load_node: impl FnMut(&str) -> Result<Option<HnswGraphNode>, CassieError>,
-) -> Result<Option<HnswSearchResult>, CassieError> {
+    mut load_node: impl FnMut(
+        &str,
+    )
+        -> Result<Option<(HnswGraphNode, QueryMemoryReservation)>, CassieError>,
+) -> Result<Option<(HnswSearchResult, QueryMemoryReservation)>, CassieError> {
     check_controls(controls)?;
     let query_bytes = request
         .query
@@ -69,22 +81,14 @@ pub(crate) fn search_graph_with_controlled_node_loader(
     let Some(distance_query) = GraphDistanceQuery::from_query(request.query) else {
         return Ok(None);
     };
-    let mut cache_memory = controls.reserve_query_memory(0)?;
     let mut traversal_memory = controls.reserve_query_memory(0)?;
-    let mut cache = BTreeMap::<String, Option<Arc<HnswGraphNode>>>::new();
+    let mut cache = BTreeMap::<String, ControlledCachedNode>::new();
     let mut load = |id: &str| -> Result<Option<Arc<HnswGraphNode>>, CassieError> {
-        check_controls(controls)?;
-        if let Some(node) = cache.get(id) {
-            return Ok(node.clone());
-        }
-        let loaded = load_node(id)?.map(Arc::new);
-        cache_memory.try_grow(hnsw_cache_entry_bytes(id, loaded.as_deref()))?;
-        cache.insert(id.to_string(), loaded.clone());
-        Ok(loaded)
+        load_controlled_cached_node(&mut cache, id, controls, &mut load_node)
     };
 
-    let mut current = request.entry_point.to_string();
-    traversal_memory.try_grow(current.len())?;
+    traversal_memory.try_grow(request.entry_point.len())?;
+    let mut current = request.entry_point.to_owned();
     let entry = load(request.entry_point)?
         .ok_or_else(|| CassieError::Execution("hnsw fallback:missing-entry-point".to_string()))?;
     if entry.layers.len() <= request.max_layer {
@@ -145,10 +149,52 @@ pub(crate) fn search_graph_with_controlled_node_loader(
     exact.sort_by(compare_hnsw_candidates);
     exact.truncate(request.limit.max(1));
     check_controls(controls)?;
-    Ok(Some(HnswSearchResult {
-        candidates: exact,
-        candidate_count,
-    }))
+    // Transfer the guard with the candidate buffer so it stays reserved across this boundary.
+    Ok(Some((
+        HnswSearchResult {
+            candidates: exact,
+            candidate_count,
+        },
+        traversal_memory,
+    )))
+}
+
+fn load_controlled_cached_node(
+    cache: &mut BTreeMap<String, ControlledCachedNode>,
+    id: &str,
+    controls: &QueryExecutionControls,
+    load_node: &mut impl FnMut(
+        &str,
+    )
+        -> Result<Option<(HnswGraphNode, QueryMemoryReservation)>, CassieError>,
+) -> Result<Option<Arc<HnswGraphNode>>, CassieError> {
+    check_controls(controls)?;
+    if let Some(cached) = cache.get(id) {
+        return Ok(cached.node.clone());
+    }
+    let (loaded, memory) = match load_node(id)? {
+        Some((node, mut memory)) => {
+            let bytes = hnsw_cache_entry_bytes(id, Some(&node))?;
+            if bytes > memory.bytes() {
+                memory.try_grow(bytes - memory.bytes())?;
+            } else {
+                memory.shrink_to(bytes);
+            }
+            (Some(Arc::new(node)), memory)
+        }
+        None => (
+            None,
+            controls.reserve_query_memory(hnsw_cache_entry_bytes(id, None)?)?,
+        ),
+    };
+    cache.insert(
+        id.to_owned(),
+        ControlledCachedNode {
+            node: loaded.clone(),
+            _memory: memory,
+        },
+    );
+    Ok(loaded)
 }
 
 fn build_search_result(
@@ -271,6 +317,7 @@ fn greedy_layer_search_loaded_controlled(
     memory: &mut QueryMemoryReservation,
     load: &mut impl FnMut(&str) -> Result<Option<Arc<HnswGraphNode>>, CassieError>,
 ) -> Result<String, CassieError> {
+    memory.try_grow(entry_point.len())?;
     let mut current = entry_point.to_string();
     loop {
         check_controls(context.controls)?;
@@ -319,16 +366,13 @@ fn search_graph_layer_loaded_controlled(
         return Ok(Vec::new());
     };
     let mut visited = BTreeSet::new();
-    let entry_candidate = SearchCandidate {
-        id: entry.id.clone(),
-        distance: graph_distance(context.metric, context.query, &entry),
-    };
-    reserve_search_candidate(memory, &entry_candidate, 3)?;
+    reserve_visited_identity(memory, &entry.id)?;
     visited.insert(entry.id.clone());
     let mut candidates = OrderedCandidateSet::unbounded();
-    candidates.insert(entry_candidate.clone());
     let mut nearest = OrderedCandidateSet::bounded(ef);
-    nearest.insert(entry_candidate);
+    let entry_distance = graph_distance(context.metric, context.query, &entry);
+    insert_search_candidate(&mut candidates, memory, &entry.id, entry_distance)?;
+    insert_search_candidate(&mut nearest, memory, &entry.id, entry_distance)?;
 
     while let Some(candidate) = candidates.pop_nearest() {
         check_controls(context.controls)?;
@@ -347,54 +391,107 @@ fn search_graph_layer_loaded_controlled(
             if visited.contains(neighbor_id) {
                 continue;
             }
-            memory.try_grow(std::mem::size_of::<String>().saturating_add(neighbor_id.len()))?;
+            reserve_visited_identity(memory, neighbor_id)?;
             visited.insert(neighbor_id.clone());
             let Some(neighbor) = load(neighbor_id)? else {
                 continue;
             };
             let distance = graph_distance(context.metric, context.query, &neighbor);
             if nearest.len() < ef || distance < worst_distance {
-                let next = SearchCandidate {
-                    id: neighbor.id.clone(),
-                    distance,
-                };
-                reserve_search_candidate(memory, &next, 2)?;
-                candidates.insert(next.clone());
-                nearest.insert(next);
+                insert_search_candidate(&mut candidates, memory, &neighbor.id, distance)?;
+                insert_search_candidate(&mut nearest, memory, &neighbor.id, distance)?;
             }
         }
     }
     Ok(nearest.into_vec())
 }
 
-fn reserve_search_candidate(
+fn insert_search_candidate(
+    candidates: &mut OrderedCandidateSet,
     memory: &mut QueryMemoryReservation,
-    candidate: &SearchCandidate,
-    copies: usize,
+    id: &str,
+    distance: f64,
 ) -> Result<(), CassieError> {
-    memory.try_grow(
-        std::mem::size_of::<SearchCandidate>()
-            .saturating_add(candidate.id.len())
-            .saturating_mul(copies),
+    let previous_bytes = memory.bytes();
+    memory.try_grow(checked_add_bytes(
+        std::mem::size_of::<SearchCandidate>(),
+        id.len(),
+    )?)?;
+    if let Err(error) = candidates.entries.try_reserve_exact(1) {
+        memory.shrink_to(previous_bytes);
+        return Err(CassieError::ResourceLimit(format!(
+            "unable to retain controlled HNSW search candidate: {error}"
+        )));
+    }
+    candidates.insert(SearchCandidate {
+        id: id.to_owned(),
+        distance,
+    });
+    Ok(())
+}
+
+fn reserve_visited_identity(
+    memory: &mut QueryMemoryReservation,
+    id: &str,
+) -> Result<(), CassieError> {
+    memory.try_grow(checked_add_bytes(
+        btree_node_bytes::<String, ()>()?,
+        id.len(),
+    )?)
+}
+
+fn hnsw_cache_entry_bytes(id: &str, node: Option<&HnswGraphNode>) -> Result<usize, CassieError> {
+    let cache_bytes = checked_add_bytes(
+        btree_node_bytes::<String, ControlledCachedNode>()?,
+        id.len(),
+    )?;
+    let Some(node) = node else {
+        return Ok(cache_bytes);
+    };
+    let inline = checked_add_bytes(
+        std::mem::size_of::<HnswGraphNode>(),
+        2 * std::mem::size_of::<usize>(),
+    )?;
+    let vectors = checked_mul_bytes(node.vector.capacity(), std::mem::size_of::<f32>())?;
+    let layers = checked_mul_bytes(node.layers.capacity(), std::mem::size_of::<Vec<String>>())?;
+    let neighbors = node.layers.iter().try_fold(layers, |bytes, layer| {
+        let slots = checked_mul_bytes(layer.capacity(), std::mem::size_of::<String>())?;
+        layer
+            .iter()
+            .try_fold(checked_add_bytes(bytes, slots)?, |bytes, neighbor| {
+                checked_add_bytes(bytes, neighbor.capacity())
+            })
+    })?;
+    checked_add_bytes(
+        cache_bytes,
+        checked_add_bytes(
+            inline,
+            checked_add_bytes(node.id.capacity(), checked_add_bytes(vectors, neighbors)?)?,
+        )?,
     )
 }
 
-fn hnsw_cache_entry_bytes(id: &str, node: Option<&HnswGraphNode>) -> usize {
-    let node_bytes = node.map_or(0, |node| {
-        std::mem::size_of::<HnswGraphNode>()
-            .saturating_add(node.id.len())
-            .saturating_add(node.vector.len().saturating_mul(std::mem::size_of::<f32>()))
-            .saturating_add(
-                node.layers
-                    .iter()
-                    .flatten()
-                    .map(|neighbor| std::mem::size_of::<String>().saturating_add(neighbor.len()))
-                    .sum::<usize>(),
-            )
-    });
-    std::mem::size_of::<String>()
-        .saturating_add(id.len())
-        .saturating_add(node_bytes)
+fn btree_node_bytes<K, V>() -> Result<usize, CassieError> {
+    // Charge a complete eleven-slot internal node per entry, including sparse leaf slack.
+    checked_add_bytes(
+        checked_mul_bytes(
+            11,
+            checked_add_bytes(std::mem::size_of::<K>(), std::mem::size_of::<V>())?,
+        )?,
+        16 * std::mem::size_of::<usize>(),
+    )
+}
+
+fn checked_add_bytes(left: usize, right: usize) -> Result<usize, CassieError> {
+    left.checked_add(right).ok_or_else(accounting_overflow)
+}
+
+fn checked_mul_bytes(left: usize, right: usize) -> Result<usize, CassieError> {
+    left.checked_mul(right).ok_or_else(accounting_overflow)
+}
+
+fn accounting_overflow() -> CassieError {
+    CassieError::ResourceLimit("controlled HNSW retained memory overflow".to_owned())
 }
 
 fn check_controls(controls: &QueryExecutionControls) -> Result<(), CassieError> {

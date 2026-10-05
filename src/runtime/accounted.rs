@@ -4,6 +4,9 @@ use crate::app::CassieError;
 
 use super::{QueryExecutionControls, QueryMemoryReservation};
 
+#[path = "accounted/json.rs"]
+pub(crate) mod json;
+
 /// A retained value paired with the query-memory reservation that owns its budget.
 ///
 /// The value intentionally cannot be separated from its reservation. Consumers can move the

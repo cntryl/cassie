@@ -12,6 +12,9 @@ use super::{
 #[path = "source_join.rs"]
 mod source_join;
 
+#[path = "source_collection.rs"]
+mod source_collection;
+
 #[path = "source_shape.rs"]
 mod source_shape;
 
@@ -52,22 +55,18 @@ pub(super) fn execute_query_source(
             right,
             kind,
             on,
-        } => {
-            let (batches, text_fields) = source_join::execute_join_source(
-                env,
-                source_join::JoinExecutionSpec {
-                    left,
-                    right,
-                    kind: *kind,
-                    on,
-                    outer_row,
-                    row_budget,
-                },
-                cte_context,
-            )?;
-            ensure_query_memory_budget(env.controls, &batches)?;
-            Ok((batches, text_fields))
-        }
+        } => source_join::execute_join_source(
+            env,
+            source_join::JoinExecutionSpec {
+                left,
+                right,
+                kind: *kind,
+                on,
+                outer_row,
+                row_budget,
+            },
+            cte_context,
+        ),
     }?;
     if !matches!(source, QuerySource::Join { .. }) {
         source_shape::attach_types(env, source, cte_context, &mut batches)?;
@@ -99,14 +98,8 @@ fn execute_collection_source(
         return execute_materialized_projection_source(env, name, &projection, qualify, row_budget);
     }
 
-    let batches = scan::scan_limit(env.cassie, env.session, name, row_budget, env.controls)?;
-    finalize_source_batches(
-        env,
-        batches,
-        env.cassie.catalog.text_fields(name),
-        qualify,
-        name,
-    )
+    let batches = source_collection::scan_collection(env, name, row_budget, qualify, name)?;
+    Ok((batches, env.cassie.catalog.text_fields(name)))
 }
 
 fn execute_view_source(
@@ -154,19 +147,14 @@ fn execute_materialized_projection_source(
             ))
         })?
         .to_string();
-    let batches = scan::scan_limit(
-        env.cassie,
-        env.session,
-        &output_collection,
-        row_budget,
-        env.controls,
-    )?;
+    let batches =
+        source_collection::scan_collection(env, &output_collection, row_budget, qualify, name)?;
     let text_fields = projection
         .materialized
         .as_ref()
         .map(|materialized| schema_text_fields(&materialized.output_schema))
         .unwrap_or_default();
-    finalize_source_batches(env, batches, text_fields, qualify, name)
+    Ok((batches, text_fields))
 }
 
 fn execute_single_row_source(env: &SourceExecutionEnv<'_>) -> SourceExecution {
@@ -692,6 +680,8 @@ fn apply_aggregate_phase(
             user_functions: env.user_functions,
             session: env.session,
             controls: env.controls,
+            #[cfg(test)]
+            after_partition_row: None,
         },
     )?;
     ensure_query_memory_budget(env.controls, &batches)?;

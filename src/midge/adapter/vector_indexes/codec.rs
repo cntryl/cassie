@@ -1,3 +1,5 @@
+use std::mem::size_of;
+
 use crate::app::CassieError;
 use crate::embeddings::{DistanceMetric, NormalizedVectorRecord};
 
@@ -152,6 +154,18 @@ pub(crate) fn encode_normalized_vector(
     Ok(out)
 }
 
+/// Bounds the exact decoded f32 allocation only for a complete normalized frame.
+pub(super) fn normalized_vector_decoded_values_bytes(raw: &[u8]) -> Option<usize> {
+    if raw.len() < 27 {
+        return None;
+    }
+    let dimensions = u32::from_be_bytes([raw[13], raw[14], raw[15], raw[16]]);
+    let bytes = usize::try_from(dimensions)
+        .ok()
+        .and_then(|dimensions| dimensions.checked_mul(size_of::<f32>()))?;
+    (bytes.checked_add(27) == Some(raw.len())).then_some(bytes)
+}
+
 pub(crate) fn decode_normalized_vector(
     bytes: &[u8],
     collection: &str,
@@ -188,9 +202,18 @@ pub(crate) fn decode_normalized_vector(
         }
     };
     let magnitude = f64::from_bits(cursor.u64()?);
-    let values = (0..dimensions)
-        .map(|_| cursor.u32().map(f32::from_bits))
-        .collect::<Result<Vec<_>, _>>()?;
+    if dimensions.checked_mul(size_of::<f32>()) != Some(bytes.len() - cursor.offset) {
+        return Err(CassieError::Parse(
+            "invalid normalized vector payload size".to_owned(),
+        ));
+    }
+    let mut values = Vec::new();
+    values.try_reserve_exact(dimensions).map_err(|error| {
+        CassieError::ResourceLimit(format!("unable to decode normalized vector: {error}"))
+    })?;
+    for _ in 0..dimensions {
+        values.push(f32::from_bits(cursor.u32()?));
+    }
     cursor.finish()?;
     Ok(NormalizedVectorRecord {
         collection: collection.to_string(),

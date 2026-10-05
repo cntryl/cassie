@@ -1,54 +1,75 @@
-use super::super::{
-    check_timeout, combine_rows, filter, BatchRow, Expr, JoinKind, QueryError, SourceExecutionEnv,
+use super::{
+    accounting, check_timeout, combine_rows, filter, row_join_key, BatchRow, EquiJoinKeys,
+    JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows, JoinRowsSpec,
+    PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
 };
-use super::{batch_row_bytes, row_join_key, EquiJoinKeys, JoinRowsSpec};
 use crate::executor::semantic::SemanticKey;
 
-#[derive(Debug)]
 struct KeyedRow {
     key: Option<SemanticKey>,
     row: BatchRow,
 }
 
-pub(super) fn execute_merge_join(
+pub(super) fn execute_merge_join_with_context(
     env: &SourceExecutionEnv<'_>,
     keys: &EquiJoinKeys,
     spec: JoinRowsSpec<'_>,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let left_len = spec.left_rows.len();
-    let right_len = spec.right_rows.len();
-    let mut left_keyed = keyed_rows(spec.left_rows, &keys.left);
-    let mut right_keyed = keyed_rows(spec.right_rows, &keys.right);
-    let keyed_bytes = left_keyed
-        .iter()
-        .chain(&right_keyed)
-        .map(|row| {
-            std::mem::size_of::<KeyedRow>()
-                .saturating_add(row.key.as_ref().map_or(0, SemanticKey::estimated_bytes))
-                .saturating_add(batch_row_bytes(&row.row))
-        })
-        .sum();
-    let _keyed_memory = env.controls.reserve_query_memory(keyed_bytes)?;
+    keyed_probe: impl FnOnce(),
+    retention: &JoinRetentionContext<'_>,
+) -> Result<JoinResult, QueryError> {
+    let _keyed_memory = env
+        .controls
+        .reserve_query_memory(accounting::keyed_rows_bytes::<KeyedRow>(
+            spec.left_rows,
+            &keys.left,
+            spec.right_rows,
+            &keys.right,
+        )?)?;
+    let mut left_keyed = keyed_rows(spec.left_rows, &keys.left, retention)?;
+    let mut right_keyed = keyed_rows(spec.right_rows, &keys.right, retention)?;
+    keyed_probe();
+    check_timeout(env.controls)?;
+    // Preserve stable equal-key order; admission includes the native sort scratch.
     left_keyed.sort_by(|left, right| left.key.cmp(&right.key));
     right_keyed.sort_by(|left, right| left.key.cmp(&right.key));
-
-    let mut state = MergeJoinState::new(spec.row_budget);
-    state.join_keyed_rows(env, spec, &left_keyed, &right_keyed)?;
-    state.append_remaining(spec, &left_keyed, &right_keyed);
-
-    env.cassie.runtime.record_join_execution(
-        "merge",
-        left_len,
-        right_len,
-        state.matched_rows,
-        state.joined.len(),
-        None,
-    );
-    Ok(state.joined)
+    check_timeout(env.controls)?;
+    let mut state = MergeJoinState {
+        joined: JoinRows::try_new(env.controls)?,
+        matched_rows: 0,
+        left_index: 0,
+        right_index: 0,
+        output_budget: spec.row_budget.unwrap_or(usize::MAX),
+    };
+    state.join_keyed_rows(env, spec, &left_keyed, &right_keyed, retention)?;
+    append_unmatched(
+        env,
+        &mut state.joined,
+        spec,
+        &UnmatchedRows::Left(&left_keyed[state.left_index..]),
+        state.output_budget,
+        retention,
+    )?;
+    append_unmatched(
+        env,
+        &mut state.joined,
+        spec,
+        &UnmatchedRows::Right(&right_keyed[state.right_index..]),
+        state.output_budget,
+        retention,
+    )?;
+    Ok(JoinResult::new(
+        state.joined,
+        PendingJoinDiagnostic::Scalar {
+            operator: "merge",
+            left_rows: spec.left_rows.len(),
+            right_rows: spec.right_rows.len(),
+            matched_rows: state.matched_rows,
+        },
+    ))
 }
 
 struct MergeJoinState {
-    joined: Vec<BatchRow>,
+    joined: JoinRows,
     matched_rows: usize,
     left_index: usize,
     right_index: usize,
@@ -56,144 +77,102 @@ struct MergeJoinState {
 }
 
 impl MergeJoinState {
-    fn new(row_budget: Option<usize>) -> Self {
-        Self {
-            joined: Vec::new(),
-            matched_rows: 0,
-            left_index: 0,
-            right_index: 0,
-            output_budget: row_budget.unwrap_or(usize::MAX),
-        }
-    }
-
     fn join_keyed_rows(
         &mut self,
         env: &SourceExecutionEnv<'_>,
         spec: JoinRowsSpec<'_>,
-        left_keyed: &[KeyedRow],
-        right_keyed: &[KeyedRow],
+        left: &[KeyedRow],
+        right: &[KeyedRow],
+        retention: &JoinRetentionContext<'_>,
     ) -> Result<(), QueryError> {
         while self.joined.len() < self.output_budget
-            && self.left_index < left_keyed.len()
-            && self.right_index < right_keyed.len()
+            && self.left_index < left.len()
+            && self.right_index < right.len()
         {
             check_timeout(env.controls)?;
-            match left_keyed[self.left_index]
-                .key
-                .cmp(&right_keyed[self.right_index].key)
-            {
-                std::cmp::Ordering::Less => self.consume_left_group(spec, left_keyed),
-                std::cmp::Ordering::Greater => self.consume_right_group(spec, right_keyed),
+            let left_end = keyed_group_end(left, self.left_index);
+            let right_end = keyed_group_end(right, self.right_index);
+            match left[self.left_index].key.cmp(&right[self.right_index].key) {
+                std::cmp::Ordering::Less => {
+                    append_unmatched(
+                        env,
+                        &mut self.joined,
+                        spec,
+                        &UnmatchedRows::Left(&left[self.left_index..left_end]),
+                        self.output_budget,
+                        retention,
+                    )?;
+                    self.left_index = left_end;
+                }
+                std::cmp::Ordering::Greater => {
+                    append_unmatched(
+                        env,
+                        &mut self.joined,
+                        spec,
+                        &UnmatchedRows::Right(&right[self.right_index..right_end]),
+                        self.output_budget,
+                        retention,
+                    )?;
+                    self.right_index = right_end;
+                }
                 std::cmp::Ordering::Equal => {
-                    self.consume_equal_groups(env, spec, left_keyed, right_keyed)?;
+                    let left_group = &left[self.left_index..left_end];
+                    let right_group = &right[self.right_index..right_end];
+                    if left[self.left_index].key.is_some() {
+                        self.matched_rows += merge_equal_key_groups(
+                            env,
+                            &mut self.joined,
+                            &MergeGroupsSpec {
+                                rows: spec,
+                                left: left_group,
+                                right: right_group,
+                                output_budget: self.output_budget,
+                            },
+                            retention,
+                        )?;
+                    } else {
+                        append_unmatched(
+                            env,
+                            &mut self.joined,
+                            spec,
+                            &UnmatchedRows::Left(left_group),
+                            self.output_budget,
+                            retention,
+                        )?;
+                        append_unmatched(
+                            env,
+                            &mut self.joined,
+                            spec,
+                            &UnmatchedRows::Right(right_group),
+                            self.output_budget,
+                            retention,
+                        )?;
+                    }
+                    self.left_index = left_end;
+                    self.right_index = right_end;
                 }
             }
         }
         Ok(())
     }
-
-    fn consume_left_group(&mut self, spec: JoinRowsSpec<'_>, left_keyed: &[KeyedRow]) {
-        let group_end = keyed_group_end(left_keyed, self.left_index);
-        append_left_unmatched(
-            &mut self.joined,
-            spec.kind,
-            &left_keyed[self.left_index..group_end],
-            spec.right_template,
-            self.output_budget,
-        );
-        self.left_index = group_end;
-    }
-
-    fn consume_right_group(&mut self, spec: JoinRowsSpec<'_>, right_keyed: &[KeyedRow]) {
-        let group_end = keyed_group_end(right_keyed, self.right_index);
-        append_right_unmatched(
-            &mut self.joined,
-            spec.kind,
-            spec.left_template,
-            &right_keyed[self.right_index..group_end],
-            self.output_budget,
-        );
-        self.right_index = group_end;
-    }
-
-    fn consume_equal_groups(
-        &mut self,
-        env: &SourceExecutionEnv<'_>,
-        spec: JoinRowsSpec<'_>,
-        left_keyed: &[KeyedRow],
-        right_keyed: &[KeyedRow],
-    ) -> Result<(), QueryError> {
-        let left_end = keyed_group_end(left_keyed, self.left_index);
-        let right_end = keyed_group_end(right_keyed, self.right_index);
-        let left_group = &left_keyed[self.left_index..left_end];
-        let right_group = &right_keyed[self.right_index..right_end];
-        if left_keyed[self.left_index].key.is_some() {
-            let result = merge_equal_key_groups(
-                env,
-                MergeEqualGroupsSpec {
-                    kind: spec.kind,
-                    on: spec.on,
-                    left_template: spec.left_template,
-                    right_template: spec.right_template,
-                    output_budget: self.output_budget.saturating_sub(self.joined.len()),
-                },
-                left_group,
-                right_group,
-            )?;
-            self.matched_rows += result.matched_rows;
-            self.joined.extend(result.joined);
-        } else {
-            append_left_unmatched(
-                &mut self.joined,
-                spec.kind,
-                left_group,
-                spec.right_template,
-                self.output_budget,
-            );
-            append_right_unmatched(
-                &mut self.joined,
-                spec.kind,
-                spec.left_template,
-                right_group,
-                self.output_budget,
-            );
-        }
-        self.left_index = left_end;
-        self.right_index = right_end;
-        Ok(())
-    }
-
-    fn append_remaining(
-        &mut self,
-        spec: JoinRowsSpec<'_>,
-        left_keyed: &[KeyedRow],
-        right_keyed: &[KeyedRow],
-    ) {
-        append_left_unmatched(
-            &mut self.joined,
-            spec.kind,
-            &left_keyed[self.left_index..],
-            spec.right_template,
-            self.output_budget,
-        );
-        append_right_unmatched(
-            &mut self.joined,
-            spec.kind,
-            spec.left_template,
-            &right_keyed[self.right_index..],
-            self.output_budget,
-        );
-    }
 }
 
-fn keyed_rows(rows: &[BatchRow], key_column: &str) -> Vec<KeyedRow> {
-    rows.iter()
-        .cloned()
-        .map(|row| {
-            let key = row_join_key(&row, key_column);
-            KeyedRow { key, row }
-        })
-        .collect()
+fn keyed_rows(
+    rows: &[BatchRow],
+    key_column: &str,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<Vec<KeyedRow>, QueryError> {
+    let mut keyed = Vec::new();
+    keyed
+        .try_reserve_exact(rows.len())
+        .map_err(|error| allocation_error(&error))?;
+    for row in rows {
+        retention.before(JoinRetentionPhase::MergeKeyed)?;
+        let row = row.clone();
+        let key = row_join_key(&row, key_column);
+        keyed.push(KeyedRow { key, row });
+    }
+    Ok(keyed)
 }
 
 fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {
@@ -205,120 +184,125 @@ fn keyed_group_end(rows: &[KeyedRow], start: usize) -> usize {
     end
 }
 
-struct MergeEqualGroupsResult {
-    joined: Vec<BatchRow>,
-    matched_rows: usize,
-}
-
-#[derive(Clone, Copy)]
-struct MergeEqualGroupsSpec<'a> {
-    kind: JoinKind,
-    on: &'a Expr,
-    left_template: &'a BatchRow,
-    right_template: &'a BatchRow,
+struct MergeGroupsSpec<'a> {
+    rows: JoinRowsSpec<'a>,
+    left: &'a [KeyedRow],
+    right: &'a [KeyedRow],
     output_budget: usize,
 }
 
 fn merge_equal_key_groups(
     env: &SourceExecutionEnv<'_>,
-    spec: MergeEqualGroupsSpec<'_>,
-    left_group: &[KeyedRow],
-    right_group: &[KeyedRow],
-) -> Result<MergeEqualGroupsResult, QueryError> {
-    let mut left_matched = vec![false; left_group.len()];
-    let mut right_matched = vec![false; right_group.len()];
-    let mut joined = Vec::new();
-    let mut matched_rows = 0usize;
-
-    'left: for (left_offset, left) in left_group.iter().enumerate() {
-        for (right_offset, right) in right_group.iter().enumerate() {
+    joined: &mut JoinRows,
+    spec: &MergeGroupsSpec<'_>,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<usize, QueryError> {
+    let bitmap_bytes = crate::executor::retained_memory::add(spec.left.len(), spec.right.len())?;
+    let _bitmap_memory = env.controls.reserve_query_memory(bitmap_bytes)?;
+    let mut left_matched = vec![false; spec.left.len()];
+    let mut right_matched = vec![false; spec.right.len()];
+    let mut matched_rows = 0;
+    'left: for (left_index, left_row) in spec.left.iter().enumerate() {
+        for (right_index, right_row) in spec.right.iter().enumerate() {
             check_timeout(env.controls)?;
-            let combined = combine_rows(&left.row, &right.row);
-            if filter::eval_scalar(
-                &combined,
-                spec.on,
-                env.params,
-                None,
-                env.user_functions,
-                None,
-                env.session,
-            )?
-            .is_true()
-            {
-                left_matched[left_offset] = true;
-                right_matched[right_offset] = true;
+            let accepted = joined.try_push_combined(&left_row.row, &right_row.row, || {
+                retention.before(JoinRetentionPhase::MergeOutput)?;
+                check_timeout(env.controls)?;
+                let combined = combine_rows(&left_row.row, &right_row.row);
+                let passes = filter::eval_scalar(
+                    &combined,
+                    spec.rows.on,
+                    env.params,
+                    None,
+                    env.user_functions,
+                    None,
+                    env.session,
+                )?
+                .is_true();
+                Ok(passes.then_some(combined))
+            })?;
+            if accepted {
+                left_matched[left_index] = true;
+                right_matched[right_index] = true;
                 matched_rows += 1;
-                joined.push(combined);
                 if joined.len() >= spec.output_budget {
                     break 'left;
                 }
             }
         }
     }
-
-    if joined.len() < spec.output_budget && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
-        for (offset, matched) in left_matched.iter().enumerate() {
-            if !matched {
-                joined.push(combine_rows(&left_group[offset].row, spec.right_template));
-                if joined.len() >= spec.output_budget {
-                    break;
-                }
+    if matches!(spec.rows.kind, JoinKind::Left | JoinKind::Full) {
+        for (index, row) in spec.left.iter().enumerate() {
+            if !left_matched[index] && joined.len() < spec.output_budget {
+                append_unmatched(
+                    env,
+                    joined,
+                    spec.rows,
+                    &UnmatchedRows::Left(std::slice::from_ref(row)),
+                    spec.output_budget,
+                    retention,
+                )?;
             }
         }
     }
-    if joined.len() < spec.output_budget && matches!(spec.kind, JoinKind::Right | JoinKind::Full) {
-        for (offset, matched) in right_matched.iter().enumerate() {
-            if !matched {
-                joined.push(combine_rows(spec.left_template, &right_group[offset].row));
-                if joined.len() >= spec.output_budget {
-                    break;
-                }
+    if matches!(spec.rows.kind, JoinKind::Right | JoinKind::Full) {
+        for (index, row) in spec.right.iter().enumerate() {
+            if !right_matched[index] && joined.len() < spec.output_budget {
+                append_unmatched(
+                    env,
+                    joined,
+                    spec.rows,
+                    &UnmatchedRows::Right(std::slice::from_ref(row)),
+                    spec.output_budget,
+                    retention,
+                )?;
             }
         }
     }
-
-    Ok(MergeEqualGroupsResult {
-        joined,
-        matched_rows,
-    })
+    Ok(matched_rows)
 }
 
-fn append_left_unmatched(
-    joined: &mut Vec<BatchRow>,
-    kind: JoinKind,
-    rows: &[KeyedRow],
-    right_template: &BatchRow,
-    output_budget: usize,
-) {
-    if joined.len() >= output_budget {
-        return;
-    }
-    if matches!(kind, JoinKind::Left | JoinKind::Full) {
-        for left in rows {
-            joined.push(combine_rows(&left.row, right_template));
-            if joined.len() >= output_budget {
-                break;
-            }
-        }
-    }
+enum UnmatchedRows<'a> {
+    Left(&'a [KeyedRow]),
+    Right(&'a [KeyedRow]),
 }
 
-fn append_right_unmatched(
-    joined: &mut Vec<BatchRow>,
-    kind: JoinKind,
-    left_template: &BatchRow,
-    rows: &[KeyedRow],
+fn append_unmatched(
+    env: &SourceExecutionEnv<'_>,
+    joined: &mut JoinRows,
+    spec: JoinRowsSpec<'_>,
+    rows: &UnmatchedRows<'_>,
     output_budget: usize,
-) {
-    if joined.len() >= output_budget {
-        return;
-    }
-    if matches!(kind, JoinKind::Right | JoinKind::Full) {
-        for right in rows {
-            joined.push(combine_rows(left_template, &right.row));
-            if joined.len() >= output_budget {
-                break;
-            }
+    retention: &JoinRetentionContext<'_>,
+) -> Result<(), QueryError> {
+    let (rows, is_left) = match rows {
+        UnmatchedRows::Left(rows) if matches!(spec.kind, JoinKind::Left | JoinKind::Full) => {
+            (*rows, true)
         }
+        UnmatchedRows::Right(rows) if matches!(spec.kind, JoinKind::Right | JoinKind::Full) => {
+            (*rows, false)
+        }
+        _ => return Ok(()),
+    };
+    for row in rows {
+        if joined.len() >= output_budget {
+            break;
+        }
+        let (left, right) = if is_left {
+            (&row.row, spec.right_template)
+        } else {
+            (spec.left_template, &row.row)
+        };
+        joined.try_push_combined(left, right, || {
+            retention.before(JoinRetentionPhase::MergeOutput)?;
+            check_timeout(env.controls)?;
+            Ok(Some(combine_rows(left, right)))
+        })?;
     }
+    Ok(())
+}
+
+fn allocation_error(error: &std::collections::TryReserveError) -> QueryError {
+    crate::app::CassieError::ResourceLimit(format!("unable to retain merge join state: {error}"))
+        .into()
 }

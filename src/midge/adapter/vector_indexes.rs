@@ -7,6 +7,8 @@ use super::{
 mod build;
 #[path = "vector_indexes/codec.rs"]
 pub(super) mod codec;
+#[path = "vector_indexes/controlled_normalized.rs"]
+mod controlled_normalized;
 #[path = "vector_indexes/ivfflat.rs"]
 mod ivfflat;
 #[path = "vector_indexes/math.rs"]

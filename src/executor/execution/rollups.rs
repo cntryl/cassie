@@ -704,6 +704,8 @@ fn materialize_rollup_batches(
             user_functions,
             session: None,
             controls,
+            #[cfg(test)]
+            after_partition_row: None,
         },
     )?;
     let _projected_output_memory =

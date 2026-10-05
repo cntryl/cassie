@@ -199,11 +199,14 @@ pub fn probe_lists(normalized_query: &[f32], training: &IvfFlatTrainingState) ->
 
 #[must_use]
 pub fn denormalized_vector(record: &NormalizedVectorRecord) -> Option<Vec<f32>> {
-    record
-        .values
-        .iter()
-        .map(|value| crate::vector::denormalize_f32_component(*value, record.magnitude))
-        .collect()
+    let mut values = Vec::with_capacity(record.values.len());
+    for value in &record.values {
+        values.push(crate::vector::denormalize_f32_component(
+            *value,
+            record.magnitude,
+        )?);
+    }
+    Some(values)
 }
 
 fn squared_l2(left: &[f32], right: &[f32]) -> f64 {
@@ -227,6 +230,38 @@ mod tests {
     };
     use crate::embeddings::{DistanceMetric, IvfFlatTrainingState, NormalizedVectorRecord};
     use std::collections::BTreeMap;
+
+    #[test]
+    fn should_bound_denormalized_vector_storage_by_reserved_dimensions() {
+        // Arrange
+        let dimensions = [1, 3, 8193];
+        let records = dimensions.map(|count| NormalizedVectorRecord {
+            built_generation: 0,
+            collection: "docs".to_owned(),
+            field: "embedding".to_owned(),
+            id: "row".to_owned(),
+            dimensions: count,
+            metric: DistanceMetric::L2,
+            normalization_version: NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION,
+            payload_available: true,
+            magnitude: 1.0,
+            values: vec![1.0; count],
+        });
+
+        // Act
+        let values = records
+            .each_ref()
+            .map(|record| denormalized_vector(record).expect("finite denormalized vector"));
+
+        // Assert
+        for (value, count) in values.iter().zip(dimensions) {
+            assert_eq!(value.len(), count);
+            assert!(
+                value.capacity() <= count,
+                "spare vector capacity exceeds the query reservation"
+            );
+        }
+    }
 
     #[test]
     fn should_probe_nearest_centroid_lists() {

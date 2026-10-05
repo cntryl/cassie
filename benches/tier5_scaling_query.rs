@@ -708,7 +708,7 @@ fn measure_recursive_cte(
             let rows = runtime.block_on(workloads::recursive_cte_query(context, UPPER_BOUND));
             workloads::assert_scaling_resource_bounds_with_memory_limit(
                 context,
-                workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+                workloads::LARGE_RECURSIVE_CTE_BENCHMARK_QUERY_MEMORY_BYTES,
             );
             rows
         },
@@ -784,12 +784,20 @@ fn selected_case(
     rows: usize,
 ) -> Option<stress::StressCase> {
     let dense_stream_selection = workload == "vectorized_dense_streaming_inner_join";
-    let query_memory_budget = if dense_stream_selection {
-        4 * 1_024
+    let recursive_materialization = workload == "recursive_cte_query";
+    let query_memory_budget = if recursive_materialization {
+        workloads::LARGE_RECURSIVE_CTE_BENCHMARK_QUERY_MEMORY_BYTES
+    } else if dense_stream_selection {
+        workloads::DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES
     } else if rows > 100_000 {
         workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
     } else {
         workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
+    };
+    let query_timeout_ms = if recursive_materialization {
+        0
+    } else {
+        workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS
     };
     let operation_unit = match workload {
         "recursive_cte_query" | "window_frame_query" => stress::OperationUnit::ResultRow,
@@ -806,12 +814,17 @@ fn selected_case(
             operation_unit,
         )
         .metadata("query_memory_budget_bytes", query_memory_budget.to_string())
-        .metadata(
-            "query_timeout_ms",
-            workloads::LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS.to_string(),
-        );
-    let case = if dense_stream_selection {
-        case.metadata("benchmark_resource_profile", "dense_stream_selection_4k")
+        .metadata("query_timeout_ms", query_timeout_ms.to_string());
+    let case = if recursive_materialization {
+        case.metadata(
+            "benchmark_resource_profile",
+            workloads::LARGE_RECURSIVE_CTE_BENCHMARK_RESOURCE_PROFILE,
+        )
+    } else if dense_stream_selection {
+        case.metadata(
+            "benchmark_resource_profile",
+            workloads::DENSE_STREAM_BENCHMARK_RESOURCE_PROFILE,
+        )
     } else {
         case
     };

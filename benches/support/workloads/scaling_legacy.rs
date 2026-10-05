@@ -9,6 +9,9 @@ use super::context::{
     reopen_scaling_query_context_now, scaling_query_disk_context_now, BenchContext,
 };
 use super::document_batches::bench_document_write_batch_ranges;
+use super::join_context::{
+    DENSE_STREAM_BENCHMARK_BATCH_SIZE, DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES,
+};
 use super::scaling::assert_scaling_resource_bounds;
 
 pub const SIMPLE_SCALING_SQL: &str = "SELECT id, title FROM bench_documents WHERE id = $1";
@@ -92,8 +95,8 @@ impl QueryScalingFixture {
             self.data_dir.clone(),
             self.expected_rows,
             1,
-            4 * 1_024,
-            8,
+            DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES,
+            DENSE_STREAM_BENCHMARK_BATCH_SIZE,
         )?;
         assert_fixture_boundaries(&context, self.expected_rows);
         Ok(context)
@@ -231,7 +234,23 @@ fn assert_legacy_join_variant(
         "vectorized_dense_streaming_inner_join" => {
             assert_eq!(
                 selection_reason, "dense_stream_preemptive_temp_budget",
-                "dense join must select the 4 KiB dense-stream path"
+                "dense join must select the accounted dense-stream path"
+            );
+            assert_eq!(build_rows, 2, "dense join must read two right rows");
+            assert_eq!(probe_rows, 1, "dense join must probe one left row");
+            assert_eq!(index_seeks, 0, "dense join must scan its sources");
+            assert_eq!(
+                metric_delta(before, after, "read_paths", "collection_scan_rows"),
+                3,
+                "dense join must stop after three source rows"
+            );
+            assert!(
+                after["query"]["peak_accounted_memory_bytes"]
+                    .as_u64()
+                    .expect("dense join query-memory peak")
+                    <= u64::try_from(DENSE_STREAM_BENCHMARK_QUERY_MEMORY_BYTES)
+                        .expect("dense join query-memory bound should fit u64"),
+                "dense join exceeded its query-memory profile"
             );
         }
         "vectorized_indexed_inner_join" => {

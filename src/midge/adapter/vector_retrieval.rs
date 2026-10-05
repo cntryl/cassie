@@ -6,6 +6,15 @@ use super::{collect_scan, CassieError, Midge, Query, VectorIndexRecord};
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
+#[path = "vector_retrieval/accounting.rs"]
+mod accounting;
+#[path = "vector_retrieval/controlled_hnsw.rs"]
+mod controlled_hnsw;
+
+#[cfg(test)]
+#[path = "vector_retrieval/tests.rs"]
+mod tests;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct HnswSourceSummary {
     pub(super) built_generation: u64,
@@ -15,6 +24,7 @@ pub(super) struct HnswSourceSummary {
 
 pub(crate) struct PersistedHnswCandidateBatch {
     pub(crate) built_generation: u64,
+    pub(crate) source_row_count: usize,
     pub(crate) candidates: Vec<crate::vector::hnsw::HnswCandidate>,
     pub(crate) candidate_count: usize,
     pub(crate) ann_reads: usize,
@@ -135,7 +145,7 @@ fn load_controlled_hnsw_header(
         return Ok(None);
     };
     record_controlled_ann_read(midge, controls)?;
-    let state_memory = controls.reserve_query_memory(raw.len())?;
+    let state_memory = controls.reserve_query_memory(accounting::vector_state_bytes(raw.len())?)?;
     let persisted = super::codec::decode_vector_index_state(&raw)?;
     if persisted.built_generation != midge.collection_generation(collection)? {
         return Err(CassieError::Execution(
@@ -157,7 +167,8 @@ fn load_controlled_hnsw_header(
             CassieError::Execution("hnsw fallback:missing-source-summary".to_string())
         })?;
     record_controlled_ann_read(midge, controls)?;
-    let summary_memory = controls.reserve_query_memory(summary_raw.len())?;
+    let summary_memory =
+        controls.reserve_query_memory(accounting::source_summary_bytes(summary_raw.len())?)?;
     let summary: HnswSourceSummary = serde_json::from_slice(&summary_raw)
         .map_err(|error| CassieError::Parse(format!("invalid hnsw source summary: {error}")))?;
     if summary.built_generation != persisted.built_generation {
@@ -195,7 +206,9 @@ fn load_controlled_ivfflat_summary(
             CassieError::Execution("ivfflat fallback:missing-source-summary".to_string())
         })?;
     record_controlled_ann_read(context.midge, context.controls)?;
-    let memory = context.controls.reserve_query_memory(raw.len())?;
+    let memory = context
+        .controls
+        .reserve_query_memory(accounting::source_summary_bytes(raw.len())?)?;
     let summary: HnswSourceSummary = serde_json::from_slice(&raw)
         .map_err(|error| CassieError::Parse(format!("invalid vector source summary: {error}")))?;
     if summary.built_generation != context.midge.collection_generation(context.collection)? {
@@ -242,7 +255,7 @@ fn load_controlled_ivfflat_memberships(
             record_controlled_ann_read(context.midge, context.controls)?;
             reads = reads.saturating_add(1);
             observed = observed.saturating_add(1);
-            memory.try_grow(ivfflat_membership_bytes(&key, &value))?;
+            memory.try_grow(accounting::ivfflat_membership_bytes(&key, &value)?)?;
             let Some((stored_list, id)) =
                 key_encoding::decode_ivfflat_membership_suffix(&key, &membership_prefix)
             else {
@@ -299,7 +312,16 @@ fn load_controlled_ivfflat_vectors(
         };
         record_controlled_ann_read(context.midge, context.controls)?;
         reads = reads.saturating_add(1);
-        let retained_bytes = raw.len().saturating_add(id.len());
+        let decoded_bytes = super::codec::normalized_vector_decoded_values_bytes(&raw).unwrap_or(0);
+        let retained_bytes = raw
+            .len()
+            .checked_add(decoded_bytes)
+            .and_then(|bytes| bytes.checked_add(context.collection.len()))
+            .and_then(|bytes| bytes.checked_add(context.field.len()))
+            .and_then(|bytes| bytes.checked_add(id.len()))
+            .ok_or_else(|| {
+                CassieError::ResourceLimit("controlled IVFFlat decode memory overflow".to_owned())
+            })?;
         records.try_push_with_result(retained_bytes, || {
             super::codec::decode_normalized_vector(&raw, context.collection, context.field, &id)
         })?;
@@ -315,13 +337,6 @@ fn load_controlled_ivfflat_vectors(
     }
     let (records, memory) = records.into_parts();
     Ok((records, memory, reads))
-}
-
-fn ivfflat_membership_bytes(key: &[u8], value: &[u8]) -> usize {
-    key.len()
-        .saturating_add(value.len())
-        .saturating_mul(2)
-        .saturating_add(2 * std::mem::size_of::<String>())
 }
 
 fn invalid_ivfflat_membership_key() -> CassieError {
@@ -461,7 +476,8 @@ impl Midge {
             return Ok(None);
         };
         record_controlled_ann_read(self, controls)?;
-        let manifest_memory = controls.reserve_query_memory(raw.len())?;
+        let manifest_memory =
+            controls.reserve_query_memory(accounting::vector_state_bytes(raw.len())?)?;
         let persisted = super::codec::decode_vector_index_state(&raw)?;
         let Some(manifest) = persisted.ivfflat_training else {
             return Ok(None);
@@ -735,11 +751,15 @@ impl Midge {
         collection: &str,
         field: &str,
         query: &[f32],
-        options: &crate::embeddings::HnswIndexOptions,
+        metadata: &crate::embeddings::VectorIndexMetadata,
         limit: usize,
         controls: &QueryExecutionControls,
     ) -> Result<Option<PersistedHnswCandidateBatch>, CassieError> {
         check_ann_controls(controls)?;
+        let options = metadata
+            .hnsw
+            .as_ref()
+            .ok_or_else(|| CassieError::Execution("hnsw fallback:missing-options".to_owned()))?;
         let collection = self.canonical_collection_name(collection);
         let (relation_id, field_id) = self.vector_storage_ids(&collection, field)?;
         let tx = self.begin_data_readonly_tx_for(&collection)?;
@@ -748,6 +768,7 @@ impl Midge {
         else {
             return Ok(None);
         };
+        controlled_hnsw::validate_manifest(&header.manifest, metadata)?;
         let Some(entry_point) = header.manifest.entry_point.as_deref() else {
             return Err(CassieError::Execution(
                 "hnsw fallback:missing-entry-point".to_string(),
@@ -780,10 +801,7 @@ impl Midge {
                     missing_node = true;
                     return Ok(None);
                 };
-                let _decode_memory = controls.reserve_query_memory(raw.len())?;
-                super::codec::decode_hnsw_node(&raw, id)
-                    .map(Some)
-                    .map_err(|_| CassieError::Execution("hnsw fallback:invalid-node".to_string()))
+                controlled_hnsw::decode_node(&raw, id, controls).map(Some)
             },
         )?;
         if missing_node {
@@ -791,23 +809,36 @@ impl Midge {
                 "hnsw fallback:unknown-neighbor-id".to_string(),
             ));
         }
-        let Some(result) = result else {
+        let Some((result, mut candidate_memory)) = result else {
             return Ok(None);
         };
+        // Truncating top-k drops identities but retains the ef_search-sized backing buffer.
         let candidate_bytes = result
             .candidates
             .iter()
-            .map(|candidate| {
-                std::mem::size_of::<crate::vector::hnsw::HnswCandidate>()
-                    .saturating_add(candidate.id.len())
-            })
-            .sum();
-        let candidate_memory = controls.reserve_query_memory(candidate_bytes)?;
+            .fold(
+                result
+                    .candidates
+                    .capacity()
+                    .checked_mul(std::mem::size_of::<crate::vector::hnsw::HnswCandidate>()),
+                |bytes, candidate| bytes.and_then(|bytes| bytes.checked_add(candidate.id.len())),
+            )
+            .ok_or_else(|| {
+                CassieError::ResourceLimit(
+                    "controlled HNSW candidate accounting overflow".to_owned(),
+                )
+            })?;
+        if candidate_bytes > candidate_memory.bytes() {
+            candidate_memory.try_grow(candidate_bytes - candidate_memory.bytes())?;
+        } else {
+            candidate_memory.shrink_to(candidate_bytes);
+        }
         check_ann_controls(controls)?;
         drop(header.state_memory);
         drop(header.summary_memory);
         Ok(Some(PersistedHnswCandidateBatch {
             built_generation: header.built_generation,
+            source_row_count: header.manifest.row_count,
             candidates: result.candidates,
             candidate_count: result.candidate_count,
             ann_reads,

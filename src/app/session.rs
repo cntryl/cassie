@@ -3,6 +3,7 @@ use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
 use crate::catalog::DEFAULT_SCHEMA;
+use crate::runtime::accounted::json;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,39 +140,38 @@ impl StagedWriteSnapshot {
         Arc::clone(&self.changes)
     }
 
-    #[must_use]
-    pub(crate) fn estimated_retained_bytes(&self) -> usize {
-        self.changes.iter().fold(0, |bytes, (id, change)| {
-            bytes
-                .saturating_add(std::mem::size_of::<(String, TransactionRowChange)>())
-                .saturating_add(id.len())
-                .saturating_add(match change {
-                    TransactionRowChange::Upsert(payload) => json_retained_bytes(payload),
+    pub(crate) fn estimated_retained_bytes(&self) -> Result<usize, CassieError> {
+        // Charge a full internal BTree node per entry, including unused key/value slots.
+        // An empty owned map can retain its root, so its estimate includes one node too.
+        let node_bytes = 11
+            * (std::mem::size_of::<String>() + std::mem::size_of::<TransactionRowChange>())
+            + 16 * std::mem::size_of::<usize>();
+        let container_bytes =
+            std::mem::size_of::<CollectionChanges>() + 2 * std::mem::size_of::<usize>();
+        let map_bytes = self
+            .changes
+            .len()
+            .max(1)
+            .checked_mul(node_bytes)
+            .and_then(|bytes| bytes.checked_add(container_bytes))
+            .ok_or_else(staged_snapshot_accounting_overflow)?;
+        self.changes
+            .iter()
+            .try_fold(map_bytes, |bytes, (id, change)| {
+                let payload_bytes = match change {
+                    TransactionRowChange::Upsert(payload) => json::retained_bytes(payload)?,
                     TransactionRowChange::Delete => 0,
-                })
-        })
+                };
+                bytes
+                    .checked_add(id.capacity())
+                    .and_then(|bytes| bytes.checked_add(payload_bytes))
+                    .ok_or_else(staged_snapshot_accounting_overflow)
+            })
     }
 }
 
-fn json_retained_bytes(value: &serde_json::Value) -> usize {
-    let value_bytes = std::mem::size_of::<serde_json::Value>();
-    match value {
-        serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
-            value_bytes
-        }
-        serde_json::Value::String(value) => value_bytes.saturating_add(value.len()),
-        serde_json::Value::Array(values) => values.iter().fold(value_bytes, |bytes, value| {
-            bytes.saturating_add(json_retained_bytes(value))
-        }),
-        serde_json::Value::Object(values) => {
-            values.iter().fold(value_bytes, |bytes, (key, value)| {
-                bytes
-                    .saturating_add(std::mem::size_of::<String>())
-                    .saturating_add(key.len())
-                    .saturating_add(json_retained_bytes(value))
-            })
-        }
-    }
+fn staged_snapshot_accounting_overflow() -> CassieError {
+    CassieError::ResourceLimit("staged snapshot retained memory accounting overflow".to_owned())
 }
 
 impl CassieSession {
@@ -768,11 +768,93 @@ impl StatementMutationBatch {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::sync::Arc;
+    use std::time::Instant;
 
     use serde_json::json;
 
-    use super::{CassieSession, TransactionRowChange};
+    use crate::config::CassieRuntimeLimits;
+    use crate::runtime::accounted::Accounted;
+    use crate::runtime::QueryExecutionControls;
+
+    use super::{
+        BTreeMap, CassieError, CassieSession, CollectionChanges, StagedWriteSnapshot,
+        TransactionRowChange,
+    };
+
+    #[test]
+    fn should_include_staged_snapshot_btree_nodes_before_retaining_shared_changes() {
+        // Arrange
+        let snapshot = StagedWriteSnapshot {
+            changes: Arc::new(BTreeMap::from([(
+                "one".to_owned(),
+                TransactionRowChange::Delete,
+            )])),
+        };
+        let node_bytes = 11
+            * (std::mem::size_of::<String>() + std::mem::size_of::<TransactionRowChange>())
+            + 16 * std::mem::size_of::<usize>();
+        let owned_container_bytes = std::mem::size_of::<CollectionChanges>()
+            + 2 * std::mem::size_of::<usize>()
+            + node_bytes
+            + "one".len();
+
+        // Act
+        let estimated_bytes = snapshot
+            .estimated_retained_bytes()
+            .expect("snapshot retained estimate");
+
+        // Assert
+        assert!(
+            estimated_bytes >= owned_container_bytes,
+            "a retained snapshot owns BTree slots and its Arc allocation"
+        );
+    }
+
+    #[test]
+    fn should_reserve_sparse_staged_snapshot_json_before_retaining_owned_changes() {
+        // Arrange
+        let session = CassieSession::new("postgres".to_owned(), None);
+        session.begin_transaction(None).expect("begin transaction");
+        let mut payload = serde_json::Value::Null;
+        for _ in 0..32 {
+            payload = json!({"a": payload});
+        }
+        session
+            .stage_document_write("items", "one".to_owned(), payload)
+            .expect("stage sparse JSON");
+        let snapshot = session.staged_write_snapshot("items");
+        let controls = QueryExecutionControls::from_limits(
+            &CassieRuntimeLimits {
+                query_memory_budget_bytes: 16 * 1_024,
+                ..CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let retained_calls = Cell::new(0);
+
+        // Act
+        let result = Accounted::try_new(
+            &controls,
+            snapshot
+                .estimated_retained_bytes()
+                .expect("snapshot retained estimate"),
+            || {
+                retained_calls.set(retained_calls.get() + 1);
+                snapshot.shared_changes()
+            },
+        );
+
+        // Assert
+        assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
+        assert_eq!(
+            retained_calls.get(),
+            0,
+            "reserve the complete staged snapshot"
+        );
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
 
     #[test]
     fn should_keep_staged_write_snapshot_immutable_when_session_changes() {
@@ -788,7 +870,9 @@ mod tests {
             .expect("stage initial row");
         let snapshot = session.staged_write_snapshot("snapshot_items");
         let shared_changes = snapshot.shared_changes();
-        let retained_bytes = snapshot.estimated_retained_bytes();
+        let retained_bytes = snapshot
+            .estimated_retained_bytes()
+            .expect("snapshot retained estimate");
 
         // Act
         session

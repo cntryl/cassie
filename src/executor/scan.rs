@@ -17,6 +17,12 @@ use crate::types::{DataType, Value, Vector};
 use std::collections::HashSet;
 use std::time::Duration;
 
+mod controlled_source;
+mod conversion;
+mod ordered_projection_accounting;
+
+pub(crate) use ordered_projection_accounting::ordered_projection_shape;
+
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct ScanTimings {
     pub(crate) scan: Duration,
@@ -36,12 +42,12 @@ pub(crate) struct ProjectedScanStream<'a> {
     schema: Option<CollectionSchema>,
     controls: &'a QueryExecutionControls,
     remaining: usize,
-    previous_page_memory: Vec<QueryMemoryReservation>,
+    previous_page_memory: Option<QueryMemoryReservation>,
 }
 
 impl BatchStream for ProjectedScanStream<'_> {
     fn next_batch(&mut self) -> Result<Option<Batch>, crate::executor::QueryError> {
-        self.previous_page_memory.clear();
+        self.previous_page_memory = None;
         if self.remaining == 0 {
             return Ok(None);
         }
@@ -53,19 +59,27 @@ impl BatchStream for ProjectedScanStream<'_> {
         if accounted_documents.is_empty() {
             return Ok(None);
         }
-        let mut documents = Vec::with_capacity(accounted_documents.len());
-        for document in accounted_documents {
-            let (document, reservation) = document.into_parts();
-            documents.push(document);
-            self.previous_page_memory.push(reservation);
-        }
-        self.remaining = self.remaining.saturating_sub(documents.len());
-        Ok(Some(projected_document_batch_to_rows(
-            documents,
-            &self.fields,
-            None,
-            self.schema.as_ref(),
-        )))
+        self.remaining = self.remaining.saturating_sub(accounted_documents.len());
+        let _input_memory = self
+            .controls
+            .reserve_query_memory(std::mem::size_of::<conversion::InputBatch>())?;
+        let converted = conversion::convert(
+            self.cassie,
+            vec![conversion::InputBatch::Accounted(accounted_documents)],
+            &conversion::Request {
+                schema: self.schema.as_ref(),
+                controls: self.controls,
+                shape: conversion::Shape::Projected {
+                    fields: &self.fields,
+                    filter: None,
+                },
+                parallel: false,
+                #[cfg(test)]
+                after_row: None,
+            },
+        )?;
+        self.previous_page_memory = Some(converted.memory);
+        Ok(converted.batches.into_iter().next())
     }
 }
 
@@ -77,7 +91,7 @@ pub(crate) fn projected_scan_stream<'a>(
     limit: Option<usize>,
     controls: &'a QueryExecutionControls,
 ) -> Result<Option<ProjectedScanStream<'a>>, crate::executor::QueryError> {
-    if cassie.runtime.limits().parallel_scan_workers.max(1) > 1 {
+    if !uses_controlled_row_scan(cassie, collection) {
         return Ok(None);
     }
     let Some(cursor) = cassie
@@ -99,7 +113,7 @@ pub(crate) fn projected_scan_stream<'a>(
         schema: cassie.catalog.get_schema(collection),
         controls,
         remaining: limit.unwrap_or(usize::MAX),
-        previous_page_memory: Vec::new(),
+        previous_page_memory: None,
     }))
 }
 
@@ -132,51 +146,43 @@ pub(crate) fn scan_limit(
     limit: Option<usize>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    if cassie.runtime.limits().parallel_scan_workers.max(1) == 1 {
-        if let Some(mut cursor) = cassie
-            .open_session_row_cursor(session, collection, RowDecode::Full, controls)
-            .map_err(|error| controlled_storage_error(cassie, error))?
-        {
-            let schema = cassie.catalog.get_schema(collection);
-            let mut remaining = limit.unwrap_or(usize::MAX);
-            let mut batches = Vec::new();
-            let mut row_memory = Vec::new();
-            while remaining > 0 {
-                let accounted = cursor
-                    .next_accounted_documents(
-                        &cassie.midge,
-                        remaining.min(DEFAULT_BATCH_SIZE),
-                        controls,
-                    )
-                    .map_err(|error| controlled_storage_error(cassie, error))?;
-                if accounted.is_empty() {
-                    break;
-                }
-                let retained_bytes = accounted
-                    .iter()
-                    .map(crate::midge::adapter::AccountedDocument::accounted_bytes)
-                    .sum();
-                let reservation = controls.reserve_query_memory(retained_bytes)?;
-                let documents = accounted
-                    .into_iter()
-                    .map(|document| document.into_parts().0)
-                    .collect();
-                let batch = document_batch_to_rows(documents, schema.as_ref());
-                remaining = remaining.saturating_sub(batch.len());
-                batches.push(batch);
-                row_memory.push(reservation);
-            }
-            cassie.runtime.record_parallel_scan_fallback();
-            cassie.runtime.record_storage_access("data", false, true);
-            let rows = batches.iter().map(Vec::len).sum::<usize>();
-            let fields = schema.as_ref().map_or(0, |schema| schema.fields.len());
-            cassie
-                .runtime
-                .record_read_path_collection_scan(collection, fields, rows);
-            drop(row_memory);
-            return Ok(batches);
-        }
+    let (batches, _memory) = scan_limit_retained(cassie, session, collection, limit, controls)?;
+    Ok(batches)
+}
+
+/// Keeps the existing full-conversion admission alive for a consuming bounded operator.
+pub(crate) fn scan_limit_retained(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    collection: &str,
+    limit: Option<usize>,
+    controls: &QueryExecutionControls,
+) -> Result<(Vec<Batch>, QueryMemoryReservation), crate::executor::QueryError> {
+    if let Some(cursor) = cassie
+        .open_session_row_cursor(session, collection, RowDecode::Full, controls)
+        .map_err(|error| controlled_storage_error(cassie, error))?
+    {
+        let schema = cassie.catalog.get_schema(collection);
+        let source = controlled_source::collect(cassie, cursor, limit, controls)?;
+        let converted = conversion::convert(
+            cassie,
+            source.batches,
+            &conversion::Request {
+                schema: schema.as_ref(),
+                controls,
+                shape: conversion::Shape::Full,
+                parallel: !uses_controlled_row_scan(cassie, collection),
+                #[cfg(test)]
+                after_row: None,
+            },
+        )?;
+        conversion::check_controls(controls)?;
+        cassie.runtime.record_storage_access("data", false, true);
+        record_collection_scan(cassie, collection, schema.as_ref(), &converted.batches);
+        drop(source.memory);
+        return Ok((converted.batches, converted.memory));
     }
+
     let document_batches = cassie
         .scan_documents_batched_for_session_limit(session, collection, DEFAULT_BATCH_SIZE, limit)
         .map_err(|error| {
@@ -186,23 +192,44 @@ pub(crate) fn scan_limit(
     cassie.runtime.record_storage_access("data", false, true);
     let schema = cassie.catalog.get_schema(collection);
 
-    let batches = document_batches_to_rows(cassie, document_batches, schema.as_ref())?;
-    let _memory = controls.reserve_query_memory(
-        batches
-            .iter()
-            .flatten()
-            .map(|row| serde_json::to_vec(row.entries()).map_or(0, |bytes| bytes.len()))
-            .sum(),
+    let converted = conversion::convert_owned(
+        cassie,
+        document_batches,
+        &conversion::Request {
+            schema: schema.as_ref(),
+            controls,
+            shape: conversion::Shape::Full,
+            parallel: true,
+            #[cfg(test)]
+            after_row: None,
+        },
     )?;
+    record_collection_scan(cassie, collection, schema.as_ref(), &converted.batches);
+
+    Ok((converted.batches, converted.memory))
+}
+
+fn record_collection_scan(
+    cassie: &Cassie,
+    collection: &str,
+    schema: Option<&CollectionSchema>,
+    batches: &[Batch],
+) {
     let rows = batches.iter().map(Vec::len).sum::<usize>();
-    let fields = schema
-        .as_ref()
-        .map(|schema| schema.fields.len())
-        .unwrap_or_default();
+    let fields = schema.map_or(0, |schema| schema.fields.len());
     cassie
         .runtime
         .record_read_path_collection_scan(collection, fields, rows);
-    Ok(batches)
+}
+
+fn uses_controlled_row_scan(cassie: &Cassie, collection: &str) -> bool {
+    cassie.runtime.limits().parallel_scan_workers.max(1) == 1
+        || cassie
+            .catalog
+            .collection_storage_mode(collection)
+            .is_some_and(
+                crate::catalog::collections::CollectionStorageMode::uses_column_store_storage,
+            )
 }
 
 pub(crate) struct ProjectedFilteredScanRequest<'a> {
@@ -217,11 +244,6 @@ pub(crate) struct ProjectedFilteredScanRequest<'a> {
 pub(crate) struct EncodedProjectedScan {
     pub(crate) batches: Vec<Batch>,
     pub(crate) timings: ScanTimings,
-}
-
-struct ControlledProjectedFallback {
-    batches: Vec<Vec<DocumentRef>>,
-    memory: Vec<QueryMemoryReservation>,
 }
 
 pub(crate) fn scan_projected_filtered(
@@ -251,13 +273,22 @@ pub(crate) fn scan_projected_filtered_with_timings(
     }
     if let Some(fallback) = controlled_projected_row_fallback(cassie, session, request)? {
         let schema = cassie.catalog.get_schema(request.collection);
-        let batches = projected_document_batches_to_rows(
+        let converted = conversion::convert(
             cassie,
             fallback.batches,
-            request.fields,
-            request.document_filter,
-            schema.as_ref(),
+            &conversion::Request {
+                schema: schema.as_ref(),
+                controls: request.controls,
+                shape: conversion::Shape::Projected {
+                    fields: request.fields,
+                    filter: request.document_filter,
+                },
+                parallel: !uses_controlled_row_scan(cassie, request.collection),
+                #[cfg(test)]
+                after_row: None,
+            },
         )?;
+        let batches = converted.batches;
         if has_session_changes
             && has_covering_column_index(cassie, request.collection, request.fields)
         {
@@ -291,13 +322,15 @@ pub(crate) fn scan_projected_filtered_with_timings(
     };
     let materialize_started = std::time::Instant::now();
     let schema = cassie.catalog.get_schema(request.collection);
-    let batches = projected_document_batches_to_rows(
+    let converted = projected_document_batches_to_rows(
         cassie,
         document_batches,
         request.fields,
         request.document_filter,
         schema.as_ref(),
+        request.controls,
     )?;
+    let batches = converted.batches;
     if has_session_changes && has_covering_column_index(cassie, request.collection, request.fields)
     {
         let rows = batches.iter().map(Vec::len).sum::<usize>();
@@ -336,13 +369,15 @@ pub(crate) fn try_controlled_column_batch_scan(
                 row_decode: outcome.timings.row_decode,
             };
             let materialize_started = std::time::Instant::now();
-            let batches = projected_document_batches_to_rows(
+            let converted = projected_document_batches_to_rows(
                 cassie,
                 outcome.batches,
                 request.fields,
                 request.document_filter,
                 schema.as_ref(),
+                request.controls,
             )?;
+            let batches = converted.batches;
             timings.scan += materialize_started.elapsed();
             let rows = batches.iter().map(Vec::len).sum::<usize>();
             cassie
@@ -400,8 +435,8 @@ fn controlled_projected_row_fallback(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     request: &ProjectedFilteredScanRequest<'_>,
-) -> Result<Option<ControlledProjectedFallback>, crate::executor::QueryError> {
-    let Some(mut cursor) = cassie
+) -> Result<Option<controlled_source::ControlledInputs>, crate::executor::QueryError> {
+    let Some(cursor) = cassie
         .open_session_row_cursor(
             session,
             request.collection,
@@ -412,30 +447,7 @@ fn controlled_projected_row_fallback(
     else {
         return Ok(None);
     };
-    let mut batches = Vec::new();
-    let mut memory = Vec::new();
-    let mut remaining = request.limit.unwrap_or(usize::MAX);
-    while remaining > 0 {
-        let accounted = cursor
-            .next_accounted_documents(
-                &cassie.midge,
-                remaining.min(DEFAULT_BATCH_SIZE),
-                request.controls,
-            )
-            .map_err(|error| controlled_storage_error(cassie, error))?;
-        if accounted.is_empty() {
-            break;
-        }
-        let mut batch = Vec::new();
-        for document in accounted {
-            let (document, reservation) = document.into_parts();
-            batch.push(document);
-            memory.push(reservation);
-        }
-        remaining = remaining.saturating_sub(batch.len());
-        batches.push(batch);
-    }
-    Ok(Some(ControlledProjectedFallback { batches, memory }))
+    controlled_source::collect(cassie, cursor, request.limit, request.controls).map(Some)
 }
 
 fn controlled_storage_error(cassie: &Cassie, error: CassieError) -> crate::executor::QueryError {
@@ -508,105 +520,49 @@ fn value_to_json(value: &Value) -> Option<serde_json::Value> {
     }
 }
 
-fn document_batches_to_rows(
-    cassie: &Cassie,
-    document_batches: Vec<Vec<DocumentRef>>,
-    schema: Option<&CollectionSchema>,
-) -> Result<Vec<Batch>, QueryError> {
-    let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
-    if worker_limit == 1 || document_batches.len() < 2 {
-        cassie.runtime.record_parallel_scan_fallback();
-        return Ok(document_batches
-            .into_iter()
-            .map(|documents| document_batch_to_rows(documents, schema))
-            .collect());
-    }
-
-    let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
-        cassie.runtime.record_parallel_scan_fallback();
-        return Ok(document_batches
-            .into_iter()
-            .map(|documents| document_batch_to_rows(documents, schema))
-            .collect());
-    };
-    let workers = worker_guard.workers().min(document_batches.len());
-    let partitions = partition_document_batches(document_batches, workers);
-    let mut indexed = std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(workers);
-        for partition in partitions {
-            handles.push(scope.spawn(move || {
-                partition
-                    .into_iter()
-                    .map(|(index, documents)| (index, document_batch_to_rows(documents, schema)))
-                    .collect::<Vec<_>>()
-            }));
-        }
-        handles
-            .into_iter()
-            .map(|handle| {
-                super::worker::join_scoped_worker(handle, "parallel scan worker panicked")
-            })
-            .collect::<Result<Vec<_>, QueryError>>()
-    })?
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>();
-    indexed.sort_by_key(|(index, _)| *index);
-    let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
-    cassie
-        .runtime
-        .record_parallel_scan(workers, indexed.len(), rows);
-    Ok(indexed.into_iter().map(|(_, batch)| batch).collect())
-}
-
-fn document_batch_to_rows(documents: Vec<DocumentRef>, schema: Option<&CollectionSchema>) -> Batch {
+fn document_to_row(document: &DocumentRef, schema: Option<&CollectionSchema>) -> BatchRow {
     let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
-    documents
-        .into_iter()
-        .map(|document| {
-            let mut row = Vec::new();
-            push_row_identity(&mut row, &document.id);
-            if let Some(obj) = document.payload.as_object() {
-                if let Some(schema) = schema.as_ref() {
-                    let mut seen = HashSet::new();
-                    for field in &schema.fields {
-                        if is_row_identity_column(&field.name) {
-                            continue;
-                        }
-                        let value = obj.get(&field.name).map_or(Value::Null, |value| {
-                            json_to_typed_value(value, &field.data_type)
-                        });
-                        row.push((field.name.clone(), value));
-                        seen.insert(field.name.clone());
-                    }
-                    for (k, v) in obj {
-                        if seen.contains(k) || is_row_identity_column(k) {
-                            continue;
-                        }
-                        // When the schema declares no `id` field, `id` names
-                        // the internal identity already pushed above, and
-                        // `aggregate::columns_from_projection` emits exactly
-                        // one column for it. SQL writes cannot store such a
-                        // key, but a payload from another write path could;
-                        // dropping it keeps the row from being one value
-                        // wider than its own column list.
-                        if is_identity_reference(k, schema_has_id) {
-                            continue;
-                        }
-                        row.push((k.clone(), json_to_value(v)));
-                    }
-                } else {
-                    for (k, v) in obj {
-                        if is_identity_reference(k, false) {
-                            continue;
-                        }
-                        row.push((k.clone(), json_to_value(v)));
-                    }
+    let mut row = Vec::new();
+    push_row_identity(&mut row, &document.id);
+    if let Some(obj) = document.payload.as_object() {
+        if let Some(schema) = schema.as_ref() {
+            let mut seen = HashSet::new();
+            for field in &schema.fields {
+                if is_row_identity_column(&field.name) {
+                    continue;
                 }
+                let value = obj.get(&field.name).map_or(Value::Null, |value| {
+                    json_to_typed_value(value, &field.data_type)
+                });
+                row.push((field.name.clone(), value));
+                seen.insert(field.name.clone());
             }
-            typed_row(BatchRow::new(row), schema)
-        })
-        .collect::<Batch>()
+            for (k, v) in obj {
+                if seen.contains(k) || is_row_identity_column(k) {
+                    continue;
+                }
+                // When the schema declares no `id` field, `id` names
+                // the internal identity already pushed above, and
+                // `aggregate::columns_from_projection` emits exactly
+                // one column for it. SQL writes cannot store such a
+                // key, but a payload from another write path could;
+                // dropping it keeps the row from being one value
+                // wider than its own column list.
+                if is_identity_reference(k, schema_has_id) {
+                    continue;
+                }
+                row.push((k.clone(), json_to_value(v)));
+            }
+        } else {
+            for (k, v) in obj {
+                if is_identity_reference(k, false) {
+                    continue;
+                }
+                row.push((k.clone(), json_to_value(v)));
+            }
+        }
+    }
+    typed_row(BatchRow::new(row), schema)
 }
 
 /// Every document has an internal identity that Cassie must always be able
@@ -644,99 +600,23 @@ fn projected_document_batches_to_rows(
     fields: &[String],
     document_filter: Option<&ProjectedDocumentFilter>,
     schema: Option<&CollectionSchema>,
-) -> Result<Vec<Batch>, QueryError> {
-    let worker_limit = cassie.runtime.limits().parallel_scan_workers.max(1);
-    if worker_limit == 1 || document_batches.len() < 2 {
-        cassie.runtime.record_parallel_scan_fallback();
-        return Ok(document_batches
-            .into_iter()
-            .filter_map(|documents| {
-                let rows =
-                    projected_document_batch_to_rows(documents, fields, document_filter, schema);
-                (!rows.is_empty()).then_some(rows)
-            })
-            .collect());
-    }
-
-    let Some(worker_guard) = cassie.runtime.try_acquire_operator_workers(worker_limit) else {
-        cassie.runtime.record_parallel_scan_fallback();
-        return Ok(document_batches
-            .into_iter()
-            .filter_map(|documents| {
-                let rows =
-                    projected_document_batch_to_rows(documents, fields, document_filter, schema);
-                (!rows.is_empty()).then_some(rows)
-            })
-            .collect());
-    };
-    let workers = worker_guard.workers().min(document_batches.len());
-    let partitions = partition_document_batches(document_batches, workers);
-    let mut indexed = std::thread::scope(|scope| {
-        let mut handles = Vec::with_capacity(workers);
-        for partition in partitions {
-            handles.push(scope.spawn(move || {
-                partition
-                    .into_iter()
-                    .map(|(index, documents)| {
-                        (
-                            index,
-                            projected_document_batch_to_rows(
-                                documents,
-                                fields,
-                                document_filter,
-                                schema,
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            }));
-        }
-        handles
-            .into_iter()
-            .map(|handle| {
-                super::worker::join_scoped_worker(handle, "parallel projected scan worker panicked")
-            })
-            .collect::<Result<Vec<_>, QueryError>>()
-    })?
-    .into_iter()
-    .flatten()
-    .collect::<Vec<_>>();
-    indexed.sort_by_key(|(index, _)| *index);
-    let rows = indexed.iter().map(|(_, batch)| batch.len()).sum::<usize>();
-    cassie
-        .runtime
-        .record_parallel_scan(workers, indexed.len(), rows);
-    Ok(indexed
-        .into_iter()
-        .filter_map(|(_, batch)| (!batch.is_empty()).then_some(batch))
-        .collect())
-}
-
-fn partition_document_batches(
-    document_batches: Vec<Vec<DocumentRef>>,
-    workers: usize,
-) -> Vec<Vec<(usize, Vec<DocumentRef>)>> {
-    let mut partitions = (0..workers).map(|_| Vec::new()).collect::<Vec<_>>();
-    for (index, documents) in document_batches.into_iter().enumerate() {
-        partitions[index % workers].push((index, documents));
-    }
-    partitions
-}
-
-fn projected_document_batch_to_rows(
-    documents: Vec<DocumentRef>,
-    fields: &[String],
-    document_filter: Option<&ProjectedDocumentFilter>,
-    schema: Option<&CollectionSchema>,
-) -> Batch {
-    documents
-        .into_iter()
-        .filter(|document| {
-            document_filter
-                .is_none_or(|filter| projected_document_matches(&document.payload, filter))
-        })
-        .map(|document| projected_document_to_row(&document, fields, schema))
-        .collect::<Batch>()
+    controls: &QueryExecutionControls,
+) -> Result<conversion::ConvertedBatches, QueryError> {
+    conversion::convert_owned(
+        cassie,
+        document_batches,
+        &conversion::Request {
+            schema,
+            controls,
+            shape: conversion::Shape::Projected {
+                fields,
+                filter: document_filter,
+            },
+            parallel: true,
+            #[cfg(test)]
+            after_row: None,
+        },
+    )
 }
 
 pub(crate) fn projected_document_to_row(

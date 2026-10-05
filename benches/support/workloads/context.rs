@@ -25,6 +25,17 @@ use uuid::Uuid;
 use super::document_batches::bench_document_write_batch_ranges;
 use super::mock_tei::MockTeiEmbeddingServer;
 
+#[path = "context/construction.rs"]
+mod construction;
+#[path = "context/recursive_cte.rs"]
+mod recursive_cte;
+
+use construction::{context_with_index_options, context_with_index_options_and_runtime};
+pub use recursive_cte::{
+    recursive_cte_context, LARGE_RECURSIVE_CTE_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_RECURSIVE_CTE_BENCHMARK_RESOURCE_PROFILE,
+};
+
 #[derive(Clone)]
 pub struct BenchContext {
     pub cassie: Arc<Cassie>,
@@ -35,13 +46,8 @@ pub struct BenchContext {
 }
 
 pub const ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 64 * 1024 * 1024;
-// `_id` (Cassie's reserved internal document identity key, one byte longer
-// than the `id` key it replaced) appears once per row constructed anywhere
-// in a query's execution, including rows that never reach the final result.
-// At the 250k scale the large recursive-CTE benchmark peaks at 100,911,883
-// accounted bytes, about 243 KiB above the previous 96 MiB budget and in
-// line with one extra byte per row at that row count. Rounded up to 100 MiB
-// to clear the measured peak with roughly 4% headroom.
+// The general large analytical profile stays at 100 MiB. Large recursive CTE fixtures
+// use the separate materialized-fanout profile defined in the focused child module.
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES: usize = 100 * 1024 * 1024;
 pub const LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS: u64 = 120_000;
 #[derive(Debug, Clone, serde::Serialize)]
@@ -531,20 +537,6 @@ impl BenchIndexOptions {
     }
 }
 
-fn context_with_index_options(
-    label: &str,
-    dataset_rows: usize,
-    index_options: BenchIndexOptions,
-) -> Result<BenchContext, CassieError> {
-    context_with_index_options_and_runtime(
-        label,
-        dataset_rows,
-        index_options,
-        BenchmarkStorageMode::Default,
-        |_| {},
-    )
-}
-
 pub fn execution_result_cache_context(
     label: &str,
     dataset_rows: usize,
@@ -564,91 +556,6 @@ pub fn execution_result_cache_context(
 pub(super) enum BenchmarkStorageMode {
     Default,
     Disk,
-}
-
-fn context_with_index_options_and_runtime(
-    label: &str,
-    dataset_rows: usize,
-    index_options: BenchIndexOptions,
-    storage_mode: BenchmarkStorageMode,
-    configure: impl FnOnce(&mut CassieRuntimeConfig),
-) -> Result<BenchContext, CassieError> {
-    configure_benchmark_environment();
-    if matches!(storage_mode, BenchmarkStorageMode::Disk) {
-        std::env::set_var("CASSIE_STORAGE_MODE", "local");
-    }
-    let dir = benchmark_data_dir_for_mode(label, storage_mode);
-
-    let mut config = CassieRuntimeConfig::from_env()
-        .map_err(|error| CassieError::Configuration(error.to_string()))?;
-    configure(&mut config);
-
-    let cassie = Arc::new(Cassie::new_with_data_dir_and_config(dir.clone(), config)?);
-    cassie.startup()?;
-    let session = cassie.create_session("benchmark", None);
-    let ctx = BenchContext {
-        cassie,
-        session,
-        collection: "bench_documents".to_string(),
-        data_dir: dir,
-        _embedding_server: None,
-    };
-    prepare_collection(&ctx, dataset_rows, index_options)?;
-    Ok(ctx)
-}
-
-pub fn recursive_cte_context(
-    label: &str,
-    recursion_depth: usize,
-) -> Ready<Result<BenchContext, CassieError>> {
-    ready(recursive_cte_context_now(label, recursion_depth))
-}
-
-fn recursive_cte_context_now(
-    label: &str,
-    recursion_depth: usize,
-) -> Result<BenchContext, CassieError> {
-    let expected_rows = recursive_cte_expected_rows(recursion_depth);
-    let query_memory_budget_bytes = if expected_rows > 100_000 {
-        LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
-    } else {
-        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES
-    };
-    let context = context_with_index_options_and_runtime(
-        label,
-        0,
-        BenchIndexOptions::none(),
-        BenchmarkStorageMode::Default,
-        |config| {
-            config.limits.query_timeout_ms = 0;
-            config.limits.cte_recursion_depth = recursion_depth;
-            config.limits.max_result_rows = expected_rows;
-            config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
-        },
-    )?;
-    context.cassie.execute_sql(
-        &context.session,
-        "CREATE TABLE recursive_cte_fanout (n INT)",
-        vec![],
-    )?;
-    for _ in 0..10 {
-        context.cassie.execute_sql(
-            &context.session,
-            "INSERT INTO recursive_cte_fanout (n) VALUES (1)",
-            vec![],
-        )?;
-    }
-    Ok(context)
-}
-
-fn recursive_cte_expected_rows(recursion_depth: usize) -> usize {
-    (0..recursion_depth)
-        .scan(1_usize, |power, _| {
-            let current = *power;
-            *power = power.saturating_mul(10);
-            Some(current)
-        })
-        .sum()
 }
 
 pub(super) fn benchmark_data_dir(label: &str) -> PathBuf {

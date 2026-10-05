@@ -93,6 +93,12 @@ pub(super) fn execute_ivfflat_vector_top_k(
         record_ivfflat_concurrent_source_change(cassie);
         return Ok(None);
     }
+    if candidate_count < top_needed.min(training.row_count) {
+        cassie
+            .runtime
+            .record_ivfflat_fallback("candidate-exhausted");
+        return Ok(None);
+    }
 
     let rows = vector_rows_from_top(top, spec);
     drop(top_memory);

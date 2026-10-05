@@ -53,6 +53,8 @@ pub use context::{
     unindexed_context_with_query_timeout, unindexed_disk_context_with_temp_budget,
     worker_scaling_context, BenchContext, ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
     LARGE_ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES, LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS,
+    LARGE_RECURSIVE_CTE_BENCHMARK_QUERY_MEMORY_BYTES,
+    LARGE_RECURSIVE_CTE_BENCHMARK_RESOURCE_PROFILE,
 };
 pub use document_batches::{bench_document_write_batch_ranges, BENCH_DOCUMENT_WRITE_BATCH_ROWS};
 pub use empty_context::{

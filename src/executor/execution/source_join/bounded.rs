@@ -1,14 +1,39 @@
 use super::{
-    batch, catalog, check_timeout, collection_join_columns, collection_scan_fields, combine_rows,
-    estimate_vectorized_join_bytes, execute_query_source, filter, join_field_for_collection,
+    accounting, catalog, check_timeout, collection_join_columns, collection_scan_fields,
+    combine_rows, estimate_vectorized_join_bytes, filter, join_field_for_collection,
     merge_join_keys, qualify_row, row_join_key, scan, BatchRow, CteContext, EquiJoinKeys, Expr,
-    JoinExecutionSpec, JoinKind, QueryError, QuerySource, SourceExecutionEnv, Value,
+    JoinExecutionSpec, JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows,
+    PendingJoinDiagnostic, QueryError, QuerySource, SourceExecutionEnv, Value,
 };
 use crate::executor::semantic::SemanticKey;
 use crate::types::DataType;
 
+#[path = "bounded/source_retention.rs"]
+mod source_retention;
+
+use source_retention::{
+    load_collection_rows, project_source_row, reserve_probe_key, SourceRowShape,
+};
+
 #[path = "bounded/side_selection.rs"]
 mod side_selection;
+
+#[path = "bounded/indexed.rs"]
+mod indexed;
+
+#[cfg(test)]
+#[path = "bounded/tests.rs"]
+mod tests;
+
+use indexed::execute_indexed_bounded_inner_join;
+
+#[path = "bounded/streaming.rs"]
+mod streaming;
+
+use streaming::{
+    execute_dense_streaming_bounded_inner_join, execute_left_build_streaming_bounded_inner_join,
+    load_streaming_right_rows, stream_left_rows_against_right, StreamingRightRows,
+};
 
 struct StreamingJoinSpec<'a> {
     left_collection: &'a str,
@@ -35,10 +60,27 @@ struct IndexedJoinPlan {
     stream_scan_fields: Vec<String>,
 }
 
+struct IndexedJoinSpec<'a> {
+    left_collection: &'a str,
+    right_collection: &'a str,
+    on: &'a Expr,
+    keys: &'a EquiJoinKeys,
+    plan: &'a IndexedJoinPlan,
+    output_budget: usize,
+}
+
 pub(super) fn try_execute_indexed_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
     spec: &JoinExecutionSpec<'_>,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
+) -> Result<Option<JoinResult>, QueryError> {
+    try_execute_indexed_bounded_inner_join_with_context(env, spec, &JoinRetentionContext::default())
+}
+
+fn try_execute_indexed_bounded_inner_join_with_context(
+    env: &SourceExecutionEnv<'_>,
+    spec: &JoinExecutionSpec<'_>,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<Option<JoinResult>, QueryError> {
     if env
         .cassie
         .runtime
@@ -55,7 +97,7 @@ pub(super) fn try_execute_indexed_bounded_inner_join(
         return Ok(None);
     }
     if output_budget == 0 {
-        return Ok(Some(Vec::new()));
+        return JoinResult::empty(env).map(Some);
     }
     let limits = env.cassie.runtime.limits();
     if !limits.vectorized_joins_enabled || !matches!(spec.kind, JoinKind::Inner) {
@@ -82,129 +124,17 @@ pub(super) fn try_execute_indexed_bounded_inner_join(
 
     execute_indexed_bounded_inner_join(
         env,
-        left_collection,
-        right_collection,
-        spec.on,
-        &keys,
-        &plan,
-        output_budget,
+        &IndexedJoinSpec {
+            left_collection,
+            right_collection,
+            on: spec.on,
+            keys: &keys,
+            plan: &plan,
+            output_budget,
+        },
+        retention,
     )
     .map(Some)
-}
-
-fn execute_indexed_bounded_inner_join(
-    env: &SourceExecutionEnv<'_>,
-    left_collection: &str,
-    right_collection: &str,
-    on: &Expr,
-    keys: &EquiJoinKeys,
-    plan: &IndexedJoinPlan,
-    output_budget: usize,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let stream_collection = match plan.indexed_side {
-        JoinSide::Left => right_collection,
-        JoinSide::Right => left_collection,
-    };
-    let stream_key = match plan.indexed_side {
-        JoinSide::Left => &keys.right,
-        JoinSide::Right => &keys.left,
-    };
-    let stream_schema = env.cassie.catalog.get_schema(stream_collection);
-    let batch_size = env
-        .cassie
-        .runtime
-        .limits()
-        .vectorized_join_batch_size
-        .max(1);
-    let mut joined = Vec::with_capacity(output_budget.min(batch_size));
-    let mut left_input_rows = 0usize;
-    let mut right_input_rows = 0usize;
-    let mut matched_rows = 0usize;
-    let mut index_scans = 0usize;
-
-    let streamed_rows = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        stream_collection,
-        crate::midge::adapter::RowDecode::Full,
-        |document| {
-            check_timeout(env.controls)?;
-            let stream_row = qualify_row(
-                scan::projected_document_to_row(
-                    &document,
-                    &plan.stream_scan_fields,
-                    stream_schema.as_ref(),
-                ),
-                stream_collection,
-            );
-            match plan.indexed_side {
-                JoinSide::Left => right_input_rows += 1,
-                JoinSide::Right => left_input_rows += 1,
-            }
-            let Some(key_value) = stream_row.get(stream_key).and_then(value_to_json) else {
-                return Ok(true);
-            };
-            let remaining = output_budget.saturating_sub(joined.len());
-            if remaining == 0 {
-                return Ok(false);
-            }
-            let indexed_rows = scan_indexed_join_rows(
-                env,
-                match plan.indexed_side {
-                    JoinSide::Left => left_collection,
-                    JoinSide::Right => right_collection,
-                },
-                &plan.indexed_scan_fields,
-                &plan.index,
-                key_value,
-                remaining,
-            )?;
-            index_scans += 1;
-
-            for indexed_row in indexed_rows {
-                match plan.indexed_side {
-                    JoinSide::Left => left_input_rows += 1,
-                    JoinSide::Right => right_input_rows += 1,
-                }
-                let combined = match plan.indexed_side {
-                    JoinSide::Left => combine_rows(&indexed_row, &stream_row),
-                    JoinSide::Right => combine_rows(&stream_row, &indexed_row),
-                };
-                if filter::eval_scalar(
-                    &combined,
-                    on,
-                    env.params,
-                    None,
-                    env.user_functions,
-                    None,
-                    env.session,
-                )?
-                .is_true()
-                {
-                    matched_rows += 1;
-                    joined.push(combined);
-                    if joined.len() >= output_budget {
-                        return Ok(false);
-                    }
-                }
-            }
-
-            Ok(true)
-        },
-    )?;
-
-    env.cassie.runtime.record_read_path_collection_scan(
-        stream_collection,
-        plan.stream_scan_fields.len(),
-        streamed_rows,
-    );
-    env.cassie.runtime.record_vectorized_join_execution(
-        left_input_rows,
-        right_input_rows,
-        matched_rows,
-        joined.len(),
-        batch_size,
-        index_scans,
-    );
-    Ok(joined)
 }
 
 fn indexed_join_plan(
@@ -315,7 +245,21 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
     env: &SourceExecutionEnv<'_>,
     join: &JoinExecutionSpec<'_>,
     cte_context: &mut CteContext,
-) -> Result<Option<Vec<BatchRow>>, QueryError> {
+) -> Result<Option<JoinResult>, QueryError> {
+    try_execute_streaming_bounded_inner_join_with_context(
+        env,
+        join,
+        cte_context,
+        &JoinRetentionContext::default(),
+    )
+}
+
+fn try_execute_streaming_bounded_inner_join_with_context(
+    env: &SourceExecutionEnv<'_>,
+    join: &JoinExecutionSpec<'_>,
+    _cte_context: &mut CteContext,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<Option<JoinResult>, QueryError> {
     if env
         .cassie
         .runtime
@@ -326,7 +270,7 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
         return Ok(None);
     }
     if join.row_budget == Some(0) {
-        return Ok(Some(Vec::new()));
+        return JoinResult::empty(env).map(Some);
     }
     let Some(output_budget) = join.row_budget else {
         return Ok(None);
@@ -344,402 +288,92 @@ pub(super) fn try_execute_streaming_bounded_inner_join(
     ) else {
         return Ok(None);
     };
-    let limits = env.cassie.runtime.limits();
     if should_preemptively_dense_stream(env, spec.left_collection, spec.right_collection)? {
         env.cassie
             .runtime
             .record_bounded_join_side_selection("dense_stream_preemptive_temp_budget");
-        return execute_dense_streaming_bounded_inner_join(env, &spec).map(Some);
+        return execute_dense_streaming_bounded_inner_join(env, &spec, retention).map(Some);
     }
     let side_selection = side_selection::build_side_for_streaming(env, &spec)?;
     env.cassie
         .runtime
         .record_bounded_join_side_selection(side_selection.reason);
     if side_selection.build_left {
-        return execute_left_build_streaming_bounded_inner_join(env, &spec).map(Some);
+        return execute_left_build_streaming_bounded_inner_join(env, &spec, retention).map(Some);
     }
 
-    let right_rows =
-        match load_streaming_right_rows(env, join.right, cte_context, join.outer_row, &spec)? {
-            StreamingRightRows::Rows(right_rows) => right_rows,
-            StreamingRightRows::Dense(rows) => return Ok(Some(rows)),
-        };
+    execute_right_build_streaming_bounded_inner_join(env, &spec, retention).map(Some)
+}
+
+fn execute_right_build_streaming_bounded_inner_join(
+    env: &SourceExecutionEnv<'_>,
+    spec: &StreamingJoinSpec<'_>,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<JoinResult, QueryError> {
+    let limits = env.cassie.runtime.limits();
+    let right_rows = match load_streaming_right_rows(env, spec, retention)? {
+        StreamingRightRows::Rows(right_rows) => right_rows,
+        StreamingRightRows::Dense(rows) => return Ok(rows),
+    };
     if right_rows.is_empty() {
-        env.cassie.runtime.record_vectorized_join_execution(
-            0,
-            0,
-            0,
-            0,
-            limits.vectorized_join_batch_size.max(1),
-            0,
-        );
-        return Ok(Some(Vec::new()));
+        return Ok(JoinResult::new(
+            JoinRows::try_new(env.controls)?,
+            PendingJoinDiagnostic::Vectorized {
+                probe_rows: 0,
+                build_rows: 0,
+                matched_rows: 0,
+                batch_size: limits.vectorized_join_batch_size.max(1),
+                batches: 0,
+            },
+        ));
     }
 
+    retention.enter(JoinRetentionPhase::BoundedBuild);
+    let _build_memory =
+        env.controls
+            .reserve_query_memory(accounting::hash_build_bytes::<usize>(
+                right_rows.as_slice(),
+                &spec.keys.right,
+            )?)?;
+    retention.before(JoinRetentionPhase::BoundedBuild)?;
     let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
-    for (index, right_row) in right_rows.iter().enumerate() {
+    build
+        .try_reserve(accounting::hash_build_capacity(
+            right_rows.as_slice(),
+            &spec.keys.right,
+        ))
+        .map_err(|error| {
+            crate::app::CassieError::ResourceLimit(format!(
+                "unable to retain bounded join build: {error}"
+            ))
+        })?;
+    for (index, right_row) in right_rows.as_slice().iter().enumerate() {
+        check_timeout(env.controls)?;
         if let Some(key) = row_join_key(right_row, &spec.keys.right) {
             build.entry(key).or_default().push(index);
         }
     }
 
     let batch_size = limits.vectorized_join_batch_size.max(1);
-    let progress = stream_left_rows_against_right(env, &spec, &build, &right_rows, batch_size)?;
+    let progress =
+        stream_left_rows_against_right(env, spec, &build, right_rows.as_slice(), retention)?;
     env.cassie.runtime.record_read_path_collection_scan(
         spec.left_collection,
         spec.left_scan_fields.len(),
         progress.scanned,
     );
-    env.cassie.runtime.record_vectorized_join_execution(
-        progress.probe_rows,
-        right_rows.len(),
-        progress.matched_rows,
-        progress.joined.len(),
-        batch_size,
-        progress.probe_rows.div_ceil(batch_size),
-    );
-    Ok(Some(progress.joined))
-}
-
-fn execute_left_build_streaming_bounded_inner_join(
-    env: &SourceExecutionEnv<'_>,
-    spec: &StreamingJoinSpec<'_>,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let left_rows = load_collection_rows(env, spec.left_collection)?;
-    if left_rows.is_empty() {
-        record_empty_vectorized_join(env);
-        return Ok(Vec::new());
-    }
-
-    let mut build = std::collections::HashMap::<SemanticKey, Vec<usize>>::new();
-    for (index, left_row) in left_rows.iter().enumerate() {
-        if let Some(key) = row_join_key(left_row, &spec.keys.left) {
-            build.entry(key).or_default().push(index);
-        }
-    }
-
-    let batch_size = env
-        .cassie
-        .runtime
-        .limits()
-        .vectorized_join_batch_size
-        .max(1);
-    let progress = stream_right_rows_against_left(env, spec, &build, &left_rows, batch_size)?;
-    env.cassie.runtime.record_read_path_collection_scan(
-        spec.right_collection,
-        spec.right_scan_fields.len(),
-        progress.scanned,
-    );
-    env.cassie
-        .runtime
-        .record_vectorized_join_execution_with_roles(
-            crate::runtime::VectorizedJoinInputRows {
-                left: left_rows.len(),
-                right: progress.probe_rows,
-                build: left_rows.len(),
-                probe: progress.probe_rows,
-            },
-            progress.matched_rows,
-            progress.joined.len(),
+    check_timeout(env.controls)?;
+    Ok(JoinResult::new(
+        progress.joined,
+        PendingJoinDiagnostic::Vectorized {
+            probe_rows: progress.probe_rows,
+            build_rows: right_rows.len(),
+            matched_rows: progress.matched_rows,
             batch_size,
-            progress.probe_rows.div_ceil(batch_size),
-        );
-    Ok(progress.joined)
-}
-
-fn execute_dense_streaming_bounded_inner_join(
-    env: &SourceExecutionEnv<'_>,
-    spec: &StreamingJoinSpec<'_>,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let Some(right_scan_fields) = collection_scan_fields(env, spec.right_collection) else {
-        return Ok(Vec::new());
-    };
-    let left_schema = env.cassie.catalog.get_schema(spec.left_collection);
-    let right_schema = env.cassie.catalog.get_schema(spec.right_collection);
-    let batch_size = env
-        .cassie
-        .runtime
-        .limits()
-        .vectorized_join_batch_size
-        .max(1);
-    let mut joined = Vec::with_capacity(spec.output_budget.min(batch_size));
-    let mut probe_rows = 0usize;
-    let mut build_rows = 0usize;
-    let mut matched_rows = 0usize;
-    let mut right_scanned = 0usize;
-
-    let left_scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        spec.left_collection,
-        crate::midge::adapter::RowDecode::Full,
-        |left_document| {
-            check_timeout(env.controls)?;
-            let left_row = qualify_row(
-                scan::projected_document_to_row(
-                    &left_document,
-                    &spec.left_scan_fields,
-                    left_schema.as_ref(),
-                ),
-                spec.left_collection,
-            );
-            probe_rows += 1;
-            let Some(left_key) = row_join_key(&left_row, &spec.keys.left) else {
-                return Ok(true);
-            };
-
-            let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-                spec.right_collection,
-                crate::midge::adapter::RowDecode::Full,
-                |right_document| {
-                    check_timeout(env.controls)?;
-                    let right_row = qualify_row(
-                        scan::projected_document_to_row(
-                            &right_document,
-                            &right_scan_fields,
-                            right_schema.as_ref(),
-                        ),
-                        spec.right_collection,
-                    );
-                    build_rows += 1;
-                    let Some(right_key) = row_join_key(&right_row, &spec.keys.right) else {
-                        return Ok(true);
-                    };
-                    if left_key != right_key {
-                        return Ok(true);
-                    }
-
-                    let combined = combine_rows(&left_row, &right_row);
-                    if filter::eval_scalar(
-                        &combined,
-                        spec.on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .is_true()
-                    {
-                        matched_rows += 1;
-                        joined.push(combined);
-                        if joined.len() >= spec.output_budget {
-                            return Ok(false);
-                        }
-                    }
-
-                    Ok(true)
-                },
-            )?;
-            right_scanned += scanned;
-            Ok(joined.len() < spec.output_budget)
+            batches: progress.probe_rows.div_ceil(batch_size),
         },
-    )?;
-
-    env.cassie.runtime.record_read_path_collection_scan(
-        spec.left_collection,
-        spec.left_scan_fields.len(),
-        left_scanned,
-    );
-    env.cassie.runtime.record_read_path_collection_scan(
-        spec.right_collection,
-        right_scan_fields.len(),
-        right_scanned,
-    );
-    env.cassie.runtime.record_vectorized_join_execution(
-        probe_rows,
-        build_rows,
-        matched_rows,
-        joined.len(),
-        batch_size,
-        probe_rows,
-    );
-    Ok(joined)
+    ))
 }
-
-fn load_collection_rows(
-    env: &SourceExecutionEnv<'_>,
-    collection: &str,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let batches = scan::scan_limit(env.cassie, env.session, collection, None, env.controls)?;
-    Ok(batch::flatten_batches(batches)
-        .into_iter()
-        .map(|row| qualify_row(row, collection))
-        .collect())
-}
-
-fn record_empty_vectorized_join(env: &SourceExecutionEnv<'_>) {
-    env.cassie.runtime.record_vectorized_join_execution(
-        0,
-        0,
-        0,
-        0,
-        env.cassie
-            .runtime
-            .limits()
-            .vectorized_join_batch_size
-            .max(1),
-        0,
-    );
-}
-
-enum StreamingRightRows {
-    Rows(Vec<BatchRow>),
-    Dense(Vec<BatchRow>),
-}
-
-fn load_streaming_right_rows(
-    env: &SourceExecutionEnv<'_>,
-    right: &QuerySource,
-    cte_context: &mut CteContext,
-    outer_row: Option<&BatchRow>,
-    spec: &StreamingJoinSpec<'_>,
-) -> Result<StreamingRightRows, QueryError> {
-    match execute_query_source(env, right, cte_context, true, outer_row, None) {
-        Ok((right_batches, _right_text)) => Ok(StreamingRightRows::Rows(batch::flatten_batches(
-            right_batches,
-        ))),
-        Err(error)
-            if is_temp_budget_error(&error)
-                && can_dense_stream(env, spec.left_collection, spec.right_collection)? =>
-        {
-            execute_dense_streaming_bounded_inner_join(env, spec).map(StreamingRightRows::Dense)
-        }
-        Err(error) => Err(error),
-    }
-}
-
-struct StreamingJoinProgress {
-    joined: Vec<BatchRow>,
-    probe_rows: usize,
-    matched_rows: usize,
-    scanned: usize,
-}
-
-fn stream_left_rows_against_right(
-    env: &SourceExecutionEnv<'_>,
-    spec: &StreamingJoinSpec<'_>,
-    build: &std::collections::HashMap<SemanticKey, Vec<usize>>,
-    right_rows: &[BatchRow],
-    batch_size: usize,
-) -> Result<StreamingJoinProgress, QueryError> {
-    let schema = env.cassie.catalog.get_schema(spec.left_collection);
-    let mut joined = Vec::with_capacity(spec.output_budget.min(batch_size));
-    let mut probe_rows = 0usize;
-    let mut matched_rows = 0usize;
-
-    let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        spec.left_collection,
-        crate::midge::adapter::RowDecode::Full,
-        |document| {
-            check_timeout(env.controls)?;
-            let left_row = qualify_row(
-                scan::projected_document_to_row(&document, &spec.left_scan_fields, schema.as_ref()),
-                spec.left_collection,
-            );
-            probe_rows += 1;
-            let Some(key) = row_join_key(&left_row, &spec.keys.left) else {
-                return Ok(true);
-            };
-
-            if let Some(right_indexes) = build.get(&key) {
-                for right_index in right_indexes {
-                    let combined = combine_rows(&left_row, &right_rows[*right_index]);
-                    if filter::eval_scalar(
-                        &combined,
-                        spec.on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .is_true()
-                    {
-                        matched_rows += 1;
-                        joined.push(combined);
-                        if joined.len() >= spec.output_budget {
-                            return Ok(false);
-                        }
-                    }
-                }
-            }
-
-            Ok(true)
-        },
-    )?;
-
-    Ok(StreamingJoinProgress {
-        joined,
-        probe_rows,
-        matched_rows,
-        scanned,
-    })
-}
-
-fn stream_right_rows_against_left(
-    env: &SourceExecutionEnv<'_>,
-    spec: &StreamingJoinSpec<'_>,
-    build: &std::collections::HashMap<SemanticKey, Vec<usize>>,
-    left_rows: &[BatchRow],
-    batch_size: usize,
-) -> Result<StreamingJoinProgress, QueryError> {
-    let schema = env.cassie.catalog.get_schema(spec.right_collection);
-    let mut joined = Vec::with_capacity(spec.output_budget.min(batch_size));
-    let mut probe_rows = 0usize;
-    let mut matched_rows = 0usize;
-
-    let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
-        spec.right_collection,
-        crate::midge::adapter::RowDecode::Full,
-        |document| {
-            check_timeout(env.controls)?;
-            let right_row = qualify_row(
-                scan::projected_document_to_row(
-                    &document,
-                    &spec.right_scan_fields,
-                    schema.as_ref(),
-                ),
-                spec.right_collection,
-            );
-            probe_rows += 1;
-            let Some(key) = row_join_key(&right_row, &spec.keys.right) else {
-                return Ok(true);
-            };
-
-            if let Some(left_indexes) = build.get(&key) {
-                for left_index in left_indexes {
-                    let combined = combine_rows(&left_rows[*left_index], &right_row);
-                    if filter::eval_scalar(
-                        &combined,
-                        spec.on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .is_true()
-                    {
-                        matched_rows += 1;
-                        joined.push(combined);
-                        if joined.len() >= spec.output_budget {
-                            return Ok(false);
-                        }
-                    }
-                }
-            }
-
-            Ok(true)
-        },
-    )?;
-
-    Ok(StreamingJoinProgress {
-        joined,
-        probe_rows,
-        matched_rows,
-        scanned,
-    })
-}
-
 fn streaming_join_spec<'a>(
     env: &SourceExecutionEnv<'_>,
     left: &'a QuerySource,
@@ -827,95 +461,6 @@ fn hydrated_row_count(env: &SourceExecutionEnv<'_>, collection: &str) -> Option<
         .get_cardinality_stats(collection)
         .filter(|stats| stats.hydrated)
         .map(|stats| stats.row_count)
-}
-
-fn scan_indexed_join_rows(
-    env: &SourceExecutionEnv<'_>,
-    collection: &str,
-    scan_fields: &[String],
-    index: &catalog::IndexMeta,
-    key_value: serde_json::Value,
-    limit: usize,
-) -> Result<Vec<BatchRow>, QueryError> {
-    let fields = index.normalized_fields();
-    let field = fields
-        .first()
-        .ok_or_else(|| QueryError::General("scalar join index has no leading field".to_string()))?;
-    let signed_zero_counterpart =
-        crate::executor::execution::index_read::signed_zero_probe_counterpart(
-            env.cassie, collection, field, &key_value,
-        );
-    let mut probe_values = vec![key_value];
-    if let Some(counterpart) = signed_zero_counterpart {
-        probe_values.push(counterpart);
-    }
-    let mut hit_ids = Vec::new();
-    let mut seen_ids = std::collections::HashSet::new();
-    let mut hit_memory = Vec::with_capacity(probe_values.len());
-    for value in probe_values {
-        let hits = env
-            .cassie
-            .midge
-            .scan_scalar_index_controlled(
-                index,
-                &crate::midge::adapter::ScalarIndexScanRequest {
-                    equality_prefix: vec![value],
-                    limit: Some(limit),
-                    ..Default::default()
-                },
-                env.controls,
-            )
-            .map_err(QueryError::from)?;
-        let (hits, memory) = hits.into_parts();
-        hit_memory.push(memory);
-        for hit in hits {
-            if seen_ids.insert(hit.id.clone()) {
-                hit_ids.push(hit.id);
-            }
-        }
-    }
-    hit_ids.truncate(limit);
-    let hit_id_bytes = hit_ids.iter().fold(0_usize, |bytes, id| {
-        bytes
-            .saturating_add(std::mem::size_of::<String>())
-            .saturating_add(3 * std::mem::size_of::<usize>())
-            .saturating_add(id.len())
-    });
-    let hit_id_memory = env.controls.reserve_query_memory(hit_id_bytes)?;
-    let _retained_index_memory = (hit_memory, hit_id_memory);
-    env.cassie
-        .runtime
-        .record_read_path_index_seek(collection, hit_ids.len(), &index.name);
-
-    let schema = env.cassie.catalog.get_schema(collection);
-    let mut rows = Vec::with_capacity(hit_ids.len());
-    for hit_id in hit_ids {
-        let Some(document) = env
-            .cassie
-            .get_document_for_session(env.session, collection, &hit_id)
-            .map_err(|error| QueryError::General(error.to_string()))?
-        else {
-            continue;
-        };
-        rows.push(qualify_row(
-            scan::projected_document_to_row(&document, scan_fields, schema.as_ref()),
-            collection,
-        ));
-    }
-    Ok(rows)
-}
-
-fn value_to_json(value: &Value) -> Option<serde_json::Value> {
-    match value {
-        Value::Null => Some(serde_json::Value::Null),
-        Value::Bool(value) => Some(serde_json::Value::Bool(*value)),
-        Value::Int64(value) => Some(serde_json::Value::Number((*value).into())),
-        Value::Float64(value) => {
-            serde_json::Number::from_f64(*value).map(serde_json::Value::Number)
-        }
-        Value::String(value) => Some(serde_json::Value::String(value.clone())),
-        Value::Vector(_) | Value::Json(_) => None,
-    }
 }
 
 fn has_session_changes(env: &SourceExecutionEnv<'_>, collection: &str) -> bool {

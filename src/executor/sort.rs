@@ -4,13 +4,20 @@ use std::collections::{BinaryHeap, HashMap, VecDeque};
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::RowAccess;
-use crate::executor::batch::{chunk_rows, flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE};
+use crate::executor::batch::{flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryExecutionControls;
 use crate::sql::ast::{Expr, NullsOrder, OrderExpr, SelectItem, SortDirection};
 use crate::types::Value;
+
+#[cfg(test)]
+mod tests;
+
+mod retention;
+use retention::{SortRetentionContext, SortRetentionPhase};
+mod accounting;
 
 pub(crate) fn sort_batches_with_controls(
     batches: Vec<Batch>,
@@ -21,7 +28,7 @@ pub(crate) fn sort_batches_with_controls(
         return Ok(batches);
     }
     let rows = sort_rows_with_controls(flatten_batches(batches), eval, controls)?;
-    Ok(chunk_rows(rows, DEFAULT_BATCH_SIZE))
+    chunk_rows_controlled(rows.into_iter(), controls)
 }
 
 pub(crate) fn sort_rows_with_controls<R>(
@@ -32,16 +39,34 @@ pub(crate) fn sort_rows_with_controls<R>(
 where
     R: RowAccess,
 {
+    sort_rows_with_context(rows, eval, controls, &SortRetentionContext::default())
+}
+
+fn sort_rows_with_context<R>(
+    rows: Vec<R>,
+    eval: &EvalInput<'_>,
+    controls: &QueryExecutionControls,
+    retention: &SortRetentionContext<'_>,
+) -> Result<Vec<R>, crate::executor::QueryError>
+where
+    R: RowAccess,
+{
+    use crate::executor::retained_memory::{add, mul};
+
     let order = eval.resolved_order();
+    let slots = mul(rows.len(), 2 * std::mem::size_of::<(RowKey, R)>())?;
+    let headers = mul(rows.len(), 2 * std::mem::size_of::<VecDeque<(RowKey, R)>>())?;
+    let run_memory = controls.reserve_query_memory(add(slots, headers)?)?;
+    retention.before(SortRetentionPhase::RunBacking)?;
     let mut runs = Vec::with_capacity(rows.len());
-    let mut key_memory = Vec::with_capacity(rows.len());
     for row in rows {
         check_query_controls(controls)?;
-        let key = eval.row_key(&row, &order)?;
-        key_memory.push(controls.reserve_query_memory(row_key_bytes(&key))?);
+        let key = eval.row_key_with_context(&row, &order, retention, Some(controls))?;
         runs.push(VecDeque::from([(key, row)]));
     }
     while runs.len() > 1 {
+        #[cfg(test)]
+        let current_header_capacity = runs.capacity();
         let mut merged = Vec::with_capacity(runs.len().div_ceil(2));
         let mut run_iter = runs.into_iter();
         while let Some(left) = run_iter.next() {
@@ -49,24 +74,54 @@ where
                 merged.push(left);
                 break;
             };
-            merged.push(merge_sorted_runs(left, right, controls)?);
+            #[cfg(test)]
+            let backing = if retention.has_run_probe() {
+                Some(retention::RunBackingSnapshot {
+                    other_deque_slots: merged
+                        .iter()
+                        .chain(run_iter.as_slice())
+                        .try_fold(0, |slots, run| add(slots, run.capacity()))?,
+                    header_slots: add(current_header_capacity, merged.capacity())?,
+                    reservation_bytes: run_memory.bytes(),
+                })
+            } else {
+                None
+            };
+            merged.push(merge_sorted_runs(
+                left,
+                right,
+                controls,
+                #[cfg(test)]
+                retention,
+                #[cfg(test)]
+                backing.as_ref(),
+            )?);
         }
         runs = merged;
     }
-    Ok(runs
+    check_query_controls(controls)?;
+    let sorted = runs
         .pop()
         .unwrap_or_default()
         .into_iter()
         .map(|(_, row)| row)
-        .collect())
+        .collect();
+    drop(run_memory);
+    Ok(sorted)
 }
 
 fn merge_sorted_runs<R>(
     mut left: VecDeque<(RowKey, R)>,
     mut right: VecDeque<(RowKey, R)>,
     controls: &QueryExecutionControls,
+    #[cfg(test)] retention: &SortRetentionContext<'_>,
+    #[cfg(test)] backing: Option<&retention::RunBackingSnapshot>,
 ) -> Result<VecDeque<(RowKey, R)>, crate::executor::QueryError> {
     let mut merged = VecDeque::with_capacity(left.len() + right.len());
+    #[cfg(test)]
+    if let Some(backing) = backing {
+        retention.observe_run_merge(backing, &left, &right, &merged)?;
+    }
     while !left.is_empty() && !right.is_empty() {
         check_query_controls(controls)?;
         if compare_row_keys(&left[0].0, &right[0].0) == Ordering::Greater {
@@ -102,32 +157,99 @@ pub(crate) fn top_k_batches_with_controls(
     top_needed: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    top_k_batches_with_context(
+        batches,
+        eval,
+        top_needed,
+        controls,
+        &SortRetentionContext::default(),
+    )
+}
+
+fn top_k_batches_with_context(
+    batches: Vec<Batch>,
+    eval: &EvalInput<'_>,
+    top_needed: usize,
+    controls: &QueryExecutionControls,
+    retention: &SortRetentionContext<'_>,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
     if eval.order.is_empty() || top_needed == 0 {
         return Ok(Vec::new());
     }
     let order = eval.resolved_order();
-    let mut top = BinaryHeap::with_capacity(top_needed.min(DEFAULT_BATCH_SIZE).saturating_add(1));
-    let mut top_memory = controls.reserve_query_memory(0)?;
-    for row in flatten_batches(batches) {
+    let mut top = BinaryHeap::new();
+    let mut backing_memory = controls.reserve_query_memory(0)?;
+    for row in batches.into_iter().flatten() {
         check_query_controls(controls)?;
         let candidate = TopCandidate {
-            key: eval.row_key(&row, &order)?,
+            key: eval.row_key_with_context(&row, &order, retention, Some(controls))?,
             row,
         };
+        if top.len() < top_needed && top.len() == top.capacity() {
+            use crate::executor::retained_memory::mul;
+
+            let next_capacity = top
+                .capacity()
+                .checked_mul(2)
+                .ok_or_else(|| {
+                    crate::app::CassieError::ResourceLimit("sort heap capacity overflow".to_owned())
+                })?
+                .max(1)
+                .min(top_needed);
+            backing_memory.try_grow(mul(
+                next_capacity - top.capacity(),
+                std::mem::size_of::<TopCandidate>(),
+            )?)?;
+            retention.before(SortRetentionPhase::HeapBacking)?;
+            top.try_reserve_exact(next_capacity - top.len())
+                .map_err(|error| sort_allocation_error(&error))?;
+        }
         push_top_candidate(&mut top, top_needed, candidate);
-        drop(top_memory);
-        top_memory = controls.reserve_query_memory(
-            top.iter()
-                .map(|candidate| row_key_bytes(&candidate.key))
-                .sum(),
-        )?;
     }
+    let _sort_scratch = controls.reserve_query_memory(crate::executor::retained_memory::mul(
+        top.len(),
+        std::mem::size_of::<TopCandidate>(),
+    )?)?;
     let mut ranked = top.into_vec();
     ranked.sort_by(compare_top_candidates);
-    Ok(chunk_rows(
-        ranked.into_iter().map(|candidate| candidate.row).collect(),
-        DEFAULT_BATCH_SIZE,
-    ))
+    check_query_controls(controls)?;
+    chunk_rows_controlled(ranked.into_iter().map(|candidate| candidate.row), controls)
+}
+
+fn chunk_rows_controlled(
+    mut rows: impl ExactSizeIterator<Item = crate::executor::batch::BatchRow>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
+    use crate::executor::retained_memory::{add, mul};
+
+    let batch_count = rows.len().div_ceil(DEFAULT_BATCH_SIZE);
+    let _chunk_memory = controls.reserve_query_memory(add(
+        mul(
+            rows.len(),
+            std::mem::size_of::<crate::executor::batch::BatchRow>(),
+        )?,
+        mul(batch_count, std::mem::size_of::<Batch>())?,
+    )?)?;
+    let mut batches = Vec::new();
+    batches
+        .try_reserve_exact(batch_count)
+        .map_err(|error| sort_allocation_error(&error))?;
+    while rows.len() > 0 {
+        check_query_controls(controls)?;
+        let count = rows.len().min(DEFAULT_BATCH_SIZE);
+        let mut batch = Vec::new();
+        batch
+            .try_reserve_exact(count)
+            .map_err(|error| sort_allocation_error(&error))?;
+        batch.extend(rows.by_ref().take(count));
+        batches.push(batch);
+    }
+    check_query_controls(controls)?;
+    Ok(batches)
+}
+
+fn sort_allocation_error(error: &std::collections::TryReserveError) -> crate::executor::QueryError {
+    crate::app::CassieError::ResourceLimit(format!("unable to retain sort state: {error}")).into()
 }
 
 /// Maintains the production top-k heap without query-runtime orchestration.
@@ -246,19 +368,85 @@ impl EvalInput<'_> {
         row: &R,
         order: &[OrderExpr],
     ) -> Result<RowKey, crate::executor::QueryError> {
-        let parts = order
-            .iter()
-            .map(|order| {
-                self.value(row, &order.expr).map(|value| KeyPart {
-                    value: super::array_order::key(row, &order.expr, &value, self.user_functions),
-                    direction: order.direction.clone(),
-                    nulls: order.nulls,
-                })
+        self.row_key_with_context(row, order, &SortRetentionContext::default(), None)
+    }
+
+    fn row_key_with_context<R: RowAccess>(
+        &self,
+        row: &R,
+        order: &[OrderExpr],
+        retention: &SortRetentionContext<'_>,
+        controls: Option<&QueryExecutionControls>,
+    ) -> Result<RowKey, crate::executor::QueryError> {
+        use crate::executor::retained_memory::{add, mul};
+
+        let mut memory = controls
+            .map(|controls| {
+                controls.reserve_query_memory(add(
+                    std::mem::size_of::<RowKey>(),
+                    mul(order.len(), std::mem::size_of::<KeyPart>())?,
+                )?)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .transpose()?;
+        let mut parts = Vec::with_capacity(order.len());
+        for order in order {
+            let value = self.value(row, &order.expr)?;
+            if let Some(controls) = controls {
+                check_query_controls(controls)?;
+            }
+            let previous = memory
+                .as_ref()
+                .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
+            let mut admitted = 0;
+            if let Some(memory) = memory.as_mut() {
+                memory.try_grow(accounting::type_scratch(
+                    row,
+                    &order.expr,
+                    self.user_functions,
+                )?)?;
+                let data_type = row.has_array_types().then(|| {
+                    super::array_order::expression_type(row, &order.expr, self.user_functions)
+                });
+                admitted = accounting::conversion_bytes(&value, data_type.flatten().as_ref())?;
+                memory.try_grow(admitted)?;
+            }
+            retention.before(SortRetentionPhase::SemanticPart)?;
+            let semantic = super::array_order::key(row, &order.expr, &value, self.user_functions);
+            if let Some(memory) = memory.as_mut() {
+                let retained = accounting::semantic_heap(&semantic)?;
+                if retained > admitted {
+                    return Err(crate::app::CassieError::ResourceLimit(
+                        "sort key exceeded its admitted allocation shape".to_owned(),
+                    )
+                    .into());
+                }
+                drop(value);
+                memory.shrink_to(add(previous, retained)?);
+            }
+            parts.push(KeyPart {
+                value: semantic,
+                direction: order.direction.clone(),
+                nulls: order.nulls,
+            });
+        }
+        let previous = memory
+            .as_ref()
+            .map_or(0, crate::runtime::QueryMemoryReservation::bytes);
+        if let Some(memory) = memory.as_mut() {
+            memory.try_grow(accounting::tie_bytes(row)?)?;
+        }
+        retention.before(SortRetentionPhase::TieKey)?;
+        let tie_key = row_tie_key(row);
+        if let Some(memory) = memory.as_mut() {
+            memory.shrink_to(add(previous, tie_key.capacity())?);
+        }
+        if let Some(controls) = controls {
+            check_query_controls(controls)?;
+        }
         Ok(RowKey {
             parts,
-            tie_key: row_tie_key(row),
+            tie_key,
+            _memory: memory,
         })
     }
 
@@ -288,6 +476,7 @@ struct KeyPart {
 struct RowKey {
     parts: Vec<KeyPart>,
     tie_key: String,
+    _memory: Option<crate::runtime::QueryMemoryReservation>,
 }
 
 struct TopCandidate {
@@ -342,22 +531,6 @@ fn compare_row_keys(left: &RowKey, right: &RowKey) -> Ordering {
         .len()
         .cmp(&right.parts.len())
         .then_with(|| left.tie_key.cmp(&right.tie_key))
-}
-
-fn row_key_bytes(key: &RowKey) -> usize {
-    key.tie_key
-        .len()
-        .saturating_add(
-            key.parts
-                .len()
-                .saturating_mul(std::mem::size_of::<KeyPart>()),
-        )
-        .saturating_add(
-            key.parts
-                .iter()
-                .map(|part| part.value.estimated_bytes())
-                .sum(),
-        )
 }
 
 fn compare_ordered_values(

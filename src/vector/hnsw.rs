@@ -12,7 +12,7 @@ pub(crate) use controlled::{
     search_graph_with_controlled_node_loader, ControlledHnswSearchRequest,
 };
 
-const HNSW_GRAPH_VERSION: u32 = 1;
+pub(crate) const HNSW_GRAPH_VERSION: u32 = 1;
 const MAX_DETERMINISTIC_LAYER: usize = 16;
 
 #[derive(Debug, Clone, PartialEq)]

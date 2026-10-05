@@ -32,6 +32,9 @@ pub(super) use rewrite::{
 };
 use state::{AggregateAccumulator, PartialAggregateGroup};
 
+#[cfg(test)]
+type PartitionRowObserver<'a> = &'a (dyn Fn(usize) + Sync);
+
 pub(super) struct AggregateExecutionContext<'a> {
     pub(super) plan: &'a LogicalPlan,
     pub(super) params: &'a [Value],
@@ -39,6 +42,9 @@ pub(super) struct AggregateExecutionContext<'a> {
     pub(super) user_functions: &'a HashMap<String, FunctionMeta>,
     pub(super) session: Option<&'a CassieSession>,
     pub(super) controls: &'a QueryExecutionControls,
+    // Invocation-owned unit-test seam; production builds retain the existing context layout.
+    #[cfg(test)]
+    pub(super) after_partition_row: Option<PartitionRowObserver<'a>>,
 }
 
 #[derive(Clone)]
@@ -162,6 +168,7 @@ fn merge_partial_aggregations(
     specs: &[AggregateSpec],
     context: &AggregateExecutionContext<'_>,
 ) -> Result<Option<Vec<Batch>>, QueryError> {
+    check_timeout(context.controls)?;
     let partitions = partials.len();
     let input_rows = rows.len();
     let mut merged = BTreeMap::<SemanticKey, PartialAggregateGroup>::new();
@@ -171,8 +178,10 @@ fn merge_partial_aggregations(
     let mut partition_memory = Vec::with_capacity(partitions);
     let mut merged_memory = GroupMemory::new(context.controls)?;
     for partial in partials {
+        check_timeout(context.controls)?;
         partition_memory.push(partial.memory);
         for (signature, group) in partial.groups {
+            check_timeout(context.controls)?;
             match merged.entry(signature) {
                 Entry::Occupied(mut entry) => {
                     let change = entry.get_mut().merge(&group)?;
@@ -202,6 +211,7 @@ fn merge_partial_aggregations(
     let group_count = merged.len();
     let mut out = Vec::with_capacity(group_count);
     for (_signature, group) in merged {
+        check_timeout(context.controls)?;
         let mut values = group.group_values;
         for (spec, accumulator) in specs.iter().zip(group.accumulators) {
             let value = accumulator.finish()?;
@@ -214,6 +224,7 @@ fn merge_partial_aggregations(
     drop(merged_memory);
     drop(partition_memory);
 
+    check_timeout(context.controls)?;
     cassie
         .runtime
         .record_parallel_aggregation(workers, partitions, input_rows, group_count);
@@ -258,6 +269,8 @@ fn aggregate_partition(
 ) -> Result<PartialAggregation, QueryError> {
     let mut groups = PartialGroups::new();
     let mut group_memory = GroupMemory::new(context.controls)?;
+    #[cfg(test)]
+    let mut processed_rows = 0;
     for row in chunk {
         check_timeout(context.controls)?;
         let group_values = aggregate_group_values(row, context)?;
@@ -272,6 +285,11 @@ fn aggregate_partition(
         };
         let change = group.update(row, specs, context)?;
         group_memory.resize(change.before, change.after)?;
+        #[cfg(test)]
+        if let Some(observer) = context.after_partition_row {
+            processed_rows += 1;
+            observer(processed_rows);
+        }
     }
     Ok(PartialAggregation {
         groups,

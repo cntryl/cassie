@@ -54,14 +54,15 @@ pub fn vector_search(
     let offset = request.offset.unwrap_or(0);
     let collection = resolve_collection(cassie, collection)?;
 
-    let result = cassie.execute_vector_search(
-        &collection,
-        &request.field,
-        &request.query,
-        metric,
-        limit,
-        offset,
-    )?;
-
-    RestQueryResult::try_from(result)
+    cassie.run_controlled_vector_search(
+        crate::app::VectorSearchInput {
+            collection: &collection,
+            vector_field: &request.field,
+            query: &request.query,
+            metric,
+            limit,
+            offset,
+        },
+        RestQueryResult::try_from,
+    )
 }

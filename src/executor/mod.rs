@@ -21,6 +21,7 @@ pub(crate) fn delete_document_with_referential_actions(
 pub mod filter;
 pub mod projection;
 mod projection_types;
+pub(crate) mod retained_memory;
 pub mod scan;
 pub(crate) mod semantic;
 pub mod sort;

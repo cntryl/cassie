@@ -2,6 +2,7 @@ use sha2::{Digest, Sha256};
 
 use crate::embeddings::EmbeddingProvider;
 use crate::embeddings::{Embedding, EmbeddingError};
+use crate::runtime::QueryExecutionControls;
 
 #[derive(Debug, Clone)]
 pub struct LocalProviderConfig {
@@ -90,6 +91,17 @@ impl EmbeddingProvider for LocalProvider {
 
     fn embed_query(&self, input: &str) -> Result<Embedding, EmbeddingError> {
         Ok(self.derive_embedding(input, "query"))
+    }
+
+    fn embed_query_with_controls(
+        &self,
+        input: &str,
+        controls: &QueryExecutionControls,
+    ) -> Result<Embedding, EmbeddingError> {
+        crate::embeddings::provider::check_controls(self.provider_name(), controls)?;
+        let embedding = self.embed_query(input)?;
+        crate::embeddings::provider::check_controls(self.provider_name(), controls)?;
+        Ok(embedding)
     }
 }
 

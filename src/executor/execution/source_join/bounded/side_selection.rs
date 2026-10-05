@@ -1,9 +1,11 @@
 use super::{
     can_dense_stream, catalog, check_timeout, estimate_vectorized_join_bytes, hydrated_row_count,
-    join_field_for_collection, qualify_row, row_join_key, scan, QueryError, SourceExecutionEnv,
+    join_field_for_collection, project_source_row, reserve_probe_key, row_join_key,
+    JoinRetentionContext, JoinRetentionPhase, QueryError, SourceExecutionEnv, SourceRowShape,
     StreamingJoinSpec, ROW_COUNT_BUILD_SIDE_RATIO,
 };
 use crate::executor::semantic::SemanticKey;
+use crate::runtime::accounted::AccountedVec;
 
 const FANOUT_BUILD_SIDE_COST_RATIO: u64 = 2;
 const ROW_COUNT_SAMPLE_BUILD_SIDE_RATIO: u64 = 2;
@@ -148,7 +150,7 @@ fn should_build_left_from_bounded_row_counts(
             &spec.right_scan_fields,
             sample_limit,
         )?;
-        if samples_support_left_build(&left_keys, &right_keys) {
+        if samples_support_left_build(left_keys.as_slice(), right_keys.as_slice()) {
             return Ok(StreamingSideSelection::build_left(
                 "left_build_bounded_row_count_sample",
             ));
@@ -213,6 +215,7 @@ fn count_rows_until(
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
         collection,
         crate::midge::adapter::RowDecode::Projected(Vec::new()),
+        env.controls,
         |_document| {
             check_timeout(env.controls)?;
             rows += 1;
@@ -283,7 +286,10 @@ fn should_build_left_from_row_count_sample(
         &spec.right_scan_fields,
         sample_limit,
     )?;
-    Ok(samples_support_left_build(&left_keys, &right_keys))
+    Ok(samples_support_left_build(
+        left_keys.as_slice(),
+        right_keys.as_slice(),
+    ))
 }
 
 fn output_budget_can_use_left_build(output_budget: usize, left_rows: u64) -> bool {
@@ -308,20 +314,50 @@ fn sample_join_keys(
     key: &str,
     scan_fields: &[String],
     limit: usize,
-) -> Result<Vec<SemanticKey>, QueryError> {
+) -> Result<AccountedVec<SemanticKey>, QueryError> {
+    sample_join_keys_with_context(
+        env,
+        collection,
+        key,
+        scan_fields,
+        limit,
+        &JoinRetentionContext::default(),
+    )
+}
+
+pub(super) fn sample_join_keys_with_context(
+    env: &SourceExecutionEnv<'_>,
+    collection: &str,
+    key: &str,
+    scan_fields: &[String],
+    limit: usize,
+    retention: &JoinRetentionContext<'_>,
+) -> Result<AccountedVec<SemanticKey>, QueryError> {
     let schema = env.cassie.catalog.get_schema(collection);
-    let mut keys = Vec::with_capacity(limit);
+    let mut keys = AccountedVec::try_new(env.controls)?;
     let scanned = env.cassie.midge.scan_rows_until::<QueryError, _>(
         collection,
         crate::midge::adapter::RowDecode::Full,
+        env.controls,
         |document| {
             check_timeout(env.controls)?;
-            let row = qualify_row(
-                scan::projected_document_to_row(&document, scan_fields, schema.as_ref()),
-                collection,
-            );
+            let row = project_source_row(
+                env,
+                &document,
+                SourceRowShape {
+                    collection,
+                    fields: scan_fields,
+                    schema: schema.as_ref(),
+                },
+                JoinRetentionPhase::BoundedSource,
+                retention,
+            )?;
+            retention.enter(JoinRetentionPhase::BoundedSampleKey);
+            let _key_memory = reserve_probe_key(env, &row, key)?;
+            retention.before(JoinRetentionPhase::BoundedSampleKey)?;
             if let Some(join_key) = row_join_key(&row, key) {
-                keys.push(join_key);
+                let key_bytes = super::accounting::join_key_bytes(&row, key)?;
+                keys.try_push_with(key_bytes, || join_key)?;
             }
             Ok(keys.len() < limit)
         },
@@ -329,6 +365,7 @@ fn sample_join_keys(
     env.cassie
         .runtime
         .record_read_path_collection_scan(collection, scan_fields.len(), scanned);
+    check_timeout(env.controls)?;
     Ok(keys)
 }
 
@@ -337,10 +374,9 @@ fn samples_support_left_build(left_keys: &[SemanticKey], right_keys: &[SemanticK
         return false;
     }
 
-    let left_distinct = left_keys.iter().collect::<std::collections::HashSet<_>>();
     let matching_right_keys = right_keys
         .iter()
-        .filter(|key| left_distinct.contains(key))
+        .filter(|key| left_keys.iter().any(|left| left == *key))
         .count();
     matching_right_keys.saturating_mul(SAMPLE_MATCH_RATIO) >= right_keys.len()
 }

@@ -2621,12 +2621,13 @@ mod query_resource_controls {
     #[test]
     fn should_report_join_budget_failure_with_program_limit_sqlstate() {
         // Arrange
+        const FIXTURE_BUDGET_BYTES: usize = 256 * 1_024;
         let _hook_guard = query_scan_control_test_guard();
         std::env::set_var("CASSIE_STORAGE_MODE", "local");
         let path = data_dir("join-sqlstate");
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
-        // Both complete inputs fit; the 256-row joined output exceeds the shared cap.
-        config.limits.query_memory_budget_bytes = 32 * 1_024;
+        // Qualified retained inputs fit; the 256-row joined output exceeds the shared cap.
+        config.limits.query_memory_budget_bytes = FIXTURE_BUDGET_BYTES;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -2659,6 +2660,27 @@ mod query_resource_controls {
                 .expect("each complete join input must fit the shared query budget");
             assert_eq!(input.rows.len(), 16);
         }
+        let before_positive_entries = cassie.midge.query_scan_entries_for_diagnostics();
+        let positive = cassie
+            .execute_sql(
+                &session,
+                "SELECT controlled_join_left.payload, controlled_join_right.payload FROM controlled_join_left INNER JOIN controlled_join_right ON FALSE",
+                vec![],
+            )
+            .expect("both qualified retained inputs and a rejected candidate must fit");
+        assert_eq!(positive.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(
+            cassie.midge.query_scan_entries_for_diagnostics() - before_positive_entries,
+            32
+        );
+        let positive_metrics = cassie.metrics();
+        assert_eq!(positive_metrics["joins"]["last_strategy"], "nested_loop");
+        let positive_peak = positive_metrics["query"]["peak_accounted_memory_bytes"]
+            .as_u64()
+            .expect("positive input admission peak");
+        assert!(positive_peak <= u64::try_from(FIXTURE_BUDGET_BYTES).expect("fixture budget"));
+        assert_eq!(positive_metrics["query"]["current_accounted_memory_bytes"], 0);
+        eprintln!("qualified loaded join input admission peak: {positive_peak} bytes");
         let sql = "SELECT controlled_join_left.payload, controlled_join_right.payload FROM controlled_join_left CROSS JOIN controlled_join_right";
         let before_entries = cassie.midge.query_scan_entries_for_diagnostics();
         let before_metrics = cassie.metrics();
@@ -2705,7 +2727,7 @@ mod query_resource_controls {
     #[test]
     fn should_stop_cross_join_after_limit_without_materializing_both_inputs() {
         // Arrange
-        const FIXTURE_BUDGET_BYTES: usize = 16 * 1_024;
+        const FIXTURE_BUDGET_BYTES: usize = 32 * 1_024;
         let _hook_guard = query_scan_control_test_guard();
         let (cassie, path) = configured_cassie("cross-join-limit", FIXTURE_BUDGET_BYTES);
         let session = cassie.create_session("tester", None);

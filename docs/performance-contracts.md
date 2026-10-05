@@ -34,6 +34,12 @@ planning, storage caches and total process RSS are separate observations.
 Full-shape RowStore scans use the controlled source cursor before conversion with any configured
 worker count. Source reservations overlap converted row buffers, lookup state and type metadata;
 parallel conversion uses the shared worker permits and joins every admitted worker on failure.
+Generic collection sources keep that conversion reservation attached to their returned rows,
+including qualification aliases and lookup state. Loaded joins admit the complete left input
+before reading the right source, and admit each input before flattening it. Existing buffer
+capacity and temporary old/new batch overlap remain charged during that transfer; an origin
+reservation does not admit a derived row's additional allocations. Partial output batches retain
+only their actual row slots.
 Ordered row-ID pages use bounded reads from one readonly transaction, accounting continuation
 keys, both source lookaheads and projection copies before decoding or constructing rows. Their
 forward/reverse merge preserves authoritative row precedence over legacy document keys.

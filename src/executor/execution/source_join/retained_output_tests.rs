@@ -310,3 +310,68 @@ fn with_fixture(vectorized: bool, run: impl FnOnce(&SourceExecutionEnv<'_>)) {
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);
 }
+
+#[test]
+fn should_preserve_exact_loaded_input_slots_through_backing_transfer() {
+    // Arrange
+    with_fixture(false, |env| {
+        let batches = vec![vec![row("left", 1, "payload")]];
+        let body_bytes = super::accounting::moved_row_bytes(&batches[0][0])
+            .expect("complete retained input shape");
+        let old_backing = batches.capacity() * std::mem::size_of::<super::Batch>()
+            + batches[0].capacity() * std::mem::size_of::<BatchRow>();
+        assert_eq!(env.controls.current_query_memory_bytes(), 0);
+
+        // Act
+        let (rows, memory) = super::prepare_join_rows(env, batches)
+            .expect("complete input and temporary backing overlap fit");
+
+        // Assert
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.capacity(), 1);
+        assert_eq!(
+            rows[0].get("left.payload"),
+            Some(&Value::String("payload".to_owned()))
+        );
+        assert_eq!(env.controls.current_query_memory_bytes(), body_bytes);
+        assert_eq!(
+            env.controls.peak_query_memory_bytes(),
+            body_bytes + old_backing
+        );
+        drop(rows);
+        assert_eq!(env.controls.current_query_memory_bytes(), body_bytes);
+        drop(memory);
+        assert_eq!(env.controls.current_query_memory_bytes(), 0);
+    });
+}
+
+#[test]
+fn should_admit_existing_alias_capacity_before_moving_join_inputs() {
+    // Arrange
+    with_fixture(false, |env| {
+        let mut aliases = Vec::with_capacity(64);
+        aliases.push(("left.value".to_owned(), 0));
+        let alias_backing = aliases.capacity() * std::mem::size_of::<(String, usize)>();
+        let row = BatchRow::with_aliases(vec![("value".to_owned(), Value::Int64(1))], aliases);
+        assert!(row.query_memory().is_none());
+        assert_eq!(row.aliases().len(), 1);
+        let batches = vec![vec![row]];
+
+        // Act
+        let (rows, memory) = super::prepare_join_rows(env, batches)
+            .expect("valid input with retained spare aliases fits");
+
+        // Assert
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.capacity(), 1);
+        assert_eq!(rows[0].get("left.value"), Some(&Value::Int64(1)));
+        assert!(
+            env.controls.current_query_memory_bytes() >= alias_backing,
+            "moved alias backing alone retains {alias_backing} bytes but only {} are admitted",
+            env.controls.current_query_memory_bytes(),
+        );
+        drop(rows);
+        drop(memory);
+        assert_eq!(env.controls.current_query_memory_bytes(), 0);
+    });
+}

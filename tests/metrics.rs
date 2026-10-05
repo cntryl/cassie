@@ -2695,7 +2695,7 @@ mod metrics_joins {
     }
 
     #[test]
-    fn should_record_vectorized_join_spill_fallback() {
+    fn should_reject_loaded_join_inputs_before_operator_selection() {
         // Arrange
         use_local_storage();
         let path = data_dir("vectorized_join_spill_fallback");
@@ -2711,15 +2711,17 @@ mod metrics_joins {
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
             // Literal sources isolate the join strategy from storage-tree decode reservations.
-            // Each minimal complete source fits the budget; the vectorized estimate is 1,024.
-            // The merge replacement must still admit its own copies, so insufficient space
-            // returns a resource error after recording the attempted strategy's fallback.
+            // Each literal scan fits independently. Combined qualified input admission
+            // exceeds this cap before selecting an algorithm; operator spill diagnostics
+            // are qualified separately by the actual loaded-kernel unit fixture.
             for input_sql in ["SELECT 1 AS a", "SELECT 2 AS b"] {
                 let input = cassie
                     .execute_sql(&session, input_sql, vec![])
                     .expect("the complete spill input must fit");
                 assert_eq!(input.rows.len(), 1);
             }
+
+            let before = cassie.metrics();
 
             // Act
             let error = cassie
@@ -2728,22 +2730,26 @@ mod metrics_joins {
                     "SELECT u.a FROM (SELECT 1 AS a) AS u JOIN (SELECT 2 AS b) AS v ON u.a = v.b",
                     vec![],
                 )
-                .expect_err("the merge replacement must respect the shared retained-state cap");
+                .expect_err("qualified loaded inputs must reject before operator selection");
 
             // Assert
             assert!(
                 matches!(error, cassie::app::CassieError::ResourceLimit(_)),
-                "the selected spill path must fail at retained-state admission: {error:?}"
+                "the loaded input admission must fail before operator selection: {error:?}"
             );
             let metrics = cassie.metrics();
             assert_eq!(metrics["joins"]["vectorized_joins"], 0);
-            assert_eq!(metrics["joins"]["vectorized_fallbacks"], 1);
-            assert_eq!(metrics["joins"]["vectorized_spill_fallbacks"], 1);
+            assert_eq!(metrics["joins"]["vectorized_fallbacks"], 0);
+            assert_eq!(metrics["joins"]["vectorized_spill_fallbacks"], 0);
             assert_eq!(
                 metrics["joins"]["last_vectorized_fallback_reason"],
-                "spill_budget_exceeded"
+                before["joins"]["last_vectorized_fallback_reason"]
             );
             assert_eq!(metrics["joins"]["executions"], 0);
+            assert_eq!(
+                metrics["query"]["rows_returned_total"],
+                before["query"]["rows_returned_total"]
+            );
             assert_eq!(metrics["query"]["current_accounted_memory_bytes"], 0);
             assert_eq!(metrics["runtime"]["running_queries"], 0);
             assert_eq!(metrics["runtime"]["active_operator_workers"], 0);

@@ -90,6 +90,31 @@ impl BatchRow {
         self.aliases.as_slice()
     }
 
+    /// Existing buffers survive a move; clone estimates cover only populated slots and names.
+    pub(crate) fn retained_buffer_spare_bytes(&self) -> Result<usize, CassieError> {
+        use std::mem::size_of;
+
+        use crate::executor::retained_memory::{add, mul};
+
+        let bytes = add(
+            mul(
+                self.values.capacity() - self.values.len(),
+                size_of::<(String, Value)>(),
+            )?,
+            mul(
+                self.aliases.capacity() - self.aliases.len(),
+                size_of::<(String, usize)>(),
+            )?,
+        )?;
+        self.values
+            .iter()
+            .map(|(name, _)| name)
+            .chain(self.aliases.iter().map(|(name, _)| name))
+            .try_fold(bytes, |bytes, name| {
+                add(bytes, name.capacity() - name.len())
+            })
+    }
+
     pub(crate) fn with_outer_scope(mut self, outer_scope: Arc<Self>) -> Self {
         self.outer_scope = Some(outer_scope);
         self
@@ -345,13 +370,15 @@ pub(crate) fn chunk_rows(rows: Vec<BatchRow>, batch_size: usize) -> Vec<Batch> {
     }
 
     let mut batches = Vec::with_capacity(rows.len().div_ceil(batch_size));
-    let mut current = Vec::with_capacity(batch_size);
+    let mut remaining = rows.len();
+    let mut current = Vec::with_capacity(batch_size.min(remaining));
     for row in rows {
         current.push(row);
+        remaining -= 1;
         if current.len() == batch_size {
             BATCH_BUFFERS_BUILT.fetch_add(1, Ordering::Relaxed);
             batches.push(current);
-            current = Vec::with_capacity(batch_size);
+            current = Vec::with_capacity(batch_size.min(remaining));
         }
     }
     if !current.is_empty() {
@@ -555,6 +582,64 @@ mod tests {
         assert_eq!(batches[0].len(), 2);
         assert_eq!(batches[1].len(), 2);
         assert_eq!(batches[2].len(), 1);
+    }
+
+    #[test]
+    fn should_retain_only_actual_row_slots_in_partial_batches() {
+        // Arrange
+        let row_counts = [
+            0,
+            1,
+            DEFAULT_BATCH_SIZE,
+            DEFAULT_BATCH_SIZE + 1,
+            2 * DEFAULT_BATCH_SIZE,
+        ];
+        let cases: Vec<_> = [0, DEFAULT_BATCH_SIZE]
+            .into_iter()
+            .flat_map(|batch_size| row_counts.map(|count| (batch_size, count)))
+            .map(|(batch_size, count)| {
+                let rows = (0..count)
+                    .map(|index| {
+                        BatchRow::new(vec![(
+                            "id".to_owned(),
+                            Value::Int64(i64::try_from(index).expect("fixture row id")),
+                        )])
+                    })
+                    .collect();
+                (batch_size, count, rows)
+            })
+            .collect();
+
+        // Act
+        let results: Vec<_> = cases
+            .into_iter()
+            .map(|(batch_size, count, rows)| {
+                let before = batch_buffers_built_for_tests();
+                let chunks = chunk_rows(rows, batch_size);
+                let built = batch_buffers_built_for_tests() - before;
+                (batch_size, count, chunks, built)
+            })
+            .collect();
+
+        // Assert
+        for (batch_size, count, chunks, built) in results {
+            let expected_chunks = count.div_ceil(batch_size.max(1));
+            assert_eq!(chunks.len(), expected_chunks);
+            assert!(built >= u64::try_from(expected_chunks).expect("fixture chunk count"));
+            assert_eq!(chunks.iter().map(Vec::len).sum::<usize>(), count);
+            for chunk in &chunks {
+                assert!(!chunk.is_empty());
+                assert_eq!(chunk.capacity(), chunk.len());
+                assert!(chunk.len() <= batch_size.max(1));
+            }
+            for (index, row) in chunks.iter().flatten().enumerate() {
+                assert_eq!(
+                    row.get("id"),
+                    Some(&Value::Int64(i64::try_from(index).expect("fixture row id")))
+                );
+            }
+            eprintln!("partial batch probe: size={batch_size}, rows={count}, expected_buffers={expected_chunks}, observed_buffers={built}");
+        }
     }
 
     #[test]

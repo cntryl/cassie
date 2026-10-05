@@ -47,6 +47,10 @@ mod handoff_tests;
 #[path = "source_join/retained_output_tests.rs"]
 mod retained_output_tests;
 
+#[cfg(test)]
+#[path = "source_join/spill_fallback_tests.rs"]
+mod spill_fallback_tests;
+
 #[derive(Debug, Clone)]
 struct EquiJoinKeys {
     left: String,
@@ -99,6 +103,7 @@ pub(super) fn execute_join_source<'a>(
     if source_contains_lateral(spec.right) {
         return execute_lateral_join(env, &spec, cte_context, left_batches);
     }
+    let (left_rows, _left_memory) = prepare_join_rows(env, left_batches)?;
 
     let right_row_budget = matches!(spec.kind, JoinKind::Cross)
         .then_some(spec.row_budget)
@@ -111,9 +116,7 @@ pub(super) fn execute_join_source<'a>(
         spec.outer_row,
         right_row_budget,
     )?;
-    let left_rows = batch::flatten_batches(left_batches);
-    let right_rows = batch::flatten_batches(right_batches);
-    let _input_memory = reserve_join_rows(env, &left_rows, &right_rows)?;
+    let (right_rows, _right_memory) = prepare_join_rows(env, right_batches)?;
     let left_template = super::source_shape::null_row(env, spec.left, cte_context)?;
     let right_template = super::source_shape::null_row(env, spec.right, cte_context)?;
     let left_lookup_columns = row_lookup_columns(std::slice::from_ref(&left_template));
@@ -228,8 +231,7 @@ fn execute_lateral_join<'a>(
     cte_context: &'a mut CteContext,
     left_batches: Vec<Batch>,
 ) -> SourceExecution {
-    let left_rows = batch::flatten_batches(left_batches);
-    let _left_memory = reserve_join_rows(env, &left_rows, &[])?;
+    let (left_rows, _left_memory) = prepare_join_rows(env, left_batches)?;
     let mut joined = JoinRows::try_new(env.controls)?;
     let retention = JoinRetentionContext::default();
     let mut matched_rows = 0usize;
@@ -248,8 +250,7 @@ fn execute_lateral_join<'a>(
             Some(left_row),
             right_budget,
         )?;
-        let right_rows = batch::flatten_batches(right_batches);
-        let _right_memory = reserve_join_rows(env, &[], &right_rows)?;
+        let (right_rows, _right_memory) = prepare_join_rows(env, right_batches)?;
         let mut matched = false;
         for right_row in &right_rows {
             check_timeout(env.controls)?;
@@ -390,14 +391,61 @@ fn estimate_vectorized_join_bytes(left_rows: usize, right_rows: usize) -> usize 
         .saturating_mul(std::mem::size_of::<BatchRow>().max(512))
 }
 
-fn reserve_join_rows(
+/// Admit both the complete input bodies and old/new row-slot overlap before flattening.
+fn prepare_join_rows(
     env: &SourceExecutionEnv<'_>,
-    left: &[BatchRow],
-    right: &[BatchRow],
-) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
-    let bytes = left.iter().chain(right).try_fold(0, |bytes, row| {
-        crate::executor::retained_memory::add(bytes, accounting::cloned_row_bytes(row)?)
+    batches: Vec<Batch>,
+) -> Result<(Vec<BatchRow>, crate::runtime::QueryMemoryReservation), QueryError> {
+    use crate::executor::retained_memory::{add, mul};
+    use std::mem::size_of;
+
+    check_timeout(env.controls)?;
+    let mut row_count = 0;
+    let mut old_buffers = mul(batches.capacity(), size_of::<Batch>())?;
+    for batch in &batches {
+        row_count = add(row_count, batch.len())?;
+        old_buffers = add(old_buffers, mul(batch.capacity(), size_of::<BatchRow>())?)?;
+    }
+    // Keep complete-body admission even when a row carries an origin Arc: a derived
+    // clone can share that lease while owning additional deep-cloned row buffers.
+    let mut memory = reserve_join_rows(env, batches.iter().flatten(), std::iter::empty())?;
+    let retained_bytes = memory.bytes();
+    memory.try_grow(old_buffers)?;
+    check_timeout(env.controls)?;
+    let mut rows = Vec::new();
+    rows.try_reserve_exact(row_count).map_err(|error| {
+        crate::app::CassieError::ResourceLimit(format!(
+            "unable to retain loaded join inputs: {error}"
+        ))
     })?;
+    for batch in batches {
+        for row in batch {
+            check_timeout(env.controls)?;
+            rows.push(row);
+        }
+    }
+    // The old outer/batch Vecs have been freed; the body estimate already includes
+    // one slot for every row in the exact-capacity flattened buffer that survives.
+    memory.shrink_to(retained_bytes);
+    check_timeout(env.controls)?;
+    Ok((rows, memory))
+}
+
+fn reserve_join_rows<'a>(
+    env: &SourceExecutionEnv<'_>,
+    left: impl IntoIterator<Item = &'a BatchRow>,
+    right: impl IntoIterator<Item = &'a BatchRow>,
+) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
+    let bytes =
+        left.into_iter()
+            .chain(right)
+            .try_fold(0, |bytes, row| -> Result<usize, QueryError> {
+                check_timeout(env.controls)?;
+                Ok(crate::executor::retained_memory::add(
+                    bytes,
+                    accounting::moved_row_bytes(row)?,
+                )?)
+            })?;
     env.controls
         .reserve_query_memory(bytes)
         .map_err(QueryError::from)

@@ -12,7 +12,7 @@ const TABLE: &str = "adaptive_profile_evidence";
 const BASE_INDEX: &str = "adaptive_profile_body_idx";
 const PREFERRED_INDEX: &str = "adaptive_profile_title_idx";
 const SELECT_SQL: &str = "SELECT title, body, sequence FROM adaptive_profile_evidence WHERE title = 'alpha' AND body = 'one' ORDER BY title, body, sequence";
-const EVIDENCE_QUERY_MEMORY_BUDGET_BYTES: usize = 32 * 1024 * 1024;
+const EVIDENCE_QUERY_MEMORY_BUDGET_BYTES: usize = 64 * 1024 * 1024;
 
 pub struct AdaptiveProfileEvidence {
     fixed: ProfileObservation,
@@ -195,6 +195,16 @@ impl AdaptiveProfileEvidence {
 
 fn assert_join_resource_evidence(observation: &ProfileObservation, strategy: &str) {
     assert_eq!(observation.metrics["joins"]["last_strategy"], strategy);
+    if strategy == "merge" {
+        assert_eq!(
+            observation.metrics["adaptive_candidates"]["last_operator_switch_pair"],
+            "vectorized_join_to_merge_join"
+        );
+        assert_eq!(
+            observation.metrics["adaptive_candidates"]["last_operator_switch_reason"],
+            "row_threshold_exceeded"
+        );
+    }
     assert_eq!(observation.metrics["joins"]["executions"], 1);
     assert_eq!(observation.metrics["joins"]["left_input_rows_total"], 2_050);
     assert_eq!(

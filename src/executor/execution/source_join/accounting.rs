@@ -133,6 +133,11 @@ pub(super) fn cloned_row_bytes(row: &BatchRow) -> Result<usize, CassieError> {
     Ok(bytes)
 }
 
+/// Moving a retained row preserves spare buffers that a fresh clone can discard.
+pub(super) fn moved_row_bytes(row: &BatchRow) -> Result<usize, CassieError> {
+    add(cloned_row_bytes(row)?, row.retained_buffer_spare_bytes()?)
+}
+
 fn entries_heap(row: &BatchRow) -> Result<usize, CassieError> {
     let mut bytes = 0;
     for (name, value) in row.entries() {

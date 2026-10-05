@@ -77,12 +77,13 @@ missing, low-confidence, below-savings, stale-TTL, stale-schema, and persistence
 plus join-switch success, disabled/unsupported skips, replacement failure, memory bounds, EXPLAIN,
 and metrics. Rollback is exercised across restart with persisted feedback retained.
 
-The cross-profile integration fixture uses the same explicit 32 MiB query-memory
+The cross-profile integration fixture uses the same explicit 64 MiB query-memory
 cap for both profiles and records it in the artifact's configuration. This
 fixture cap admits retained input, qualification, keyed copies and output for
 the unchanged 2,050/2,047-row join. Its 4,097 input rows cross the adaptive
 4,096-row replacement threshold; the fixed profile uses the existing batched
 join and the adaptive profile uses merge. The owner checks actual strategies,
-cardinalities, peak within the cap, and released query memory and workers.
+cardinalities, `row_threshold_exceeded` replacement reason, peak within the cap,
+and released query memory and workers.
 Profile names describe the selected adaptive settings; this evidence-only
 working-set cap does not change deployment memory defaults or promote a feature.

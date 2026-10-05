@@ -2,11 +2,14 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 use crate::catalog::CollectionSchema;
-use crate::executor::retained_memory::{add, grown_capacity, lookup_bytes, mul};
+use crate::executor::retained_memory::add;
 use crate::midge::adapter::DocumentRef;
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryMemoryReservation;
 
+use super::super::super::source_collection::{
+    qualification_bytes, qualification_scratch, row_qualification_bytes,
+};
 use super::super::accounting;
 use super::{
     check_timeout, qualify_row, scan, BatchRow, JoinRetentionContext, JoinRetentionPhase,
@@ -80,21 +83,7 @@ pub(super) fn load_collection_rows(
     for row in batches.into_iter().flatten() {
         let row = row.with_query_memory(Some(Arc::clone(&body_memory)));
         check_timeout(env.controls)?;
-        let names = row
-            .entries()
-            .iter()
-            .try_fold(0, |bytes, (name, _)| add(bytes, name.len()))?;
-        let alias_names = row
-            .aliases()
-            .iter()
-            .try_fold(0, |bytes, (name, _)| add(bytes, name.len()))?;
-        let aliases = qualification_bytes(
-            collection,
-            row.entries().len(),
-            names,
-            row.aliases().len(),
-            alias_names,
-        )?;
+        let aliases = row_qualification_bytes(collection, &row)?;
         rows.try_push_with(aliases, || qualify_row(row, collection))?;
     }
     drop(body_memory);
@@ -114,40 +103,4 @@ pub(super) fn reserve_probe_key(
         accounting::key_lookup_scratch_bytes(std::slice::from_ref(row), column)?,
     )?;
     Ok(env.controls.reserve_query_memory(bytes)?)
-}
-
-fn qualification_scratch(
-    env: &SourceExecutionEnv<'_>,
-    collection: &str,
-) -> Result<QueryMemoryReservation, QueryError> {
-    // Qualifier parsing builds component/suffix strings before BatchRow's eager lookup.
-    Ok(env
-        .controls
-        .reserve_query_memory(add(512, mul(collection.len(), 64)?)?)?)
-}
-
-fn qualification_bytes(
-    collection: &str,
-    entries: usize,
-    names: usize,
-    old_aliases: usize,
-    old_alias_names: usize,
-) -> Result<usize, crate::app::CassieError> {
-    // Dots inside quoted components only increase this upper bound. Canonical qualifier
-    // suffixes cannot exceed the conservatively escaped full relation name below.
-    let variants = add(collection.bytes().filter(|byte| *byte == b'.').count(), 1)?;
-    let maximum_qualifier = add(mul(collection.len(), 2)?, mul(variants, 2)?)?;
-    let additional_aliases = mul(entries, variants)?;
-    let alias_names = mul(
-        variants,
-        add(names, mul(entries, add(maximum_qualifier, 1)?)?)?,
-    )?;
-    let aliases = add(old_aliases, additional_aliases)?;
-    let capacity = grown_capacity(aliases, 4)?;
-    let buffers = mul(capacity, size_of::<(String, usize)>())?;
-    let lookup = lookup_bytes(
-        add(entries, aliases)?,
-        add(names, add(old_alias_names, alias_names)?)?,
-    )?;
-    add(buffers, add(alias_names, lookup)?)
 }

@@ -11,7 +11,7 @@ impl Cassie {
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
-        params: Vec<Value>,
+        parameters: (Vec<Value>, &[i32]),
         mode: ExecutionMode,
         cancellation: &QueryCancellationHandle,
     ) -> Result<QueryResult, CassieError> {
@@ -26,11 +26,11 @@ impl Cassie {
             query_started,
             cancellation.clone(),
         );
-        let result = self.execute_parsed_statement_core(
+        let result = self.execute_parsed_statement_core_with_parameter_oids(
             session,
             parsed,
             sql_fingerprint,
-            params,
+            parameters,
             mode,
             &controls,
         );

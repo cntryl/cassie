@@ -174,11 +174,9 @@ pub fn coerce_default_literal(data_type: &DataType, value: Value) -> Result<Valu
 fn coerce_boolean(value: Value) -> Result<Value, String> {
     match value {
         Value::Bool(_) => Ok(value),
-        Value::String(text) => match text.trim().to_ascii_lowercase().as_str() {
-            "t" | "true" | "y" | "yes" | "on" | "1" => Ok(Value::Bool(true)),
-            "f" | "false" | "n" | "no" | "off" | "0" => Ok(Value::Bool(false)),
-            _ => Err(format!("invalid input syntax for type boolean: \"{text}\"")),
-        },
+        Value::String(text) => crate::types::boolean::parse_text(&text)
+            .map(Value::Bool)
+            .ok_or_else(|| format!("invalid input syntax for type boolean: \"{text}\"")),
         other => Err(format!(
             "default for a boolean column must be a boolean, got {other}"
         )),

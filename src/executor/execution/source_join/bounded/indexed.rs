@@ -147,7 +147,7 @@ fn indexed_join_row_matches(
     row: &BatchRow,
     on: &super::Expr,
 ) -> Result<bool, QueryError> {
-    Ok(filter::eval_scalar(
+    filter::eval_scalar(
         row,
         on,
         env.params,
@@ -156,7 +156,7 @@ fn indexed_join_row_matches(
         None,
         env.session,
     )?
-    .is_true())
+    .is_true()
 }
 
 fn scan_indexed_join_rows(

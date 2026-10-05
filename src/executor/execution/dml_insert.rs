@@ -685,7 +685,7 @@ fn execute_insert_conflict_update(
             Some(&excluded_args),
             context.session,
         )?
-        .is_true();
+        .is_true()?;
         if !matches {
             return Ok(None);
         }

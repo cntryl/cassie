@@ -370,7 +370,7 @@ fn append_matching_row(
             None,
             env.session,
         )?
-        .is_true()
+        .is_true()?
         .then_some(combined))
     })
 }

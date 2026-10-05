@@ -10,6 +10,8 @@ use super::{
 
 #[path = "schema_alter_constraints.rs"]
 mod schema_alter_constraints;
+#[path = "schema_checks.rs"]
+mod schema_checks;
 #[path = "schema_defaults.rs"]
 mod schema_defaults;
 #[path = "schema_index_options.rs"]
@@ -53,11 +55,7 @@ pub(super) fn bind_create_table(
         ));
     }
 
-    let own_constraints = statement
-        .fields
-        .iter()
-        .flat_map(|field| field.constraints.iter().cloned())
-        .collect::<Vec<_>>();
+    let own_constraints = schema_checks::bind_create_checks(&mut statement.fields)?;
     let own_unique_fields = statement
         .fields
         .iter()
@@ -579,6 +577,7 @@ pub(super) fn bind_alter_table(
     schema_defaults::bind_alter_defaults(&mut statement.operation, &schema)?;
     validate_alter_schema(&table, &statement.operation, &existing_fields, catalog)?;
     bind_alter_constraint_targets(&mut statement.operation, &schema, catalog, context)?;
+    schema_checks::bind_alter_checks(&mut statement.operation, &schema)?;
 
     statement.table = canonical_relation_path(&table)?;
     Ok(statement)

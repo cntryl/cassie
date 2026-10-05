@@ -9,7 +9,8 @@ use super::{
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
     TransactionAction, TransactionStatement, Value,
 };
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 2;
+// Discard compiled plans from the earlier Boolean expression semantics.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 3;
 
 struct QueryCacheContext {
     is_select: bool,
@@ -116,6 +117,23 @@ impl Cassie {
         ),
         CassieError,
     > {
+        self.resolve_physical_plan_with_parameter_oids(parsed, key, session, controls, &[])
+    }
+
+    pub(super) fn resolve_physical_plan_with_parameter_oids(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        key: PlanCacheKey,
+        session: Option<&CassieSession>,
+        controls: Option<&QueryExecutionControls>,
+        parameter_type_oids: &[i32],
+    ) -> Result<
+        (
+            Arc<crate::planner::physical::PhysicalPlan>,
+            PlanCacheProvenance,
+        ),
+        CassieError,
+    > {
         if let Some(hit) = self.runtime.plan_cache_lookup(&key) {
             return Ok(Self::plan_cache_provenance(hit));
         }
@@ -126,7 +144,12 @@ impl Cassie {
         }
 
         self.runtime.record_query_cache_compile_miss();
-        let plan = self.compile_physical_plan(parsed, session, controls)?;
+        let plan = self.compile_physical_plan_with_parameter_oids(
+            parsed,
+            session,
+            controls,
+            parameter_type_oids,
+        )?;
         self.runtime.plan_cache_store(key, plan.clone(), false);
         Ok((plan, PlanCacheProvenance::Compiled))
     }
@@ -411,12 +434,35 @@ impl Cassie {
         session: &CassieSession,
         parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
-        mut params: Vec<crate::types::Value>,
+        params: Vec<crate::types::Value>,
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        self.execute_parsed_statement_core_with_parameter_oids(
+            session,
+            parsed,
+            sql_fingerprint,
+            (params, &[]),
+            mode,
+            controls,
+        )
+    }
+
+    pub(crate) fn execute_parsed_statement_core_with_parameter_oids(
+        &self,
+        session: &CassieSession,
+        parsed: crate::sql::ast::ParsedStatement,
+        sql_fingerprint: u64,
+        parameters: (Vec<crate::types::Value>, &[i32]),
+        mode: ExecutionMode,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryResult, CassieError> {
+        let (mut params, declared_oids) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
+        let parameter_type_oids =
+            super::query_parameters::effective_parameter_type_oids(&params, declared_oids);
+        let parameter_type_oids = parameter_type_oids.as_slice();
         super::query_parameters::canonicalize_string_parameters(
             &parsed,
             &self.catalog,
@@ -426,7 +472,7 @@ impl Cassie {
             return self.explain_statement(
                 session,
                 statement.statement.as_ref().clone(),
-                params,
+                (params, parameter_type_oids),
                 statement.analyze,
                 controls,
             );
@@ -435,47 +481,27 @@ impl Cassie {
             return self.execute_transaction_statement(session, statement);
         }
 
-        let cache_context =
-            self.query_cache_context(session, &parsed, sql_fingerprint, &params, mode);
-        let (physical, provenance) =
-            self.resolve_statement_plan(parsed, &cache_context, session, controls)?;
-        if !params.is_empty()
-            && (crate::executor::plan_uses_function_including_views(
-                &physical.logical,
-                "coalesce",
-                &self.catalog,
-            ) || matches!(
-                physical.logical.command,
-                Some(
-                    crate::planner::logical::LogicalCommand::Insert(_)
-                        | crate::planner::logical::LogicalCommand::Update(_)
-                        | crate::planner::logical::LogicalCommand::Delete(_)
-                )
-            ))
-        {
-            let parameter_types = params
-                .iter()
-                .map(|value| match value {
-                    crate::types::Value::Null => 0,
-                    crate::types::Value::Bool(_) => 16,
-                    crate::types::Value::Int64(_) => 20,
-                    crate::types::Value::Float64(_) => 701,
-                    crate::types::Value::String(_) => 25,
-                    crate::types::Value::Vector(vector) => {
-                        i32::try_from(crate::types::DataType::Vector(vector.dimension()).type_oid())
-                            .unwrap_or(0)
-                    }
-                    crate::types::Value::Json(_) => 114,
-                })
-                .collect::<Vec<_>>();
-            crate::sql::binder::validate_coalesce_plan(
-                &physical.logical,
-                &self.catalog,
-                &self.binding_context_for_session(Some(session)),
-                &parameter_types,
-                true,
-            )?;
-        }
+        let cache_context = self.query_cache_context(
+            session,
+            &parsed,
+            sql_fingerprint,
+            &params,
+            mode,
+            parameter_type_oids,
+        );
+        let (physical, provenance) = self.resolve_statement_plan(
+            parsed,
+            &cache_context,
+            session,
+            controls,
+            parameter_type_oids,
+        )?;
+        super::query_parameters::validate_plan_parameters(
+            &physical.logical,
+            &self.catalog,
+            &self.binding_context_for_session(Some(session)),
+            parameter_type_oids,
+        )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
@@ -560,12 +586,13 @@ impl Cassie {
         sql_fingerprint: u64,
         params: &[crate::types::Value],
         mode: ExecutionMode,
+        parameter_type_oids: &[i32],
     ) -> QueryCacheContext {
         let is_select = Self::is_query_cacheable(&parsed.statement);
         let cache_key = is_select.then(|| {
             self.plan_cache_key_from_fingerprint(
                 sql_fingerprint,
-                crate::runtime::parameter_shape(params),
+                super::query_parameters::parameter_shape_for_oids(parameter_type_oids),
                 mode,
                 session.database.clone(),
                 &session.search_path(),
@@ -647,6 +674,7 @@ impl Cassie {
         cache_context: &QueryCacheContext,
         session: &CassieSession,
         controls: &QueryExecutionControls,
+        parameter_type_oids: &[i32],
     ) -> Result<
         (
             Arc<crate::planner::physical::PhysicalPlan>,
@@ -655,10 +683,24 @@ impl Cassie {
         CassieError,
     > {
         if let Some(key) = cache_context.cache_key.clone() {
-            return self.resolve_physical_plan(parsed, key, Some(session), Some(controls));
+            if parameter_type_oids.is_empty() {
+                return self.resolve_physical_plan(parsed, key, Some(session), Some(controls));
+            }
+            return self.resolve_physical_plan_with_parameter_oids(
+                parsed,
+                key,
+                Some(session),
+                Some(controls),
+                parameter_type_oids,
+            );
         }
         Ok((
-            self.compile_physical_plan(parsed, Some(session), Some(controls))?,
+            self.compile_physical_plan_with_parameter_oids(
+                parsed,
+                Some(session),
+                Some(controls),
+                parameter_type_oids,
+            )?,
             PlanCacheProvenance::Compiled,
         ))
     }
@@ -751,12 +793,14 @@ impl Cassie {
         &self,
         session: &CassieSession,
         statement: crate::sql::ast::ParsedStatement,
-        params: Vec<crate::types::Value>,
+        parameters: (Vec<crate::types::Value>, &[i32]),
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
         Ok(self
-            .explain_statement_output(session, statement, params, analyze, controls)?
+            .explain_statement_output_with_parameter_oids(
+                session, statement, parameters, analyze, controls,
+            )?
             .result)
     }
 
@@ -768,8 +812,38 @@ impl Cassie {
         analyze: bool,
         controls: &QueryExecutionControls,
     ) -> Result<QueryExplainOutput, CassieError> {
+        let parameter_type_oids = super::query_parameters::parameter_type_oids(&params);
+        self.explain_statement_output_with_parameter_oids(
+            session,
+            statement,
+            (params, &parameter_type_oids),
+            analyze,
+            controls,
+        )
+    }
+
+    fn explain_statement_output_with_parameter_oids(
+        &self,
+        session: &CassieSession,
+        statement: crate::sql::ast::ParsedStatement,
+        parameters: (Vec<crate::types::Value>, &[i32]),
+        analyze: bool,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryExplainOutput, CassieError> {
+        let (params, parameter_type_oids) = parameters;
         let before = analyze.then(|| self.runtime.snapshot());
-        let physical = self.compile_physical_plan(statement, Some(session), Some(controls))?;
+        let physical = self.compile_physical_plan_with_parameter_oids(
+            statement,
+            Some(session),
+            Some(controls),
+            parameter_type_oids,
+        )?;
+        super::query_parameters::validate_plan_parameters(
+            &physical.logical,
+            &self.catalog,
+            &self.binding_context_for_session(Some(session)),
+            parameter_type_oids,
+        )?;
         let mut plan = super::query_explain::plan_line(self, &physical);
         let mut structured = super::query_explain::structured_plan(self, &physical);
 

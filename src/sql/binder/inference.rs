@@ -45,19 +45,86 @@ pub(super) fn infer_select_schema_with_scope(
     outer_ctes: &HashMap<String, Schema>,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Result<Schema, CassieError> {
+    infer_select_schema_with_parameters(select, catalog, outer_ctes, user_functions, &[])
+}
+
+pub(super) fn infer_select_schema_with_parameters(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    outer_ctes: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Result<Schema, CassieError> {
+    infer_select_schema_with_outer(
+        select,
+        catalog,
+        outer_ctes,
+        user_functions,
+        parameter_types,
+        None,
+    )
+}
+
+fn infer_select_schema_with_outer(
+    select: &SelectStatement,
+    catalog: &Catalog,
+    outer_ctes: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
+) -> Result<Schema, CassieError> {
     let mut cte_schemas = outer_ctes.clone();
     for cte in &select.ctes {
-        let schema = infer_cte_schema(cte, catalog, &cte_schemas, user_functions)?;
+        let schema = infer_cte_schema_with_parameters(
+            cte,
+            catalog,
+            &cte_schemas,
+            user_functions,
+            parameter_types,
+        )?;
         cte_schemas.insert(cte.name.to_ascii_lowercase(), schema);
     }
 
-    let source_schema =
-        infer_source_schema(&select.source, catalog, &cte_schemas, user_functions, false)?;
-    let mut fields = infer_projection_schema(&select.projection, &source_schema, user_functions);
+    let source_schema = infer_source_schema_with_outer(
+        &select.source,
+        catalog,
+        &cte_schemas,
+        user_functions,
+        false,
+        parameter_types,
+        outer_fields,
+    )?;
+    let mut fields = if let Some(outer) = outer_fields {
+        let mut lookup = source_schema.clone();
+        append_source_qualifiers(&select.source, catalog, &mut lookup)?;
+        // The inner source owns unqualified names; explicit outer names remain
+        // available only in this inference lookup, never in wildcard output.
+        lookup.fields.extend(outer.fields.iter().cloned());
+        infer_scoped_projection_schema(
+            &select.projection,
+            &source_schema,
+            &lookup,
+            user_functions,
+            parameter_types,
+        )
+    } else {
+        infer_projection_schema_with_parameters(
+            &select.projection,
+            &source_schema,
+            user_functions,
+            parameter_types,
+        )
+    };
 
     if let Some(set) = &select.set {
-        let right_schema =
-            infer_select_schema_with_scope(&set.right, catalog, &cte_schemas, user_functions)?;
+        let right_schema = infer_select_schema_with_outer(
+            &set.right,
+            catalog,
+            &cte_schemas,
+            user_functions,
+            parameter_types,
+            outer_fields,
+        )?;
         if fields.fields.len() != right_schema.fields.len() {
             return Err(CassieError::Planner(format!(
                 "set operation column count mismatch: {} != {}",
@@ -148,6 +215,16 @@ pub(super) fn infer_cte_schema(
     cte_schemas: &HashMap<String, Schema>,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
 ) -> Result<Schema, CassieError> {
+    infer_cte_schema_with_parameters(cte, catalog, cte_schemas, user_functions, &[])
+}
+
+pub(super) fn infer_cte_schema_with_parameters(
+    cte: &CommonTableExpression,
+    catalog: &Catalog,
+    cte_schemas: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Result<Schema, CassieError> {
     let query = match &cte.query {
         CteQuery::Simple(statement) => statement,
         CteQuery::Recursive { base, .. } => base,
@@ -159,7 +236,13 @@ pub(super) fn infer_cte_schema(
         ));
     };
 
-    let mut schema = infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
+    let mut schema = infer_select_schema_with_parameters(
+        select,
+        catalog,
+        cte_schemas,
+        user_functions,
+        parameter_types,
+    )?;
 
     let recursive = matches!(cte.query, CteQuery::Recursive { .. });
     let placeholder = cte.aliases.len() == 1 && cte.aliases[0] == "*";
@@ -181,12 +264,33 @@ pub(super) fn infer_cte_schema(
     Ok(schema)
 }
 
-pub(super) fn infer_source_schema(
+pub(super) fn infer_source_schema_with_parameters(
     source: &QuerySource,
     catalog: &Catalog,
     cte_schemas: &HashMap<String, Schema>,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
     qualify: bool,
+    parameter_types: &[i32],
+) -> Result<Schema, CassieError> {
+    infer_source_schema_with_outer(
+        source,
+        catalog,
+        cte_schemas,
+        user_functions,
+        qualify,
+        parameter_types,
+        None,
+    )
+}
+
+fn infer_source_schema_with_outer(
+    source: &QuerySource,
+    catalog: &Catalog,
+    cte_schemas: &HashMap<String, Schema>,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    qualify: bool,
+    parameter_types: &[i32],
+    outer_fields: Option<&Schema>,
 ) -> Result<Schema, CassieError> {
     let schema = match source {
         QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
@@ -208,16 +312,48 @@ pub(super) fn infer_source_schema(
             };
             qualify_schema(&schema, name)
         }
-        QuerySource::Subquery { alias, select, .. } => {
-            let inner =
-                infer_select_schema_with_scope(select, catalog, cte_schemas, user_functions)?;
+        QuerySource::Subquery {
+            alias,
+            select,
+            lateral,
+        } => {
+            let outer = if *lateral { outer_fields } else { None };
+            let inner = infer_select_schema_with_outer(
+                select,
+                catalog,
+                cte_schemas,
+                user_functions,
+                parameter_types,
+                outer,
+            )?;
             qualify_schema(&inner, alias)
         }
         QuerySource::Join { left, right, .. } => {
-            let left = infer_source_schema(left, catalog, cte_schemas, user_functions, true)?;
-            let right = infer_source_schema(right, catalog, cte_schemas, user_functions, true)?;
-            let mut fields = left.fields;
-            fields.extend(right.fields);
+            let left_schema = infer_source_schema_with_outer(
+                left,
+                catalog,
+                cte_schemas,
+                user_functions,
+                true,
+                parameter_types,
+                outer_fields,
+            )?;
+            let mut lateral_scope = left_schema.clone();
+            append_source_qualifiers(left, catalog, &mut lateral_scope)?;
+            if let Some(outer) = outer_fields {
+                lateral_scope.fields.extend(outer.fields.iter().cloned());
+            }
+            let right_schema = infer_source_schema_with_outer(
+                right,
+                catalog,
+                cte_schemas,
+                user_functions,
+                true,
+                parameter_types,
+                Some(&lateral_scope),
+            )?;
+            let mut fields = left_schema.fields;
+            fields.extend(right_schema.fields);
             Schema { fields }
         }
     };
@@ -234,6 +370,35 @@ pub(super) fn infer_source_schema(
     } else {
         Ok(schema)
     }
+}
+
+pub(super) fn append_source_qualifiers(
+    source: &crate::sql::ast::QuerySource,
+    catalog: &Catalog,
+    schema: &mut Schema,
+) -> Result<(), CassieError> {
+    match source {
+        crate::sql::ast::QuerySource::Collection(name) => {
+            let fields = relation_output_schema(catalog, name)?;
+            for field in fields.fields {
+                let key =
+                    crate::sql::ColumnIdentifierPath::from_field_name(&field.name).lookup_key();
+                for qualifier in crate::catalog::qualifier_variants(name) {
+                    schema.fields.push(crate::types::FieldSchema {
+                        name: format!("{qualifier}.{key}"),
+                        data_type: field.data_type.clone(),
+                        nullable: field.nullable,
+                    });
+                }
+            }
+        }
+        crate::sql::ast::QuerySource::Join { left, right, .. } => {
+            append_source_qualifiers(left, catalog, schema)?;
+            append_source_qualifiers(right, catalog, schema)?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Schema, CassieError> {
@@ -298,10 +463,11 @@ pub(super) fn qualify_schema(schema: &Schema, qualifier: &str) -> Schema {
     Schema { fields }
 }
 
-pub(super) fn infer_projection_schema(
+pub(super) fn infer_projection_schema_with_parameters(
     projection: &[SelectItem],
     source_schema: &Schema,
     user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
 ) -> Schema {
     let mut fields = Vec::new();
     for item in projection {
@@ -329,7 +495,7 @@ pub(super) fn infer_projection_schema(
                         function,
                         source_schema,
                         user_functions,
-                        &[],
+                        parameter_types,
                     )
                     .unwrap_or(DataType::Text),
                     nullable: true,
@@ -338,8 +504,13 @@ pub(super) fn infer_projection_schema(
             SelectItem::Expr { expr, alias } => {
                 fields.push(FieldSchema {
                     name: alias.as_deref().unwrap_or("expr").to_string(),
-                    data_type: infer_expr_type(expr, source_schema, user_functions, &[])
-                        .unwrap_or(DataType::Text),
+                    data_type: infer_expr_type(
+                        expr,
+                        source_schema,
+                        user_functions,
+                        parameter_types,
+                    )
+                    .unwrap_or(DataType::Text),
                     nullable: true,
                 });
             }
@@ -348,7 +519,9 @@ pub(super) fn infer_projection_schema(
                     "lag" | "lead" | "first_value" | "last_value" => function
                         .args
                         .first()
-                        .and_then(|arg| infer_expr_type(arg, source_schema, user_functions, &[]))
+                        .and_then(|arg| {
+                            infer_expr_type(arg, source_schema, user_functions, parameter_types)
+                        })
                         .unwrap_or(DataType::Text),
                     _ => DataType::BigInt,
                 };
@@ -364,6 +537,32 @@ pub(super) fn infer_projection_schema(
         }
     }
 
+    Schema { fields }
+}
+
+fn infer_scoped_projection_schema(
+    projection: &[SelectItem],
+    source_schema: &Schema,
+    lookup: &Schema,
+    user_functions: &HashMap<String, crate::catalog::FunctionMeta>,
+    parameter_types: &[i32],
+) -> Schema {
+    let mut fields = Vec::new();
+    for item in projection {
+        if matches!(item, SelectItem::Wildcard) {
+            fields.extend(source_schema.fields.iter().cloned());
+        } else {
+            fields.extend(
+                infer_projection_schema_with_parameters(
+                    std::slice::from_ref(item),
+                    lookup,
+                    user_functions,
+                    parameter_types,
+                )
+                .fields,
+            );
+        }
+    }
     Schema { fields }
 }
 

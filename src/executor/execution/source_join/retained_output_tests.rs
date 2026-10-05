@@ -375,3 +375,88 @@ fn should_admit_existing_alias_capacity_before_moving_join_inputs() {
         assert_eq!(env.controls.current_query_memory_bytes(), 0);
     });
 }
+
+#[test]
+fn should_release_retained_join_output_after_a_boolean_predicate_error() {
+    // Arrange
+    with_fixture(false, |env| {
+        let left = [row("left", 1, &"l".repeat(1024))];
+        let right_row = |accepted| {
+            BatchRow::new(vec![
+                ("right.key".to_owned(), Value::Int64(1)),
+                ("right.payload".to_owned(), Value::String("r".repeat(1024))),
+                ("right.accepted".to_owned(), accepted),
+            ])
+        };
+        let right = [
+            right_row(Value::Bool(true)),
+            right_row(Value::String("no".to_owned())),
+        ];
+        let templates = templates();
+        let on = Expr::Column("right.accepted".to_owned());
+        let input = reserve_join_rows(env, &left, &right).expect("complete inputs fit");
+        let input_bytes = env.controls.current_query_memory_bytes();
+        let first_output = super::accounting::combined_row_bytes(&left[0], &right[0])
+            .expect("first retained candidate shape");
+        let second_output = super::accounting::combined_row_bytes(&left[0], &right[1])
+            .expect("second retained candidate shape");
+        let expected = [
+            input_bytes + right.len() + first_output,
+            input_bytes + right.len() + first_output + second_output,
+        ];
+        assert!(expected[1] < env.controls.query_memory_budget_bytes);
+        let calls = std::cell::Cell::new(0);
+        let observed = std::cell::Cell::new([0; 2]);
+        let probe = |phase| {
+            assert_eq!(phase, super::JoinRetentionPhase::NestedOutput);
+            let index = calls.get();
+            assert!(index < 2);
+            let mut charges = observed.get();
+            charges[index] = env.controls.current_query_memory_bytes();
+            observed.set(charges);
+            calls.set(index + 1);
+            Ok(())
+        };
+        let retention = super::JoinRetentionContext::with_probe(&probe);
+        let before = env.cassie.runtime.snapshot();
+
+        // Act
+        let result = super::execute_loaded_join_with_context(
+            env,
+            rows_spec(JoinKind::Inner, &on, &left, &right, &templates),
+            &["left.key".to_owned()],
+            &["right.key".to_owned(), "right.accepted".to_owned()],
+            || {},
+            &retention,
+        );
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(super::QueryError::General(ref message))
+                if message == "Boolean expression requires BOOLEAN or SQL NULL"
+        ));
+        assert_eq!(calls.get(), 2);
+        assert_eq!(observed.get(), expected);
+        assert_eq!(env.controls.current_query_memory_bytes(), input_bytes);
+        assert_eq!(env.controls.peak_query_memory_bytes(), expected[1]);
+        let after = env.cassie.runtime.snapshot();
+        assert_eq!(after.joins.executions, before.joins.executions);
+        assert_eq!(after.joins.scalar_joins, before.joins.scalar_joins);
+        assert_eq!(
+            after.joins.matched_rows_total,
+            before.joins.matched_rows_total
+        );
+        assert_eq!(
+            after.joins.output_rows_total,
+            before.joins.output_rows_total
+        );
+        assert_eq!(after.joins.last_strategy, before.joins.last_strategy);
+        assert_eq!(
+            after.adaptive_candidates.operator_switch_successes,
+            before.adaptive_candidates.operator_switch_successes
+        );
+        drop(input);
+        assert_eq!(env.controls.current_query_memory_bytes(), 0);
+    });
+}

@@ -4176,6 +4176,11 @@ mod time_series_partition_delimiters {
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 
+#[path = "domain_models/boolean_rollup_predicates.rs"]
+mod rollup_boolean_predicates;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
+
 mod column_time_series_read_equivalence {
     use super::support_read_equivalence::{sql, with_fixture};
 

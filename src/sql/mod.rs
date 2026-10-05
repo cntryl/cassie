@@ -27,6 +27,52 @@ pub use parser::{parse_statement, SqlError, SqlErrorKind};
 const UNKNOWN_PARAMETER_TYPE_OID: i32 = 705;
 pub(crate) type FieldTypeMap = HashMap<String, DataType>;
 
+struct ParameterInference {
+    oids: Vec<i32>,
+    context_demands: Vec<u8>,
+    record_context_demands: bool,
+}
+
+impl ParameterInference {
+    fn new(oids: Vec<i32>) -> Self {
+        Self {
+            context_demands: vec![0; oids.len()],
+            oids,
+            record_context_demands: true,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.oids.is_empty()
+    }
+
+    fn record_type_demand(&mut self, index: usize, data_type: &DataType) {
+        if !self.record_context_demands {
+            return;
+        }
+        let demand = match data_type {
+            DataType::Boolean => 1,
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float => 2,
+            _ => return,
+        };
+        if let Some(contexts) = self.context_demands.get_mut(index) {
+            *contexts |= demand;
+        }
+    }
+
+    fn record_expression_demand(&mut self, expr: &ast::Expr, data_type: &DataType) {
+        if let ast::Expr::Param(index) = expr {
+            self.record_type_demand(*index, data_type);
+        }
+    }
+
+    fn without_context_demands(&mut self, infer: impl FnOnce(&mut Self)) {
+        let previous = std::mem::replace(&mut self.record_context_demands, false);
+        infer(self);
+        self.record_context_demands = previous;
+    }
+}
+
 #[must_use]
 pub fn parameter_count(statement: &ParsedStatement) -> usize {
     parameter_count_query(&statement.statement)
@@ -51,9 +97,17 @@ pub fn parameter_type_oids_with_catalog(
     provided: &[i32],
     catalog: &crate::catalog::Catalog,
 ) -> Vec<i32> {
-    let mut oids = parameter_type_oids(statement, provided);
-    infer_parameter_type_oids_query(&statement.statement, catalog, &mut oids);
-    oids
+    infer_parameter_types_with_catalog(statement, provided, catalog).oids
+}
+
+fn infer_parameter_types_with_catalog(
+    statement: &ParsedStatement,
+    provided: &[i32],
+    catalog: &crate::catalog::Catalog,
+) -> ParameterInference {
+    let mut inference = ParameterInference::new(parameter_type_oids(statement, provided));
+    infer_parameter_type_oids_query(&statement.statement, catalog, &mut inference);
+    inference
 }
 
 /// Returns a planner error message when a client-declared parameter type
@@ -62,6 +116,7 @@ pub fn parameter_type_oids_with_catalog(
 /// Literals of other families are rejected against `BOOLEAN` operands by
 /// operand-family validation; a declared parameter type is held to the same
 /// rule, as PostgreSQL does, instead of being compared by truthiness.
+/// Explicit CAST result types do not create implicit Boolean input demands.
 #[must_use]
 pub fn declared_parameter_type_conflict(
     statement: &ParsedStatement,
@@ -69,12 +124,22 @@ pub fn declared_parameter_type_conflict(
     catalog: &crate::catalog::Catalog,
 ) -> Option<String> {
     let boolean_oid = i32::try_from(DataType::Boolean.type_oid()).ok()?;
-    let inferred = parameter_type_oids_with_catalog(statement, &[], catalog);
+    let inference = infer_parameter_types_with_catalog(statement, &[], catalog);
+    if let Some(index) = inference
+        .context_demands
+        .iter()
+        .position(|demand| *demand == 3)
+    {
+        return Some(format!(
+            "parameter ${} has incompatible boolean and numeric contexts",
+            index + 1
+        ));
+    }
     provided
         .iter()
-        .zip(inferred)
-        .find_map(|(declared, inferred)| {
-            if inferred != boolean_oid
+        .zip(inference.context_demands)
+        .find_map(|(declared, demand)| {
+            if demand & 1 == 0
                 || matches!(*declared, 0 | UNKNOWN_PARAMETER_TYPE_OID)
                 || *declared == boolean_oid
             {
@@ -93,7 +158,7 @@ pub fn declared_parameter_type_conflict(
 fn infer_parameter_type_oids_query(
     statement: &QueryStatement,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     match statement {
         QueryStatement::Select(statement) => {
@@ -118,7 +183,7 @@ fn infer_parameter_type_oids_query(
 fn infer_insert_parameter_type_oids(
     statement: &ast::InsertStatement,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     if oids.is_empty() {
         return;
@@ -156,6 +221,7 @@ fn infer_insert_parameter_type_oids(
             }
         }
         ast::InsertSource::Select(select) => {
+            infer_insert_select_boolean_parameter_type_oids(select, &fields, oids);
             infer_select_parameter_type_oids(select, catalog, oids);
         }
     }
@@ -169,16 +235,42 @@ fn infer_insert_parameter_type_oids(
         {
             infer_assignment_parameter_type_oids(assignments, &schema_fields, catalog, oids);
             if let Some(filter) = filter {
+                infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
                 infer_parameter_type_oids_expr(filter, &schema_fields, catalog, oids);
             }
         }
     }
 }
 
+fn infer_insert_select_boolean_parameter_type_oids(
+    select: &ast::SelectStatement,
+    fields: &[FieldMeta],
+    oids: &mut ParameterInference,
+) {
+    // A wildcard can expand to several slots; leave its output mapping to the binder.
+    let positional = select.projection.len() == fields.len()
+        && !select.projection.iter().any(|item| {
+            matches!(item, ast::SelectItem::Wildcard)
+                || matches!(item, ast::SelectItem::Column { name, .. } if name.ends_with('*'))
+        });
+    if positional {
+        for (item, field) in select.projection.iter().zip(fields) {
+            if let ast::SelectItem::Expr { expr, .. } = item {
+                if field.data_type == DataType::Boolean {
+                    infer_parameter_type_from_expected_expr(expr, &field.data_type, oids);
+                }
+            }
+        }
+    }
+    if let Some(set) = &select.set {
+        infer_insert_select_boolean_parameter_type_oids(&set.right, fields, oids);
+    }
+}
+
 fn infer_select_parameter_type_oids(
     statement: &ast::SelectStatement,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     let field_types = source_field_type_map_with_ctes(&statement.source, &statement.ctes, catalog);
     for cte in &statement.ctes {
@@ -194,10 +286,12 @@ fn infer_select_parameter_type_oids(
             }
         }
     }
+    infer_source_parameter_type_oids(&statement.source, &field_types, catalog, oids);
     for item in &statement.projection {
         infer_select_item_parameter_type_oids(item, &field_types, catalog, oids);
     }
     if let Some(filter) = &statement.filter {
+        infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
         infer_parameter_type_oids_expr(filter, &field_types, catalog, oids);
     }
     for expr in &statement.distinct_on {
@@ -207,6 +301,7 @@ fn infer_select_parameter_type_oids(
         infer_parameter_type_oids_expr(expr, &field_types, catalog, oids);
     }
     if let Some(having) = &statement.having {
+        infer_parameter_type_from_expected_expr(having, &DataType::Boolean, oids);
         infer_parameter_type_oids_expr(having, &field_types, catalog, oids);
     }
     for order in &statement.order {
@@ -217,10 +312,35 @@ fn infer_select_parameter_type_oids(
     }
 }
 
+fn infer_source_parameter_type_oids(
+    source: &ast::QuerySource,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    match source {
+        ast::QuerySource::Join {
+            left, right, on, ..
+        } => {
+            infer_source_parameter_type_oids(left, field_types, catalog, oids);
+            infer_source_parameter_type_oids(right, field_types, catalog, oids);
+            infer_parameter_type_from_expected_expr(on, &DataType::Boolean, oids);
+            infer_parameter_type_oids_expr(on, field_types, catalog, oids);
+        }
+        ast::QuerySource::Subquery { select, .. } => {
+            infer_select_parameter_type_oids(select, catalog, oids);
+        }
+        ast::QuerySource::Collection(_)
+        | ast::QuerySource::Cte(_)
+        | ast::QuerySource::TableFunction { .. }
+        | ast::QuerySource::SingleRow => {}
+    }
+}
+
 fn infer_update_parameter_type_oids(
     statement: &ast::UpdateStatement,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     let Some(schema) = catalog.get_schema(&statement.table) else {
         return;
@@ -228,6 +348,7 @@ fn infer_update_parameter_type_oids(
     let field_types = field_type_map(schema.fields.iter());
     infer_assignment_parameter_type_oids(&statement.assignments, &field_types, catalog, oids);
     if let Some(filter) = &statement.filter {
+        infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
         infer_parameter_type_oids_expr(filter, &field_types, catalog, oids);
     }
     for item in &statement.returning {
@@ -238,13 +359,14 @@ fn infer_update_parameter_type_oids(
 fn infer_delete_parameter_type_oids(
     statement: &ast::DeleteStatement,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     let Some(schema) = catalog.get_schema(&statement.table) else {
         return;
     };
     let field_types = field_type_map(schema.fields.iter());
     if let Some(filter) = &statement.filter {
+        infer_parameter_type_from_expected_expr(filter, &DataType::Boolean, oids);
         infer_parameter_type_oids_expr(filter, &field_types, catalog, oids);
     }
     for item in &statement.returning {
@@ -256,7 +378,7 @@ fn infer_assignment_parameter_type_oids(
     assignments: &[(String, ast::Expr)],
     field_types: &FieldTypeMap,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     for (field, expr) in assignments {
         if let Some(data_type) = field_type_for_column(field_types, field) {
@@ -270,7 +392,7 @@ fn infer_select_item_parameter_type_oids(
     item: &ast::SelectItem,
     field_types: &FieldTypeMap,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     match item {
         ast::SelectItem::Wildcard | ast::SelectItem::Column { .. } => {}
@@ -298,7 +420,7 @@ fn infer_parameter_type_oids_expr(
     expr: &ast::Expr,
     field_types: &FieldTypeMap,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     match expr {
         ast::Expr::Case {
@@ -310,11 +432,19 @@ fn infer_parameter_type_oids_expr(
                 infer_parameter_type_oids_expr(operand, field_types, catalog, oids);
             }
             for (when, then) in branches {
+                if operand.is_none() {
+                    infer_parameter_type_from_expected_expr(when, &DataType::Boolean, oids);
+                }
                 if let Some(data_type) = operand
                     .as_ref()
                     .and_then(|operand| column_expr_type(operand, field_types))
                 {
-                    infer_parameter_type_from_expected_expr(when, data_type, oids);
+                    oids.without_context_demands(|oids| {
+                        infer_parameter_type_from_expected_expr(when, data_type, oids);
+                    });
+                }
+                if let Some(operand) = operand {
+                    record_operand_parameter_demand(when, operand, field_types, oids);
                 }
                 infer_parameter_type_oids_expr(when, field_types, catalog, oids);
                 infer_parameter_type_oids_expr(then, field_types, catalog, oids);
@@ -324,43 +454,40 @@ fn infer_parameter_type_oids_expr(
             }
             infer_case_result_parameter_types(branches, else_expr.as_deref(), field_types, oids);
         }
-        ast::Expr::Binary { left, right, .. } => {
-            if let Some(data_type) = column_expr_type(left, field_types) {
-                infer_parameter_type_from_expected_expr(right, data_type, oids);
-            }
-            if let Some(data_type) = column_expr_type(right, field_types) {
-                infer_parameter_type_from_expected_expr(left, data_type, oids);
-            }
-            infer_parameter_type_oids_expr(left, field_types, catalog, oids);
-            infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+        ast::Expr::Binary { left, op, right } => {
+            infer_binary_parameter_type_oids(left, op, right, field_types, catalog, oids);
         }
         ast::Expr::InList { expr, values, .. } => {
-            if let Some(data_type) = column_expr_type(expr, field_types) {
-                for value in values {
-                    infer_parameter_type_from_expected_expr(value, data_type, oids);
-                }
-            }
-            infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
-            for value in values {
-                infer_parameter_type_oids_expr(value, field_types, catalog, oids);
-            }
+            infer_in_list_parameter_type_oids(expr, values, field_types, catalog, oids);
         }
         ast::Expr::Between {
             expr, low, high, ..
         } => {
             if let Some(data_type) = column_expr_type(expr, field_types) {
-                infer_parameter_type_from_expected_expr(low, data_type, oids);
-                infer_parameter_type_from_expected_expr(high, data_type, oids);
+                oids.without_context_demands(|oids| {
+                    infer_parameter_type_from_expected_expr(low, data_type, oids);
+                    infer_parameter_type_from_expected_expr(high, data_type, oids);
+                });
             }
+            record_operand_parameter_demand(low, expr, field_types, oids);
+            record_operand_parameter_demand(high, expr, field_types, oids);
+            record_operand_parameter_demand(expr, low, field_types, oids);
+            record_operand_parameter_demand(expr, high, field_types, oids);
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
             infer_parameter_type_oids_expr(low, field_types, catalog, oids);
             infer_parameter_type_oids_expr(high, field_types, catalog, oids);
         }
-        ast::Expr::IsNull { expr, .. } | ast::Expr::Not { expr } => {
+        ast::Expr::IsNull { expr, .. } => {
+            infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
+        }
+        ast::Expr::Not { expr } => {
+            infer_parameter_type_from_expected_expr(expr, &DataType::Boolean, oids);
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::Expr::Cast { expr, data_type } => {
-            infer_parameter_type_from_expected_expr(expr, data_type, oids);
+            oids.without_context_demands(|oids| {
+                infer_parameter_type_from_expected_expr(expr, data_type, oids);
+            });
             infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
         }
         ast::Expr::Exists(statement) => {
@@ -379,13 +506,74 @@ fn infer_parameter_type_oids_expr(
     }
 }
 
+fn infer_in_list_parameter_type_oids(
+    expr: &ast::Expr,
+    values: &[ast::Expr],
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    if let Some(data_type) = column_expr_type(expr, field_types) {
+        for value in values {
+            oids.without_context_demands(|oids| {
+                infer_parameter_type_from_expected_expr(value, data_type, oids);
+            });
+        }
+    }
+    infer_parameter_type_oids_expr(expr, field_types, catalog, oids);
+    for value in values {
+        record_operand_parameter_demand(value, expr, field_types, oids);
+        record_operand_parameter_demand(expr, value, field_types, oids);
+        infer_parameter_type_oids_expr(value, field_types, catalog, oids);
+    }
+}
+
+fn infer_binary_parameter_type_oids(
+    left: &ast::Expr,
+    op: &ast::BinaryOp,
+    right: &ast::Expr,
+    field_types: &FieldTypeMap,
+    catalog: &crate::catalog::Catalog,
+    oids: &mut ParameterInference,
+) {
+    if matches!(op, ast::BinaryOp::And | ast::BinaryOp::Or) {
+        infer_parameter_type_from_expected_expr(left, &DataType::Boolean, oids);
+        infer_parameter_type_from_expected_expr(right, &DataType::Boolean, oids);
+    } else {
+        record_operand_parameter_demand(left, right, field_types, oids);
+        record_operand_parameter_demand(right, left, field_types, oids);
+    }
+    // Preserve existing OID inference while recording the actual operand result type above.
+    oids.without_context_demands(|oids| {
+        if let Some(data_type) = column_expr_type(left, field_types) {
+            infer_parameter_type_from_expected_expr(right, data_type, oids);
+        }
+        if let Some(data_type) = column_expr_type(right, field_types) {
+            infer_parameter_type_from_expected_expr(left, data_type, oids);
+        }
+    });
+    infer_parameter_type_oids_expr(left, field_types, catalog, oids);
+    infer_parameter_type_oids_expr(right, field_types, catalog, oids);
+}
+
+fn record_operand_parameter_demand(
+    parameter: &ast::Expr,
+    operand: &ast::Expr,
+    field_types: &FieldTypeMap,
+    oids: &mut ParameterInference,
+) {
+    if let Some(data_type) = binder::known_expr_type(operand, field_types) {
+        oids.record_expression_demand(parameter, &data_type);
+    }
+}
+
 /// Types bare `$n` CASE results from the first sibling result whose type is
 /// known, mirroring PostgreSQL's CASE result unification.
 fn infer_case_result_parameter_types(
     branches: &[(ast::Expr, ast::Expr)],
     else_expr: Option<&ast::Expr>,
     field_types: &FieldTypeMap,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     let results = || branches.iter().map(|(_, then)| then).chain(else_expr);
     let Some(data_type) = results()
@@ -403,7 +591,7 @@ fn infer_function_parameter_type_oids(
     function: &ast::FunctionCall,
     field_types: &FieldTypeMap,
     catalog: &crate::catalog::Catalog,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     for arg in &function.args {
         infer_parameter_type_oids_expr(arg, field_types, catalog, oids);
@@ -413,19 +601,22 @@ fn infer_function_parameter_type_oids(
 fn infer_parameter_type_from_expected_expr(
     expr: &ast::Expr,
     data_type: &DataType,
-    oids: &mut [i32],
+    oids: &mut ParameterInference,
 ) {
     match expr {
         ast::Expr::Param(index) => set_parameter_type_oid(oids, *index, data_type),
         ast::Expr::Cast { expr, data_type } => {
-            infer_parameter_type_from_expected_expr(expr, data_type, oids);
+            oids.without_context_demands(|oids| {
+                infer_parameter_type_from_expected_expr(expr, data_type, oids);
+            });
         }
         _ => {}
     }
 }
 
-fn set_parameter_type_oid(oids: &mut [i32], index: usize, data_type: &DataType) {
-    if let Some(oid) = oids.get_mut(index) {
+fn set_parameter_type_oid(oids: &mut ParameterInference, index: usize, data_type: &DataType) {
+    oids.record_type_demand(index, data_type);
+    if let Some(oid) = oids.oids.get_mut(index) {
         if *oid == UNKNOWN_PARAMETER_TYPE_OID {
             *oid = i32::try_from(data_type.type_oid()).unwrap_or(i32::MAX);
         }

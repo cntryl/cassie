@@ -2,6 +2,62 @@ use super::*;
 use crate::executor::batch::BatchRow;
 
 #[test]
+fn should_reject_non_boolean_values_at_runtime_predicate_sinks() {
+    // Arrange
+    let row = BatchRow::new(Vec::new());
+    let functions = HashMap::new();
+    let values = [
+        Value::Int64(1),
+        Value::Float64(0.5),
+        Value::String("no".to_string()),
+        Value::Json(serde_json::json!(true)),
+    ];
+
+    for value in values {
+        let params = [value];
+        let expressions = [
+            Expr::Param(0),
+            Expr::Binary {
+                left: Box::new(Expr::Param(0)),
+                op: BinaryOp::And,
+                right: Box::new(Expr::BoolLiteral(false)),
+            },
+            Expr::Binary {
+                left: Box::new(Expr::BoolLiteral(true)),
+                op: BinaryOp::Or,
+                right: Box::new(Expr::Param(0)),
+            },
+            Expr::Not {
+                expr: Box::new(Expr::Param(0)),
+            },
+        ];
+
+        // Act
+        let results = expressions
+            .map(|expression| eval_filter(&row, &expression, &params, None, &functions, None));
+
+        // Assert
+        for result in results {
+            assert!(
+                matches!(result, Err(QueryError::General(_))),
+                "runtime Boolean type gate: {params:?}: {result:?}"
+            );
+        }
+    }
+    for (value, accepted) in [
+        (Value::Bool(true), true),
+        (Value::Bool(false), false),
+        (Value::Null, false),
+    ] {
+        assert_eq!(
+            eval_filter(&row, &Expr::Param(0), &[value], None, &functions, None)
+                .expect("Boolean or SQL NULL"),
+            accepted
+        );
+    }
+}
+
+#[test]
 fn should_score_term_stats_same_as_text_scoring() {
     // Arrange
     let row = BatchRow::new(vec![(

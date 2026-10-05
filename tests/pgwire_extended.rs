@@ -8,6 +8,9 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "pgwire_extended/boolean_contexts.rs"]
+mod pgwire_boolean_contexts;
+
 // Formerly tests/pgwire_extended_control.rs.
 mod pgwire_extended_control {
     #![allow(unused_imports, dead_code)]

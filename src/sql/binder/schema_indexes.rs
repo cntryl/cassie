@@ -93,6 +93,10 @@ pub(super) fn bind_create_index(
         crate::catalog::IndexKind::Scalar | crate::catalog::IndexKind::Hybrid => {}
     }
 
+    if let Some(predicate) = &mut statement.predicate {
+        bind_index_predicate(predicate, &schema, &table, catalog, context)?;
+    }
+
     if !statement.if_not_exists && catalog.get_index(&table, &name).is_some() {
         return Err(CassieError::Planner(format!(
             "index '{name}' already exists on collection '{table}'"
@@ -105,6 +109,37 @@ pub(super) fn bind_create_index(
     statement.expressions = expressions;
     statement.include_fields = include_fields;
     Ok(statement)
+}
+
+fn bind_index_predicate(
+    predicate: &mut Expr,
+    schema: &CollectionSchema,
+    table: &str,
+    catalog: &Catalog,
+    context: &BindingContext,
+) -> Result<(), CassieError> {
+    *predicate = declared_expression_columns(schema, predicate);
+    let known_fields = schema
+        .fields
+        .iter()
+        .map(|field| field.name.clone())
+        .collect::<HashSet<_>>();
+    validate_index_expression(predicate, &known_fields)?;
+    let types = super::super::coalesce_results::ResultTypes::for_source(
+        &crate::sql::ast::QuerySource::Collection(
+            IdentifierPath::parse(table).map_err(CassieError::Planner)?,
+        ),
+        &[],
+        catalog,
+        context,
+    )?;
+    super::super::boolean_contexts::validate_predicate(
+        predicate,
+        &types,
+        "INDEX WHERE",
+        catalog,
+        context,
+    )
 }
 
 pub(super) fn validate_index_expression(

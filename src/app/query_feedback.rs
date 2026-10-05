@@ -278,8 +278,18 @@ impl Cassie {
         session: Option<&CassieSession>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
+        self.compile_physical_plan_with_parameter_oids(parsed, session, controls, &[])
+    }
+
+    pub(super) fn compile_physical_plan_with_parameter_oids(
+        &self,
+        parsed: crate::sql::ast::ParsedStatement,
+        session: Option<&CassieSession>,
+        controls: Option<&QueryExecutionControls>,
+        parameter_type_oids: &[i32],
+    ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let context = self.binding_context_for_session(session);
-        let bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
+        let mut bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
         if let Some(controls) = controls {
             if controls.is_cancelled() {
                 return Err(CassieError::QueryCancelled);
@@ -289,6 +299,12 @@ impl Cassie {
             }
         }
 
+        binder::bind_boolean_parameters(
+            &mut bound.statement,
+            &self.catalog,
+            &context,
+            parameter_type_oids,
+        )?;
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let mut logical = crate::planner::logical::plan(&bound)?;
         crate::planner::logical::rewrite_reserved_id_references(&mut logical, &self.catalog);

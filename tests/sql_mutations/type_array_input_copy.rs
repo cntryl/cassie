@@ -60,7 +60,7 @@ fn should_reject_copy_scalar_array_input_before_publication() {
         // Assert
         assert!(
             matches!(result, Err(CassieError::Parse(_))),
-            "{label}: {result:?}"
+            "{label}: invalid COPY input should be rejected before publication"
         );
         assert_eq!(
             fixture.rows("SELECT id, v FROM array_input_copy ORDER BY id"),

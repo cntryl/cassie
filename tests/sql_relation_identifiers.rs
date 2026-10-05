@@ -311,13 +311,6 @@ fn should_preserve_qualified_dotted_field_values_outside_wire_profile() {
     let qualified_dotted = fixture
         .execute("SELECT output_identifier_rows.\"a.b\" AS dotted FROM output_identifier_rows")
         .expect("execute qualified dotted field outside wire profile");
-    eprintln!("embedded bare dotted rows: {:?}", bare.rows);
-    eprintln!("embedded qualified Gate rows: {:?}", qualified_gate.rows);
-    eprintln!(
-        "embedded qualified dotted rows: {:?}",
-        qualified_dotted.rows
-    );
-
     // Assert
     assert_eq!(bare.rows, vec![vec![cassie::types::Value::Int64(42)]]);
     assert_eq!(

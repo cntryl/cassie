@@ -175,7 +175,7 @@ fn should_deduplicate_supported_schema_vector_identities() {
         let Value::Int64(oid) = &row[0] else {
             panic!("registry OID is not an integer");
         };
-        assert!(oids.insert(*oid), "duplicate registry OID {oid}");
+        assert!(oids.insert(*oid), "duplicate registry OID");
     }
     // ARRAY(VECTOR(7016)) has the existing durable OID34016. Its excluded
     // wire identity must not replace or duplicate supported BOOLEAN[].

@@ -32,6 +32,8 @@ mod errors;
 mod extended;
 #[path = "connection/readers.rs"]
 mod readers;
+#[path = "connection/simple_execution.rs"]
+mod simple_execution;
 #[path = "connection/simple_query.rs"]
 mod simple_query;
 #[path = "connection/startup_params.rs"]
@@ -41,6 +43,8 @@ mod state;
 #[cfg(test)]
 #[path = "connection/tests.rs"]
 mod tests;
+#[path = "connection/transactions.rs"]
+mod transactions;
 #[path = "connection/transport.rs"]
 mod transport;
 #[path = "connection/writers.rs"]
@@ -453,7 +457,10 @@ async fn handle_sync_wait(
         state::FrontendMessage::Sync => {
             runtime.record_pgwire_message("sync");
             *awaiting_sync = false;
-            if std::mem::take(&mut state.invalidate_portals_on_sync) {
+            state.extended_cycle = transactions::ExtendedCycle::default();
+            if std::mem::take(&mut state.invalidate_portals_on_sync)
+                || (!session.is_transaction_active() && !session.is_transaction_failed())
+            {
                 state.clear_all_portals(runtime);
             }
             let _ = write_ready_for_query(write_half, session).await;
@@ -488,82 +495,80 @@ async fn handle_simple_query(
         Err(HandshakeError::Closed) => return ConnectionStep::Break,
         Err(HandshakeError::Invalid(error)) => {
             runtime.record_pgwire_protocol_error();
-            let _ = write_error_response(
+            return write_simple_query_error(
+                runtime,
                 write_half,
-                &PgWireError::protocol(format!("invalid simple query message: {error}")),
+                state,
+                &session,
+                PgWireError::protocol(format!("invalid simple query message: {error}")),
             )
             .await;
-            let _ = write_ready_for_query(write_half, &session).await;
-            return ConnectionStep::Continue(HandshakeState::Ready);
         }
     };
 
+    state.reset_unnamed_query_objects(runtime);
+    state.extended_cycle = transactions::ExtendedCycle::default();
     let statements = match simple_query::split_simple_query(&sql) {
         Ok(statements) => statements,
         Err(error) => {
-            return write_simple_query_split_error(runtime, write_half, &session, error).await;
+            return write_simple_query_split_error(runtime, write_half, state, &session, error)
+                .await;
         }
     };
 
-    if statements.len() == 1
-        && simple_query::is_streaming_copy(&statements[0])
-        && cassie.ensure_session_database_access(&session).is_err()
-    {
-        session.mark_transaction_failed();
-        let error = cassie_pg_error(&CassieError::InsufficientPrivilege);
-        if write_error_response(write_half, &error).await.is_err()
-            || write_ready_for_query(write_half, &session).await.is_err()
-        {
-            return ConnectionStep::Break;
-        }
-        return ConnectionStep::Continue(HandshakeState::Ready);
-    }
-
     if statements.len() == 1 {
-        let copy_cancellation = state
-            .backend_registration
-            .as_ref()
-            .filter(|_| simple_query::is_streaming_copy(&statements[0]))
-            .map(crate::runtime::PgwireBackendRegistration::begin_query);
-        let cancellation_handle = copy_cancellation
-            .as_ref()
-            .map(crate::runtime::PgwireQueryCancellationGuard::handle);
-        let copy_outcome = copy::try_handle_simple_copy_query(
+        match copy::handle_simple_copy_candidate(
             cassie.clone(),
-            session.clone(),
+            runtime,
+            state,
+            &session,
             &statements[0],
-            cancellation_handle.as_ref(),
             reader,
             write_half,
         )
-        .await;
-        drop(copy_cancellation);
-        if matches!(copy_outcome, copy::SimpleCopyOutcome::Handled) {
-            return ConnectionStep::Continue(HandshakeState::Ready);
-        }
-    }
-
-    if statements.is_empty() && write_empty_query_response(write_half).await.is_err() {
-        return ConnectionStep::Break;
-    }
-    for statement in statements {
-        match execute_simple_statement(
-            cassie.clone(),
-            runtime,
-            write_half,
-            state,
-            &session,
-            statement,
-        )
         .await
         {
-            Ok(true) => {}
-            Ok(false) => break,
-            Err(()) => return ConnectionStep::Break,
+            copy::SimpleCopyOutcome::Handled => {
+                return ConnectionStep::Continue(HandshakeState::Ready)
+            }
+            copy::SimpleCopyOutcome::ConnectionClosed => return ConnectionStep::Break,
+            copy::SimpleCopyOutcome::NotCopy => {}
         }
     }
 
-    if write_ready_for_query(write_half, &session).await.is_err() {
+    let parsed = match transactions::preflight(&statements) {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            return write_simple_query_error(
+                runtime,
+                write_half,
+                state,
+                &session,
+                cassie_pg_error(&error),
+            )
+            .await;
+        }
+    };
+
+    if simple_execution::run_batch(
+        cassie.clone(),
+        runtime,
+        write_half,
+        state,
+        &session,
+        statements,
+        parsed,
+    )
+    .await
+    .is_err()
+    {
+        return ConnectionStep::Break;
+    }
+
+    if transactions::finish_query(cassie, runtime, write_half, state, &session)
+        .await
+        .is_err()
+    {
         return ConnectionStep::Break;
     }
     ConnectionStep::Continue(HandshakeState::Ready)
@@ -572,6 +577,7 @@ async fn handle_simple_query(
 async fn write_simple_query_split_error(
     runtime: &crate::runtime::RuntimeState,
     write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
     session: &CassieSession,
     error: simple_query::SplitError,
 ) -> ConnectionStep {
@@ -583,8 +589,18 @@ async fn write_simple_query_split_error(
     if protocol_error {
         runtime.record_pgwire_protocol_error();
     }
-    session.mark_transaction_failed();
     let error = PgWireError::new(PgWireSeverity::Error, sqlstate, message);
+    write_simple_query_error(runtime, write_half, state, session, error).await
+}
+
+async fn write_simple_query_error(
+    runtime: &crate::runtime::RuntimeState,
+    write_half: &mut (impl AsyncWrite + Unpin),
+    state: &mut SessionState,
+    session: &CassieSession,
+    error: PgWireError,
+) -> ConnectionStep {
+    transactions::fail_query(runtime, state, session);
     if write_error_response(write_half, &error).await.is_err()
         || write_ready_for_query(write_half, session).await.is_err()
     {
@@ -624,6 +640,7 @@ async fn execute_simple_statement(
         Ok(result) => match write_simple_query_result(write_half, result).await {
             Ok(()) => Ok(true),
             Err(error) if writers::is_backend_frame_too_large(&error) => {
+                session.mark_transaction_failed();
                 let resource_limit = CassieError::ResourceLimit(error.to_string());
                 write_error_response(write_half, &cassie_pg_error(&resource_limit))
                     .await

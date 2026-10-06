@@ -99,7 +99,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Capability | Behavior | Status |
 | --- | --- | --- |
 | DML | `INSERT`, PostgreSQL-style `ON CONFLICT`, `UPDATE`, `DELETE`, `RETURNING`, CSV copy ingestion | Experimental |
-| Transactions | Begin, commit, rollback, savepoints, read-your-writes | Experimental |
+| Transactions | Begin, commit, rollback, savepoints, read-your-writes and the bounded implicit Query/Sync profile with atomic healthy handoff; standalone DDL and explicit table COPY boundaries follow the [wire transaction contract](pgwire-transaction-contract.md). | Experimental |
 | Database and schema scope | Databases, schemas, persisted `search_path`, qualified names, and administrator-managed `CONNECT` grants with live-session revalidation | Stable |
 | Tables and constraints | Table DDL, name-idempotent `CREATE TABLE IF NOT EXISTS`, defaults, unique, check, foreign key | Experimental |
 | Scalar indexes | Primary, secondary, composite, unique, covering, partial, expression, and name-idempotent `CREATE INDEX IF NOT EXISTS` | Experimental |

@@ -1,3 +1,4 @@
+use super::state::SessionState;
 use super::writers::write_command_complete;
 use super::{
     cassie_pg_error, read_frontend_message, run_pgwire_blocking, str, write_copy_data,
@@ -11,6 +12,49 @@ pub(super) enum SimpleCopyOutcome {
     Handled,
     NotCopy,
     ConnectionClosed,
+}
+
+pub(super) async fn handle_simple_copy_candidate(
+    cassie: Arc<Cassie>,
+    runtime: &crate::runtime::RuntimeState,
+    state: &mut SessionState,
+    session: &CassieSession,
+    sql: &str,
+    reader: &mut PgwireReader,
+    write_half: &mut (impl AsyncWrite + Unpin),
+) -> SimpleCopyOutcome {
+    let streaming = super::simple_query::is_streaming_copy(sql);
+    if streaming && cassie.ensure_session_database_access(session).is_err() {
+        super::transactions::fail_query(runtime, state, session);
+        return write_copy_error(
+            write_half,
+            session,
+            &cassie_pg_error(&CassieError::InsufficientPrivilege),
+        )
+        .await;
+    }
+    let cancellation = state
+        .backend_registration
+        .as_ref()
+        .filter(|_| streaming)
+        .map(crate::runtime::PgwireBackendRegistration::begin_query);
+    let handle = cancellation
+        .as_ref()
+        .map(crate::runtime::PgwireQueryCancellationGuard::handle);
+    let outcome = try_handle_simple_copy_query(
+        cassie,
+        session.clone(),
+        sql,
+        handle.as_ref(),
+        reader,
+        write_half,
+    )
+    .await;
+    drop(cancellation);
+    if matches!(outcome, SimpleCopyOutcome::Handled) {
+        super::transactions::clear_idle_portals(runtime, state, session);
+    }
+    outcome
 }
 
 fn binding_context(cassie: &Cassie, session: &CassieSession) -> crate::sql::binder::BindingContext {
@@ -64,6 +108,12 @@ pub(super) async fn try_handle_simple_copy_query(
         }
     };
 
+    if session.is_implicit_transaction() {
+        let error = cassie_pg_error(&CassieError::Unsupported(
+            "table COPY cannot join pending implicit SQL work".to_owned(),
+        ));
+        return write_copy_error(write_half, &session, &error).await;
+    }
     if session.is_transaction_failed() {
         let error = cassie_pg_error(&CassieError::Execution(
             "transaction is failed; rollback required".to_string(),
@@ -177,7 +227,11 @@ async fn write_copy_error(
     session: &CassieSession,
     error: &PgWireError,
 ) -> SimpleCopyOutcome {
-    session.mark_transaction_failed();
+    if session.is_implicit_transaction() {
+        session.rollback_transaction();
+    } else {
+        session.mark_transaction_failed();
+    }
     if write_error_response(write_half, error).await.is_err()
         || write_ready_for_query(write_half, session).await.is_err()
     {

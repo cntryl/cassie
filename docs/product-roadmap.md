@@ -21,9 +21,9 @@ CBM2 codecs and selected column acceleration do not establish a common typed
 relational pipeline; that pipeline remains Planned.
 
 1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs, [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract and [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754) foundation;
-   qualify the [finite type/codec contract](type-contract.md) in [#752](https://github.com/cntryl/cassie/issues/752) and the private batch/view contract in [#753](https://github.com/cntryl/cassie/issues/753).
+   retain the merged [finite type/codec contract](type-contract.md) in [#752](https://github.com/cntryl/cassie/issues/752) and define the [private batch/view contract](typed-batch-contract.md) in [#753](https://github.com/cntryl/cassie/issues/753).
    [#755](https://github.com/cntryl/cassie/issues/755) implements and qualifies the user-selected bounded wire-cycle visibility
-   contract; selecting its profile does not complete that runtime dependency.
+   [contract](pgwire-transaction-contract.md); selecting its profile does not complete that runtime dependency.
 2. Typed batches and streaming: [#756](https://github.com/cntryl/cassie/issues/756) follows [#753](https://github.com/cntryl/cassie/issues/753)/[#749](https://github.com/cntryl/cassie/issues/749)/[#432](https://github.com/cntryl/cassie/issues/432)/[#755](https://github.com/cntryl/cassie/issues/755) and carries
    scan/filter/projection through the selected type/kernel matrix, with bounded
    scalar fallback and explicit row/wire conversion. [#757](https://github.com/cntryl/cassie/issues/757) follows [#755](https://github.com/cntryl/cassie/issues/755)/[#752](https://github.com/cntryl/cassie/issues/752) and

@@ -1,3 +1,6 @@
+#[path = "extended/transaction_boundary.rs"]
+mod transaction_boundary;
+
 use std::io;
 use std::str;
 use std::sync::Arc;
@@ -55,6 +58,7 @@ pub(super) async fn handle_frontend_message(
         Err(HandshakeError::Closed) => return ConnectionStep::Break,
         Err(HandshakeError::Invalid(error)) => {
             runtime.record_pgwire_protocol_error();
+            super::transactions::fail_query(runtime, state, session);
             let _ = write_error_response(
                 write_half,
                 &PgWireError::protocol(format!("invalid frontend message: {error}")),
@@ -80,7 +84,10 @@ pub(super) async fn handle_frontend_message(
             if error.record_protocol_error {
                 runtime.record_pgwire_protocol_error();
             }
-            if error.aborts_transaction {
+            if session.is_implicit_transaction() {
+                session.rollback_transaction();
+                state.clear_all_portals(runtime);
+            } else {
                 session.mark_transaction_failed();
             }
             let _ = write_error_response(write_half, error.pg_error.as_ref()).await;
@@ -163,6 +170,25 @@ async fn dispatch_message(
         }
         FrontendMessage::Sync => {
             runtime.record_pgwire_message("sync");
+            if session.is_implicit_transaction() {
+                let transaction_session = session.clone();
+                let committed =
+                    run_pgwire_blocking(cassie, "pgwire_implicit_commit", move |cassie| {
+                        cassie.commit_transaction(&transaction_session)
+                    })
+                    .await;
+                if let Err(error) = committed {
+                    session.rollback_transaction();
+                    write_error_response(write_half, &super::errors::cassie_pg_error(&error))
+                        .await
+                        .map_err(|error| ExtendedQueryError::write_failed(&error))?;
+                }
+                state.clear_all_portals(runtime);
+            }
+            if !session.is_transaction_active() && !session.is_transaction_failed() {
+                state.clear_all_portals(runtime);
+            }
+            state.extended_cycle = super::transactions::ExtendedCycle::default();
             let _ = write_ready_for_query(write_half, session).await;
         }
         FrontendMessage::Terminate => return Ok(DispatchOutcome::Break),
@@ -452,8 +478,8 @@ async fn handle_execute(
     max_rows: i32,
 ) -> Result<(), ExtendedQueryError> {
     runtime.record_pgwire_extended_query();
-    let max_rows = usize::try_from(max_rows)
-        .map_err(|_| ExtendedQueryError::protocol("invalid execute row limit"))?;
+    let (max_rows, first_execute) =
+        transaction_boundary::prepare_execute(state, session, &portal_name, max_rows)?;
     let (portal, suspended) = take_portal_execution(state, &portal_name)
         .ok_or_else(|| missing_portal_error(&portal_name))?;
 
@@ -482,6 +508,7 @@ async fn handle_execute(
             .await
             .map_err(|error| ExtendedQueryError::write_failed(&error));
     };
+    let standalone = transaction_boundary::admit_statement(state, session, &parsed, first_execute)?;
     if streamable_portal_query(&prepared, max_rows) {
         return execute_streaming_portal_page(
             cassie,
@@ -499,7 +526,7 @@ async fn handle_execute(
         )
         .await;
     }
-    let session = session.clone();
+    let execution_session = session.clone();
     let params = portal.params.clone();
     let parameter_type_oids = prepared.parameter_types.clone();
     let sql_fingerprint = prepared.sql_fingerprint;
@@ -511,10 +538,9 @@ async fn handle_execute(
     let cancellation_handle = cancellation.handle();
     let result_cap = cassie.runtime.limits().max_result_rows;
     let was_in_transaction = session.is_transaction_active() || session.is_transaction_failed();
-    let transaction_session = session.clone();
     let result = run_pgwire_blocking(cassie, "pgwire_extended_query", move |cassie| {
         cassie.execute_parsed_sql_with_cancellation(
-            &session,
+            &execution_session,
             parsed,
             sql_fingerprint,
             (params, &parameter_type_oids),
@@ -524,14 +550,7 @@ async fn handle_execute(
     })
     .await
     .map_err(|error| ExtendedQueryError::cassie(&error))?;
-    if was_in_transaction
-        && !transaction_session.is_transaction_active()
-        && !transaction_session.is_transaction_failed()
-    {
-        // Transaction end closes every portal, including suspended cursors
-        // opened inside the transaction, matching the simple-query path.
-        state.clear_all_portals(runtime);
-    }
+    transaction_boundary::close_completed_owner(state, runtime, session, was_in_transaction);
     let window = PortalFetchWindow::new(result_cap, 0, max_rows);
     let suspended_cancellation = if window.page_rows() < result.rows.len() {
         Some(cancellation.suspend())
@@ -553,7 +572,11 @@ async fn handle_execute(
             result_cap,
         },
     )
-    .await
+    .await?;
+    if standalone && state.remove_portal(&portal_name).is_some() {
+        runtime.record_pgwire_portal_delta(-1);
+    }
+    Ok(())
 }
 
 async fn handle_close(
@@ -739,7 +762,6 @@ fn missing_portal_error(name: &str) -> ExtendedQueryError {
 pub(super) struct ExtendedQueryError {
     pg_error: Box<PgWireError>,
     record_protocol_error: bool,
-    aborts_transaction: bool,
 }
 
 impl ExtendedQueryError {
@@ -747,7 +769,6 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::protocol(message)),
             record_protocol_error: true,
-            aborts_transaction: false,
         }
     }
 
@@ -755,7 +776,6 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::invalid_sql_statement_name(message)),
             record_protocol_error: true,
-            aborts_transaction: false,
         }
     }
 
@@ -768,7 +788,6 @@ impl ExtendedQueryError {
         Self {
             pg_error: Box::new(PgWireError::from_cassie_error(PgWireSeverity::Error, error)),
             record_protocol_error: false,
-            aborts_transaction: false,
         }
     }
 
@@ -780,7 +799,6 @@ impl ExtendedQueryError {
             return Self {
                 pg_error: Box::new(PgWireError::internal(error.to_string())),
                 record_protocol_error: false,
-                aborts_transaction: true,
             };
         }
         if error.kind() == io::ErrorKind::Unsupported {
@@ -795,7 +813,6 @@ impl ExtendedQueryError {
                 "failed to write pgwire response: {error}"
             ))),
             record_protocol_error: true,
-            aborts_transaction: false,
         }
     }
 }

@@ -1,3 +1,6 @@
+#[path = "session/transaction_origin.rs"]
+mod transaction_origin;
+
 use super::session_settings::SessionSettings;
 use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
@@ -36,6 +39,7 @@ enum SessionAccess {
 #[derive(Debug, Clone)]
 struct SessionTransactionState {
     status: SessionTransactionStatus,
+    implicit: bool,
     isolation: Option<TransactionIsolation>,
     writes: SharedTransactionWrites,
     conflict_intents: Vec<TransactionConflictIntent>,
@@ -200,6 +204,7 @@ impl CassieSession {
             backend_pid: Arc::new(AtomicI32::new(0)),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::Idle,
+                implicit: false,
                 isolation: None,
                 writes: SharedTransactionWrites::default(),
                 conflict_intents: Vec::new(),
@@ -241,6 +246,7 @@ impl CassieSession {
             backend_pid: Arc::clone(&self.backend_pid),
             transaction: Arc::new(Mutex::new(SessionTransactionState {
                 status: SessionTransactionStatus::InTransaction,
+                implicit: false,
                 isolation,
                 writes: base_writes.clone(),
                 conflict_intents,
@@ -404,7 +410,9 @@ impl CassieSession {
     ) -> Result<(), CassieError> {
         let session_state = self.session_state_snapshot();
         let mut transaction = self.transaction.lock();
-        if transaction.status != SessionTransactionStatus::Idle {
+        if transaction.status == SessionTransactionStatus::Failed
+            || (transaction.status != SessionTransactionStatus::Idle && !transaction.implicit)
+        {
             return Err(CassieError::Unsupported(
                 "transaction already in progress".to_string(),
             ));
@@ -418,7 +426,14 @@ impl CassieSession {
             ));
         }
 
+        if transaction.implicit {
+            transaction.implicit = false;
+            transaction.isolation = isolation;
+            return Ok(());
+        }
+
         transaction.status = SessionTransactionStatus::InTransaction;
+        transaction.implicit = false;
         transaction.isolation = isolation;
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
@@ -430,6 +445,7 @@ impl CassieSession {
     pub(crate) fn commit_transaction(&self) {
         let mut transaction = self.transaction.lock();
         transaction.status = SessionTransactionStatus::Idle;
+        transaction.implicit = false;
         transaction.isolation = None;
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
@@ -441,6 +457,7 @@ impl CassieSession {
         let mut transaction = self.transaction.lock();
         let session_state = transaction.session_state.take();
         transaction.status = SessionTransactionStatus::Idle;
+        transaction.implicit = false;
         transaction.isolation = None;
         transaction.writes = SharedTransactionWrites::default();
         transaction.conflict_intents.clear();
@@ -708,7 +725,7 @@ impl StatementMutationBatch {
         &self.session
     }
 
-    pub(super) const fn has_explicit_transaction(&self) -> bool {
+    pub(super) const fn has_enclosing_transaction(&self) -> bool {
         self.base_transaction_active
     }
 

@@ -243,6 +243,23 @@ pub async fn complete_startup(
     let _ = complete_startup_with_backend_key(reader, writer).await;
 }
 
+pub async fn transaction_control(
+    reader: &mut (impl AsyncRead + Unpin),
+    writer: &mut (impl AsyncWrite + Unpin),
+    sql: &str,
+) {
+    write_frames(writer, vec![simple_query_frame(sql)]).await;
+    let frames = read_frames_until_ready_within(reader, Duration::from_secs(5)).await;
+    assert_eq!(
+        frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+        b"CZ"
+    );
+    assert_eq!(
+        frames.last().map(|frame| frame.1.as_slice()),
+        Some(&b"T"[..])
+    );
+}
+
 pub async fn complete_startup_with_password(
     reader: &mut (impl AsyncRead + Unpin),
     writer: &mut (impl AsyncWrite + Unpin),

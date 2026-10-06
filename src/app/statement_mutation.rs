@@ -30,7 +30,7 @@ impl Cassie {
         controls: &QueryExecutionControls,
     ) -> Result<(), CassieError> {
         check_publication_controls(Some(controls))?;
-        if batch.has_explicit_transaction() {
+        if batch.has_enclosing_transaction() {
             let original = original.ok_or_else(|| {
                 CassieError::Execution(
                     "statement mutation lost its explicit transaction".to_string(),

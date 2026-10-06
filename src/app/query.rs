@@ -6,8 +6,7 @@ use super::query_metrics::{
 use super::{
     current_time_millis, parser, query_cache, unsupported_sql_error, Arc, Cassie, CassieError,
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
-    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement,
-    TransactionAction, TransactionStatement, Value,
+    QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement, Value,
 };
 // Discard compiled plans from the earlier Boolean expression semantics.
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 3;
@@ -441,26 +440,12 @@ impl Cassie {
             return Err(CassieError::DeadlineExceeded);
         }
         session.authorize_statement(&parsed.statement)?;
-        if session.is_transaction_failed() && !Self::is_transaction_recovery(parsed) {
-            return Err(CassieError::Execution(
-                "transaction is failed; rollback required".to_string(),
-            ));
-        }
+        Self::ensure_transaction_recovery(session, parsed)?;
         super::transaction_semantics::ensure_supported_transaction_semantics(
             session,
             &parsed.statement,
         )?;
         Ok(())
-    }
-
-    fn is_transaction_recovery(parsed: &crate::sql::ast::ParsedStatement) -> bool {
-        matches!(
-            &parsed.statement,
-            QueryStatement::Transaction(TransactionStatement {
-                action: TransactionAction::Rollback | TransactionAction::RollbackTo { .. },
-                ..
-            })
-        )
     }
 
     pub(super) fn query_cache_context(

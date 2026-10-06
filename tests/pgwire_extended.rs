@@ -1,3 +1,6 @@
+#[path = "support/pgwire_transaction_boundary.rs"]
+mod support_pgwire_transaction_boundary;
+
 #[path = "pgwire_extended/type_vector_carriers.rs"]
 mod pgwire_type_vector_carriers;
 // Consolidated integration suite: pgwire_extended.
@@ -2451,6 +2454,8 @@ mod pgwire_portal_safety {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
 
             // Act
             support::write_frames(
@@ -2521,6 +2526,8 @@ mod pgwire_portal_safety {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             support::write_frames(
                 &mut write_half,
                 vec![
@@ -2639,6 +2646,8 @@ mod pgwire_portal_safety {
         let (read_half, mut write_half) = socket.split();
         let mut reader = BufReader::new(read_half);
         support::complete_startup(&mut reader, &mut write_half).await;
+        // Cross-Sync portals belong to an explicit transaction.
+        support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
         support::write_frames(
             &mut write_half,
             vec![
@@ -2686,6 +2695,8 @@ mod pgwire_portal_safety {
         assert_eq!(data_values(&third).len(), 1);
         assert!(third.iter().all(|(tag, _)| *tag != b'E'));
 
+        support::transaction_control(&mut reader, &mut write_half, "SAVEPOINT memory_probe").await;
+
         // Act
         support::write_frames(
             &mut write_half,
@@ -2701,6 +2712,7 @@ mod pgwire_portal_safety {
         // Assert
         assert_eq!(error_code(&overflow).as_deref(), Some("54000"));
         assert_eq!(data_values(&overflow), [] as [std::string::String; 0]);
+        support::transaction_control(&mut reader, &mut write_half, "ROLLBACK TO memory_probe").await;
 
         support::write_frames(
             &mut write_half,
@@ -2871,6 +2883,8 @@ mod pgwire_portal_streaming {
             let mut reader = BufReader::new(read_half);
             let (process_id, secret_key) =
                 support::complete_startup_with_backend_key(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             support::write_frames(
                 &mut write_half,
                 vec![
@@ -2978,6 +2992,8 @@ mod pgwire_portal_streaming {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             support::write_frames(
                 &mut write_half,
                 vec![
@@ -3377,6 +3393,8 @@ mod pgwire_portal_streaming {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             support::write_frames(
                 &mut write_half,
                 vec![
@@ -3874,22 +3892,24 @@ mod pgwire_simple_query_batch {
         let (read_half, mut writer) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
         start_session(&mut reader, &mut writer).await;
+        let setup = send_query(&mut reader, &mut writer, "CREATE TABLE batch_order (number INT)").await;
+        assert_ready(&setup);
+        assert_eq!(command(&setup[0]), "CREATE TABLE");
 
         // Act
         let frames = send_query(
             &mut reader,
             &mut writer,
-            "CREATE TABLE batch_order (number INT); INSERT INTO batch_order (number) VALUES (1); SELECT number FROM batch_order ORDER BY number",
+            "INSERT INTO batch_order (number) VALUES (1); SELECT number FROM batch_order ORDER BY number",
         )
         .await;
         // Assert
         assert_eq!(
             frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'C', b'C', b'T', b'D', b'C', b'Z']
+            vec![b'C', b'T', b'D', b'C', b'Z']
         );
-        assert_eq!(command(&frames[0]), "CREATE TABLE");
-        assert_eq!(command(&frames[1]), "INSERT 0 1");
-        assert_eq!(data_row(&frames[3]), vec![Some("1".to_string())]);
+        assert_eq!(command(&frames[0]), "INSERT 0 1");
+        assert_eq!(data_row(&frames[2]), vec![Some("1".to_string())]);
         assert_ready(&frames);
 
         drop(reader);
@@ -3916,20 +3936,23 @@ mod pgwire_simple_query_batch {
         let (read_half, mut writer) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
         start_session(&mut reader, &mut writer).await;
+        let setup = send_query(&mut reader, &mut writer, "CREATE TABLE \"batch;quoted\" (note TEXT)").await;
+        assert_ready(&setup);
+        assert_eq!(command(&setup[0]), "CREATE TABLE");
 
         // Act
         let frames = send_query(
             &mut reader,
             &mut writer,
-            "CREATE TABLE \"batch;quoted\" (note TEXT); -- comment;\nINSERT INTO \"batch;quoted\" (note) VALUES ('text;value'); /* block; comment */ SELECT note FROM \"batch;quoted\"",
+            "-- comment;\nINSERT INTO \"batch;quoted\" (note) VALUES ('text;value'); /* block; comment */ SELECT note FROM \"batch;quoted\"",
         )
         .await;
         // Assert
         assert_eq!(
             frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'C', b'C', b'T', b'D', b'C', b'Z']
+            vec![b'C', b'T', b'D', b'C', b'Z']
         );
-        assert_eq!(data_row(&frames[3]), vec![Some("text;value".to_string())]);
+        assert_eq!(data_row(&frames[2]), vec![Some("text;value".to_string())]);
         assert_ready(&frames);
 
         drop(reader);
@@ -3947,38 +3970,46 @@ mod pgwire_simple_query_batch {
         let path = data_dir("empty");
 
         runtime().block_on(async {
-        let cassie = new_cassie(&path);
-        cassie.startup().expect("startup");
-        let (address, server) = spawn_server(&cassie).await;
-        let mut socket = tokio::net::TcpStream::connect(address)
-            .await
-            .expect("connect pgwire");
-        let (read_half, mut writer) = socket.split();
-        let mut reader = tokio::io::BufReader::new(read_half);
-        start_session(&mut reader, &mut writer).await;
+            let cassie = new_cassie(&path);
+            cassie.startup().expect("startup");
+            let (address, server) = spawn_server(&cassie).await;
+            let mut socket = tokio::net::TcpStream::connect(address)
+                .await
+                .expect("connect pgwire");
+            let (read_half, mut writer) = socket.split();
+            let mut reader = tokio::io::BufReader::new(read_half);
+            start_session(&mut reader, &mut writer).await;
+            let setup = send_query(
+                &mut reader,
+                &mut writer,
+                "CREATE TABLE batch_empty (number INT)",
+            )
+            .await;
+            assert_ready(&setup);
+            assert_eq!(command(&setup[0]), "CREATE TABLE");
 
-        // Act
-        let frames = send_query(
+            // Act
+            let frames = send_query(
             &mut reader,
             &mut writer,
-            ";; CREATE TABLE batch_empty (number INT); ; INSERT INTO batch_empty (number) VALUES (7); ;; SELECT number FROM batch_empty",
+            ";; ; INSERT INTO batch_empty (number) VALUES (7); ;; SELECT number FROM batch_empty",
         )
         .await;
 
-        // Assert
-        assert_eq!(
-            frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'C', b'C', b'T', b'D', b'C', b'Z']
-        );
-        assert_eq!(data_row(&frames[3]), vec![Some("7".to_string())]);
-        assert_ready(&frames);
+            // Assert
+            assert_eq!(
+                frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
+                vec![b'C', b'T', b'D', b'C', b'Z']
+            );
+            assert_eq!(data_row(&frames[2]), vec![Some("7".to_string())]);
+            assert_ready(&frames);
 
-        drop(reader);
-        drop(socket);
-        server.abort();
-        let _ = server.await;
-        let _ = std::fs::remove_dir_all(path);
-    });
+            drop(reader);
+            drop(socket);
+            server.abort();
+            let _ = server.await;
+            let _ = std::fs::remove_dir_all(path);
+        });
     }
 
     #[test]
@@ -3997,12 +4028,15 @@ mod pgwire_simple_query_batch {
         let (read_half, mut writer) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
         start_session(&mut reader, &mut writer).await;
+        let setup = send_query(&mut reader, &mut writer, "CREATE TABLE batch_stop (number INT)").await;
+        assert_ready(&setup);
+        assert_eq!(command(&setup[0]), "CREATE TABLE");
 
         // Act
         let frames = send_query(
             &mut reader,
             &mut writer,
-            "CREATE TABLE batch_stop (number INT); INSERT INTO batch_stop (number) VALUES (1); SELECT number FROM missing_batch_stop; INSERT INTO batch_stop (number) VALUES (2)",
+            "INSERT INTO batch_stop (number) VALUES (1); SELECT number FROM missing_batch_stop; INSERT INTO batch_stop (number) VALUES (2)",
         )
         .await;
         let after_error = send_query(
@@ -4015,14 +4049,14 @@ mod pgwire_simple_query_batch {
         // Assert
         assert_eq!(
             frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'C', b'C', b'E', b'Z']
+            vec![b'C', b'E', b'Z']
         );
         assert_ready(&frames);
         assert_eq!(
             after_error.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'T', b'D', b'C', b'Z']
+            vec![b'T', b'C', b'Z']
         );
-        assert_eq!(data_row(&after_error[1]), vec![Some("1".to_string())]);
+        assert!(after_error.iter().all(|(tag, _)| *tag != b'D'));
         assert_ready(&after_error);
 
         drop(reader);
@@ -4049,24 +4083,27 @@ mod pgwire_simple_query_batch {
         let (read_half, mut writer) = socket.split();
         let mut reader = tokio::io::BufReader::new(read_half);
         start_session(&mut reader, &mut writer).await;
+        let setup = send_query(&mut reader, &mut writer, "CREATE TABLE batch_transaction (number INT)").await;
+        assert_ready(&setup);
+        assert_eq!(command(&setup[0]), "CREATE TABLE");
 
         // Act
         let frames = send_query(
             &mut reader,
             &mut writer,
-            "CREATE TABLE batch_transaction (number INT); BEGIN; INSERT INTO batch_transaction (number) VALUES (9); COMMIT; SELECT number FROM batch_transaction",
+            "BEGIN; INSERT INTO batch_transaction (number) VALUES (9); COMMIT; SELECT number FROM batch_transaction",
         )
         .await;
 
         // Assert
         assert_eq!(
             frames.iter().map(|frame| frame.0).collect::<Vec<_>>(),
-            vec![b'C', b'C', b'C', b'C', b'T', b'D', b'C', b'Z']
+            vec![b'C', b'C', b'C', b'T', b'D', b'C', b'Z']
         );
-        assert_eq!(command(&frames[1]), "BEGIN");
-        assert_eq!(command(&frames[2]), "INSERT 0 1");
-        assert_eq!(command(&frames[3]), "COMMIT");
-        assert_eq!(data_row(&frames[5]), vec![Some("9".to_string())]);
+        assert_eq!(command(&frames[0]), "BEGIN");
+        assert_eq!(command(&frames[1]), "INSERT 0 1");
+        assert_eq!(command(&frames[2]), "COMMIT");
+        assert_eq!(data_row(&frames[4]), vec![Some("9".to_string())]);
         assert_ready(&frames);
 
         drop(reader);
@@ -4315,6 +4352,8 @@ mod pgwire_portal_completion {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             let first = round_trip(
                 &mut reader,
                 &mut write_half,
@@ -4371,6 +4410,8 @@ mod pgwire_portal_completion {
             let (read_half, mut write_half) = socket.split();
             let mut reader = BufReader::new(read_half);
             support::complete_startup(&mut reader, &mut write_half).await;
+            // Cross-Sync portals belong to an explicit transaction.
+            support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
             let first = round_trip(
                 &mut reader,
                 &mut write_half,
@@ -5157,6 +5198,7 @@ mod pgwire_row_limited_portal {
     /// Batches that page `sql` two rows at a time and then drain the rest.
     fn resumed_batches(sql: &str) -> Vec<Vec<Vec<u8>>> {
         vec![
+            vec![support::simple_query_frame("BEGIN")],
             vec![
                 support::parse_frame("", sql),
                 support::bind_frame("p", "", &[]),
@@ -5184,7 +5226,7 @@ mod pgwire_row_limited_portal {
         let answers = run_batches("row-limited-tag-streamed", &TITLE_SETUP, batches);
 
         // Assert
-        assert_eq!(command_tags(&answers[1]), vec!["SELECT 2".to_string()]);
+        assert_eq!(command_tags(&answers[2]), vec!["SELECT 2".to_string()]);
     }
 
     #[test]
@@ -5196,7 +5238,7 @@ mod pgwire_row_limited_portal {
         let answers = run_batches("row-limited-tag-materialized", &TITLE_SETUP, batches);
 
         // Assert
-        assert_eq!(command_tags(&answers[1]), vec!["SELECT 2".to_string()]);
+        assert_eq!(command_tags(&answers[2]), vec!["SELECT 2".to_string()]);
     }
 
     #[test]
@@ -5407,3 +5449,7 @@ mod pgwire_boolean_parameter_families {
         );
     }
 }
+#[path = "pgwire_extended/transaction_boundaries.rs"]
+mod pgwire_transaction_boundaries;
+#[path = "pgwire_extended/transaction_portal_handoffs.rs"]
+mod pgwire_transaction_portal_handoffs;

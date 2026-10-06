@@ -39,7 +39,7 @@ Cassie does not currently expose a named database-image capability or a non-admi
 - Midge continues to encode the canonical name as a framed key component under the current key layout; row data remains addressed by its numeric relation ID. A quoted single-component name that needs escaping does not use the unscoped raw-name fallback, so it cannot resolve to a schema-qualified relation with the same dotted spelling.
 - `CREATE TABLE`, `CREATE VIEW`, `CREATE SEQUENCE`, `CREATE GRAPH`, `CREATE FUNCTION`, `CREATE PROCEDURE`, `CREATE ROLLUP` and `CREATE MATERIALIZED PROJECTION` fail with SQLSTATE `3F000` (`invalid_schema_name`) when the target schema does not exist, whether it is named explicitly (`CREATE TABLE ghost.t ...`) or reached through `search_path`. `public` always exists.
 - Cross-database relation references are unsupported.
-- Prepared statements and portals belong to one connection and are removed when closed or disconnected.
+- Named prepared statements belong to one connection. Portals belong to their transaction or preparation segment and close at commit/rollback, idle Sync, or disconnect; paging across Sync requires explicit BEGIN. Accepted Simple Query resets the unnamed statement and portal. See the [wire transaction contract](pgwire-transaction-contract.md).
 - Transactions accept Cassie's documented isolation behavior only; unsupported modes return `0A000`.
 
 ## Protocol Coverage
@@ -148,7 +148,7 @@ Inside LATERAL queries, inner-source names take precedence over correlated outer
 
 Every DataRow carries exactly as many fields as the RowDescription sent for the same result, encoded with the type and format that description announced. Built-in `pg_catalog` and `information_schema` views use the same declared column types for Describe and execution. A result row whose width does not match its description is reported as an internal error (`XX000`) rather than sent as a malformed frame.
 
-A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A cancelled resume returns `57014` and no partial row page.
+A successful startup emits backend process and secret data. A cancel request affects only the matching live backend. Incorrect or stale secrets do nothing. Cancellation is cooperative at bounded execution checkpoints and cleans up query and portal resources. A canceled resume returns `57014` and no partial row page.
 
 Portal `max_rows` controls one execute response; it does not reset Cassie's query limits. Result rows are counted cumulatively across resumes, and retained memory is shared across all live portals on the connection. An execute or bind that would exceed a cumulative limit returns `54000` atomically. Closing a portal or statement, rolling back, or disconnecting releases its state.
 
@@ -192,11 +192,16 @@ SQL and exact-version client workflows; the
 owners and blockers. PostgreSQL 18 is a comparison reference, not a newly certified
 server/client target. The bounded Query/Sync transaction profile was selected
 for [#755](https://github.com/cntryl/cassie/issues/755) in [the durable direction](https://github.com/cntryl/cassie/issues/755#issuecomment-5982444561).
-Its state tables, independent-session/unnamed-object and extended-to-simple
-interleaving probes remain pending. Current explicit transactions and unsupported
-isolation/DDL/extended-COPY behavior remain the implementation baseline until
-that selected contract is implemented and qualified. This foundation neither
-claims runtime completion nor adds transactional DDL or stronger isolation.
+The [wire transaction contract](pgwire-transaction-contract.md) records its
+implemented state tables and focused independent-session, unnamed-object and
+extended-to-simple acceptance cases. Eligible Simple read/DML batches commit at
+successful Query completion; eligible extended work remains private until Sync.
+A healthy extended-to-Simple handoff joins atomically, and implicit failure rolls
+back the owning segment. Explicit blocks retain T/E across Sync until completion
+or recovery. DDL stays standalone, explicit table COPY staging remains supported,
+and extended COPY stays unsupported. Broader portal, publication and packet/client
+qualification remains with #757/#763/#780; these finite cases add no transactional
+DDL, stronger isolation or PostgreSQL server-parity promise.
 
 Scalar expression subqueries are not implemented; implemented table/predicate/
 lateral/correlated forms remain evaluation surfaces. Full PostgreSQL server,

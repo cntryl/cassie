@@ -83,6 +83,7 @@ pub(super) struct SessionState {
     pub(super) next_prepared_id: u64,
     pub(super) backend_registration: Option<crate::runtime::PgwireBackendRegistration>,
     pub(super) invalidate_portals_on_sync: bool,
+    pub(super) extended_cycle: super::transactions::ExtendedCycle,
 }
 
 impl SessionState {
@@ -104,6 +105,7 @@ impl SessionState {
             next_prepared_id: 1,
             backend_registration: None,
             invalidate_portals_on_sync: false,
+            extended_cycle: super::transactions::ExtendedCycle::default(),
         }
     }
 
@@ -144,6 +146,17 @@ impl SessionState {
             self.remove_portal(name);
         }
         names.len()
+    }
+
+    pub(super) fn reset_unnamed_query_objects(&mut self, runtime: &RuntimeState) {
+        if let Some(statement) = self.prepared_statements.remove("") {
+            runtime.record_pgwire_prepared_delta(-1);
+            let removed = self.remove_portals_for_prepared_id(statement.id);
+            record_negative_delta(removed, |delta| runtime.record_pgwire_portal_delta(delta));
+        }
+        if self.remove_portal("").is_some() {
+            runtime.record_pgwire_portal_delta(-1);
+        }
     }
 
     pub(super) fn clear_query_cancellation(

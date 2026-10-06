@@ -42,7 +42,7 @@
     "postcss": "^8.5.28",
     "typescript": "^7.0.2",
     "vite": "npm:@voidzero-dev/vite-plus-core@0.3.1",
-    "vite-plus": "0.3.1"
+    "vite-plus": "0.3.3"
   },
   "overrides": {
     "dompurify": "3.4.13",

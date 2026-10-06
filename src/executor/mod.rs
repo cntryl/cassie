@@ -25,6 +25,7 @@ pub(crate) mod retained_memory;
 pub mod scan;
 pub(crate) mod semantic;
 pub mod sort;
+mod typed_batch;
 mod worker;
 
 pub use aggregate::columns_from_projection;

@@ -18,6 +18,10 @@ pub(crate) struct Accounted<T> {
 }
 
 impl<T> Accounted<T> {
+    pub(crate) fn from_admitted(value: T, reservation: QueryMemoryReservation) -> Self {
+        Self { value, reservation }
+    }
+
     /// Reserves the complete retained-size estimate before constructing the value.
     ///
     /// # Errors

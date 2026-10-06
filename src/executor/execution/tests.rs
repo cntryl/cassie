@@ -295,7 +295,7 @@ fn should_report_execution_breakdown_for_projected_filtered_read() {
         ]
     );
     assert!(output.breakdown.scan_us > 0 || output.breakdown.row_decode_us > 0);
-    assert_eq!(output.breakdown.filter_us, 0);
+    assert!(output.breakdown.filter_us > 0);
     assert!(output.breakdown.projection_us > 0);
     assert!(output.breakdown.result_build_us > 0);
 

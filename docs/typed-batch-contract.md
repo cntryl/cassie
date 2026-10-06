@@ -222,3 +222,36 @@ scalar evidence and do not prove a common typed path.
 
 Neither this specification nor the future runtime tests promote the broader
 relational kernel, portal, storage/recovery or production-readiness owners.
+
+## First runtime implementation coverage
+
+The #756/#757 bundle implements the selected transport/view constructors before
+connecting scan, filter and projection. The implementation and its acceptance
+remain pending until named runtime witnesses and exact-revision validation are
+recorded. The selected boundaries are:
+
+| Boundary | First implementation scope | Acceptance owner |
+| --- | --- | --- |
+| Storage to typed scan | Direct controlled Midge/session inputs; preserve current row/column decoding and source leases. Existing encoded JSON decoding is a storage conversion, not a zero-copy native column claim. | #756 constructor, identity, framing and staged-visibility probes. |
+| Typed filter | Numeric comparisons using shared exact numeric semantics, Boolean three-valued operators and NULL tests; TRUE-only stable selection. | #756 sparse validity, repeated positions and split-size differential probes. |
+| Typed projection | Shared passthrough/gather with exact descriptors, names, order and row correspondence. | #756 parent-drop, aliases, selection rebasing and lossless type probes. |
+| Tight query-memory profile | Before source opening, retain existing scalar dispatch when available memory is below one preferred-batch Value carrier vector. | #756 shared-owner threshold, first-wide-row rejection and LIMIT/EXISTS probes; admission remains enforced. |
+| Bounded scalar expression | Existing arithmetic, casts, functions, CASE and other unsupported native operations retain their scalar error/demand rules. | #756 guarded CASE, exact carrier and fallback equivalence probes. |
+| Final rows and wire | Explicit admitted output conversion; portal snapshots and completion remain governed by the selected wire transaction contract. | #757 WIRE-017 through WIRE-021. |
+| Other physical operators | Existing indexed, ordered, aggregate, join and specialized paths retain their own selected boundaries until their dependent kernel owners complete. | #758 through #780, as assigned in the ownership ledger. |
+
+Native execution cannot be inferred merely from an encoded-index hit, a batched
+scalar loop or a passing result comparison. Acceptance must identify the actual
+representation, selected kernel/fallback boundary, reads/decodes and final lease
+cleanup. This section selects implementation coverage; it records no runtime pass
+or support promotion.
+
+The first encoded handoff is an unfiltered covered CBC2 projection without LIMIT
+or OFFSET, when optional metadata and source transport fit the memory budget. It reuses
+the existing metadata/generation, row-ID and complete field-frame validators,
+retains immutable source bytes and their admitted metadata, and exposes the
+validated decoded cache through the common column accessor. This is an explicit
+decode-cache conversion, not zero-copy compressed execution. Filtered or bounded CBC2 reads
+keep their existing encoded pruning and late selected-field decode boundary;
+they do not become native merely because the storage index is selected. Staged
+changes use the controlled session source instead of trusting a persisted index.

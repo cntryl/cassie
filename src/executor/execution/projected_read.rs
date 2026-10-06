@@ -8,6 +8,8 @@ use super::{
 mod breakdown;
 #[path = "projected_read/specialized.rs"]
 mod specialized;
+#[path = "projected_read/typed.rs"]
+mod typed;
 
 pub(super) use breakdown::execute_projected_filtered_read_with_breakdown;
 
@@ -51,7 +53,7 @@ pub(super) fn execute_projected_filtered_read(
     controls: &QueryExecutionControls,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
     let Some(spec) = projected_filtered_read_spec(plan) else {
-        return Ok(None);
+        return typed::try_execute_rows(cassie, session, plan, user_functions, params, controls);
     };
     if virtual_views::schema(&spec.collection).is_some()
         || cassie.catalog.get_view(&spec.collection).is_some()
@@ -74,6 +76,12 @@ pub(super) fn execute_projected_filtered_read(
             plan,
             &spec,
         )?));
+    }
+
+    if let Some((rows, _)) =
+        typed::try_execute(cassie, session, plan, user_functions, params, controls)?
+    {
+        return Ok(Some(rows));
     }
 
     let pushdown_filter = plan

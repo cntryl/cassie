@@ -9,12 +9,19 @@ use super::{
     DocumentRef, IndexKind, IndexMeta, Midge, MidgeScanTimings, Query, RowFilter,
 };
 
+mod controls;
 mod direct_aggregate;
+mod filters;
 mod incremental;
 mod output;
 mod storage_v2;
 mod summary;
+mod typed_source;
 mod validation;
+
+use controls::check_column_batch_controls;
+use filters::{column_batch_row_matches, column_batch_summary_supports_ordering};
+pub(crate) use typed_source::{EncodedSource, EncodedSourceDecision, ValidatedEncodedField};
 
 use self::direct_aggregate::DirectAggregateAccumulator;
 use self::output::project_column_batch_document;
@@ -959,15 +966,6 @@ fn segment_may_match_predicate(
     }
 }
 
-fn column_batch_summary_supports_ordering(summary: &ColumnBatchFieldSummary) -> bool {
-    summary.min.iter().chain(summary.max.iter()).all(|value| {
-        !matches!(
-            value,
-            crate::types::Value::Vector(_) | crate::types::Value::Json(_)
-        )
-    })
-}
-
 fn segment_range_may_contain(
     summary: &ColumnBatchFieldSummary,
     low: &serde_json::Value,
@@ -991,33 +989,4 @@ fn segment_range_may_contain(
         return false;
     }
     true
-}
-
-fn column_batch_row_matches(row: &ColumnBatchRow, filter: Option<&RowFilter>) -> bool {
-    let Some(filter) = filter else {
-        return true;
-    };
-    row.values
-        .iter()
-        .find(|(field, _)| {
-            crate::sql::ColumnIdentifierPath::matches_stored_field(&filter.field, field)
-        })
-        .is_some_and(|(_, value)| value == &filter.value)
-}
-
-fn check_column_batch_controls(
-    midge: &Midge,
-    controls: &QueryExecutionControls,
-) -> Result<(), CassieError> {
-    if controls.is_cancelled() {
-        return Err(CassieError::QueryCancelled);
-    }
-    if controls.is_timed_out() {
-        return Err(CassieError::DeadlineExceeded);
-    }
-    midge.record_query_scan_entry();
-    if super::query_scan_control::should_cancel_controlled_query_scan() {
-        return Err(CassieError::QueryCancelled);
-    }
-    Ok(())
 }

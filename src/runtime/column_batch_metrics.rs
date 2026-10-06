@@ -1,5 +1,6 @@
 use super::RuntimeState;
 
+#[derive(Default)]
 pub(crate) struct ColumnBatchScanMetrics {
     pub(crate) rows: usize,
     pub(crate) segments_read: usize,

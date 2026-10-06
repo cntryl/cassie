@@ -17,7 +17,7 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     controls: &QueryExecutionControls,
 ) -> Result<Option<(Vec<BatchRow>, ExecutionBreakdownDurations)>, QueryError> {
     let Some(spec) = projected_filtered_read_spec(plan) else {
-        return Ok(None);
+        return super::typed::try_execute(cassie, session, plan, user_functions, params, controls);
     };
     if virtual_views::schema(&spec.collection).is_some()
         || cassie.catalog.get_view(&spec.collection).is_some()
@@ -37,19 +37,14 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
 
     let mut breakdown = ExecutionBreakdownDurations::default();
 
-    if let Some(spec) = point_lookup_read_spec(plan, params) {
-        let result_started = Instant::now();
-        let rows = execute_projected_point_lookup_read(
-            cassie,
-            session,
-            user_functions,
-            params,
-            controls,
-            plan,
-            &spec,
-        )?;
-        breakdown.result_build += result_started.elapsed();
-        return Ok(Some((rows, breakdown)));
+    if let Some(result) = point_lookup(cassie, session, plan, user_functions, params, controls)? {
+        return Ok(Some(result));
+    }
+
+    if let Some(result) =
+        super::typed::try_execute(cassie, session, plan, user_functions, params, controls)?
+    {
+        return Ok(Some(result));
     }
 
     let scan = scan_projected_read_batches(cassie, session, &spec, plan, controls)?;
@@ -123,6 +118,36 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     record_breakdown_read_path(cassie, plan, heap_top_k_collection_name, rows.len());
 
     Ok(Some((rows, breakdown)))
+}
+
+fn point_lookup(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+    params: &[Value],
+    controls: &QueryExecutionControls,
+) -> Result<Option<(Vec<BatchRow>, ExecutionBreakdownDurations)>, QueryError> {
+    let Some(spec) = point_lookup_read_spec(plan, params) else {
+        return Ok(None);
+    };
+    let started = Instant::now();
+    let rows = execute_projected_point_lookup_read(
+        cassie,
+        session,
+        user_functions,
+        params,
+        controls,
+        plan,
+        &spec,
+    )?;
+    Ok(Some((
+        rows,
+        ExecutionBreakdownDurations {
+            result_build: started.elapsed(),
+            ..ExecutionBreakdownDurations::default()
+        },
+    )))
 }
 
 fn record_breakdown_read_path(

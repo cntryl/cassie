@@ -20,6 +20,9 @@ use std::time::Duration;
 mod controlled_source;
 mod conversion;
 mod ordered_projection_accounting;
+mod typed;
+
+pub(crate) use typed::TypedScanStream;
 
 pub(crate) use ordered_projection_accounting::ordered_projection_shape;
 
@@ -222,7 +225,7 @@ fn record_collection_scan(
         .record_read_path_collection_scan(collection, fields, rows);
 }
 
-fn uses_controlled_row_scan(cassie: &Cassie, collection: &str) -> bool {
+pub(crate) fn uses_controlled_row_scan(cassie: &Cassie, collection: &str) -> bool {
     cassie.runtime.limits().parallel_scan_workers.max(1) == 1
         || cassie
             .catalog
@@ -476,7 +479,11 @@ pub(crate) fn record_streamed_column_batch_fallback(
     }
 }
 
-fn has_covering_column_index(cassie: &Cassie, collection: &str, fields: &[String]) -> bool {
+pub(crate) fn has_covering_column_index(
+    cassie: &Cassie,
+    collection: &str,
+    fields: &[String],
+) -> bool {
     let wanted = fields
         .iter()
         .filter(|field| !is_row_identity_column(field))
@@ -729,7 +736,7 @@ fn json_to_value(value: &serde_json::Value) -> Value {
     Value::Json(value.clone())
 }
 
-fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
+pub(crate) fn json_to_typed_value(value: &serde_json::Value, data_type: &DataType) -> Value {
     if matches!(data_type, DataType::Json) && crate::types::json::requires_document_carrier(value) {
         return Value::Json(value.clone());
     }

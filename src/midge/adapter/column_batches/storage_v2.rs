@@ -672,8 +672,9 @@ fn valid_chunk_bytes(bytes: &[u8], meta: &ColumnBatchChunkMeta) -> bool {
     bytes.len() == meta.encoded_len && checksum_hex(bytes) == meta.checksum_sha256
 }
 
-struct LoadedField {
-    values: Vec<serde_json::Value>,
+pub(super) struct LoadedField {
+    pub(super) values: Vec<serde_json::Value>,
+    pub(super) raw: bytes::Bytes,
     encoded_len: usize,
     decoded_len: usize,
 }
@@ -688,7 +689,7 @@ fn find_field_chunk<'a>(
         .find(|(stored, _)| crate::sql::ColumnIdentifierPath::matches_stored_field(field, stored))
 }
 
-fn load_field_chunk(
+pub(super) fn load_field_chunk(
     tx: &cntryl_midge::Transaction,
     relation_id: u64,
     index_id: u64,
@@ -764,12 +765,13 @@ fn load_field_chunk_with_selection(
     }
     Ok(Ok(LoadedField {
         values: decoded.values,
+        raw,
         encoded_len: decoded.encoded_len,
         decoded_len: decoded.decoded_len,
     }))
 }
 
-fn load_row_ids(
+pub(super) fn load_row_ids(
     tx: &cntryl_midge::Transaction,
     relation_id: u64,
     index_id: u64,

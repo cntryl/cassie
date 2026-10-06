@@ -17,6 +17,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [PostgreSQL Compatibility](postgres-compatibility.md)
 - [Finite SQL Type and Wire Contract](type-contract.md)
 - [Internal Typed Batch Contract](typed-batch-contract.md)
+- [First Typed Pipeline Acceptance](typed-pipeline-acceptance.md)
 - [PostgreSQL Wire Transaction Boundaries](pgwire-transaction-contract.md)
 - [Query Promotion Evidence](query-promotion-evidence.md)
 - [Compatibility Probe Contract](compatibility-probe-contract.md)

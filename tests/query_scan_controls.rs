@@ -4180,3 +4180,9 @@ mod specialized_query_controls_retrieval {
         }
     }
 }
+
+#[path = "query_scan_controls/column_limit.rs"]
+mod column_limit;
+
+#[path = "support/column_projection_fixture.rs"]
+mod support_column_projection_fixture;

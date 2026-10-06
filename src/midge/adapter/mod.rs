@@ -21,7 +21,7 @@ use crate::midge::row_blob::{
     decode_projected_row, decode_projected_row_matching_with_aliases,
     decode_projected_row_with_aliases, decode_row, encode_row, RowSchema,
 };
-use crate::types::{DataType, FieldSchema, Schema, Value, Vector};
+use crate::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
 mod column_batch_format_v2;
@@ -283,6 +283,8 @@ pub(crate) fn check_field_drop_failure_point() -> Result<(), CassieError> {
 mod capacity;
 mod cardinality_stats;
 mod column_batches;
+mod vector_values;
+pub use vector_values::vector_from_json;
 mod column_store;
 mod database_catalog_rewrite;
 mod databases;
@@ -369,7 +371,8 @@ pub(crate) fn benchmark_row_key_round_trip(
 }
 
 pub(crate) use column_batches::{
-    ControlledColumnBatchScanRequest, ControlledColumnBatchSummaryDecision,
+    ControlledColumnBatchScanRequest, ControlledColumnBatchSummaryDecision, EncodedSource,
+    EncodedSourceDecision, ValidatedEncodedField,
 };
 pub(crate) use documents::{DocumentWriteBatchOptions, DocumentWriteOp, OrderedRowScanRequest};
 pub(crate) use graphs::{GraphEdgeRecord, GraphEdgeScanOutcome, GraphEdgeScanRequest};
@@ -992,23 +995,4 @@ impl Midge {
         })?;
         Ok(RowSchema::from_schema(&schema))
     }
-}
-
-impl From<&Value> for Vector {
-    fn from(value: &Value) -> Self {
-        match value {
-            Value::Vector(v) => v.clone(),
-            _ => Vector::new(Vec::new()),
-        }
-    }
-}
-
-#[must_use]
-pub fn vector_from_json(value: &serde_json::Value) -> Option<Vector> {
-    let arr = value.as_array()?;
-    let mut nums = Vec::with_capacity(arr.len());
-    for n in arr {
-        nums.push(n.as_f64()?.to_string().parse::<f32>().ok()?);
-    }
-    Some(Vector::new(nums))
 }

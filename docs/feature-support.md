@@ -141,7 +141,7 @@ REST document endpoints report the internal identity as `"id"` in their JSON bod
 | Adaptive scalar reads and join switching | Opt-in feedback-informed scalar read selection and vectorized-to-merge inner/left equi-join switching under the named profiles | Stable |
 | Broader adaptive planning | Candidate expansion, other operator pairs, automatic profile selection, and default enablement | Experimental |
 | Pull execution | Bounded batch streams and early termination | Experimental |
-| Common typed-column relational execution | Absent common scan/filter/projection/join/aggregate/order/set/window pipeline; batched scalar rows and Stable CBM2 acceleration remain separate. The private contract and stages are defined in [Query Engine Target 1](query-engine-target.md). | Planned |
+| Common typed-column relational execution | The first private scan/filter/projection slice carries typed columns through selected collection reads, with native numeric/Boolean/NULL kernels, bounded scalar expressions and a final admitted row/wire handoff. [Finite acceptance and fallback boundaries](typed-pipeline-acceptance.md) preserve specialized access paths, filtered CBC2, staged visibility, parallel scans and tight memory profiles. The complete join/aggregate/order/set/window pipeline remains absent; later stages and promotion gates are defined in [Query Engine Target 1](query-engine-target.md). | Planned |
 | Query controls | Deadline, cancellation, SQL complexity, transport write, result, candidate, worker, and memory bounds | Experimental |
 | Configurable parallelism | Shared worker permits with deterministic merges | Experimental |
 | Pgwire | Primary SQL interface; detailed contract in compatibility documentation | Experimental |

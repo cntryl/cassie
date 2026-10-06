@@ -6,12 +6,16 @@ mod pgwire_type_vector_carriers;
 // Consolidated integration suite: pgwire_extended.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "pgwire_extended/typed_portal.rs"]
+mod pgwire_typed_portal;
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
+#[path = "support/typed_portal.rs"]
+mod support_typed_portal;
 
 #[path = "pgwire_extended/type_json_array_nulls.rs"]
 mod pgwire_type_json_array_nulls;

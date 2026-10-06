@@ -214,20 +214,21 @@ pub fn run_script(
     transcript
 }
 
-pub fn copy_access_fixture(path: &str) -> (Cassie, cassie::app::CassieSession) {
+pub fn copy_access_fixture(path: &str) -> (Cassie, cassie::app::CassieSession, String) {
     let cassie = Cassie::new_with_data_dir(path).expect("Cassie");
     cassie.startup().expect("startup");
     let admin = cassie
         .authenticate_role("root", Some("postgres"), None)
         .expect("admin");
+    let password = uuid::Uuid::new_v4().to_string();
     for sql in [
-        "CREATE TABLE wire_copy_denied (n INT)",
-        "CREATE ROLE boundary_reader LOGIN PASSWORD 'reader-secret'",
-        "GRANT CONNECT ON DATABASE postgres TO boundary_reader",
+        "CREATE TABLE wire_copy_denied (n INT)".to_owned(),
+        format!("CREATE ROLE boundary_reader LOGIN PASSWORD '{password}'"),
+        "GRANT CONNECT ON DATABASE postgres TO boundary_reader".to_owned(),
     ] {
         cassie
-            .execute_sql(&admin, sql, Vec::new())
+            .execute_sql(&admin, &sql, Vec::new())
             .expect("fixture");
     }
-    (cassie, admin)
+    (cassie, admin, password)
 }

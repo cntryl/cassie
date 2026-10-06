@@ -106,7 +106,7 @@ fn should_roll_back_implicit_read_ownership_on_revoked_copy_access() {
         .build()
         .expect("current-thread runtime");
     runtime.block_on(async {
-        let (cassie, admin) = copy_access_fixture(&path);
+        let (cassie, admin, password) = copy_access_fixture(&path);
         let server = wire::spawn_server(cassie.clone()).await;
         let owner = tokio::net::TcpStream::connect(server.addr)
             .await
@@ -117,7 +117,7 @@ fn should_roll_back_implicit_read_ownership_on_revoked_copy_access() {
             &mut writer,
             "boundary_reader",
             "postgres",
-            "reader-secret",
+            &password,
         )
         .await;
         wire::write_frames(

@@ -484,7 +484,7 @@ fn pg_catalog_core_rows(
         "pg_catalog.pg_roles" => Some(pg_roles_rows(catalog)),
         "pg_catalog.pg_rollups" => Some(pg_rollups_rows(catalog)),
         "pg_catalog.pg_maintenance_debt" => Some(pg_maintenance_debt_rows(catalog)),
-        "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog)),
+        "pg_catalog.pg_type" => Some(virtual_views_pg::pg_type(catalog, current_database)),
         _ => None,
     }
 }

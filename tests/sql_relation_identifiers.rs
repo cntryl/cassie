@@ -284,3 +284,41 @@ fn assert_quoted_and_qualified_relations_are_distinct(fixture: &support_sql_fixt
         .expect("qualified relation metadata");
     assert_ne!(dotted_relation.storage_id, qualified_relation.storage_id);
 }
+
+#[test]
+fn should_preserve_qualified_dotted_field_values_outside_wire_profile() {
+    // Arrange
+    let fixture = sql_fixture("qualified_dotted_value_counterprobe", &[]);
+    fixture.cassie.startup().expect("start Cassie");
+    fixture
+        .execute(
+            "CREATE TABLE output_identifier_rows (gate BOOLEAN, \"Gate\" BOOLEAN, \"a.b\" INT)",
+        )
+        .expect("create stored-identifier source");
+    fixture
+        .execute(
+            "INSERT INTO output_identifier_rows (gate, \"Gate\", \"a.b\") VALUES (TRUE, FALSE, 42)",
+        )
+        .expect("insert distinct stored values");
+
+    // Act
+    let bare = fixture
+        .execute("SELECT \"a.b\" AS dotted FROM output_identifier_rows")
+        .expect("execute bare dotted field outside wire profile");
+    let qualified_gate = fixture
+        .execute("SELECT output_identifier_rows.\"Gate\" AS flag FROM output_identifier_rows")
+        .expect("execute ordinary qualified delimited field");
+    let qualified_dotted = fixture
+        .execute("SELECT output_identifier_rows.\"a.b\" AS dotted FROM output_identifier_rows")
+        .expect("execute qualified dotted field outside wire profile");
+    // Assert
+    assert_eq!(bare.rows, vec![vec![cassie::types::Value::Int64(42)]]);
+    assert_eq!(
+        qualified_gate.rows,
+        vec![vec![cassie::types::Value::Bool(false)]]
+    );
+    assert_eq!(
+        qualified_dotted.rows,
+        vec![vec![cassie::types::Value::Int64(42)]]
+    );
+}

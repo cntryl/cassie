@@ -61,6 +61,10 @@ pub(super) fn effective_parameter_type_oids(params: &[Value], declared: &[i32]) 
     for (oid, declared) in oids.iter_mut().zip(declared) {
         if crate::sql::binder::parameter_data_type_for_oid(*declared).is_some() {
             *oid = *declared;
+        } else if *oid == 0 && matches!(*declared, 700 | 1700) {
+            // Decoder-only numeric NULL keeps a numeric family at typed sinks.
+            // Preserve the decoded family of nonNULL values and original wire OIDs.
+            *oid = 701;
         }
     }
     oids

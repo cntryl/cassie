@@ -16,6 +16,11 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
+#[path = "catalog_security/type_catalog_discovery.rs"]
+mod type_catalog_discovery;
+
 // Formerly tests/auth.rs.
 mod auth {
     use super::support_sql as support;
@@ -1161,12 +1166,15 @@ mod catalog_introspection {
             let cassie = Cassie::new_with_data_dir(&path).unwrap();
             cassie.startup().unwrap();
             let session = cassie.create_session("tester", None);
+            cassie
+                .execute_sql(&session, "CREATE TABLE pg_type_vectors (v VECTOR(2))", vec![])
+                .expect("schema-referenced vector type");
 
             // Act
             let selected = cassie
                 .execute_sql(
                     &session,
-                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char(1)', 'varchar(8)', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
+                    "SELECT typname, oid, typelem, typnamespace FROM pg_catalog.pg_type WHERE typname IN ('smallint', 'bigint', 'bytea', 'char', 'varchar', 'int', 'int[]', 'vector(2)', 'text', 'bytea[]') ORDER BY typname",
                     vec![],
                 )
 
@@ -1195,7 +1203,7 @@ mod catalog_introspection {
                         Value::String("pg_catalog".to_string())
                     ],
                     vec![
-                        Value::String("char(1)".to_string()),
+                        Value::String("char".to_string()),
                         Value::Int64(DataType::Char { length: Some(1) }.type_oid()),
                         Value::Int64(0),
                         Value::String("pg_catalog".to_string())
@@ -1225,7 +1233,7 @@ mod catalog_introspection {
                         Value::String("pg_catalog".to_string())
                     ],
                     vec![
-                        Value::String("varchar(8)".to_string()),
+                        Value::String("varchar".to_string()),
                         Value::Int64(DataType::Varchar { length: Some(8) }.type_oid()),
                         Value::Int64(0),
                         Value::String("pg_catalog".to_string())

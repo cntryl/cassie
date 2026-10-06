@@ -20,8 +20,8 @@ exact child blockers, semantic oracles and promotion boundaries. Existing Stable
 CBM2 codecs and selected column acceleration do not establish a common typed
 relational pipeline; that pipeline remains Planned.
 
-1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs and the merged [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract; reconcile [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754);
-   pin current types/codecs in [#752](https://github.com/cntryl/cassie/issues/752) and the private batch/view contract in [#753](https://github.com/cntryl/cassie/issues/753).
+1. Contracts and correctness: retain the merged [#748](https://github.com/cntryl/cassie/issues/748)/[#749](https://github.com/cntryl/cassie/issues/749)/[#750](https://github.com/cntryl/cassie/issues/750) repairs, [#432](https://github.com/cntryl/cassie/issues/432) Boolean contract and [#751](https://github.com/cntryl/cassie/issues/751)/[#754](https://github.com/cntryl/cassie/issues/754) foundation;
+   qualify the [finite type/codec contract](type-contract.md) in [#752](https://github.com/cntryl/cassie/issues/752) and the private batch/view contract in [#753](https://github.com/cntryl/cassie/issues/753).
    [#755](https://github.com/cntryl/cassie/issues/755) implements and qualifies the user-selected bounded wire-cycle visibility
    contract; selecting its profile does not complete that runtime dependency.
 2. Typed batches and streaming: [#756](https://github.com/cntryl/cassie/issues/756) follows [#753](https://github.com/cntryl/cassie/issues/753)/[#749](https://github.com/cntryl/cassie/issues/749)/[#432](https://github.com/cntryl/cassie/issues/432)/[#755](https://github.com/cntryl/cassie/issues/755) and carries

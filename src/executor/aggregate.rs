@@ -41,6 +41,16 @@ pub(crate) fn wildcard_fields_for_plan(
     logical: &crate::planner::logical::LogicalPlan,
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Option<Vec<FieldSchema>> {
+    wildcard_shape_for_plan(catalog, logical, user_functions).map(|(fields, _)| fields)
+}
+
+/// Resolves displayed wildcard fields and the projected internal identity.
+#[must_use]
+pub(crate) fn wildcard_shape_for_plan(
+    catalog: &crate::catalog::Catalog,
+    logical: &crate::planner::logical::LogicalPlan,
+    user_functions: &HashMap<String, FunctionMeta>,
+) -> Option<(Vec<FieldSchema>, bool)> {
     if !logical
         .projection
         .iter()
@@ -62,13 +72,36 @@ pub(crate) fn wildcard_fields_for_plan(
             return None;
         }
     }
-    crate::sql::binder::wildcard_output_fields(
+    crate::sql::binder::wildcard_output_fields_and_identity(
         &logical.source,
         &logical.ctes,
         catalog,
         user_functions,
     )
     .ok()
+}
+
+/// Applies the existing DML wildcard identity presentation to result columns.
+/// The first legacy `id` name is relabelled only for a wildcard projection
+/// against a target that declares no `id` field.
+pub(crate) fn normalize_dml_returning_identity_columns(
+    columns: &mut [ColumnMeta],
+    returning: &[SelectItem],
+    schema_has_id: bool,
+) {
+    if schema_has_id
+        || !returning
+            .iter()
+            .any(|item| matches!(item, SelectItem::Wildcard))
+    {
+        return;
+    }
+    if let Some(column) = columns
+        .iter_mut()
+        .find(|column| crate::types::row_identity::is_legacy_id_column(&column.name))
+    {
+        column.name = crate::types::row_identity::ROW_IDENTITY_COLUMN.to_string();
+    }
 }
 
 /// Builds result columns, expanding `*` to `wildcard_fields` when the caller

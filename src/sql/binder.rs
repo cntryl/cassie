@@ -40,6 +40,9 @@ mod commands;
 mod context;
 #[path = "binder/inference.rs"]
 mod inference;
+#[path = "binder/numeric_outputs.rs"]
+mod numeric_outputs;
+pub(crate) use numeric_outputs::infer_plan_output_contract;
 #[path = "binder/json_predicates.rs"]
 mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
@@ -102,7 +105,7 @@ use schema::{
 };
 use schema_sequences::{bind_create_sequence, bind_drop_sequence};
 use select::bind_select;
-pub(crate) use source_schema::derived_source_schema;
+pub(crate) use source_schema::{derived_source_schema, joined_source_schema};
 use validation::{
     collect_expr, collect_item, collect_projection_aliases, qualified_fields,
     recursive_cte_reference_count, recursive_cte_references_self, select_contains_parameters,
@@ -110,7 +113,7 @@ use validation::{
     validate_expression_references, validate_function_calls, validate_functions,
     validate_order_by_references, validate_projection_references, validate_select_operand_families,
 };
-pub(crate) use wildcard::{cte_row_fields, source_row_fields, wildcard_output_fields};
+pub(crate) use wildcard::{cte_row_fields, source_row_fields, wildcard_output_fields_and_identity};
 
 pub(crate) fn parameter_data_type_for_oid(oid: i32) -> Option<DataType> {
     inference::data_type_for_parameter_oid(oid)

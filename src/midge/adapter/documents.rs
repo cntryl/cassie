@@ -847,6 +847,9 @@ impl Midge {
         for field in &schema.fields {
             if let Some(value) = map.get(&field.name) {
                 if let DataType::Vector(dim) = field.data_type {
+                    if value.is_null() && field.nullable {
+                        continue;
+                    }
                     if let Some(arr) = value.as_array() {
                         if arr.len() != dim {
                             return Err(CassieError::InvalidVector(format!(
@@ -868,3 +871,7 @@ impl Midge {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "documents/nullable_vectors.rs"]
+mod nullable_vectors;

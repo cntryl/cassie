@@ -92,8 +92,10 @@ aliases with documented loss of exact-decimal behavior), BOOLEAN, TEXT, CHAR(n),
 VARCHAR(n), UUID, BYTEA, DATE, TIME, one normalized TIMESTAMP type, JSON, VECTOR(n),
 and one-dimensional ARRAY of a permitted non-ARRAY element. Current bounds and
 wire identities are derived from src/types/schema.rs, not imported from an
-extension. [#752](https://github.com/cntryl/cassie/issues/752) publishes the exact input/output/type-name/OID/typlen/typmod and
-storage representation table before [#753](https://github.com/cntryl/cassie/issues/753) selects internal lane representations.
+extension. The [finite SQL type and wire contract](type-contract.md) records the
+selected input/output/type-name/OID/typlen/typmod and storage representations
+under [#752](https://github.com/cntryl/cassie/issues/752), before
+[#753](https://github.com/cntryl/cassie/issues/753) selects private lane representations.
 
 Preserve exact integer comparison/hash behavior, declared temporal units, SQL NULL
 versus JSON null, finite f32 vector dimensions and current array bounds/private

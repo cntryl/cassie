@@ -2,26 +2,74 @@ use serde_json::Value as JsonValue;
 
 use crate::types::DataType;
 
-pub(crate) fn parse_text_array(input: &str, element_type: &DataType) -> Result<JsonValue, String> {
+mod elements;
+
+/// Distinguishes malformed input from a selected unsupported element origin.
+#[derive(Debug)]
+pub(crate) enum TextArrayError {
+    Invalid(String),
+    UnsupportedJsonDocumentNull,
+}
+
+impl std::fmt::Display for TextArrayError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Invalid(message) => formatter.write_str(message),
+            Self::UnsupportedJsonDocumentNull => formatter
+                .write_str("JSON document-null scalar elements in SQL arrays are not supported"),
+        }
+    }
+}
+
+pub(crate) fn parse_text_array(
+    input: &str,
+    element_type: &DataType,
+) -> Result<JsonValue, TextArrayError> {
     let input = input.trim();
     if input.starts_with('[') {
-        let value: JsonValue =
-            serde_json::from_str(input).map_err(|error| format!("invalid JSON array: {error}"))?;
-        return value
-            .is_array()
-            .then_some(value)
-            .ok_or_else(|| "array value must be a JSON array".to_string());
+        if matches!(
+            element_type,
+            DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
+        ) {
+            return elements::parse_json_numeric_array(input, element_type)
+                .map_err(TextArrayError::Invalid);
+        }
+        let value: JsonValue = serde_json::from_str(input)
+            .map_err(|error| TextArrayError::Invalid(format!("invalid JSON array: {error}")))?;
+        let JsonValue::Array(values) = value else {
+            return Err(TextArrayError::Invalid(
+                "array value must be a JSON array".to_string(),
+            ));
+        };
+        return values
+            .into_iter()
+            .map(|value| elements::normalize_element(value, element_type))
+            .collect::<Result<Vec<_>, _>>()
+            .map(JsonValue::Array)
+            .map_err(TextArrayError::Invalid);
     }
 
-    let elements = parse_postgres_array_elements(input)?;
-    elements
-        .into_iter()
-        .map(|element| match element {
-            ArrayElement::Null => Ok(JsonValue::Null),
-            ArrayElement::Value(value) => parse_element(value, element_type),
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(JsonValue::Array)
+    let elements = parse_postgres_array_elements(input).map_err(TextArrayError::Invalid)?;
+    let mut values = Vec::with_capacity(elements.len());
+    let mut document_null = false;
+    for element in elements {
+        let value = match element {
+            ArrayElement::Null => JsonValue::Null,
+            ArrayElement::Value(value) => {
+                let parsed = parse_element(value, element_type).map_err(TextArrayError::Invalid)?;
+                if matches!(element_type, DataType::Json) && parsed.is_null() {
+                    document_null = true;
+                    continue;
+                }
+                parsed
+            }
+        };
+        values.push(value);
+    }
+    if document_null {
+        return Err(TextArrayError::UnsupportedJsonDocumentNull);
+    }
+    Ok(JsonValue::Array(values))
 }
 
 enum ArrayElement {
@@ -151,8 +199,9 @@ fn skip_whitespace(characters: &mut std::iter::Peekable<std::str::Chars<'_>>) {
 }
 
 fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, String> {
-    match data_type {
+    let parsed = match data_type {
         DataType::SmallInt | DataType::Int | DataType::BigInt => value
+            .trim()
             .parse::<i64>()
             .map(JsonValue::from)
             .map_err(|_| format!("invalid integer array element '{value}'")),
@@ -179,8 +228,12 @@ fn parse_element(value: String, data_type: &DataType) -> Result<JsonValue, Strin
         | DataType::Date
         | DataType::Time
         | DataType::Timestamp => Ok(JsonValue::String(value)),
-    }
+    }?;
+    elements::normalize_element(parsed, data_type)
 }
+
+#[cfg(test)]
+mod input_contract_tests;
 
 #[cfg(test)]
 mod tests {

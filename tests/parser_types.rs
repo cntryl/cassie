@@ -6129,10 +6129,7 @@ mod typed_value_consistency {
                 vec![Value::Json(array.clone())],
             )
             .expect("array parameter");
-        assert_eq!(
-            array_result.rows,
-            vec![vec![Value::String(array.to_string())]]
-        );
+        assert_eq!(array_result.rows, vec![vec![Value::Json(array)]]);
     }
 }
 

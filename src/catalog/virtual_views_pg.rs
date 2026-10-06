@@ -270,8 +270,42 @@ pub(super) fn pg_attrdef(catalog: &Catalog, current_database: Option<&str>) -> V
     rows
 }
 
-pub(super) fn pg_type(_catalog: &Catalog) -> Vec<VirtualRow> {
+pub(super) fn pg_type(catalog: &Catalog, current_database: Option<&str>) -> Vec<VirtualRow> {
     let mut rows = builtin_type_rows();
+    let collection_types = catalog
+        .list_collections_canonical()
+        .into_iter()
+        .filter(|collection| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&collection.name, database))
+        })
+        .filter_map(|collection| catalog.get_schema(&collection.name))
+        .flat_map(|schema| schema.fields.into_iter().map(|field| field.data_type));
+    let view_types = catalog
+        .list_views()
+        .into_iter()
+        .filter(|view| {
+            current_database
+                .is_none_or(|database| relation_belongs_to_database(&view.name, database))
+        })
+        .flat_map(|view| view.schema.fields.into_iter().map(|field| field.data_type));
+    let dimensions = collection_types
+        .chain(view_types)
+        .filter_map(|data_type| match data_type {
+            DataType::Vector(dimensions)
+                if crate::types::schema::vector_dimensions_for_oid(data_type.type_oid())
+                    .is_some() =>
+            {
+                Some(dimensions)
+            }
+            _ => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    rows.extend(
+        dimensions
+            .into_iter()
+            .map(|dimensions| type_row(&DataType::Vector(dimensions), "pg_catalog")),
+    );
     rows.sort_by_key(row_sort_key);
     rows
 }
@@ -498,15 +532,14 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
         type_row(&DataType::BigInt, namespace),
         type_row(&DataType::Float, namespace),
         type_row(&DataType::Text, namespace),
-        type_row(&DataType::Char { length: Some(1) }, namespace),
-        type_row(&DataType::Varchar { length: Some(8) }, namespace),
+        type_row(&DataType::Char { length: None }, namespace),
+        type_row(&DataType::Varchar { length: None }, namespace),
         type_row(&DataType::Bytea, namespace),
         type_row(&DataType::Uuid, namespace),
         type_row(&DataType::Date, namespace),
         type_row(&DataType::Time, namespace),
         type_row(&DataType::Timestamp, namespace),
         type_row(&DataType::Json, namespace),
-        type_row(&DataType::Vector(2), namespace),
     ];
 
     rows.extend([
@@ -517,16 +550,19 @@ fn builtin_type_rows() -> Vec<VirtualRow> {
         type_row(&DataType::Array(Box::new(DataType::Float)), namespace),
         type_row(&DataType::Array(Box::new(DataType::Text)), namespace),
         type_row(
-            &DataType::Array(Box::new(DataType::Char { length: Some(1) })),
+            &DataType::Array(Box::new(DataType::Char { length: None })),
             namespace,
         ),
         type_row(
-            &DataType::Array(Box::new(DataType::Varchar { length: Some(8) })),
+            &DataType::Array(Box::new(DataType::Varchar { length: None })),
             namespace,
         ),
         type_row(&DataType::Array(Box::new(DataType::Bytea)), namespace),
         type_row(&DataType::Array(Box::new(DataType::Uuid)), namespace),
         type_row(&DataType::Array(Box::new(DataType::Json)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Date)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Time)), namespace),
+        type_row(&DataType::Array(Box::new(DataType::Timestamp)), namespace),
     ]);
 
     rows
@@ -538,30 +574,12 @@ fn type_row(data_type: &DataType, namespace: &str) -> VirtualRow {
         int_value("oid", data_type.type_oid()),
         string("typname", typname),
         string("typnamespace", namespace),
-        int_value("typlen", type_length(data_type)),
+        int_value("typlen", i64::from(data_type.typlen())),
         bool_value("typbyval", is_type_passed_by_value(data_type)),
         string("typtype", type_kind(data_type)),
         string("typcategory", type_category(data_type)),
         int_value("typelem", element_type_oid(data_type)),
     ]
-}
-
-fn type_length(data_type: &DataType) -> i64 {
-    match data_type {
-        DataType::Boolean => 1,
-        DataType::SmallInt => 2,
-        DataType::Int | DataType::Date => 4,
-        DataType::BigInt | DataType::Float | DataType::Time | DataType::Timestamp => 8,
-        DataType::Uuid => 16,
-        DataType::Null
-        | DataType::Char { .. }
-        | DataType::Varchar { .. }
-        | DataType::Text
-        | DataType::Bytea
-        | DataType::Json
-        | DataType::Vector(_)
-        | DataType::Array(_) => -1,
-    }
 }
 
 fn is_type_passed_by_value(data_type: &DataType) -> bool {

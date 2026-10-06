@@ -592,7 +592,7 @@ async fn describe_prepared(
         return Ok(Vec::new());
     };
     run_pgwire_blocking(cassie, "pgwire_describe", move |cassie| {
-        cassie.describe_parsed_statement_for_session(
+        cassie.describe_pgwire_parsed_statement_for_session(
             &session,
             parsed,
             prepared.sql_fingerprint,

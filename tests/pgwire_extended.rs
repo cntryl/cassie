@@ -1,3 +1,5 @@
+#[path = "pgwire_extended/type_vector_carriers.rs"]
+mod pgwire_type_vector_carriers;
 // Consolidated integration suite: pgwire_extended.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
@@ -8,8 +10,43 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "pgwire_extended/type_json_array_nulls.rs"]
+mod pgwire_type_json_array_nulls;
+#[path = "pgwire_extended/type_json_scalar_documents.rs"]
+mod pgwire_type_json_scalar_documents;
+#[path = "pgwire_extended/type_unknown_metadata.rs"]
+mod pgwire_type_unknown_metadata;
+#[path = "pgwire_extended/type_vector_array_metadata.rs"]
+mod pgwire_type_vector_array_metadata;
+#[path = "support/type_metadata_contract.rs"]
+mod support_type_metadata_contract;
+
+#[path = "pgwire_extended/type_scalar_array_matrix.rs"]
+mod pgwire_type_scalar_array_matrix;
+#[path = "pgwire_extended/type_scalar_matrix.rs"]
+mod pgwire_type_scalar_matrix;
+#[path = "support/type_codec_matrix.rs"]
+mod support_type_codec_matrix;
+
+#[path = "pgwire_extended/type_array_text_inputs.rs"]
+mod pgwire_type_array_text_inputs;
+#[path = "pgwire_extended/type_codec_boundaries.rs"]
+mod pgwire_type_codec_boundaries;
+#[path = "pgwire_extended/type_declared_null_matrix.rs"]
+mod pgwire_type_declared_null_matrix;
+#[path = "support/type_declared_null_matrix.rs"]
+mod support_type_declared_null_matrix;
+
 #[path = "pgwire_extended/boolean_contexts.rs"]
 mod pgwire_boolean_contexts;
+
+#[path = "pgwire_extended/type_numeric_metadata.rs"]
+mod pgwire_type_numeric_metadata;
+#[path = "pgwire_extended/type_output_source_seams.rs"]
+mod pgwire_type_output_source_seams;
+
+#[path = "pgwire_extended/type_output_identifier_identity.rs"]
+mod pgwire_type_output_identifier_identity;
 
 // Formerly tests/pgwire_extended_control.rs.
 mod pgwire_extended_control {

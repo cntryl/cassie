@@ -168,6 +168,10 @@ execution and embedding-vector retrieval axes. The
 [invariant ownership ledger](query-engine-invariant-ownership.md) maps all baseline
 obligations to child acceptance and existing operational owners.
 
+The [finite type contract](type-contract.md) pins compatibility and explicit wire
+exclusions. Its local and hosted qualification remains separate from typed
+native adoption and release promotion.
+
 This foundation does not promote a capability or change Production Candidate to
 Production-ready. Mapped tests, fixed P0 defects, a completed milestone, trace
 replay and short smoke runs remain distinct from retained native qualification.

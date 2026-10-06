@@ -6,7 +6,7 @@ use super::{
     InsertSource, LogicalPlan, QueryError, QueryExecutionControls, QueryResult, QuerySource,
     SelectItem, Value,
 };
-use crate::types::row_identity::{is_legacy_id_column, ROW_IDENTITY_COLUMN};
+use crate::types::row_identity::ROW_IDENTITY_COLUMN;
 
 #[path = "dml_delete.rs"]
 mod dml_delete;
@@ -75,26 +75,26 @@ fn vector_literal_to_json(
     text: &str,
     dimensions: usize,
 ) -> Result<serde_json::Value, QueryError> {
-    let Ok(components) = serde_json::from_str::<Vec<f64>>(text) else {
-        return Ok(serde_json::Value::String(text.to_string()));
+    use crate::vector::text::{visit_components, TextVectorError};
+
+    let range_error = || {
+        QueryError::General(format!(
+            "field '{field}' vector element is outside f32 range"
+        ))
     };
-    if components.len() != dimensions {
-        return Ok(serde_json::Value::String(text.to_string()));
+    match visit_components(text, dimensions, |_| {}) {
+        Ok(()) => {}
+        Err(TextVectorError::Shape) => return Ok(serde_json::Value::String(text.to_string())),
+        Err(TextVectorError::Range) => return Err(range_error()),
     }
-    components
-        .into_iter()
-        .map(|component| {
-            crate::vector::f64_to_finite_f32(component)
-                .and_then(|narrowed| serde_json::Number::from_f64(f64::from(narrowed)))
-                .map(serde_json::Value::Number)
-                .ok_or_else(|| {
-                    QueryError::General(format!(
-                        "field '{field}' vector element is outside f32 range"
-                    ))
-                })
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map(serde_json::Value::Array)
+    // Validation has completed before allocating the exact known-width output.
+    // Each callback receives a finite f32; its f64 promotion is a JSON number.
+    let mut components = Vec::with_capacity(dimensions);
+    visit_components(text, dimensions, |component| {
+        components.push(serde_json::Value::from(f64::from(component)));
+    })
+    .map_err(|_| range_error())?;
+    Ok(serde_json::Value::Array(components))
 }
 
 fn update_assignment_to_json(
@@ -143,9 +143,11 @@ fn inserted_row_to_batch_row(
 
     for field in &schema.fields {
         let value = payload.get(&field.name).map_or(Value::Null, |value| {
-            // JSON strings and JSON null stay typed document values. A missing
-            // key remains SQL NULL, as INSERT/UPDATE omit SQL-null JSON fields.
-            if matches!(field.data_type, DataType::Json) && (value.is_string() || value.is_null()) {
+            // JSON document-only scalars stay exact. A missing key remains
+            // SQL NULL, as INSERT/UPDATE omit SQL-null JSON fields.
+            if matches!(field.data_type, DataType::Json)
+                && crate::types::json::requires_document_carrier(value)
+            {
                 Value::Json(value.clone())
             } else {
                 json_to_value(value)
@@ -163,25 +165,11 @@ fn dml_returning_columns(
     user_functions: &HashMap<String, FunctionMeta>,
 ) -> Vec<ColumnMeta> {
     let mut columns = aggregate::columns_from_projection(returning, schema, user_functions);
-    let schema_has_id = schema.is_some_and(CollectionSchema::declares_id);
-    // `aggregate::columns_from_projection` only synthesizes a metadata
-    // column literally named "id" for the reserved internal identity when
-    // the schema has no real "id" field of its own; relabel that one to
-    // "_id" to match `inserted_row_to_batch_row`'s row shape. When the
-    // schema declares its own "id" field, the "id" column here is already
-    // that real field and must not be renamed.
-    if !schema_has_id
-        && returning
-            .iter()
-            .any(|item| matches!(item, SelectItem::Wildcard))
-    {
-        for column in &mut columns {
-            if is_legacy_id_column(&column.name) {
-                column.name = ROW_IDENTITY_COLUMN.to_string();
-                break;
-            }
-        }
-    }
+    aggregate::normalize_dml_returning_identity_columns(
+        &mut columns,
+        returning,
+        schema.is_some_and(CollectionSchema::declares_id),
+    );
     columns
 }
 

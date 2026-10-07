@@ -192,7 +192,8 @@ fn execute_plan_with_physical(
             env.params,
             &cte_controls,
         )?;
-        cte_context.insert(cte.name.to_ascii_lowercase(), rows, &cte_controls)?;
+        let _name_memory = cte_controls.reserve_query_memory(cte.name.len())?;
+        cte_context.insert(&cte.name.to_ascii_lowercase(), rows, &cte_controls)?;
     }
 
     let resolved_plan;

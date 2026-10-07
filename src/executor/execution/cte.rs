@@ -39,13 +39,45 @@ impl CteRelation {
 }
 type CteExecution<'a> = Result<CteRelation, QueryError>;
 
+pub(super) struct ContextFields {
+    fields: HashMap<String, Vec<crate::types::FieldSchema>>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+impl std::ops::Deref for ContextFields {
+    type Target = HashMap<String, Vec<crate::types::FieldSchema>>;
+    fn deref(&self) -> &Self::Target {
+        &self.fields
+    }
+}
+
 pub(super) fn context_fields(
     context: &CteContext,
-) -> HashMap<String, Vec<crate::types::FieldSchema>> {
-    context
-        .iter()
-        .map(|(name, relation)| (name.clone(), relation.fields.clone()))
-        .collect()
+    controls: &QueryExecutionControls,
+) -> Result<ContextFields, QueryError> {
+    use crate::executor::retained_memory::{add, hash_table_bytes};
+    check_timeout(controls)?;
+    let bytes = context.iter().try_fold(
+        hash_table_bytes::<(String, Vec<crate::types::FieldSchema>)>(context.len())?,
+        |bytes, (name, relation)| {
+            Ok::<_, QueryError>(add(
+                bytes,
+                add(name.len(), retention::fields_bytes(&relation.fields)?)?,
+            )?)
+        },
+    )?;
+    let memory = controls.reserve_query_memory(bytes)?;
+    let mut fields = HashMap::new();
+    fields
+        .try_reserve(context.len())
+        .map_err(|error| retention::allocation(&error))?;
+    for (name, relation) in context.iter() {
+        check_timeout(controls)?;
+        fields.insert(name.clone(), relation.fields.clone());
+    }
+    Ok(ContextFields {
+        fields,
+        _memory: memory,
+    })
 }
 
 fn recursion_depth_exceeded(name: &str, depth: usize) -> QueryError {
@@ -66,15 +98,13 @@ pub(super) fn execute_cte<'a>(
     controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
     check_timeout(controls)?;
+    let _name_memory = controls.reserve_query_memory(cte.name.len())?;
     let cte_name = cte.name.to_ascii_lowercase();
     let previous = cte_context.remove(&cte_name);
-    let fields = crate::sql::binder::cte_row_fields(
-        cte,
-        &context_fields(cte_context),
-        &cassie.catalog,
-        user_functions,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    let namespace = context_fields(cte_context, controls)?;
+    let fields =
+        crate::sql::binder::cte_row_fields(cte, &namespace, &cassie.catalog, user_functions)
+            .map_err(|error| QueryError::General(error.to_string()))?;
 
     let fields_memory = controls.reserve_query_memory(retention::fields_bytes(&fields)?)?;
     let output = match &cte.query {
@@ -165,7 +195,7 @@ pub(super) fn execute_cte<'a>(
 
     let output = output.rename(&cte.aliases, controls)?;
     if let Some(previous_rows) = previous {
-        cte_context.insert(cte_name, previous_rows, controls)?;
+        cte_context.insert(&cte_name, previous_rows, controls)?;
     } else {
         cte_context.remove(&cte_name);
     }
@@ -193,7 +223,7 @@ fn store_working_rows(
         _rows_memory: Some(copied.memory),
         _fields_memory: Some(fields_memory),
     };
-    context.insert(name.to_owned(), relation, controls)?;
+    context.insert(name, relation, controls)?;
     Ok(())
 }
 
@@ -279,4 +309,13 @@ pub(super) fn copy_source_rows(
     }
     check_timeout(controls)?;
     Ok(output)
+}
+
+#[cfg(test)]
+mod supplemental_tests;
+
+pub(super) fn source_fields_bytes(
+    fields: &Vec<crate::types::FieldSchema>,
+) -> Result<usize, QueryError> {
+    retention::fields_bytes(fields)
 }

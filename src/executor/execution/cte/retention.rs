@@ -95,6 +95,8 @@ impl RetainedRows {
         for row in rows {
             check_timeout(controls)?;
             copied.push(row.clone());
+            #[cfg(test)]
+            retention_tests::after_copy_row();
         }
         check_timeout(controls)?;
         Ok(Self {

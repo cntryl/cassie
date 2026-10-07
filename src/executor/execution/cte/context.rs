@@ -39,20 +39,20 @@ impl CteContext {
 
     pub(in crate::executor::execution) fn insert(
         &mut self,
-        name: String,
+        name: &str,
         relation: CteRelation,
         controls: &QueryExecutionControls,
     ) -> Result<Option<CteRelation>, QueryError> {
         check_timeout(controls)?;
-        let growing = !self.relations.contains_key(&name)
-            && self.relations.len() == self.relations.capacity();
+        let growing =
+            !self.relations.contains_key(name) && self.relations.len() == self.relations.capacity();
         let slots = if growing {
             mul(self.relations.capacity().max(2), 2)?
         } else {
             0
         };
         let extra = add(
-            name.capacity(),
+            name.len(),
             hash_table_bytes::<(String, CteRelation)>(slots)?,
         )?;
         let memory = self.memory.get_or_insert(controls.reserve_query_memory(0)?);
@@ -62,7 +62,9 @@ impl CteContext {
                 .try_reserve(1)
                 .map_err(|error| retention::allocation(&error))?;
         }
-        let previous = self.relations.insert(name, relation);
+        #[cfg(test)]
+        retention_tests::observe_key_copy(controls, name);
+        let previous = self.relations.insert(name.to_owned(), relation);
         let bytes = self.retained_bytes()?;
         let memory = self.memory.as_mut().expect("map reservation admitted");
         memory.shrink_to(bytes);

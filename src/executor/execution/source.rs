@@ -268,6 +268,7 @@ fn execute_cte_source(
     name: &str,
     qualify: bool,
 ) -> SourceExecution {
+    let _key_memory = env.controls.reserve_query_memory(name.len())?;
     let key = name.to_ascii_lowercase();
     let relation = cte_context
         .get(&key)
@@ -328,12 +329,7 @@ fn execute_subquery_source(
         &mut subquery_context,
         if lateral { outer_row } else { None },
     )?;
-    let text_fields = deduce_text_fields(
-        &rows
-            .iter()
-            .map(|row| row.entries().to_vec())
-            .collect::<Vec<_>>(),
-    );
+    let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),

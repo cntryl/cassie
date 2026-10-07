@@ -14,9 +14,23 @@ pub(super) fn null_row(
             &null_row(env, right, context)?,
         );
     }
+    let namespace = super::super::cte::context_fields(context, env.controls)?;
+    let _inferred_copy = if let QuerySource::Cte(name) = source {
+        let _name_memory = env.controls.reserve_query_memory(name.len())?;
+        let key = name.to_ascii_lowercase();
+        context
+            .get(&key)
+            .map(|relation| {
+                super::super::cte::source_fields_bytes(&relation.fields)
+                    .and_then(|bytes| env.controls.reserve_query_memory(bytes).map_err(Into::into))
+            })
+            .transpose()?
+    } else {
+        None
+    };
     let fields = crate::sql::binder::source_row_fields(
         source,
-        &super::super::cte::context_fields(context),
+        &namespace,
         &env.cassie.catalog,
         env.user_functions,
     )
@@ -84,9 +98,23 @@ pub(super) fn attach_types(
         }
         _ => {}
     }
+    let namespace = super::super::cte::context_fields(context, env.controls)?;
+    let _inferred_copy = if let QuerySource::Cte(name) = source {
+        let _name_memory = env.controls.reserve_query_memory(name.len())?;
+        let key = name.to_ascii_lowercase();
+        context
+            .get(&key)
+            .map(|relation| {
+                super::super::cte::source_fields_bytes(&relation.fields)
+                    .and_then(|bytes| env.controls.reserve_query_memory(bytes).map_err(Into::into))
+            })
+            .transpose()?
+    } else {
+        None
+    };
     let fields = crate::sql::binder::source_row_fields(
         source,
-        &super::super::cte::context_fields(context),
+        &namespace,
         &env.cassie.catalog,
         env.user_functions,
     )
@@ -97,12 +125,47 @@ pub(super) fn attach_types(
     {
         return Ok(());
     }
-    let types: std::sync::Arc<Vec<crate::types::DataType>> = fields
-        .into_iter()
-        .map(|field| field.data_type)
-        .collect::<Vec<_>>()
-        .into();
+    let retained = batches
+        .iter()
+        .flatten()
+        .any(|row| row.query_memory().is_some() || row.operator_memory().is_some());
+    let memory = if retained {
+        use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
+        use std::mem::size_of;
+        let bytes = fields.iter().try_fold(
+            add(
+                size_of::<Vec<crate::types::DataType>>() + 2 * size_of::<usize>(),
+                mul(fields.len(), size_of::<crate::types::DataType>())?,
+            )?,
+            |bytes, field| add(bytes, data_type_clone_bytes(&field.data_type)?),
+        )?;
+        Some(std::sync::Arc::new(env.controls.reserve_query_memory(
+            add(
+                bytes,
+                size_of::<crate::runtime::QueryMemoryReservation>() + 2 * size_of::<usize>(),
+            )?,
+        )?))
+    } else {
+        None
+    };
+    // Explicit backing avoids reusing the larger FieldSchema allocation through
+    // in-place collect, which can retain more type slots than the admitted length.
+    let mut types = Vec::new();
+    types.try_reserve_exact(fields.len()).map_err(|error| {
+        crate::app::CassieError::ResourceLimit(format!(
+            "unable to retain source descriptors: {error}"
+        ))
+    })?;
+    for field in fields {
+        types.push(field.data_type);
+    }
+    let types = std::sync::Arc::new(types);
     for row in batches.iter_mut().flatten() {
+        if row.query_memory().is_some() || row.operator_memory().is_some() {
+            if let Some(memory) = &memory {
+                row.attach_operator_memory(env.controls, std::sync::Arc::clone(memory))?;
+            }
+        }
         row.set_data_types(types.clone());
     }
     Ok(())

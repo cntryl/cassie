@@ -42,7 +42,7 @@ near-budget denial and parent/output-drop controls before this repair is qualifi
 Contexts are created at ordinary/physical entrypoints, INSERT SELECT,
 materialized-projection execution and view execution. Derived/LATERAL execution
 and EXISTS resolution copy contexts. Binder/source-shape field reads borrow
-relations; final dispatch and recursive working state insert or replace them.
+relations while their copied descriptor namespace has a temporary admitted owner; final dispatch and recursive working state insert or replace them.
 Existing tests that construct raw relations use explicit controlled fixtures.
 
 Recursive accounting preserves the existing base, UNION/UNION ALL deduplication,
@@ -68,3 +68,17 @@ hashes and Jev's specific questions/actions in ignored target evidence. Root
 integrates this isolated repair into the coherent #760 branch before one full
 ordered validation run. Focused qualification is not full-suite, hosted or
 closure proof.
+
+Map insertion admits borrowed name bytes before cloning the key. Lowercase-name
+scratch is admitted before normalization. ARRAY source descriptor replacement
+uses borrowed nested-type estimates and retains a distinct owner on returned
+owned rows; value and logical descriptor shapes remain unchanged.
+
+The controlled namespace covers its own copied map, field vectors and nested
+ARRAY type backing. Known CTE source field copies are admitted before binder
+construction, then returned ARRAY descriptor backing has a separate retained
+owner. Generic binder inference also builds schemas and inferred output fields;
+this change does not establish a new general memory bound for those existing
+planner allocations. It must not be described as bounded planner inference.
+Actual ARRAY conversion uses explicit admitted type slots rather than reusing
+larger FieldSchema vector backing through in-place collection.

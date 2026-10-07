@@ -132,3 +132,80 @@ fn should_bound_actual_non_power_of_two_alias_growth() {
         "actual capacity20 must be bounded, not rounded16: admitted={admitted} minimum={minimum}"
     );
 }
+
+#[test]
+fn should_retain_cte_array_source_descriptor_replacement_until_output_drop() {
+    // Arrange
+    with_fixture(|cassie| {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            Instant::now(),
+        );
+        let parent = Arc::new(controls.reserve_query_memory(65_536).expect("source owner"));
+        let context = CteContext::unleased(HashMap::from([(
+            "c".into(),
+            super::super::cte::CteRelation {
+                rows: vec![],
+                fields: vec![crate::types::FieldSchema {
+                    name: "n".into(),
+                    data_type: crate::types::DataType::Array(Box::new(
+                        crate::types::DataType::Text,
+                    )),
+                    nullable: true,
+                }],
+                _rows_memory: None,
+                _fields_memory: None,
+            },
+        )]));
+        let functions = HashMap::new();
+        let env = SourceExecutionEnv {
+            cassie,
+            session: None,
+            user_functions: &functions,
+            params: &[],
+            controls: &controls,
+        };
+        let mut batches = vec![vec![BatchRow::new(vec![("n".into(), Value::Null)])
+            .with_query_memory(Some(Arc::clone(&parent)))]];
+        // Act
+        source_shape::attach_types(&env, &QuerySource::Cte("c".into()), &context, &mut batches)
+            .expect("existing ARRAY descriptor");
+        // Assert
+        assert!(
+            controls.current_query_memory_bytes() > 65_536,
+            "new shared descriptors must retain replacement charge"
+        );
+        let types = batches[0][0]
+            .shared_data_types()
+            .expect("shared descriptor");
+        let root = batches[0][0].operator_memory().expect("descriptor root");
+        let nodes = 2 * (std::mem::size_of_val(root.as_ref()) + 2 * size_of::<usize>());
+        let heap = crate::executor::retained_memory::data_type_clone_bytes(&types[0])
+            .expect("nested descriptor heap");
+        let minimum = nodes
+            + size_of::<Vec<crate::types::DataType>>()
+            + 2 * size_of::<usize>()
+            + types.capacity() * size_of::<crate::types::DataType>()
+            + heap
+            + size_of::<crate::runtime::QueryMemoryReservation>()
+            + 2 * size_of::<usize>();
+        assert!(
+            controls.current_query_memory_bytes() - 65_536 >= minimum,
+            "retained type capacity{} must be charged: delta{} minimum{minimum}",
+            types.capacity(),
+            controls.current_query_memory_bytes() - 65_536
+        );
+        drop(root);
+        drop(types);
+
+        assert_eq!(
+            batches[0][0].data_types()[0],
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Text))
+        );
+        drop(parent);
+        assert!(controls.current_query_memory_bytes() > 65_536);
+        drop(batches);
+        drop(context);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    });
+}

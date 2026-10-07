@@ -856,6 +856,47 @@ pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
     graph_table_function_columns()
 }
 
+fn bind_table_function(
+    name: String,
+    function: FunctionCall,
+    lateral: bool,
+    catalog: &Catalog,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    validate_graph_table_function(&function, lateral_fields)?;
+    if let Some(graph_name) = literal_string_arg(&function, 0) {
+        let graph_name = super::normalize_relation_name(&graph_name, context)?;
+        if !catalog.graph_exists_exact(&graph_name) {
+            return Err(CassieError::Planner(format!(
+                "graph '{graph_name}' does not exist"
+            )));
+        }
+    }
+    Ok(QuerySource::TableFunction {
+        name,
+        function,
+        lateral,
+    })
+}
+
+fn bind_collection_source(
+    name: &IdentifierPath,
+    catalog: &Catalog,
+    scope: &CteScope,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    let source_name_lc = name.to_ascii_lowercase();
+    if scope.contains_key(&source_name_lc) {
+        Ok(QuerySource::Cte(name.to_string()))
+    } else {
+        let resolved = resolve_relation_path(name, catalog, context)?;
+        Ok(QuerySource::Collection(
+            IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{canonicalize_column_literal_pair, DataType, Expr};
@@ -900,46 +941,5 @@ mod tests {
         assert_eq!(date_literal, "2024-01-01");
         assert_eq!(time_literal, "12:00:00");
         assert_eq!(timestamp_literal, "2024-01-01T12:00:00.000000Z");
-    }
-}
-
-fn bind_table_function(
-    name: String,
-    function: FunctionCall,
-    lateral: bool,
-    catalog: &Catalog,
-    lateral_fields: &HashSet<String>,
-    context: &BindingContext,
-) -> Result<QuerySource, CassieError> {
-    validate_graph_table_function(&function, lateral_fields)?;
-    if let Some(graph_name) = literal_string_arg(&function, 0) {
-        let graph_name = super::normalize_relation_name(&graph_name, context)?;
-        if !catalog.graph_exists_exact(&graph_name) {
-            return Err(CassieError::Planner(format!(
-                "graph '{graph_name}' does not exist"
-            )));
-        }
-    }
-    Ok(QuerySource::TableFunction {
-        name,
-        function,
-        lateral,
-    })
-}
-
-fn bind_collection_source(
-    name: &IdentifierPath,
-    catalog: &Catalog,
-    scope: &CteScope,
-    context: &BindingContext,
-) -> Result<QuerySource, CassieError> {
-    let source_name_lc = name.to_ascii_lowercase();
-    if scope.contains_key(&source_name_lc) {
-        Ok(QuerySource::Cte(name.to_string()))
-    } else {
-        let resolved = resolve_relation_path(name, catalog, context)?;
-        Ok(QuerySource::Collection(
-            IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
-        ))
     }
 }

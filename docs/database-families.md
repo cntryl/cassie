@@ -66,3 +66,19 @@ These commands use `CopyOut`/streaming `CopyIn`, are administrative operations,
 and are rejected inside explicit transactions and unsupported extended-query
 paths. Whole-server snapshots remain filesystem copies and therefore include
 the dynamic database families together with `cf0` and `cf1`.
+
+## Admission and logical image consistency
+
+A current layout marker is required before initialized storage is admitted.
+A missing or incompatible marker rejects startup without repairing the marker,
+creating fixed families or rewriting user rows. A genuinely empty default/fixed
+family inventory can finish unpublished initialization; an unknown or opaque
+family is not evidence of fresh storage, even when empty.
+
+Logical database image streams fence captured schema/data epochs and physical
+family ownership before chunks and footer publication. Concurrent changes reject
+the stream; consumers must discard partial bytes. Restore validates complete
+framing before publication and rejects a target that became occupied during
+upload. Disposable staging is flushed before Midge safe-drop, and abort is
+idempotent after cleanup. See [storage qualification](storage-recovery-qualification.md)
+for finite witnesses and explicit deployment boundaries.

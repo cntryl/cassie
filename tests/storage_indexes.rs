@@ -12,6 +12,17 @@ mod support_sql;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
+#[path = "support/database_image_generation.rs"]
+mod support_database_image_generation;
+
+#[path = "storage_indexes/database_image_generation.rs"]
+mod database_image_generation;
+
+#[path = "storage_indexes/layout_marker_admission.rs"]
+mod layout_marker_admission;
+#[path = "support/storage_family_snapshot.rs"]
+mod support_storage_family_snapshot;
+
 // Formerly tests/index_publication_recovery.rs.
 mod index_publication_recovery {
     use std::collections::BTreeMap;

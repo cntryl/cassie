@@ -43,6 +43,7 @@ enum BackupPhase {
     Data,
     Footer,
     Finished,
+    Failed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,8 +83,16 @@ impl DatabaseBackupStream {
     ///
     /// Returns an error if a frame cannot be encoded.
     pub fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, CassieError> {
+        if matches!(self.phase, BackupPhase::Failed) {
+            return Err(CassieError::Storage(
+                "database backup source changed; begin a new backup".to_string(),
+            ));
+        }
         if matches!(self.phase, BackupPhase::Finished) && self.pending.is_empty() {
             return Ok(None);
+        }
+        if !matches!(self.phase, BackupPhase::Finished) {
+            self.ensure_source_unchanged()?;
         }
 
         while self.pending.len() < IMAGE_CHUNK_BYTES {
@@ -149,6 +158,7 @@ impl DatabaseBackupStream {
                     }
                 }
                 BackupPhase::Footer => {
+                    self.ensure_source_unchanged()?;
                     let footer = DatabaseImageFooter {
                         catalog_entries: self.catalog_count,
                         data_entries: self.data_count,
@@ -162,7 +172,7 @@ impl DatabaseBackupStream {
                     );
                     self.phase = BackupPhase::Finished;
                 }
-                BackupPhase::Finished => break,
+                BackupPhase::Finished | BackupPhase::Failed => break,
             }
         }
 
@@ -171,6 +181,35 @@ impl DatabaseBackupStream {
         }
         let length = self.pending.len().min(IMAGE_CHUNK_BYTES);
         Ok(Some(self.pending.drain(..length).collect()))
+    }
+
+    fn ensure_source_unchanged(&mut self) -> Result<(), CassieError> {
+        if self.source_family_matches()?
+            && self.cassie.midge.schema_epoch()? == self.schema_epoch
+            && self
+                .cassie
+                .midge
+                .data_epoch_for_database(&self.source_database)?
+                == self.data_epoch
+            && self.source_family_matches()?
+        {
+            return Ok(());
+        }
+        self.phase = BackupPhase::Failed;
+        self.pending.clear();
+        self.data_page.clear();
+        Err(CassieError::Storage(
+            "database backup source changed during catalog capture or streaming; begin a new backup"
+                .to_string(),
+        ))
+    }
+
+    fn source_family_matches(&self) -> Result<bool, CassieError> {
+        Ok(self
+            .cassie
+            .midge
+            .get_database(&self.source_database)?
+            .is_some_and(|metadata| metadata.physical_family == self.source_physical_family))
     }
 
     fn enqueue_frame(&mut self, tag: u8, payload: &[u8]) {
@@ -317,10 +356,11 @@ impl DatabaseRestoreSession {
         if matches!(self.phase, RestorePhase::Closed) {
             return Ok(());
         }
-        self.phase = RestorePhase::Closed;
-        if let Some(staged) = self.staged.take() {
-            self.cassie.midge.abort_staged_database_family(&staged)?;
+        if let Some(staged) = &self.staged {
+            self.cassie.midge.abort_staged_database_family(staged)?;
         }
+        self.staged = None;
+        self.phase = RestorePhase::Closed;
         Ok(())
     }
 
@@ -426,7 +466,7 @@ impl Cassie {
         let metadata = self.midge.get_database(database)?.ok_or_else(|| {
             CassieError::NotFound(format!("database '{database}' does not exist"))
         })?;
-        Ok(DatabaseBackupStream {
+        let mut stream = DatabaseBackupStream {
             cassie: self.clone(),
             source_database: metadata.name.clone(),
             source_physical_family: metadata.physical_family,
@@ -442,7 +482,9 @@ impl Cassie {
             hasher: Sha256::new(),
             catalog_count: 0,
             data_count: 0,
-        })
+        };
+        stream.ensure_source_unchanged()?;
+        Ok(stream)
     }
 
     /// Begin a restore into a new logical database. The staged family is

@@ -261,6 +261,18 @@ impl Midge {
 
         let handle = self.create_physical_family(&metadata.physical_family)?;
         let mut finalize = self.begin_schema_tx_for_handle(&schema, TransactionMode::ReadWrite)?;
+        if Self::load_database_from_tx(&finalize, name)?.is_some() {
+            drop(finalize);
+            let staged = StagedDatabaseFamily {
+                metadata,
+                handle,
+                operation_id: record.operation_id,
+            };
+            self.abort_staged_database_family(&staged)?;
+            return Err(CassieError::InvalidQuery(format!(
+                "database '{name}' was published while creation was staged"
+            )));
+        }
         Self::write_database_metadata(&mut finalize, &metadata)?;
         Self::delete_lifecycle_record(&mut finalize, &record.operation_id)?;
         super::schema_write_control::pause_before_schema_write_commit(
@@ -461,6 +473,12 @@ impl Midge {
         catalog_entries: Vec<(Vec<u8>, Vec<u8>)>,
     ) -> Result<(), CassieError> {
         let mut tx = self.begin_schema_rw_tx()?;
+        if Self::load_database_from_tx(&tx, &staged.metadata.name)?.is_some() {
+            return Err(CassieError::InvalidQuery(format!(
+                "restore target database '{}' already exists",
+                staged.metadata.name
+            )));
+        }
         let mut collection_names = Vec::new();
         let mut namespace_names = Vec::new();
         for (key, value) in catalog_entries {
@@ -571,6 +589,8 @@ impl Midge {
 
     fn drop_physical_family_if_present(&self, name: &str) -> Result<(), CassieError> {
         if let Some(handle) = self.engine.get_column_family(name) {
+            // Midge's safe family drop requires committed memtable data to be flushed.
+            self.engine.flush_cf(&handle).map_err(CassieError::from)?;
             self.engine
                 .drop_column_family(handle.id())
                 .map_err(CassieError::from)?;

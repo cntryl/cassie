@@ -910,7 +910,7 @@ fn finalize_plan_rows(
             user_functions: env.user_functions,
             session: env.session,
         };
-        rows = sort::sort_rows_with_controls(rows, &eval, env.controls)?;
+        rows = sort::sort_batch_rows_with_controls(rows, &eval, env.controls)?;
     }
     Ok(slice_rows(rows, plan.offset_value(), plan.limit_value()))
 }

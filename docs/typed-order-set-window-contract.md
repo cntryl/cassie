@@ -26,6 +26,8 @@ pre-conversion replacement admission are independently established. This selecti
 does not promote existing CTE materialization accounting to a bounded native claim.
 A focused body-native-decline/differential and budget/cleanup probe is required;
 confirmed baseline accounting defects belong to an evidence-linked follow-up.
+The existing plain-row CTE owner gap is recorded in [#857](https://github.com/cntryl/cassie/issues/857)
+with the bound live-row/accounted-zero probe; #760 does not silently fix or promote it.
 
 ORDER BY expressions and user functions retain `scalar_expression_order` when
 they are not direct columns or safely resolved passthrough aliases. Existing SQL

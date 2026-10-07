@@ -369,10 +369,10 @@ fn should_keep_outer_alias_distinct_from_nested_physical_carrier_name() {
     // Act
     let actual = fixture.execute("SELECT r.id FROM left_records r WHERE EXISTS (SELECT 1 FROM __cassie_relation_alias_72 WHERE __cassie_relation_alias_72.id=r.id)");
     // Assert
-    assert!(actual
-        .expect("existing single-source correlation")
-        .rows
-        .is_empty());
+    assert_eq!(
+        actual.expect("existing single-source correlation").rows,
+        Vec::<Vec<Value>>::new()
+    );
 }
 
 #[test]

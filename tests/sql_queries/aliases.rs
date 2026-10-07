@@ -1,4 +1,7 @@
 use super::support_sql_fixture::sql_fixture;
+use cassie::planner::physical::ReadAccessPath;
+use cassie::runtime::ExecutionMode;
+use cassie::sql::{parse_statement, QuerySource};
 use cassie::types::Value;
 
 #[test]
@@ -174,9 +177,6 @@ fn should_alias_wildcard_ctes_and_preserve_join_identity_hiding() {
 #[test]
 fn should_keep_indexed_identity_pagination_and_cache_authorization_context() {
     // Arrange
-    use cassie::planner::physical::ReadAccessPath;
-    use cassie::runtime::ExecutionMode;
-    use cassie::sql::{parse_statement, QuerySource};
     let fixture = sql_fixture(
         "alias_indexed_pagination",
         &[
@@ -226,14 +226,7 @@ fn should_keep_indexed_identity_pagination_and_cache_authorization_context() {
         fixture.session.database.clone(),
         &fixture.session.search_path(),
     );
-    fixture
-        .cassie
-        .create_role("alias_reader", true, Some("fixture-password".into()), false)
-        .expect("reader role");
-    let reader = fixture
-        .cassie
-        .authenticate_role("alias_reader", Some("fixture-password"), None)
-        .expect("authenticate reader");
+    let reader = super::support_alias_fixture::reader(&fixture);
     let authorized = fixture
         .cassie
         .execute_sql(&reader, dynamic, first_params.clone());

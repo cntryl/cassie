@@ -1,3 +1,6 @@
+#[path = "support/alias_fixture.rs"]
+mod support_alias_fixture;
+
 #[path = "sql_queries/alias_integration.rs"]
 mod alias_integration;
 

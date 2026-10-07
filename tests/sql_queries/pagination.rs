@@ -133,7 +133,7 @@ fn should_enforce_checked_pagination_bounds() {
     );
 
     // Assert
-    assert!(huge.expect("bounded source").rows.is_empty());
+    assert_eq!(huge.expect("bounded source").rows, Vec::<Vec<Value>>::new());
     assert!(overflow
         .expect_err("overflow")
         .to_string()
@@ -186,8 +186,11 @@ fn should_resolve_direct_executor_bounds() {
     );
 
     // Assert
-    assert!(result.expect("direct run").rows.is_empty());
-    assert!(breakdown.expect("breakdown").result.rows.is_empty());
+    assert_eq!(result.expect("direct run").rows, Vec::<Vec<Value>>::new());
+    assert_eq!(
+        breakdown.expect("breakdown").result.rows,
+        Vec::<Vec<Value>>::new()
+    );
 }
 
 #[test]
@@ -430,10 +433,10 @@ fn should_admit_direct_bounds_at_the_existing_nesting_envelope() {
     let result = cassie::executor::run(&fixture.cassie, physical, vec![Value::Int64(0)]);
 
     // Assert
-    assert!(result
-        .expect("existing finite depth remains admitted")
-        .rows
-        .is_empty());
+    assert_eq!(
+        result.expect("existing finite depth remains admitted").rows,
+        Vec::<Vec<Value>>::new()
+    );
 }
 
 #[test]

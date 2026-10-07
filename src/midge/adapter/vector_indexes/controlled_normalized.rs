@@ -28,7 +28,7 @@ impl Midge {
             check_controls(controls)?;
             let (key, raw) = entry.map_err(CassieError::from)?;
             self.record_query_scan_entry();
-            if super::super::query_scan_control::should_cancel_controlled_query_scan() {
+            if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCancelled);
             }
             let Some(decoded_bytes) = normalized_vector_decoded_values_bytes(&raw) else {

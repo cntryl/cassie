@@ -127,3 +127,39 @@ Final publication-base equivalence, visible review, exact publication-head hoste
 checks, squash merge and source/issue readback remain pending. #776 stays open
 until those steps and target-selected acceptance are complete. This record adds
 no broader feature/readiness promotion.
+
+## Hosted controlled-read fixture correction
+
+PR #856's first hosted core run at `1281e0b2` passed 580 unit tests and failed
+one existing ordered-read ResourceLimit canary with QueryCancelled instead.
+The exact hosted interleaving is unknown. A deterministic, source-snapshot
+probe proved the mechanism: while an owner armed cancellation at its second
+read, an unguarded unrelated thread consumed the global first read, causing the
+owner's first hook to cancel. New production ownership and late-worker tests
+were genuinely red before the private scope repair; a separate unguarded
+rearm test exposed and corrected stale scope retention after disarming.
+
+The private canary now belongs to a fixture scope captured in the existing
+cancellation handle. Handle/control clones preserve that scope through blocking
+workers and uncapped inputs; old workers cannot consume a later fixture's
+canary. Original cancellation identity remains the same AtomicBool Arc, and
+ordinary unarmed queries retain their existing cancellation/read behavior.
+The obsolete global fixture lock is removed. Guards retain their thread-local
+nesting and non-Send lifecycle; guard drop disarms only its own scope.
+
+Test fixtures must acquire their guard before creating query handles or
+controls, allowing handles constructed before arming to capture ownership.
+Legacy unguarded use creates handles after arming and discards the scope on
+disarm; it does not preserve the previous process-wide cancellation behavior.
+The existing setter/guard public signatures stay unchanged. All existing
+repository setter callers either acquire a guard directly or inherit it from
+an explicitly guarded test; the new unguarded lifecycle probe is separate.
+
+Focused controller, ordered-row/row-store resource canaries, retrieval and
+analytical cancellation paths, pgwire SQLSTATE/portal controls and the actual
+REST blocking-worker boundary retain their exact read-count and cleanup
+assertions. The coherent correction requires a new complete ordered local
+validation and fresh exact-head hosted checks; the earlier 3,372-test result
+is prior provenance, not completion of this behavioral fixture correction.
+Exact source snapshots, red/green logs, Jev gap probes, cancelled diagnostics
+and final gates are retained under `target/independent-776-review/`.

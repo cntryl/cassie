@@ -155,7 +155,7 @@ impl MidgeRowCursor {
             let (raw_key, raw_value) = entry.map_err(CassieError::from)?;
             scanned_entries = scanned_entries.saturating_add(1);
             midge.record_query_scan_entry();
-            if super::query_scan_control::should_cancel_controlled_query_scan() {
+            if super::query_scan_control::should_cancel_controlled_query_scan(controls) {
                 return Err(CassieError::QueryCancelled);
             }
 

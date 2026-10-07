@@ -43,11 +43,12 @@ pub(super) fn parse(source: QuerySource, tail: &str) -> Result<QuerySource, SqlE
     let column_aliases = if rest.is_empty() {
         Vec::new()
     } else {
+        if !rest.starts_with('(') {
+            return Err(SqlError::new("unsupported FROM syntax".into()));
+        }
         let close = super::matching_closing_paren(rest)
             .ok_or_else(|| SqlError::new("invalid relation column aliases".into()))?;
-        if !rest.starts_with('(')
-            || !super::super::lexical::trim_separators(&rest[close + 1..]).is_empty()
-        {
+        if !super::super::lexical::trim_separators(&rest[close + 1..]).is_empty() {
             return Err(SqlError::new("unsupported FROM syntax".into()));
         }
         super::split_csv(&rest[1..close])

@@ -364,3 +364,20 @@ logs remain in ignored target evidence. The earlier complete build passed on
 No complete gate is claimed passed for the corrected source. Complete ordered
 gates restart only after the coherent immutable correction is independently
 confirmed; publication and closure remain pending.
+
+
+### Complete-gate parser rejection correction
+
+The complete corrected-source run at `5066aaa5` built successfully, then failed
+its parser suite with 236 passed and one failure: existing
+`should_reject_cross_join_with_on_predicate` expected Unsupported and
+`unsupported FROM syntax`, but alias-tail parsing returned Syntax while looking
+for a nonexistent column-list parenthesis. This failed full run is retained;
+subsequent full checks are pending. Alias-tail admission now rejects a non-list
+trailing fragment before matching parentheses, preserving the existing error
+contract without expanding the grammar. The original failing regression and
+26 source/set parser siblings pass after correction. Jev assigned trailing-text
+regression probability 0.31; eight explicit ordinary/quoted column-alias and
+malformed-tail probes pass, including the original CROSS JOIN ON rejection.
+Queued vector test naming and empty-result diagnostic refinements are included
+before the next coherent immutable complete run.

@@ -193,9 +193,10 @@ query's visible namespace and SQL shape.
    helper retains already-admitted typed/hash and projected/indexed capabilities.
    Wrapper presence alone is not a fallback reason. Existing type, source-family,
    resource and kernel capability boundaries still decline by their existing
-   laws. Scalar and relational visitors are reconciled on prepared base
-   `0211d09a653044f47d22c086b31ac97c9e20af7b`; final focused verification and
-   complete gates remain pending. Do not infer accelerator coverage from a
+   laws. Scalar and relational visitors were first reconciled on prepared base
+   `0211d09a653044f47d22c086b31ac97c9e20af7b`, then integrated with prepared
+   storage/vector base `020fd29bbae9f263b48404542390360308bae947`. Final
+   prerequisite test-hygiene integration and complete gates remain pending. Do not infer accelerator coverage from a
    generic fallback result.
 5. Completed focused indexed/identity/cache/authorization and portal probes use
    `SELECT r.key, r.score FROM records AS r(key) ORDER BY r.score, r._id LIMIT $1 OFFSET $2`
@@ -252,13 +253,15 @@ The integration owner must reconcile scalar/conditional/cache and relational
 source visitors, retain the selected public 0.2.x metadata and cache epoch 4
 compatibility disposition, then run the standing full gates in order. Required
 complete build/tests/pedantic clippy/fmt/test-policy, exact final-head review,
-publication, merge and issue readback remain pending. No source commit or PR
-is created by this handoff.
+publication, merge and issue readback remain pending. Private integration commits preserve the reviewed candidate; no PR or
+publication is created by this handoff.
 
 ## Private integration acceptance on 2026-10-07
 
 The D1/D2 candidate integrates prepared scalar/conditional/cache visitors and
-#758/#759 on private base `0211d09a653044f47d22c086b31ac97c9e20af7b`. Complete
+#758/#759 first on private base `0211d09a653044f47d22c086b31ac97c9e20af7b`,
+then prepared #771 storage and #776 vector source on
+`020fd29bbae9f263b48404542390360308bae947`. Complete
 binding still precedes one conditional normalization pass; scalar-generated
 origin markers, cache semantic epoch 4 and the selected public 0.2 boundary
 remain intact. Publication still requires prerequisite bundle merge/readback
@@ -281,6 +284,31 @@ The pre-existing unsupported outer reference inside a nested JOIN ON remains
 a matched alias/unaliased decline; this slice adds no correlation or kernel
 family beyond the selected contracts.
 
-Final focused sibling checks and parent-owned build, full tests, pedantic Clippy,
-format check and touched-test validation are pending on the final immutable
-integration head. These four local probes are not publication or closure proof.
+The carrier collision probe initially returned the aliased table's payload for
+both qualifiers when an unaliased table was literally named
+`__cassie_relation_alias_72`. Binding now allocates a collision-free private
+carrier before source reference lowering. Parsed public `Aliased` wrappers and
+underlying Collection identity remain intact. The allocator collects names from
+sources, JOIN ON, nested EXISTS/derived queries, table-function arguments,
+projection/window expressions, filter/group/having/order/bounds, CTE definitions
+and set operands. It preserves inner scope shadowing and chooses a name absent
+from both visible and encoded namespaces. There is no reserved SQL prefix.
+This early pass rewrites namespace ownership only; catalog field and prefix-list
+validation still occur after authoritative source/search-path binding.
+
+Quoted/case-distinct controls admit carrier-like table and LATERAL aliases,
+verify distinct payload ownership, inner shadowing, ORDER and evaluated bounds.
+Jev favored private scoped allocation (0.99) and assigned CTE traversal risk
+0.51; the required ordinary/quoted CTE collision probe passes. The existing
+joined-outer EXISTS reference boundary remains a matched alias/unaliased
+decline; positive correlated ownership uses the already-admitted LATERAL path.
+
+On the prepared vector base, the focused shared SQL run passes 106 tests;
+the final alias integration run passes all seven probes, including CTE carrier
+collisions. Earlier integrated checks passed 60 parser siblings, two pgwire
+alias/pagination probes and the actual projected typed-scan unit probe. Exact
+red/green logs and Jev requests/responses remain in ignored
+`target/alias-preparation/`. Final prerequisite hygiene integration and repeated
+focused checks on the immutable head remain pending, as do parent-owned build,
+full tests, pedantic Clippy, format check and touched-test validation. Local
+probes are not publication or closure proof.

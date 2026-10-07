@@ -190,3 +190,124 @@ fn should_preserve_quoted_physical_fields_in_alias_indexed_projection() {
         before + 1
     );
 }
+
+#[test]
+fn should_keep_literal_table_qualifiers_distinct_from_internal_alias_carriers() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-literal-carrier-collision",
+        &[
+            "CREATE TABLE records (id INT, n BIGINT)",
+            "CREATE TABLE __cassie_relation_alias_72 (id INT, n BIGINT)",
+            "INSERT INTO records VALUES (11,1),(12,2)",
+            "INSERT INTO __cassie_relation_alias_72 VALUES (21,1),(22,2)",
+        ],
+    );
+    // Act
+    let actual = fixture.cassie.execute_sql(&fixture.session,
+        "SELECT r.id,__cassie_relation_alias_72.id FROM records r JOIN __cassie_relation_alias_72 ON r.n=__cassie_relation_alias_72.n ORDER BY r.id DESC LIMIT $1 OFFSET $2",
+        vec![Value::Int64(2),Value::Int64(0)]);
+    // Assert
+    assert_eq!(
+        actual.expect("both admitted SQL namespaces").rows,
+        vec![
+            vec![Value::Int64(12), Value::Int64(22)],
+            vec![Value::Int64(11), Value::Int64(21)],
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_quoted_alias_ownership_and_admitted_carrier_like_names() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-quoted-carrier-allocation",
+        &[
+            "CREATE TABLE records (id INT, n BIGINT)",
+            "CREATE TABLE __cassie_relation_alias_52 (id INT, n BIGINT)",
+            "CREATE TABLE __cassie_bound_alias_0 (id INT, n BIGINT)",
+            "INSERT INTO records VALUES (11,1),(12,2)",
+            "INSERT INTO __cassie_relation_alias_52 VALUES (31,1),(32,2)",
+            "INSERT INTO __cassie_bound_alias_0 VALUES (41,1),(42,2)",
+        ],
+    );
+    let sql = r#"SELECT "R".key,__cassie_relation_alias_52.id,__cassie_bound_alias_0.id,inside.picked FROM records "R"(key,value) JOIN __cassie_relation_alias_52 ON "R".value=__cassie_relation_alias_52.n JOIN __cassie_bound_alias_0 ON "R".value=__cassie_bound_alias_0.n JOIN LATERAL (SELECT __cassie_bound_alias_1.id AS picked FROM records __cassie_bound_alias_1 WHERE __cassie_bound_alias_1.n="R".value AND EXISTS (SELECT "R".id FROM records "R" WHERE "R".id=11)) inside ON true ORDER BY "R".key DESC,inside.picked DESC LIMIT $1 OFFSET $2"#;
+    // Act
+    let actual = fixture.cassie.execute_sql(
+        &fixture.session,
+        sql,
+        vec![Value::Int64(2), Value::Int64(0)],
+    );
+    let wrong_case = fixture.execute(r#"SELECT r.id FROM records "R" JOIN __cassie_relation_alias_52 ON "R".n=__cassie_relation_alias_52.n"#);
+    let joined_outer_queries = [
+        "SELECT records.id FROM records JOIN __cassie_relation_alias_52 ON records.n=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n=records.n)",
+        r#"SELECT "R".key FROM records "R"(key,value) JOIN __cassie_relation_alias_52 ON "R".value=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n="R".value)"#,
+    ];
+    let joined_outer_results = joined_outer_queries.map(|sql| fixture.execute(sql));
+    // Assert
+    let actual = actual.expect("quoted ownership, nested shadows and carrier-like user names");
+    assert_eq!(
+        actual.rows,
+        vec![
+            vec![
+                Value::Int64(12),
+                Value::Int64(32),
+                Value::Int64(42),
+                Value::Int64(12)
+            ],
+            vec![
+                Value::Int64(11),
+                Value::Int64(31),
+                Value::Int64(41),
+                Value::Int64(11)
+            ],
+        ]
+    );
+    assert_eq!(actual.columns[0].name, "key");
+    assert!(wrong_case
+        .expect_err("quoted R does not admit lower r")
+        .to_string()
+        .contains("unresolvable"));
+    for (sql, result) in joined_outer_queries.iter().zip(joined_outer_results) {
+        assert!(result.expect_err(sql).to_string().contains("unresolvable"));
+    }
+}
+
+#[test]
+fn should_preserve_cte_alias_fields_when_cte_names_collide_with_private_qualifiers() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-cte-carrier-allocation",
+        &[
+            "CREATE TABLE records (id INT, n BIGINT)",
+            "CREATE TABLE chosen (id INT, n BIGINT)",
+            "INSERT INTO records VALUES (11,1),(12,2)",
+            "INSERT INTO chosen VALUES (21,1),(22,2)",
+        ],
+    );
+    let queries = [
+        "WITH seed AS (SELECT id,n FROM records), __cassie_relation_alias_72 AS (SELECT id,n FROM chosen) SELECT r.key,__cassie_relation_alias_72.id FROM seed r(key,value) JOIN __cassie_relation_alias_72 ON r.value=__cassie_relation_alias_72.n ORDER BY r.key DESC LIMIT $1 OFFSET $2",
+        r#"WITH seed AS (SELECT id,n FROM records), __cassie_relation_alias_52 AS (SELECT id,n FROM chosen) SELECT "R".key,__cassie_relation_alias_52.id FROM seed "R"(key,value) JOIN __cassie_relation_alias_52 ON "R".value=__cassie_relation_alias_52.n ORDER BY "R".key DESC LIMIT $1 OFFSET $2"#,
+    ];
+    // Act
+    let results = queries.map(|sql| {
+        fixture.cassie.execute_sql(
+            &fixture.session,
+            sql,
+            vec![Value::Int64(2), Value::Int64(0)],
+        )
+    });
+    // Assert
+    for (sql, result) in queries.iter().zip(results) {
+        let result = result.expect(sql);
+        assert_eq!(
+            result.rows,
+            vec![
+                vec![Value::Int64(12), Value::Int64(22)],
+                vec![Value::Int64(11), Value::Int64(21)]
+            ]
+        );
+        assert_eq!(result.columns[0].name, "key");
+        assert_eq!(result.columns[1].name, "id");
+    }
+}

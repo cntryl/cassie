@@ -118,6 +118,7 @@ struct Namespace {
     fields: Vec<(String, String)>,
     reserved_identity: bool,
     hidden: Vec<String>,
+    namespace_only: bool,
 }
 
 fn namespaces(
@@ -141,6 +142,7 @@ fn namespaces(
                 )));
             }
             result.push(Namespace {
+                namespace_only: false,
                 hidden: match source.as_ref() {
                     QuerySource::Collection(name) => crate::catalog::qualifier_variants(name),
                     _ => Vec::new(),
@@ -156,6 +158,7 @@ fn namespaces(
             namespaces(right, catalog, scope, result)?;
         }
         QuerySource::Collection(name) => result.push(Namespace {
+            namespace_only: false,
             name: name.to_string(),
             qualifier: name.to_string(),
             hidden: Vec::new(),
@@ -164,6 +167,7 @@ fn namespaces(
         }),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
             result.push(Namespace {
+                namespace_only: false,
                 name: name.clone(),
                 qualifier: name.clone(),
                 hidden: Vec::new(),
@@ -172,6 +176,7 @@ fn namespaces(
             })
         }
         QuerySource::Subquery { alias, .. } => result.push(Namespace {
+            namespace_only: false,
             name: alias.clone(),
             qualifier: alias.clone(),
             hidden: Vec::new(),
@@ -218,6 +223,9 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             // catalog schema-qualified names by its existing authority.
             return Ok(name.to_string());
         };
+        if namespace.namespace_only {
+            return Ok(format!("{}.{field}", namespace.qualifier));
+        }
         if namespace
             .fields
             .iter()
@@ -453,6 +461,11 @@ fn base_identity(source: &QuerySource, catalog: &Catalog) -> bool {
 
 #[path = "alias_nested.rs"]
 mod nested;
+#[path = "alias_scope.rs"]
+mod scope;
+pub(super) fn allocate_scope(select: &mut SelectStatement) -> Result<(), CassieError> {
+    scope::allocate(select)
+}
 
 /// Lower the existing lateral source's qualified references to its left scope.
 pub(super) fn lower_lateral(

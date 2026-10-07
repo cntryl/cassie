@@ -3,6 +3,7 @@ use super::*;
 #[test]
 fn should_retain_typed_scan_projection_for_ordinary_and_prefix_collection_aliases() {
     // Arrange
+    let _guard = crate::midge::adapter::query_scan_control_test_guard();
     let path = std::env::temp_dir().join(format!("cassie-typed-alias-{}", uuid::Uuid::new_v4()));
     let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("cassie");
     let session = cassie.create_session("tester", None);

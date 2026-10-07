@@ -86,6 +86,7 @@ pub(super) fn bind_select_with_lateral_fields(
         bound_ctes.push(bound_cte);
     }
 
+    super::aliases::allocate_scope(&mut select)?;
     let source = bind_query_source_with_lateral_fields(
         select.source.clone(),
         catalog,

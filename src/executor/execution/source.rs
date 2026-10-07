@@ -837,7 +837,18 @@ fn apply_projection_phase(
     let grouped_projection = plan_uses_aggregate(plan)
         .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
     let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
-    let _output_memory = reserve_projection_output_before_building(controls, &batches, projection)?;
+    let retain_output = batches
+        .iter()
+        .flatten()
+        .any(|row| row.operator_memory().is_some());
+    let mut output_memory =
+        reserve_projection_output_before_building(controls, &batches, projection)?;
+    if retain_output {
+        output_memory.try_grow(
+            std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
+                + 2 * std::mem::size_of::<usize>(),
+        )?;
+    }
     batches = projection::project_batches(
         batches,
         projection,
@@ -846,6 +857,12 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
+    if retain_output {
+        let output_memory = std::sync::Arc::new(output_memory);
+        for row in batches.iter_mut().flatten() {
+            row.attach_operator_memory(controls, std::sync::Arc::clone(&output_memory))?;
+        }
+    }
     ensure_query_memory_budget(controls, &batches)?;
     if plan.distinct {
         batches = distinct_batches(batches, controls)?;

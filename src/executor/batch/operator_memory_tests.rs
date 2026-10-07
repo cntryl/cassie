@@ -77,3 +77,55 @@ fn should_preserve_operator_leases_across_owned_and_borrowed_projection() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_leave_existing_operator_lease_intact_when_link_admission_fails() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let origin = Arc::new(controls.reserve_query_memory(512).expect("origin"));
+    let operator = Arc::new(controls.reserve_query_memory(1024).expect("operator"));
+    let mut row = BatchRow::new(vec![("n".into(), Value::Int64(7))])
+        .with_query_memory(Some(origin))
+        .retain_operator_memory(&controls, operator)
+        .expect("first link");
+    let next = Arc::new(controls.reserve_query_memory(1).expect("next reservation"));
+    let current = controls.current_query_memory_bytes();
+    let pressure = controls
+        .reserve_query_memory(controls.query_memory_budget_bytes - current)
+        .expect("pressure");
+    // Act
+    let result = row.attach_operator_memory(&controls, next);
+    // Assert
+    assert!(matches!(
+        result,
+        Err(crate::app::CassieError::ResourceLimit(_))
+    ));
+    drop(pressure);
+    assert!(controls.current_query_memory_bytes() >= 1536);
+    assert_eq!(row.get("n"), Some(&Value::Int64(7)));
+    drop(row);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_hold_operator_parents_through_public_row_materialization() {
+    // Arrange
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let memory = Arc::new(controls.reserve_query_memory(1024).expect("operator"));
+    let rows = vec![BatchRow::new(vec![("n".into(), Value::Int64(7))])
+        .retain_operator_memory(&controls, memory)
+        .expect("link")];
+    // Act
+    let guard = super::OperatorMemory::hold_rows(&controls, &rows).expect("materialization guard");
+    let values = rows
+        .into_iter()
+        .map(BatchRow::into_values)
+        .collect::<Vec<_>>();
+    // Assert
+    assert!(controls.current_query_memory_bytes() >= 1024);
+    assert_eq!(values, vec![vec![Value::Int64(7)]]);
+    drop(guard);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

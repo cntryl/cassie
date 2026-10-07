@@ -723,6 +723,7 @@ fn materialize_rollup_batches(
 fn serialize_rollup_rows(rows: Vec<BatchRow>) -> Result<Vec<serde_json::Value>, QueryError> {
     rows.into_iter()
         .map(|row| {
+            let _operator_parent = row.operator_memory();
             let payload = row
                 .into_entries()
                 .into_iter()

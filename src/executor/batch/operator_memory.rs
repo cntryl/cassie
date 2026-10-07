@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use super::BatchRow;
 use crate::app::CassieError;
+use crate::runtime::accounted::AccountedVec;
 use crate::runtime::{QueryExecutionControls, QueryMemoryReservation};
 
 #[derive(Debug)]
@@ -15,6 +16,19 @@ pub(crate) struct OperatorMemory {
 }
 
 impl OperatorMemory {
+    pub(crate) fn hold_rows(
+        controls: &QueryExecutionControls,
+        rows: &[BatchRow],
+    ) -> Result<AccountedVec<Arc<Self>>, CassieError> {
+        let mut parents = AccountedVec::try_new(controls)?;
+        for row in rows {
+            if let Some(parent) = row.operator_memory() {
+                parents.try_push_with(0, || parent)?;
+            }
+        }
+        Ok(parents)
+    }
+
     fn new(
         controls: &QueryExecutionControls,
         reservation: Arc<QueryMemoryReservation>,
@@ -59,19 +73,28 @@ impl BatchRow {
         controls: &QueryExecutionControls,
         reservation: Arc<QueryMemoryReservation>,
     ) -> Result<Self, CassieError> {
-        let previous = match self.operator_memory.take() {
-            Some(previous) => Some(previous),
-            None => self
-                .query_memory()
-                .map(|origin| OperatorMemory::new(controls, origin, [None, None]))
-                .transpose()?,
-        };
+        self.attach_operator_memory(controls, reservation)?;
+        Ok(self)
+    }
+
+    pub(crate) fn attach_operator_memory(
+        &mut self,
+        controls: &QueryExecutionControls,
+        reservation: Arc<QueryMemoryReservation>,
+    ) -> Result<(), CassieError> {
+        let previous = self.operator_memory.clone();
+        // A reconstruction may replace the current origin while keeping an older operator root.
+        // Retain that current owner independently, without silently overwriting either origin.
+        let origin = self
+            .query_memory()
+            .map(|origin| OperatorMemory::new(controls, origin, [None, None]))
+            .transpose()?;
         self.operator_memory = Some(OperatorMemory::new(
             controls,
             reservation,
-            [previous, None],
+            [previous, origin],
         )?);
-        Ok(self)
+        Ok(())
     }
 
     pub(crate) fn operator_memory(&self) -> Option<Arc<OperatorMemory>> {

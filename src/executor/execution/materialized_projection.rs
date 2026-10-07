@@ -786,6 +786,7 @@ fn replace_output_rows_gated(
         .into_iter()
         .enumerate()
         .map(|(index, row)| {
+            let _operator_parent = row.operator_memory();
             let payload = row
                 .into_entries()
                 .into_iter()

@@ -80,19 +80,43 @@ pub(super) fn build_select_result(
         .iter()
         .any(|column| crate::types::row_identity::is_row_identity_column(&column.name));
     let keep_internal_identity_as_id = keep_internal_identity_as_id || projects_internal_identity;
-    let rows: Vec<Vec<Value>> = rows
-        .into_iter()
-        .map(|row| {
-            row.into_entries()
-                .into_iter()
-                .filter(|(name, _)| {
-                    keep_internal_identity_as_id
-                        || !crate::types::row_identity::is_row_identity_column(name)
-                })
-                .map(|(_, value)| value)
-                .collect()
-        })
-        .collect();
+    // Typed operators retain their parents until the complete public materialization boundary.
+    // QueryResult owns its values independently; no private lease becomes part of its public API.
+    let operator_rows = rows.iter().any(|row| row.operator_memory().is_some());
+    let _operator_parents = operator_rows
+        .then(|| crate::executor::batch::OperatorMemory::hold_rows(controls, &rows))
+        .transpose()?;
+    let _output_memory = if operator_rows {
+        use crate::executor::retained_memory::{add, mul};
+        let bytes = rows.iter().try_fold(
+            mul(rows.len(), std::mem::size_of::<Vec<Value>>())?,
+            |bytes, row| {
+                add(
+                    bytes,
+                    mul(row.entries().len(), std::mem::size_of::<Value>())?,
+                )
+            },
+        )?;
+        Some(controls.reserve_query_memory(bytes)?)
+    } else {
+        None
+    };
+    let rows: Vec<Vec<Value>> = if operator_rows {
+        materialize_operator_rows(rows, keep_internal_identity_as_id, controls)?
+    } else {
+        rows.into_iter()
+            .map(|row| {
+                row.into_entries()
+                    .into_iter()
+                    .filter(|(name, _)| {
+                        keep_internal_identity_as_id
+                            || !crate::types::row_identity::is_row_identity_column(name)
+                    })
+                    .map(|(_, value)| value)
+                    .collect()
+            })
+            .collect()
+    };
 
     if rows.len() > controls.max_result_rows {
         return Err(QueryError::General(format!(
@@ -107,6 +131,37 @@ pub(super) fn build_select_result(
         rows,
         command: "SELECT".to_string(),
     })
+}
+
+fn materialize_operator_rows(
+    rows: Vec<BatchRow>,
+    keep_identity: bool,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Vec<Value>>, QueryError> {
+    let allocation_error = |error: std::collections::TryReserveError| {
+        QueryError::from(crate::app::CassieError::ResourceLimit(format!(
+            "unable to materialize typed result: {error}"
+        )))
+    };
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(rows.len())
+        .map_err(allocation_error)?;
+    for row in rows {
+        super::check_timeout(controls)?;
+        let mut values = Vec::new();
+        values
+            .try_reserve_exact(row.entries().len())
+            .map_err(allocation_error)?;
+        for (name, value) in row.into_entries() {
+            if keep_identity || !crate::types::row_identity::is_row_identity_column(&name) {
+                values.push(value);
+            }
+        }
+        output.push(values);
+    }
+    super::check_timeout(controls)?;
+    Ok(output)
 }
 
 pub(super) fn compare_query_values(left: &Value, right: &Value) -> CmpOrdering {

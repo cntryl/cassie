@@ -18,6 +18,15 @@ cross-phase visibility contract. Selection is not executed acceptance.
 | Full sort / top-k | Direct primitive columns and safely resolved passthrough aliases, ASC/DESC and explicit/default NULL order | Rich/expression keys retain existing bounded scalar authority. Preserve exact semantic numeric comparison, row identity ties and full-sort prefix pagination. |
 | Windows | ROW_NUMBER, RANK, DENSE_RANK; existing one-argument LAG/LEAD at offset1; FIRST_VALUE/LAST_VALUE direct typed payload | Primitive partition/order keys, rich key adapters. FIRST/LAST selects existing ROWS bounds with EXCLUDE NO OTHERS, default peer RANGE or whole unordered partition. Explicit RANGE offsets, GROUPS and other exclusions preserve scalar fallback. |
 
+CTE materialization bodies retain the named `scalar_cte_materialization` boundary
+for these new #760 operators. The existing private CTE plain-row/context clone
+model and its SQL values/types/visibility remain unchanged. Outer operators over
+CTE source copies also use this boundary until retained owner provenance and
+pre-conversion replacement admission are independently established. This selection
+does not promote existing CTE materialization accounting to a bounded native claim.
+A focused body-native-decline/differential and budget/cleanup probe is required;
+confirmed baseline accounting defects belong to an evidence-linked follow-up.
+
 All payload families and descriptor/carrier provenance survive views/reordering.
 NaN/signed-zero/mixed exact integers reuse existing SemanticValue policy; no new
 PostgreSQL NaN parity. ARRAY comparison remains its shared typed-element authority.

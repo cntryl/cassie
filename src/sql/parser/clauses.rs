@@ -138,19 +138,6 @@ pub(super) fn split_top_level<'a>(input: &'a str, keyword: &str) -> Option<(&'a 
     Some((&input[..start], &input[end..]))
 }
 
-pub(super) fn split_top_level_last<'a>(
-    input: &'a str,
-    keyword: &str,
-) -> Option<(&'a str, &'a str)> {
-    let mut cursor = 0;
-    let mut selected = None;
-    while let Some((start, end)) = find_top_level_keyword_span(input, cursor, keyword) {
-        selected = Some((&input[..start], &input[end..]));
-        cursor = end;
-    }
-    selected
-}
-
 pub(super) fn strip_parentheses(raw: &str) -> Option<&str> {
     let trimmed = super::lexical::trim_separators(raw);
     let close = super::lexical::matching_paren(trimmed, 0)?;

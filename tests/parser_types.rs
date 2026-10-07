@@ -1,6 +1,9 @@
 // Consolidated integration suite: parser_types.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "parser_types/dialect_syntax.rs"]
+mod dialect_syntax;
+
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/sql.rs"]

@@ -24,6 +24,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | --- | --- | --- |
 | Core reads | `SELECT`, projection, aliases, expressions, `FROM`, `WHERE`, and searched or simple `CASE` expressions. | Stable |
 | Predicates and nulls | Comparison, boolean logic, `IS NULL`, `IN`, `BETWEEN`, three-valued logic | Stable |
+| Existing operator spelling | Compact and spaced `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, and `/` share expression precedence, literal boundaries and parameter identity. Generic parser and bound-query witnesses live in `tests/parser_types/dialect_syntax.rs`; [#794](https://github.com/cntryl/cassie/issues/794) tracks qualification. | Experimental |
 | Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` | Stable |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |
 | Aggregation | `count`, `sum`, `avg`, `min`, `max`, grouping and `HAVING` | Stable |
@@ -43,6 +44,20 @@ The [finite SQL type and wire contract](type-contract.md) records current logica
 types, private wire identities, codec and metadata boundaries, exactness, NULL
 meaning and explicit exclusions. Its qualification does not promote the broader
 types/casts family.
+
+Operator spelling preserves signed literals, exponent signs, quoted identifiers
+and strings, and nested comment separators. Existing `count(*)` arguments and
+raw nested query text remain unchanged. Regex, JSON, array and concatenation
+operators remain outside this selected lexical contract; expanded cast syntax
+is tracked separately in [#796](https://github.com/cntryl/cassie/issues/796).
+Malformed exponent tokens fail parsing even when a similarly named quoted
+column exists; quoted column references and exponent-like identifiers remain
+ordinary identifier references.
+The lexical scanner skips dollar-quoted regions without admitting dollar-quoted
+scalar string literals: those still fail parameter parsing. A single sign on a
+numeric literal is supported; repeated unary-sign chains such as `n+++2` and
+`n-+-2` remain excluded. Lexical parity does not establish PostgreSQL's broader
+literal, unary-expression or postfix-cast grammar.
 
 ### JSON Document Null and SQL NULL
 

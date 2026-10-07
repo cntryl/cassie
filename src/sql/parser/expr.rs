@@ -1,4 +1,4 @@
-use super::clauses::{split_top_level, split_top_level_last, strip_parentheses};
+use super::clauses::{split_top_level, strip_parentheses};
 use super::identifiers::{normalize_identifier, parse_quoted_identifier_chain};
 use super::schema::{parse_data_type, starts_with_keyword};
 use super::{
@@ -180,17 +180,21 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         (" <=> ", BinaryOp::PgvectorCosine),
         (" <-> ", BinaryOp::PgvectorL2),
         (" <#> ", BinaryOp::PgvectorDot),
-        (" <= ", BinaryOp::Lte),
-        (" >= ", BinaryOp::Gte),
-        (" <> ", BinaryOp::NotEq),
-        (" != ", BinaryOp::NotEq),
+        ("<=", BinaryOp::Lte),
+        (">=", BinaryOp::Gte),
+        ("<>", BinaryOp::NotEq),
+        ("!=", BinaryOp::NotEq),
         (" like ", BinaryOp::Like),
-        (" = ", BinaryOp::Eq),
         ("=", BinaryOp::Eq),
-        (" < ", BinaryOp::Lt),
-        (" > ", BinaryOp::Gt),
+        ("<", BinaryOp::Lt),
+        (">", BinaryOp::Gt),
     ] {
-        if let Some((left, right)) = split_top_level(raw, op) {
+        let split = if op.starts_with(' ') {
+            split_top_level(raw, op)
+        } else {
+            super::operators::split_operator(raw, op, false)
+        };
+        if let Some((left, right)) = split {
             return Ok(Expr::Binary {
                 left: Box::new(parse_comparison_expression(left)?),
                 right: Box::new(parse_comparison_expression(right)?),
@@ -212,7 +216,7 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
 
 fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
     if let Some((left, right, op)) =
-        split_arithmetic_operator(raw, &[(" + ", BinaryOp::Add), (" - ", BinaryOp::Sub)])
+        split_arithmetic_operator(raw, &[("+", BinaryOp::Add), ("-", BinaryOp::Sub)])
     {
         return Ok(Expr::Binary {
             left: Box::new(parse_arithmetic_expression(left)?),
@@ -221,7 +225,7 @@ fn parse_arithmetic_expression(raw: &str) -> Result<Expr, SqlError> {
         });
     }
     if let Some((left, right, op)) =
-        split_arithmetic_operator(raw, &[(" * ", BinaryOp::Mul), (" / ", BinaryOp::Div)])
+        split_arithmetic_operator(raw, &[("*", BinaryOp::Mul), ("/", BinaryOp::Div)])
     {
         return Ok(Expr::Binary {
             left: Box::new(parse_arithmetic_expression(left)?),
@@ -239,7 +243,8 @@ fn split_arithmetic_operator<'a>(
     operators
         .iter()
         .filter_map(|(operator, parsed)| {
-            split_top_level_last(raw, operator).map(|(left, right)| (left, right, parsed.clone()))
+            super::operators::split_operator(raw, operator, true)
+                .map(|(left, right)| (left, right, parsed.clone()))
         })
         .max_by_key(|(left, _, _)| left.len())
 }
@@ -408,11 +413,17 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         }
         return Ok(Expr::NumberLiteral(value));
     }
+    if super::operators::numeric_exponent_prefix(raw) {
+        return Err(SqlError::new(format!("invalid numeric literal '{raw}'")));
+    }
     if let Some(exists) = parse_exists_expression(raw)? {
         return Ok(exists);
     }
     if let Some(cast) = parse_cast_expression(raw)? {
         return Ok(cast);
+    }
+    if raw != "*" && super::operators::contains_operator(raw) {
+        return Err(SqlError::new(format!("invalid expression token '{raw}'")));
     }
     if let Some(func) = parse_function(raw)? {
         return Ok(Expr::Function(func));

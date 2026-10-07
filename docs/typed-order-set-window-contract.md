@@ -158,3 +158,14 @@ source, including derived/set branches. This adds no public alias or expression
 rule. Owned alias qualification uses the shared #857 accounting handoff once its
 coherent implementation is integrated; that integration and full gates remain
 pending.
+
+The #857 integration preserves D1 lowering: positional visible names map to
+original physical fields before executor dispatch. `source_row_fields` unwraps
+Aliased sources and copies their physical descriptors; it does not rename those
+fields to the visible positional prefix. Known CTE descriptor/template admission
+must recurse through Aliased wrappers without adding renaming. Long visible
+prefixes are probed at their actual owning projection/output boundary. Runtime
+alias qualifier carriers are separate owned strings: reserve their generation
+scratch before `alias_row_qualifier`, then route owned rows through the shared
+controlled qualification helper. Keep quoted/unquoted namespace behavior and
+binder error priority, including overlong alias-list errors, unchanged.

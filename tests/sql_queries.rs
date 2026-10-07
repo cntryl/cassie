@@ -1,3 +1,6 @@
+#[path = "sql_queries/alias_integration.rs"]
+mod alias_integration;
+
 #[path = "sql_queries/conditional_expressions.rs"]
 mod sql_conditional_expressions;
 

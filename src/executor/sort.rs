@@ -278,6 +278,11 @@ pub(crate) fn maintain_top_k_kernel(
 /// Resolves an ORDER BY reference to a projection alias into the aliased
 /// expression.
 pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
+    // A qualified reference names an input relation, never an output alias.
+    if matches!(expr, Expr::Column(name) if crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified()))
+    {
+        return None;
+    }
     match expr {
         Expr::Column(alias) => projection.iter().find_map(|item| {
             let reference_key = crate::sql::ColumnIdentifierPath::reference_field_key(alias);

@@ -1,6 +1,6 @@
 use super::{
     scalar_index_plan_shape, time_series, BTreeSet, CollectionCardinalityStats, Expr, IndexKind,
-    IndexMeta, LogicalPlan, PlanEstimates, QuerySource, ScalarIndexPlanPath,
+    IndexMeta, LogicalPlan, PlanEstimates, ScalarIndexPlanPath,
 };
 use crate::catalog::name_matches;
 use std::hash::BuildHasher;
@@ -88,9 +88,7 @@ pub(crate) fn base_selected_index<S: BuildHasher>(
     not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Option<String> {
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let equality_fields = plan
         .filter
         .as_ref()
@@ -126,7 +124,7 @@ fn scalar_candidates<S: BuildHasher>(
     not_null_fields: &BTreeSet<String>,
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> Vec<IndexMeta> {
-    let QuerySource::Collection(collection) = &plan.source else {
+    let Some(collection) = crate::sql::physical_collection(&plan.source) else {
         return Vec::new();
     };
     let equality_fields = plan
@@ -141,7 +139,7 @@ fn scalar_candidates<S: BuildHasher>(
         .unwrap_or_default();
     let mut scalar = indexes
         .iter()
-        .filter(|index| *collection == index.collection && index.kind == IndexKind::Scalar)
+        .filter(|index| collection == index.collection && index.kind == IndexKind::Scalar)
         .filter(|index| partial_index_matches_query(plan.filter.as_ref(), index.predicate.as_ref()))
         .filter(|index| {
             scalar_index_matches_plan(

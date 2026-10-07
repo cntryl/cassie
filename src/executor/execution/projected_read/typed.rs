@@ -1,7 +1,7 @@
 use super::{
     point_lookup_read_spec, scan, virtual_views, BatchRow, Cassie, CassieSession,
     ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap, Instant, LogicalPlan, QueryError,
-    QueryExecutionControls, QuerySource, SelectItem, Value,
+    QueryExecutionControls, SelectItem, Value,
 };
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::executor::typed_batch::TypedBatch;
@@ -34,7 +34,7 @@ pub(super) fn try_execute(
     if !supports_plan(plan) {
         return Ok(None);
     }
-    let QuerySource::Collection(collection) = &plan.source else {
+    let Some(collection) = crate::sql::physical_collection(&plan.source) else {
         return Ok(None);
     };
     if virtual_views::schema(collection).is_some()
@@ -470,3 +470,7 @@ mod tests {
         std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
+
+#[cfg(test)]
+#[path = "typed/alias_tests.rs"]
+mod alias_tests;

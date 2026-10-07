@@ -189,10 +189,14 @@ query's visible namespace and SQL shape.
 4. Audit all exhaustive AST matches and all source/permission/cache/planner/
    executor visitors. Eligible single Collection lowering retains indexed and
    ordered physical reads, with an actual accelerator probe. Joined alias
-   wrappers keep distinct row qualifiers and the existing legal fallback where
-   a specialization only admits Collection legs. Scalar and relational visitor
-   integration must be reconciled before full gates; do not infer accelerator
-   coverage from a generic fallback result.
+   wrappers keep distinct row qualifiers while a private Collection-identity
+   helper retains already-admitted typed/hash and projected/indexed capabilities.
+   Wrapper presence alone is not a fallback reason. Existing type, source-family,
+   resource and kernel capability boundaries still decline by their existing
+   laws. Scalar and relational visitors are reconciled on prepared base
+   `0211d09a653044f47d22c086b31ac97c9e20af7b`; final focused verification and
+   complete gates remain pending. Do not infer accelerator coverage from a
+   generic fallback result.
 5. Completed focused indexed/identity/cache/authorization and portal probes use
    `SELECT r.key, r.score FROM records AS r(key) ORDER BY r.score, r._id LIMIT $1 OFFSET $2`
    against a no-declared-id indexed table. Check BIGINT descriptors, actual identity
@@ -250,3 +254,33 @@ compatibility disposition, then run the standing full gates in order. Required
 complete build/tests/pedantic clippy/fmt/test-policy, exact final-head review,
 publication, merge and issue readback remain pending. No source commit or PR
 is created by this handoff.
+
+## Private integration acceptance on 2026-10-07
+
+The D1/D2 candidate integrates prepared scalar/conditional/cache visitors and
+#758/#759 on private base `0211d09a653044f47d22c086b31ac97c9e20af7b`. Complete
+binding still precedes one conditional normalization pass; scalar-generated
+origin markers, cache semantic epoch 4 and the selected public 0.2 boundary
+remain intact. Publication still requires prerequisite bundle merge/readback
+and the integration owner's complete ordered gates.
+
+Four focused shared-boundary probes pass: scalar origin/conditional normalization
+through aliased CTEs and evaluated bounds; ordinary and genuinely renamed prefix
+aliases on the admitted typed-hash path against disabled-native and unaliased
+controls; qualified ORDER BY versus an output-label collision on the same actual
+ordered index path; and exact quoted physical payload projection with BIGINT
+descriptors on that index path. The last three include genuine failing evidence
+before their private identity/canonical-field/namespace handoff fixes.
+
+Jev selected preservation of already-admitted Collection capabilities with
+probability 1.0 and assigned quoted-field handoff risk 0.74. The required quoted
+probe exposed double quoting in binder validation and missing runtime aliases
+for physically projected rows; both now pass without changing stored fields or
+SQL-visible names. Qualified-star syntax remains the owning #795 exclusion.
+The pre-existing unsupported outer reference inside a nested JOIN ON remains
+a matched alias/unaliased decline; this slice adds no correlation or kernel
+family beyond the selected contracts.
+
+Final focused sibling checks and parent-owned build, full tests, pedantic Clippy,
+format check and touched-test validation are pending on the final immutable
+integration head. These four local probes are not publication or closure proof.

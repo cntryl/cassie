@@ -2,7 +2,7 @@ use super::{
     batch, catalog, ensure_query_memory_budget, filter, projection,
     reserve_projection_output_before_building, scan, sort, virtual_views, BatchRow, BinaryOp,
     Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap, Instant,
-    LogicalPlan, QueryError, QueryExecutionControls, QuerySource, SelectItem, Value,
+    LogicalPlan, QueryError, QueryExecutionControls, SelectItem, Value,
 };
 
 mod breakdown;
@@ -195,10 +195,21 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     finalization: ProjectedReadFinalization<'_>,
     batches: &mut Vec<Vec<BatchRow>>,
 ) -> Result<Vec<BatchRow>, QueryError> {
-    if let QuerySource::Collection(collection) = &finalization.plan.source {
+    if let Some(collection) = crate::sql::physical_collection(&finalization.plan.source) {
         let schema = finalization.cassie.catalog.get_schema(collection);
         for row in batches.iter_mut().flatten() {
             scan::attach_row_types(row, schema.as_ref());
+        }
+    }
+    if let crate::sql::ast::QuerySource::Aliased { alias, .. } = &finalization.plan.source {
+        // Physical reads use canonical stored field keys. Retain the source's
+        // namespace as row aliases before evaluating qualified expressions.
+        let qualifier = crate::sql::binder::alias_row_qualifier(alias);
+        for batch in &mut *batches {
+            *batch = std::mem::take(batch)
+                .into_iter()
+                .map(|row| super::source::qualify_row(row, &qualifier))
+                .collect();
         }
     }
     let mut batch_memory = ensure_query_memory_budget(finalization.controls, batches)?;
@@ -355,9 +366,7 @@ pub(super) fn projected_filtered_read_spec(
         return None;
     }
 
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let filter_columns = match plan.filter.as_ref() {
         Some(filter) => projected_scan_filter_columns(filter)?,
         None => Vec::new(),
@@ -381,6 +390,7 @@ pub(super) fn projected_filtered_read_spec(
         .chain(filter_columns)
         .chain(order_columns)
     {
+        let column = crate::sql::ColumnIdentifierPath::reference_field_key(&column);
         if is_row_id_column(&column) || scan_fields.contains(&column) {
             continue;
         }
@@ -523,9 +533,7 @@ fn sort_projected_batches(
 }
 
 fn covering_index_for_plan(cassie: &Cassie, plan: &LogicalPlan) -> Option<catalog::IndexMeta> {
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let indexes = cassie.catalog.list_indexes(collection);
     let cardinality_stats =
         std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
@@ -547,9 +555,7 @@ fn selected_scalar_index_for_plan(
     cassie: &Cassie,
     plan: &LogicalPlan,
 ) -> Option<catalog::IndexMeta> {
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let indexes = cassie.catalog.list_indexes(collection);
     let cardinality_stats =
         std::collections::HashMap::<String, crate::catalog::CollectionCardinalityStats>::new();
@@ -583,10 +589,7 @@ fn projected_result_scan_limit(
 }
 
 fn heap_top_k_collection(plan: &LogicalPlan) -> Option<String> {
-    match &plan.source {
-        QuerySource::Collection(collection) => Some(collection.to_string()),
-        _ => None,
-    }
+    crate::sql::physical_collection(&plan.source).map(str::to_string)
 }
 
 pub(super) fn projected_scan_pushdown_filter(expr: &Expr) -> Option<scan::ProjectedDocumentFilter> {

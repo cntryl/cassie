@@ -361,6 +361,9 @@ fn should_order_by_explicit_output_alias_before_the_source_alias_column() {
     let expressions =
         fixture.execute("SELECT r.key+1 AS amount FROM records r(key, amount) ORDER BY amount");
 
+    let source_order =
+        fixture.execute("SELECT r.key AS score FROM records r(key,amount) ORDER BY r.amount");
+
     // Assert
     assert_eq!(
         rows.expect("output alias order").rows,
@@ -369,6 +372,12 @@ fn should_order_by_explicit_output_alias_before_the_source_alias_column() {
     assert_eq!(
         expressions.expect("expression output alias order").rows,
         vec![vec![Value::Int64(2)], vec![Value::Int64(3)]]
+    );
+    assert_eq!(
+        source_order
+            .expect("qualified source precedes colliding output label")
+            .rows,
+        vec![vec![Value::Int64(2)], vec![Value::Int64(1)]]
     );
 }
 

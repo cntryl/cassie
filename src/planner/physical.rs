@@ -580,7 +580,7 @@ fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
         return false;
     }
 
-    if !matches!(plan.source, QuerySource::Collection(_)) {
+    if crate::sql::physical_collection(&plan.source).is_none() {
         return false;
     }
     if plan.projection.is_empty()
@@ -608,7 +608,7 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         return None;
     }
 
-    if !matches!(plan.source, QuerySource::Collection(_)) {
+    if crate::sql::physical_collection(&plan.source).is_none() {
         return None;
     }
 
@@ -636,6 +636,7 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         .chain(filter_columns)
         .chain(order_columns)
     {
+        let column = crate::sql::ColumnIdentifierPath::reference_field_key(&column);
         if is_row_id_column(&column) || fields.iter().any(|field: &String| field == &column) {
             continue;
         }

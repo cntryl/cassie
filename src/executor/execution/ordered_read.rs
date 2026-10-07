@@ -1,7 +1,7 @@
 use super::{
     batch, check_timeout, compare_query_values, scan, BatchRow, BinaryHeap, BinaryOp, Cassie,
-    CassieSession, CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, QuerySource,
-    SelectItem, SortDirection, Value,
+    CassieSession, CmpOrdering, CollectionSchema, Expr, LogicalPlan, QueryError, SelectItem,
+    SortDirection, Value,
 };
 use crate::midge::adapter::{DocumentRef, OrderedRowBound, RowDecode};
 use crate::runtime::accounted::{Accounted, AccountedVec};
@@ -38,7 +38,7 @@ fn execute_ordered_column_top_k_with_projection_probe(
     controls: &QueryExecutionControls,
     mut projection_probe: impl FnMut() -> Result<(), crate::app::CassieError>,
 ) -> Result<Option<Vec<BatchRow>>, QueryError> {
-    if let QuerySource::Collection(collection) = &plan.source {
+    if let Some(collection) = crate::sql::physical_collection(&plan.source) {
         if cassie
             .catalog
             .collection_storage_mode(collection)
@@ -199,14 +199,18 @@ impl OrderedColumnTopKSpec<'_> {
     ) -> Result<AccountedVec<String>, QueryError> {
         let mut fields = AccountedVec::try_new(controls)?;
         if !super::projected_read::is_row_id_column(self.order_column) {
-            fields.try_push_with(self.order_column.len(), || self.order_column.to_owned())?;
+            fields.try_push_with(self.order_column.len(), || {
+                crate::sql::ColumnIdentifierPath::reference_field_key(self.order_column)
+            })?;
         }
         for item in self.projection {
             if let SelectItem::Column { name, .. } = item {
                 if !super::projected_read::is_row_id_column(name)
                     && !fields.as_slice().contains(name)
                 {
-                    fields.try_push_clone(name, name.len())?;
+                    fields.try_push_with(name.len(), || {
+                        crate::sql::ColumnIdentifierPath::reference_field_key(name)
+                    })?;
                 }
             }
         }
@@ -269,7 +273,9 @@ impl OrderedRowIdPageSpec<'_> {
         for item in self.projection {
             if let SelectItem::Column { name, .. } = item {
                 if !super::projected_read::is_row_id_column(name) {
-                    fields.try_push_clone(name, name.len())?;
+                    fields.try_push_with(name.len(), || {
+                        crate::sql::ColumnIdentifierPath::reference_field_key(name)
+                    })?;
                 }
             }
         }
@@ -309,9 +315,7 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
         return None;
     }
 
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let limit = usize::try_from(plan.limit_value()?).ok()?;
     let offset = plan
         .offset_value()
@@ -359,9 +363,7 @@ fn ordered_row_id_page_spec<'a>(
         return None;
     }
 
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let Expr::Column(order_column) = &plan.order[0].expr else {
         return None;
     };
@@ -494,7 +496,7 @@ fn accounted_ordered_projection(
                 .checked_add(output_name.len())
                 .ok_or_else(ordered_accounting_overflow)?;
             columns.try_push_with(bytes, || OrderedProjectionColumn {
-                name: name.clone(),
+                name: crate::sql::ColumnIdentifierPath::reference_field_key(name),
                 output_name: output_name.clone(),
             })?;
         }

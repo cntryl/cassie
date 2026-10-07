@@ -9,7 +9,9 @@ mod column_identifier;
 pub mod functions;
 pub(crate) mod pagination;
 pub mod parser;
+mod source_identity;
 mod source_types;
+pub(crate) use source_identity::physical_collection;
 pub(crate) use source_types::source_field_type_map_with_ctes;
 
 pub use ast::{

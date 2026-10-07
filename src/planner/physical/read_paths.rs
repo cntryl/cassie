@@ -35,7 +35,7 @@ pub(super) fn determine_read_access_path(
         };
     }
 
-    if matches!(&plan.source, QuerySource::Collection(_)) {
+    if crate::sql::physical_collection(&plan.source).is_some() {
         return ReadAccessPath::CollectionScan;
     }
 
@@ -224,7 +224,7 @@ pub(super) fn read_access_path_fallback_reason(
 fn supports_scan_limit_early_stop(plan: &LogicalPlan) -> bool {
     if plan.filter.is_some()
         || !plan.order.is_empty()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || !is_row_projection(plan)
     {
         return false;
@@ -247,7 +247,7 @@ fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
     {
         return false;
     }
@@ -295,7 +295,7 @@ fn is_row_id_ordered_page_candidate(plan: &LogicalPlan) -> bool {
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || !is_row_projection(plan)
         || !is_row_id_ordering(plan)
         || plan.limit_value().is_none()

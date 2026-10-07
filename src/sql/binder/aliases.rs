@@ -341,7 +341,9 @@ pub(super) fn lower_select(
     let correlated = select.filter.as_ref().is_some_and(|expr| {
         expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)))
     });
+    let output_aliases = super::collect_projection_aliases(select);
     let single = !correlated
+        && !qualified_order_collision(select, &spaces, &output_aliases)
         && matches!(&select.source, QuerySource::Aliased { source, .. }
         if matches!(source.as_ref(), QuerySource::Collection(_)));
     let has_declared_id = spaces
@@ -351,7 +353,6 @@ pub(super) fn lower_select(
             ColumnIdentifierPath::parse(physical)
                 .is_ok_and(|path| path.final_name().eq_ignore_ascii_case("id"))
         });
-    let output_aliases = super::collect_projection_aliases(select);
     let mut projection = Vec::new();
     for mut item in std::mem::take(&mut select.projection) {
         if matches!(item, SelectItem::Wildcard) {
@@ -483,4 +484,21 @@ pub(super) fn lower_lateral(
         _ => {}
     }
     Ok(())
+}
+
+/// Keep a source namespace when physical lowering would erase ORDER provenance.
+fn qualified_order_collision(
+    select: &SelectStatement,
+    spaces: &[Namespace],
+    output_aliases: &super::HashSet<String>,
+) -> bool {
+    select.order.iter().any(|order| {
+        let Expr::Column(name) = &order.expr else {
+            return false;
+        };
+        ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified())
+            && reference(name, spaces, true).is_ok_and(|physical| {
+                output_aliases.contains(&ColumnIdentifierPath::reference_field_key(&physical))
+            })
+    })
 }

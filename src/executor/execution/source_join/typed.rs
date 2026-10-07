@@ -237,10 +237,13 @@ fn transport_types(
     source: Option<&super::QuerySource>,
 ) -> Result<Option<TransportTypes>, QueryError> {
     let first = &rows[0];
-    let source = match source {
-        Some(super::QuerySource::Collection(name)) => Some(name),
-        None => None,
-        _ => return Ok(None),
+    let source = if let Some(source) = source {
+        let Some(collection) = crate::sql::physical_collection(source) else {
+            return Ok(None);
+        };
+        Some(collection)
+    } else {
+        None
     };
     let (schema, _schema_memory) = if let Some(name) = source {
         match env

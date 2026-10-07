@@ -1,4 +1,4 @@
-use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan, QuerySource};
+use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan};
 use crate::sql::ast::{NullsOrder, OrderExpr, SortDirection};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -69,7 +69,7 @@ pub(crate) fn scalar_index_plan_shape(
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || index.kind != IndexKind::Scalar
     {
         return None;

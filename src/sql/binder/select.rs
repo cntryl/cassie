@@ -685,8 +685,12 @@ pub(super) fn source_fields(
         QuerySource::Aliased { source, alias, .. } => {
             let names = super::aliases::columns(source, &[], catalog, scope)?;
             let qualifier = super::aliases::qualifier(alias);
-            let mut fields =
-                qualified_fields(&qualifier, names.into_iter().map(|(_, physical)| physical));
+            // Alias columns already contain canonical SQL field keys. Do not
+            // quote those keys again as literal catalog field spellings.
+            let mut fields = names
+                .into_iter()
+                .flat_map(|(_, physical)| [physical.clone(), format!("{qualifier}.{physical}")])
+                .collect::<HashSet<_>>();
             if matches!(source.as_ref(), QuerySource::Collection(_)) {
                 fields.extend(qualified_fields(
                     &qualifier,

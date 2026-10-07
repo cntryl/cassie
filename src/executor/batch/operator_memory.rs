@@ -68,6 +68,52 @@ impl OperatorMemory {
 }
 
 impl BatchRow {
+    /// Admission for an existing body that arrived without any retained source/operator owner.
+    pub(crate) fn unleased_body_bytes(&self) -> Result<usize, CassieError> {
+        use crate::executor::retained_memory::{
+            add, data_type_clone_bytes, hash_table_bytes, mul, value_clone_bytes,
+        };
+        use crate::types::{DataType, Value};
+        if self.query_memory.is_some() || self.operator_memory.is_some() {
+            return Ok(0);
+        }
+        let mut bytes = add(
+            mul(self.values.capacity(), size_of::<(String, Value)>())?,
+            mul(self.aliases.capacity(), size_of::<(String, usize)>())?,
+        )?;
+        for (name, value) in &self.values {
+            bytes = add(bytes, add(name.capacity(), value_clone_bytes(value)?)?)?;
+        }
+        for (name, _) in &self.aliases {
+            bytes = add(bytes, name.capacity())?;
+        }
+        if let Some(lookup) = self.lookup.get() {
+            bytes = add(
+                bytes,
+                hash_table_bytes::<(String, usize)>(lookup.capacity())?,
+            )?;
+            for name in lookup.keys() {
+                bytes = add(bytes, name.capacity())?;
+            }
+        }
+        if let Some(types) = &self.data_types {
+            bytes = add(
+                bytes,
+                add(
+                    size_of::<Vec<DataType>>() + 2 * size_of::<usize>(),
+                    mul(types.capacity(), size_of::<DataType>())?,
+                )?,
+            )?;
+            for data_type in types.iter() {
+                bytes = add(bytes, data_type_clone_bytes(data_type)?)?;
+            }
+        }
+        if let Some(outer) = &self.outer_scope {
+            bytes = add(bytes, outer.unleased_body_bytes()?)?;
+        }
+        Ok(bytes)
+    }
+
     pub(crate) fn retain_operator_memory(
         mut self,
         controls: &QueryExecutionControls,

@@ -27,6 +27,14 @@ does not promote existing CTE materialization accounting to a bounded native cla
 A focused body-native-decline/differential and budget/cleanup probe is required;
 confirmed baseline accounting defects belong to an evidence-linked follow-up.
 
+Primitive keys use declared metadata when it agrees with their physical carriers.
+Rows without metadata qualify only after every cell has been inspected: homogeneous
+non-NULL integer, FLOAT or BOOLEAN cells select their private physical carrier;
+all-NULL keys select private Null. Within-column integer/FLOAT mixtures and
+NULL-first rich keys decline before native conversion. Independently typed set
+branches retain exact shared numeric equality. This physical inference never
+changes an output row's logical descriptor or scalar carrier.
+
 All payload families and descriptor/carrier provenance survive views/reordering.
 NaN/signed-zero/mixed exact integers reuse existing SemanticValue policy; no new
 PostgreSQL NaN parity. ARRAY comparison remains its shared typed-element authority.
@@ -53,7 +61,11 @@ requires new admission. Budget/overflow failures are controlled errors, without
 partial native output or success diagnostics. Retain every parent lease until
 its last output view drops. Huge-parent/small-winner probes must verify honest
 parent retention, budget denial and release, rather than assume compaction.
-Cancellation/deadline checks occur during keys, partition work and handoff.
+Sequential FLOAT key normalization/comparison admits64bytes of formatter scratch;
+the shared finite ±2^63 guard limits its integral formatting to20characters.
+This is a conservative sequential scratch bound, not a parallel or arbitrary
+FLOAT decimal-format bound. Cancellation/deadline checks occur during keys,
+partition work and handoff.
 
 ## Finite invariant acceptance plan
 

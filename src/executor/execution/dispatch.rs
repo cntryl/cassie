@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "dispatch/relational_boundary_tests.rs"]
+mod relational_boundary_tests;
+
 use super::types::ExecutionBreakdownDurations;
 use super::{
     analytical_projection, batch, execute_cte, index_read, ordered_read, plan_inspection,
@@ -230,14 +234,46 @@ fn execute_plan_with_physical(
             .runtime
             .record_mixed_execution_fallback(plan.collection.clone(), reason);
     }
+    let relational_controls =
+        plan_has_cte_boundary(plan).then(|| env.controls.for_relational_scalar_cte());
     let source_env = source::source_execution_env(
         env.cassie,
         env.session,
         env.user_functions,
         env.params,
-        env.controls,
+        relational_controls.as_ref().unwrap_or(env.controls),
     );
     source::execute_source_query_with_outer_row(&source_env, plan, cte_context, outer_row)
+}
+
+fn plan_has_cte_boundary(plan: &LogicalPlan) -> bool {
+    source_has_cte_boundary(&plan.source)
+        || plan
+            .set
+            .as_ref()
+            .is_some_and(|set| select_has_cte_boundary(&set.right))
+}
+
+fn select_has_cte_boundary(select: &crate::sql::ast::SelectStatement) -> bool {
+    source_has_cte_boundary(&select.source)
+        || select
+            .set
+            .as_ref()
+            .is_some_and(|set| select_has_cte_boundary(&set.right))
+}
+
+fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> bool {
+    use crate::sql::ast::QuerySource;
+    match source {
+        QuerySource::Cte(_) => true,
+        QuerySource::Join { left, right, .. } => {
+            source_has_cte_boundary(left) || source_has_cte_boundary(right)
+        }
+        QuerySource::Subquery { select, .. } => select_has_cte_boundary(select),
+        QuerySource::Collection(_) | QuerySource::TableFunction { .. } | QuerySource::SingleRow => {
+            false
+        }
+    }
 }
 
 pub(super) fn preferred_access_path_route(

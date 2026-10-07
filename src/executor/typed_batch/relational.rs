@@ -45,8 +45,18 @@ impl TupleKeys {
             size_of::<Vec<SemanticValue>>(),
             mul(columns.len(), size_of::<SemanticValue>())?,
         )?;
-        let memory = controls
-            .reserve_query_memory(mul(batch.len(), add(row_bytes, 2 * size_of::<usize>())?)?)?;
+        let float_scratch = if columns
+            .iter()
+            .any(|column| batch.schema()[*column].1 == DataType::Float)
+        {
+            64
+        } else {
+            0
+        };
+        let memory = controls.reserve_query_memory(add(
+            mul(batch.len(), add(row_bytes, 2 * size_of::<usize>())?)?,
+            float_scratch,
+        )?)?;
         let mut values = Vec::with_capacity(batch.len());
         for lane in 0..batch.len() {
             check_controls(controls)?;
@@ -74,6 +84,51 @@ impl TupleKeys {
                 key.push(value);
             }
             values.push(key);
+        }
+        Ok(Self {
+            values,
+            _memory: memory,
+        })
+    }
+
+    pub(crate) fn scalar_rows(
+        controls: &QueryExecutionControls,
+        rows: &[crate::executor::batch::BatchRow],
+    ) -> Result<Self, QueryError> {
+        check_controls(controls)?;
+        let bytes = rows.iter().try_fold(
+            mul(
+                rows.len(),
+                add(size_of::<Vec<SemanticValue>>(), 2 * size_of::<usize>())?,
+            )?,
+            |bytes, row| {
+                row.entries().iter().try_fold(bytes, |bytes, (_, value)| {
+                    add(
+                        bytes,
+                        add(size_of::<SemanticValue>(), scalar_heap_bytes(value)?)?,
+                    )
+                })
+            },
+        )?;
+        let float_scratch = if rows.iter().any(|row| {
+            row.entries()
+                .iter()
+                .any(|(_, value)| matches!(value, Value::Float64(_)))
+        }) {
+            64
+        } else {
+            0
+        };
+        let memory = controls.reserve_query_memory(add(bytes, float_scratch)?)?;
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            check_controls(controls)?;
+            let mut tuple = Vec::with_capacity(row.entries().len());
+            for (_, value) in row.entries() {
+                check_controls(controls)?;
+                tuple.push(SemanticValue::from_value(value));
+            }
+            values.push(tuple);
         }
         Ok(Self {
             values,
@@ -134,12 +189,24 @@ pub(crate) fn set_selection(
     let columns = (0..width).collect::<Vec<_>>();
     let left_keys = TupleKeys::new(controls, left, &columns)?;
     let right_keys = TupleKeys::new(controls, right, &columns)?;
-    let total = add(left.len(), right.len())?;
+    set_positions(controls, &left_keys, &right_keys, operator)
+}
+
+pub(crate) fn set_positions(
+    controls: &QueryExecutionControls,
+    left_keys: &TupleKeys,
+    right_keys: &TupleKeys,
+    operator: SetOperator,
+) -> Result<Accounted<Vec<(bool, usize)>>, QueryError> {
+    check_controls(controls)?;
+    let left_len = left_keys.values.len();
+    let right_len = right_keys.values.len();
+    let total = add(left_len, right_len)?;
     let memory = controls.reserve_query_memory(owner_bytes::<Vec<(bool, usize)>>(mul(
         total,
         size_of::<(bool, usize)>(),
     )?)?)?;
-    let mut right_positions = (0..right.len()).collect::<Vec<_>>();
+    let mut right_positions = (0..right_len).collect::<Vec<_>>();
     right_positions
         .sort_unstable_by(|left, right| right_keys.values[*left].cmp(&right_keys.values[*right]));
     let contains = |key: &Vec<SemanticValue>| {
@@ -148,7 +215,7 @@ pub(crate) fn set_selection(
             .is_ok()
     };
     let mut output = Vec::with_capacity(total);
-    for lane in 0..left.len() {
+    for lane in 0..left_len {
         check_controls(controls)?;
         let include = match operator {
             SetOperator::Intersect => contains(&left_keys.values[lane]),
@@ -160,7 +227,7 @@ pub(crate) fn set_selection(
         }
     }
     if matches!(operator, SetOperator::Union | SetOperator::UnionAll) {
-        output.extend((0..right.len()).map(|lane| (true, lane)));
+        output.extend((0..right_len).map(|lane| (true, lane)));
     }
     let key = |entry: &(bool, usize)| {
         if entry.0 {
@@ -175,4 +242,17 @@ pub(crate) fn set_selection(
         output.dedup_by(|right, left| key(right) == key(left));
     }
     Ok(super::admitted(output, memory))
+}
+
+fn scalar_heap_bytes(value: &Value) -> Result<usize, crate::app::CassieError> {
+    match value {
+        Value::String(text) => mul(text.len().max(27), 2),
+        Value::Vector(vector) => mul(vector.values.len(), size_of::<u32>()),
+        Value::Json(value) => Ok(mul(
+            crate::executor::retained_memory::serialized_json_bytes(value)?,
+            2,
+        )?
+        .max(128)),
+        Value::Null | Value::Bool(_) | Value::Int64(_) | Value::Float64(_) => Ok(0),
+    }
 }

@@ -13,6 +13,9 @@ pub(crate) fn from_rows(
     columns: &[usize],
 ) -> Result<Option<TypedBatch>, QueryError> {
     check_controls(controls)?;
+    if controls.uses_relational_cte_boundary() {
+        return Ok(None);
+    }
     // Complete eligibility without allocating or consuming input. Mixed physical variants decline
     // rather than coercing exact integers through FLOAT; each set branch infers independently.
     for column in columns {

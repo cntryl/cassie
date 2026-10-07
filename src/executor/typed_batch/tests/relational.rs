@@ -122,3 +122,74 @@ fn should_match_set_multiplicity_with_exact_numeric_equivalence() {
     drop((union, intersect, except, all, left, right));
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_float_canonicalization_scratch_before_constructing_tuple_keys() {
+    // Arrange
+    use crate::executor::semantic::SemanticValue;
+    use std::mem::size_of;
+    let limits = CassieRuntimeLimits::default();
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let batch = TypedBatch::from_columns(
+        &controls,
+        &[("n".into(), DataType::Float)],
+        &[vec![Value::Float64(-9_223_372_036_854_775_808.0)]],
+        1,
+        None,
+    )
+    .expect("FLOAT source");
+    let key_backing =
+        size_of::<Vec<SemanticValue>>() + size_of::<SemanticValue>() + 2 * size_of::<usize>();
+    let pressure = controls
+        .reserve_query_memory(
+            limits.query_memory_budget_bytes
+                - controls.current_query_memory_bytes()
+                - key_backing
+                - 63,
+        )
+        .expect("scratch pressure");
+    let before = controls.current_query_memory_bytes();
+    // Act
+    let result = super::super::relational::TupleKeys::new(&controls, &batch, &[0]);
+    // Assert
+    assert!(matches!(
+        result.map_err(crate::app::CassieError::from),
+        Err(crate::app::CassieError::ResourceLimit(_))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), before);
+    drop(pressure);
+    drop(batch);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_deny_escaped_json_semantic_keys_before_serialized_key_construction() {
+    // Arrange
+    use crate::executor::batch::BatchRow;
+    use crate::executor::semantic::SemanticValue;
+    use std::mem::size_of;
+    let controls =
+        QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
+    let json = serde_json::json!({"escaped": "\\\"\n".repeat(257), "array": [1, null]});
+    let serialized = serde_json::to_string(&json).expect("key oracle");
+    let input = vec![BatchRow::new(vec![("j".into(), Value::Json(json.clone()))])];
+    let key_bytes = size_of::<Vec<SemanticValue>>()
+        + size_of::<SemanticValue>()
+        + 2 * size_of::<usize>()
+        + (2 * serialized.len()).max(128);
+    let pressure = controls
+        .reserve_query_memory(controls.query_memory_budget_bytes - key_bytes + 1)
+        .expect("key pressure");
+    let before = controls.current_query_memory_bytes();
+    // Act
+    let result = super::super::relational::TupleKeys::scalar_rows(&controls, &input);
+    // Assert
+    assert!(matches!(
+        result.map_err(crate::app::CassieError::from),
+        Err(crate::app::CassieError::ResourceLimit(_))
+    ));
+    assert_eq!(controls.current_query_memory_bytes(), before);
+    assert_eq!(input[0].entries()[0].1, Value::Json(json));
+    drop(pressure);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

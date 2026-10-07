@@ -1,3 +1,10 @@
+#[path = "source_rows/typed.rs"]
+mod typed;
+
+#[cfg(test)]
+#[path = "source_rows/typed_tests.rs"]
+mod typed_tests;
+
 #[cfg(test)]
 #[path = "source_rows/operator_memory_tests.rs"]
 mod operator_memory_tests;
@@ -223,6 +230,9 @@ pub(super) fn distinct_batches(
     batches: Vec<Batch>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
+    if !controls.uses_relational_cte_boundary() {
+        return typed::distinct_batches(batches, controls);
+    }
     // Keep the first occurrence of each row in input order: the input is
     // already sorted by ORDER BY, and DISTINCT must not reorder it.
     let mut seen = HashSet::<SemanticKey>::new();
@@ -241,6 +251,11 @@ pub(super) fn distinct_batches(
             rows.push(row);
         }
     }
+    super::check_timeout(controls)?;
+    crate::executor::typed_batch::relational_diagnostics::publish(
+        "distinct",
+        "scalar_cte_materialization",
+    );
     Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
 }
 
@@ -294,8 +309,11 @@ pub(super) fn apply_set_operation(
 ) -> Result<Vec<BatchRow>, QueryError> {
     super::check_timeout(controls)?;
     validate_set_width(&left, &right)?;
+    if !controls.uses_relational_cte_boundary() {
+        return typed::set(left, right, left_output_names, set.operator, controls);
+    }
     let right = rekey_set_rows(left_output_names, right);
-    match set.operator {
+    let output: Result<_, QueryError> = match set.operator {
         SetOperator::UnionAll => {
             let mut rows = left;
             rows.extend(right);
@@ -353,7 +371,14 @@ pub(super) fn apply_set_operation(
             }
             Ok(unique.into_values().collect())
         }
-    }
+    };
+    let output = output?;
+    super::check_timeout(controls)?;
+    crate::executor::typed_batch::relational_diagnostics::publish(
+        "set",
+        "scalar_cte_materialization",
+    );
+    Ok(output)
 }
 
 fn set_signatures(

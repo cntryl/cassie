@@ -177,6 +177,7 @@ fn execute_cte_plan(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<CteRows, QueryError> {
+    let controls = controls.for_relational_scalar_cte();
     execute_plan(
         cassie,
         session,
@@ -184,7 +185,7 @@ fn execute_cte_plan(
         context,
         user_functions,
         params,
-        controls,
+        &controls,
     )
     .map(|rows| rows.into_iter().map(BatchRow::into_entries).collect())
 }

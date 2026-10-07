@@ -1,3 +1,6 @@
+#[path = "tests/relational.rs"]
+mod relational;
+
 #[path = "tests/boundaries.rs"]
 mod boundaries;
 

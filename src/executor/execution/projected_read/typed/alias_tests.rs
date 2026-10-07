@@ -14,9 +14,9 @@ fn should_retain_typed_scan_projection_for_collection_alias_variants() {
         cassie.execute_sql(&session, sql, vec![]).expect("setup");
     }
     let queries = [
-        "SELECT n FROM records WHERE n>=10 LIMIT 1",
-        "SELECT r.n FROM records r WHERE r.n>=10 LIMIT 1",
-        "SELECT r.amount FROM records r(key,amount) WHERE r.amount>=10 LIMIT 1",
+        "SELECT n FROM records WHERE n>=10 LIMIT 2",
+        "SELECT r.n FROM records r WHERE r.n>=10 LIMIT 2",
+        "SELECT r.amount FROM records r(key,amount) WHERE r.amount>=10 LIMIT 2",
     ];
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
 
@@ -39,9 +39,19 @@ fn should_retain_typed_scan_projection_for_collection_alias_variants() {
     // Assert
     for (sql, result) in queries.iter().zip(results) {
         let rows = result.expect(sql).expect("existing typed capability").0;
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].entries()[0].1, Value::Int64(10));
-        assert_eq!(rows[0].data_types(), &[crate::types::DataType::BigInt]);
+        assert_eq!(rows.len(), 2);
+        let mut values = rows
+            .iter()
+            .map(|row| {
+                assert_eq!(row.data_types(), &[crate::types::DataType::BigInt]);
+                let Value::Int64(value) = &row.entries()[0].1 else {
+                    panic!("typed projection must preserve the BIGINT value");
+                };
+                *value
+            })
+            .collect::<Vec<_>>();
+        values.sort_unstable();
+        assert_eq!(values, [10, 20]);
     }
     assert_eq!(controls.current_query_memory_bytes(), 0);
     drop((session, cassie));

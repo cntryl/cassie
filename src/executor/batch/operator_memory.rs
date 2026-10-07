@@ -114,6 +114,22 @@ impl BatchRow {
         Ok(bytes)
     }
 
+    pub(crate) fn append_slot_backing_bytes(&self) -> Result<usize, CassieError> {
+        if self.values.len() < self.values.capacity() {
+            return Ok(0);
+        }
+        crate::executor::retained_memory::mul(
+            crate::executor::retained_memory::add(self.values.len(), 1)?,
+            size_of::<(String, crate::types::Value)>(),
+        )
+    }
+
+    pub(crate) fn reserve_append_slot(&mut self) -> Result<(), CassieError> {
+        self.values.try_reserve_exact(1).map_err(|error| {
+            CassieError::ResourceLimit(format!("unable to retain window output slot: {error}"))
+        })
+    }
+
     pub(crate) fn retain_operator_memory(
         mut self,
         controls: &QueryExecutionControls,

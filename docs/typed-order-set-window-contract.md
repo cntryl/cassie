@@ -41,6 +41,30 @@ boundaries are explicit unpromoted dispositions for VEX-14 and VEX-22; selected
 primitive/direct-rich order paths must satisfy both invariants. Empty selected
 relational inputs check query controls and return without operator allocation.
 
+Windows select the entire projection before any native key/payload conversion.
+A non-direct partition/order expression or value argument retains
+`scalar_expression_window`; an unselected frame retains `scalar_window_frame`.
+Their existing scalar values, descriptors and frame laws remain supported, with
+no native/bounded admission promotion. The finite FIRST/LAST selection is explicit
+ROWS with NO OTHERS or an omitted frame's default peer RANGE/whole unordered
+partition; other explicit RANGE/GROUPS/exclusions stay at the scalar boundary.
+LAG/LEAD selects exactly one direct argument and the existing fixed offset1.
+
+Primitive partition/order/ranking work reads typed primitive cells. Direct value
+windows preserve the existing original Value and declared descriptor through a
+private ScalarBacked payload column; this is a typed transport/semantic adapter,
+not codec-native rich payload storage. Diagnostics distinguish
+`native_primitive_keys` from `native_primitive_keys_scalar_backed_payload`, and
+`bounded_semantic_keys` from `bounded_semantic_keys_scalar_backed_payload`.
+Direct rich partition equality retains the existing shared scalar signature;
+direct rich ordering and peers retain the existing ARRAY-aware authority. Peer
+boundaries exclude identity ties. Admit partition/indices/peers, key scratch,
+copied payloads, selected output clones, row-entry growth/descriptors and old/new
+backing before construction; retain prior/source owners across in-place append.
+Excluded window/CTE paths are unpromoted VEX-15/VEX-22 dispositions. Selected
+windows require actual scalar/frame differential, partition/peer/NULL/out-of-range,
+parent/old-new/budget/cancel/drop evidence before acceptance.
+
 Primitive keys use declared metadata when it agrees with their physical carriers.
 Rows without metadata qualify only after every cell has been inspected: homogeneous
 non-NULL integer, FLOAT or BOOLEAN cells select their private physical carrier;

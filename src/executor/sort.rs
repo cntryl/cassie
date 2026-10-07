@@ -17,7 +17,7 @@ mod tests;
 
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
-mod accounting;
+pub(crate) mod accounting;
 mod typed;
 #[cfg(test)]
 mod typed_tests;

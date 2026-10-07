@@ -576,6 +576,9 @@ fn set_partition_value(
             Some(DataType::Float) => value
                 .parse::<f64>()
                 .ok()
+                // SQL equates both signed zeros. Existing membership keys retain
+                // their stored spelling, so zero cannot narrow to one partition.
+                .filter(|value| *value != 0.0)
                 .and_then(serde_json::Number::from_f64)
                 .map(|number| number.to_string()),
             _ => Some(value),

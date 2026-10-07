@@ -4493,3 +4493,6 @@ mod graph_function_correctness {
         );
     }
 }
+
+#[path = "domain_models/time_series_qualification.rs"]
+mod time_series_qualification;

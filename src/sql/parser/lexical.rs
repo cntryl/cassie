@@ -4,7 +4,7 @@ fn identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$') || byte >= 128
 }
 
-fn identifier_character(character: char) -> bool {
+pub(super) fn identifier_character(character: char) -> bool {
     character.is_alphanumeric()
         || matches!(character, '_' | '$')
         || !character.is_ascii() && !character.is_whitespace()

@@ -17,8 +17,8 @@ was read back and its diff against PR head
 `b1039b6bdfbf2b9fbee0a4e6fcd96e33ba362880` is empty. That source patch was
 integrated into the existing dirty pagination candidate before alias runtime work.
 #797's selected prerequisite is D2, rather than broad #792. Independent scalar
-integration remains owned by its existing lane. The joint candidate still needs
-scalar visitor integration and the serial complete validation gates.
+integration remains owned by its existing lane. The joint candidate has completed scalar visitor integration and local validation;
+the final closeout below records exact full-suite and refinement provenance.
 
 The accepted #794 scope excludes scalar dollar-quoted literals in both compact
 and spaced expressions, repeated unary-sign chains beyond the admitted single
@@ -28,7 +28,7 @@ support. Aliases and bounds must not quietly expand these exclusions.
 
 The local #797 candidate already uses `Option<Expr>` for public SELECT bounds
 and logical-plan bounds. Its focused implementation evidence is distinct from
-merged-main support and the still-pending joint full gates. The #795 candidate
+merged-main support; the local full and refinement gates are recorded below. The #795 candidate
 now carries the selected public Aliased wrapper and private namespace lowering.
 Focused red/green evidence covers ordinary forms, quoted aliases, prefix lists,
 CTE wildcard row identity, self joins, parameter OIDs and actual indexed
@@ -41,7 +41,8 @@ passed; the pgwire prefix/parameter portal probe passed with parameter OIDs
 correlated qualifiers and inner shadowing. Existing SQL qualifier/join/CTE/recursive/
 case and pagination regressions passed 71/71; parser AST/quoted/CTE checks passed
 60/60; wire alias/pagination checks passed 2/2. These are focused local checks.
-No merged #795 support or complete-gate result is claimed.
+These preparation counts precede the complete local validation recorded below;
+no merged #795 support is claimed.
 
 ## Exact selected scope
 
@@ -381,3 +382,47 @@ regression probability 0.31; eight explicit ordinary/quoted column-alias and
 malformed-tail probes pass, including the original CROSS JOIN ON rejection.
 Queued vector test naming and empty-result diagnostic refinements are included
 before the next coherent immutable complete run.
+
+## Local validation closeout (2026-10-07)
+
+This closeout supersedes earlier pending local-validation and independent-review
+statuses in this preparation history. The complete ordered build and locked
+suite passed at `4daa803c76ab4fc330c122e9ac35fc13b9ce69dd`: 3,415 passed,
+zero failed and nine existing ignored tests across 32 groups. The full log
+SHA256 is `d70d3353c5682d6f01a10a8673dc4c2132c545963b0e8f08e9d64c726fbfd72d`.
+The earlier `5066aaa5` parser failure and cancelled preparation runs remain
+preserved separately; they are not counted as successful complete runs.
+
+After the full suite, private helper extractions, equivalent pedantic idioms,
+empty-row assertion diagnostics, item ordering and twelve test function names
+were refined without changing the selected contracts or qualification cases.
+Independent immutable-source review confirmed namespace admission, parser error
+classification, resource/cancellation order, ownership and the equivalent
+refinements. Corrected namespace review executed 89 SQL cases, 13 DML operations,
+four direct Binder cases, the admitted 128-cast envelope and hostile-depth/
+cancellation controls. Eleven final parser controls passed, including exact
+ordinary/quoted alias ASTs and existing CROSS JOIN ON rejection.
+
+Affected execution controls passed 81 tests at `404fdc1e`, 37 collection/CTE
+alias tests after the borrowed identifier refinement at `ad2b6858`, and 53
+alias/pagination tests after test-fixture diagnostics at `95e65d71`. Final
+`c8d06d8ac67001493613ad084822b9b8dc691f96` passed all 34 ordered refinement
+stages: build, 37 SQL alias controls, full workspace/all-target/all-feature
+pedantic Clippy, format, 27 touched-test/support validators, and documentation,
+benchmark and module-size policies. The full 3,415-test suite was not rerun at
+that refinement revision; it retains its explicit `4daa803c` provenance.
+Exact commands, source/log hashes, Jev questions and required gap probes,
+independent review manifests and preserved failures are recorded in ignored
+`target/alias-preparation/ready-local-manifest.json` and its linked artifacts.
+
+PostgreSQL 18.6 remains the finite semantic oracle pinned by executable SHA256
+`db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425`.
+Cassie identity, storage and resource contracts use Cassie's existing authority.
+This candidate preserves qualified-star `r.*` deferral, existing correlation
+rejections, excluded bound-expression families and all narrower native support
+boundaries. Public D1/D2 AST breakage is approved for the selected 0.2.x boundary;
+no stored format, catalog migration or stronger transaction choice is added.
+
+Publication-base equivalence, visible exact-head review, hosted checks, squash
+merge and merged source/issue readback remain required. This record establishes
+local readiness and adds no production or broader native-feature promotion.

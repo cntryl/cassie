@@ -574,7 +574,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 column_aliases,
             })
         }
-        QuerySource::Collection(name) => bind_collection_source(name, catalog, scope, context),
+        QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
         QuerySource::TableFunction {
@@ -928,7 +928,7 @@ fn bind_table_function(
 }
 
 fn bind_collection_source(
-    name: IdentifierPath,
+    name: &IdentifierPath,
     catalog: &Catalog,
     scope: &CteScope,
     context: &BindingContext,
@@ -937,7 +937,7 @@ fn bind_collection_source(
     if scope.contains_key(&source_name_lc) {
         Ok(QuerySource::Cte(name.to_string()))
     } else {
-        let resolved = resolve_relation_path(&name, catalog, context)?;
+        let resolved = resolve_relation_path(name, catalog, context)?;
         Ok(QuerySource::Collection(
             IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
         ))

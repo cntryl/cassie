@@ -3,8 +3,20 @@ use super::{
     RuntimeState,
 };
 
-#[derive(Debug, Clone, Default)]
-pub struct QueryCancellationHandle(Arc<AtomicBool>);
+#[derive(Debug, Clone)]
+pub struct QueryCancellationHandle(
+    Arc<AtomicBool>,
+    Option<Arc<crate::midge::adapter::QueryScanControlScope>>,
+);
+
+impl Default for QueryCancellationHandle {
+    fn default() -> Self {
+        Self(
+            Arc::new(AtomicBool::new(false)),
+            crate::midge::adapter::current_query_scan_control_scope(),
+        )
+    }
+}
 
 impl QueryCancellationHandle {
     #[must_use]
@@ -155,6 +167,12 @@ impl QueryExecutionControls {
             max_result_rows: usize::MAX,
             ..self.clone()
         }
+    }
+
+    pub(crate) fn query_scan_control_scope(
+        &self,
+    ) -> Option<&crate::midge::adapter::QueryScanControlScope> {
+        self.cancellation.1.as_deref()
     }
 
     #[must_use]

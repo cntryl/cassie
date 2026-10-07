@@ -972,7 +972,7 @@ fn record_controlled_ann_read(
 ) -> Result<(), CassieError> {
     check_ann_controls(controls)?;
     midge.record_query_scan_entry();
-    if super::super::query_scan_control::should_cancel_controlled_query_scan() {
+    if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
         return Err(CassieError::QueryCancelled);
     }
     check_ann_controls(controls)

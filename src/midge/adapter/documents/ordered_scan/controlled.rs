@@ -257,7 +257,9 @@ impl OrderedSource {
             };
             check_controls(controls)?;
             midge.record_query_scan_entry();
-            if crate::midge::adapter::query_scan_control::should_cancel_controlled_query_scan() {
+            if crate::midge::adapter::query_scan_control::should_cancel_controlled_query_scan(
+                controls,
+            ) {
                 return Err(CassieError::QueryCancelled);
             }
             self.last_key = Some(Accounted::try_new(controls, key.len(), || key.clone())?);

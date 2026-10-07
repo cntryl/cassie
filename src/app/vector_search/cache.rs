@@ -148,17 +148,18 @@ impl Cassie {
     ) -> Result<Option<(Arc<NormalizedVectorCacheEntry>, QueryMemoryReservation)>, CassieError>
     {
         let catalog_version = self.catalog.version();
-        let Some(expected) = self
-            .catalog
-            .get_cardinality_stats(request.collection)
+        let Some((expected, collection_generation)) = self
+            .midge
+            .get_cardinality_stats(request.collection)?
+            .filter(|stats| stats.hydrated)
             .and_then(|stats| {
-                stats.index_cardinality(
-                    &crate::catalog::CollectionCardinalityStats::vector_index_key(
-                        request.vector_field,
-                    ),
-                )
+                // Source membership does not count explicit vectors whose source is NULL.
+                // Completeness must cover the stored vector field itself.
+                stats
+                    .field_stats(request.vector_field)
+                    .and_then(|field| usize::try_from(field.non_null_count).ok())
+                    .map(|expected| (expected, stats.built_generation))
             })
-            .and_then(|expected| usize::try_from(expected).ok())
         else {
             return Ok(None);
         };
@@ -168,6 +169,7 @@ impl Cassie {
         )?;
         let key = NormalizedVectorCacheKey {
             catalog_version,
+            collection_generation,
             collection: request.collection.to_owned(),
             field: request.vector_field.to_owned(),
             cardinality: expected,
@@ -235,7 +237,12 @@ impl Cassie {
             let Ok(_cache_memory) = cache_memory else {
                 return Ok(Some((entry, memory)));
             };
-            cache.retain(|cached, _| cached.catalog_version == catalog_version);
+            cache.retain(|cached, _| {
+                cached.catalog_version == catalog_version
+                    && (cached.collection != key.collection
+                        || cached.field != key.field
+                        || cached.collection_generation == collection_generation)
+            });
             cache.insert(key, entry.clone());
         }
         Ok(Some((entry, memory)))

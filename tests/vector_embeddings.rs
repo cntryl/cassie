@@ -7533,8 +7533,11 @@ mod vector_parameter_finiteness {
     #[test]
     fn should_reject_non_finite_vector_parameter_components_without_writing() {
         // Arrange
-        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
-        let cassie = Cassie::new_with_data_dir("unused").expect("cassie");
+        let path = std::env::temp_dir().join(format!(
+            "cassie-vector-parameter-finiteness-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         cassie
@@ -7598,6 +7601,8 @@ mod vector_parameter_finiteness {
                 Value::Json(serde_json::json!([1])),
             ]]
         );
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
 
@@ -8657,3 +8662,8 @@ mod backfill_provider;
 
 #[path = "support/vector_publication.rs"]
 mod vector_publication_support;
+
+#[path = "vector_embeddings/vector_metric_qualification.rs"]
+mod vector_metric_qualification;
+#[path = "support/vector_qualification.rs"]
+mod vector_qualification_support;

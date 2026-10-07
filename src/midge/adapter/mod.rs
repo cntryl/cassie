@@ -327,6 +327,7 @@ mod operational;
 mod operator_feedback;
 mod projections;
 mod query_scan_control;
+pub(crate) use query_scan_control::{current_query_scan_control_scope, QueryScanControlScope};
 #[doc(hidden)]
 pub use query_scan_control::{
     query_scan_control_test_guard, set_query_scan_cancellation_after_entries,

@@ -134,7 +134,7 @@ impl Midge {
                 };
                 let (key, value) = entry.map_err(CassieError::from)?;
                 self.record_query_scan_entry();
-                if super::super::query_scan_control::should_cancel_controlled_query_scan() {
+                if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
                     return Err(CassieError::QueryCancelled);
                 }
                 if !value.is_empty() {

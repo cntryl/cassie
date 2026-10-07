@@ -448,7 +448,7 @@ fn check_controlled_entry(
 ) -> Result<(), CassieError> {
     check_controls(controls)?;
     midge.record_query_scan_entry();
-    if super::super::query_scan_control::should_cancel_controlled_query_scan() {
+    if super::super::query_scan_control::should_cancel_controlled_query_scan(controls) {
         return Err(CassieError::QueryCancelled);
     }
     Ok(())

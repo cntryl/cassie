@@ -437,4 +437,62 @@ mod tests {
         // Assert
         assert_eq!(result.expect("successful commit must win"), "committed");
     }
+
+    #[test]
+    fn should_preserve_scoped_scan_cancellation_in_the_blocking_worker() {
+        // Arrange
+        let _guard = crate::midge::adapter::query_scan_control_test_guard();
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let cassie = cassie("scoped-scan-worker");
+        let session = cassie.create_session("tester", None);
+        cassie
+            .execute_sql(
+                &session,
+                "CREATE TABLE scoped_rest_rows (value INT)",
+                vec![],
+            )
+            .expect("create rows");
+        cassie
+            .execute_sql(
+                &session,
+                "INSERT INTO scoped_rest_rows VALUES (1),(2),(3)",
+                vec![],
+            )
+            .expect("seed rows");
+        let execution = RestRequestExecution::new(Duration::from_secs(30));
+        let before = cassie.midge.query_scan_entries_for_diagnostics();
+        crate::midge::adapter::set_query_scan_cancellation_after_entries(Some(1));
+
+        // Act
+        let result = runtime.block_on(execution.run_blocking(
+            Arc::clone(&cassie),
+            "scoped_scan_worker_test",
+            move |cassie, cancellation| {
+                cassie.execute_sql_with_cancellation(
+                    &session,
+                    "SELECT * FROM scoped_rest_rows",
+                    vec![],
+                    cancellation,
+                )
+            },
+        ));
+        crate::midge::adapter::set_query_scan_cancellation_after_entries(None);
+        let reads = cassie.midge.query_scan_entries_for_diagnostics() - before;
+        let metrics = cassie.metrics();
+
+        // Assert
+        assert!(matches!(
+            result,
+            Err(RestBlockingError::Engine(CassieError::QueryCancelled))
+        ));
+        assert_eq!(reads, 1);
+        assert_eq!(metrics["runtime"]["running_queries"].as_u64(), Some(0));
+        assert_eq!(
+            metrics["query"]["current_accounted_memory_bytes"].as_u64(),
+            Some(0)
+        );
+    }
 }

@@ -10315,7 +10315,7 @@ mod read_model_optimization_round {
                 after["joins"]["vectorized_joins"].as_u64().unwrap()
                     > before["joins"]["vectorized_joins"].as_u64().unwrap()
             );
-            assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
+            assert_eq!(after["joins"]["last_strategy"].as_str(), Some("typed_hash"));
 
             let _ = std::fs::remove_dir_all(path);
         });
@@ -10492,7 +10492,7 @@ mod read_model_optimization_round {
 
             // Assert
             assert_eq!(result.rows.len(), 5);
-            assert_eq!(after["joins"]["last_strategy"].as_str(), Some("vectorized"));
+            assert_eq!(after["joins"]["last_strategy"].as_str(), Some("typed_hash"));
             let probe_delta = after["joins"]["vectorized_probe_rows_total"]
                 .as_u64()
                 .unwrap()

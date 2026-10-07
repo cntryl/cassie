@@ -42,7 +42,14 @@ mutation value, predicate and RETURNING expressions. One private normalization
 pass runs after the complete initial statement bind. Recursive source binding,
 correlated subquery compilation and parameter revalidation add no casts.
 Binding owns an outer FLOAT
-cast on every numeric operand of a FLOAT-result conditional call. Its private
+cast on every numeric operand of a FLOAT-result conditional call. Generated casts
+use the same private zero-WHEN searched CASE wrapper as the COALESCE typed-NULL
+anchor, retaining the original operand through clone, binding and plan caching.
+Only this wrapper permits the private evaluator to bypass the normalization
+cast or the wire analyzer to follow its original numeric provenance. Ordinary
+user casts remain explicit result boundaries and retain their error policy.
+The wrapper is a binder convention, not a restriction on manually constructed
+public CASE expressions. Its private
 conditional argument evaluator normalizes integer carriers, including nested
 COALESCE and derived FLOAT results, while preserving already-FLOAT carriers and
 permitted nonfinite query values. Inner expressions and explicit user casts use

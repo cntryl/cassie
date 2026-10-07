@@ -14,13 +14,20 @@ FLOAT carriers retain infinity, NaN and signed zero. Explicit user FLOAT casts
 continue to enforce their existing finite-value policy. An integer-only common
 result retains exact integer arithmetic.
 
-The binder retains the resolved FLOAT domain as a `CAST(NULL AS FLOAT)` fallback
-in the existing variadic COALESCE expression. This is a lazy semantic no-op and
+The binder retains the resolved FLOAT domain as a private typed-NULL fallback
+in the existing variadic COALESCE expression. The generated FLOAT cast wraps a
+searched CASE with no WHEN branches and an ELSE NULL operand. The SQL parser
+requires WHEN, so this existing-AST shape distinguishes binder normalization
+from an explicit SQL `CAST(NULL AS FLOAT)`. This is a lazy semantic no-op and
 is inserted at most once across repeated scope/parameter binding. The evaluator
 converts only a selected integer carrier using that retained domain; it does not
 inspect or execute another value expression. This preserves numeric identity
 when a typed NULL parameter or a CASE/derived result loses its runtime carrier.
 The extra fallback uses existing AST/type/arity laws and introduces no SQL name.
+Wire output provenance follows the generated wrapper's original NULL operand;
+it cannot supply an independent declared result peer for decoder-only OIDs
+700/1700. Explicit user casts, including typed-NULL FLOAT peers, remain valid
+existing-type output boundaries.
 Anchoring waits until complete parameter-free binding or the concrete parameter
 OID pass. Early binding can infer a provisional FLOAT for unresolved arithmetic
 parameters; retaining that provisional domain would round integer-only inputs.

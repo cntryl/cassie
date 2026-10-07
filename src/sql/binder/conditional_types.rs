@@ -128,10 +128,7 @@ pub(super) fn coerce_function(function: &mut FunctionCall, scope: &ResultTypes) 
             data_type,
             DataType::SmallInt | DataType::Int | DataType::BigInt | DataType::Float
         ) {
-            *argument = Expr::Cast {
-                expr: Box::new(argument.clone()),
-                data_type: DataType::Float,
-            };
+            *argument = super::result_coercion::float(argument.clone());
         }
     }
 }

@@ -1,5 +1,5 @@
 //! Eager conditional comparisons over the selected existing scalar families.
-use super::{DataType, EvalContext, Expr, QueryError, Value};
+use super::{EvalContext, Expr, QueryError, Value};
 use crate::executor::batch::RowAccess;
 use std::cmp::Ordering;
 
@@ -14,13 +14,7 @@ pub(super) fn evaluate_argument<R: RowAccess + ?Sized>(
     if !matches!(name, "nullif" | "greatest" | "least") {
         return None;
     }
-    let Expr::Cast {
-        expr,
-        data_type: DataType::Float,
-    } = argument
-    else {
-        return None;
-    };
+    let expr = crate::sql::binder::generated_float_coercion_operand(argument)?;
     Some(
         super::evaluate_expr_value(
             row,

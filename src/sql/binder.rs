@@ -1,5 +1,7 @@
 pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
 mod coalesce_coercion;
+mod result_coercion;
+pub(crate) use result_coercion::original_operand as generated_float_coercion_operand;
 mod coalesce_results;
 pub(crate) use coalesce_results::validate_plan as validate_coalesce_plan;
 #[path = "binder/boolean_parameters.rs"]

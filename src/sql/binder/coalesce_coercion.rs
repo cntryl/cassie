@@ -19,15 +19,16 @@ pub(super) fn coerce_function(function: &mut FunctionCall, scope: &ResultTypes) 
         .filter_map(|argument| scope.expression_type(argument))
         .try_fold(DataType::Null, super::inference::common_case_type);
     if result_type == Some(DataType::Float) {
-        function.args.push(Expr::Cast {
-            expr: Box::new(Expr::Null),
-            data_type: DataType::Float,
-        });
+        function
+            .args
+            .push(super::result_coercion::float(Expr::Null));
     }
 }
 
 pub(crate) fn has_float_domain(function: &FunctionCall) -> bool {
     function.args.last().is_some_and(|argument| {
         matches!(argument, Expr::Cast { expr, data_type: DataType::Float } if matches!(expr.as_ref(), Expr::Null))
+            || super::result_coercion::original_operand(argument)
+                .is_some_and(|original| matches!(original, Expr::Null))
     })
 }

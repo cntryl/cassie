@@ -86,7 +86,7 @@ triage evidence rather than correctness proof. #794 is merged and read back.
 The joint build and full locked suite passed 3,415 tests at `4daa803c`; equivalent
 subsequent refinements passed final affected controls and all broad quality/
 policy gates at `c8d06d8a`, with explicit full-suite provenance retained in the
-[joint closeout](alias-pagination-plan.md#local-validation-closeout-2026-10-07).
+[joint closeout](alias-pagination-plan.md#local-validation-closeout).
 Publication-base equivalence, exact-head hosted checks, squash merge and
 source/issue readback remain pending. This document claims local readiness,
 not merged support or production qualification.

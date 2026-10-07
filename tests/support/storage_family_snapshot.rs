@@ -55,12 +55,13 @@ pub fn remove_empty_temp_family(path: &Path) {
     let read = engine
         .begin_tx(family.id(), cntryl_midge::TransactionMode::ReadOnly)
         .expect("read transaction");
-    assert!(read
-        .scan(&cntryl_midge::Query::new())
-        .expect("scan")
-        .try_collect()
-        .expect("entries")
-        .is_empty());
+    assert_eq!(
+        read.scan(&cntryl_midge::Query::new())
+            .expect("scan")
+            .try_collect()
+            .expect("entries"),
+        Vec::new()
+    );
     drop(read);
     engine
         .drop_column_family(family.id())

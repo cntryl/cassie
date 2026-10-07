@@ -31,15 +31,17 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
         .args
         .iter()
         .map(|arg| {
-            evaluate_expr_value(
-                row,
-                arg,
-                context.params,
-                context.search_context,
-                context.user_functions,
-                context.session,
-                context.local_args,
-            )
+            super::conditional::evaluate_argument(&name, arg, row, context).unwrap_or_else(|| {
+                evaluate_expr_value(
+                    row,
+                    arg,
+                    context.params,
+                    context.search_context,
+                    context.user_functions,
+                    context.session,
+                    context.local_args,
+                )
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -63,6 +65,7 @@ fn evaluate_builtin_function<R: RowAccess + ?Sized>(
     session: Option<&CassieSession>,
 ) -> Option<Result<Value, QueryError>> {
     evaluate_system_function(name, row, args, session)
+        .or_else(|| super::conditional::evaluate(name, args))
         .or_else(|| evaluate_text_function(name, args))
         .or_else(|| evaluate_search_function(name, function, args, search_context))
         .or_else(|| evaluate_vector_function(name, function, args))
@@ -422,7 +425,7 @@ pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
             local_args,
         )?;
         if !matches!(value, Value::Null) {
-            return Ok(value);
+            return Ok(super::coalesce::normalize_selected(value, function));
         }
     }
 

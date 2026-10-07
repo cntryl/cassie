@@ -276,6 +276,10 @@ fn output_rows(
 }
 
 #[cfg(test)]
+#[path = "typed/conditional_tests.rs"]
+mod conditional_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -95,6 +95,24 @@ impl Analyzer<'_> {
         }
         let arguments = self.function_arguments(function, lookup)?;
         Ok(match metadata.return_type {
+            FunctionReturnType::FirstComparedArgument => {
+                let common = OutputType::common_result(&arguments)?;
+                if common.candidates.contains(&DataType::Float) {
+                    common
+                } else {
+                    arguments
+                        .first()
+                        .filter(|first| first.data_type != DataType::Null)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            if common.data_type == DataType::Null {
+                                OutputType::fixed(DataType::Text)
+                            } else {
+                                common
+                            }
+                        })
+                }
+            }
             FunctionReturnType::FirstNonNullArgument => {
                 let mut output = OutputType::common_result(&arguments)?;
                 if output.candidates == [DataType::Null] {
@@ -137,6 +155,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
         FunctionReturnType::Boolean => Some(DataType::Boolean),
         FunctionReturnType::Timestamp => Some(DataType::Timestamp),
         FunctionReturnType::FirstNonNullArgument
+        | FunctionReturnType::FirstComparedArgument
         | FunctionReturnType::NumericArgument
         | FunctionReturnType::SumArgument
         | FunctionReturnType::Unknown => None,

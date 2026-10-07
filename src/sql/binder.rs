@@ -1,3 +1,5 @@
+pub(crate) use coalesce_coercion::has_float_domain as coalesce_has_float_domain;
+mod coalesce_coercion;
 mod coalesce_results;
 pub(crate) use coalesce_results::validate_plan as validate_coalesce_plan;
 #[path = "binder/boolean_parameters.rs"]
@@ -36,6 +38,10 @@ type CteScope = HashMap<String, Vec<String>>;
 mod case_unify;
 #[path = "binder/commands.rs"]
 mod commands;
+#[path = "binder/conditional_bindings.rs"]
+mod conditional_bindings;
+#[path = "binder/conditional_types.rs"]
+mod conditional_types;
 #[path = "binder/context.rs"]
 mod context;
 #[path = "binder/inference.rs"]
@@ -140,7 +146,13 @@ pub fn bind_with_context(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<BoundStatement, CassieError> {
-    let statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
+    let mut statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
+    if crate::sql::parameter_count(&statement) == 0 {
+        // Parameter-free view/projection callers also consume this bound AST.
+        // Parameterized statements wait for their concrete OID-aware pass.
+        bind_boolean_parameters(&mut statement, catalog, context, &[])?;
+    }
+    conditional_bindings::coerce_statement(&mut statement, catalog, context, &HashMap::new())?;
     let indexes = bound_indexes(&statement, catalog);
     Ok(BoundStatement { statement, indexes })
 }

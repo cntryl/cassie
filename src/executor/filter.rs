@@ -17,6 +17,10 @@ use uuid::Uuid;
 /// PostgreSQL's message (SQLSTATE 22003) for an overflowing int8 result.
 pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
 
+#[path = "filter/coalesce.rs"]
+mod coalesce;
+#[path = "filter/conditional.rs"]
+mod conditional;
 #[path = "filter/functions.rs"]
 mod functions;
 #[path = "filter/like.rs"]

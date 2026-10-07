@@ -19,6 +19,9 @@ mod accounting;
 #[path = "source_join/kernels.rs"]
 mod kernels;
 
+#[path = "source_join/typed.rs"]
+mod typed;
+
 #[path = "source_join/output.rs"]
 mod output;
 
@@ -126,6 +129,7 @@ pub(super) fn execute_join_source<'a>(
         env,
         JoinRowsSpec {
             kind: spec.kind,
+            sources: Some((spec.left, spec.right)),
             on: spec.on,
             left_rows: &left_rows,
             right_rows: &right_rows,
@@ -187,6 +191,7 @@ fn execute_loaded_join_with_context(
                 env,
                 VectorizedJoinSpec {
                     kind: spec.kind,
+                    sources: spec.sources,
                     keys: &keys,
                     left_rows: spec.left_rows,
                     right_rows: spec.right_rows,
@@ -308,6 +313,7 @@ fn execute_lateral_join<'a>(
 #[derive(Clone, Copy)]
 struct JoinRowsSpec<'a> {
     kind: JoinKind,
+    sources: Option<(&'a QuerySource, &'a QuerySource)>,
     on: &'a Expr,
     left_rows: &'a [BatchRow],
     right_rows: &'a [BatchRow],
@@ -360,6 +366,7 @@ fn join_field_for_collection(key: &str, collection: &str) -> Option<String> {
 #[derive(Clone, Copy)]
 struct VectorizedJoinSpec<'a> {
     kind: JoinKind,
+    sources: Option<(&'a QuerySource, &'a QuerySource)>,
     keys: &'a EquiJoinKeys,
     left_rows: &'a [BatchRow],
     right_rows: &'a [BatchRow],
@@ -491,8 +498,26 @@ fn merge_join_keys(
 }
 
 fn column_belongs_to(name: &str, own_columns: &[String], other_columns: &[String]) -> bool {
-    own_columns.iter().any(|column| column == name)
-        && (!other_columns.iter().any(|column| column == name) || name.contains('.'))
+    let Ok(reference) = crate::sql::ColumnIdentifierPath::parse(name) else {
+        return false;
+    };
+    let candidates = reference.row_lookup_candidates();
+    let count = candidates
+        .len()
+        .saturating_sub(usize::from(reference.is_qualified()));
+    let candidates = if reference.is_qualified() {
+        &candidates[..count]
+    } else {
+        &candidates[..]
+    };
+    for candidate in candidates {
+        let own = own_columns.iter().any(|column| column == candidate);
+        let other = other_columns.iter().any(|column| column == candidate);
+        if own || other {
+            return own && (!other || reference.is_qualified());
+        }
+    }
+    false
 }
 
 fn vectorized_join_selection(
@@ -558,6 +583,25 @@ fn vectorized_join_selection(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn should_preserve_schema_qualified_key_orientation_with_shared_suffix_aliases() {
+        // Arrange
+        let on = Expr::Binary {
+            left: Box::new(Expr::Column("b.records.x".to_string())),
+            op: BinaryOp::Eq,
+            right: Box::new(Expr::Column("a.records.y".to_string())),
+        };
+        let left = ["a.records.x", "a.records.y", "records.x", "records.y"].map(str::to_string);
+        let right = ["b.records.x", "b.records.y", "records.x", "records.y"].map(str::to_string);
+
+        // Act
+        let keys = merge_join_keys(&on, &left, &right).expect("qualified join keys");
+
+        // Assert
+        assert_eq!(keys.left, "a.records.y");
+        assert_eq!(keys.right, "b.records.x");
+    }
 
     #[test]
     fn should_qualify_join_columns_with_suffix_variants() {

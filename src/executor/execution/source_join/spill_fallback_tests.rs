@@ -56,6 +56,7 @@ fn should_record_spill_fallback_before_merge_retention_failure() {
     let error = match execute_loaded_join(
         &env,
         JoinRowsSpec {
+            sources: None,
             kind: JoinKind::Inner,
             on: &on,
             left_rows: &left,

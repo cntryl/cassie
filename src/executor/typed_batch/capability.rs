@@ -9,6 +9,28 @@ pub(crate) enum Capability {
     ExistingUnsupported,
 }
 
+/// The finite typed hash join key domain uses shared numeric equality.
+pub(crate) fn join_keys(left: &DataType, right: &DataType) -> Capability {
+    let numeric = |data_type: &DataType| {
+        matches!(
+            data_type,
+            DataType::SmallInt
+                | DataType::Int
+                | DataType::BigInt
+                | DataType::Float
+                | DataType::Null
+        )
+    };
+    if (numeric(left) && numeric(right))
+        || (matches!(left, DataType::Boolean | DataType::Null)
+            && matches!(right, DataType::Boolean | DataType::Null))
+    {
+        Capability::NativeTyped
+    } else {
+        Capability::BoundedScalarExpression
+    }
+}
+
 pub(crate) fn expression(
     expr: &Expr,
     schema: &[(String, DataType)],

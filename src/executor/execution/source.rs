@@ -369,6 +369,13 @@ pub(super) fn execute_source_query_with_outer_row(
 ) -> Result<Vec<BatchRow>, QueryError> {
     check_timeout(env.controls)?;
     let started_at = Instant::now();
+    if outer_row.is_none() && plan.filter.is_some() {
+        if let Some(rows) =
+            aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
+        {
+            return Ok(rows);
+        }
+    }
     if let Some(rows) = aggregate_accel::try_execute_column_batch_aggregate(
         env.cassie,
         env.session,
@@ -378,6 +385,13 @@ pub(super) fn execute_source_query_with_outer_row(
         env.user_functions,
     )? {
         return Ok(rows);
+    }
+    if outer_row.is_none() && plan.filter.is_none() {
+        if let Some(rows) =
+            aggregate_exec::typed::try_execute(env.cassie, env.session, plan, env.controls)?
+        {
+            return Ok(rows);
+        }
     }
     let (mut batches, text_fields) = load_source_batches(env, plan, cte_context, outer_row)?;
     let candidate_rows = batches.iter().map(std::vec::Vec::len).sum::<usize>();

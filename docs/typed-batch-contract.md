@@ -246,12 +246,18 @@ representation, selected kernel/fallback boundary, reads/decodes and final lease
 cleanup. This section selects implementation coverage; it records no runtime pass
 or support promotion.
 
-The first encoded handoff is an unfiltered covered CBC2 projection without LIMIT
-or OFFSET, when optional metadata and source transport fit the memory budget. It reuses
-the existing metadata/generation, row-ID and complete field-frame validators,
-retains immutable source bytes and their admitted metadata, and exposes the
-validated decoded cache through the common column accessor. This is an explicit
-decode-cache conversion, not zero-copy compressed execution. Filtered or bounded CBC2 reads
-keep their existing encoded pruning and late selected-field decode boundary;
-they do not become native merely because the storage index is selected. Staged
-changes use the controlled session source instead of trusting a persisted index.
+The private [typed aggregate contract](typed-aggregate-contract.md) selects
+streamed ungrouped numeric aggregates, lawful bounded worker merges and primitive
+CBC2 numeric predicate/aggregate handoffs under #758. Grouped, DISTINCT output,
+expression and other excluded combinations retain their documented existing
+boundaries. The contract records each assigned invariant and its focused probes.
+
+Common encoded transport reuses existing metadata/generation, row-ID and complete
+field-frame validators and retains immutable source bytes with admitted metadata.
+Numeric CBC2 fields now expose primitive nullable decoded owners through the
+common accessor; other fields keep the prior admitted decode-cache conversion.
+This is decoded primitive execution. Selected numeric aggregate predicates use
+admitted logical selection; other filtered or bounded reads keep existing encoded
+pruning and selected-field decoding. Staged changes use the controlled session
+source instead of trusting a persisted index. Kernel eligibility and diagnostics
+remain specific to the selected operation and representation.

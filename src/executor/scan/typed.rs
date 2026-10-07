@@ -227,6 +227,7 @@ mod tests {
     #[test]
     fn should_retain_validated_encoded_backing_after_advancing_the_scan() {
         // Arrange
+        let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
         let path =
             std::env::temp_dir().join(format!("cassie-typed-encoded-{}", uuid::Uuid::new_v4()));
         let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("Cassie");
@@ -253,6 +254,15 @@ mod tests {
         .expect("open")
         .expect("typed stream");
         let encoded = stream.is_encoded();
+        let object_lanes = stream
+            .encoded
+            .as_ref()
+            .expect("encoded source")
+            .segments
+            .iter()
+            .flat_map(|segment| &segment.fields)
+            .map(|field| field.get().values().len())
+            .sum::<usize>();
         let source_owner = std::sync::Arc::downgrade(
             &stream.encoded.as_ref().expect("encoded source").segments[0].fields[0],
         );
@@ -268,6 +278,10 @@ mod tests {
 
         // Assert
         assert!(encoded);
+        assert_eq!(
+            object_lanes, 0,
+            "numeric encoded owners do not materialize JSON lanes"
+        );
         assert!(
             cassie.runtime.snapshot().storage.data.reads > reads_before,
             "encoded reads remain observable"
@@ -294,6 +308,7 @@ mod tests {
     #[test]
     fn should_read_controlled_midge_documents_directly_into_typed_columns() {
         // Arrange
+        let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
         let path = std::env::temp_dir().join(format!("cassie-typed-scan-{}", uuid::Uuid::new_v4()));
         let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("cassie");
         let schema = Schema {

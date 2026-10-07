@@ -574,7 +574,7 @@ impl NumericSum {
 
     /// Appends the state of the rows that follow this one. Exact for
     /// integer states; float states must be folded in row order instead.
-    fn merge(&mut self, later: &Self) {
+    pub(super) fn merge(&mut self, later: &Self) {
         match (&mut *self, later) {
             (Self::Int(sum), Self::Int(later)) => sum.append(later),
             (_, Self::Int(later)) => self.add_float(i128_to_f64(later.total)),
@@ -615,12 +615,12 @@ impl AvgSum {
     /// any grouping of the fold yields the same value.
     const EXACT_PREFIX: i128 = 1 << 52;
 
-    fn add_int(&mut self, value: i64) {
+    pub(super) fn add_int(&mut self, value: i64) {
         self.overflowed |= numeric::add_f64_overflowed(&mut self.sum, i64_to_f64(value));
         self.exact.add(value);
     }
 
-    fn add_float(&mut self, value: f64) {
+    pub(super) fn add_float(&mut self, value: f64) {
         self.overflowed |= numeric::add_f64_overflowed(&mut self.sum, value);
         self.saw_float = true;
     }
@@ -632,7 +632,7 @@ impl AvgSum {
         self.saw_float |= later.saw_float;
     }
 
-    fn finish_mean(&self, count: usize) -> Result<f64, QueryError> {
+    pub(super) fn finish_mean(&self, count: usize) -> Result<f64, QueryError> {
         if self.overflowed {
             return Err(SumOverflow::Float.error());
         }

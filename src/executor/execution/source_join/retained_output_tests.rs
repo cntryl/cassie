@@ -4,12 +4,186 @@ use std::time::Instant;
 use crate::app::Cassie;
 use crate::config::CassieRuntimeConfig;
 use crate::runtime::QueryExecutionControls;
+use crate::types::DataType;
 
 use super::{
     execute_lateral_join, execute_loaded_join, finish_retained_join, reserve_join_rows, BatchRow,
     BinaryOp, Expr, JoinExecutionSpec, JoinKind, JoinRowsSpec, QuerySource, SourceExecutionEnv,
     Value,
 };
+
+#[test]
+fn should_report_typed_outer_join_work_with_all_null_build_keys() {
+    // Arrange
+    for (kind, budget, expected_probe, expected_output) in [
+        (JoinKind::Inner, 1, 3, 0),
+        (JoinKind::Left, 1, 1, 1),
+        (JoinKind::Left, 3, 3, 3),
+    ] {
+        with_fixture(true, |env| {
+            let typed_row = |side: &str| {
+                BatchRow::new(vec![(format!("{side}.key"), Value::Null)])
+                    .with_optional_data_types(Some(std::sync::Arc::new(vec![DataType::BigInt])))
+            };
+            let left = [typed_row("left"), typed_row("left"), typed_row("left")];
+            let right = [typed_row("right"), typed_row("right"), typed_row("right")];
+            let templates = (typed_row("left"), typed_row("right"));
+            let on = equality();
+            let input = reserve_join_rows(env, &left, &right).expect("complete inputs fit");
+            let mut spec = rows_spec(kind, &on, &left, &right, &templates);
+            spec.row_budget = Some(budget);
+
+            // Act
+            let joined = execute_loaded_join(
+                env,
+                spec,
+                &["left.key".to_owned()],
+                &["right.key".to_owned()],
+            )
+            .expect("typed NULL keys do not match");
+            let (batches, _) = finish_retained_join(env, joined).expect("typed completion");
+
+            // Assert
+            let joins = env.cassie.runtime.snapshot().joins;
+            assert_eq!(joins.last_strategy, "typed_hash");
+            assert_eq!(joins.left_input_rows_total, 3);
+            assert_eq!(joins.right_input_rows_total, 3);
+            assert_eq!(joins.vectorized_build_rows_total, 0);
+            assert_eq!(joins.vectorized_probe_rows_total, expected_probe);
+            assert_eq!(joins.matched_rows_total, 0);
+            assert_eq!(joins.output_rows_total, expected_output);
+            assert_eq!(
+                batches.iter().map(Vec::len).sum::<usize>() as u64,
+                expected_output
+            );
+            assert!(batches
+                .iter()
+                .flatten()
+                .all(|row| row.get("right.key") == Some(&Value::Null)));
+            drop(batches);
+            drop(input);
+        });
+    }
+}
+
+#[test]
+fn should_count_typed_probe_work_at_selected_output_boundaries() {
+    // Arrange
+    for (budget, expected_probe, expected_output) in [(1, 3, 1), (2, 3, 2), (3, 4, 2)] {
+        with_fixture(true, |env| {
+            let typed_row = |side: &str, key| {
+                BatchRow::new(vec![(format!("{side}.key"), key)])
+                    .with_optional_data_types(Some(std::sync::Arc::new(vec![DataType::BigInt])))
+            };
+            let left = [
+                typed_row("left", Value::Null),
+                typed_row("left", Value::Int64(2)),
+                typed_row("left", Value::Int64(1)),
+                typed_row("left", Value::Int64(3)),
+            ];
+            let right = [
+                typed_row("right", Value::Int64(1)),
+                typed_row("right", Value::Int64(1)),
+                typed_row("right", Value::Null),
+            ];
+            let templates = templates();
+            let on = equality();
+            let input = reserve_join_rows(env, &left, &right).expect("complete inputs fit");
+            let mut spec = rows_spec(JoinKind::Inner, &on, &left, &right, &templates);
+            spec.row_budget = Some(budget);
+
+            // Act
+            let joined = execute_loaded_join(
+                env,
+                spec,
+                &["left.key".to_owned()],
+                &["right.key".to_owned()],
+            )
+            .expect("typed join with unmatched prefix and tail");
+            let (batches, _) = finish_retained_join(env, joined).expect("typed completion");
+
+            // Assert
+            let joins = env.cassie.runtime.snapshot().joins;
+            assert_eq!(joins.last_strategy, "typed_hash");
+            assert_eq!(joins.left_input_rows_total, 4);
+            assert_eq!(joins.right_input_rows_total, 3);
+            assert_eq!(joins.vectorized_build_rows_total, 2);
+            assert_eq!(joins.vectorized_probe_rows_total, expected_probe);
+            assert_eq!(joins.output_rows_total, expected_output);
+            assert_eq!(joins.matched_rows_total, expected_output);
+            assert_eq!(
+                batches.iter().map(Vec::len).sum::<usize>() as u64,
+                expected_output
+            );
+            assert!(batches
+                .iter()
+                .flatten()
+                .all(|row| row.get("left.key") == Some(&Value::Int64(1))));
+            drop(batches);
+            drop(input);
+        });
+    }
+}
+
+#[test]
+fn should_separate_typed_join_loaded_inputs_from_capped_kernel_work() {
+    // Arrange
+    with_fixture(true, |env| {
+        let typed_row = |side: &str, key, payload: &str| {
+            BatchRow::new(vec![
+                (format!("{side}.key"), key),
+                (format!("{side}.payload"), Value::String(payload.to_owned())),
+            ])
+            .with_optional_data_types(Some(std::sync::Arc::new(vec![
+                DataType::BigInt,
+                DataType::Text,
+            ])))
+        };
+        let left = [
+            typed_row("left", Value::Int64(1), "l1"),
+            typed_row("left", Value::Int64(2), "l2"),
+            typed_row("left", Value::Null, "ln"),
+        ];
+        let right = [
+            typed_row("right", Value::Int64(1), "r1"),
+            typed_row("right", Value::Int64(1), "r2"),
+            typed_row("right", Value::Null, "rn"),
+        ];
+        let templates = templates();
+        let on = equality();
+        let input = reserve_join_rows(env, &left, &right).expect("complete inputs fit");
+        let mut spec = rows_spec(JoinKind::Inner, &on, &left, &right, &templates);
+        spec.row_budget = Some(1);
+
+        // Act
+        let joined = execute_loaded_join(
+            env,
+            spec,
+            &["left.key".to_owned()],
+            &["right.key".to_owned()],
+        )
+        .expect("bounded typed join");
+        let (batches, _) = finish_retained_join(env, joined).expect("typed completion");
+
+        // Assert
+        assert_eq!(batches.iter().map(Vec::len).sum::<usize>(), 1);
+        assert_eq!(
+            batches[0][0].get("right.payload"),
+            Some(&Value::String("r1".to_owned()))
+        );
+        let joins = env.cassie.runtime.snapshot().joins;
+        assert_eq!(joins.last_strategy, "typed_hash");
+        assert_eq!(joins.left_input_rows_total, 3);
+        assert_eq!(joins.right_input_rows_total, 3);
+        assert_eq!(joins.vectorized_build_rows_total, 2);
+        assert_eq!(joins.vectorized_probe_rows_total, 1);
+        assert_eq!(joins.matched_rows_total, 1);
+        assert_eq!(joins.output_rows_total, 1);
+        assert_eq!(joins.vectorized_batches_total, 1);
+        drop(batches);
+        drop(input);
+    });
+}
 
 #[test]
 fn should_release_nested_candidates_rejected_by_the_predicate() {
@@ -244,6 +418,7 @@ fn rows_spec<'a>(
     templates: &'a (BatchRow, BatchRow),
 ) -> JoinRowsSpec<'a> {
     JoinRowsSpec {
+        sources: None,
         kind,
         on,
         left_rows: left,

@@ -2688,7 +2688,7 @@ mod metrics_joins {
         assert_eq!(metrics["joins"]["vectorized_batches_total"], 2);
         assert_eq!(metrics["joins"]["vectorized_build_rows_total"], 2);
         assert_eq!(metrics["joins"]["vectorized_probe_rows_total"], 2);
-        assert_eq!(metrics["joins"]["last_strategy"], "vectorized");
+        assert_eq!(metrics["joins"]["last_strategy"], "typed_hash");
 
         let _ = std::fs::remove_dir_all(path);
     });

@@ -668,7 +668,7 @@ fn field_logical_type(row_schema: &RowSchema, field: &str) -> LogicalType {
         .unwrap_or(LogicalType::Complex)
 }
 
-fn valid_chunk_bytes(bytes: &[u8], meta: &ColumnBatchChunkMeta) -> bool {
+pub(super) fn valid_chunk_bytes(bytes: &[u8], meta: &ColumnBatchChunkMeta) -> bool {
     bytes.len() == meta.encoded_len && checksum_hex(bytes) == meta.checksum_sha256
 }
 

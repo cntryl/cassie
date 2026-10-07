@@ -28,6 +28,29 @@ impl RuntimeState {
         metrics.joins.last_fallback_reason = fallback_reason.unwrap_or("").to_string();
     }
 
+    pub(crate) fn record_typed_join_execution(
+        &self,
+        input_rows: VectorizedJoinInputRows,
+        matched_rows: usize,
+        output_rows: usize,
+        batch_size: usize,
+        batches: usize,
+    ) {
+        let mut metrics = self.metrics.lock().expect("runtime metrics");
+        metrics.joins.executions += 1;
+        metrics.joins.vectorized_joins += 1;
+        metrics.joins.left_input_rows_total += input_rows.left as u64;
+        metrics.joins.right_input_rows_total += input_rows.right as u64;
+        metrics.joins.matched_rows_total += matched_rows as u64;
+        metrics.joins.output_rows_total += output_rows as u64;
+        metrics.joins.vectorized_batches_total += batches as u64;
+        metrics.joins.vectorized_build_rows_total += input_rows.build as u64;
+        metrics.joins.vectorized_probe_rows_total += input_rows.probe as u64;
+        metrics.joins.last_vectorized_batch_size = batch_size as u64;
+        metrics.joins.last_strategy = "typed_hash".to_string();
+        metrics.joins.last_fallback_reason.clear();
+    }
+
     pub(crate) fn record_vectorized_join_execution(
         &self,
         left_rows: usize,

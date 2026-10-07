@@ -5,6 +5,7 @@ mod bitpack;
 mod chunk;
 mod fsst;
 mod manifest;
+mod numeric;
 mod row_ids;
 mod selected;
 
@@ -12,6 +13,7 @@ use crate::app::CassieError;
 
 pub(crate) use alp_chunk::decode_scaled as decode_alp_scaled;
 pub(crate) use chunk::{Codec, DecodedChunk, EncodedChunk, LogicalType};
+pub(crate) use numeric::{decode as decode_numeric_column_chunk, NumericValues};
 
 pub(crate) use alp::{scale_value_at as scale_alp_value, scaled_to_f64 as alp_scaled_to_f64};
 
@@ -120,3 +122,6 @@ pub fn decode_column_batch_manifest_for_test(
 ) -> Result<crate::catalog::ColumnBatchMetadata, CassieError> {
     manifest::decode(bytes)
 }
+
+#[cfg(test)]
+mod numeric_tests;

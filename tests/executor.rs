@@ -2845,7 +2845,7 @@ mod executor_parallel {
     }
 
     #[test]
-    fn should_execute_ungrouped_parallel_aggregates_with_nulls() {
+    fn should_preserve_row_order_for_parallel_aggregate_queries_with_average() {
         // Arrange
         use_local_storage();
         let path = data_dir("parallel_aggregation_ungrouped_nulls");
@@ -2902,10 +2902,18 @@ mod executor_parallel {
                 Value::Int64(1),
             ]]
         );
-        assert!(metrics["parallel_aggregation"]["aggregations"]
+        assert_eq!(
+            metrics["parallel_aggregation"]["aggregations"].as_u64(),
+            Some(0)
+        );
+        assert!(metrics["parallel_aggregation"]["fallback_aggregations"]
             .as_u64()
             .unwrap_or(0)
             > 0);
+        assert_eq!(
+            metrics["parallel_aggregation"]["last_fallback_reason"].as_str(),
+            Some("typed-row-order-fold")
+        );
     });
 
         let _ = std::fs::remove_dir_all(path);
@@ -3121,7 +3129,7 @@ mod executor_parallel {
             > 0);
         assert_eq!(
             metrics["parallel_aggregation"]["last_fallback_reason"].as_str(),
-            Some("worker-limit-one")
+            Some("typed-worker-limit-one")
         );
     });
 

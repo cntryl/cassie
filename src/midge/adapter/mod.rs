@@ -25,6 +25,7 @@ use crate::types::{DataType, FieldSchema, Schema};
 use crate::vector::normalize as normalize_vector;
 
 mod column_batch_format_v2;
+pub(crate) use column_batch_format_v2::NumericValues;
 mod core;
 pub mod fulltext_retrieval;
 mod raw_ops;

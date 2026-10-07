@@ -254,6 +254,9 @@ fn insert_source_rows(
                 command: None,
                 source: select.source.clone(),
                 collection: match &select.source {
+                    QuerySource::Aliased { source, .. } => {
+                        crate::planner::logical::source_name(source)
+                    }
                     QuerySource::Collection(name) => name.to_string(),
                     QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
                         name.clone()
@@ -270,8 +273,8 @@ fn insert_source_rows(
                 group_by: select.group_by.clone(),
                 having: select.having.clone(),
                 order: select.order.clone(),
-                limit: select.limit,
-                offset: select.offset,
+                limit: select.limit.clone(),
+                offset: select.offset.clone(),
                 set: select.set.clone(),
             };
             // Constructed here, so it needs the reserved-id rewrite too —

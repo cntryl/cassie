@@ -1,3 +1,9 @@
+#[path = "support/alias_fixture.rs"]
+mod support_alias_fixture;
+
+#[path = "sql_queries/alias_integration.rs"]
+mod alias_integration;
+
 #[path = "sql_queries/conditional_expressions.rs"]
 mod sql_conditional_expressions;
 
@@ -23,6 +29,12 @@ mod sql_boolean_contexts;
 
 #[path = "sql_queries/type_output_wildcard_boundary.rs"]
 mod sql_type_output_wildcard_boundary;
+
+#[path = "sql_queries/pagination.rs"]
+mod sql_pagination;
+
+#[path = "sql_queries/aliases.rs"]
+mod sql_aliases;
 
 mod relational_promotion_evidence {
     use super::support_relational_evidence::SeededRelationalFixture;

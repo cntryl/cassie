@@ -20,6 +20,14 @@ pub(super) fn build_select_result(
         &cassie.catalog,
         user_functions,
     )
+    .or_else(|| {
+        crate::sql::binder::joined_source_schema(
+            &plan.logical.source,
+            &plan.logical.ctes,
+            &cassie.catalog,
+            user_functions,
+        )
+    })
     .or_else(|| plan.collection_schema.clone())
     .or_else(|| cassie.catalog.get_schema(&plan.logical.collection))
     // Describe types built-in catalog views from their declared schema;

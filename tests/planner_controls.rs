@@ -2192,8 +2192,8 @@ mod planner_aggregates_sets {
         assert!(logical.set.is_some());
         assert_eq!(logical.order.len(), 1);
         assert!(matches!(logical.order[0].direction, SortDirection::Desc));
-        assert_eq!(logical.limit, Some(2));
-        assert_eq!(logical.offset, Some(1));
+        assert_eq!(logical.limit_value(), Some(2));
+        assert_eq!(logical.offset_value(), Some(1));
     });
     }
 
@@ -3600,8 +3600,8 @@ mod planner_logical {
                 Expr::Column(field) if field == "title"
             ));
             assert!(matches!(plan.order[0].direction, SortDirection::Desc));
-            assert_eq!(plan.limit, Some(2));
-            assert_eq!(plan.offset, Some(1));
+            assert_eq!(plan.limit_value(), Some(2));
+            assert_eq!(plan.offset_value(), Some(1));
         });
     }
 
@@ -3630,8 +3630,8 @@ mod planner_logical {
             let [without_offset, with_offset] = plans.map(optimizer::optimize);
 
             // Assert
-            assert_eq!(without_offset.offset, None);
-            assert_eq!(with_offset.offset, Some(500));
+            assert_eq!(without_offset.offset_value(), None);
+            assert_eq!(with_offset.offset_value(), Some(500));
         });
     }
 
@@ -3721,8 +3721,8 @@ mod planner_logical {
             // Assert
             assert_eq!(logical.collection, "planner_clauses");
             assert!(matches!(&logical.projection[..], [SelectItem::Wildcard]));
-            assert_eq!(logical.limit, Some(1));
-            assert_eq!(logical.offset, Some(2));
+            assert_eq!(logical.limit_value(), Some(1));
+            assert_eq!(logical.offset_value(), Some(2));
             assert_eq!(logical.order.len(), 1);
 
             match logical.filter.as_ref().expect("filter should exist") {
@@ -3764,8 +3764,8 @@ mod planner_logical {
                     group_by: vec![],
                     having: None,
                     order: vec![],
-                    limit: Some(1),
-                    offset: Some(0),
+                    limit: Some(Expr::IntegerLiteral(1)),
+                    offset: Some(Expr::IntegerLiteral(0)),
                     set: None,
                 }),
             },
@@ -3803,8 +3803,8 @@ mod planner_logical {
                     group_by: vec![],
                     having: None,
                     order: vec![],
-                    limit: Some(1),
-                    offset: Some(0),
+                    limit: Some(Expr::IntegerLiteral(1)),
+                    offset: Some(Expr::IntegerLiteral(0)),
                     set: None,
                 }),
             },
@@ -3845,8 +3845,8 @@ mod planner_logical {
                     group_by: vec![],
                     having: None,
                     order: vec![],
-                    limit: Some(10),
-                    offset: Some(-1),
+                    limit: Some(Expr::IntegerLiteral(10)),
+                    offset: Some(Expr::IntegerLiteral(-1)),
                     set: None,
                 }),
             },
@@ -3887,8 +3887,8 @@ mod planner_logical {
                     group_by: vec![],
                     having: None,
                     order: vec![],
-                    limit: Some(-10),
-                    offset: Some(0),
+                    limit: Some(Expr::IntegerLiteral(-10)),
+                    offset: Some(Expr::IntegerLiteral(0)),
                     set: None,
                 }),
             },
@@ -3956,8 +3956,8 @@ mod planner_logical {
 
             // Assert
             assert_eq!(format!("{first:?}"), format!("{:?}", second));
-            assert_eq!(first.offset, None);
-            assert_eq!(second.offset, None);
+            assert_eq!(first.offset_value(), None);
+            assert_eq!(second.offset_value(), None);
         });
     }
 

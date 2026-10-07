@@ -219,6 +219,9 @@ fn query_source_uses_view_function(
     visited_views: &mut HashSet<String>,
 ) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => {
+            query_source_uses_view_function(source, function_name, catalog, visited_views)
+        }
         QuerySource::Collection(name) => {
             let Some(view) = catalog.get_view(name) else {
                 return false;
@@ -340,6 +343,7 @@ fn select_needs_user_functions(select: &SelectStatement) -> bool {
 
 fn query_source_needs_user_functions(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => query_source_needs_user_functions(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
             function.args.iter().any(expr_needs_user_functions)
@@ -590,6 +594,7 @@ fn select_uses_function(select: &crate::sql::ast::SelectStatement, function_name
 
 fn query_source_uses_function(source: &QuerySource, function_name: &str) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => query_source_uses_function(source, function_name),
         QuerySource::TableFunction { function, .. } => {
             function_uses_function(function, function_name)
         }
@@ -718,14 +723,15 @@ pub(super) fn logical_plan_from_select(select: &SelectStatement) -> LogicalPlan 
         group_by: select.group_by.clone(),
         having: select.having.clone(),
         order: select.order.clone(),
-        limit: select.limit,
-        offset: select.offset,
+        limit: select.limit.clone(),
+        offset: select.offset.clone(),
         set: select.set.clone(),
     }
 }
 
 fn execution_source_name(source: &QuerySource) -> String {
     match source {
+        QuerySource::Aliased { source, .. } => execution_source_name(source),
         QuerySource::Collection(name) => name.to_string(),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::Subquery { alias, .. } => alias.clone(),

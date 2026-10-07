@@ -705,8 +705,8 @@ mod executor_commands {
                 group_by: vec![],
                 having: None,
                 order: vec![],
-                limit: Some(10),
-                offset: Some(0),
+                limit: Some(Expr::IntegerLiteral(10)),
+                offset: Some(Expr::IntegerLiteral(0)),
                 set: None,
             };
 

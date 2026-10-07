@@ -255,6 +255,7 @@ fn estimated_source_rows<S: BuildHasher>(
     cardinality_stats: &std::collections::HashMap<String, CollectionCardinalityStats, S>,
 ) -> u64 {
     match source {
+        QuerySource::Aliased { source, .. } => estimated_source_rows(source, cardinality_stats),
         QuerySource::Collection(collection) => collection_stats(collection, cardinality_stats)
             .map_or(PlanEstimates::DEFAULT_ROWS, |stats| stats.row_count),
         QuerySource::Join {
@@ -271,10 +272,11 @@ fn estimated_source_rows<S: BuildHasher>(
                 _ => left_rows.saturating_add(right_rows),
             }
         }
-        QuerySource::Subquery { select, .. } => select
-            .limit
-            .and_then(|limit| usize::try_from(limit.max(0)).ok())
-            .map_or(PlanEstimates::DEFAULT_ROWS, |limit| limit as u64),
+        QuerySource::Subquery { select, .. } => {
+            crate::sql::pagination::constant_bound(select.limit.as_ref())
+                .and_then(|limit| usize::try_from(limit.max(0)).ok())
+                .map_or(PlanEstimates::DEFAULT_ROWS, |limit| limit as u64)
+        }
         QuerySource::Cte(_) | QuerySource::TableFunction { .. } => PlanEstimates::DEFAULT_ROWS,
         QuerySource::SingleRow => 1,
     }

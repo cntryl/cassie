@@ -211,6 +211,7 @@ fn coerce_source(
     types: &ResultTypes,
 ) -> Result<(), CassieError> {
     match source {
+        QuerySource::Aliased { source, .. } => coerce_source(source, catalog, context, types)?,
         QuerySource::Join {
             left, right, on, ..
         } => {

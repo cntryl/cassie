@@ -62,6 +62,7 @@ fn outer_qualifier(source: &QuerySource) -> Option<String> {
             Some(crate::catalog::local_name(name).to_ascii_lowercase())
         }
         QuerySource::Subquery { alias, .. } => Some(alias.to_ascii_lowercase()),
+        QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
         _ => None,
     }
 }
@@ -120,6 +121,7 @@ fn collect_source_columns(cassie: &Cassie, source: &QuerySource, columns: &mut H
                 );
             }
         }
+        QuerySource::Aliased { source, .. } => collect_source_columns(cassie, source, columns),
         QuerySource::Join { left, right, .. } => {
             collect_source_columns(cassie, left, columns);
             collect_source_columns(cassie, right, columns);

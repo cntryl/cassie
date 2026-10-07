@@ -192,8 +192,12 @@ async fn execute_offset_portal_page(
     // one shot and cache the remainder (see `write_materialized_result`)
     // instead of re-querying with OFFSET on every subsequent page, which would
     // silently skip or repeat rows when the source mutates between pages.
-    select.limit = Some(i64::try_from(result_cap.saturating_add(1)).unwrap_or(i64::MAX));
-    select.offset = Some(i64::try_from(request.rows_emitted).unwrap_or(i64::MAX));
+    select.limit = Some(crate::sql::ast::Expr::IntegerLiteral(
+        i64::try_from(result_cap.saturating_add(1)).unwrap_or(i64::MAX),
+    ));
+    select.offset = Some(crate::sql::ast::Expr::IntegerLiteral(
+        i64::try_from(request.rows_emitted).unwrap_or(i64::MAX),
+    ));
     let fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let Some(registration) = request.state.backend_registration.as_ref() else {
         clear_request_execution(&mut request);

@@ -34,7 +34,13 @@ use crate::sql::ast::{
 };
 use crate::types::{DataType, FieldSchema, Schema};
 
-type CteScope = HashMap<String, Vec<String>>;
+#[derive(Clone)]
+struct CteBinding {
+    visible: Vec<String>,
+    row_fields: Vec<FieldSchema>,
+}
+
+type CteScope = HashMap<String, CteBinding>;
 
 #[path = "binder/case_unify.rs"]
 mod case_unify;
@@ -51,10 +57,15 @@ mod inference;
 #[path = "binder/numeric_outputs.rs"]
 mod numeric_outputs;
 pub(crate) use numeric_outputs::infer_plan_output_contract;
+#[path = "binder/alias_admission.rs"]
+mod alias_admission;
+#[path = "binder/aliases.rs"]
+mod aliases;
 #[path = "binder/json_predicates.rs"]
 mod json_predicates;
 #[path = "binder/own_qualifier.rs"]
 mod own_qualifier;
+pub(crate) use aliases::qualifier as alias_row_qualifier;
 #[path = "binder/projections.rs"]
 mod projections;
 #[path = "binder/recursive.rs"]
@@ -148,6 +159,16 @@ pub fn bind_with_context(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<BoundStatement, CassieError> {
+    bind_initial_with_controls(statement, catalog, context, None)
+}
+
+pub(crate) fn bind_initial_with_controls(
+    statement: ParsedStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<BoundStatement, CassieError> {
+    alias_admission::validate(&statement, controls)?;
     let mut statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
     if crate::sql::parameter_count(&statement) == 0 {
         // Parameter-free view/projection callers also consume this bound AST.
@@ -176,6 +197,7 @@ fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
 
 fn source_collection(source: &QuerySource) -> Option<String> {
     match source {
+        QuerySource::Aliased { source, .. } => source_collection(source),
         QuerySource::Collection(collection) => Some(collection.to_string()),
         QuerySource::Subquery { select, .. } => source_collection(&select.source),
         QuerySource::Join { left, .. } => source_collection(left),
@@ -198,13 +220,32 @@ pub(crate) fn bind_with_outer_ctes(
     outer_ctes: &HashMap<String, Vec<String>>,
     outer_fields: &HashSet<String>,
 ) -> Result<BoundStatement, CassieError> {
+    let outer_ctes = outer_ctes
+        .iter()
+        .map(|(name, fields)| {
+            (
+                name.clone(),
+                CteBinding {
+                    visible: fields.clone(),
+                    row_fields: fields
+                        .iter()
+                        .map(|name| FieldSchema {
+                            name: name.clone(),
+                            data_type: DataType::Text,
+                            nullable: true,
+                        })
+                        .collect(),
+                },
+            )
+        })
+        .collect();
     let statement = match statement.statement {
         QueryStatement::Select(select) if !outer_fields.is_empty() => {
             // A correlated subquery also sees the enclosing row's columns.
             let select = select::bind_select_with_lateral_fields(
                 select,
                 catalog,
-                outer_ctes,
+                &outer_ctes,
                 outer_fields,
                 context,
             )?;
@@ -216,7 +257,7 @@ pub(crate) fn bind_with_outer_ctes(
                 statement: other,
             },
             catalog,
-            outer_ctes,
+            &outer_ctes,
             context,
         )?,
     };

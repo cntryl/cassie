@@ -283,7 +283,7 @@ fn join_properties(plan: &LogicalPlan) -> PhysicalJoinProperties {
             .collect(),
         parameterized,
         rewindable: !parameterized,
-        bounded: plan.limit.is_some(),
+        bounded: plan.limit_value().is_some(),
         memory_bound: "accounted_query_budget".to_string(),
     }
 }
@@ -324,10 +324,10 @@ fn physical_operators(plan: &LogicalPlan) -> Vec<Operator> {
     if !plan.projection.is_empty() {
         operators.push(Operator::Project);
     }
-    if plan.offset.is_some() {
+    if plan.offset_value().is_some() {
         operators.push(Operator::Offset);
     }
-    if plan.limit.is_some() {
+    if plan.limit_value().is_some() {
         operators.push(Operator::Limit);
     }
     operators
@@ -375,11 +375,11 @@ pub(super) fn is_equi_join_predicate(expr: &Expr) -> bool {
 }
 
 fn top_k_limit(plan: &LogicalPlan) -> Option<usize> {
-    if plan.order.is_empty() || plan.limit.is_none() {
+    if plan.order.is_empty() || plan.limit_value().is_none() {
         return None;
     }
-    let limit = usize::try_from(plan.limit?.max(0)).ok()?;
-    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    let limit = usize::try_from(plan.limit_value()?.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
 }
 
@@ -561,9 +561,9 @@ fn scan_limit(plan: &LogicalPlan, projected_scan_fields: &[String]) -> Option<us
     if projected_scan_fields.is_empty() || plan.filter.is_some() || !plan.order.is_empty() {
         return None;
     }
-    let limit = plan.limit?;
+    let limit = plan.limit_value()?;
     let limit = usize::try_from(limit.max(0)).ok()?;
-    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
 }
 
@@ -580,7 +580,7 @@ fn plan_supports_predicate_pushdown(plan: &LogicalPlan) -> bool {
         return false;
     }
 
-    if !matches!(plan.source, QuerySource::Collection(_)) {
+    if crate::sql::physical_collection(&plan.source).is_none() {
         return false;
     }
     if plan.projection.is_empty()
@@ -608,9 +608,7 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         return None;
     }
 
-    if !matches!(plan.source, QuerySource::Collection(_)) {
-        return None;
-    }
+    crate::sql::physical_collection(&plan.source)?;
 
     let projection_columns = plan
         .projection
@@ -636,6 +634,7 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         .chain(filter_columns)
         .chain(order_columns)
     {
+        let column = crate::sql::ColumnIdentifierPath::reference_field_key(&column);
         if is_row_id_column(&column) || fields.iter().any(|field: &String| field == &column) {
             continue;
         }
@@ -727,6 +726,7 @@ use crate::types::row_identity::is_row_identity_column as is_row_id_column;
 
 fn source_contains_join(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => source_contains_join(source),
         QuerySource::Join { .. } => true,
         QuerySource::Subquery { select, .. } => source_contains_join(&select.source),
         QuerySource::Collection(_)

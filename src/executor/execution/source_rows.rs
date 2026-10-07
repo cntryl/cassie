@@ -52,7 +52,7 @@ pub(super) fn attach_outer_scope(batches: Vec<Batch>, outer_row: &BatchRow) -> V
 pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> Option<usize> {
     if plan.filter.is_some()
         || plan.having.is_some()
-        || plan.offset.unwrap_or(0) > 0
+        || plan.offset_value().unwrap_or(0) > 0
         || plan.set.is_some()
         || plan.distinct
         || !plan.distinct_on.is_empty()
@@ -76,7 +76,7 @@ pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> O
 
     let result_cap = max_result_rows.saturating_add(1);
     let limit = plan
-        .limit
+        .limit_value()
         .and_then(|limit| usize::try_from(limit.max(0)).ok())
         .unwrap_or(result_cap);
     Some(limit.min(result_cap))
@@ -84,6 +84,7 @@ pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> O
 
 pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => source_contains_lateral(source),
         QuerySource::Join { left, right, .. } => {
             source_contains_lateral(left) || source_contains_lateral(right)
         }

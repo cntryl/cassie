@@ -14,6 +14,9 @@ use crate::sql::ast::{
 #[path = "query_select.rs"]
 mod query_select;
 
+#[path = "relation_alias.rs"]
+mod relation_alias;
+
 pub(super) fn parse_select_statement(
     sql: &str,
     withs: Vec<CommonTableExpression>,
@@ -505,11 +508,7 @@ pub(super) fn parse_single_query_source(raw: &str) -> Result<QuerySource, SqlErr
     }
 
     let (path, rest) = parse_relation_path_prefix(raw)?;
-    if !rest.is_empty() {
-        return Err(SqlError::new("unsupported FROM syntax".into()));
-    }
-
-    Ok(QuerySource::Collection(path))
+    relation_alias::parse(QuerySource::Collection(path), rest)
 }
 
 pub(super) fn matching_closing_paren(raw: &str) -> Option<usize> {

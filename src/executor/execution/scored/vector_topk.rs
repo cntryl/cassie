@@ -213,9 +213,9 @@ fn vector_distance_top_k_spec(
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?;
+    let limit = usize::try_from(plan.limit_value()?).ok()?;
     let offset = plan
-        .offset
+        .offset_value()
         .and_then(|offset| usize::try_from(offset).ok())
         .unwrap_or(0);
     let (id_column, function, score_column) =

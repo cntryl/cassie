@@ -110,7 +110,7 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     breakdown.projection += projection_started.elapsed();
 
     let result_started = Instant::now();
-    batches = slice_batches_for_plan(batches, plan.offset, plan.limit);
+    batches = slice_batches_for_plan(batches, plan.offset_value(), plan.limit_value());
     let rows = batch::try_flatten_batches(batches)?;
     drop(batch_memory);
     breakdown.result_build += result_started.elapsed();

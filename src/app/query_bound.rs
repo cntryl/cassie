@@ -4,7 +4,6 @@ use super::{
     Cassie, CassieError, CassieSession, ExecutionMode, QueryExecutionControls, QueryResult,
     QueryStatement, Value,
 };
-use crate::planner::logical::LogicalCommand;
 
 impl Cassie {
     pub(crate) fn execute_parsed_statement_core(
@@ -67,7 +66,7 @@ impl Cassie {
     fn execute_bound_statement(
         &self,
         session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
+        mut parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
@@ -84,6 +83,12 @@ impl Cassie {
             &self.catalog,
             &mut params,
         );
+        let bound_parameters = crate::sql::pagination::resolve_statement(
+            &mut parsed,
+            &params,
+            declared_oids,
+            controls,
+        )?;
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,
@@ -97,7 +102,7 @@ impl Cassie {
             return self.execute_transaction_statement(session, statement);
         }
 
-        let cache_context = self.query_cache_context(
+        let mut cache_context = self.query_cache_context(
             session,
             &parsed,
             sql_fingerprint,
@@ -105,6 +110,11 @@ impl Cassie {
             mode,
             parameter_type_oids,
         );
+        if bound_parameters {
+            // Physical access paths depend on actual bounds, while the plan key
+            // deliberately contains parameter shapes rather than values.
+            cache_context.cache_key = None;
+        }
         let (physical, provenance) = self.resolve_statement_plan(
             parsed,
             &cache_context,
@@ -118,22 +128,13 @@ impl Cassie {
             &self.binding_context_for_session(Some(session)),
             parameter_type_oids,
         )?;
-        let has_sql_output_contract = matches!(
-            physical.logical.command.as_ref(),
-            None | Some(
-                LogicalCommand::Insert(_) | LogicalCommand::Update(_) | LogicalCommand::Delete(_)
-            )
-        );
-        let output_columns = if wire_output && has_sql_output_contract {
-            Some(self.pgwire_columns_for_plan(
-                &physical.logical,
-                Some(session),
-                declared_oids,
-                controls,
-            )?)
-        } else {
-            None
-        };
+        let output_columns = self.bound_statement_output_columns(
+            &physical.logical,
+            session,
+            declared_oids,
+            controls,
+            wire_output,
+        )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);

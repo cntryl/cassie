@@ -35,7 +35,7 @@ pub(super) fn determine_read_access_path(
         };
     }
 
-    if matches!(&plan.source, QuerySource::Collection(_)) {
+    if crate::sql::physical_collection(&plan.source).is_some() {
         return ReadAccessPath::CollectionScan;
     }
 
@@ -46,12 +46,12 @@ pub(super) fn determine_pagination_strategy(
     plan: &LogicalPlan,
     access_path: &ReadAccessPath,
 ) -> PaginationStrategy {
-    let offset = plan.offset.unwrap_or(0);
+    let offset = plan.offset_value().unwrap_or(0);
     if is_row_id_keyset_candidate(plan) {
         return PaginationStrategy::Keyset;
     }
 
-    if plan.limit.is_none() {
+    if plan.limit_value().is_none() {
         return if offset > 0 {
             PaginationStrategy::Offset
         } else {
@@ -111,8 +111,8 @@ pub(super) fn determine_early_stop(
     if matches!(
         access_path,
         ReadAccessPath::IndexSeek | ReadAccessPath::PrefixScan | ReadAccessPath::RangeScan
-    ) && plan.limit.is_some()
-        && plan.offset.is_none_or(|offset| offset <= 0)
+    ) && plan.limit_value().is_some()
+        && plan.offset_value().is_none_or(|offset| offset <= 0)
     {
         return EarlyStopMode::ScanLimit;
     }
@@ -224,7 +224,7 @@ pub(super) fn read_access_path_fallback_reason(
 fn supports_scan_limit_early_stop(plan: &LogicalPlan) -> bool {
     if plan.filter.is_some()
         || !plan.order.is_empty()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || !is_row_projection(plan)
     {
         return false;
@@ -247,7 +247,7 @@ fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
     {
         return false;
     }
@@ -258,7 +258,7 @@ fn is_row_id_lookup_query(plan: &LogicalPlan) -> bool {
 
     is_id_point_lookup_filter(filter)
         && is_row_projection(plan)
-        && plan.offset.is_none_or(|offset| offset <= 0)
+        && plan.offset_value().is_none_or(|offset| offset <= 0)
 }
 
 fn is_row_id_ordering(plan: &LogicalPlan) -> bool {
@@ -295,10 +295,10 @@ fn is_row_id_ordered_page_candidate(plan: &LogicalPlan) -> bool {
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || !is_row_projection(plan)
         || !is_row_id_ordering(plan)
-        || plan.limit.is_none()
+        || plan.limit_value().is_none()
     {
         return false;
     }
@@ -312,13 +312,13 @@ fn is_row_id_ordered_page_candidate(plan: &LogicalPlan) -> bool {
 fn is_row_id_keyset_candidate(plan: &LogicalPlan) -> bool {
     is_row_id_ordered_page_candidate(plan)
         && plan.filter.as_ref().is_some_and(is_row_id_range_filter)
-        && plan.offset.is_none_or(|offset| offset <= 0)
+        && plan.offset_value().is_none_or(|offset| offset <= 0)
 }
 
 fn is_row_id_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
     is_row_id_ordered_page_candidate(plan)
         && plan.filter.is_none()
-        && plan.offset.is_none_or(|offset| offset <= 0)
+        && plan.offset_value().is_none_or(|offset| offset <= 0)
 }
 
 fn is_id_point_lookup_filter(expr: &Expr) -> bool {
@@ -352,13 +352,13 @@ fn is_id_point_lookup_filter(expr: &Expr) -> bool {
 }
 
 fn is_heap_top_k_candidate(plan: &LogicalPlan) -> bool {
-    !plan.order.is_empty() && plan.limit.is_some() && plan.set.is_none()
+    !plan.order.is_empty() && plan.limit_value().is_some() && plan.set.is_none()
 }
 
 fn is_storage_top_k_candidate(plan: &LogicalPlan) -> bool {
     is_heap_top_k_candidate(plan)
         && plan.filter.is_none()
-        && plan.offset.is_none_or(|offset| offset <= 0)
+        && plan.offset_value().is_none_or(|offset| offset <= 0)
         && !plan.distinct
         && plan.distinct_on.is_empty()
         && plan.group_by.is_empty()

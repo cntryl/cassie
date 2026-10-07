@@ -1,4 +1,4 @@
-use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan, QuerySource};
+use super::{BinaryOp, Expr, IndexKind, IndexMeta, LogicalPlan};
 use crate::sql::ast::{NullsOrder, OrderExpr, SortDirection};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -69,7 +69,7 @@ pub(crate) fn scalar_index_plan_shape(
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || plan.set.is_some()
-        || !matches!(plan.source, QuerySource::Collection(_))
+        || crate::sql::physical_collection(&plan.source).is_none()
         || index.kind != IndexKind::Scalar
     {
         return None;
@@ -155,7 +155,7 @@ fn field_index_plan_shape(
         });
     }
 
-    if order_shape.order_columns_used > 0 && plan.limit.is_some() {
+    if order_shape.order_columns_used > 0 && plan.limit_value().is_some() {
         if !order_shape.order_satisfied
             && (equality_prefix_len > 0
                 || (order_shape.order_by_row_id && super::plan_is_covered_by_index(plan, index)))
@@ -197,7 +197,7 @@ pub(crate) fn scalar_index_order_proof_missing_candidate(
     not_null_fields: &BTreeSet<String>,
 ) -> bool {
     if plan.order.is_empty()
-        || plan.limit.is_none()
+        || plan.limit_value().is_none()
         || index.kind != IndexKind::Scalar
         || !index.expressions.is_empty()
         || scalar_index_plan_shape(plan, index, not_null_fields).is_some()
@@ -296,7 +296,7 @@ fn expression_index_plan_shape(
         // ordered scan is only complete when NULLs sort after the LIMIT fills.
         if plan.filter.is_none()
             && order_shape.order_columns_used > 0
-            && plan.limit.is_some()
+            && plan.limit_value().is_some()
             && plan.order.first().is_some_and(nulls_sort_last)
         {
             return Some(ScalarIndexPlanShape {
@@ -674,7 +674,7 @@ fn key_null_proof(
     let Some(unproven_field) = unproven.next() else {
         return Some(ScalarIndexNullKeys::Excluded);
     };
-    if unproven.next().is_some() || plan.limit.is_none() {
+    if unproven.next().is_some() || plan.limit_value().is_none() {
         return None;
     }
     let leading_order = plan.order.iter().find(|order| {

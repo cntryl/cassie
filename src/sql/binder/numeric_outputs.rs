@@ -106,8 +106,8 @@ pub(crate) fn infer_plan_output_contract(
             group_by: logical.group_by.clone(),
             having: logical.having.clone(),
             order: logical.order.clone(),
-            limit: logical.limit,
-            offset: logical.offset,
+            limit: logical.limit.clone(),
+            offset: logical.offset.clone(),
             set: logical.set.clone(),
         };
         analyzer.select(&select, &CteScope::new(), None)?

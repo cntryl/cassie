@@ -25,6 +25,11 @@ pub enum CteQuery {
 pub enum QuerySource {
     Collection(IdentifierPath),
     Cte(String),
+    Aliased {
+        source: Box<QuerySource>,
+        alias: String,
+        column_aliases: Vec<String>,
+    },
     TableFunction {
         name: String,
         function: FunctionCall,
@@ -49,6 +54,18 @@ impl PartialEq for QuerySource {
         match (self, other) {
             (Self::Collection(left), Self::Collection(right)) => left == right,
             (Self::Cte(left), Self::Cte(right)) => left == right,
+            (
+                Self::Aliased {
+                    source: left,
+                    alias: left_alias,
+                    column_aliases: left_columns,
+                },
+                Self::Aliased {
+                    source: right,
+                    alias: right_alias,
+                    column_aliases: right_columns,
+                },
+            ) => left == right && left_alias == right_alias && left_columns == right_columns,
             (Self::TableFunction { name: left, .. }, Self::TableFunction { name: right, .. }) => {
                 left == right
             }
@@ -95,8 +112,8 @@ pub struct SelectStatement {
     pub group_by: Vec<Expr>,
     pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub limit: Option<Expr>,
+    pub offset: Option<Expr>,
     pub set: Option<Box<SelectSet>>,
 }
 

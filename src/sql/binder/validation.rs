@@ -355,6 +355,8 @@ pub(super) fn select_contains_parameters(select: &SelectStatement) -> bool {
         || select.distinct_on.iter().any(expr_contains_parameters)
         || select.group_by.iter().any(expr_contains_parameters)
         || select.having.as_ref().is_some_and(expr_contains_parameters)
+        || select.limit.as_ref().is_some_and(expr_contains_parameters)
+        || select.offset.as_ref().is_some_and(expr_contains_parameters)
         || select
             .order
             .iter()
@@ -453,6 +455,7 @@ pub(super) fn select_item_contains_parameters(item: &SelectItem) -> bool {
 
 pub(super) fn source_contains_parameters(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => source_contains_parameters(source),
         QuerySource::Collection(_) | QuerySource::Cte(_) | QuerySource::SingleRow => false,
         QuerySource::TableFunction { function, .. } => {
             function.args.iter().any(expr_contains_parameters)
@@ -815,6 +818,7 @@ pub(super) fn collect_functions(statement: &SelectStatement, out: &mut Vec<Funct
 
 fn collect_source_functions(source: &QuerySource, out: &mut Vec<FunctionCall>) {
     match source {
+        QuerySource::Aliased { source, .. } => collect_source_functions(source, out),
         QuerySource::TableFunction { function, .. } => {
             out.push(function.clone());
             for arg in &function.args {
@@ -908,6 +912,7 @@ pub(super) fn recursive_cte_reference_count(statement: &ParsedStatement, cte_nam
 
 fn source_cte_reference_count(source: &QuerySource, cte_name: &str) -> usize {
     match source {
+        QuerySource::Aliased { source, .. } => source_cte_reference_count(source, cte_name),
         QuerySource::Cte(name) => usize::from(name.eq_ignore_ascii_case(cte_name)),
         QuerySource::Collection(name) => usize::from(name.as_str().eq_ignore_ascii_case(cte_name)),
         QuerySource::TableFunction { .. } | QuerySource::SingleRow => 0,

@@ -318,6 +318,7 @@ fn collect_expression_columns(expr: &Expr, columns: &mut BTreeSet<String>) {
 #[must_use]
 pub fn join_is_parameterized(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => join_is_parameterized(source),
         QuerySource::Join { left, right, .. } => {
             join_is_parameterized(left) || join_is_parameterized(right)
         }

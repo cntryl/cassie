@@ -352,7 +352,7 @@ pub(super) fn try_execute_rollup_query(
         None,
     )?;
     let rows = batch::flatten_batches(batches);
-    let rows = super::source::slice_rows(rows, plan.offset, plan.limit);
+    let rows = super::source::slice_rows(rows, plan.offset_value(), plan.limit_value());
     cassie.runtime.record_rollup_rewrite(rollup.name);
     check_timeout(controls)?;
     Ok(Some(rows))

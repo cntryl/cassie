@@ -1,7 +1,7 @@
 use super::{
     point_lookup_read_spec, scan, virtual_views, BatchRow, Cassie, CassieSession,
     ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap, Instant, LogicalPlan, QueryError,
-    QueryExecutionControls, QuerySource, SelectItem, Value,
+    QueryExecutionControls, SelectItem, Value,
 };
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul};
 use crate::executor::typed_batch::TypedBatch;
@@ -34,7 +34,7 @@ pub(super) fn try_execute(
     if !supports_plan(plan) {
         return Ok(None);
     }
-    let QuerySource::Collection(collection) = &plan.source else {
+    let Some(collection) = crate::sql::physical_collection(&plan.source) else {
         return Ok(None);
     };
     if virtual_views::schema(collection).is_some()
@@ -54,7 +54,7 @@ pub(super) fn try_execute(
         return Ok(None);
     };
     // CBC2 retains its pruning, bounded reads and all-or-nothing fallback boundary.
-    if (plan.filter.is_some() || plan.limit.is_some() || plan.offset.is_some())
+    if (plan.filter.is_some() || plan.limit_value().is_some() || plan.offset_value().is_some())
         && scan::has_covering_column_index(cassie, collection, &fields)
     {
         return Ok(None);
@@ -67,8 +67,8 @@ pub(super) fn try_execute(
         return Ok(None);
     };
     breakdown.scan += started.elapsed();
-    let mut offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).unwrap_or(usize::MAX);
-    let mut remaining = plan.limit.map_or(usize::MAX, |limit| {
+    let mut offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).unwrap_or(usize::MAX);
+    let mut remaining = plan.limit_value().map_or(usize::MAX, |limit| {
         usize::try_from(limit.max(0)).unwrap_or(usize::MAX)
     });
     let mut output = Vec::new();
@@ -76,7 +76,7 @@ pub(super) fn try_execute(
     let mut output_memory = controls.reserve_query_memory(0)?;
     while remaining > 0 {
         let started = Instant::now();
-        let source_bound = if plan.filter.is_some() && plan.limit.is_some() {
+        let source_bound = if plan.filter.is_some() && plan.limit_value().is_some() {
             1
         } else {
             remaining.saturating_add(offset)
@@ -470,3 +470,7 @@ mod tests {
         std::fs::remove_dir_all(path).expect("cleanup");
     }
 }
+
+#[cfg(test)]
+#[path = "typed/alias_tests.rs"]
+mod alias_tests;

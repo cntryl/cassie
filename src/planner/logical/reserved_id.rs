@@ -100,6 +100,9 @@ fn source_resolves_id_to_identity(
     catalog: &Catalog,
 ) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => {
+            source_resolves_id_to_identity(source, ctes, catalog)
+        }
         QuerySource::Collection(collection) => !collection_declares_id(catalog, collection),
         // A join row carries each side's entries, so `id` means the identity
         // only when neither side declares one of its own.

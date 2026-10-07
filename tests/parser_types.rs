@@ -4,6 +4,9 @@
 #[path = "parser_types/dialect_syntax.rs"]
 mod dialect_syntax;
 
+#[path = "parser_types/aliases.rs"]
+mod parser_aliases;
+
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/sql.rs"]
@@ -46,8 +49,8 @@ mod parser_core {
             statement.source,
             QuerySource::Collection(IdentifierPath::parse("docs").expect("relation path"))
         );
-        assert_eq!(statement.limit, Some(10));
-        assert_eq!(statement.offset, Some(5));
+        assert!(matches!(statement.limit, Some(Expr::IntegerLiteral(10))));
+        assert!(matches!(statement.offset, Some(Expr::IntegerLiteral(5))));
 
         assert_eq!(statement.projection.len(), 2);
         match &statement.projection[0] {
@@ -221,7 +224,7 @@ mod parser_core {
     }
 
     #[test]
-    fn should_reject_invalid_limit_values() {
+    fn should_parse_signed_limit_literals_before_execution() {
         // Arrange
         let negative_limit = parse_statement("SELECT * FROM docs LIMIT -1");
         let zero_limit = parse_statement("SELECT * FROM docs LIMIT 0");
@@ -230,7 +233,7 @@ mod parser_core {
         let zero_offset = parse_statement("SELECT * FROM docs OFFSET 0");
 
         // Assert
-        assert!(negative_limit.is_err());
+        assert!(negative_limit.is_ok());
         assert!(zero_limit.is_ok());
         assert!(zero_offset.is_ok());
     }
@@ -1481,7 +1484,7 @@ mod parser_expressions {
             } => {}
             _ => panic!("expected pgvector cosine order operator"),
         }
-        assert_eq!(statement.limit, Some(5));
+        assert!(matches!(statement.limit, Some(Expr::IntegerLiteral(5))));
     }
 
     #[test]
@@ -1635,7 +1638,7 @@ mod parser_expressions {
     }
 
     #[test]
-    fn should_reject_negative_offset() {
+    fn should_parse_negative_offset_before_execution() {
         // Arrange
         let sql = "SELECT * FROM docs ORDER BY id OFFSET -1";
 
@@ -1643,11 +1646,11 @@ mod parser_expressions {
         let parsed = parse_statement(sql);
 
         // Assert
-        assert!(parsed.is_err());
+        assert!(parsed.is_ok());
     }
 
     #[test]
-    fn should_reject_negative_limit() {
+    fn should_parse_negative_limit_before_execution() {
         // Arrange
         let sql = "SELECT * FROM docs LIMIT -5";
 
@@ -1655,7 +1658,7 @@ mod parser_expressions {
         let parsed = parse_statement(sql);
 
         // Assert
-        assert!(parsed.is_err());
+        assert!(parsed.is_ok());
     }
 
     #[test]
@@ -4860,8 +4863,8 @@ mod parser_sources_sets {
         assert!(matches!(set.operator, SetOperator::UnionAll));
         assert!(set.right.order.is_empty());
         assert_eq!(statement.order.len(), 1);
-        assert_eq!(statement.limit, Some(1));
-        assert_eq!(statement.offset, Some(1));
+        assert!(matches!(statement.limit, Some(Expr::IntegerLiteral(1))));
+        assert!(matches!(statement.offset, Some(Expr::IntegerLiteral(1))));
     }
 
     #[test]

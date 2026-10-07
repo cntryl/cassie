@@ -12,6 +12,10 @@ use crate::types::row_identity::{
     is_legacy_id_column, is_row_identity_column, LEGACY_ID_COLUMN, ROW_IDENTITY_COLUMN,
 };
 
+#[path = "cte_columns.rs"]
+mod cte_columns;
+use cte_columns::cte_column_aliases;
+
 pub(super) fn bind_select(
     select: SelectStatement,
     catalog: &Catalog,
@@ -70,16 +74,19 @@ pub(super) fn bind_select_with_lateral_fields(
             )?,
         };
 
-        let (aliases, stored_aliases) =
+        let (_, stored_aliases) =
             cte_column_aliases(&cte.name, &declared_aliases, &query, &bound_ctes, catalog)?;
-        scope.insert(cte_name_lc, aliases);
-        bound_ctes.push(crate::sql::ast::CommonTableExpression {
+        let bound_cte = crate::sql::ast::CommonTableExpression {
             name: cte.name,
             aliases: stored_aliases,
             query,
-        });
+        };
+        let binding = cte_columns::binding(&bound_cte, &bound_ctes, &scope, catalog, context)?;
+        scope.insert(cte_name_lc, binding);
+        bound_ctes.push(bound_cte);
     }
 
+    super::aliases::allocate_scope(&mut select)?;
     let source = bind_query_source_with_lateral_fields(
         select.source.clone(),
         catalog,
@@ -87,10 +94,11 @@ pub(super) fn bind_select_with_lateral_fields(
         lateral_fields,
         context,
     )?;
-    let mut known_fields = source_fields(catalog, &source, &scope)?;
-    known_fields.extend(lateral_fields.iter().cloned());
     select.source = source;
     select.ctes = bound_ctes;
+    super::aliases::lower_select(&mut select, catalog, &scope)?;
+    let mut known_fields = source_fields(catalog, &select.source, &scope)?;
+    known_fields.extend(lateral_fields.iter().cloned());
     if lateral_fields.is_empty() {
         super::own_qualifier::strip_select_own_qualifiers(&mut select);
     }
@@ -122,68 +130,6 @@ pub(super) fn bind_select_with_lateral_fields(
     super::search_field_case::canonicalize_search_field_arguments(&mut select, catalog);
 
     Ok(select)
-}
-
-/// Returns a CTE's visible column names and the alias list stored on the
-/// bound CTE. Without a declared list both are the body's output names (`*`
-/// for a wildcard body). A declared list may be shorter than the body's
-/// output, as in PostgreSQL: it renames the leading columns and the rest keep
-/// their names. A longer list, or any mismatch for a recursive CTE, is an
-/// error.
-fn cte_column_aliases(
-    cte_name: &str,
-    declared: &[String],
-    query: &CteQuery,
-    bound_ctes: &[crate::sql::ast::CommonTableExpression],
-    catalog: &Catalog,
-) -> Result<(Vec<String>, Vec<String>), CassieError> {
-    let visible = cte_output_fields(query)?;
-    if declared.is_empty() {
-        return Ok((visible.clone(), visible));
-    }
-    let recursive = matches!(query, CteQuery::Recursive { .. });
-    let visible = if visible.len() == 1 && visible[0] == "*" {
-        wildcard_cte_columns(cte_name, query, bound_ctes, catalog).unwrap_or(visible)
-    } else {
-        visible
-    };
-    let known_width = !(visible.len() == 1 && visible[0] == "*");
-    if known_width
-        && (declared.len() > visible.len() || (recursive && declared.len() != visible.len()))
-    {
-        return Err(CassieError::Planner(format!(
-            "CTE '{cte_name}' alias count does not match output columns"
-        )));
-    }
-    let rest: Vec<String> = if known_width && !recursive {
-        visible.into_iter().skip(declared.len()).collect()
-    } else {
-        Vec::new()
-    };
-    let stored: Vec<String> = declared.iter().cloned().chain(rest).collect();
-    Ok((stored.clone(), stored))
-}
-
-/// The output column names of a wildcard CTE body, in row order.
-fn wildcard_cte_columns(
-    cte_name: &str,
-    query: &CteQuery,
-    bound_ctes: &[crate::sql::ast::CommonTableExpression],
-    catalog: &Catalog,
-) -> Option<Vec<String>> {
-    let mut in_scope = bound_ctes.to_vec();
-    in_scope.push(crate::sql::ast::CommonTableExpression {
-        name: cte_name.to_string(),
-        aliases: Vec::new(),
-        query: query.clone(),
-    });
-    let schema = super::source_schema::derived_source_schema(
-        &QuerySource::Cte(cte_name.to_string()),
-        &in_scope,
-        catalog,
-        &HashMap::new(),
-    )?;
-    Some(schema.fields.into_iter().map(|field| field.name).collect())
 }
 
 pub(super) fn canonicalize_typed_predicate_literals(
@@ -467,6 +413,7 @@ pub(super) fn validate_recursive_cte_shape(
                 name.clone(),
                 Schema {
                     fields: aliases
+                        .visible
                         .iter()
                         .map(|alias| FieldSchema {
                             name: alias.clone(),
@@ -608,39 +555,33 @@ pub(super) fn bind_query_source_with_lateral_fields(
     context: &BindingContext,
 ) -> Result<QuerySource, CassieError> {
     match source {
-        QuerySource::Collection(name) => {
-            let source_name_lc = name.to_ascii_lowercase();
-            if scope.contains_key(&source_name_lc) {
-                Ok(QuerySource::Cte(name.to_string()))
-            } else {
-                let resolved = resolve_relation_path(&name, catalog, context)?;
-                Ok(QuerySource::Collection(
-                    IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
-                ))
-            }
+        QuerySource::Aliased {
+            source,
+            alias,
+            column_aliases,
+        } => {
+            let source = bind_query_source_with_lateral_fields(
+                *source,
+                catalog,
+                scope,
+                lateral_fields,
+                context,
+            )?;
+            super::aliases::columns(&source, &column_aliases, catalog, scope)?;
+            Ok(QuerySource::Aliased {
+                source: Box::new(source),
+                alias,
+                column_aliases,
+            })
         }
+        QuerySource::Collection(name) => bind_collection_source(&name, catalog, scope, context),
         QuerySource::Cte(name) => Ok(QuerySource::Cte(name)),
         QuerySource::SingleRow => Ok(QuerySource::SingleRow),
         QuerySource::TableFunction {
             name,
             function,
             lateral,
-        } => {
-            validate_graph_table_function(&function, lateral_fields)?;
-            if let Some(graph_name) = literal_string_arg(&function, 0) {
-                let graph_name = super::normalize_relation_name(&graph_name, context)?;
-                if !catalog.graph_exists_exact(&graph_name) {
-                    return Err(CassieError::Planner(format!(
-                        "graph '{graph_name}' does not exist"
-                    )));
-                }
-            }
-            Ok(QuerySource::TableFunction {
-                name,
-                function,
-                lateral,
-            })
-        }
+        } => bind_table_function(name, function, lateral, catalog, lateral_fields, context),
         QuerySource::Subquery {
             alias,
             select,
@@ -676,8 +617,10 @@ pub(super) fn bind_query_source_with_lateral_fields(
             )?;
             let mut right_lateral_fields = lateral_fields.clone();
             right_lateral_fields.extend(source_fields(catalog, &left, scope)?);
+            let mut right = *right;
+            super::aliases::lower_lateral(&left, &mut right, catalog, scope)?;
             let right = bind_query_source_with_lateral_fields(
-                *right,
+                right,
                 catalog,
                 scope,
                 &right_lateral_fields,
@@ -689,8 +632,11 @@ pub(super) fn bind_query_source_with_lateral_fields(
                 kind,
                 on: on.clone(),
             };
+            super::aliases::lower_join_on(&mut joined, catalog, scope)?;
             let known_fields = source_fields(catalog, &joined, scope)?;
-            validate_expression(&on, &known_fields, &HashSet::new(), false)?;
+            if let QuerySource::Join { on, .. } = &joined {
+                validate_expression(on, &known_fields, &HashSet::new(), false)?;
+            }
             let field_types = crate::sql::source_field_type_map(&joined, catalog);
             let types =
                 super::coalesce_results::ResultTypes::for_source(&joined, &[], catalog, context)?;
@@ -712,6 +658,23 @@ pub(super) fn source_fields(
     scope: &CteScope,
 ) -> Result<HashSet<String>, CassieError> {
     match source {
+        QuerySource::Aliased { source, alias, .. } => {
+            let names = super::aliases::columns(source, &[], catalog, scope)?;
+            let qualifier = super::aliases::qualifier(alias);
+            // Alias columns already contain canonical SQL field keys. Do not
+            // quote those keys again as literal catalog field spellings.
+            let mut fields = names
+                .into_iter()
+                .flat_map(|(_, physical)| [physical.clone(), format!("{qualifier}.{physical}")])
+                .collect::<HashSet<_>>();
+            if matches!(source.as_ref(), QuerySource::Collection(_)) {
+                fields.extend(qualified_fields(
+                    &qualifier,
+                    [ROW_IDENTITY_COLUMN.to_string()],
+                ));
+            }
+            Ok(fields)
+        }
         QuerySource::Collection(name) => {
             if let Some(fields) = virtual_views::schema(name) {
                 Ok(qualified_fields(
@@ -741,8 +704,7 @@ pub(super) fn source_fields(
         }
         QuerySource::Cte(name) => scope
             .get(&name.to_ascii_lowercase())
-            .cloned()
-            .map(|fields| qualified_fields(name, fields))
+            .map(|binding| qualified_fields(name, binding.visible.clone()))
             .ok_or_else(|| CassieError::CollectionNotFound(name.clone())),
         QuerySource::SingleRow => Ok(HashSet::new()),
         QuerySource::TableFunction { name, .. } => Ok(qualified_fields(
@@ -892,6 +854,47 @@ pub(super) fn table_function_columns(name: &str) -> Vec<(String, DataType)> {
         ];
     }
     graph_table_function_columns()
+}
+
+fn bind_table_function(
+    name: String,
+    function: FunctionCall,
+    lateral: bool,
+    catalog: &Catalog,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    validate_graph_table_function(&function, lateral_fields)?;
+    if let Some(graph_name) = literal_string_arg(&function, 0) {
+        let graph_name = super::normalize_relation_name(&graph_name, context)?;
+        if !catalog.graph_exists_exact(&graph_name) {
+            return Err(CassieError::Planner(format!(
+                "graph '{graph_name}' does not exist"
+            )));
+        }
+    }
+    Ok(QuerySource::TableFunction {
+        name,
+        function,
+        lateral,
+    })
+}
+
+fn bind_collection_source(
+    name: &IdentifierPath,
+    catalog: &Catalog,
+    scope: &CteScope,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    let source_name_lc = name.to_ascii_lowercase();
+    if scope.contains_key(&source_name_lc) {
+        Ok(QuerySource::Cte(name.to_string()))
+    } else {
+        let resolved = resolve_relation_path(name, catalog, context)?;
+        Ok(QuerySource::Collection(
+            IdentifierPath::parse(&resolved).map_err(CassieError::Planner)?,
+        ))
+    }
 }
 
 #[cfg(test)]

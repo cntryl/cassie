@@ -37,6 +37,17 @@ pub(super) fn execute_query_source(
     row_budget: Option<usize>,
 ) -> SourceExecution {
     let (mut batches, text_fields) = match source {
+        QuerySource::Aliased { source, alias, .. } => {
+            let (batches, text_fields) =
+                execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;
+            Ok((
+                source_rows::qualify_batches(
+                    batches,
+                    &crate::sql::binder::alias_row_qualifier(alias),
+                ),
+                text_fields,
+            ))
+        }
         QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
         QuerySource::SingleRow => execute_single_row_source(env),
         QuerySource::TableFunction {
@@ -295,8 +306,8 @@ fn execute_subquery_source(
         group_by: select.group_by.clone(),
         having: select.having.clone(),
         order: select.order.clone(),
-        limit: select.limit,
-        offset: select.offset,
+        limit: select.limit.clone(),
+        offset: select.offset.clone(),
         set: select.set.clone(),
     };
     // Built here rather than by the planner, so it needs the reserved-id
@@ -884,7 +895,7 @@ fn finalize_plan_rows(
         };
         rows = sort::sort_rows_with_controls(rows, &eval, env.controls)?;
     }
-    Ok(slice_rows(rows, plan.offset, plan.limit))
+    Ok(slice_rows(rows, plan.offset_value(), plan.limit_value()))
 }
 
 fn set_left_output_names(

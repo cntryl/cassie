@@ -8,7 +8,7 @@ pub(super) use super::scalar_index_constraints::{
 use super::{
     batch, check_timeout, projected_read, scan, BatchRow, Cassie, CassieSession, Expr,
     FunctionMeta, HashMap, LogicalPlan, PhysicalPlan, QueryError, QueryExecutionControls,
-    QuerySource, SelectItem, Value,
+    SelectItem, Value,
 };
 use crate::catalog::IndexMeta;
 use crate::midge::adapter::{DocumentRef, ScalarIndexBound, ScalarIndexScanRequest};
@@ -117,10 +117,12 @@ struct ScalarIndexReadSpec {
 }
 
 fn hits_fill_limit(plan: &LogicalPlan, hits: usize) -> bool {
-    let Some(limit) = plan.limit else {
+    let Some(limit) = plan.limit_value() else {
         return false;
     };
-    let needed = limit.max(0).saturating_add(plan.offset.unwrap_or(0).max(0));
+    let needed = limit
+        .max(0)
+        .saturating_add(plan.offset_value().unwrap_or(0).max(0));
     usize::try_from(needed).is_ok_and(|needed| hits >= needed)
 }
 
@@ -469,9 +471,7 @@ fn expression_index_read_spec(
         return None;
     }
 
-    let QuerySource::Collection(collection) = &plan.source else {
-        return None;
-    };
+    let collection = crate::sql::physical_collection(&plan.source)?;
     let projection_columns = plan
         .projection
         .iter()
@@ -486,6 +486,7 @@ fn expression_index_read_spec(
 
     let mut scan_fields = projection_columns
         .into_iter()
+        .map(|column| crate::sql::ColumnIdentifierPath::reference_field_key(&column))
         .filter(|column| !projected_read::is_row_id_column(column))
         .collect::<Vec<_>>();
     if let Some(filter) = plan.filter.as_ref() {
@@ -506,7 +507,7 @@ fn collect_expression_columns(expr: &Expr, fields: &mut Vec<String>) {
                     == crate::sql::ColumnIdentifierPath::reference_field_key(name)
             })
         {
-            fields.push(name.clone());
+            fields.push(crate::sql::ColumnIdentifierPath::reference_field_key(name));
         }
     }
     expr.for_each_child(|child| collect_expression_columns(child, fields));
@@ -561,8 +562,8 @@ fn storage_limit(
         return None;
     }
 
-    let limit = usize::try_from(plan.limit?.max(0)).ok()?;
-    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    let limit = usize::try_from(plan.limit_value()?.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
 }
 

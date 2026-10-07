@@ -289,7 +289,8 @@ impl Cassie {
         parameter_type_oids: &[i32],
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let context = self.binding_context_for_session(session);
-        let mut bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
+        let mut bound =
+            binder::bind_initial_with_controls(parsed, &self.catalog, &context, controls)?;
         if let Some(controls) = controls {
             if controls.is_cancelled() {
                 return Err(CassieError::QueryCancelled);
@@ -304,6 +305,10 @@ impl Cassie {
             &self.catalog,
             &context,
             parameter_type_oids,
+        )?;
+        crate::sql::pagination::validate_statement(
+            &mut bound.statement,
+            Some(parameter_type_oids),
         )?;
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let mut logical = crate::planner::logical::plan(&bound)?;

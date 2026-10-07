@@ -9,6 +9,8 @@ mod support_metrics;
 mod support_pgwire;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/teardown_evidence.rs"]
+mod support_teardown_evidence;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 
@@ -986,8 +988,25 @@ mod metrics_adaptive {
                 "replacement_failed"
             );
 
-            let _ = std::fs::remove_dir_all(path);
+            drop(session);
+            drop(cassie);
+            std::fs::remove_dir_all(path).expect("remove fixture after engine drop");
         });
+    }
+
+    #[test]
+    fn should_drop_metrics_fixture_without_shutdown_timeout() {
+        // Arrange
+        let owning_fixture = should_report_operator_switch_failure_without_claiming_success;
+
+        // Act
+        let captured = super::support_teardown_evidence::capture_warnings(owning_fixture);
+
+        // Assert
+        assert!(
+            !captured.contains("Midge graceful shutdown did not complete"),
+            "fixture must drop engine owners before removing fencing state: {captured}"
+        );
     }
 
     #[test]

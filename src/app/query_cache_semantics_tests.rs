@@ -137,10 +137,6 @@ fn probe(layer: Layer) -> Evidence {
             }),
         old_plan_still_readable,
     };
-    println!(
-        "{layer:?} legacy rows={:?}, actual rows={:?}, compile misses={}",
-        evidence.old_rows, evidence.rows, evidence.compile_misses
-    );
     assert_eq!(controls.current_query_memory_bytes(), 0);
     drop((controls, session, cassie));
     std::fs::remove_dir_all(path).expect("cleanup");

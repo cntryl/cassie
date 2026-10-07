@@ -106,6 +106,9 @@ pub(super) fn execute_vectorized_join(
     if output_budget == 0 {
         return Ok(empty_vectorized_join(joined, batch_size));
     }
+    if let Some(joined) = super::typed::try_execute(env, spec, retention, batch_size)? {
+        return Ok(VectorizedJoinOutcome::Executed(joined));
+    }
     let _build_memory = env
         .controls
         .reserve_query_memory(accounting::hash_build_bytes::<&BatchRow>(

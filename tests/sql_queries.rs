@@ -2405,7 +2405,7 @@ mod integration_sql_joins {
         );
 
         let metrics = cassie.metrics();
-        assert_eq!(metrics["joins"]["last_strategy"], "vectorized");
+        assert_eq!(metrics["joins"]["last_strategy"], "typed_hash");
         assert_eq!(metrics["joins"]["vectorized_joins"], 1);
         assert_eq!(metrics["joins"]["last_vectorized_batch_size"], 2);
 
@@ -2469,7 +2469,7 @@ mod integration_sql_joins {
         );
 
         let metrics = cassie.metrics();
-        assert_eq!(metrics["joins"]["last_strategy"], "vectorized");
+        assert_eq!(metrics["joins"]["last_strategy"], "typed_hash");
         assert_eq!(metrics["joins"]["vectorized_probe_rows_total"], 2);
         assert_eq!(metrics["joins"]["vectorized_build_rows_total"], 1);
 
@@ -11904,3 +11904,8 @@ mod identifier_case_resolution {
         let _ = std::fs::remove_dir_all(path);
     }
 }
+
+#[path = "support/typed_join.rs"]
+mod support_typed_join;
+#[path = "sql_queries/typed_join.rs"]
+mod typed_join;

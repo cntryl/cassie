@@ -60,6 +60,12 @@ impl JoinRetentionContext<'_> {
 
 #[derive(Clone, Copy)]
 pub(super) enum PendingJoinDiagnostic {
+    Typed {
+        input_rows: crate::runtime::VectorizedJoinInputRows,
+        matched_rows: usize,
+        batch_size: usize,
+        batches: usize,
+    },
     Scalar {
         operator: &'static str,
         left_rows: usize,
@@ -124,6 +130,20 @@ pub(super) fn publish(
     output_rows: usize,
 ) {
     match diagnostic {
+        Some(PendingJoinDiagnostic::Typed {
+            input_rows,
+            matched_rows,
+            batch_size,
+            batches,
+        }) => {
+            env.cassie.runtime.record_typed_join_execution(
+                input_rows,
+                matched_rows,
+                output_rows,
+                batch_size,
+                batches,
+            );
+        }
         Some(PendingJoinDiagnostic::Scalar {
             operator,
             left_rows,

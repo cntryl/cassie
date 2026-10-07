@@ -12,6 +12,7 @@ use crate::types::{DataType, Value};
 
 pub(crate) mod capability;
 mod column;
+pub(crate) mod join;
 mod operations;
 pub(crate) mod scalar;
 #[cfg(test)]

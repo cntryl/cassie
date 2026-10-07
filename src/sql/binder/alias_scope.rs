@@ -51,7 +51,7 @@ pub(super) fn allocate(select: &mut SelectStatement) -> Result<(), CassieError> 
             fields: Vec::new(),
             reserved_identity: false,
             hidden: Vec::new(),
-            namespace_only: true,
+            qualifier_only: true,
         });
         allocated.insert(name, carrier);
     }

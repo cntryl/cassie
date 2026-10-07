@@ -205,7 +205,7 @@ impl Reader<'_> {
                 self.expr(right, depth + 1)?;
             }
             Expr::Cast { expr, .. } | Expr::IsNull { expr, .. } | Expr::Not { expr } => {
-                self.expr(expr, depth + 1)?
+                self.expr(expr, depth + 1)?;
             }
             Expr::InList { expr, values, .. } => {
                 self.expr(expr, depth + 1)?;

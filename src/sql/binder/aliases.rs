@@ -5,6 +5,7 @@
 
 use super::{CassieError, Catalog, CteScope, Expr, QuerySource, SelectItem, SelectStatement};
 use crate::sql::ColumnIdentifierPath;
+use std::fmt::Write;
 
 pub(crate) fn qualifier(alias: &str) -> String {
     let name = ColumnIdentifierPath::parse(alias)
@@ -12,8 +13,10 @@ pub(crate) fn qualifier(alias: &str) -> String {
     let bytes = name
         .as_bytes()
         .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>();
+        .fold(String::new(), |mut bytes, byte| {
+            write!(bytes, "{byte:02x}").expect("formatting into a String cannot fail");
+            bytes
+        });
     format!("__cassie_relation_alias_{bytes}")
 }
 
@@ -83,7 +86,7 @@ pub(super) fn columns(
             false,
         ),
         QuerySource::SingleRow => (Vec::new(), false),
-        _ => {
+        QuerySource::Join { .. } => {
             return Err(CassieError::Planner(
                 "ordinary aliases require a collection or CTE".into(),
             ))
@@ -118,7 +121,7 @@ struct Namespace {
     fields: Vec<(String, String)>,
     reserved_identity: bool,
     hidden: Vec<String>,
-    namespace_only: bool,
+    qualifier_only: bool,
 }
 
 fn namespaces(
@@ -142,7 +145,7 @@ fn namespaces(
                 )));
             }
             result.push(Namespace {
-                namespace_only: false,
+                qualifier_only: false,
                 hidden: match source.as_ref() {
                     QuerySource::Collection(name) => crate::catalog::qualifier_variants(name),
                     _ => Vec::new(),
@@ -158,7 +161,7 @@ fn namespaces(
             namespaces(right, catalog, scope, result)?;
         }
         QuerySource::Collection(name) => result.push(Namespace {
-            namespace_only: false,
+            qualifier_only: false,
             name: name.to_string(),
             qualifier: name.to_string(),
             hidden: Vec::new(),
@@ -167,25 +170,34 @@ fn namespaces(
         }),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
             result.push(Namespace {
-                namespace_only: false,
+                qualifier_only: false,
                 name: name.clone(),
                 qualifier: name.clone(),
                 hidden: Vec::new(),
                 fields: columns(source, &[], catalog, scope)?,
                 reserved_identity: false,
-            })
+            });
         }
         QuerySource::Subquery { alias, .. } => result.push(Namespace {
-            namespace_only: false,
+            qualifier_only: false,
             name: alias.clone(),
             qualifier: alias.clone(),
             hidden: Vec::new(),
             fields: columns(source, &[], catalog, scope)?,
             reserved_identity: false,
         }),
-        _ => {}
+        QuerySource::SingleRow => {}
     }
     Ok(())
+}
+
+fn ambiguous_field(namespace: &Namespace, field: &str) -> bool {
+    namespace
+        .fields
+        .iter()
+        .filter(|(visible, _)| visible == field)
+        .count()
+        > 1
 }
 
 fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<String, CassieError> {
@@ -223,16 +235,10 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
             // catalog schema-qualified names by its existing authority.
             return Ok(name.to_string());
         };
-        if namespace.namespace_only {
+        if namespace.qualifier_only {
             return Ok(format!("{}.{field}", namespace.qualifier));
         }
-        if namespace
-            .fields
-            .iter()
-            .filter(|(visible, _)| *visible == field)
-            .count()
-            > 1
-        {
+        if ambiguous_field(namespace, &field) {
             return Err(CassieError::Planner(format!("ambiguous column '{name}'")));
         }
         let physical = if field == "_id" && namespace.reserved_identity {
@@ -364,24 +370,7 @@ pub(super) fn lower_select(
     let mut projection = Vec::new();
     for mut item in std::mem::take(&mut select.projection) {
         if matches!(item, SelectItem::Wildcard) {
-            for space in &spaces {
-                for (visible, physical) in &space.fields {
-                    if has_declared_id && physical == "_id" {
-                        continue;
-                    }
-                    projection.push(SelectItem::Column {
-                        name: if single {
-                            physical.clone()
-                        } else {
-                            format!("{}.{}", space.qualifier, physical)
-                        },
-                        alias: Some(
-                            ColumnIdentifierPath::parse(visible)
-                                .map_or_else(|_| visible.clone(), |path| path.declared_name()),
-                        ),
-                    });
-                }
-            }
+            expand_wildcard(&mut projection, &spaces, single, has_declared_id);
             continue;
         }
         match &mut item {
@@ -514,4 +503,30 @@ fn qualified_order_collision(
                 output_aliases.contains(&ColumnIdentifierPath::reference_field_key(&physical))
             })
     })
+}
+
+fn expand_wildcard(
+    projection: &mut Vec<SelectItem>,
+    spaces: &[Namespace],
+    single: bool,
+    has_declared_id: bool,
+) {
+    for space in spaces {
+        for (visible, physical) in &space.fields {
+            if has_declared_id && physical == "_id" {
+                continue;
+            }
+            projection.push(SelectItem::Column {
+                name: if single {
+                    physical.clone()
+                } else {
+                    format!("{}.{}", space.qualifier, physical)
+                },
+                alias: Some(
+                    ColumnIdentifierPath::parse(visible)
+                        .map_or_else(|_| visible.clone(), |path| path.declared_name()),
+                ),
+            });
+        }
+    }
 }

@@ -608,9 +608,7 @@ fn projected_scan_fields(plan: &LogicalPlan) -> Option<Vec<String>> {
         return None;
     }
 
-    if crate::sql::physical_collection(&plan.source).is_none() {
-        return None;
-    }
+    crate::sql::physical_collection(&plan.source)?;
 
     let projection_columns = plan
         .projection

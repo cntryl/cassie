@@ -96,7 +96,7 @@ fn validate_source_predicates(
 ) -> Result<(), CassieError> {
     match source {
         QuerySource::Aliased { source, .. } => {
-            validate_source_predicates(source, types, catalog, context)?
+            validate_source_predicates(source, types, catalog, context)?;
         }
         QuerySource::Join {
             left, right, on, ..
@@ -372,7 +372,7 @@ fn resolve_nested_source(
 ) -> Result<(), CassieError> {
     match source {
         QuerySource::Aliased { source, .. } => {
-            resolve_nested_source(source, names, catalog, context)?
+            resolve_nested_source(source, names, catalog, context)?;
         }
         QuerySource::Collection(name) => {
             if names.contains(&name.to_ascii_lowercase()) {

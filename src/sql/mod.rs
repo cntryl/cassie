@@ -328,7 +328,7 @@ fn infer_source_parameter_type_oids(
 ) {
     match source {
         ast::QuerySource::Aliased { source, .. } => {
-            infer_source_parameter_type_oids(source, field_types, catalog, oids)
+            infer_source_parameter_type_oids(source, field_types, catalog, oids);
         }
         ast::QuerySource::Join {
             left, right, on, ..

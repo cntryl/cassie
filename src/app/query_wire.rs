@@ -5,6 +5,32 @@ use crate::planner::logical::{LogicalCommand, LogicalPlan};
 use crate::types::DataType;
 
 impl Cassie {
+    pub(super) fn bound_statement_output_columns(
+        &self,
+        logical: &LogicalPlan,
+        session: &CassieSession,
+        declared_oids: &[i32],
+        controls: &QueryExecutionControls,
+        wire_output: bool,
+    ) -> Result<Option<Vec<ColumnMeta>>, CassieError> {
+        let has_sql_output_contract = matches!(
+            logical.command.as_ref(),
+            None | Some(
+                LogicalCommand::Insert(_) | LogicalCommand::Update(_) | LogicalCommand::Delete(_)
+            )
+        );
+        if wire_output && has_sql_output_contract {
+            Ok(Some(self.pgwire_columns_for_plan(
+                logical,
+                Some(session),
+                declared_oids,
+                controls,
+            )?))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub(super) fn pgwire_columns_for_plan(
         &self,
         logical: &LogicalPlan,

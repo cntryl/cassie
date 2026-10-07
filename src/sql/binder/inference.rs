@@ -303,22 +303,7 @@ pub(super) fn infer_source_schema_with_outer(
                 parameter_types,
                 outer_fields,
             )?;
-            if let QuerySource::Collection(name) = source.as_ref() {
-                if catalog
-                    .get_schema(name)
-                    .is_some_and(|schema| !schema.declares_id())
-                {
-                    if let Some(first) = schema.fields.first_mut() {
-                        first.name = "_id".into();
-                    }
-                } else {
-                    schema.fields.push(FieldSchema {
-                        name: "_id".into(),
-                        data_type: DataType::Text,
-                        nullable: true,
-                    });
-                }
-            }
+            preserve_alias_identity(source, catalog, &mut schema);
             qualify_schema(&schema, &super::aliases::qualifier(alias))
         }
         QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
@@ -871,6 +856,25 @@ fn scalar_data_type_for_parameter_oid(oid: i32) -> Option<DataType> {
         2950 => Some(DataType::Uuid),
         oid => {
             crate::types::schema::vector_dimensions_for_oid(i64::from(oid)).map(DataType::Vector)
+        }
+    }
+}
+
+fn preserve_alias_identity(source: &QuerySource, catalog: &Catalog, schema: &mut Schema) {
+    if let QuerySource::Collection(name) = source {
+        if catalog
+            .get_schema(name)
+            .is_some_and(|schema| !schema.declares_id())
+        {
+            if let Some(first) = schema.fields.first_mut() {
+                first.name = "_id".into();
+            }
+        } else {
+            schema.fields.push(FieldSchema {
+                name: "_id".into(),
+                data_type: DataType::Text,
+                nullable: true,
+            });
         }
     }
 }

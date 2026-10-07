@@ -196,7 +196,7 @@ impl Walk<'_> {
             match &cte.query {
                 super::CteQuery::Simple(statement) => {
                     self.child()
-                        .statement_names(statement, &Names::default(), false)?
+                        .statement_names(statement, &Names::default(), false)?;
                 }
                 super::CteQuery::Recursive {
                     base, recursive, ..

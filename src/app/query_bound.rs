@@ -4,7 +4,6 @@ use super::{
     Cassie, CassieError, CassieSession, ExecutionMode, QueryExecutionControls, QueryResult,
     QueryStatement, Value,
 };
-use crate::planner::logical::LogicalCommand;
 
 impl Cassie {
     pub(crate) fn execute_parsed_statement_core(
@@ -129,22 +128,13 @@ impl Cassie {
             &self.binding_context_for_session(Some(session)),
             parameter_type_oids,
         )?;
-        let has_sql_output_contract = matches!(
-            physical.logical.command.as_ref(),
-            None | Some(
-                LogicalCommand::Insert(_) | LogicalCommand::Update(_) | LogicalCommand::Delete(_)
-            )
-        );
-        let output_columns = if wire_output && has_sql_output_contract {
-            Some(self.pgwire_columns_for_plan(
-                &physical.logical,
-                Some(session),
-                declared_oids,
-                controls,
-            )?)
-        } else {
-            None
-        };
+        let output_columns = self.bound_statement_output_columns(
+            &physical.logical,
+            session,
+            declared_oids,
+            controls,
+            wire_output,
+        )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);

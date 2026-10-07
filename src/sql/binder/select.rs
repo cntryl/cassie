@@ -591,22 +591,7 @@ pub(super) fn bind_query_source_with_lateral_fields(
             name,
             function,
             lateral,
-        } => {
-            validate_graph_table_function(&function, lateral_fields)?;
-            if let Some(graph_name) = literal_string_arg(&function, 0) {
-                let graph_name = super::normalize_relation_name(&graph_name, context)?;
-                if !catalog.graph_exists_exact(&graph_name) {
-                    return Err(CassieError::Planner(format!(
-                        "graph '{graph_name}' does not exist"
-                    )));
-                }
-            }
-            Ok(QuerySource::TableFunction {
-                name,
-                function,
-                lateral,
-            })
-        }
+        } => bind_table_function(name, function, lateral, catalog, lateral_fields, context),
         QuerySource::Subquery {
             alias,
             select,
@@ -926,4 +911,28 @@ mod tests {
         assert_eq!(time_literal, "12:00:00");
         assert_eq!(timestamp_literal, "2024-01-01T12:00:00.000000Z");
     }
+}
+
+fn bind_table_function(
+    name: String,
+    function: FunctionCall,
+    lateral: bool,
+    catalog: &Catalog,
+    lateral_fields: &HashSet<String>,
+    context: &BindingContext,
+) -> Result<QuerySource, CassieError> {
+    validate_graph_table_function(&function, lateral_fields)?;
+    if let Some(graph_name) = literal_string_arg(&function, 0) {
+        let graph_name = super::normalize_relation_name(&graph_name, context)?;
+        if !catalog.graph_exists_exact(&graph_name) {
+            return Err(CassieError::Planner(format!(
+                "graph '{graph_name}' does not exist"
+            )));
+        }
+    }
+    Ok(QuerySource::TableFunction {
+        name,
+        function,
+        lateral,
+    })
 }

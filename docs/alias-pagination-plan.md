@@ -261,7 +261,10 @@ publication is created by this handoff.
 The D1/D2 candidate integrates prepared scalar/conditional/cache visitors and
 #758/#759 first on private base `0211d09a653044f47d22c086b31ac97c9e20af7b`,
 then prepared #771 storage and #776 vector source on
-`020fd29bbae9f263b48404542390360308bae947`. Complete
+`020fd29bbae9f263b48404542390360308bae947`, and finally the refined
+prerequisite stack `322915f5b4aefde885a742a0f825462c5e27f0cf`. Its fixture
+guards, diagnostic/test-name hygiene and scalar raw-row print removal are
+preserved without runtime or assertion changes. Complete
 binding still precedes one conditional normalization pass; scalar-generated
 origin markers, cache semantic epoch 4 and the selected public 0.2 boundary
 remain intact. Publication still requires prerequisite bundle merge/readback
@@ -303,12 +306,17 @@ Jev favored private scoped allocation (0.99) and assigned CTE traversal risk
 joined-outer EXISTS reference boundary remains a matched alias/unaliased
 decline; positive correlated ownership uses the already-admitted LATERAL path.
 
-On the prepared vector base, the focused shared SQL run passes 106 tests;
+On the initial prepared vector base, the focused shared SQL run passed 106 tests;
 the final alias integration run passes all seven probes, including CTE carrier
 collisions. Earlier integrated checks passed 60 parser siblings, two pgwire
 alias/pagination probes and the actual projected typed-scan unit probe. Exact
 red/green logs and Jev requests/responses remain in ignored
-`target/alias-preparation/`. Final prerequisite hygiene integration and repeated
-focused checks on the immutable head remain pending, as do parent-owned build,
-full tests, pedantic Clippy, format check and touched-test validation. Local
+`target/alias-preparation/`.
+
+The final prerequisite hygiene stack has integrated cleanly. Its focused
+shared SQL checks pass 107 tests, parser alias/quoted/schema siblings pass 60
+tests, and pgwire alias/pagination probes pass two tests. The guarded typed
+scan and existing versioned L1/L2 cache probes pass all three tests. Parent-owned build,
+full tests, pedantic Clippy, format check and touched-test validation remain
+pending. Local
 probes are not publication or closure proof.

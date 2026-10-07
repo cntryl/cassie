@@ -663,7 +663,7 @@ fn should_normalize_conditional_operands_once_in_nested_cte_scopes() {
 }
 
 #[test]
-fn should_promote_coalesce_before_conditional_aggregate_and_window_consumers() {
+fn should_preserve_promoted_coalesce_values_across_expression_consumers() {
     // Arrange
     let fixture = sql_fixture(
         "conditional_coalesce_arithmetic",

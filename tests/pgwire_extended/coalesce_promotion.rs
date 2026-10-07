@@ -2,7 +2,7 @@ use super::support_pgwire as wire;
 use super::support_type_metadata_contract as fixture;
 
 #[test]
-fn should_promote_coalesce_before_arithmetic_in_text_and_binary_wire_values() {
+fn should_promote_coalesce_before_arithmetic_across_wire_formats() {
     // Arrange
     let cases = [
         (
@@ -190,7 +190,7 @@ fn should_reject_incompatible_later_coalesce_parameter_even_on_empty_input() {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("42601"));
         assert!(frames.iter().any(|(tag, body)| *tag == b'E'
             && String::from_utf8_lossy(body).contains("incompatible COALESCE result types")));
-        assert!(wire::data_rows(&frames).is_empty());
+        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
     }
 }
 
@@ -239,7 +239,7 @@ fn should_promote_coalesce_after_inferred_integer_parameter_cast() {
 }
 
 #[test]
-fn should_retain_float_domain_for_null_parameters_and_forwarded_case_carriers() {
+fn should_retain_resolved_coalesce_float_domain_across_nullable_carriers() {
     // Arrange
     let integer = 9_007_199_254_740_993_i64.to_be_bytes();
     let cases = [
@@ -312,7 +312,7 @@ fn should_preserve_explicit_float_cast_errors_for_nonfinite_coalesce_values() {
         assert_eq!(wire::error_code(&frames).as_deref(), Some("22000"));
         assert!(frames.iter().any(|(tag, body)| *tag == b'E'
             && String::from_utf8_lossy(body).contains("cannot cast value to FLOAT")));
-        assert!(wire::data_rows(&frames).is_empty());
+        assert_eq!(wire::data_rows(&frames), Vec::<Vec<Option<String>>>::new());
     }
 }
 

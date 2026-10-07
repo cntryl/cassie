@@ -3,7 +3,7 @@
 //! SQL parsing requires at least one CASE WHEN. A searched CASE with no branches
 //! and one ELSE is therefore a private coercion wrapper: evaluation visits the
 //! original operand once, while output provenance follows that operand. This
-//! convention does not restrict manually constructed public Expr::Case values.
+//! convention does not restrict manually constructed public `Expr::Case` values.
 use super::{DataType, Expr};
 
 pub(super) fn float(operand: Expr) -> Expr {

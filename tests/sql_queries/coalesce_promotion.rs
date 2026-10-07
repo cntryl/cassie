@@ -26,7 +26,7 @@ fn should_promote_coalesce_before_downstream_arithmetic() {
 }
 
 #[test]
-fn should_preserve_coalesce_promotion_through_derived_and_cte_scopes() {
+fn should_preserve_coalesce_promotion_across_nested_source_scopes() {
     // Arrange
     let fixture = sql_fixture(
         "coalesce-promotion-scopes",
@@ -66,7 +66,7 @@ fn should_preserve_coalesce_promotion_through_derived_and_cte_scopes() {
 }
 
 #[test]
-fn should_preserve_coalesce_demand_nulls_and_explicit_cast_errors() {
+fn should_preserve_coalesce_operand_evaluation_laws() {
     // Arrange
     let fixture = sql_fixture(
         "coalesce-promotion-demand",
@@ -93,7 +93,7 @@ fn should_preserve_coalesce_demand_nulls_and_explicit_cast_errors() {
 }
 
 #[test]
-fn should_promote_coalesce_in_mutation_returning_and_insert_projections() {
+fn should_promote_coalesce_at_mutation_expression_boundaries() {
     // Arrange
     let fixture = sql_fixture(
         "coalesce-promotion-mutations",

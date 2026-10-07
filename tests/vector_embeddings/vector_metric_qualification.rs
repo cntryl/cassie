@@ -102,7 +102,7 @@ fn should_refresh_large_warm_normalized_cache_after_vector_generation_changes() 
 }
 
 #[test]
-fn should_match_zero_vector_metrics_and_order_across_sql_rest_and_indexes() {
+fn should_match_zero_vector_order_across_query_paths() {
     // Arrange
     for (metric, operator) in [("l2", "<->"), ("cosine", "<=>"), ("dot", "<#>")] {
         for options in [None, Some("index_type = bruteforce"), Some("index_type = hnsw, m = 4, ef_construction = 16, ef_search = 16"), Some("index_type = ivfflat, lists = 2, probes = 2, training_sample_size = 5, training_seed = 17")] {
@@ -153,7 +153,7 @@ fn should_match_zero_vector_metrics_and_order_across_sql_rest_and_indexes() {
 }
 
 #[test]
-fn should_match_independent_metric_oracles_at_f32_and_simd_boundaries() {
+fn should_match_independent_metric_oracles_at_dispatch_boundaries() {
     // Arrange
     for dimensions in [1, 3, 4, 8, 9, 17, 1025] {
         for magnitude in [f32::from_bits(1), 1.0, f32::MAX] {
@@ -312,7 +312,7 @@ fn should_search_explicit_sql_vectors_without_sources_when_normalized_sidecars_a
 }
 
 #[test]
-fn should_preserve_case_distinct_ties_and_offsets_after_restart() {
+fn should_preserve_restarted_vector_ordering() {
     // Arrange
     for (metric, operator) in [("l2", "<->"), ("cosine", "<=>"), ("dot", "<#>")] {
         let (cassie, path, _) = fixture(metric, Some("index_type = bruteforce"));
@@ -346,7 +346,7 @@ fn should_preserve_case_distinct_ties_and_offsets_after_restart() {
 }
 
 #[test]
-fn should_match_order_by_query_literal_and_direct_operator_on_generic_sql_path() {
+fn should_match_vector_expression_order_on_generic_sql_path() {
     // Arrange
     let (cassie, path, _) = fixture(
         "l2",
@@ -513,7 +513,7 @@ fn should_score_all_vectors_when_partial_sidecar_count_matches_source_cardinalit
 }
 
 #[test]
-fn should_preserve_empty_vector_windows_and_reject_overflowing_windows() {
+fn should_preserve_vector_window_boundary_contract() {
     // Arrange
     let (cassie, path, _) = fixture("l2", Some("index_type = bruteforce"));
     let session = cassie.create_session("tester", None);

@@ -67,7 +67,7 @@ fn should_retain_integer_prefix_overflow_across_every_typed_batch_split() {
 }
 
 #[test]
-fn should_preserve_float_row_order_and_nonfinite_overflow_across_typed_splits() {
+fn should_preserve_float_fold_semantics_across_typed_splits() {
     // Arrange
     let ordered = [
         Value::Float64(1e16),
@@ -90,7 +90,7 @@ fn should_preserve_float_row_order_and_nonfinite_overflow_across_typed_splits() 
 }
 
 #[test]
-fn should_preserve_empty_and_all_null_typed_aggregate_identities() {
+fn should_preserve_typed_aggregate_identities_without_non_null_inputs() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -120,8 +120,9 @@ fn should_preserve_empty_and_all_null_typed_aggregate_identities() {
 }
 
 #[test]
-fn should_stream_numeric_aggregate_results_and_release_source_and_output_owners() {
+fn should_release_numeric_aggregate_stream_owners() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path =
         std::env::temp_dir().join(format!("cassie-typed-aggregate-{}", uuid::Uuid::new_v4()));
     let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("cassie");
@@ -162,7 +163,7 @@ fn should_stream_numeric_aggregate_results_and_release_source_and_output_owners(
 }
 
 #[test]
-fn should_match_scalar_aggregate_values_and_errors_for_selected_numeric_carriers() {
+fn should_match_scalar_aggregate_semantics_for_selected_numeric_carriers() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -304,7 +305,7 @@ fn numeric_cases() -> [(DataType, Vec<Value>); 9] {
 }
 
 #[test]
-fn should_fold_constant_dictionary_sequence_slice_and_gather_numeric_views() {
+fn should_fold_selected_numeric_view_representations() {
     // Arrange
     use crate::executor::typed_batch::Column;
     let controls =
@@ -388,7 +389,7 @@ fn should_preserve_serial_prefix_overflow_when_merging_typed_worker_partials() {
 }
 
 #[test]
-fn should_merge_typed_count_and_extrema_without_reordering_equal_carriers() {
+fn should_preserve_equal_carrier_order_in_typed_partial_merges() {
     // Arrange
     for (function, expected) in [
         ("count", Value::Int64(3)),
@@ -417,8 +418,9 @@ fn should_merge_typed_count_and_extrema_without_reordering_equal_carriers() {
 }
 
 #[test]
-fn should_merge_bounded_typed_workers_and_publish_only_completed_aggregation() {
+fn should_publish_only_completed_bounded_typed_aggregation() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let rows = 2 * crate::executor::batch::DEFAULT_BATCH_SIZE + 3;
     for workers in [1, 2, 4] {
         let path =
@@ -487,6 +489,7 @@ fn should_merge_bounded_typed_workers_and_publish_only_completed_aggregation() {
 #[test]
 fn should_release_typed_worker_owners_without_success_diagnostics_after_prefix_overflow() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path = std::env::temp_dir().join(format!(
         "cassie-typed-worker-overflow-{}",
         uuid::Uuid::new_v4()
@@ -550,6 +553,7 @@ fn should_release_typed_worker_owners_without_success_diagnostics_after_prefix_o
 #[test]
 fn should_handoff_encoded_numeric_predicates_to_typed_aggregates_without_objects() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path =
         std::env::temp_dir().join(format!("cassie-typed-predicate-{}", uuid::Uuid::new_v4()));
     let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("Cassie");
@@ -622,8 +626,9 @@ fn should_handoff_encoded_numeric_predicates_to_typed_aggregates_without_objects
 }
 
 #[test]
-fn should_preserve_float_row_folds_and_carriers_through_encoded_numeric_owners() {
+fn should_preserve_float_fold_semantics_through_encoded_numeric_owners() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     for workers in [1, 4] {
         let path =
             std::env::temp_dir().join(format!("cassie-typed-float-owner-{}", uuid::Uuid::new_v4()));
@@ -696,6 +701,7 @@ fn should_preserve_float_row_folds_and_carriers_through_encoded_numeric_owners()
 #[test]
 fn should_cancel_after_a_completed_typed_worker_wave_without_success_or_retained_owners() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path =
         std::env::temp_dir().join(format!("cassie-typed-wave-cancel-{}", uuid::Uuid::new_v4()));
     let mut config = crate::config::CassieRuntimeConfig::from_env().expect("config");
@@ -767,6 +773,7 @@ fn fallback_fixture() -> (std::path::PathBuf, Cassie, CassieSession) {
 #[test]
 fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let (path, cassie, session) = fallback_fixture();
     let controls = QueryExecutionControls::from_limits(&cassie.runtime.limits(), Instant::now());
     // Act
@@ -827,8 +834,9 @@ fn should_keep_excluded_aggregate_combinations_on_existing_fallback() {
 }
 
 #[test]
-fn should_retain_empty_and_all_null_encoded_aggregate_identities_and_count_types() {
+fn should_preserve_encoded_aggregate_identities_without_non_null_inputs() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let (path, cassie, session) = fallback_fixture();
     // Act
     for (predicate, expected) in [
@@ -866,8 +874,9 @@ fn should_retain_empty_and_all_null_encoded_aggregate_identities_and_count_types
 }
 
 #[test]
-fn should_preserve_own_session_overlays_and_other_session_encoded_aggregate_visibility() {
+fn should_preserve_session_visibility_through_encoded_aggregation() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let (path, cassie, session) = fallback_fixture();
     // Act
     cassie

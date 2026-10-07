@@ -59,7 +59,7 @@ fn should_decode_primitive_numeric_codecs_without_lane_objects() {
 }
 
 #[test]
-fn should_retain_negative_scaled_floats_nulls_and_signed_zero_in_primitive_owners() {
+fn should_preserve_scaled_float_carriers_in_primitive_owners() {
     // Arrange
     let values = (0..2048)
         .map(|value| {
@@ -103,7 +103,7 @@ fn should_retain_negative_scaled_floats_nulls_and_signed_zero_in_primitive_owner
 }
 
 #[test]
-fn should_reject_numeric_framing_and_domain_mismatch_before_decoding_lanes() {
+fn should_reject_invalid_numeric_frames_before_decoding_lanes() {
     // Arrange
     let encoded = encode_plain_column_chunk(
         LogicalType::Int64,

@@ -36,7 +36,7 @@ fn should_preserve_explicit_schema_ownership_before_shared_relation_aliases() {
 }
 
 #[test]
-fn should_match_existing_join_for_typed_duplicate_null_and_outer_payloads() {
+fn should_match_existing_typed_outer_join_row_semantics() {
     // Arrange
     let setup = [
         "CREATE TABLE left_records (n BIGINT, tag TEXT)",
@@ -76,7 +76,7 @@ fn should_match_existing_join_for_typed_duplicate_null_and_outer_payloads() {
 }
 
 #[test]
-fn should_preserve_residual_and_empty_outer_fallback_shapes() {
+fn should_preserve_outer_join_fallback_shapes() {
     // Arrange
     let setup = [
         "CREATE TABLE left_records (n BIGINT, tag TEXT)",
@@ -111,7 +111,7 @@ fn should_preserve_residual_and_empty_outer_fallback_shapes() {
 }
 
 #[test]
-fn should_preserve_quoted_join_keys_and_boolean_null_multiplicity() {
+fn should_preserve_quoted_boolean_join_key_semantics() {
     // Arrange
     let setup = [
         "CREATE TABLE left_records (\"Key\" BOOLEAN, tag TEXT)",
@@ -138,7 +138,7 @@ fn should_preserve_quoted_join_keys_and_boolean_null_multiplicity() {
 }
 
 #[test]
-fn should_preserve_array_json_outer_payload_and_staged_join_visibility() {
+fn should_preserve_staged_outer_join_row_semantics() {
     // Arrange
     let setup = [
         "CREATE TABLE left_records (n BIGINT, payload BIGINT[])",

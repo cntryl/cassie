@@ -227,6 +227,7 @@ mod tests {
     #[test]
     fn should_retain_validated_encoded_backing_after_advancing_the_scan() {
         // Arrange
+        let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
         let path =
             std::env::temp_dir().join(format!("cassie-typed-encoded-{}", uuid::Uuid::new_v4()));
         let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("Cassie");
@@ -307,6 +308,7 @@ mod tests {
     #[test]
     fn should_read_controlled_midge_documents_directly_into_typed_columns() {
         // Arrange
+        let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
         let path = std::env::temp_dir().join(format!("cassie-typed-scan-{}", uuid::Uuid::new_v4()));
         let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("cassie");
         let schema = Schema {

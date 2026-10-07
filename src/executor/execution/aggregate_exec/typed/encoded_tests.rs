@@ -91,8 +91,9 @@ fn cases() -> Vec<(&'static str, &'static str, Vec<serde_json::Value>)> {
 }
 
 #[test]
-fn should_match_row_values_errors_and_workers_through_every_selected_numeric_codec() {
+fn should_match_row_aggregate_semantics_through_every_selected_numeric_codec() {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     for (expected_codec, data_type, values) in cases() {
         let path =
             std::env::temp_dir().join(format!("cassie-typed-codec-{}", uuid::Uuid::new_v4()));
@@ -176,6 +177,7 @@ fn should_match_row_values_errors_and_workers_through_every_selected_numeric_cod
 fn should_decline_native_aggregation_before_opening_inputs_when_the_transport_floor_is_unavailable()
 {
     // Arrange
+    let _scan_control_guard = crate::midge::adapter::query_scan_control_test_guard();
     let path = std::env::temp_dir().join(format!("cassie-typed-floor-{}", uuid::Uuid::new_v4()));
     let cassie = Cassie::new_with_data_dir(path.to_str().expect("path")).expect("Cassie");
     let session = cassie.create_session("tester", None);

@@ -4,7 +4,7 @@ use crate::runtime::QueryExecutionControls;
 use crate::types::{DataType, Value};
 
 #[test]
-fn should_preserve_typed_join_duplicates_nulls_and_payload_in_capped_batches() {
+fn should_preserve_typed_join_row_semantics_in_capped_batches() {
     // Arrange
     let limits = crate::config::CassieRuntimeLimits::default();
     let controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
@@ -73,7 +73,7 @@ fn should_preserve_typed_join_duplicates_nulls_and_payload_in_capped_batches() {
 }
 
 #[test]
-fn should_match_exact_mixed_numeric_and_signed_zero_keys() {
+fn should_match_exact_numeric_join_keys() {
     // Arrange
     let controls = controls();
     let left = batch(

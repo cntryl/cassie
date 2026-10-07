@@ -13,7 +13,7 @@ use super::{
 };
 
 #[test]
-fn should_report_typed_all_null_build_and_outer_probe_work() {
+fn should_report_typed_outer_join_work_with_all_null_build_keys() {
     // Arrange
     for (kind, budget, expected_probe, expected_output) in [
         (JoinKind::Inner, 1, 3, 0),
@@ -67,7 +67,7 @@ fn should_report_typed_all_null_build_and_outer_probe_work() {
 }
 
 #[test]
-fn should_count_typed_probe_prefix_and_exhausted_unmatched_tail() {
+fn should_count_typed_probe_work_at_selected_output_boundaries() {
     // Arrange
     for (budget, expected_probe, expected_output) in [(1, 3, 1), (2, 3, 2), (3, 4, 2)] {
         with_fixture(true, |env| {

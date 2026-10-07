@@ -263,7 +263,7 @@ fn select_has_cte_boundary(select: &crate::sql::ast::SelectStatement) -> bool {
             .is_some_and(|set| select_has_cte_boundary(&set.right))
 }
 
-fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> bool {
+pub(super) fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> bool {
     use crate::sql::ast::QuerySource;
     match source {
         QuerySource::Cte(_) => true,

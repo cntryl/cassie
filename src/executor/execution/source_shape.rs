@@ -50,6 +50,14 @@ pub(super) fn null_row(
     if let (QuerySource::Cte(name), Some(memory)) = (source, inferred_copy) {
         return known_cte_template(env, fields, memory, name);
     }
+    if super::super::dispatch::source_has_cte_boundary(source) {
+        if let QuerySource::Subquery { alias, .. } = source {
+            let memory = env
+                .controls
+                .reserve_query_memory(super::super::cte::source_fields_bytes(&fields)?)?;
+            return known_cte_template(env, fields, memory, alias);
+        }
+    }
     let data_types = fields
         .iter()
         .any(|field| matches!(field.data_type, crate::types::DataType::Array(_)))

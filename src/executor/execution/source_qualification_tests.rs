@@ -401,3 +401,142 @@ fn should_admit_combined_known_cte_templates_before_copying_backing() {
         assert_eq!(denied.current_query_memory_bytes(), 0);
     });
 }
+
+fn derived_cte_template_source(alias: &str, lateral: bool) -> QuerySource {
+    let parsed =
+        crate::sql::parse_statement("SELECT n FROM c").expect("existing derived SELECT syntax");
+    let crate::sql::ast::QueryStatement::Select(mut select) = parsed.statement else {
+        panic!("SELECT fixture");
+    };
+    select.source = QuerySource::Cte("c".into());
+    QuerySource::Subquery {
+        alias: alias.into(),
+        select: Box::new(select),
+        lateral,
+    }
+}
+
+#[test]
+fn should_retain_derived_and_lateral_cte_array_templates_until_drop() {
+    // Arrange
+    with_fixture(|cassie| {
+        let mut missing = Vec::new();
+        for lateral in [false, true] {
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits::default(),
+                Instant::now(),
+            );
+            let context = CteContext::unleased(HashMap::from([(
+                "c".into(),
+                super::super::cte::CteRelation {
+                    rows: vec![],
+                    fields: vec![crate::types::FieldSchema {
+                        name: "n".into(),
+                        data_type: crate::types::DataType::Array(Box::new(
+                            crate::types::DataType::Text,
+                        )),
+                        nullable: true,
+                    }],
+                    _rows_memory: None,
+                    _fields_memory: None,
+                },
+            )]));
+            let functions = HashMap::new();
+            let env = SourceExecutionEnv {
+                cassie,
+                session: None,
+                user_functions: &functions,
+                params: &[],
+                controls: &controls,
+            };
+            // Act
+            let template =
+                source_shape::null_row(&env, &derived_cte_template_source("q", lateral), &context)
+                    .expect("existing CTE-derived template");
+            // Assert
+            assert_eq!(
+                template.data_types()[0],
+                crate::types::DataType::Array(Box::new(crate::types::DataType::Text))
+            );
+            assert_eq!(template.get("q.n"), Some(&Value::Null));
+            println!(
+                "derived template lateral={lateral} live_bytes={}",
+                controls.current_query_memory_bytes()
+            );
+            if controls.current_query_memory_bytes() == 0 {
+                missing.push(lateral);
+            }
+            drop(context);
+            if controls.current_query_memory_bytes() == 0 && !missing.contains(&lateral) {
+                missing.push(lateral);
+            }
+            drop(template);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+        assert!(
+            missing.is_empty(),
+            "missing copied template owners for lateral flags {missing:?}"
+        );
+    });
+}
+
+#[test]
+fn should_deny_derived_and_lateral_cte_template_aliases_before_construction() {
+    // Arrange
+    with_fixture(|cassie| {
+        let mut missing = Vec::new();
+        for lateral in [false, true] {
+            let controls = QueryExecutionControls::from_limits(
+                &crate::config::CassieRuntimeLimits {
+                    query_memory_budget_bytes: 4096,
+                    ..crate::config::CassieRuntimeLimits::default()
+                },
+                Instant::now(),
+            );
+            let context = CteContext::unleased(HashMap::from([(
+                "c".into(),
+                super::super::cte::CteRelation {
+                    rows: vec![],
+                    fields: vec![crate::types::FieldSchema {
+                        name: "n".into(),
+                        data_type: crate::types::DataType::Array(Box::new(
+                            crate::types::DataType::Text,
+                        )),
+                        nullable: true,
+                    }],
+                    _rows_memory: None,
+                    _fields_memory: None,
+                },
+            )]));
+            let functions = HashMap::new();
+            let env = SourceExecutionEnv {
+                cassie,
+                session: None,
+                user_functions: &functions,
+                params: &[],
+                controls: &controls,
+            };
+            // Act
+            let result = source_shape::null_row(
+                &env,
+                &derived_cte_template_source(&"q".repeat(4096), lateral),
+                &context,
+            );
+            // Assert
+            let denied = matches!(
+                result.map_err(crate::app::CassieError::from),
+                Err(crate::app::CassieError::ResourceLimit(_))
+            );
+            println!("derived alias admission lateral={lateral} denied={denied}");
+            if !denied {
+                missing.push(lateral);
+            }
+            assert_eq!(context["c"].fields.len(), 1);
+            assert_eq!(controls.current_query_memory_bytes(), 0);
+        }
+        assert!(
+            missing.is_empty(),
+            "missing alias admission for lateral flags {missing:?}"
+        );
+    });
+}

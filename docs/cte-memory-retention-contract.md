@@ -86,3 +86,9 @@ larger FieldSchema vector backing through in-place collection.
 Known CTE NULL-row join templates also copy field names, nested ARRAY metadata,
 lookup and qualification backing. Their admission must survive until the actual
 template drops; later joined-output admission cannot own an earlier template.
+
+CTE-derived Subquery/LATERAL NULL templates use the same retained replacement
+owner after existing field inference. Admit the owned inferred fields before
+NULL-row/type/lookup/qualification construction and retain them until template
+drop. This does not qualify binder inference internal schema/field copies;
+direct CTE field-copy admission remains before binder construction.

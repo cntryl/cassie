@@ -3,7 +3,7 @@ use cassie::app::Cassie;
 use tokio::io::BufReader;
 
 #[test]
-fn should_describe_alias_prefixes_and_resume_parameterized_portals() {
+fn should_resume_parameterized_alias_prefix_portals() {
     // Arrange
     crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir("alias-wire");

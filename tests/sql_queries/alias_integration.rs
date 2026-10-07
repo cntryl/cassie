@@ -4,7 +4,7 @@ use super::support_typed_join::JoinFixture;
 use cassie::types::Value;
 
 #[test]
-fn should_preserve_scalar_origin_and_single_conditional_normalization_with_alias_bounds() {
+fn should_preserve_conditional_scalar_origin_under_alias_bounds() {
     // Arrange
     let fixture = sql_fixture(
         "alias-scalar-integration",
@@ -218,7 +218,7 @@ fn should_keep_literal_table_qualifiers_distinct_from_internal_alias_carriers() 
 }
 
 #[test]
-fn should_preserve_quoted_alias_ownership_and_admitted_carrier_like_names() {
+fn should_preserve_quoted_alias_namespace_ownership() {
     // Arrange
     let fixture = sql_fixture(
         "alias-quoted-carrier-allocation",
@@ -411,7 +411,7 @@ fn should_reject_raw_dml_inner_private_qualifiers_before_mutation() {
 }
 
 #[test]
-fn should_validate_raw_alias_namespaces_in_view_definitions_and_public_binding() {
+fn should_admit_raw_alias_namespaces_before_definition_binding() {
     // Arrange
     let fixture = sql_fixture(
         "alias-raw-definition-reference",

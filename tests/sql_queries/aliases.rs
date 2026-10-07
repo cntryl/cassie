@@ -41,7 +41,7 @@ fn should_bind_ordinary_aliases_without_changing_underlying_columns() {
 }
 
 #[test]
-fn should_preserve_alias_column_prefix_and_implicit_identity_shape() {
+fn should_preserve_prefix_alias_identity_shape() {
     // Arrange
     let fixture = sql_fixture(
         "alias_identity_shape",
@@ -76,7 +76,7 @@ fn should_preserve_alias_column_prefix_and_implicit_identity_shape() {
 }
 
 #[test]
-fn should_join_aliased_relations_and_resolve_parameterized_pagination() {
+fn should_join_aliased_relations_with_parameterized_pagination() {
     // Arrange
     let fixture = sql_fixture(
         "alias_pagination_join",
@@ -110,7 +110,7 @@ fn should_join_aliased_relations_and_resolve_parameterized_pagination() {
 }
 
 #[test]
-fn should_preserve_quoted_alias_namespaces_and_row_identity_label_roles() {
+fn should_preserve_quoted_alias_identity_labels() {
     // Arrange
     let fixture = sql_fixture(
         "alias_quoted_identity_roles",
@@ -146,7 +146,7 @@ fn should_preserve_quoted_alias_namespaces_and_row_identity_label_roles() {
 }
 
 #[test]
-fn should_alias_wildcard_ctes_and_preserve_join_identity_hiding() {
+fn should_preserve_identity_hiding_in_aliased_cte_wildcards() {
     // Arrange
     let fixture = sql_fixture(
         "alias_cte_join_shape",
@@ -175,7 +175,7 @@ fn should_alias_wildcard_ctes_and_preserve_join_identity_hiding() {
 }
 
 #[test]
-fn should_keep_indexed_identity_pagination_and_cache_authorization_context() {
+fn should_preserve_indexed_alias_pagination_context() {
     // Arrange
     let fixture = sql_fixture(
         "alias_indexed_pagination",
@@ -282,7 +282,7 @@ fn should_keep_indexed_identity_pagination_and_cache_authorization_context() {
 }
 
 #[test]
-fn should_infer_aliased_fields_and_case_distinct_qualifiers_for_parameters() {
+fn should_infer_case_distinct_alias_parameter_types() {
     // Arrange
     let fixture = sql_fixture(
         "alias_parameter_types",

@@ -1,7 +1,7 @@
 use cassie::sql::{parse_statement, IdentifierPath, QuerySource, QueryStatement};
 
 #[test]
-fn should_preserve_selected_alias_ast_and_unaliased_source_serialization() {
+fn should_preserve_relation_alias_ast_serialization() {
     // Arrange
     let aliased = parse_statement("SELECT \"R\".\"Key\" FROM public.records AS \"R\"(\"Key\")")
         .expect("alias AST");

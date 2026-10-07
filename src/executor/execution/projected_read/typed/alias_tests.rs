@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn should_retain_typed_scan_projection_for_ordinary_and_prefix_collection_aliases() {
+fn should_retain_typed_scan_projection_for_collection_alias_variants() {
     // Arrange
     let _guard = crate::midge::adapter::query_scan_control_test_guard();
     let path = std::env::temp_dir().join(format!("cassie-typed-alias-{}", uuid::Uuid::new_v4()));

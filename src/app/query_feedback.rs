@@ -289,7 +289,8 @@ impl Cassie {
         parameter_type_oids: &[i32],
     ) -> Result<Arc<crate::planner::physical::PhysicalPlan>, CassieError> {
         let context = self.binding_context_for_session(session);
-        let mut bound = binder::bind_with_context(parsed, &self.catalog, &context)?;
+        let mut bound =
+            binder::bind_initial_with_controls(parsed, &self.catalog, &context, controls)?;
         if let Some(controls) = controls {
             if controls.is_cancelled() {
                 return Err(CassieError::QueryCancelled);

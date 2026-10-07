@@ -10,9 +10,11 @@ pub(super) fn allocate(select: &mut SelectStatement) -> Result<(), CassieError> 
     let mut declared = Vec::new();
     let mut visible = HashSet::new();
     scope_names(&select.source, &mut declared, &mut visible);
+    let mut occupied = HashSet::new();
+    query_names(select, &mut occupied);
     if !declared
         .iter()
-        .any(|(_, alias)| visible.contains(&qualifier(alias)))
+        .any(|(_, alias)| occupied.contains(&qualifier(alias)))
     {
         return Ok(());
     }
@@ -25,11 +27,9 @@ pub(super) fn allocate(select: &mut SelectStatement) -> Result<(), CassieError> 
             )));
         }
     }
-    let mut occupied = HashSet::new();
-    query_names(select, &mut occupied);
     let mut allocated = HashMap::new();
     for (name, alias) in declared {
-        if !visible.contains(&qualifier(&alias)) {
+        if !occupied.contains(&qualifier(&alias)) {
             continue;
         }
         let mut counter = 0_usize;

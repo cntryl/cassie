@@ -57,6 +57,8 @@ mod inference;
 #[path = "binder/numeric_outputs.rs"]
 mod numeric_outputs;
 pub(crate) use numeric_outputs::infer_plan_output_contract;
+#[path = "binder/alias_admission.rs"]
+mod alias_admission;
 #[path = "binder/aliases.rs"]
 mod aliases;
 #[path = "binder/json_predicates.rs"]
@@ -157,6 +159,16 @@ pub fn bind_with_context(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<BoundStatement, CassieError> {
+    bind_initial_with_controls(statement, catalog, context, None)
+}
+
+pub(crate) fn bind_initial_with_controls(
+    statement: ParsedStatement,
+    catalog: &Catalog,
+    context: &BindingContext,
+    controls: Option<&crate::runtime::QueryExecutionControls>,
+) -> Result<BoundStatement, CassieError> {
+    alias_admission::validate(&statement, controls)?;
     let mut statement = bind_statement(statement, catalog, &HashMap::new(), context)?;
     if crate::sql::parameter_count(&statement) == 0 {
         // Parameter-free view/projection callers also consume this bound AST.

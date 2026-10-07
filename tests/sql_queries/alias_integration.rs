@@ -311,3 +311,140 @@ fn should_preserve_cte_alias_fields_when_cte_names_collide_with_private_qualifie
         assert_eq!(result.columns[1].name, "id");
     }
 }
+
+#[test]
+fn should_reject_undeclared_fresh_private_alias_qualifier() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-fresh-private-reference",
+        &[
+            "CREATE TABLE left_records (id INT, payload BIGINT)",
+            "CREATE TABLE __cassie_relation_alias_72 (id INT, payload BIGINT)",
+            "INSERT INTO left_records VALUES (1,11)",
+            "INSERT INTO __cassie_relation_alias_72 VALUES (1,101)",
+        ],
+    );
+    // Act
+    let actual = fixture.execute("SELECT __cassie_bound_alias_0.payload FROM left_records r JOIN __cassie_relation_alias_72 ON r.id=__cassie_relation_alias_72.id");
+    // Assert
+    assert!(
+        actual.is_err(),
+        "undeclared qualifier must not resolve: {actual:?}"
+    );
+}
+
+#[test]
+fn should_reject_undeclared_encoded_private_alias_qualifier() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-encoded-private-reference",
+        &[
+            "CREATE TABLE left_records (id INT, payload BIGINT)",
+            "CREATE TABLE right_records (id INT, payload BIGINT)",
+            "INSERT INTO left_records VALUES (1,11)",
+            "INSERT INTO right_records VALUES (1,101)",
+        ],
+    );
+    // Act
+    let actual = fixture.execute("SELECT __cassie_relation_alias_72.payload FROM left_records l JOIN right_records r ON l.id=r.id");
+    // Assert
+    assert!(
+        actual.is_err(),
+        "undeclared qualifier must not resolve: {actual:?}"
+    );
+}
+
+#[test]
+fn should_keep_outer_alias_distinct_from_nested_physical_carrier_name() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-nested-physical-carrier",
+        &[
+            "CREATE TABLE left_records (id INT)",
+            "CREATE TABLE __cassie_relation_alias_72 (id INT)",
+            "INSERT INTO left_records VALUES (1)",
+            "INSERT INTO __cassie_relation_alias_72 VALUES (2)",
+        ],
+    );
+    // Act
+    let actual = fixture.execute("SELECT r.id FROM left_records r WHERE EXISTS (SELECT 1 FROM __cassie_relation_alias_72 WHERE __cassie_relation_alias_72.id=r.id)");
+    // Assert
+    assert!(actual
+        .expect("existing single-source correlation")
+        .rows
+        .is_empty());
+}
+
+#[test]
+fn should_reject_raw_dml_inner_private_qualifiers_before_mutation() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-dml-private-reference",
+        &[
+            "CREATE TABLE left_records (id INT, payload BIGINT)",
+            "CREATE TABLE right_records (id INT, payload BIGINT)",
+            "CREATE TABLE target_rows (id INT PRIMARY KEY, payload BIGINT)",
+            "INSERT INTO left_records VALUES (1,11)",
+            "INSERT INTO right_records VALUES (1,101)",
+            "INSERT INTO target_rows VALUES (1,0)",
+        ],
+    );
+    let statements = [
+        "UPDATE target_rows SET payload=7 WHERE EXISTS (SELECT 1 FROM left_records l JOIN right_records r ON l.id=r.id WHERE __cassie_relation_alias_72.payload=101)",
+        "INSERT INTO target_rows VALUES (1,9) ON CONFLICT (id) DO UPDATE SET payload=9 WHERE EXISTS (SELECT 1 FROM left_records l JOIN right_records r ON l.id=r.id WHERE __cassie_relation_alias_72.payload=101)",
+        "DELETE FROM target_rows WHERE EXISTS (SELECT 1 FROM left_records l JOIN right_records r ON l.id=r.id WHERE __cassie_relation_alias_72.payload=101)",
+    ];
+    for sql in statements {
+        // Act
+        let actual = fixture.execute(sql);
+        let readback = fixture.execute("SELECT payload FROM target_rows");
+        // Assert
+        assert!(
+            actual.is_err(),
+            "undeclared inner qualifier must fail: {sql}: {actual:?}"
+        );
+        assert_eq!(
+            readback.expect("unmutated source").rows,
+            vec![vec![Value::Int64(0)]]
+        );
+    }
+}
+
+#[test]
+fn should_validate_raw_alias_namespaces_in_view_definitions_and_public_binding() {
+    // Arrange
+    let fixture = sql_fixture(
+        "alias-raw-definition-reference",
+        &[
+            "CREATE TABLE left_records (id INT, payload BIGINT)",
+            "CREATE TABLE right_records (id INT, payload BIGINT)",
+            "INSERT INTO left_records VALUES (1,11)",
+            "INSERT INTO right_records VALUES (1,101)",
+        ],
+    );
+    let invalid_view = "CREATE VIEW invalid_scope_view AS SELECT __cassie_relation_alias_72.payload FROM left_records l JOIN right_records r ON l.id=r.id";
+    let initial_inputs = [
+        invalid_view,
+        "UPDATE left_records SET payload=7 WHERE EXISTS (SELECT 1 FROM left_records l JOIN right_records r ON l.id=r.id WHERE __cassie_relation_alias_72.payload=101)",
+        "INSERT INTO left_records SELECT 1,__cassie_relation_alias_72.payload FROM left_records l JOIN right_records r ON l.id=r.id",
+    ];
+    // Act
+    let invalid_definition = fixture.execute(invalid_view);
+    let bound_inputs = initial_inputs.map(|sql| {
+        cassie::sql::binder::bind(
+            cassie::sql::parse_statement(sql).expect("existing syntax"),
+            &fixture.cassie.catalog,
+        )
+    });
+    let valid_definition =
+        fixture.execute("CREATE VIEW valid_scope_view AS SELECT r.payload FROM left_records r");
+    let valid_rows = fixture.execute("SELECT payload FROM valid_scope_view");
+    // Assert
+    assert!(invalid_definition.is_err());
+    assert!(bound_inputs.iter().all(Result::is_err));
+    valid_definition.expect("legal alias definition remains admitted");
+    assert_eq!(
+        valid_rows.expect("legal view read").rows,
+        vec![vec![Value::Int64(11)]]
+    );
+}

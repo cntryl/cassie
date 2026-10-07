@@ -320,3 +320,47 @@ scan and existing versioned L1/L2 cache probes pass all three tests. Parent-owne
 full tests, pedantic Clippy, format check and touched-test validation remain
 pending. Local
 probes are not publication or closure proof.
+
+
+## Corrective namespace admission review (2026-10-07)
+
+Independent execution of the immutable candidate exposed undeclared fresh and
+encoded carrier qualifiers resolving to rows, and a legal nested physical table
+capturing an outer alias in existing single-source EXISTS. All three exact owner
+regressions failed before correction. Further public witnesses showed the same
+undeclared qualifier in raw UPDATE, DELETE and ON CONFLICT EXISTS filters could
+mutate data; raw CREATE VIEW definitions and direct Binder inputs also needed
+initial admission. Populated duplicate-prefix wildcard rows and descriptors,
+and their ambiguous qualified/unqualified reference errors, already passed.
+
+Initial binding now checks the entire original visible-qualifier graph before
+private lowering. Alias names retain exact quoted identity; physical/catalog
+qualifiers retain their existing folded variants. SELECT, EXPLAIN, INSERT SELECT
+and VALUES, conflict assignments/filter, UPDATE assignments/filter, DELETE
+filter, returning expressions, raw view/materialized definition SQL, nested
+EXISTS, LATERAL/derived sources, CTEs, set operands and projection/window/order/
+bound expressions participate. Existing ON CONFLICT `excluded` visibility is
+retained. No legal SQL prefix is reserved and public binder signatures do not
+expose a trust switch.
+
+The application compiler supplies its existing controls to a private initial
+binder entry. The read-only admission walk checks cancellation/deadline and the
+existing 128-level envelope before recursive children and namespace-set clones;
+bound expressions keep their independently admitted 128-cast envelope. Existing
+private nested/CTE and executor `bind_with_outer_ctes` rebinding retains generated
+references after the original statement graph has passed admission. Raw stored
+SQL is parsed and takes initial admission. Allocation now considers nested
+physical/CTE/derived source names before its fast path, preserving correlation
+ownership without adding a correlation family.
+
+The first coherent namespace/DML run passed 111 focused SQL checks. Adding raw
+view/public Binder and bounded/cancellable admission checks passed 112 checks;
+The final source-equivalent repeated focused run also passed all 112 checks;
+independent direct Binder/public SQL confirmation remains pending. Jev assigned raw-initial bypass risk
+0.46 and nested physical capture risk 0.60, requiring those explicit probes;
+resource ordering risk was 0.09. Exact requests, responses and failing/passing
+logs remain in ignored target evidence. The earlier complete build passed on
+`ba1565d0`; its test stage was cancelled when independent defects were confirmed.
+No complete gate is claimed passed for the corrected source. Complete ordered
+gates restart only after the coherent immutable correction is independently
+confirmed; publication and closure remain pending.

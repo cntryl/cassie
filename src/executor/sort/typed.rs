@@ -17,6 +17,10 @@ pub(super) fn sort_batches(
     if eval.order.is_empty() {
         return Ok(batches);
     }
+    if batches.iter().all(Vec::is_empty) {
+        relational_diagnostics::publish("sort", "empty_relation");
+        return Ok(Vec::new());
+    }
     let (rows, _flatten_memory) = flatten(batches, controls)?;
     let (rows, path) = ordered_rows(rows, eval, controls)?;
     let output = chunk_rows_controlled(rows.into_iter(), controls)?;
@@ -78,6 +82,10 @@ pub(super) fn top_k_batches(
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
     check_query_controls(controls)?;
     if count == 0 || eval.order.is_empty() {
+        relational_diagnostics::publish("top_k", "empty_relation");
+        return Ok(Vec::new());
+    }
+    if batches.iter().all(Vec::is_empty) {
         relational_diagnostics::publish("top_k", "empty_relation");
         return Ok(Vec::new());
     }

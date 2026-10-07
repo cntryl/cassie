@@ -411,3 +411,32 @@ fn should_cancel_native_ordering_before_transferring_source_parent() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_complete_empty_ordered_inputs_without_operator_allocation() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 0,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    let order = order();
+    let functions = HashMap::new();
+    let eval = EvalInput {
+        order: &order,
+        projection: &[],
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        session: None,
+    };
+    // Act
+    let sorted = sort_batches_with_controls(vec![Vec::new()], &eval, &controls);
+    let heap = top_k_batches_with_controls(vec![Vec::new()], &eval, 1, &controls);
+    // Assert
+    assert!(sorted.is_ok(), "empty sort: {sorted:?}");
+    assert!(heap.is_ok(), "empty top-k: {heap:?}");
+    assert!(sorted.expect("sort").is_empty());
+    assert!(heap.expect("top-k").is_empty());
+    assert_eq!(controls.peak_query_memory_bytes(), 0);
+}

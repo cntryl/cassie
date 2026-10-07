@@ -3,6 +3,7 @@ use super::{DistanceMetric, NormalizedVectorRecord};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct NormalizedVectorCacheKey {
     pub(super) catalog_version: u64,
+    pub(super) collection_generation: u64,
     pub(super) collection: String,
     pub(super) field: String,
     pub(super) cardinality: usize,

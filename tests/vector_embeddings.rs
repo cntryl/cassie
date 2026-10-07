@@ -8657,3 +8657,8 @@ mod backfill_provider;
 
 #[path = "support/vector_publication.rs"]
 mod vector_publication_support;
+
+#[path = "vector_embeddings/vector_metric_qualification.rs"]
+mod vector_metric_qualification;
+#[path = "support/vector_qualification.rs"]
+mod vector_qualification_support;

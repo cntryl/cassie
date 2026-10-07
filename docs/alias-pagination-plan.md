@@ -383,9 +383,7 @@ malformed-tail probes pass, including the original CROSS JOIN ON rejection.
 Queued vector test naming and empty-result diagnostic refinements are included
 before the next coherent immutable complete run.
 
-## Local validation closeout
-
-Recorded on 2026-10-07.
+## Local validation closeout (2026-10-07)
 
 This closeout supersedes earlier pending local-validation and independent-review
 statuses in this preparation history. The complete ordered build and locked

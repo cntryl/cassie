@@ -8,8 +8,8 @@ use super::{
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement, Value,
 };
-// Discard compiled plans from the earlier Boolean expression semantics.
-const PLAN_CACHE_COST_MODEL_VERSION: u32 = 3;
+// Discard compiled plans from earlier Boolean and COALESCE binding semantics.
+const PLAN_CACHE_COST_MODEL_VERSION: u32 = 4;
 
 pub(super) struct QueryCacheContext {
     pub(super) is_select: bool,
@@ -843,3 +843,7 @@ fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> b
         | crate::sql::ast::QuerySource::TableFunction { .. } => false,
     }
 }
+
+#[cfg(test)]
+#[path = "query_cache_semantics_tests.rs"]
+mod cache_semantics_tests;

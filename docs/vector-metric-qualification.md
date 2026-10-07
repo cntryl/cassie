@@ -103,8 +103,27 @@ as a final-generation-patch rerun. The final focused review judged the corrected
 sequential generation gap at 0.12 and selected no additional supported probe.
 These are focused local checks, not the full gate sequence.
 
-Full build, locked suite, workspace/all-target/all-feature pedantic Clippy,
-format and touched-test policy gates are pending coordinator execution, followed
-by final-head review and integration readback. #776 stays open until those gates,
-the exact tested final revision and acceptance readback are complete. This record
-adds no broader feature/readiness promotion.
+The build and full locked suite passed at
+`0a597dbf748814fd7e2f46558499784cf52ae934`: 3,372 passed, zero failed and nine
+existing ignored tests across 32 groups. Subsequent shared pedantic idioms,
+equivalent empty-result diagnostics and test-name refinements produced
+`b3ea99234c2a291f361ec7af9afe888c16f280ac` without changing the vector runtime
+source or the qualification cases. The full suite was not rerun at that revision.
+Its refinement sequence passed build, 20 typed aggregate tests, 25 typed batch
+tests, 11 vector qualification tests, full workspace/all-target/all-feature
+pedantic Clippy, format, the three touched-test policy checks, and documentation,
+benchmark and module-size policies.
+
+Evidence inspection found that the original source-join filter selected zero
+tests; its successful exit is not counted as coverage. A supplemental corrected
+filter, `executor::execution::source::source_join::`, then passed all 39 source-join
+tests at the unchanged refinement revision. This supplement ran after the policy
+gates and changed no source. Actual focused coverage therefore totals 95 tests.
+Exact commands, source and log hashes, prior failed/cancelled runs and the
+refinement provenance remain in
+`target/independent-776-review/final-publication-manifest.json`.
+
+Final publication-base equivalence, visible review, exact publication-head hosted
+checks, squash merge and source/issue readback remain pending. #776 stays open
+until those steps and target-selected acceptance are complete. This record adds
+no broader feature/readiness promotion.

@@ -18,6 +18,10 @@ pub(super) fn distinct_batches(
     let count = batches
         .iter()
         .try_fold(0, |count, batch| add(count, batch.len()))?;
+    if count == 0 {
+        relational_diagnostics::publish("distinct", "empty_relation");
+        return Ok(Vec::new());
+    }
     let old_slots = batches.iter().try_fold(
         mul(batches.capacity(), size_of::<Batch>())?,
         |bytes, batch| add(bytes, mul(batch.capacity(), size_of::<BatchRow>())?),
@@ -53,6 +57,11 @@ pub(super) fn distinct(
 ) -> Result<Vec<BatchRow>, QueryError> {
     #[cfg(test)]
     relational_diagnostics::input_handoff();
+    super::super::check_timeout(controls)?;
+    if rows.is_empty() {
+        relational_diagnostics::publish("distinct", "empty_relation");
+        return Ok(Vec::new());
+    }
     let memory = admit_rows(controls, &rows, &[], rows.len())?;
     let (keys, native) = keys(
         controls,
@@ -89,7 +98,12 @@ pub(super) fn set(
     operator: SetOperator,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    super::super::check_timeout(controls)?;
     let total = add(left.len(), right.len())?;
+    if total == 0 {
+        relational_diagnostics::publish("set", "empty_relation");
+        return Ok(Vec::new());
+    }
     let mut memory = admit_rows(controls, &left, &right, total)?;
     memory.try_grow(rekey_bytes(&right, left_names)?)?;
     let right = super::rekey_set_rows(left_names, right);

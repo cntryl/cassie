@@ -15,7 +15,7 @@ cross-phase visibility contract. Selection is not executed acceptance.
 |---|---|---|
 | DISTINCT / DISTINCT ON | Tuple keys of NULL, SMALLINT, INT, BIGINT, FLOAT and BOOLEAN; direct keys for DISTINCT ON | Rich keys and expressions retain admitted shared semantic adaptation. Ordinary DISTINCT retains first input occurrence. DISTINCT ON follows its complete order before projection. |
 | UNION / UNION ALL / INTERSECT / EXCEPT | Same primitive tuples with existing branch widths and exported names/types | Shared semantic equality; existing UNION ALL signature order and multiplicity, other sets' signature order/deduplication. Existing absent ALL syntax remains absent; right source is uncapped input. |
-| Full sort / top-k | Direct primitive columns and safely resolved passthrough aliases, ASC/DESC and explicit/default NULL order | Rich/expression keys retain existing bounded scalar authority. Preserve exact semantic numeric comparison, row identity ties and full-sort prefix pagination. |
+| Full sort / top-k | Direct primitive columns and safely resolved passthrough aliases, ASC/DESC and explicit/default NULL order | Direct rich keys use borrowed-value pre-admission and the existing typed semantic authority. Expressions retain the named scalar boundary below. Preserve exact semantic numeric comparison, row identity ties and full-sort prefix pagination. |
 | Windows | ROW_NUMBER, RANK, DENSE_RANK; existing one-argument LAG/LEAD at offset1; FIRST_VALUE/LAST_VALUE direct typed payload | Primitive partition/order keys, rich key adapters. FIRST/LAST selects existing ROWS bounds with EXCLUDE NO OTHERS, default peer RANGE or whole unordered partition. Explicit RANGE offsets, GROUPS and other exclusions preserve scalar fallback. |
 
 CTE materialization bodies retain the named `scalar_cte_materialization` boundary
@@ -26,6 +26,18 @@ pre-conversion replacement admission are independently established. This selecti
 does not promote existing CTE materialization accounting to a bounded native claim.
 A focused body-native-decline/differential and budget/cleanup probe is required;
 confirmed baseline accounting defects belong to an evidence-linked follow-up.
+
+ORDER BY expressions and user functions retain `scalar_expression_order` when
+they are not direct columns or safely resolved passthrough aliases. Existing SQL
+values, errors, direction/NULL policy and deterministic ties remain supported by
+the existing controlled scalar implementation. Its result allocation precedes
+key conversion admission; this boundary therefore makes no native or bounded
+admission claim. The finite selected path does not expand expression estimators.
+Direct rich keys qualify only when their borrowed value, type adaptation and tie
+allocation can be admitted before cloning/conversion. CTE and expression
+boundaries are explicit unpromoted dispositions for VEX-14 and VEX-22; selected
+primitive/direct-rich order paths must satisfy both invariants. Empty selected
+relational inputs check query controls and return without operator allocation.
 
 Primitive keys use declared metadata when it agrees with their physical carriers.
 Rows without metadata qualify only after every cell has been inspected: homogeneous

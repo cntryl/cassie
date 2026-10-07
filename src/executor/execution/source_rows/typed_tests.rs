@@ -242,3 +242,22 @@ fn should_preserve_all_null_distinct_output_descriptor_provenance() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }
 }
+
+#[test]
+fn should_complete_empty_relational_inputs_without_allocating_operator_state() {
+    // Arrange
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 0,
+        ..CassieRuntimeLimits::default()
+    };
+    let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+    // Act
+    let distinct = distinct_batches(Vec::new(), &controls).expect("empty distinct");
+    let set =
+        typed::set(Vec::new(), Vec::new(), &[], SetOperator::Union, &controls).expect("empty set");
+    // Assert
+    assert!(distinct.is_empty());
+    assert!(set.is_empty());
+    assert_eq!(controls.peak_query_memory_bytes(), 0);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

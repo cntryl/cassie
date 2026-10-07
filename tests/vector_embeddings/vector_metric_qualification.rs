@@ -142,7 +142,7 @@ fn should_match_zero_vector_metrics_and_order_across_sql_rest_and_indexes() {
                 if options.contains("ivfflat") && metric == "l2" { assert!(cassie.metrics()["vector"]["ivfflat_executions"].as_u64().expect("IVF counter") > 0); }
                 let before = provider.0.load(Ordering::SeqCst);
                 let body = br#"{"field":"embedding","query":"unavailable","limit":0}"#;
-                assert!(cassie::rest::search::vector_search(&cassie,"vectors",body).expect("zero REST").rows.is_empty());
+                assert_eq!(cassie::rest::search::vector_search(&cassie,"vectors",body).expect("zero REST").rows, Vec::<Vec<serde_json::Value>>::new());
                 assert_eq!(provider.0.load(Ordering::SeqCst),before);
             }
             assert_eq!(cassie.metrics()["query"]["current_accounted_memory_bytes"],0);
@@ -527,8 +527,8 @@ fn should_preserve_empty_vector_windows_and_reject_overflowing_windows() {
         let rest = cassie::rest::search::vector_search(&cassie, "vectors", &body)
             .expect("empty REST window");
         // Assert
-        assert!(result.rows.is_empty());
-        assert!(rest.rows.is_empty());
+        assert_eq!(result.rows, Vec::<Vec<Value>>::new());
+        assert_eq!(rest.rows, Vec::<Vec<serde_json::Value>>::new());
     }
     let body = serde_json::to_vec(
         &serde_json::json!({"field":"embedding","query":"zero","limit":1,"offset":usize::MAX}),

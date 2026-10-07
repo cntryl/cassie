@@ -266,6 +266,7 @@ fn source_has_cte_boundary(source: &crate::sql::ast::QuerySource) -> bool {
     use crate::sql::ast::QuerySource;
     match source {
         QuerySource::Cte(_) => true,
+        QuerySource::Aliased { source, .. } => source_has_cte_boundary(source),
         QuerySource::Join { left, right, .. } => {
             source_has_cte_boundary(left) || source_has_cte_boundary(right)
         }

@@ -146,3 +146,15 @@ increments. Once coherent, run build → complete locked suite → full workspac
 all-target/all-feature pedantic Clippy → fmt → each touched test validator,
 then repository documentation/benchmark/module-size policies. Exact-head hosted
 review/checks, squash and source/issue readback remain coordinator work.
+
+## Alias and pagination integration
+
+The selected kernels retain #858's bound AST authority: dynamic LIMIT/OFFSET
+expressions resolve before source budgeting and relational dispatch. Qualified
+input references remain input references even when their final component matches
+an output alias; unqualified output aliases retain their existing scalar rules.
+Aliased source wrappers propagate the CTE scalar boundary through their wrapped
+source, including derived/set branches. This adds no public alias or expression
+rule. Owned alias qualification uses the shared #857 accounting handoff once its
+coherent implementation is integrated; that integration and full gates remain
+pending.

@@ -39,7 +39,7 @@ fn entries(batches: &[Batch]) -> Vec<Vec<(String, Value)>> {
 }
 
 #[test]
-fn should_select_native_primitive_sort_and_retain_output_backing() {
+fn should_select_native_primitive_sort_with_retained_output_backing() {
     // Arrange
     let order = order();
     let functions = HashMap::new();
@@ -80,7 +80,7 @@ fn should_select_native_primitive_sort_and_retain_output_backing() {
 }
 
 #[test]
-fn should_match_native_top_k_prefix_and_preserve_large_parent_lease() {
+fn should_match_native_top_k_prefix_with_large_parent_lease() {
     // Arrange
     let order = order();
     let functions = HashMap::new();
@@ -134,7 +134,7 @@ fn should_match_native_top_k_prefix_and_preserve_large_parent_lease() {
 }
 
 #[test]
-fn should_preserve_quoted_and_unquoted_passthrough_alias_order() {
+fn should_preserve_passthrough_alias_order_at_each_identifier_case() {
     // Arrange
     for sql in [
         "SELECT n AS \"Mixed\" ORDER BY \"Mixed\" DESC NULLS LAST",
@@ -314,7 +314,7 @@ fn rich_rows() -> Vec<BatchRow> {
 }
 
 #[test]
-fn should_admit_borrowed_rich_array_keys_and_reject_near_budget_overlap() {
+fn should_admit_rich_array_keys_with_bounded_overlap() {
     // Arrange
     let order = order();
     let functions = HashMap::new();
@@ -439,4 +439,59 @@ fn should_complete_empty_ordered_inputs_without_operator_allocation() {
     assert!(sorted.expect("sort").is_empty());
     assert!(heap.expect("top-k").is_empty());
     assert_eq!(controls.peak_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_keep_qualified_input_order_separate_from_projected_alias() {
+    // Arrange
+    let order = vec![OrderExpr {
+        expr: Expr::Column("p.score".into()),
+        direction: SortDirection::Asc,
+        nulls: None,
+    }];
+    let projection = vec![SelectItem::Expr {
+        expr: Expr::Column("p.payload".into()),
+        alias: Some("score".into()),
+    }];
+    let functions = HashMap::new();
+    let eval = EvalInput {
+        order: &order,
+        projection: &projection,
+        params: &[],
+        search_context: None,
+        user_functions: &functions,
+        session: None,
+    };
+    let input = || {
+        [(1, 90), (2, 10), (3, 50)]
+            .into_iter()
+            .map(|(score, payload)| {
+                BatchRow::new(vec![
+                    ("p.score".into(), Value::Int64(score)),
+                    ("p.payload".into(), Value::Int64(payload)),
+                ])
+            })
+            .collect::<Vec<_>>()
+    };
+    let expected = maintain_top_k_kernel(input(), &eval, 3).expect("scalar qualified authority");
+    let expected = expected
+        .iter()
+        .map(|row| row.entries().to_vec())
+        .collect::<Vec<_>>();
+    // Act
+    let controls = controls();
+    let full =
+        sort_batches_with_controls(vec![input()], &eval, &controls).expect("native full sort");
+    let top =
+        top_k_batches_with_controls(vec![input()], &eval, 2, &controls).expect("native top k");
+    // Assert
+    assert_eq!(entries(&full), expected);
+    assert_eq!(entries(&top), expected[..2]);
+    assert_eq!(
+        relational_diagnostics::last_path(),
+        Some(("top_k", "native_primitive_keys"))
+    );
+    drop(full);
+    drop(top);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
 }

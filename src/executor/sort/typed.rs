@@ -301,6 +301,8 @@ impl DirectOrder {
             let Expr::Column(name) = &item.expr else {
                 unreachable!("column checked")
             };
+            let qualified =
+                crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified());
             let reference = crate::sql::ColumnIdentifierPath::reference_field_key(name);
             let mut resolved = name;
             for projected in eval.projection {
@@ -310,9 +312,11 @@ impl DirectOrder {
                     | SelectItem::Function { alias, .. } => alias.as_ref(),
                     _ => None,
                 };
-                if alias.is_some_and(|alias| {
-                    crate::sql::ColumnIdentifierPath::stored_field_key(alias) == reference
-                }) {
+                if !qualified
+                    && alias.is_some_and(|alias| {
+                        crate::sql::ColumnIdentifierPath::stored_field_key(alias) == reference
+                    })
+                {
                     resolved = match projected {
                         SelectItem::Column { name, .. }
                         | SelectItem::Expr {

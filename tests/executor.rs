@@ -6463,7 +6463,7 @@ mod typed_relational_phase_equivalence {
     use cassie::types::Value;
 
     #[test]
-    fn should_preserve_having_windows_aliases_distinct_and_pagination_phase_order() {
+    fn should_preserve_relational_phase_order_through_pagination() {
         // Arrange
         for workers in [1, 4] {
             with_fixture_config(
@@ -6533,5 +6533,100 @@ mod typed_relational_phase_equivalence {
                 },
             );
         }
+    }
+}
+
+mod typed_alias_bound_integration {
+    use super::support_read_equivalence::{sql, with_fixture_config};
+    use cassie::types::Value;
+
+    #[test]
+    fn should_preserve_qualified_order_through_dynamic_pagination() {
+        // Arrange
+        with_fixture_config(
+            "typed_alias_bounds",
+            |_| {},
+            |cassie, session| {
+                sql(
+                    cassie,
+                    session,
+                    "CREATE TABLE integration_scores (score INT, payload INT)",
+                );
+                sql(
+                    cassie,
+                    session,
+                    "INSERT INTO integration_scores VALUES (1,90),(2,10),(3,50)",
+                );
+                let qualified =
+                    "SELECT p.payload AS score FROM integration_scores AS p ORDER BY p.score";
+                // Act
+                let all = sql(cassie, session, qualified);
+                let page = cassie
+                    .execute_sql(
+                        session,
+                        &format!("{qualified} LIMIT $1 OFFSET $2"),
+                        vec![Value::Int64(1), Value::Int64(1)],
+                    )
+                    .expect("dynamic typed top k");
+                let prefix = cassie
+                    .execute_sql(
+                        session,
+                        &format!("{qualified} LIMIT $1 OFFSET $2"),
+                        vec![Value::Int64(2), Value::Int64(0)],
+                    )
+                    .expect("dynamic prefix");
+                let unlimited = cassie
+                    .execute_sql(
+                        session,
+                        &format!("{qualified} LIMIT $1 OFFSET $2"),
+                        vec![Value::Null, Value::Null],
+                    )
+                    .expect("NULL pagination");
+                let zero = cassie
+                    .execute_sql(
+                        session,
+                        &format!("{qualified} LIMIT $1"),
+                        vec![Value::Int64(0)],
+                    )
+                    .expect("zero pagination");
+                let unqualified = sql(
+                    cassie,
+                    session,
+                    "SELECT p.payload AS score FROM integration_scores AS p ORDER BY score",
+                );
+                let quoted = sql(
+                    cassie,
+                    session,
+                    "SELECT p.payload AS \"score\" FROM integration_scores AS p ORDER BY p.score",
+                );
+                let hidden = cassie.execute_sql(session,
+                "SELECT p.payload FROM integration_scores AS p ORDER BY integration_scores.score", vec![]);
+                // Assert
+                assert_eq!(
+                    all.rows,
+                    vec![
+                        vec![Value::Int64(90)],
+                        vec![Value::Int64(10)],
+                        vec![Value::Int64(50)]
+                    ]
+                );
+                assert_eq!(page.rows, all.rows[1..2]);
+                assert_eq!(prefix.rows, all.rows[..2]);
+                assert_eq!(unlimited.rows, all.rows);
+                assert!(zero.rows.is_empty());
+                assert_eq!(
+                    unqualified.rows,
+                    vec![
+                        vec![Value::Int64(10)],
+                        vec![Value::Int64(50)],
+                        vec![Value::Int64(90)]
+                    ]
+                );
+                assert_eq!(quoted.rows, all.rows);
+                assert_eq!(page.columns, all.columns);
+                assert_eq!(prefix.columns, all.columns);
+                assert!(hidden.is_err(), "alias hides original input qualifier");
+            },
+        );
     }
 }

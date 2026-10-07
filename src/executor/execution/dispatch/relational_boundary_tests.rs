@@ -20,7 +20,7 @@ fn should_keep_union_rhs_cte_source_inside_declared_scalar_boundary() {
 }
 
 #[test]
-fn should_preserve_cte_body_scalar_boundary_and_public_null_descriptors() {
+fn should_preserve_cte_scalar_boundary_null_descriptors() {
     // Arrange
     with_fixture(|cassie, limits| {
         let controls = QueryExecutionControls::from_limits(limits, Instant::now());
@@ -131,4 +131,47 @@ fn with_fixture(run: impl FnOnce(&Cassie, &crate::config::CassieRuntimeLimits)) 
     run(&cassie, &config.limits);
     drop(cassie);
     let _ = std::fs::remove_dir_all(path);
+}
+
+#[test]
+fn should_keep_aliased_cte_source_inside_declared_scalar_boundary() {
+    // Arrange
+    let statement = crate::sql::parse_statement(
+        "WITH c AS (SELECT DISTINCT CAST(NULL AS BIGINT) AS n) SELECT DISTINCT x.n FROM c AS x",
+    )
+    .expect("aliased CTE SQL");
+    let catalog = crate::catalog::Catalog::new();
+    let bound = crate::sql::binder::bind(statement, &catalog).expect("actual alias CTE binding");
+    let plan = crate::planner::logical::plan(&bound).expect("actual bound alias CTE plan");
+    // Act
+    let boundary = source_has_cte_boundary(&plan.source);
+    // Assert
+    assert!(boundary, "alias wrapper must preserve actual CTE boundary");
+}
+
+#[test]
+fn should_preserve_aliased_cte_null_descriptors_without_native_promotion() {
+    // Arrange
+    with_fixture(|cassie, _| {
+        let session = cassie.create_session("root", None);
+        let sql =
+            "WITH c AS (SELECT DISTINCT CAST(NULL AS BIGINT) AS n) SELECT DISTINCT x.n FROM c AS x";
+        // Act
+        let aliased = cassie
+            .execute_sql(&session, sql, vec![])
+            .expect("aliased CTE scalar result");
+        let path = crate::executor::typed_batch::relational_diagnostics::last_path();
+        let plain = cassie
+            .execute_sql(
+                &session,
+                "WITH c AS (SELECT DISTINCT CAST(NULL AS BIGINT) AS n) SELECT DISTINCT n FROM c",
+                vec![],
+            )
+            .expect("plain CTE scalar authority");
+        // Assert
+        assert_eq!(path, Some(("distinct", "scalar_cte_materialization")));
+        assert_eq!(aliased.rows, plain.rows);
+        assert_eq!(aliased.columns, plain.columns);
+        assert_eq!(aliased.columns[0].type_oid, 20);
+    });
 }

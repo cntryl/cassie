@@ -155,7 +155,7 @@ fn keys(
     TupleKeys::scalar_rows(controls, rows).map(|keys| (keys, false))
 }
 
-fn admit_rows(
+pub(super) fn admit_rows(
     controls: &QueryExecutionControls,
     left: &[BatchRow],
     right: &[BatchRow],

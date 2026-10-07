@@ -25,7 +25,7 @@ fn should_preserve_first_distinct_occurrences_in_selected_numeric_tuples() {
     )
     .expect("selected source");
     // Act
-    let output = batch.distinct(&controls, &[0]).expect("typed distinct");
+    let output = distinct_view(&batch, &controls, &[0]).expect("typed distinct");
     drop(batch);
     // Assert
     assert_eq!(output.len(), 3);
@@ -57,7 +57,7 @@ fn should_decline_distinct_key_state_without_releasing_source_leases() {
         .expect("budget pressure");
     let before = controls.current_query_memory_bytes();
     // Act
-    let result = batch.distinct(&controls, &[0]);
+    let result = distinct_view(&batch, &controls, &[0]);
     // Assert
     assert!(matches!(
         result.map_err(crate::app::CassieError::from),
@@ -102,18 +102,12 @@ fn should_match_set_multiplicity_with_exact_numeric_equivalence() {
     )
     .expect("floats");
     // Act
-    let union =
-        super::super::relational::set_selection(&controls, &left, &right, SetOperator::Union)
-            .expect("union");
+    let union = set_selection_fixture(&controls, &left, &right, SetOperator::Union).expect("union");
     let intersect =
-        super::super::relational::set_selection(&controls, &left, &right, SetOperator::Intersect)
-            .expect("intersect");
+        set_selection_fixture(&controls, &left, &right, SetOperator::Intersect).expect("intersect");
     let except =
-        super::super::relational::set_selection(&controls, &left, &right, SetOperator::Except)
-            .expect("except");
-    let all =
-        super::super::relational::set_selection(&controls, &left, &right, SetOperator::UnionAll)
-            .expect("all");
+        set_selection_fixture(&controls, &left, &right, SetOperator::Except).expect("except");
+    let all = set_selection_fixture(&controls, &left, &right, SetOperator::UnionAll).expect("all");
     // Assert
     assert_eq!(union.get().len(), 4);
     assert_eq!(intersect.get(), &[(false, 2), (false, 0)]);
@@ -192,4 +186,45 @@ fn should_deny_escaped_json_semantic_keys_before_serialized_key_construction() {
     assert_eq!(input[0].entries()[0].1, Value::Json(json));
     drop(pressure);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+// Test compositions exercise retained views and branch keys using the production primitives.
+fn distinct_view(
+    batch: &TypedBatch,
+    controls: &QueryExecutionControls,
+    columns: &[usize],
+) -> Result<TypedBatch, crate::executor::QueryError> {
+    let keys = super::super::relational::TupleKeys::new(controls, batch, columns)?;
+    let mut positions = keys.distinct_positions(controls)?;
+    for position in &mut positions {
+        *position = batch.position(*position)?;
+    }
+    TypedBatch::from_views(
+        controls,
+        batch.schema(),
+        batch.columns.get(),
+        batch.domain,
+        Some(&positions),
+    )
+}
+
+fn set_selection_fixture(
+    controls: &QueryExecutionControls,
+    left: &TypedBatch,
+    right: &TypedBatch,
+    operator: crate::sql::ast::SetOperator,
+) -> Result<crate::runtime::accounted::Accounted<Vec<(bool, usize)>>, crate::executor::QueryError> {
+    super::super::check_controls(controls)?;
+    if left.schema().len() != right.schema().len() {
+        return Err(super::super::invalid("set input widths disagree"));
+    }
+    let width = left.schema().len();
+    let _column_memory = controls.reserve_query_memory(crate::executor::retained_memory::mul(
+        width,
+        std::mem::size_of::<usize>(),
+    )?)?;
+    let columns = (0..width).collect::<Vec<_>>();
+    let left_keys = super::super::relational::TupleKeys::new(controls, left, &columns)?;
+    let right_keys = super::super::relational::TupleKeys::new(controls, right, &columns)?;
+    super::super::relational::set_positions(controls, &left_keys, &right_keys, operator)
 }

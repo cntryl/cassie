@@ -1,3 +1,8 @@
+#[path = "source_rows/distinct_on.rs"]
+mod direct_distinct_on;
+#[cfg(test)]
+#[path = "source_rows/distinct_on_tests.rs"]
+mod distinct_on_tests;
 #[path = "source_rows/typed.rs"]
 mod typed;
 
@@ -260,6 +265,44 @@ pub(super) fn distinct_batches(
 }
 
 pub(super) fn distinct_on_batches(
+    batches: Vec<Batch>,
+    distinct_on: &[Expr],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    let boundary = if controls.uses_relational_cte_boundary() {
+        "scalar_cte_materialization"
+    } else {
+        "scalar_expression_distinct_on"
+    };
+    let scalar = |batches| {
+        let output = scalar_distinct_on_batches(
+            batches,
+            distinct_on,
+            params,
+            search_context,
+            user_functions,
+            session,
+            controls,
+        )?;
+        crate::executor::typed_batch::relational_diagnostics::publish("distinct_on", boundary);
+        Ok(output)
+    };
+    if controls.uses_relational_cte_boundary()
+        || distinct_on
+            .iter()
+            .any(|expr| !matches!(expr, Expr::Column(_)))
+    {
+        super::check_timeout(controls)?;
+        return scalar(batches);
+    }
+    direct_distinct_on::apply(batches, distinct_on, controls, scalar)
+}
+
+fn scalar_distinct_on_batches(
     batches: Vec<Batch>,
     distinct_on: &[Expr],
     params: &[Value],

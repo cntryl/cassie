@@ -3,7 +3,12 @@
 The integration owner selected this finite private implementation matrix for
 [#760](https://github.com/cntryl/cassie/issues/760) after #758 and #759 merged in
 `06195f0fc9c1e63a5236903976c07f480176dd8a` and were read back CLOSED.
-The coherent bundle is #760 only; #761 owns later relational qualification.
+The coordinator selected a coherent #760 + [#857](https://github.com/cntryl/cassie/issues/857)
+bundle before integration and full validation; #761 owns later relational
+qualification. The separate #857 private plain-row/context accounting fix is
+planned and is not implemented in this tree until reviewed integration. #760
+remains open until that confirmed follow-up and the coherent required gates
+complete.
 This selection preserves the [typed batch contract](typed-batch-contract.md),
 [type contract](type-contract.md) and [performance contract](performance-contracts.md).
 It introduces no public API, persistent bytes, type identity, spilling or new
@@ -13,7 +18,7 @@ cross-phase visibility contract. Selection is not executed acceptance.
 
 | Operator | Native typed selection | Preserved boundary |
 |---|---|---|
-| DISTINCT / DISTINCT ON | Tuple keys of NULL, SMALLINT, INT, BIGINT, FLOAT and BOOLEAN; direct keys for DISTINCT ON | Rich keys and expressions retain admitted shared semantic adaptation. Ordinary DISTINCT retains first input occurrence. DISTINCT ON follows its complete order before projection. |
+| DISTINCT / DISTINCT ON | Tuple keys of NULL, SMALLINT, INT, BIGINT, FLOAT and BOOLEAN; direct keys for DISTINCT ON | Direct rich keys retain admitted shared semantic adaptation; DISTINCT ON expressions use the named scalar boundary below. Ordinary DISTINCT retains first input occurrence. DISTINCT ON follows its complete order before projection. |
 | UNION / UNION ALL / INTERSECT / EXCEPT | Same primitive tuples with existing branch widths and exported names/types | Shared semantic equality; existing UNION ALL signature order and multiplicity, other sets' signature order/deduplication. Existing absent ALL syntax remains absent; right source is uncapped input. |
 | Full sort / top-k | Direct primitive columns and safely resolved passthrough aliases, ASC/DESC and explicit/default NULL order | Direct rich keys use borrowed-value pre-admission and the existing typed semantic authority. Expressions retain the named scalar boundary below. Preserve exact semantic numeric comparison, row identity ties and full-sort prefix pagination. |
 | Windows | ROW_NUMBER, RANK, DENSE_RANK; existing one-argument LAG/LEAD at offset1; FIRST_VALUE/LAST_VALUE direct typed payload | Primitive partition/order keys, rich key adapters. FIRST/LAST selects existing ROWS bounds with EXCLUDE NO OTHERS, default peer RANGE or whole unordered partition. Explicit RANGE offsets, GROUPS and other exclusions preserve scalar fallback. |
@@ -27,7 +32,9 @@ does not promote existing CTE materialization accounting to a bounded native cla
 A focused body-native-decline/differential and budget/cleanup probe is required;
 confirmed baseline accounting defects belong to an evidence-linked follow-up.
 The existing plain-row CTE owner gap is recorded in [#857](https://github.com/cntryl/cassie/issues/857)
-with the bound live-row/accounted-zero probe; #760 does not silently fix or promote it.
+with the bound live-row/accounted-zero probe. Its selected private accounting
+fix preserves plain owned rows and independent deep copies; it does not promote
+CTE operators to native execution or change their scalar boundary.
 
 ORDER BY expressions and user functions retain `scalar_expression_order` when
 they are not direct columns or safely resolved passthrough aliases. Existing SQL
@@ -40,6 +47,14 @@ allocation can be admitted before cloning/conversion. CTE and expression
 boundaries are explicit unpromoted dispositions for VEX-14 and VEX-22; selected
 primitive/direct-rich order paths must satisfy both invariants. Empty selected
 relational inputs check query controls and return without operator allocation.
+
+DISTINCT ON selects direct, consistently resolved borrowed columns before native
+conversion. Non-direct expressions or references that cannot be resolved to the
+same retained row-entry position use `scalar_expression_distinct_on`, preserving
+existing scalar SQL/error behavior and complete input order before projection.
+This boundary makes no native/bounded admission claim. Direct rich equality uses
+the existing scalar signature authority, with borrowed-value pre-admission;
+primitive selected-column positions are remapped into the private key batch.
 
 Windows select the entire projection before any native key/payload conversion.
 A non-direct partition/order expression or value argument retains
@@ -117,8 +132,15 @@ partition work and handoff.
 | VEX-15 | Selected ranking/offset/value frame laws across partitions/peers/chunks; empty frames, NULL/out-of-range, nonselected frame fallback and payload/descriptor preservation. |
 | VEX-22 | Documented accounted blocking state; pre-admission failure, cancellation, parent/eviction/output drop and zero final reservations. |
 
-Every row remains pending until its exact implementation and focused evidence
-complete. Existing scalar tests are oracles, not proof of native execution.
+Selected DISTINCT/set, ordering and window increments have focused local
+execution evidence. Direct DISTINCT ON now has first-occurrence/all-split native
+execution, mixed-number/rich equality differential, original descriptor and
+huge-parent/prior-owner denial/drop evidence. Diagnostics distinguish all named
+scalar boundaries from accounted selected paths. The finite public phase probe passes with configured worker counts1/4 for its
+six-row fixture; it compares complete results with OFFSET/LIMIT0 and descriptors,
+and does not claim actual parallel dispatch. Coherent #760 + #857 validation
+remains pending; this is not closure or hosted qualification. Existing scalar tests are oracles, not proof of native
+execution.
 Implement DISTINCT/set, then sort/top-k, then windows as separate red/green
 increments. Once coherent, run build → complete locked suite → full workspace/
 all-target/all-feature pedantic Clippy → fmt → each touched test validator,

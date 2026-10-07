@@ -136,6 +136,51 @@ impl TupleKeys {
         })
     }
 
+    pub(crate) fn scalar_columns(
+        controls: &QueryExecutionControls,
+        rows: &[crate::executor::batch::BatchRow],
+        columns: &[usize],
+    ) -> Result<Self, QueryError> {
+        check_controls(controls)?;
+        let mut bytes = mul(
+            rows.len(),
+            add(size_of::<Vec<SemanticValue>>(), 2 * size_of::<usize>())?,
+        )?;
+        let mut float_scratch = 0;
+        for row in rows {
+            check_controls(controls)?;
+            for &column in columns {
+                let value = &row
+                    .entries()
+                    .get(column)
+                    .ok_or_else(|| invalid("direct tuple column missing"))?
+                    .1;
+                bytes = add(
+                    bytes,
+                    add(size_of::<SemanticValue>(), scalar_heap_bytes(value)?)?,
+                )?;
+                if matches!(value, Value::Float64(_)) {
+                    float_scratch = 64;
+                }
+            }
+        }
+        let memory = controls.reserve_query_memory(add(bytes, float_scratch)?)?;
+        let mut values = Vec::with_capacity(rows.len());
+        for row in rows {
+            check_controls(controls)?;
+            let mut tuple = Vec::with_capacity(columns.len());
+            for &column in columns {
+                check_controls(controls)?;
+                tuple.push(SemanticValue::from_value(&row.entries()[column].1));
+            }
+            values.push(tuple);
+        }
+        Ok(Self {
+            values,
+            _memory: memory,
+        })
+    }
+
     pub(crate) fn distinct_positions(
         &self,
         controls: &QueryExecutionControls,
@@ -151,45 +196,6 @@ impl TupleKeys {
         positions.sort_unstable();
         Ok(positions)
     }
-}
-
-impl TypedBatch {
-    pub(crate) fn distinct(
-        &self,
-        controls: &QueryExecutionControls,
-        columns: &[usize],
-    ) -> Result<Self, QueryError> {
-        let keys = TupleKeys::new(controls, self, columns)?;
-        let mut positions = keys.distinct_positions(controls)?;
-        for position in &mut positions {
-            *position = self.position(*position)?;
-        }
-        Self::from_views(
-            controls,
-            self.schema(),
-            self.columns.get(),
-            self.domain,
-            Some(&positions),
-        )
-    }
-}
-
-pub(crate) fn set_selection(
-    controls: &QueryExecutionControls,
-    left: &TypedBatch,
-    right: &TypedBatch,
-    operator: SetOperator,
-) -> Result<Accounted<Vec<(bool, usize)>>, QueryError> {
-    check_controls(controls)?;
-    if left.schema().len() != right.schema().len() {
-        return Err(invalid("set input widths disagree"));
-    }
-    let width = left.schema().len();
-    let _column_memory = controls.reserve_query_memory(mul(width, size_of::<usize>())?)?;
-    let columns = (0..width).collect::<Vec<_>>();
-    let left_keys = TupleKeys::new(controls, left, &columns)?;
-    let right_keys = TupleKeys::new(controls, right, &columns)?;
-    set_positions(controls, &left_keys, &right_keys, operator)
 }
 
 pub(crate) fn set_positions(

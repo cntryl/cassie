@@ -253,6 +253,15 @@ mod tests {
         .expect("open")
         .expect("typed stream");
         let encoded = stream.is_encoded();
+        let object_lanes = stream
+            .encoded
+            .as_ref()
+            .expect("encoded source")
+            .segments
+            .iter()
+            .flat_map(|segment| &segment.fields)
+            .map(|field| field.get().values().len())
+            .sum::<usize>();
         let source_owner = std::sync::Arc::downgrade(
             &stream.encoded.as_ref().expect("encoded source").segments[0].fields[0],
         );
@@ -268,6 +277,10 @@ mod tests {
 
         // Assert
         assert!(encoded);
+        assert_eq!(
+            object_lanes, 0,
+            "numeric encoded owners do not materialize JSON lanes"
+        );
         assert!(
             cassie.runtime.snapshot().storage.data.reads > reads_before,
             "encoded reads remain observable"

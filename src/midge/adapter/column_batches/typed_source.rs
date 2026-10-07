@@ -1,4 +1,6 @@
 //! Private immutable CBC2 input owners. Existing validators decide eligibility and framing.
+mod numeric;
+
 use std::collections::BTreeSet;
 use std::mem::size_of;
 use std::sync::Arc;
@@ -18,6 +20,7 @@ pub(crate) struct ValidatedEncodedField {
     name: String,
     raw: bytes::Bytes,
     values: Vec<serde_json::Value>,
+    numeric: Option<super::super::NumericValues>,
     metadata: Arc<Accounted<ColumnBatchMetadata>>,
     segment: usize,
 }
@@ -31,6 +34,9 @@ impl ValidatedEncodedField {
     }
     pub(crate) fn values(&self) -> &[serde_json::Value] {
         &self.values
+    }
+    pub(crate) fn numeric_values(&self) -> Option<&super::super::NumericValues> {
+        self.numeric.as_ref()
     }
     pub(crate) fn storage_type(&self) -> &str {
         &self.metadata.get().segments[self.segment].field_chunks[&self.name].logical_type
@@ -163,14 +169,8 @@ impl Midge {
                 };
                 let bytes = field_retained_bytes(chunk, segment.row_count, field)?;
                 let field_memory = controls.reserve_query_memory(bytes)?;
-                let loaded = match super::storage_v2::load_field_chunk(
-                    &tx,
-                    relation_id,
-                    index_id,
-                    segment,
-                    field,
-                    chunk,
-                )? {
+                let loaded = match numeric::load(&tx, relation_id, index_id, segment, field, chunk)?
+                {
                     Ok(loaded) => loaded,
                     Err(reason) => return Ok(EncodedSourceDecision::Fallback(reason)),
                 };
@@ -183,6 +183,7 @@ impl Midge {
                         name: field.clone(),
                         raw: loaded.raw,
                         values: loaded.values,
+                        numeric: loaded.numeric,
                         metadata: Arc::clone(metadata),
                         segment: segment_index,
                     },
@@ -245,7 +246,7 @@ fn field_retained_bytes(
     add(
         add(chunk.encoded_len, mul(chunk.decoded_len, 64)?)?,
         add(
-            mul(row_count, size_of::<serde_json::Value>())?,
+            mul(row_count, size_of::<serde_json::Value>().max(64))?,
             add(
                 field.len(),
                 size_of::<Accounted<ValidatedEncodedField>>() + 2 * size_of::<usize>(),

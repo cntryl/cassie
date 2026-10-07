@@ -33,6 +33,7 @@ enum Storage {
         parent: Column,
         _source: Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>,
     },
+    EncodedNumeric(Arc<Accounted<crate::midge::adapter::ValidatedEncodedField>>),
     Constant(Value),
     Sequence {
         start: i64,
@@ -154,6 +155,16 @@ impl Column {
             }
             Storage::Scalar(values) => Cell::Scalar(&values[lane]),
             Storage::Encoded { parent, .. } => return parent.cell(lane),
+            Storage::EncodedNumeric(source) => {
+                match source.get().numeric_values().expect("numeric owner") {
+                    crate::midge::adapter::NumericValues::Integer(values) => {
+                        values[lane].map_or(Cell::Null, Cell::Integer)
+                    }
+                    crate::midge::adapter::NumericValues::Float(values) => {
+                        values[lane].map_or(Cell::Null, Cell::Float)
+                    }
+                }
+            }
             Storage::Constant(value) => Cell::Scalar(value),
             Storage::Sequence { start, step } => {
                 let value = i128::from(*start)
@@ -500,6 +511,44 @@ impl Column {
         let field = source.get();
         if field.raw().is_empty() || field.storage_type().is_empty() {
             return Err(invalid("encoded owner lacks validated framing"));
+        }
+        if let Some(numeric) = field.numeric_values() {
+            match (data_type, numeric) {
+                (
+                    DataType::SmallInt | DataType::Int,
+                    crate::midge::adapter::NumericValues::Integer(values),
+                ) => {
+                    for value in values.iter().flatten() {
+                        check_controls(controls)?;
+                        let valid = if matches!(data_type, DataType::SmallInt) {
+                            i16::try_from(*value).is_ok()
+                        } else {
+                            i32::try_from(*value).is_ok()
+                        };
+                        if !valid {
+                            return Err(invalid(
+                                "encoded integer does not match declared transport",
+                            ));
+                        }
+                    }
+                }
+                (
+                    DataType::BigInt | DataType::Float,
+                    crate::midge::adapter::NumericValues::Integer(_),
+                )
+                | (DataType::Float, crate::midge::adapter::NumericValues::Float(_)) => {}
+                _ => return Err(invalid("encoded numeric does not match declared transport")),
+            }
+            return Ok(Self(Arc::new(Accounted::try_new(
+                controls,
+                owner_bytes::<ColumnData>(data_type_clone_bytes(data_type)?)?,
+                || ColumnData {
+                    data_type: data_type.clone(),
+                    domain: numeric.len(),
+                    storage: Storage::EncodedNumeric(Arc::clone(source)),
+                    validity: Validity::AllValid,
+                },
+            )?)));
         }
         let mut memory =
             controls.reserve_query_memory(mul(field.values().len(), size_of::<Value>())?)?;

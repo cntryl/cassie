@@ -24,6 +24,7 @@ mod state;
 #[cfg(test)]
 #[path = "aggregate_exec/tests.rs"]
 mod tests;
+pub(super) mod typed;
 
 use group_memory::GroupMemory;
 pub(super) use rewrite::{

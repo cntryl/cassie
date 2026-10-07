@@ -303,12 +303,12 @@ fn primitive(cell: Cell<'_>) -> SemanticValue {
     }
 }
 
-fn keys(
+fn key_state_bytes(
     rows: &[BatchRow],
     function: &WindowFunctionCall,
     selection: &Selection,
     context: &WindowExecutionContext<'_>,
-) -> Result<(Vec<Keys>, QueryMemoryReservation, bool), QueryError> {
+) -> Result<usize, crate::app::CassieError> {
     let width = add(selection.partition.len(), selection.order.len())?;
     let mut bytes = add(
         64,
@@ -366,10 +366,21 @@ fn keys(
             )?;
         }
         if !function.order_by.is_empty() {
-            bytes = add(bytes, accounting::tie_bytes(row)?)?
+            bytes = add(bytes, accounting::tie_bytes(row)?)?;
         }
     }
-    let memory = context.controls.reserve_query_memory(bytes)?;
+    Ok(bytes)
+}
+
+fn keys(
+    rows: &[BatchRow],
+    function: &WindowFunctionCall,
+    selection: &Selection,
+    context: &WindowExecutionContext<'_>,
+) -> Result<(Vec<Keys>, QueryMemoryReservation, bool), QueryError> {
+    let memory = context
+        .controls
+        .reserve_query_memory(key_state_bytes(rows, function, selection, context)?)?;
     let columns = selection
         .partition
         .iter()

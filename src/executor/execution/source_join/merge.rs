@@ -208,7 +208,7 @@ fn merge_equal_key_groups(
             let accepted = joined.try_push_combined(&left_row.row, &right_row.row, || {
                 retention.before(JoinRetentionPhase::MergeOutput)?;
                 check_timeout(env.controls)?;
-                let combined = combine_rows(&left_row.row, &right_row.row);
+                let combined = combine_rows(&left_row.row, &right_row.row)?;
                 let passes = filter::eval_scalar(
                     &combined,
                     spec.rows.on,
@@ -296,7 +296,7 @@ fn append_unmatched(
         joined.try_push_combined(left, right, || {
             retention.before(JoinRetentionPhase::MergeOutput)?;
             check_timeout(env.controls)?;
-            Ok(Some(combine_rows(left, right)))
+            Ok(Some(combine_rows(left, right)?))
         })?;
     }
     Ok(())

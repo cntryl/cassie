@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "source_rows/operator_memory_tests.rs"]
+mod operator_memory_tests;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
@@ -98,6 +102,7 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
 pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
     let data_types = row.shared_data_types();
     let query_memory = row.query_memory();
+    let operator_memory = row.operator_memory();
     let qualifiers = qualifier_variants(qualifier);
     let (values, mut aliases) = row.into_parts();
     for (index, (name, _)) in values.iter().enumerate() {
@@ -108,9 +113,13 @@ pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str
     BatchRow::with_aliases(values, aliases)
         .with_optional_data_types(data_types)
         .with_query_memory(query_memory)
+        .with_operator_memory(operator_memory)
 }
 
-pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
+pub(in crate::executor::execution) fn combine_rows(
+    left: &BatchRow,
+    right: &BatchRow,
+) -> Result<BatchRow, QueryError> {
     let width = left.entries().len().saturating_add(right.entries().len());
     let data_types = (!left.data_types().is_empty() || !right.data_types().is_empty()).then(|| {
         let mut types = Vec::with_capacity(width);
@@ -139,7 +148,12 @@ pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &Batc
             .iter()
             .map(|(name, index)| (name.clone(), left_width + index)),
     );
-    BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types)
+    Ok(BatchRow::with_aliases(values, aliases)
+        .with_optional_data_types(data_types)
+        .with_operator_memory(crate::executor::batch::OperatorMemory::merge(
+            left.operator_memory(),
+            right.operator_memory(),
+        )?))
 }
 
 pub(in crate::executor::execution) fn row_columns(rows: &[BatchRow]) -> Vec<String> {
@@ -180,6 +194,8 @@ pub(super) fn project_rows_to_schema(
 ) -> Result<Vec<BatchRow>, QueryError> {
     let mut projected = Vec::with_capacity(rows.len());
     for row in rows {
+        let operator_memory = row.operator_memory();
+        let query_memory = row.query_memory();
         let entries = row.into_entries();
         if entries.len() < schema.fields.len() {
             return Err(QueryError::General(format!(
@@ -194,7 +210,11 @@ pub(super) fn project_rows_to_schema(
         for (field, (_name, value)) in schema.fields.iter().zip(entries) {
             values.push((field.name.clone(), value));
         }
-        projected.push(BatchRow::new(values));
+        projected.push(
+            BatchRow::new(values)
+                .with_query_memory(query_memory)
+                .with_operator_memory(operator_memory),
+        );
     }
     Ok(projected)
 }
@@ -361,9 +381,14 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
         .into_iter()
         .map(|row| {
             let data_types = row.shared_data_types();
+            let operator_memory = row.operator_memory();
+            let query_memory = row.query_memory();
             let entries = row.into_entries();
             if entries.len() != left_names.len() {
-                return BatchRow::new(entries).with_optional_data_types(data_types);
+                return BatchRow::new(entries)
+                    .with_optional_data_types(data_types)
+                    .with_query_memory(query_memory)
+                    .with_operator_memory(operator_memory);
             }
             BatchRow::new(
                 left_names
@@ -373,6 +398,8 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
                     .collect(),
             )
             .with_optional_data_types(data_types)
+            .with_query_memory(query_memory)
+            .with_operator_memory(operator_memory)
         })
         .collect()
 }
@@ -554,7 +581,7 @@ mod tests {
         );
 
         // Act
-        let combined = combine_rows(&left, &right);
+        let combined = combine_rows(&left, &right).expect("combined row");
 
         // Assert
         assert_eq!(combined.entries().len(), 2);

@@ -262,7 +262,7 @@ fn execute_lateral_join<'a>(
             let accepted = joined.try_push_combined(left_row, right_row, || {
                 retention.before(JoinRetentionPhase::NestedOutput)?;
                 check_timeout(env.controls)?;
-                let combined = combine_rows(left_row, right_row);
+                let combined = combine_rows(left_row, right_row)?;
                 let passes = matches!(spec.kind, JoinKind::Cross)
                     || filter::eval_scalar(
                         &combined,
@@ -288,7 +288,7 @@ fn execute_lateral_join<'a>(
         if !matched && matches!(spec.kind, JoinKind::Left | JoinKind::Full) {
             joined.try_push_combined(left_row, &right_template, || {
                 check_timeout(env.controls)?;
-                Ok(Some(combine_rows(left_row, &right_template)))
+                Ok(Some(combine_rows(left_row, &right_template)?))
             })?;
             if joined.len() >= output_budget {
                 break;

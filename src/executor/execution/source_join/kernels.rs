@@ -24,7 +24,7 @@ pub(super) fn execute_nested_loop_join(
             let accepted = joined.try_push_combined(left_row, right_row, || {
                 retention.before(JoinRetentionPhase::NestedOutput)?;
                 check_timeout(env.controls)?;
-                let combined = combine_rows(left_row, right_row);
+                let combined = combine_rows(left_row, right_row)?;
                 let passes = matches!(spec.kind, JoinKind::Cross)
                     || filter::eval_scalar(
                         &combined,
@@ -51,7 +51,7 @@ pub(super) fn execute_nested_loop_join(
             joined.try_push_combined(left_row, spec.right_template, || {
                 retention.before(JoinRetentionPhase::NestedOutput)?;
                 check_timeout(env.controls)?;
-                Ok(Some(combine_rows(left_row, spec.right_template)))
+                Ok(Some(combine_rows(left_row, spec.right_template)?))
             })?;
             if joined.len() >= output_budget {
                 break;
@@ -65,7 +65,7 @@ pub(super) fn execute_nested_loop_join(
                 joined.try_push_combined(spec.left_template, right_row, || {
                     retention.before(JoinRetentionPhase::NestedOutput)?;
                     check_timeout(env.controls)?;
-                    Ok(Some(combine_rows(spec.left_template, right_row)))
+                    Ok(Some(combine_rows(spec.left_template, right_row)?))
                 })?;
                 if joined.len() >= output_budget {
                     break;
@@ -164,7 +164,7 @@ pub(super) fn execute_vectorized_join(
                     joined.try_push_combined(left, right, || {
                         retention.before(JoinRetentionPhase::HashOutput)?;
                         check_timeout(env.controls)?;
-                        Ok(Some(combine_rows(left, right)))
+                        Ok(Some(combine_rows(left, right)?))
                     })?;
                     matched_rows += 1;
                     if joined.len() >= output_budget {
@@ -175,7 +175,7 @@ pub(super) fn execute_vectorized_join(
                 joined.try_push_combined(left, spec.right_template, || {
                     retention.before(JoinRetentionPhase::HashOutput)?;
                     check_timeout(env.controls)?;
-                    Ok(Some(combine_rows(left, spec.right_template)))
+                    Ok(Some(combine_rows(left, spec.right_template)?))
                 })?;
                 if joined.len() >= output_budget {
                     break 'probe;

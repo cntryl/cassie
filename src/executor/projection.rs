@@ -111,7 +111,12 @@ where
                 }
             }
         }
-        out.push(BatchRow::from_projected_values(projected).with_optional_data_types(data_types));
+        out.push(
+            BatchRow::from_projected_values(projected)
+                .with_optional_data_types(data_types)
+                .with_query_memory(row.query_memory())
+                .with_operator_memory(row.operator_memory()),
+        );
     }
 
     Ok(out)
@@ -235,6 +240,8 @@ fn project_owned_batch(batch: Batch, ops: &[ProjectionOp]) -> Batch {
 }
 
 fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
+    let operator_memory = row.operator_memory();
+    let query_memory = row.query_memory();
     let data_types =
         super::projection_types::projected(&row, ops, &std::collections::HashMap::new());
     let mut entries = row
@@ -297,7 +304,10 @@ fn project_owned_row(row: BatchRow, ops: &[ProjectionOp]) -> BatchRow {
         }
     }
 
-    BatchRow::from_projected_values(projected).with_optional_data_types(data_types)
+    BatchRow::from_projected_values(projected)
+        .with_optional_data_types(data_types)
+        .with_query_memory(query_memory)
+        .with_operator_memory(operator_memory)
 }
 
 pub(super) enum ProjectionOp {

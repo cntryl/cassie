@@ -128,7 +128,7 @@ impl IndexedProgress {
             retention.enter(JoinRetentionPhase::BoundedOutput);
             let accepted = self.joined.try_push_combined(left, right, || {
                 retention.before(JoinRetentionPhase::BoundedOutput)?;
-                let combined = combine_rows(left, right);
+                let combined = combine_rows(left, right)?;
                 Ok(indexed_join_row_matches(env, &combined, spec.on)?.then_some(combined))
             })?;
             if accepted {

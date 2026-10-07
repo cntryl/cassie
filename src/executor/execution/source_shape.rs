@@ -9,10 +9,10 @@ pub(super) fn null_row(
     context: &CteContext,
 ) -> Result<BatchRow, QueryError> {
     if let QuerySource::Join { left, right, .. } = source {
-        return Ok(combine_rows(
+        return combine_rows(
             &null_row(env, left, context)?,
             &null_row(env, right, context)?,
-        ));
+        );
     }
     let fields = crate::sql::binder::source_row_fields(
         source,

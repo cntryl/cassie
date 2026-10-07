@@ -464,9 +464,9 @@ fn fulltext_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<FulltextT
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?;
+    let limit = usize::try_from(plan.limit_value()?).ok()?;
     let offset = plan
-        .offset
+        .offset_value()
         .and_then(|offset| usize::try_from(offset).ok())
         .unwrap_or(0);
     let (id_column, function, score_column) =
@@ -539,13 +539,13 @@ pub(super) fn fulltext_filtered_read_spec(
         fulltext_read::FulltextFilterMatch::Residual(residual) => Some(residual),
     };
 
-    let limit = if let Some(limit) = plan.limit {
+    let limit = if let Some(limit) = plan.limit_value() {
         Some(usize::try_from(limit.max(0)).ok()?)
     } else {
         None
     };
     let offset = plan
-        .offset
+        .offset_value()
         .and_then(|offset| usize::try_from(offset.max(0)).ok())
         .unwrap_or(0);
 
@@ -624,9 +624,9 @@ fn hybrid_top_k_spec(plan: &LogicalPlan, params: &[Value]) -> Option<HybridTopKS
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?;
+    let limit = usize::try_from(plan.limit_value()?).ok()?;
     let offset = plan
-        .offset
+        .offset_value()
         .and_then(|offset| usize::try_from(offset).ok())
         .unwrap_or(0);
     let (id_column, function, score_column) =

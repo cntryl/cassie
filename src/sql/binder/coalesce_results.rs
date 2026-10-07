@@ -328,6 +328,7 @@ fn validate_source(
     source: &crate::sql::ast::QuerySource,
 ) -> Result<(), CassieError> {
     match source {
+        crate::sql::ast::QuerySource::Aliased { source, .. } => validate_source(types, source),
         crate::sql::ast::QuerySource::Join {
             left, right, on, ..
         } => {
@@ -533,8 +534,8 @@ fn validate_parameter_select(
         group_by: select.group_by.clone(),
         having: select.having.clone(),
         order: select.order.clone(),
-        limit: select.limit,
-        offset: select.offset,
+        limit: select.limit.clone(),
+        offset: select.offset.clone(),
         set: select.set.clone(),
     };
     validate_plan_in_scope(
@@ -556,6 +557,14 @@ fn validate_nested_source(
     outer: &std::collections::HashMap<String, Schema>,
 ) -> Result<(), CassieError> {
     match source {
+        crate::sql::ast::QuerySource::Aliased { source, .. } => validate_nested_source(
+            source,
+            catalog,
+            context,
+            parameter_types,
+            contextual_parameters,
+            outer,
+        ),
         crate::sql::ast::QuerySource::Subquery { select, .. } => validate_parameter_select(
             select,
             catalog,
@@ -645,6 +654,7 @@ fn cte_contains_coalesce(cte: &crate::sql::ast::CommonTableExpression) -> bool {
 
 fn source_contains_coalesce(source: &crate::sql::ast::QuerySource) -> bool {
     match source {
+        crate::sql::ast::QuerySource::Aliased { source, .. } => source_contains_coalesce(source),
         crate::sql::ast::QuerySource::Subquery { select, .. } => select_contains_coalesce(select),
         crate::sql::ast::QuerySource::Join {
             left, right, on, ..
@@ -689,6 +699,7 @@ fn plan_contains_coalesce(plan: &crate::planner::logical::LogicalPlan) -> bool {
 
 fn source_references_cte(source: &crate::sql::ast::QuerySource, name: &str) -> bool {
     match source {
+        crate::sql::ast::QuerySource::Aliased { source, .. } => source_references_cte(source, name),
         crate::sql::ast::QuerySource::Cte(candidate) => candidate.eq_ignore_ascii_case(name),
         crate::sql::ast::QuerySource::Subquery { select, .. } => {
             source_references_cte(&select.source, name)

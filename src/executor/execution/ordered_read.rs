@@ -312,9 +312,9 @@ fn ordered_column_top_k_spec(plan: &LogicalPlan) -> Option<OrderedColumnTopKSpec
     let QuerySource::Collection(collection) = &plan.source else {
         return None;
     };
-    let limit = usize::try_from(plan.limit?).ok()?;
+    let limit = usize::try_from(plan.limit_value()?).ok()?;
     let offset = plan
-        .offset
+        .offset_value()
         .and_then(|offset| usize::try_from(offset).ok())
         .unwrap_or(0);
     let Expr::Column(order_column) = &plan.order[0].expr else {
@@ -369,8 +369,8 @@ fn ordered_row_id_page_spec<'a>(
         return None;
     }
 
-    let limit = usize::try_from(plan.limit?.max(0)).ok()?;
-    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    let limit = usize::try_from(plan.limit_value()?.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).ok()?;
     if plan.projection.is_empty()
         || plan
             .projection

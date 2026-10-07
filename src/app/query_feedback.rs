@@ -305,6 +305,10 @@ impl Cassie {
             &context,
             parameter_type_oids,
         )?;
+        crate::sql::pagination::validate_statement(
+            &mut bound.statement,
+            Some(parameter_type_oids),
+        )?;
         let cardinality_stats = self.catalog.cardinality_snapshot();
         let mut logical = crate::planner::logical::plan(&bound)?;
         crate::planner::logical::rewrite_reserved_id_references(&mut logical, &self.catalog);

@@ -323,7 +323,7 @@ mod tests {
                 group_by: Vec::new(),
                 having: None,
                 order: Vec::new(),
-                limit: Some(20),
+                limit: Some(crate::sql::ast::Expr::IntegerLiteral(20)),
                 offset: None,
                 set: None,
             },

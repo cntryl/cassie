@@ -293,6 +293,34 @@ pub(super) fn infer_source_schema_with_outer(
     outer_fields: Option<&Schema>,
 ) -> Result<Schema, CassieError> {
     let schema = match source {
+        QuerySource::Aliased { source, alias, .. } => {
+            let mut schema = infer_source_schema_with_outer(
+                source,
+                catalog,
+                cte_schemas,
+                user_functions,
+                false,
+                parameter_types,
+                outer_fields,
+            )?;
+            if let QuerySource::Collection(name) = source.as_ref() {
+                if catalog
+                    .get_schema(name)
+                    .is_some_and(|schema| !schema.declares_id())
+                {
+                    if let Some(first) = schema.fields.first_mut() {
+                        first.name = "_id".into();
+                    }
+                } else {
+                    schema.fields.push(FieldSchema {
+                        name: "_id".into(),
+                        data_type: DataType::Text,
+                        nullable: true,
+                    });
+                }
+            }
+            qualify_schema(&schema, &super::aliases::qualifier(alias))
+        }
         QuerySource::Collection(name) => relation_output_schema(catalog, name)?,
         QuerySource::Cte(name) => cte_schemas
             .get(&name.to_ascii_lowercase())
@@ -363,6 +391,7 @@ pub(super) fn infer_source_schema_with_outer(
             QuerySource::Collection(name) => qualify_schema(&schema, name),
             QuerySource::Cte(name) => qualify_schema(&schema, name),
             QuerySource::SingleRow
+            | QuerySource::Aliased { .. }
             | QuerySource::TableFunction { .. }
             | QuerySource::Subquery { .. }
             | QuerySource::Join { .. } => schema,

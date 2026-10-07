@@ -97,6 +97,21 @@ impl Analyzer<'_> {
     ) -> Result<SourceScope, CassieError> {
         self.check_controls()?;
         match source {
+            QuerySource::Aliased { source, alias, .. } => {
+                let inner = self.source(source, ctes, outer_fields)?;
+                let qualifier = super::super::aliases::qualifier(alias);
+                let mut result = exported_scope(inner.output, std::slice::from_ref(&qualifier));
+                let lookup = inner
+                    .lookup
+                    .into_iter()
+                    .filter(|field| {
+                        crate::sql::ColumnIdentifierPath::parse(&field.name)
+                            .is_ok_and(|path| !path.is_qualified())
+                    })
+                    .collect();
+                result.lookup = exported_scope(lookup, &[qualifier]).lookup;
+                Ok(result)
+            }
             QuerySource::SingleRow => Ok(SourceScope {
                 output: Vec::new(),
                 lookup: Vec::new(),

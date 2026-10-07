@@ -15,8 +15,8 @@ pub(super) fn plan_supports_aggregate_acceleration(
         || !plan.group_by.is_empty()
         || plan.having.is_some()
         || !plan.order.is_empty()
-        || plan.limit.is_some()
-        || plan.offset.unwrap_or(0) != 0
+        || plan.limit_value().is_some()
+        || plan.offset_value().unwrap_or(0) != 0
         || plan.distinct
         || !plan.distinct_on.is_empty()
         || plan.set.is_some()

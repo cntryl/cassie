@@ -282,7 +282,7 @@ async fn handle_parse(
     }
 
     runtime.record_sql_parse();
-    let parsed = crate::sql::parse_statement(&query).map_err(CassieError::from)?;
+    let mut parsed = crate::sql::parse_statement(&query).map_err(CassieError::from)?;
     session
         .authorize_statement(&parsed.statement)
         .map_err(|error| ExtendedQueryError::cassie(&error))?;
@@ -297,6 +297,8 @@ async fn handle_parse(
         &parameter_type_oids,
         &cassie.catalog,
     );
+    crate::sql::pagination::validate_statement(&mut parsed, Some(&parameter_types))
+        .map_err(|error| ExtendedQueryError::cassie(&error))?;
     let sql_fingerprint = crate::runtime::sql_fingerprint(&parsed);
     let id = state.next_prepared_id();
     store_prepared_statement(

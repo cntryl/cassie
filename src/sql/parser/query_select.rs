@@ -6,8 +6,11 @@ use crate::sql::ast::{SelectSet, SelectStatement, SetOperator};
 use crate::sql::parser::clauses::{
     find_top_level_keyword, find_top_level_union, parse_clauses, Clause, ClauseMatch, ClauseToken,
 };
-use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv, take_int};
+use crate::sql::parser::expr::{parse_expression, parse_order_by, split_csv};
 use crate::sql::parser::order_ordinals::resolve_order_ordinals;
+
+#[path = "pagination.rs"]
+mod pagination;
 
 pub(super) fn parse_select_statement(
     sql: &str,
@@ -240,8 +243,8 @@ pub(super) fn find_set_operation(sql: &str) -> Option<(usize, usize, SetOperator
     .min_by_key(|(position, _, _)| *position)
 }
 
-type ResultClauses = (Vec<OrderExpr>, Option<i64>, Option<i64>);
-type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<i64>, Option<i64>);
+type ResultClauses = (Vec<OrderExpr>, Option<Expr>, Option<Expr>);
+type SetRightAndResultClauses = (String, Vec<OrderExpr>, Option<Expr>, Option<Expr>);
 
 pub(super) fn split_set_right_and_global_clauses(
     right_sql: &str,
@@ -313,13 +316,13 @@ pub(super) fn parse_global_result_clauses(rest: &str) -> Result<ResultClauses, S
                 if !seen.insert("limit") {
                     return Err(SqlError::new("duplicate LIMIT clause".into()));
                 }
-                limit = take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
+                limit = pagination::parse_bound(raw_value, false)?;
             }
             Clause::Offset => {
                 if !seen.insert("offset") {
                     return Err(SqlError::new("duplicate OFFSET clause".into()));
                 }
-                offset = take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
+                offset = pagination::parse_bound(raw_value, true)?;
             }
             Clause::Where | Clause::Group | Clause::Having => unreachable!(),
         }
@@ -467,8 +470,8 @@ struct ParsedSelectClauses {
     group_sql: Option<String>,
     having_sql: Option<String>,
     order_sql: Option<String>,
-    limit: Option<i64>,
-    offset: Option<i64>,
+    limit: Option<Expr>,
+    offset: Option<Expr>,
 }
 
 fn parse_select_clauses(
@@ -534,15 +537,13 @@ fn parse_select_clauses(
                     if !seen.insert("limit") {
                         return Err(SqlError::new("duplicate LIMIT clause".into()));
                     }
-                    parsed.limit =
-                        take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
+                    parsed.limit = pagination::parse_bound(raw_value, false)?;
                 }
                 Clause::Offset => {
                     if !seen.insert("offset") {
                         return Err(SqlError::new("duplicate OFFSET clause".into()));
                     }
-                    parsed.offset =
-                        take_int(raw_value).map_err(|error| SqlError::new(error.to_string()))?;
+                    parsed.offset = pagination::parse_bound(raw_value, true)?;
                 }
             },
         }

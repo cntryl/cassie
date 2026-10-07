@@ -117,10 +117,12 @@ struct ScalarIndexReadSpec {
 }
 
 fn hits_fill_limit(plan: &LogicalPlan, hits: usize) -> bool {
-    let Some(limit) = plan.limit else {
+    let Some(limit) = plan.limit_value() else {
         return false;
     };
-    let needed = limit.max(0).saturating_add(plan.offset.unwrap_or(0).max(0));
+    let needed = limit
+        .max(0)
+        .saturating_add(plan.offset_value().unwrap_or(0).max(0));
     usize::try_from(needed).is_ok_and(|needed| hits >= needed)
 }
 
@@ -561,8 +563,8 @@ fn storage_limit(
         return None;
     }
 
-    let limit = usize::try_from(plan.limit?.max(0)).ok()?;
-    let offset = usize::try_from(plan.offset.unwrap_or(0).max(0)).ok()?;
+    let limit = usize::try_from(plan.limit_value()?.max(0)).ok()?;
+    let offset = usize::try_from(plan.offset_value().unwrap_or(0).max(0)).ok()?;
     limit.checked_add(offset)
 }
 

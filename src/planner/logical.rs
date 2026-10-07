@@ -37,9 +37,23 @@ pub struct LogicalPlan {
     pub group_by: Vec<Expr>,
     pub having: Option<Expr>,
     pub order: Vec<OrderExpr>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
+    pub limit: Option<Expr>,
+    pub offset: Option<Expr>,
     pub set: Option<Box<crate::sql::ast::SelectSet>>,
+}
+
+impl LogicalPlan {
+    /// Returns the known finite bound without evaluating bound parameters.
+    #[must_use]
+    pub fn limit_value(&self) -> Option<i64> {
+        crate::sql::pagination::constant_bound(self.limit.as_ref())
+    }
+
+    /// Returns the known finite offset without evaluating bound parameters.
+    #[must_use]
+    pub fn offset_value(&self) -> Option<i64> {
+        crate::sql::pagination::constant_bound(self.offset.as_ref())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -389,8 +403,8 @@ fn plan_select(select: &SelectStatement) -> Result<LogicalPlan, CassieError> {
         group_by: select.group_by.clone(),
         having: select.having.clone(),
         order: select.order.clone(),
-        limit: select.limit,
-        offset: select.offset,
+        limit: select.limit.clone(),
+        offset: select.offset.clone(),
         set: select.set.clone(),
     })
 }
@@ -509,7 +523,7 @@ fn command_plan(
         having: None,
         order: Vec::new(),
         limit: None,
-        offset,
+        offset: offset.map(Expr::IntegerLiteral),
         set: None,
     }
 }
@@ -521,8 +535,9 @@ fn require_name(value: &str, message: &'static str) -> Result<(), CassieError> {
     Ok(())
 }
 
-fn source_name(source: &QuerySource) -> String {
+pub(crate) fn source_name(source: &QuerySource) -> String {
     match source {
+        QuerySource::Aliased { source, .. } => source_name(source),
         QuerySource::Collection(name) => name.to_string(),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => name.clone(),
         QuerySource::SingleRow => "single_row".to_string(),
@@ -613,6 +628,13 @@ fn validate_alter_command(statement: &AlterTableStatement) -> Result<(), CassieE
 }
 
 fn validate_logical_plan(select: &SelectStatement) -> Result<(), CassieError> {
+    for bound in select.limit.iter().chain(&select.offset) {
+        if !crate::sql::pagination::is_admitted(bound) {
+            return Err(CassieError::Planner(
+                "unsupported pagination expression".into(),
+            ));
+        }
+    }
     if source_name(&select.source).trim().is_empty() {
         return Err(CassieError::Planner(
             "planner cannot build plan for empty source name".to_string(),
@@ -625,16 +647,16 @@ fn validate_logical_plan(select: &SelectStatement) -> Result<(), CassieError> {
         ));
     }
 
-    if let Some(limit) = select.limit {
-        if limit < 0 {
+    if let Some(Expr::IntegerLiteral(limit)) = &select.limit {
+        if *limit < 0 {
             return Err(CassieError::Planner(format!(
                 "planner cannot build plan with negative limit: {limit}"
             )));
         }
     }
 
-    if let Some(offset) = select.offset {
-        if offset < 0 {
+    if let Some(Expr::IntegerLiteral(offset)) = &select.offset {
+        if *offset < 0 {
             return Err(CassieError::Planner(format!(
                 "planner cannot build plan with negative offset: {offset}"
             )));

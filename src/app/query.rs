@@ -8,7 +8,8 @@ use super::{
     CassieSession, ColumnMeta, ExecutionMode, Instant, PlanCacheKey, PlanCacheProvenance,
     QueryCancellationHandle, QueryExecutionControls, QueryResult, QueryStatement, Value,
 };
-// Discard compiled plans from earlier Boolean and COALESCE binding semantics.
+// Discard compiled plans from earlier Boolean/conditional binding and literal-only pagination.
+// Alias namespaces and expression bounds share this rebuildable cache epoch.
 const PLAN_CACHE_COST_MODEL_VERSION: u32 = 4;
 
 pub(super) struct QueryCacheContext {
@@ -829,6 +830,9 @@ fn parsed_statement_uses_virtual_catalog(statement: &crate::sql::ast::ParsedStat
 
 fn query_source_uses_virtual_catalog(source: &crate::sql::ast::QuerySource) -> bool {
     match source {
+        crate::sql::ast::QuerySource::Aliased { source, .. } => {
+            query_source_uses_virtual_catalog(source)
+        }
         crate::sql::ast::QuerySource::Collection(name) => {
             crate::catalog::virtual_views::schema(name).is_some()
         }

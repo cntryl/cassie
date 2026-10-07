@@ -264,8 +264,8 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
 
     *batches = slice_batches_for_plan(
         batches.clone(),
-        finalization.plan.offset,
-        finalization.plan.limit,
+        finalization.plan.offset_value(),
+        finalization.plan.limit_value(),
     );
 
     let rows = batch::try_flatten_batches(std::mem::take(batches))?;
@@ -388,7 +388,7 @@ pub(super) fn projected_filtered_read_spec(
     }
 
     let scan_limit = if plan.filter.is_none() && plan.order.is_empty() {
-        projected_scan_limit(plan.limit, plan.offset)
+        projected_scan_limit(plan.limit_value(), plan.offset_value())
     } else {
         None
     };
@@ -401,7 +401,7 @@ pub(super) fn projected_filtered_read_spec(
 }
 
 fn point_lookup_read_spec(plan: &LogicalPlan, params: &[Value]) -> Option<PointLookupReadSpec> {
-    if plan.offset.is_some_and(|offset| offset > 0) {
+    if plan.offset_value().is_some_and(|offset| offset > 0) {
         return None;
     }
 
@@ -493,7 +493,7 @@ fn sort_projected_batches(
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
 ) -> Result<(Vec<Vec<BatchRow>>, Option<String>), QueryError> {
-    if let Some(top_needed) = projected_scan_limit(plan.limit, plan.offset) {
+    if let Some(top_needed) = projected_scan_limit(plan.limit_value(), plan.offset_value()) {
         let eval = sort::EvalInput {
             order: &plan.order,
             projection: &plan.projection,

@@ -152,6 +152,29 @@ fn execute_plan_with_physical(
         ));
     }
 
+    let resolved_physical;
+    let (plan, physical, _bound_memory) =
+        if crate::sql::pagination::plan_needs_resolution(plan, env.controls)? {
+            let (resolved, reservation) =
+                crate::sql::pagination::resolve_plan(plan, env.params, env.controls)
+                    .map_err(QueryError::from)?;
+            let indexes = env.cassie.catalog.list_indexes(&resolved.collection);
+            let not_null = env.cassie.catalog.not_null_fields(&resolved.collection);
+            resolved_physical = crate::planner::physical::build_with_indexes_and_not_null_fields(
+                resolved,
+                &indexes,
+                &not_null,
+                &env.cassie.catalog.cardinality_snapshot(),
+            );
+            (
+                &resolved_physical.logical,
+                Some(&resolved_physical),
+                Some(reservation),
+            )
+        } else {
+            (plan, physical, None)
+        };
+
     // A CTE body is an input relation: the result-row cap applies to the
     // final result only and must not truncate it.
     let cte_controls = env.controls.for_uncapped_input();
@@ -383,10 +406,10 @@ fn mixed_execution_summary(plan: &LogicalPlan) -> Option<String> {
         if !plan.order.is_empty() {
             stages.push("ordering");
         }
-        if plan.offset.is_some() {
+        if plan.offset_value().is_some() {
             stages.push("offset");
         }
-        if plan.limit.is_some() {
+        if plan.limit_value().is_some() {
             stages.push("limit");
         }
         format!("source_row_exact_baseline;stages={}", stages.join(">"))
@@ -406,6 +429,7 @@ fn select_item_is_aggregate(item: &SelectItem) -> bool {
 
 fn source_reads_materialized_projection(cassie: &Cassie, source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => source_reads_materialized_projection(cassie, source),
         QuerySource::Collection(name) => cassie.catalog.is_materialized_projection(name),
         QuerySource::Subquery { select, .. } => {
             source_reads_materialized_projection(cassie, &select.source)
@@ -427,6 +451,14 @@ pub(super) fn execute_plan_with_execution_breakdown(
     params: &[Value],
     controls: &QueryExecutionControls,
 ) -> Result<(Vec<BatchRow>, ExecutionBreakdownDurations), QueryError> {
+    let resolved;
+    let (plan, _bound_memory) = if crate::sql::pagination::plan_needs_resolution(plan, controls)? {
+        let (bound, reservation) = crate::sql::pagination::resolve_plan(plan, params, controls)?;
+        resolved = bound;
+        (&resolved, Some(reservation))
+    } else {
+        (plan, None)
+    };
     if let Some(output) = projected_read::execute_projected_filtered_read_with_breakdown(
         cassie,
         session,
@@ -528,6 +560,17 @@ pub(super) fn resolve_exists_expr<'a>(
         Expr::Cast { expr, data_type } => resolve_cast_exists_expr(context, expr, data_type),
         Expr::Exists(statement) => {
             let logical = build_exists_logical_plan(context, statement.as_ref())?;
+            let (logical, _bound_memory) =
+                if crate::sql::pagination::plan_needs_resolution(&logical, context.controls)? {
+                    let (resolved, reservation) = crate::sql::pagination::resolve_plan(
+                        &logical,
+                        context.params,
+                        context.controls,
+                    )?;
+                    (resolved, Some(reservation))
+                } else {
+                    (logical, None)
+                };
             let logical = bounded_exists_logical(logical);
             let mut subquery_context = context.cte_context.clone();
             let env = plan_execution_env(
@@ -760,7 +803,11 @@ pub(super) fn build_logical_plan_in_session(
 }
 
 fn bounded_exists_logical(mut logical: LogicalPlan) -> LogicalPlan {
-    logical.limit = Some(logical.limit.map_or(1, |limit| i64::from(limit > 0)));
+    logical.limit = Some(Expr::IntegerLiteral(
+        logical
+            .limit_value()
+            .map_or(1, |limit| i64::from(limit > 0)),
+    ));
     logical
 }
 

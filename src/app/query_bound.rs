@@ -67,7 +67,7 @@ impl Cassie {
     fn execute_bound_statement(
         &self,
         session: &CassieSession,
-        parsed: crate::sql::ast::ParsedStatement,
+        mut parsed: crate::sql::ast::ParsedStatement,
         sql_fingerprint: u64,
         parameters: (Vec<Value>, &[i32], bool),
         mode: ExecutionMode,
@@ -84,6 +84,12 @@ impl Cassie {
             &self.catalog,
             &mut params,
         );
+        let bound_parameters = crate::sql::pagination::resolve_statement(
+            &mut parsed,
+            &params,
+            declared_oids,
+            controls,
+        )?;
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,
@@ -97,7 +103,7 @@ impl Cassie {
             return self.execute_transaction_statement(session, statement);
         }
 
-        let cache_context = self.query_cache_context(
+        let mut cache_context = self.query_cache_context(
             session,
             &parsed,
             sql_fingerprint,
@@ -105,6 +111,11 @@ impl Cassie {
             mode,
             parameter_type_oids,
         );
+        if bound_parameters {
+            // Physical access paths depend on actual bounds, while the plan key
+            // deliberately contains parameter shapes rather than values.
+            cache_context.cache_key = None;
+        }
         let (physical, provenance) = self.resolve_statement_plan(
             parsed,
             &cache_context,

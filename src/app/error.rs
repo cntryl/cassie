@@ -461,6 +461,9 @@ fn unsupported_descriptor(message: String) -> CassieErrorDescriptor {
 }
 
 fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
+    if message == "relation alias list has more names than source columns" {
+        return bad_request_descriptor("42P10", message.to_string());
+    }
     if message.eq_ignore_ascii_case("query timeout exceeded") {
         return timeout_descriptor();
     }
@@ -468,6 +471,16 @@ fn planner_descriptor(message: &str) -> CassieErrorDescriptor {
 }
 
 fn execution_descriptor(message: &str) -> CassieErrorDescriptor {
+    let pagination_state = match message {
+        "LIMIT must not be negative" => Some("2201W"),
+        "OFFSET must not be negative" => Some("2201X"),
+        "pagination operator is ambiguous for unknown parameters" => Some("42725"),
+        "pagination requires an admitted integer expression" => Some("42804"),
+        _ => None,
+    };
+    if let Some(sql_state) = pagination_state {
+        return bad_request_descriptor(sql_state, message.to_string());
+    }
     if message.eq_ignore_ascii_case("query canceled") {
         return cancellation_descriptor();
     }

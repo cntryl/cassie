@@ -843,6 +843,7 @@ fn collect_source_collections(source: &QuerySource) -> Vec<String> {
 
 fn collect_source_collections_into(source: &QuerySource, out: &mut Vec<String>) {
     match source {
+        QuerySource::Aliased { source, .. } => collect_source_collections_into(source, out),
         QuerySource::Collection(name) => out.push(name.to_string()),
         QuerySource::Subquery { select, .. } => {
             collect_source_collections_into(&select.source, out);

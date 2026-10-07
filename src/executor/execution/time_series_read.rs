@@ -435,8 +435,11 @@ fn time_series_error_fallback(
 }
 
 fn batch_window(plan: &LogicalPlan) -> Option<(usize, Option<usize>)> {
-    let offset = plan.offset.and_then(non_negative_usize).unwrap_or_default();
-    let limit = plan.limit.and_then(non_negative_usize);
+    let offset = plan
+        .offset_value()
+        .and_then(non_negative_usize)
+        .unwrap_or_default();
+    let limit = plan.limit_value().and_then(non_negative_usize);
     (offset > 0 || limit.is_some()).then_some((offset, limit))
 }
 

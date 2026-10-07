@@ -284,8 +284,18 @@ fn column_data_type(name: &str, schema: Option<&CollectionSchema>) -> DataType {
         .fields
         .iter()
         .find(|field| {
-            crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
-                == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+            crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|reference| {
+                reference.is_qualified()
+                    && crate::sql::ColumnIdentifierPath::parse(&field.name).is_ok_and(|candidate| {
+                        candidate.is_qualified() && candidate.lookup_key() == reference.lookup_key()
+                    })
+            })
+        })
+        .or_else(|| {
+            schema.fields.iter().find(|field| {
+                crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
+                    == crate::sql::ColumnIdentifierPath::reference_field_key(name)
+            })
         })
         .map_or(DataType::Text, |field| field.data_type.clone())
 }

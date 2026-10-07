@@ -39,6 +39,7 @@ pub(super) fn null_row(
     )
     .with_optional_data_types(data_types);
     let qualifier = match source {
+        QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
         QuerySource::Collection(name) => Some(name.to_string()),
         QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => Some(name.clone()),
         QuerySource::Subquery { alias, .. } => Some(alias.clone()),

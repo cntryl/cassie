@@ -7,7 +7,10 @@ pub mod ast;
 pub mod binder;
 mod column_identifier;
 pub mod functions;
+pub(crate) mod pagination;
 pub mod parser;
+mod source_types;
+pub(crate) use source_types::source_field_type_map_with_ctes;
 
 pub use ast::{
     AlterSchemaOperation, AlterSchemaStatement, AlterTableOperation, AlterTableStatement,
@@ -307,6 +310,9 @@ fn infer_select_parameter_type_oids(
     for order in &statement.order {
         infer_parameter_type_oids_expr(&order.expr, &field_types, catalog, oids);
     }
+    for bound in statement.limit.iter().chain(&statement.offset) {
+        pagination::infer_bound_parameter_types(bound, oids);
+    }
     if let Some(set) = &statement.set {
         infer_select_parameter_type_oids(&set.right, catalog, oids);
     }
@@ -319,6 +325,9 @@ fn infer_source_parameter_type_oids(
     oids: &mut ParameterInference,
 ) {
     match source {
+        ast::QuerySource::Aliased { source, .. } => {
+            infer_source_parameter_type_oids(source, field_types, catalog, oids)
+        }
         ast::QuerySource::Join {
             left, right, on, ..
         } => {
@@ -630,47 +639,6 @@ pub(crate) fn source_field_type_map(
     source_field_type_map_with_ctes(source, &[], catalog)
 }
 
-/// Maps each column a `FROM` source exposes to its declared type. A derived
-/// table or CTE (declared in `ctes`) is typed by its own output columns, so a
-/// rename such as `txt AS uid` keeps `txt`'s type.
-pub(crate) fn source_field_type_map_with_ctes(
-    source: &ast::QuerySource,
-    ctes: &[ast::CommonTableExpression],
-    catalog: &crate::catalog::Catalog,
-) -> FieldTypeMap {
-    match source {
-        ast::QuerySource::Collection(collection) => catalog
-            .get_schema(collection)
-            .map(|schema| field_type_map(schema.fields.iter()))
-            .unwrap_or_default(),
-        ast::QuerySource::Join { left, right, .. } => {
-            let mut fields = source_field_type_map_with_ctes(left, ctes, catalog);
-            fields.extend(source_field_type_map_with_ctes(right, ctes, catalog));
-            fields
-        }
-        ast::QuerySource::Subquery { select, .. } => {
-            if let Some(schema) =
-                binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
-            {
-                return field_type_map(schema.fields.iter());
-            }
-            let mut fields = source_field_type_map(&select.source, catalog);
-            for cte in &select.ctes {
-                if let ast::CteQuery::Simple(statement) = &cte.query {
-                    infer_projected_field_types(&statement.statement, catalog, &mut fields);
-                }
-            }
-            fields
-        }
-        ast::QuerySource::Cte(_) => {
-            binder::derived_source_schema(source, ctes, catalog, &HashMap::new())
-                .map(|schema| field_type_map(schema.fields.iter()))
-                .unwrap_or_default()
-        }
-        ast::QuerySource::TableFunction { .. } | ast::QuerySource::SingleRow => FieldTypeMap::new(),
-    }
-}
-
 fn infer_projected_field_types(
     statement: &QueryStatement,
     catalog: &crate::catalog::Catalog,
@@ -706,7 +674,10 @@ pub(crate) fn field_type_for_column<'a>(
     column: &str,
 ) -> Option<&'a DataType> {
     let column = crate::sql::ColumnIdentifierPath::parse(column).ok()?;
-    field_types.get(&column.field_lookup_key())
+    field_types
+        .get(&column.namespace_key())
+        .or_else(|| field_types.get(&column.lookup_key()))
+        .or_else(|| field_types.get(&column.field_lookup_key()))
 }
 
 fn parameter_count_query(statement: &QueryStatement) -> usize {
@@ -793,6 +764,9 @@ fn parameter_count_select(statement: &ast::SelectStatement) -> usize {
     for order in &statement.order {
         count = count.max(parameter_count_expr(&order.expr));
     }
+    for bound in statement.limit.iter().chain(&statement.offset) {
+        count = count.max(parameter_count_expr(bound));
+    }
     if let Some(set) = &statement.set {
         count = count.max(parameter_count_select(set.right.as_ref()));
     }
@@ -812,6 +786,7 @@ fn parameter_count_cte_query(query: &ast::CteQuery) -> usize {
 
 fn parameter_count_query_source(source: &ast::QuerySource) -> usize {
     match source {
+        ast::QuerySource::Aliased { source, .. } => parameter_count_query_source(source),
         ast::QuerySource::Collection(_)
         | ast::QuerySource::Cte(_)
         | ast::QuerySource::SingleRow => 0,

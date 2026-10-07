@@ -12,6 +12,10 @@ mod pgwire_type_vector_carriers;
 // Consolidated integration suite: pgwire_extended.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "pgwire_extended/aliases.rs"]
+mod pgwire_aliases;
+#[path = "pgwire_extended/pagination.rs"]
+mod pgwire_pagination;
 #[path = "pgwire_extended/typed_portal.rs"]
 mod pgwire_typed_portal;
 #[path = "support/pgwire.rs"]

@@ -307,6 +307,7 @@ fn relation_set_shape(source: &QuerySource) -> Vec<String> {
 
 fn collect_relation_names(source: &QuerySource, relations: &mut BTreeSet<String>) {
     match source {
+        QuerySource::Aliased { source, .. } => collect_relation_names(source, relations),
         QuerySource::Collection(name) => {
             relations.insert(name.to_ascii_lowercase());
         }

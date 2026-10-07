@@ -40,7 +40,20 @@ pub(super) fn bind_recursive_cte_query(
         )));
     }
     let mut recursive_scope = outer_scope.clone();
-    recursive_scope.insert(cte_name_lc, recursive_aliases.clone());
+    recursive_scope.insert(
+        cte_name_lc,
+        super::CteBinding {
+            visible: recursive_aliases.clone(),
+            row_fields: recursive_aliases
+                .iter()
+                .map(|name| crate::types::FieldSchema {
+                    name: name.clone(),
+                    data_type: crate::types::DataType::Null,
+                    nullable: true,
+                })
+                .collect(),
+        },
+    );
 
     let bound_base = bind_statement(*base, catalog, outer_scope, context)?;
     let bound_recursive = bind_statement(*recursive, catalog, &recursive_scope, context)?;

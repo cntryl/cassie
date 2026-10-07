@@ -155,6 +155,7 @@ impl ParameterValidation<'_> {
 
     fn source(&self, source: &QuerySource, types: &ResultTypes) -> Result<(), CassieError> {
         match source {
+            QuerySource::Aliased { source, .. } => self.source(source, types)?,
             QuerySource::Join {
                 left, right, on, ..
             } => {

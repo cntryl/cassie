@@ -240,6 +240,14 @@ fn source_fields(
     outer_fields: Option<&Schema>,
 ) -> Result<Vec<FieldSchema>, CassieError> {
     match source {
+        QuerySource::Aliased { source, .. } => source_fields(
+            source,
+            scope,
+            catalog,
+            user_functions,
+            parameter_types,
+            outer_fields,
+        ),
         QuerySource::Collection(name) => {
             if let Some(fields) = scope.get(&name.to_ascii_lowercase()) {
                 return Ok(fields.clone());
@@ -307,6 +315,7 @@ fn source_fields(
 
 fn source_consumes_outer_fields(source: &QuerySource) -> bool {
     match source {
+        QuerySource::Aliased { source, .. } => source_consumes_outer_fields(source),
         QuerySource::Subquery { lateral, .. } => *lateral,
         QuerySource::Join { left, right, .. } => {
             source_consumes_outer_fields(left) || source_consumes_outer_fields(right)

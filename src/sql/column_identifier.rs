@@ -8,6 +8,43 @@ pub(crate) struct ColumnIdentifierPath {
 }
 
 impl ColumnIdentifierPath {
+    /// Retains quoted qualifier identity for an alias namespace. Catalog
+    /// qualifier lookup keeps using its historical folded key.
+    pub(crate) fn namespace_key(&self) -> String {
+        let last = self.components.len() - 1;
+        self.components
+            .iter()
+            .enumerate()
+            .map(|(index, component)| {
+                if index == last {
+                    Self {
+                        components: vec![component.clone()],
+                    }
+                    .lookup_key()
+                } else if component.is_delimited()
+                    && (component.value() != component.value().to_ascii_lowercase()
+                        || component.value().contains(['.', '"'])
+                        || component.value().chars().any(char::is_whitespace))
+                {
+                    format!("\"{}\"", component.value().replace('"', "\"\""))
+                } else {
+                    component.value().to_ascii_lowercase()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+
+    pub(crate) fn namespace_qualifier(&self) -> Option<String> {
+        (self.components.len() == 2).then(|| {
+            let component = &self.components[0];
+            if component.is_delimited() {
+                component.value().to_string()
+            } else {
+                component.value().to_ascii_lowercase()
+            }
+        })
+    }
     /// Returns the canonical key for a SQL column reference's final component.
     pub(crate) fn reference_field_key(raw: &str) -> String {
         Self::parse(raw).map_or_else(|_| raw.to_ascii_lowercase(), |path| path.field_lookup_key())

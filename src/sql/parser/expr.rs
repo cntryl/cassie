@@ -9,40 +9,6 @@ use super::{
 #[path = "expr_case.rs"]
 mod case;
 
-pub(super) fn take_int(input: &str) -> Result<Option<i64>, ParserError> {
-    let trimmed = super::lexical::trim_separators(input);
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-
-    let parsed = trimmed
-        .parse::<i64>()
-        .map_err(|_| ParserError::InvalidClause(trimmed.to_string()))?;
-
-    if parsed < 0 {
-        return Err(ParserError::NegativeValue(trimmed.to_string()));
-    }
-
-    Ok(Some(parsed))
-}
-
-#[derive(Debug)]
-pub(super) enum ParserError {
-    InvalidClause(String),
-    NegativeValue(String),
-}
-
-impl std::fmt::Display for ParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidClause(value) => write!(f, "invalid clause value: '{value}'"),
-            Self::NegativeValue(value) => {
-                write!(f, "negative clause value not supported: '{value}'")
-            }
-        }
-    }
-}
-
 pub(super) fn split_csv(s: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut cursor = 0;
@@ -392,7 +358,11 @@ pub(super) fn parse_expr_token(raw: &str) -> Result<Expr, SqlError> {
         return Ok(Expr::BoolLiteral(false));
     }
     if let Some(column) = parse_quoted_identifier_chain(raw)? {
-        return Ok(Expr::Column(column.lookup_key()));
+        return Ok(Expr::Column(if column.is_qualified() {
+            column.namespace_key()
+        } else {
+            column.lookup_key()
+        }));
     }
     if let Some(value) = parse_single_string_literal(raw) {
         return Ok(Expr::StringLiteral(value));

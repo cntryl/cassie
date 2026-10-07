@@ -365,6 +365,102 @@ fn should_preserve_fixed_numeric_operation_outputs() {
 }
 
 #[test]
+fn should_preserve_decoder_origins_through_normalized_conditional_forwarding() {
+    // Arrange
+    let statements = [
+        "SELECT NULLIF(COALESCE($1, NULL), NULL) AS v",
+        "SELECT GREATEST(COALESCE($1, NULL), NULL) AS v",
+        "SELECT LEAST(COALESCE($1, NULL), NULL) AS v",
+        "WITH c AS (SELECT COALESCE($1, NULL) AS v) SELECT GREATEST(v, NULL) FROM c",
+        "SELECT NULLIF(v, NULL) FROM (SELECT COALESCE($1, NULL) AS v) AS c",
+    ];
+    let mut cases = Vec::new();
+    let mut cycles = Vec::new();
+    for oid in [700, 1700] {
+        for sql in statements {
+            for input in [Some(&b"2.5"[..]), None] {
+                for describe in [false, true] {
+                    cases.push((oid, sql, describe));
+                    cycles.push(fixture::execute_cycle(
+                        sql,
+                        Some((oid, 0, input)),
+                        0,
+                        describe,
+                    ));
+                    cycles.push(fixture::execute_cycle("SELECT 1", None, 0, false));
+                }
+            }
+        }
+    }
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-normalized-forwarding", &[], cycles);
+
+    // Assert
+    for ((oid, sql, describe), pair) in cases.into_iter().zip(batches.as_chunks::<2>().0) {
+        assert_eq!(
+            wire::error_code(&pair[0]).as_deref(),
+            Some("0A000"),
+            "{oid}:{describe}:{sql}"
+        );
+        fixture::assert_unsupported_before_metadata(&pair[0]);
+        fixture::assert_success(&pair[1]);
+    }
+}
+
+#[test]
+fn should_preserve_explicit_float_boundaries_beside_generated_coercions() {
+    // Arrange
+    let statements = [
+        "SELECT COALESCE($1, CAST(NULL AS FLOAT)) AS v",
+        "SELECT COALESCE($1, CAST(CASE WHEN FALSE THEN NULL ELSE NULL END AS FLOAT)) AS v",
+        "SELECT GREATEST($1, CAST(NULL AS FLOAT)) AS v",
+        "SELECT CAST(NULLIF($1, NULL) AS FLOAT) AS v",
+    ];
+    let mut cases = Vec::new();
+    let mut cycles = Vec::new();
+    for oid in [700, 1700] {
+        for sql in statements {
+            for format in [0, 1] {
+                for input in [Some(&b"2.5"[..]), None] {
+                    cases.push((oid, sql, format, input.is_some()));
+                    cycles.push(fixture::execute_cycle(
+                        sql,
+                        Some((oid, 0, input)),
+                        format,
+                        true,
+                    ));
+                }
+            }
+        }
+    }
+
+    // Act
+    let batches = fixture::run_cycles("type-numeric-explicit-float-coercions", &[], cycles);
+
+    // Assert
+    for ((oid, sql, format, present), frames) in cases.into_iter().zip(batches) {
+        fixture::assert_success(&frames);
+        fixture::assert_single_column_descriptors(&frames, (701, 8, -1), format, true);
+        assert_parameter_oid(&frames, oid);
+        let expected = if present {
+            if format == 0 {
+                fixture::one_field_row(b"2.5")
+            } else {
+                fixture::one_field_row(&2.5_f64.to_be_bytes())
+            }
+        } else {
+            vec![0, 1, 255, 255, 255, 255]
+        };
+        assert_eq!(
+            fixture::data_row_payloads(&frames),
+            vec![expected],
+            "{oid}:{sql}"
+        );
+    }
+}
+
+#[test]
 fn should_reject_adapter_forwarding_outputs() {
     // Arrange
     let statements = [

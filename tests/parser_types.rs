@@ -6065,7 +6065,7 @@ mod typed_value_consistency {
         );
         assert_eq!(
             fixture.rows("SELECT COALESCE(NULL, score, 1.5) FROM coalesce_types ORDER BY id"),
-            vec![vec![Value::Int64(5)], vec![Value::Int64(0)]]
+            vec![vec![Value::Float64(5.0)], vec![Value::Float64(0.0)]]
         );
     }
     #[test]

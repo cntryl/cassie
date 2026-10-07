@@ -1,3 +1,9 @@
+#[path = "sql_queries/conditional_expressions.rs"]
+mod sql_conditional_expressions;
+
+#[path = "sql_queries/coalesce_promotion.rs"]
+mod sql_coalesce_promotion;
+
 // Consolidated integration suite: sql_queries.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 

@@ -33,6 +33,7 @@ pub(super) fn validate_select_with_types(
                 for argument in &mut function.args {
                     validate_expression(argument, types, catalog, context)?;
                 }
+                super::coalesce_coercion::coerce_function(function, types);
             }
             SelectItem::WindowFunction { function, .. } => {
                 for expression in function
@@ -46,6 +47,7 @@ pub(super) fn validate_select_with_types(
             }
             SelectItem::Wildcard | SelectItem::Column { .. } => {}
         }
+        super::conditional_types::validate_item(item, types)?;
     }
     for expression in select
         .filter
@@ -56,6 +58,7 @@ pub(super) fn validate_select_with_types(
         .chain(select.order.iter_mut().map(|order| &mut order.expr))
     {
         validate_expression(expression, types, catalog, context)?;
+        super::conditional_types::validate_expression(expression, types)?;
     }
     for cte in &mut select.ctes {
         match &mut cte.query {
@@ -78,7 +81,8 @@ pub(super) fn validate_select_with_types(
             context,
             types.cte_schemas(),
             types.parameter_types(),
-        )?;
+        )?
+        .with_resolved_coalesce_domains(types.resolved_coalesce_domains());
         validate_select_with_types(&mut set.right, &nested, catalog, context)?;
     }
     Ok(())
@@ -96,6 +100,7 @@ fn validate_source_predicates(
         } => {
             require_boolean(on, types, "JOIN ON")?;
             validate_expression(on, types, catalog, context)?;
+            super::conditional_types::validate_expression(on, types)?;
             validate_source_predicates(left, types, catalog, context)?;
             validate_source_predicates(right, types, catalog, context)?;
         }
@@ -109,7 +114,8 @@ fn validate_source_predicates(
                 context,
                 types.cte_schemas(),
                 types.parameter_types(),
-            )?;
+            )?
+            .with_resolved_coalesce_domains(types.resolved_coalesce_domains());
             let inner = if *lateral {
                 inner.with_outer_fields(types)
             } else {
@@ -152,7 +158,9 @@ pub(super) fn validate_predicate(
     context: &BindingContext,
 ) -> Result<(), CassieError> {
     require_boolean(expr, types, label)?;
-    validate_expression(expr, types, catalog, context)
+    validate_expression(expr, types, catalog, context)?;
+    super::conditional_types::validate_expression(expr, types)?;
+    Ok(())
 }
 
 pub(super) fn validate_value(
@@ -165,7 +173,9 @@ pub(super) fn validate_value(
     if expected == Some(&DataType::Boolean) {
         require_boolean(expr, types, "Boolean assignment")?;
     }
-    validate_expression(expr, types, catalog, context)
+    validate_expression(expr, types, catalog, context)?;
+    super::conditional_types::validate_expression(expr, types)?;
+    Ok(())
 }
 
 fn validate_expression(
@@ -250,6 +260,7 @@ fn validate_expression(
             for argument in &mut function.args {
                 validate_expression(argument, types, catalog, context)?;
             }
+            super::coalesce_coercion::coerce_function(function, types);
         }
         Expr::Exists(statement) => {
             validate_nested_statement(statement, types, true, catalog, context)?;
@@ -297,7 +308,8 @@ fn validate_nested_statement(
             context,
             outer.cte_schemas(),
             outer.parameter_types(),
-        )?;
+        )?
+        .with_resolved_coalesce_domains(outer.resolved_coalesce_domains());
         if correlated {
             types = types.with_outer_fields(outer);
         }
@@ -306,7 +318,7 @@ fn validate_nested_statement(
     Ok(())
 }
 
-fn resolve_nested_sources(
+pub(super) fn resolve_nested_sources(
     select: &mut SelectStatement,
     outer: &super::HashSet<String>,
     catalog: &Catalog,

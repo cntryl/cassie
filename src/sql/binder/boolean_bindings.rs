@@ -1,4 +1,4 @@
-//! Applies concrete parameter provenance to an owned, already bound statement.
+//! Applies parameter provenance and final result domains to an owned bound AST.
 
 use super::coalesce_results::ResultTypes;
 use super::{
@@ -13,9 +13,6 @@ pub(crate) fn bind_boolean_parameters(
     context: &BindingContext,
     parameter_types: &[i32],
 ) -> Result<(), CassieError> {
-    if parameter_types.is_empty() {
-        return Ok(());
-    }
     match &mut statement.statement {
         QueryStatement::Select(select) => {
             let types = ResultTypes::for_source_with_parameters(
@@ -24,7 +21,8 @@ pub(crate) fn bind_boolean_parameters(
                 catalog,
                 context,
                 parameter_types,
-            )?;
+            )?
+            .with_resolved_coalesce_domains(true);
             boolean_contexts::validate_select_with_types(select, &types, catalog, context)?;
         }
         QueryStatement::Insert(insert) => {
@@ -121,6 +119,7 @@ fn table_types(
         context,
         parameter_types,
     )
+    .map(|types| types.with_resolved_coalesce_domains(true))
 }
 
 fn validate_assignments(
@@ -159,6 +158,7 @@ fn validate_items(
                 for argument in &mut function.args {
                     boolean_contexts::validate_value(argument, types, None, catalog, context)?;
                 }
+                super::coalesce_coercion::coerce_function(function, types);
             }
             SelectItem::WindowFunction { function, .. } => {
                 for expression in function

@@ -1,3 +1,9 @@
+#[path = "pgwire_extended/conditional_expressions.rs"]
+mod conditional_expressions;
+
+#[path = "pgwire_extended/coalesce_promotion.rs"]
+mod coalesce_promotion;
+
 #[path = "support/pgwire_transaction_boundary.rs"]
 mod support_pgwire_transaction_boundary;
 

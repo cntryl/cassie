@@ -18,9 +18,26 @@ pub struct SqlFixture {
 ///
 /// Panics when the instance cannot be created or a setup statement fails.
 pub fn sql_fixture(label: &str, setup: &[&str]) -> SqlFixture {
+    sql_fixture_with_config(
+        label,
+        setup,
+        cassie::config::CassieRuntimeConfig::from_env().expect("runtime config"),
+    )
+}
+
+/// Opens a fresh instance with explicit query controls and seeds it by SQL.
+///
+/// # Panics
+///
+/// Panics when the instance cannot be created or a setup statement fails.
+pub fn sql_fixture_with_config(
+    label: &str,
+    setup: &[&str],
+    config: cassie::config::CassieRuntimeConfig,
+) -> SqlFixture {
     crate::support_sql::use_local_storage();
     let path = crate::support_sql::data_dir(label);
-    let cassie = Cassie::new_with_data_dir(&path).expect("create Cassie");
+    let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("create Cassie");
     let session = cassie.create_session("tester", None);
     for sql in setup {
         assert!(

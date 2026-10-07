@@ -606,6 +606,17 @@ pub(crate) fn infer_function_return_type(
         crate::sql::functions::FunctionReturnType::BigInt => Some(DataType::BigInt),
         crate::sql::functions::FunctionReturnType::Boolean => Some(DataType::Boolean),
         crate::sql::functions::FunctionReturnType::Timestamp => Some(DataType::Timestamp),
+        crate::sql::functions::FunctionReturnType::FirstComparedArgument => {
+            let argument_types = function
+                .args
+                .iter()
+                .map(|argument| {
+                    infer_expr_type(argument, source_schema, user_functions, parameter_types)
+                        .unwrap_or(DataType::Null)
+                })
+                .collect::<Vec<_>>();
+            super::conditional_types::result_type(&name, &argument_types).ok()
+        }
         crate::sql::functions::FunctionReturnType::FirstNonNullArgument => {
             let argument_types = function
                 .args

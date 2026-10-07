@@ -20,7 +20,14 @@ impl Analyzer<'_> {
             // A declared existing-type CAST is the selected output ABI
             // boundary. Ordinary expression/Boolean validation still visits
             // its child in the core path; this does not excuse invalid input.
-            Expr::Cast { data_type, .. } => OutputType::fixed(data_type.clone()),
+            Expr::Cast { data_type, .. } => {
+                if let Some(original) = super::super::result_coercion::original_operand(expression)
+                {
+                    self.expression(original, lookup)?
+                } else {
+                    OutputType::fixed(data_type.clone())
+                }
+            }
             Expr::Case {
                 branches,
                 else_expr,
@@ -95,6 +102,24 @@ impl Analyzer<'_> {
         }
         let arguments = self.function_arguments(function, lookup)?;
         Ok(match metadata.return_type {
+            FunctionReturnType::FirstComparedArgument => {
+                let common = OutputType::common_result(&arguments)?;
+                if common.candidates.contains(&DataType::Float) {
+                    common
+                } else {
+                    arguments
+                        .first()
+                        .filter(|first| first.data_type != DataType::Null)
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            if common.data_type == DataType::Null {
+                                OutputType::fixed(DataType::Text)
+                            } else {
+                                common
+                            }
+                        })
+                }
+            }
             FunctionReturnType::FirstNonNullArgument => {
                 let mut output = OutputType::common_result(&arguments)?;
                 if output.candidates == [DataType::Null] {
@@ -137,6 +162,7 @@ fn fixed_function_type(policy: FunctionReturnType) -> Option<DataType> {
         FunctionReturnType::Boolean => Some(DataType::Boolean),
         FunctionReturnType::Timestamp => Some(DataType::Timestamp),
         FunctionReturnType::FirstNonNullArgument
+        | FunctionReturnType::FirstComparedArgument
         | FunctionReturnType::NumericArgument
         | FunctionReturnType::SumArgument
         | FunctionReturnType::Unknown => None,

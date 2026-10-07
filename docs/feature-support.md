@@ -38,6 +38,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | User functions | Scalar UDFs with declared volatility | Experimental |
 | Procedures | `CREATE PROCEDURE`, `CALL`, and `DROP PROCEDURE` for the narrow one-statement contract in [Limited Procedures and CALL](procedure-support.md); not a stored-procedure business-logic platform | Stable |
 | Types and casts | Text, numeric, bool, timestamp, UUID, JSON, arrays, vectors, and supported casts | Experimental |
+| Conditional scalar expressions | Selected `NULLIF`, `GREATEST` and `LEAST` over existing integer, FLOAT, TEXT and BOOLEAN families; see [Conditional expressions](conditional-expressions.md) for coercion, NULL, descriptor and exclusion rules. | Experimental |
 | Reserved identity column | `_id` names the internal document identity and cannot be declared or dropped; a table may declare its own `id` column and query it as an ordinary column | Stable |
 
 The [finite SQL type and wire contract](type-contract.md) records current logical

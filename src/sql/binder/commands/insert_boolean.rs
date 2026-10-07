@@ -14,7 +14,7 @@ pub(super) fn validate(
     catalog: &Catalog,
     context: &BindingContext,
 ) -> Result<(), CassieError> {
-    validate_with_parameters(statement, schema, catalog, context, &[])
+    validate_with_domains(statement, schema, catalog, context, &[], false)
 }
 
 pub(super) fn validate_with_parameters(
@@ -23,6 +23,17 @@ pub(super) fn validate_with_parameters(
     catalog: &Catalog,
     context: &BindingContext,
     parameter_types: &[i32],
+) -> Result<(), CassieError> {
+    validate_with_domains(statement, schema, catalog, context, parameter_types, true)
+}
+
+fn validate_with_domains(
+    statement: &mut InsertStatement,
+    schema: &CollectionSchema,
+    catalog: &Catalog,
+    context: &BindingContext,
+    parameter_types: &[i32],
+    resolved_domains: bool,
 ) -> Result<(), CassieError> {
     match &mut statement.source {
         InsertSource::Values(rows) => validate_values(
@@ -43,6 +54,7 @@ pub(super) fn validate_with_parameters(
                 schemas: &HashMap::new(),
                 ctes: &[],
                 parameter_types,
+                resolved_domains,
             },
         ),
     }
@@ -52,6 +64,7 @@ struct SelectScope<'a> {
     schemas: &'a HashMap<String, Schema>,
     ctes: &'a [CommonTableExpression],
     parameter_types: &'a [i32],
+    resolved_domains: bool,
 }
 
 fn expected_type<'a>(
@@ -136,7 +149,8 @@ fn validate_select(
         context,
         scope.schemas,
         scope.parameter_types,
-    )?;
+    )?
+    .with_resolved_coalesce_domains(scope.resolved_domains);
     let ctes: Vec<_> = scope.ctes.iter().chain(&select.ctes).cloned().collect();
     let wildcard = if select
         .projection
@@ -174,6 +188,7 @@ fn validate_select(
         // Do not change shape-error phase or coerce an invalid INSERT shape.
         return Ok(());
     }
+    boolean_contexts::validate_select_with_types(select, &types, catalog, context)?;
     let mut index = 0;
     for item in &mut select.projection {
         if matches!(item, SelectItem::Wildcard) {
@@ -209,6 +224,7 @@ fn validate_select(
                 schemas: types.cte_schemas(),
                 ctes: &ctes,
                 parameter_types: scope.parameter_types,
+                resolved_domains: scope.resolved_domains,
             },
         )?;
     }

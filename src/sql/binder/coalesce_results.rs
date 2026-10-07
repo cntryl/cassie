@@ -6,10 +6,20 @@ pub(super) struct ResultTypes {
     cte_schemas: std::collections::HashMap<String, Schema>,
     parameter_types: Vec<i32>,
     contextual_parameters: bool,
+    resolved_coalesce_domains: bool,
     functions: std::collections::HashMap<String, crate::catalog::FunctionMeta>,
 }
 
 impl ResultTypes {
+    pub(super) fn with_resolved_coalesce_domains(mut self, resolved: bool) -> Self {
+        self.resolved_coalesce_domains = resolved;
+        self
+    }
+
+    pub(super) fn resolved_coalesce_domains(&self) -> bool {
+        self.resolved_coalesce_domains
+    }
+
     pub(super) fn expression_type(&self, expr: &Expr) -> Option<DataType> {
         if self.has_unresolved_qualified_column(expr) {
             return None;
@@ -192,6 +202,7 @@ impl ResultTypes {
             functions,
             parameter_types: parameter_types.to_vec(),
             contextual_parameters: false,
+            resolved_coalesce_domains: false,
         })
     }
 
@@ -219,6 +230,15 @@ impl ResultTypes {
     pub(super) fn expression(&self, expr: &Expr) -> Result<(), CassieError> {
         expr.try_visit_children(|child| self.expression(child))?;
         if let Expr::Function(function) = expr {
+            if super::conditional_types::is_conditional(&function.name) {
+                let argument_types = function
+                    .args
+                    .iter()
+                    .map(|arg| self.expression_type(arg).unwrap_or(DataType::Null))
+                    .collect::<Vec<_>>();
+                super::conditional_types::result_type(&function.name, &argument_types)?;
+                return Ok(());
+            }
             if crate::sql::functions::function(&function.name).is_some_and(|metadata| {
                 matches!(
                     metadata.return_type,
@@ -567,7 +587,10 @@ fn validate_nested_source(
 }
 
 fn expression_contains_coalesce(expr: &Expr) -> bool {
-    matches!(expr, Expr::Function(function) if function.name.eq_ignore_ascii_case("coalesce"))
+    if let Expr::Exists(statement) = expr {
+        return statement_contains_coalesce(statement);
+    }
+    matches!(expr, Expr::Function(function) if function.name.eq_ignore_ascii_case("coalesce") || super::conditional_types::is_conditional(&function.name))
         || expr.any_child(expression_contains_coalesce)
 }
 
@@ -575,6 +598,7 @@ fn item_contains_coalesce(item: &SelectItem) -> bool {
     match item {
         SelectItem::Function { function, .. } => {
             function.name.eq_ignore_ascii_case("coalesce")
+                || super::conditional_types::is_conditional(&function.name)
                 || function.args.iter().any(expression_contains_coalesce)
         }
         SelectItem::Expr { expr, .. } => expression_contains_coalesce(expr),
@@ -588,7 +612,7 @@ fn item_contains_coalesce(item: &SelectItem) -> bool {
     }
 }
 
-fn select_contains_coalesce(select: &SelectStatement) -> bool {
+pub(super) fn select_contains_coalesce(select: &SelectStatement) -> bool {
     select.projection.iter().any(item_contains_coalesce)
         || select
             .filter

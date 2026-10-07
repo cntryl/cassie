@@ -82,3 +82,15 @@ Add only concrete gaps across the selected native type/kernel boundaries and
 record bags/order, descriptors, NULLs, errors, visibility, side effects and final
 path diagnostics. ANN recall is not an exact relational oracle. Per-child
 completion and feature promotion remain separate explicit reviews.
+
+## Mixed numeric COALESCE boundary
+
+The precision-boundary correction and its scoped/wire witnesses are recorded in
+[COALESCE promotion evidence](coalesce-promotion-evidence.md), owned by
+[#850](https://github.com/cntryl/cassie/issues/850). The original seeded relational
+fixtures use narrower values and do not establish this mixed BIGINT/FLOAT
+contract near `2^53`. The new focused witnesses supplement that evidence without
+claiming complete [#761](https://github.com/cntryl/cassie/issues/761) relational or
+[#848](https://github.com/cntryl/cassie/issues/848) dialect qualification. The
+separate #794 nested-argument and #802 conditional-consumer integration boundaries
+remain explicit in the linked record.

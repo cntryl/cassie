@@ -1,3 +1,6 @@
+#[path = "tests/row_bridge.rs"]
+mod row_bridge;
+
 #[path = "tests/relational.rs"]
 mod relational;
 

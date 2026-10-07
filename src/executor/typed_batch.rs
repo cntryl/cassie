@@ -15,6 +15,7 @@ mod column;
 pub(crate) mod join;
 mod operations;
 pub(crate) mod relational;
+pub(crate) mod row_bridge;
 pub(crate) mod scalar;
 #[cfg(test)]
 mod tests;

@@ -297,7 +297,7 @@ fn execute_selected(
         try_execute_streaming_bounded_inner_join_with_context(
             env,
             &spec,
-            &mut HashMap::new(),
+            &mut super::CteContext::new(),
             retention,
         )?
     };

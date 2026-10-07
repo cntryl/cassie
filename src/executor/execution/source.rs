@@ -269,17 +269,14 @@ fn execute_cte_source(
     qualify: bool,
 ) -> SourceExecution {
     let key = name.to_ascii_lowercase();
-    let rows = cte_context
+    let relation = cte_context
         .get(&key)
-        .map(|relation| relation.rows.clone())
         .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
+    let rows = super::cte::copy_source_rows(relation, env.controls, qualify.then_some(name))?;
     let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
         env,
-        batch::chunk_rows(
-            rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
-            batch::DEFAULT_BATCH_SIZE,
-        ),
+        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
         text_fields,
         qualify,
         name,
@@ -317,7 +314,7 @@ fn execute_subquery_source(
     // internal identity only under `_id`.
     let mut logical = logical;
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
-    let mut subquery_context = cte_context.clone();
+    let mut subquery_context = cte_context.copy(env.controls)?;
     let plan_env = plan_execution_env(
         env.cassie,
         env.session,
@@ -354,7 +351,7 @@ fn finalize_source_batches(
     qualifier: &str,
 ) -> SourceExecution {
     if qualify {
-        batches = qualify_batches(batches, qualifier);
+        batches = source_qualification::qualify_owned(env, batches, qualifier)?;
     }
     ensure_query_memory_budget(env.controls, &batches)?;
     Ok((batches, text_fields))
@@ -959,3 +956,10 @@ fn record_plan_metrics(
             .record_vector_execution(elapsed, candidate_rows, row_count);
     }
 }
+
+#[cfg(test)]
+#[path = "source_qualification_tests.rs"]
+mod qualification_tests;
+
+#[path = "source_qualification.rs"]
+mod source_qualification;

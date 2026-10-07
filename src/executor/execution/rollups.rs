@@ -655,7 +655,7 @@ fn read_rollup_source_batches(
     let (batches, text_fields) = super::source::execute_query_source(
         &env,
         &plan.source,
-        &mut HashMap::new(),
+        &mut super::CteContext::new(),
         false,
         None,
         None,

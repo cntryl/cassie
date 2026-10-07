@@ -68,6 +68,23 @@ impl OperatorMemory {
 }
 
 impl BatchRow {
+    pub(crate) fn alias_capacity(&self) -> usize {
+        self.aliases.capacity()
+    }
+
+    /// Owned plain entries survive materialization after the row's source owners drop.
+    pub(crate) fn plain_entries_bytes(&self) -> Result<usize, CassieError> {
+        use crate::executor::retained_memory::{add, mul, value_clone_bytes};
+        let mut bytes = mul(
+            self.values.capacity(),
+            size_of::<(String, crate::types::Value)>(),
+        )?;
+        for (name, value) in &self.values {
+            bytes = add(bytes, add(name.capacity(), value_clone_bytes(value)?)?)?;
+        }
+        Ok(bytes)
+    }
+
     /// Admission for an existing body that arrived without any retained source/operator owner.
     pub(crate) fn unleased_body_bytes(&self) -> Result<usize, CassieError> {
         use crate::executor::retained_memory::{

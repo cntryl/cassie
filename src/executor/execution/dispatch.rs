@@ -192,7 +192,7 @@ fn execute_plan_with_physical(
             env.params,
             &cte_controls,
         )?;
-        cte_context.insert(cte.name.to_ascii_lowercase(), rows);
+        cte_context.insert(cte.name.to_ascii_lowercase(), rows, &cte_controls)?;
     }
 
     let resolved_plan;
@@ -609,7 +609,7 @@ pub(super) fn resolve_exists_expr<'a>(
                     (logical, None)
                 };
             let logical = bounded_exists_logical(logical);
-            let mut subquery_context = context.cte_context.clone();
+            let mut subquery_context = context.cte_context.copy(context.controls)?;
             let env = plan_execution_env(
                 context.cassie,
                 context.session,
@@ -962,24 +962,6 @@ fn expression_expansion_weight(expr: &Expr) -> usize {
         | Expr::BoolLiteral(_)
         | Expr::Null => 1,
     }
-}
-
-pub(super) fn ensure_query_memory_budget_for_rows(
-    controls: &QueryExecutionControls,
-    rows: &[Vec<(String, Value)>],
-) -> Result<crate::runtime::QueryMemoryReservation, QueryError> {
-    let bytes = rows
-        .iter()
-        .map(|row| {
-            serde_json::to_vec(row)
-                .map(|bytes| bytes.len())
-                .unwrap_or_default()
-        })
-        .sum::<usize>();
-
-    controls
-        .reserve_query_memory(bytes)
-        .map_err(QueryError::from)
 }
 
 fn estimate_batch_bytes(batches: &[batch::Batch]) -> usize {

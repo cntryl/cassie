@@ -124,6 +124,8 @@ impl RetainedRows {
         for row in new {
             check_timeout(controls)?;
             self.rows.push(row.clone());
+            #[cfg(test)]
+            retention_tests::after_copy_row();
         }
         self.memory.shrink_to(rows_bytes(&self.rows)?);
         Ok(())

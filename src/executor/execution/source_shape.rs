@@ -9,13 +9,25 @@ pub(super) fn null_row(
     context: &CteContext,
 ) -> Result<BatchRow, QueryError> {
     if let QuerySource::Join { left, right, .. } = source {
-        return combine_rows(
-            &null_row(env, left, context)?,
-            &null_row(env, right, context)?,
-        );
+        let left = null_row(env, left, context)?;
+        let right = null_row(env, right, context)?;
+        if left.operator_memory().is_some() || right.operator_memory().is_some() {
+            let bytes = super::source_join::combined_row_bytes(&left, &right)?;
+            let memory = std::sync::Arc::new(env.controls.reserve_query_memory(
+                crate::executor::retained_memory::add(
+                    bytes,
+                    std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
+                        + 2 * std::mem::size_of::<usize>(),
+                )?,
+            )?);
+            return Ok(combine_rows(&left, &right)?
+                .with_query_memory(Some(std::sync::Arc::clone(&memory)))
+                .retain_operator_memory(env.controls, memory)?);
+        }
+        return combine_rows(&left, &right);
     }
     let namespace = super::super::cte::context_fields(context, env.controls)?;
-    let _inferred_copy = if let QuerySource::Cte(name) = source {
+    let inferred_copy = if let QuerySource::Cte(name) = source {
         let _name_memory = env.controls.reserve_query_memory(name.len())?;
         let key = name.to_ascii_lowercase();
         context
@@ -35,6 +47,9 @@ pub(super) fn null_row(
         env.user_functions,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
+    if let (QuerySource::Cte(name), Some(memory)) = (source, inferred_copy) {
+        return known_cte_template(env, fields, memory, name);
+    }
     let data_types = fields
         .iter()
         .any(|field| matches!(field.data_type, crate::types::DataType::Array(_)))
@@ -170,3 +185,7 @@ pub(super) fn attach_types(
     }
     Ok(())
 }
+
+#[path = "source_template.rs"]
+mod template;
+use template::known_cte_template;

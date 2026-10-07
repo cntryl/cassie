@@ -365,3 +365,114 @@ fn should_deny_accumulated_recursive_growth_before_mutating_original_rows() {
     drop(original);
     assert_eq!(controls.current_query_memory_bytes(), 0);
 }
+
+#[test]
+fn should_admit_actual_recursive_seen_table_and_rich_key_capacities() {
+    // Arrange
+    let controls = controls(1024 * 1024);
+    let mut seen = seen::SeenRows::new(&controls).expect("seen state");
+    let mut capacities = Vec::new();
+    // Act
+    for index in 0..8 {
+        let row = vec![
+            ("identity".into(), Value::Int64(index)),
+            (
+                "timestamp".into(),
+                Value::String("2024-01-01T12:00:00Z".into()),
+            ),
+            (
+                "json".into(),
+                Value::Json(
+                    serde_json::json!({"escaped": "\n".repeat([17, 33, 65, 129][usize::try_from(index).expect("index") % 4])}),
+                ),
+            ),
+            (
+                "vector".into(),
+                Value::Vector(crate::types::Vector::new(vec![1.0, 2.0, 3.0])),
+            ),
+        ];
+        assert!(seen.insert(&row, &controls).expect("unique key"));
+        let (capacity, admitted, actual) = seen.capacity_probe();
+        capacities.push(capacity);
+        println!(
+            "seen length{} capacity{capacity} admitted{admitted} actual{actual}",
+            index + 1
+        );
+        // Assert
+        assert!(
+            admitted >= actual,
+            "actual retained key/table capacity must be bounded"
+        );
+        let before = controls.current_query_memory_bytes();
+        assert!(!seen.insert(&row, &controls).expect("duplicate key"));
+        assert_eq!(controls.current_query_memory_bytes(), before);
+    }
+    assert!(capacities[0] >= 1 && capacities[2] >= 3 && capacities[3] >= 4 && capacities[7] >= 8);
+    drop(seen);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_admit_non_power_of_two_accumulator_capacity_and_partial_append_cancellation() {
+    // Arrange
+    let handle = crate::runtime::QueryCancellationHandle::new();
+    let controls = QueryExecutionControls::with_cancellation(
+        &crate::config::CassieRuntimeLimits::default(),
+        Instant::now(),
+        handle.clone(),
+    );
+    let rich_row = |index| {
+        vec![
+            (
+                "n".into(),
+                Value::Json(serde_json::json!({"index": index, "text": "\n".repeat(129)})),
+            ),
+            (
+                "v".into(),
+                Value::Vector(crate::types::Vector::new(vec![1.0; 3])),
+            ),
+        ]
+    };
+    let initial = (0..3).map(rich_row).collect::<Vec<_>>();
+    let mut original = RetainedRows::copy(&initial, &controls).expect("original");
+    assert_eq!(original.rows.capacity(), 3);
+    let delta = RetainedRows::copy(&(3..5).map(rich_row).collect(), &controls).expect("delta");
+    // Act
+    original
+        .append(&delta.rows, &controls)
+        .expect("nonpower growth");
+    // Assert
+    assert_eq!(original.rows.capacity(), 5);
+    assert!(
+        original.memory.bytes()
+            >= retention::rows_bytes(&original.rows).expect("actual original capacity")
+    );
+    assert!(
+        controls.current_query_memory_bytes()
+            >= retention::rows_bytes(&original.rows).expect("actual original")
+                + retention::rows_bytes(&delta.rows).expect("actual delta")
+    );
+    retention_tests::arm_copy_cancellation(handle);
+    let result = original.append(&delta.rows, &controls);
+    assert!(matches!(
+        result.map_err(crate::app::CassieError::from),
+        Err(crate::app::CassieError::QueryCancelled)
+    ));
+    assert_eq!(
+        original.rows.len(),
+        6,
+        "one actual append occurs before cancellation"
+    );
+    assert!(
+        original.memory.bytes()
+            >= retention::rows_bytes(&original.rows).expect("partial retained capacity")
+    );
+    assert!(
+        controls.current_query_memory_bytes()
+            >= retention::rows_bytes(&original.rows).expect("partial original")
+                + retention::rows_bytes(&delta.rows).expect("live delta")
+    );
+    drop(original);
+    drop(delta);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}

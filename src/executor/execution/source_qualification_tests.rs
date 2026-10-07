@@ -209,3 +209,195 @@ fn should_retain_cte_array_source_descriptor_replacement_until_output_drop() {
         assert_eq!(controls.current_query_memory_bytes(), 0);
     });
 }
+
+#[test]
+fn should_retain_known_cte_null_template_copy_until_template_drop() {
+    // Arrange
+    with_fixture(|cassie| {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits::default(),
+            Instant::now(),
+        );
+        let context = CteContext::unleased(HashMap::from([(
+            "c".into(),
+            super::super::cte::CteRelation {
+                rows: vec![],
+                fields: vec![crate::types::FieldSchema {
+                    name: "n".repeat(4096),
+                    data_type: crate::types::DataType::Array(Box::new(
+                        crate::types::DataType::Text,
+                    )),
+                    nullable: true,
+                }],
+                _rows_memory: None,
+                _fields_memory: None,
+            },
+        )]));
+        let functions = HashMap::new();
+        let env = SourceExecutionEnv {
+            cassie,
+            session: None,
+            user_functions: &functions,
+            params: &[],
+            controls: &controls,
+        };
+        // Act
+        let template = source_shape::null_row(&env, &QuerySource::Cte("c".into()), &context)
+            .expect("known CTE NULL template");
+        // Assert
+        assert_eq!(template.entries()[0].1, Value::Null);
+        assert_eq!(
+            template.data_types()[0],
+            crate::types::DataType::Array(Box::new(crate::types::DataType::Text))
+        );
+        assert!(
+            controls.current_query_memory_bytes() >= 4096,
+            "actual live template must own copied names and ARRAY metadata"
+        );
+        drop(context);
+        assert!(controls.current_query_memory_bytes() >= 4096);
+        drop(template);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    });
+}
+
+#[test]
+fn should_deny_known_cte_null_template_copy_without_partial_publication() {
+    // Arrange
+    with_fixture(|cassie| {
+        let controls = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: 128,
+                ..crate::config::CassieRuntimeLimits::default()
+            },
+            Instant::now(),
+        );
+        let context = CteContext::unleased(HashMap::from([(
+            "c".into(),
+            super::super::cte::CteRelation {
+                rows: vec![],
+                fields: vec![crate::types::FieldSchema {
+                    name: "n".repeat(4096),
+                    data_type: crate::types::DataType::Array(Box::new(
+                        crate::types::DataType::Text,
+                    )),
+                    nullable: true,
+                }],
+                _rows_memory: None,
+                _fields_memory: None,
+            },
+        )]));
+        let functions = HashMap::new();
+        let env = SourceExecutionEnv {
+            cassie,
+            session: None,
+            user_functions: &functions,
+            params: &[],
+            controls: &controls,
+        };
+        // Act
+        let result = source_shape::null_row(&env, &QuerySource::Cte("c".into()), &context);
+        // Assert
+        assert!(matches!(
+            result.map_err(crate::app::CassieError::from),
+            Err(crate::app::CassieError::ResourceLimit(_))
+        ));
+        assert_eq!(context["c"].fields[0].name.len(), 4096);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    });
+}
+
+#[test]
+fn should_admit_combined_known_cte_templates_before_copying_backing() {
+    // Arrange
+    with_fixture(|cassie| {
+        let fields = |name: &str| {
+            vec![crate::types::FieldSchema {
+                name: name.into(),
+                data_type: crate::types::DataType::Array(Box::new(crate::types::DataType::Text)),
+                nullable: true,
+            }]
+        };
+        let context = CteContext::unleased(HashMap::from([
+            (
+                "c".into(),
+                super::super::cte::CteRelation {
+                    rows: vec![],
+                    fields: fields("n"),
+                    _rows_memory: None,
+                    _fields_memory: None,
+                },
+            ),
+            (
+                "d".into(),
+                super::super::cte::CteRelation {
+                    rows: vec![],
+                    fields: fields("m"),
+                    _rows_memory: None,
+                    _fields_memory: None,
+                },
+            ),
+        ]));
+        let source = QuerySource::Join {
+            left: Box::new(QuerySource::Cte("c".into())),
+            right: Box::new(QuerySource::Cte("d".into())),
+            kind: JoinKind::Inner,
+            on: Expr::BoolLiteral(true),
+        };
+        let functions = HashMap::new();
+        let limits = crate::config::CassieRuntimeLimits::default();
+        let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
+        let env = SourceExecutionEnv {
+            cassie,
+            session: None,
+            user_functions: &functions,
+            params: &[],
+            controls: &controls,
+        };
+        let left = source_shape::null_row(&env, &QuerySource::Cte("c".into()), &context)
+            .expect("left template");
+        let right = source_shape::null_row(&env, &QuerySource::Cte("d".into()), &context)
+            .expect("right template");
+        let minimum =
+            source_join::combined_row_bytes(&left, &right).expect("borrowed combined authority");
+        drop(left);
+        drop(right);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+        // Act
+        let template = source_shape::null_row(&env, &source, &context).expect("combined template");
+        // Assert
+        assert!(
+            template
+                .query_memory()
+                .expect("independent copied output owner")
+                .bytes()
+                >= minimum
+        );
+        assert_eq!(template.get("c.n"), Some(&Value::Null));
+        assert_eq!(template.get("d.m"), Some(&Value::Null));
+        assert_eq!(template.data_types().len(), 2);
+        let peak = controls.peak_query_memory_bytes();
+        drop(template);
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+        let denied = QueryExecutionControls::from_limits(
+            &crate::config::CassieRuntimeLimits {
+                query_memory_budget_bytes: peak - 1,
+                ..limits
+            },
+            Instant::now(),
+        );
+        let env = SourceExecutionEnv {
+            cassie,
+            session: None,
+            user_functions: &functions,
+            params: &[],
+            controls: &denied,
+        };
+        let result = source_shape::null_row(&env, &source, &context);
+        assert!(matches!(
+            result.map_err(crate::app::CassieError::from),
+            Err(crate::app::CassieError::ResourceLimit(_))
+        ));
+        assert_eq!(denied.current_query_memory_bytes(), 0);
+    });
+}

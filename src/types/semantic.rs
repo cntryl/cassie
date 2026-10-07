@@ -196,6 +196,23 @@ pub(crate) fn compare_array_parts<T>(
 pub(crate) struct SemanticKey(Vec<SemanticValue>);
 
 impl SemanticKey {
+    #[cfg(test)]
+    pub(crate) fn actual_retained_bytes_for_test(&self) -> usize {
+        fn heap(value: &SemanticValue) -> usize {
+            match value {
+                SemanticValue::String(text) | SemanticValue::Json(text) => text.capacity(),
+                SemanticValue::Vector(values) => values.capacity() * std::mem::size_of::<u32>(),
+                SemanticValue::Array(values) => {
+                    values.capacity() * std::mem::size_of::<SemanticValue>()
+                        + values.iter().map(heap).sum::<usize>()
+                }
+                SemanticValue::Null | SemanticValue::Bool(_) | SemanticValue::Number(_) => 0,
+            }
+        }
+        self.0.capacity() * std::mem::size_of::<SemanticValue>()
+            + self.0.iter().map(heap).sum::<usize>()
+    }
+
     pub(crate) fn from_semantic_values(values: Vec<SemanticValue>) -> Self {
         Self(values)
     }

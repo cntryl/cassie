@@ -13,6 +13,18 @@ pub(super) struct SeenRows {
 }
 
 impl SeenRows {
+    #[cfg(test)]
+    pub(super) fn capacity_probe(&self) -> (usize, usize, usize) {
+        let actual = hash_table_bytes::<SemanticKey>(self.keys.capacity())
+            .expect("actual test table bound")
+            + self
+                .keys
+                .iter()
+                .map(SemanticKey::actual_retained_bytes_for_test)
+                .sum::<usize>();
+        (self.keys.capacity(), self.memory.bytes(), actual)
+    }
+
     pub(super) fn new(controls: &QueryExecutionControls) -> Result<Self, QueryError> {
         Ok(Self {
             keys: HashSet::new(),

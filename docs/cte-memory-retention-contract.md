@@ -82,3 +82,7 @@ this change does not establish a new general memory bound for those existing
 planner allocations. It must not be described as bounded planner inference.
 Actual ARRAY conversion uses explicit admitted type slots rather than reusing
 larger FieldSchema vector backing through in-place collection.
+
+Known CTE NULL-row join templates also copy field names, nested ARRAY metadata,
+lookup and qualification backing. Their admission must survive until the actual
+template drops; later joined-output admission cannot own an earlier template.

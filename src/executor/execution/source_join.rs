@@ -25,6 +25,7 @@ mod typed;
 #[path = "source_join/output.rs"]
 mod output;
 
+pub(super) use accounting::combined_row_bytes;
 use accounting::JoinRows;
 use kernels::{execute_nested_loop_join, execute_vectorized_join};
 use output::finish_retained_join;

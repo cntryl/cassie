@@ -1,6 +1,6 @@
 use crate::types::{DataType, Value};
 
-pub(super) fn logical_families() -> Vec<(DataType, Vec<Value>)> {
+pub(in crate::executor::typed_batch) fn logical_families() -> Vec<(DataType, Vec<Value>)> {
     let mut families = native_families();
     families.extend(scalar_families());
     families

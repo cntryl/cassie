@@ -103,8 +103,7 @@ impl State {
         match self {
             Self::Count(count) => Ok(Value::Int64(count)),
             Self::Sum { sum, seen: true } => sum.finish_value(),
-            Self::Sum { seen: false, .. } => Ok(Value::Null),
-            Self::Avg { count: 0, .. } => Ok(Value::Null),
+            Self::Sum { seen: false, .. } | Self::Avg { count: 0, .. } => Ok(Value::Null),
             Self::Avg { sum, count } => sum.finish_mean(count).map(Value::Float64),
             Self::MinMax { selected, .. } => Ok(selected.unwrap_or(Value::Null)),
         }
@@ -240,7 +239,7 @@ pub(in crate::executor::execution) fn try_execute(
 struct PreparedSpecs {
     specs: Vec<Spec>,
     fields: Vec<String>,
-    _memory: crate::runtime::QueryMemoryReservation,
+    memory: crate::runtime::QueryMemoryReservation,
 }
 
 fn prepare_specs(
@@ -302,8 +301,8 @@ fn prepare_specs(
                 memory.try_grow(field.len())?;
                 fields.push(field.clone());
             }
-            let merge_safe = !matches!(state, State::Avg { .. })
-                && !(matches!(state, State::Sum { .. }) && entry.data_type == DataType::Float);
+            let merge_safe = !(matches!(state, State::Avg { .. })
+                || matches!(state, State::Sum { .. }) && entry.data_type == DataType::Float);
             (Some(index), merge_safe)
         };
         specs.push(Spec {
@@ -318,7 +317,7 @@ fn prepare_specs(
     Ok(Some(PreparedSpecs {
         specs,
         fields,
-        _memory: memory,
+        memory,
     }))
 }
 

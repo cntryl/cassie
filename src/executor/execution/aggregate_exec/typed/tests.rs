@@ -99,7 +99,7 @@ fn should_preserve_typed_aggregate_identities_without_non_null_inputs() {
         let batch = TypedBatch::from_columns(
             &controls,
             &[("n".to_owned(), DataType::BigInt)],
-            &[values.clone()],
+            std::slice::from_ref(&values),
             values.len(),
             None,
         )
@@ -185,7 +185,7 @@ fn should_match_scalar_aggregate_semantics_for_selected_numeric_carriers() {
         let batch = TypedBatch::from_columns(
             &controls,
             &[("n".to_owned(), data_type)],
-            &[values.clone()],
+            std::slice::from_ref(&values),
             values.len(),
             None,
         )
@@ -207,11 +207,11 @@ fn should_match_scalar_aggregate_semantics_for_selected_numeric_carriers() {
             // Assert
             match (typed, scalar) {
                 (Ok(Value::Float64(typed)), Ok(Value::Float64(scalar))) => {
-                    assert_eq!(typed.to_bits(), scalar.to_bits(), "{name}")
+                    assert_eq!(typed.to_bits(), scalar.to_bits(), "{name}");
                 }
                 (Ok(typed), Ok(scalar)) => assert_eq!(typed, scalar, "{name}"),
                 (Err(typed), Err(scalar)) => {
-                    assert_eq!(typed.to_string(), scalar.to_string(), "{name}")
+                    assert_eq!(typed.to_string(), scalar.to_string(), "{name}");
                 }
                 (typed, scalar) => panic!("{name}: typed {typed:?}, scalar {scalar:?}"),
             }

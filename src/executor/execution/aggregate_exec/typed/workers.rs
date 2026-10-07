@@ -31,7 +31,10 @@ pub(super) fn consume_stream(
     let guard = (legal && requested > 1)
         .then(|| cassie.runtime.try_acquire_operator_workers(requested))
         .flatten();
-    let workers = guard.as_ref().map_or(1, |guard| guard.workers());
+    let workers = match &guard {
+        Some(guard) => guard.workers(),
+        None => 1,
+    };
     let fallback = if !legal {
         "typed-row-order-fold"
     } else if requested == 1 {
@@ -136,6 +139,9 @@ fn fold_partition(
     for (state, spec) in states.iter_mut().zip(specs) {
         consume(state, spec.column, &batch, controls)?;
     }
+    // The worker owns its source batch until every local fold completes.
+    // Release that owner before handing the partial to the parent; errors drop it via RAII.
+    drop(batch);
     Ok(Partial {
         states,
         _memory: memory,

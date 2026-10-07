@@ -55,10 +55,12 @@ impl<'a> HashJoin<'a> {
         )?;
         let memory = controls.reserve_query_memory(bytes)?;
         let mut build = HashMap::<SemanticValue, (usize, usize)>::new();
-        build.try_reserve(right.len()).map_err(allocation_error)?;
+        build
+            .try_reserve(right.len())
+            .map_err(|error| allocation_error(&error))?;
         let mut next = Vec::new();
         next.try_reserve_exact(right.len())
-            .map_err(allocation_error)?;
+            .map_err(|error| allocation_error(&error))?;
         next.resize(right.len(), None);
         let mut build_rows = 0;
         for lane in 0..right.len() {
@@ -120,8 +122,11 @@ impl<'a> HashJoin<'a> {
         )?)?;
         let mut left = Vec::new();
         let mut right = Vec::new();
-        left.try_reserve_exact(count).map_err(allocation_error)?;
-        right.try_reserve_exact(count).map_err(allocation_error)?;
+        left.try_reserve_exact(count)
+            .map_err(|error| allocation_error(&error))?;
+        right
+            .try_reserve_exact(count)
+            .map_err(|error| allocation_error(&error))?;
         while left.len() < count && self.left_lane < self.left.len() {
             probe();
             check_controls(&self.controls)?;
@@ -233,7 +238,7 @@ fn gather_output(
     TypedBatch::from_views(controls, &schema, &columns, left_lanes.len(), None)
 }
 
-fn allocation_error(error: std::collections::TryReserveError) -> QueryError {
+fn allocation_error(error: &std::collections::TryReserveError) -> QueryError {
     crate::app::CassieError::ResourceLimit(format!("unable to retain typed hash join: {error}"))
         .into()
 }

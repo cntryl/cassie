@@ -188,8 +188,10 @@ fn should_decline_native_aggregation_before_opening_inputs_when_the_transport_fl
     let plan =
         super::super::super::build_logical_plan_in_session(&cassie, Some(&session), &statement)
             .expect("plan");
-    let mut limits = CassieRuntimeLimits::default();
-    limits.query_memory_budget_bytes = 1;
+    let limits = CassieRuntimeLimits {
+        query_memory_budget_bytes: 1,
+        ..CassieRuntimeLimits::default()
+    };
     let controls = QueryExecutionControls::from_limits(&limits, Instant::now());
     let before = cassie.runtime.snapshot();
     // Act

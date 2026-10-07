@@ -20,7 +20,7 @@ pub(super) fn prepare(
         return Ok(false);
     }
     prepared
-        ._memory
+        .memory
         .try_grow(mul(prepared.fields.len(), size_of::<(String, DataType)>())?)?;
     let mut typed_schema = Vec::with_capacity(prepared.fields.len());
     for name in &prepared.fields {
@@ -29,7 +29,7 @@ pub(super) fn prepare(
         }) else {
             return Ok(false);
         };
-        prepared._memory.try_grow(name.len())?;
+        prepared.memory.try_grow(name.len())?;
         typed_schema.push((name.clone(), field.data_type.clone()));
     }
     Ok(capability::expression(expression, &typed_schema, &[])
@@ -63,7 +63,7 @@ fn collect(
             }
             if !prepared.fields.contains(name) {
                 prepared
-                    ._memory
+                    .memory
                     .try_grow(add(size_of::<String>(), name.len())?)?;
                 prepared.fields.reserve_exact(1);
                 prepared.fields.push(name.clone());

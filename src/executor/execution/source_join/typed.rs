@@ -35,7 +35,7 @@ pub(super) fn try_execute(
     ) != crate::executor::typed_batch::capability::Capability::NativeTyped
     {
         return Ok(None);
-    };
+    }
     // Eligibility is decided before conversion; admitted native failures are terminal.
     let left = from_rows(env, spec.left_rows, &left_types.types)?;
     let right = from_rows(env, spec.right_rows, &right_types.types)?;

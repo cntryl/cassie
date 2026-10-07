@@ -267,8 +267,7 @@ fn batch(controls: &QueryExecutionControls, data_type: DataType, values: Vec<Val
     .unwrap()
 }
 
-#[path = "../tests/families.rs"]
-mod payload_fixture;
+use crate::executor::typed_batch::tests::families as payload_fixture;
 
 #[test]
 fn should_keep_every_typed_payload_family_alive_after_join_inputs_drop() {
@@ -302,7 +301,7 @@ fn should_keep_every_typed_payload_family_alive_after_join_inputs_drop() {
             let actual = output.batch.value(index + 1, lane).unwrap();
             match (&actual, expected) {
                 (Value::Float64(actual), Value::Float64(expected)) => {
-                    assert_eq!(actual.to_bits(), expected.to_bits())
+                    assert_eq!(actual.to_bits(), expected.to_bits());
                 }
                 _ => assert_eq!(&actual, expected),
             }

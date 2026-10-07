@@ -2,7 +2,7 @@
 mod boundaries;
 
 #[path = "tests/families.rs"]
-mod families;
+pub(super) mod families;
 
 use super::TypedBatch;
 use crate::config::CassieRuntimeLimits;

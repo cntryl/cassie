@@ -252,3 +252,63 @@ fn should_merge_captured_overlay_in_projected_batched_scan_helpers() {
     assert_eq!(released, 0);
     assert_eq!(captured, vec![10, 20]);
 }
+
+#[test]
+fn should_keep_captured_overlay_for_time_series_ranges() {
+    // Arrange
+    let fixture = Fixture::new(&[]);
+    let reader = fixture.cassie.create_session("time-reader", None);
+    execute(
+        &fixture.cassie,
+        &reader,
+        "CREATE TABLE native_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+    );
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO native_events VALUES ('acme', '2026-01-01T00:00:00Z', 10)",
+    );
+    execute(&fixture.cassie, &reader, "CREATE INDEX native_events_time ON native_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)");
+    let sql = "SELECT amount FROM native_events WHERE tenant = 'acme' AND event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T01:00:00Z' ORDER BY amount";
+    let original = execute(&fixture.cassie, &reader, sql);
+    execute(&fixture.cassie, &reader, "BEGIN");
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO native_events VALUES ('acme', '2026-01-01T00:01:00Z', 20)",
+    );
+    let staged = execute(&fixture.cassie, &reader, sql);
+    let cassie = Arc::clone(&fixture.cassie);
+    let session = reader.clone();
+    let rolled_back = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&rolled_back);
+    let hook = CaptureHook::install(move || {
+        execute(&cassie, &session, "ROLLBACK");
+        observed.store(true, Ordering::SeqCst);
+    });
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    let metrics = fixture.cassie.metrics();
+    // Assert
+    assert!(rolled_back.load(Ordering::SeqCst));
+    assert_eq!(original, vec![vec![Value::Int64(10)]]);
+    assert_eq!(staged, vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]);
+    assert_eq!(captured, staged);
+    assert_eq!(fresh, original);
+    eprintln!(
+        "captured time-series rows={captured:?} metrics={}",
+        metrics["time_series"]
+    );
+    assert!(
+        metrics["time_series"]["bucket_native_hits"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 2
+    );
+    assert_eq!(
+        metrics["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
+}

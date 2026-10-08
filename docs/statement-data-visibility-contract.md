@@ -110,9 +110,9 @@ from admission or allow cancellation to release charge before live buffers.
 | TX-01 through TX-06 and TX-08 through TX-09 | Reuse mapped mutation, commit-gate, recovery, settings and savepoint evidence; add only uncovered controls | Historical evidence; current implementation replay pending |
 | TX-07 | Captured whole-session COW overlay survives subsequent session writes and cursor resume | Per-cursor evidence exists; statement-wide owner pending |
 | TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Current focused source witnesses pass: multirow JOIN, empty acquisition and visible right rows after an empty left read; broader path qualification remains pending |
-| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; worker replay remains pending |
+| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; eight existing conversion controls replayed successfully, including two active workers cancelled with zero charge/workers and reusable permits; statement worker dispatch qualification remains pending |
 | Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Captured staged-overlay rollback controls pass for scalar indexes, ordered reads, column summaries, analytical projections and projected batched scans; committed generation barriers remain pending |
-| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; other artifact barriers and time-series runtime qualification remain pending |
+| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; time-series overlay rollback controls pass; other artifact barriers remain pending |
 | Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | Existing witnesses to reuse; sharing acceptance pending |
 | Resource failures | Admission denial and cancellation preserve owner/row lifetime; cleanup releases owned charge | Pending focused controls |
 
@@ -160,9 +160,19 @@ eligibility gates now use the existing captured-overlay accessor; the projected
 batched helper merges its borrowed captured staged snapshot. Matching captured
 empty overlays dominate live state, while absent or mismatched session owners
 retain the existing live fallback. Fresh mutation and referential checks remain
-unchanged. The focused statement suite passed 37/0. Time-series received the
-same mechanical gate repair but has no new runtime witness yet. Jev returned
+unchanged. The focused statement suite passed 37/0. The subsequent time-series range witness passed (1/0): captured rows 10/20
+survived nested rollback, the next statement returned 10, and metrics recorded
+two native range hits and two session-changes fallbacks. Jev returned
 captured-empty and borrowed-merge gap probabilities of 0.16 and 0.21; independent
 source review accepted the eleven-file runtime patch. These results do not
 complete committed artifact-generation barriers, portal/worker qualification
 or repository-wide acceptance.
+
+The existing conversion resource suite replay passed 8/0 on the current source,
+including active parallel cancellation, denied-permit serial fallback and
+source/output reservation overlap. Source review shows conversion, aggregation
+and scoring workers consume preloaded inputs rather than acquiring Data inside
+those closures; Jev returned a newer-worker-read gap probability of 0.09. This
+resource replay does not establish whole-statement dispatch or portal ownership.
+Jev selected first-execution and suspended-portal boundary probes as the next
+qualification, with 0.97 confidence; those probes remain pending.

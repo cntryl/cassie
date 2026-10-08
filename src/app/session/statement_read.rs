@@ -2,8 +2,8 @@
 
 use super::{
     staged_snapshot_accounting_overflow, CassieError, CassieSession, CollectionChanges, Mutex,
-    SessionTransactionState, SharedTransactionWrites, StagedWriteSnapshot, TransactionRowChange,
-    TransactionWrites,
+    SessionTransactionState, SessionTransactionStatus, SharedTransactionWrites,
+    StagedWriteSnapshot, TransactionRowChange, TransactionWrites,
 };
 use crate::midge::adapter::{Midge, StatementDataRead};
 use crate::runtime::accounted::json;
@@ -21,6 +21,7 @@ thread_local! {
 #[derive(Debug)]
 pub(crate) struct StatementOverlay {
     writes: SharedTransactionWrites,
+    active_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
     _memory: QueryMemoryReservation,
 }
@@ -64,12 +65,28 @@ impl CassieSession {
         let memory = controls.reserve_query_memory(bytes)?;
         let overlay = Arc::new(StatementOverlay {
             writes: Arc::clone(&transaction.writes),
+            active_transaction: transaction.status != SessionTransactionStatus::Idle,
             identity: Arc::downgrade(&self.transaction),
             _memory: memory,
         });
         // Keep the session state lock through capture; staged-map changes
         // cannot interleave between the borrowed estimate and the Data owner.
         StatementDataRead::capture_with_overlay(midge, database, controls, Some(overlay))
+    }
+
+    pub(crate) fn read_transaction_is_active(&self) -> bool {
+        CURRENT_OVERLAY.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .filter(|owner| {
+                    std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
+                })
+                .map_or_else(
+                    || self.transaction_status() != "idle",
+                    |owner| owner.active_transaction,
+                )
+        })
     }
 
     pub(crate) fn read_document_change(

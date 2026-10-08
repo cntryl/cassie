@@ -507,7 +507,7 @@ impl Cassie {
         {
             return Some("disabled");
         }
-        if session.transaction_status() != "idle" {
+        if session.read_transaction_is_active() {
             return Some("active_transaction");
         }
         if logical_plan_uses_virtual_catalog(&physical.logical) {

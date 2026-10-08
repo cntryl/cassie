@@ -523,3 +523,57 @@ fn should_reuse_the_statement_view_for_raw_database_reads() {
     );
     assert_eq!(current, 0);
 }
+
+#[test]
+fn should_select_read_paths_using_the_captured_overlay() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-overlay-path-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let reader = cassie.create_session("reader", None);
+    execute(
+        &cassie,
+        &reader,
+        "CREATE TABLE overlay_path_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(
+        &cassie,
+        &reader,
+        "INSERT INTO overlay_path_rows VALUES (1, 10)",
+    );
+    execute(
+        &cassie,
+        &reader,
+        "CREATE INDEX overlay_path_column ON overlay_path_rows USING column (n)",
+    );
+    execute(&cassie, &reader, "BEGIN");
+    execute(&cassie, &reader, "UPDATE overlay_path_rows SET n = 110");
+    let nested_cassie = Arc::clone(&cassie);
+    let nested_reader = reader.clone();
+    let hook = CaptureHook::install(move || {
+        execute(&nested_cassie, &nested_reader, "ROLLBACK");
+    });
+
+    // Act
+    let captured = execute(
+        &cassie,
+        &reader,
+        "SELECT n FROM overlay_path_rows ORDER BY n",
+    );
+    drop(hook);
+    let fresh = execute(
+        &cassie,
+        &reader,
+        "SELECT n FROM overlay_path_rows ORDER BY n",
+    );
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert_eq!(fresh, vec![vec![Value::Int64(10)]]);
+    assert_eq!(
+        captured,
+        vec![vec![Value::Int64(110)]],
+        "a live rollback cannot bypass the captured staged row"
+    );
+}

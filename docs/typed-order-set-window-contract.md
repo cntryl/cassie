@@ -183,3 +183,12 @@ borrowed direct value/type-copy backing, and labels. Repeating one primitive
 column into many short labels must retain at least its actual new entry backing
 after the input owner drops. The estimates account old/new overlap and can deny
 before construction; scalar expression evaluation remains unpromoted.
+
+For direct columns resolved from an existing outer scope, the controlled handoff
+borrows the same resolved value and recursive ARRAY type authority used by scalar
+projection before admitting its new copies. Column-name parsing scratch is
+admitted before resolution. Existing outer lookup, shadowing, values, metadata,
+and evaluation order remain authoritative; this selects no additional outer
+planning or generic expression support. Repeated rich ARRAY columns and outer
+String/Vector/ARRAY NULL copies must satisfy actual backing, parent/output drop,
+and near-budget denial probes.

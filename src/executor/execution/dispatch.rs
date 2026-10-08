@@ -885,7 +885,7 @@ pub(super) fn reserve_projection_output_before_building(
         .max(1);
     let bytes = crate::executor::retained_memory::add(
         baseline.saturating_mul(expansion),
-        projection_memory::state_bytes(batches, projection)?,
+        projection_memory::state_bytes(batches, projection, controls)?,
     )?;
     controls
         .reserve_query_memory(bytes)

@@ -2,18 +2,19 @@
 use std::mem::size_of;
 
 use crate::app::CassieError;
-use crate::executor::batch::{Batch, BatchRow};
+use crate::executor::batch::{Batch, BatchRow, RowAccess};
 use crate::executor::projection::ProjectionOp;
 use crate::executor::retained_memory::{
-    add, data_type_clone_bytes, grown_capacity, hash_table_bytes, lookup_bytes, mul,
-    value_clone_bytes,
+    add, grown_capacity, hash_table_bytes, lookup_bytes, mul, value_clone_bytes,
 };
+use crate::runtime::QueryExecutionControls;
 use crate::sql::SelectItem;
 use crate::types::{DataType, Value};
 
 pub(super) fn state_bytes(
     batches: &[Batch],
     projection: &[SelectItem],
+    controls: &QueryExecutionControls,
 ) -> Result<usize, CassieError> {
     if !batches
         .iter()
@@ -45,6 +46,9 @@ pub(super) fn state_bytes(
             },
         )
     })?;
+    // Resolving direct names uses the same parsed lookup authority as projection.
+    // Admit its temporary strings before borrowing values from an outer scope.
+    let _resolution_scratch = controls.reserve_query_memory(mul(source_names, 64)?)?;
     // The generic path compiles once per batch while its outer op list is live.
     let op_slots = mul(
         grown_capacity(projection.len(), 4)?,
@@ -81,21 +85,21 @@ pub(super) fn state_bytes(
             wildcard_names = add(wildcard_names, name.len())?;
             largest_value = largest_value.max(value_clone_bytes(value)?);
         }
+        for item in projection {
+            if let SelectItem::Column { name, .. } = item {
+                if let Some(value) = row.get(name) {
+                    largest_value = largest_value.max(value_clone_bytes(value)?);
+                }
+            }
+        }
         let wildcards = projection
             .iter()
             .filter(|item| matches!(item, SelectItem::Wildcard))
             .count();
         bytes = add(bytes, mul(mul(wildcard_names, wildcards)?, 4)?)?;
         bytes = add(bytes, mul(largest_value, width)?)?;
-        if row
-            .data_types()
-            .iter()
-            .any(|kind| matches!(kind, DataType::Array(_)))
-        {
-            let mut largest_type = 0;
-            for kind in row.data_types() {
-                largest_type = largest_type.max(data_type_clone_bytes(kind)?);
-            }
+        if row.has_array_types() {
+            let largest_type = row.maximum_type_heap_bytes()?;
             bytes = add(bytes, mul(slots, size_of::<DataType>())?)?;
             bytes = add(bytes, mul(largest_type, width)?)?;
             bytes = add(bytes, size_of::<Vec<DataType>>() + 2 * size_of::<usize>())?;

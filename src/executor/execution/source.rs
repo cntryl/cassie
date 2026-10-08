@@ -970,3 +970,7 @@ mod source_qualification;
 #[cfg(test)]
 #[path = "source_alias_accounting_tests.rs"]
 mod alias_accounting_tests;
+
+#[cfg(test)]
+#[path = "source_projection_admission_tests.rs"]
+mod projection_admission_tests;

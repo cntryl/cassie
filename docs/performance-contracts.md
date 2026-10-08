@@ -148,6 +148,23 @@ Remote embedding providers expose controlled document and query methods. Each re
 
 - Time-series queries use ordered partition/timestamp bounds and point-fetch candidate rows. FLOAT zero partition equality conservatively scans the selected timestamp range across partitions because stored signed-zero spellings differ; authoritative SQL residual filtering preserves equality under the same query controls. Nonzero partition values retain narrowing. Unsupported shapes use a labelled row fallback.
 - Graph traversal reads controlled pages from edge-type-first prefixes when filtered and weight-first node prefixes when unfiltered. Both-direction scans merge by weight and edge ID. Frontier, visited, path, edge, and output state are accounted before retention; `54000` returns no partial traversal. Transaction overlays, `missing-sidecar-manifest`, `sidecar-format-mismatch`, `malformed-sidecar`, and `concurrent-source-change` use the exact session-aware row path.
+
+The successor DOM004 contract selected on 2026-10-08 requires authoritative
+verification before each native neighborhood read. Verification and adjacency
+selection must use the same immutable Data transaction. It compares exact keys
+derived from authoritative edges with the complete adjacency namespace, including
+manifest count, version and generation. Missing, substituted, extra or malformed
+members select the exact controlled row fallback; cancellation, deadlines and
+resource denial propagate without partial publication. Verification performs
+O(N + K) reads and O(N) retained key state for N authoritative edges and K adjacency
+members, normally K = 4N. Each independently opened neighborhood repeats this
+work. Exact-key sorting and lookup add O(N log N + K log N) comparison work;
+geometric key-slot growth retains old/new overlap. All verification, selected-prefix and fallback reads remain observable;
+LIMIT 1 no longer promises at most two entries or four storage reads. Existing
+query budgets bound retained state, and page boundaries check cancellation and
+deadlines. No persistent format, generation-only certificate cache or shared
+statement snapshot is introduced by this selection. This successor contract is
+selected for implementation; existing behavior is not yet qualified against it.
 - Column-batch execution uses typed vectors, validity and selection vectors, segment summaries, and streaming aggregates. Its canonical derived layout is a little-endian `CBM2` manifest plus separate `CBR2` row-ID and `CBC2` field chunks. Manifest publication is atomic, segment IDs are immutable, revisions fence chunk generations, and row ranges are stable and half-open. SHA-256 protects every required chunk. Codec tag 5 identifies ALP and tag 6 identifies FSST; both manifest codec versions are 1. Unknown codec tags or versions fail closed instead of entering a compatibility reader. A missing, corrupt, stale, unsupported, or over-limit required chunk aborts the complete accelerated attempt and selects authoritative rows; partial accelerated results are never returned.
 - Column scans follow summary pruning, predicate-chunk reads, a selection bitmap, requested projection-chunk reads, and selected-value materialization. Dictionary projection chunks validate their complete framing, dictionary, and index stream while allocating scalar values only for selected positions. Supported encoded predicates are conjunctions of equality, range, `IS NULL`, and `IS NOT NULL`, with executor rechecking for exact SQL semantics. Unrequested chunks receive no reads or decodes. Transaction overlays, grouped aggregates, joins, unsupported expressions, and semantics without an exact proof use the row path.
 - Codec selection is deterministic and automatic. Plain fixed-width or bounded variable-width encoding is the baseline. Boolean and null bitmaps, constant values, typed RLE, sorted dictionaries with bit-packed indices, checked 128-value frame-of-reference blocks, FSST UTF-8 symbol streams, and ALP decimal-scaled float blocks are eligible. FSST uses at most 256 deterministic symbols and a bounded 64 KiB UTF-8 symbol table. Its selective decoder validates the complete table, value framing, symbol indices, decoded sizes, and UTF-8 stream while allocating strings only for selected positions. ALP considers finite values at deterministic decimal scales, requires exact IEEE-754 bit reconstruction, and falls back to plain for non-finite values, signed zero, overflow, or non-exact representations. A codec must save at least `max(32 bytes, 5% of the complete plain representation)` and ties prefer lower decode complexity. Constant chunks require identical encoded scalar bytes, preserving signed zero in float and complex values. Recreate a column index built with the earlier semantic-equality constant selector to recover altered signed zeros from authoritative row values; existing chunks are not rewritten by this selection fix. Temporal values remain string-backed and complex values remain bounded plain. Cassie does not layer LZ4 or Zstd over Midge compression.
@@ -268,7 +285,7 @@ Execution-result caching is disabled for every benchmark owner except the dedica
 
 Dynamic SQL values always use bound parameters in benchmarks and their fixtures. SQL formatting is limited to identifiers chosen by a closed, validated helper. Parameterization tests prove that boundary without adding hostile-input examples to benchmark fixtures.
 
-Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
+Successful 100k analytical cases use and record the explicit 64 MiB benchmark-only query-memory profile. The authoritative graph representative uses a separate `authoritative_graph_100k_128m` profile with 128 MiB for complete key verification; other workloads keep 64 MiB. The unchanged 100k graph fixture exceeds 64 MiB under verification (observed admission denial 67,108,887 > 67,108,864). Its four independent neighborhoods permit at most 1,999,992 counted verification/selection reads and eight selected candidates. This replaces proportional column-batch memory overrides and does not change the 10 MiB runtime default.
 The Tier 5 250k analytical curve records a separate 100 MiB benchmark-only profile; it remains a
 hard bound and uses a 120-second per-query timeout so the curve measures completion rather than the
 30-second runtime default. Neither setting widens runtime defaults or the 100k representative

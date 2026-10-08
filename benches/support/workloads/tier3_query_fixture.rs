@@ -80,16 +80,45 @@ pub fn empty_tier3_query_context(
     ready(empty_tier3_query_context_now(label, dataset_rows))
 }
 
+pub const AUTHORITATIVE_GRAPH_QUERY_MEMORY_BYTES: usize = 128 * 1024 * 1024;
+pub const AUTHORITATIVE_GRAPH_RESOURCE_PROFILE: &str = "authoritative_graph_100k_128m";
+
+pub fn tier3_authoritative_graph_context(
+    label: &str,
+    dataset_rows: usize,
+) -> Ready<Result<BenchContext, CassieError>> {
+    ready(
+        empty_tier3_query_context_with_memory_now(
+            label,
+            dataset_rows,
+            AUTHORITATIVE_GRAPH_QUERY_MEMORY_BYTES,
+        )
+        .and_then(|context| prepare_graph(&context, dataset_rows).map(|()| context)),
+    )
+}
+
 fn empty_tier3_query_context_now(
     label: &str,
     dataset_rows: usize,
+) -> Result<BenchContext, CassieError> {
+    empty_tier3_query_context_with_memory_now(
+        label,
+        dataset_rows,
+        ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES,
+    )
+}
+
+fn empty_tier3_query_context_with_memory_now(
+    label: &str,
+    dataset_rows: usize,
+    query_memory_budget_bytes: usize,
 ) -> Result<BenchContext, CassieError> {
     configure_benchmark_environment();
     std::env::set_var("CASSIE_STORAGE_MODE", "local");
     let data_dir = benchmark_data_dir_for_mode(label, BenchmarkStorageMode::Disk);
     let mut config = CassieRuntimeConfig::from_env()
         .map_err(|error| CassieError::Configuration(error.to_string()))?;
-    config.limits.query_memory_budget_bytes = ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES;
+    config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
     config.limits.query_timeout_ms = LARGE_ANALYTICAL_BENCHMARK_QUERY_TIMEOUT_MS;
     config.limits.vectorized_joins_enabled = true;
     config.limits.vectorized_join_batch_size = 1_024;

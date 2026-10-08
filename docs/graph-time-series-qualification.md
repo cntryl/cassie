@@ -8,8 +8,8 @@ Issue [772](https://github.com/cntryl/cassie/issues/772) owns this finite review
 |---|---|---|
 | DOM001 typed node identity and simple paths | Existing case/type/cycle/self-loop owners rerun; independent authoritative edge DFS over64 tiny graph topologies with exact-case IDs, same IDs in other types, case aliases and cycles | Demonstrated for this finite fixture; no universal topology claim |
 | DOM002 globally cheapest bounded simple paths | Existing shared-prefix/costlier-prefix/depth/weight tests;64 topologies ×4 depth bounds ×3 requested path counts =768 independent oracle comparisons, validating costs and every returned edge path | Demonstrated for this finite matrix; completed simple-path implementation retained |
-| DOM003 atomic graph/query resources | Existing graph tiny-memory, deterministic entry cancellation, native type-isolated bound, specialized graph/time-series path/fallback tests rerun | Demonstrated existing controls; no latency or provider-wide promotion |
-| DOM004 own writes, lifecycle and adjacency completeness | Existing own insert/update/delete/savepoint, cross-session and database isolation, rename/drop/restart owners rerun; live missing one type-specific member among valid neighbors returns a silently incomplete native result | **Unresolved confirmed gap; issue772 remains open**. Startup rebuild repairs missing adjacency, but live native completeness is not proved |
+| DOM003 atomic graph/query resources | Existing graph tiny-memory, deterministic entry cancellation, selected prefix/candidate controls, specialized graph/time-series path/fallback tests rerun; the prior cold read law is superseded below | Demonstrated existing controls; no latency or provider-wide promotion |
+| DOM004 own writes, lifecycle and adjacency completeness | Existing own insert/update/delete/savepoint, cross-session and database isolation, rename/drop/restart owners rerun; live missing one type-specific member among valid neighbors returns a silently incomplete native result | Private authoritative verifier implemented; genuine missing-member RED and finite completeness/resource/benchmark GREEN recorded below. Issue772 remains open until final full and hosted acceptance |
 | DOM005 UTC boundaries, partition identity and authoritative filters | Existing width/negative-epoch/parameter/subsecond/tab-partition/row-vs-index owners rerun; focused FLOAT signed-zero equality regression compares native retrieval with authoritative unindexed twin, including both stored spellings | Signed-zero repair widens zero partition lookup and retains exact residual filtering; no stored-format change |
 | DOM006 incomplete membership and retention effects | Existing one missing member, dangling member, missing/corrupt count/manifest, stale generation, old/missing manifest restart, DML, retention/FK/projection/rollup failure/debt owners rerun | Demonstrated finite existing recovery and lifecycle controls; no new cloud/interruption guarantee |
 
@@ -25,7 +25,62 @@ A FLOAT partition parameter `-0.0` is SQL-equal to `+0.0`. Previous partition ad
 
 The [live adjacency finding](https://github.com/cntryl/cassie/issues/772#issuecomment-6043589425) removes only one `OE` member while retaining valid neighboring members, all authoritative rows, redundant keys and unchanged source generation/manifest. With result caching disabled, the selected type-specific native scan silently omits that edge. Existing startup reconciliation compares exact source-derived key sets and rebuilds the missing entry. Live scan admission checks version/generation but has no per-prefix completeness proof.
 
-No graph runtime or persistent-format change is part of the signed-zero repair. A whole authoritative graph scan would violate current type-specific read bounds; a redundant-prefix comparison would not prove simultaneous missing members. Proposed new formats remain unselected. An authenticated successor chain was rejected during review because every predecessor digest changes after a suffix edit, causing degree-proportional write amplification. No approved exclusion or follow-up issue removes this acceptance criterion. Issue772 must remain open until the existing-law-preserving repair or an explicit support boundary is selected and verified.
+The earlier signed-zero repair changed no graph runtime or persistent format. At that decision boundary, a whole authoritative graph scan would violate the then-current type-specific read bounds; a redundant-prefix comparison would not prove simultaneous missing members. Proposed new formats remain unselected. An authenticated successor chain was rejected during review because every predecessor digest changes after a suffix edit, causing degree-proportional write amplification. No approved exclusion or follow-up issue removes this acceptance criterion. Issue772 must remain open until the existing-law-preserving repair or an explicit support boundary is selected and verified.
+
+On 2026-10-08 the user selected controlled authoritative verification for each
+neighborhood, accepting linear reads and memory without a storage-format change.
+The successor [performance contract](performance-contracts.md) replaces the cold
+LIMIT 1 two-entry/four-read guarantee with counted O(N + K) verification followed
+by the selected prefix read. Exact source-derived keys and all adjacency members
+must agree within the same Data transaction before native publication. A
+generation-only certificate is insufficient because raw sidecar deletion can
+leave the source generation unchanged. Column-store sources require equivalent
+same-transaction authority or the existing exact fallback. This decision is
+implementation authorization, not execution evidence: DOM004 and issue772 remain
+open until genuine regressions, controlled resource and lifecycle probes, finite
+read/memory benchmark evidence and the complete validation gates pass.
+
+## Authoritative verification repair evidence
+
+The private verifier derives all four exact adjacency keys from authoritative
+row records and compares every member in the same Data transaction before
+native selection. Manifest count, version and source generation remain required.
+It keeps no generation-only completeness memo. Missing, substituted, nonempty
+or extra members select `incomplete-sidecar-membership`; column-store sources
+use `unverified-column-sidecar` and the exact controlled row path. Failed native
+verification reads are included in final fallback evidence.
+
+The actual one-member deletion initially returned the wrong LIMIT 1 edge; the
+repair returns the authoritative lowest-weight edge. Six focused controls pass:
+that regression, warm removal of every redundant member, same-count substitution,
+nonempty/extra keys, cancellation during source/adjacency verification and
+late-member corruption beyond entry128. Existing 13 graph resource/lifecycle
+owners pass with unchanged positive64KiB and negative budgets. The selected
+one-edge startup scan counts seven entries; the 66-edge filtered read counts332.
+The old two-entry/four-read assertions are preserved as superseded evidence.
+
+Five private key controls cover preconstruction denial, escaped/numeric key
+capacity, old/new slot admission at1-to2 and256-to512 growth, and geometric
+capacity. The geometric fixture has genuine RED257 versus512 allocated slots,
+then GREEN. A later ownership refinement retains slot and key owners together
+through sorting/comparison and field destruction. Sorting/binary comparisons
+add O(N log N + K log N) comparison work; geometric slot movement is amortized
+linear. Midge-owned snapshot/block cursor and generic catalog allocations are
+outside this query-owned retained-state claim.
+
+The unchanged100k-node/99999-edge/depth4 graph representative correctly denies
+its old64MiB profile. Two paged-cursor120-second deadline failures are preserved,
+including the geometric-growth attempt. A single lazy Midge iterator per
+verification namespace retains per-entry cancellation/deadline checks without
+reopening each128-entry page. The normal test-profile smoke harness passes with
+a dedicated `authoritative_graph_100k_128m` budget of128MiB: four candidates,
+1,999,989 storage reads, peak accounted memory75,017,445 bytes, no cache hits or
+fallbacks, and zero live query memory/workers. Other analytical profiles remain
+64MiB and the runtime default remains10MiB. One smoke sample is explicitly
+untrustworthy for latency/throughput qualification and establishes no SLA.
+
+These finite results do not replace final immutable-head full/hosted validation.
+Ignored evidence lives under `target/772-preparation/dom004-authoritative-verification/implementation/`.
 
 ## Validation boundary
 

@@ -351,7 +351,8 @@ fn graph_edges(
                     _memory: memory,
                 });
             }
-            GraphEdgeScanOutcome::Fallback(reason) => {
+            GraphEdgeScanOutcome::Fallback { reason, reads } => {
+                evidence.reads = evidence.reads.saturating_add(reads);
                 evidence.fallback_reason = Some(reason);
             }
         }

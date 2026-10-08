@@ -2216,7 +2216,7 @@ mod graph_resilience {
 
         // Assert
         assert_eq!(rows, vec![vec![Value::String("e1".into())]]);
-        assert_eq!(visited, 1, "startup should rebuild the bounded sidecar");
+        assert_eq!(visited, 7, "one source row, four members, manifest and selected member");
         let _ = std::fs::remove_dir_all(path);
     });
     }
@@ -2229,7 +2229,7 @@ mod graph_resilience {
     }
 
     #[test]
-    fn should_bound_filtered_native_graph_reads_to_the_requested_edge_type() {
+    fn should_verify_all_authoritative_edges_before_filtered_native_graph_reads() {
         // Arrange
         let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
@@ -2290,8 +2290,9 @@ mod graph_resilience {
         // Assert
         assert_eq!(rows, vec![vec![Value::String("knows-1".into())]]);
         assert!(visited > 0, "native graph reads must be observable");
-        assert!(visited <= 2, "expected bounded edge-type reads, got {visited}");
-        assert!(reads <= 4, "expected bounded storage reads, got {reads}");
+        assert_eq!(visited, 66 * 5 + 2, "authoritative source, complete sidecar and selected member");
+        assert_eq!(after["graph"]["last_reads"].as_u64(), Some(visited));
+        assert!(reads <= visited * 2 + 4, "linear storage-read bound, got {reads}");
         assert_eq!(
             after["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)

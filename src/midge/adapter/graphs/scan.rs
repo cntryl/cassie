@@ -30,20 +30,39 @@ impl Midge {
         let edge_collection = self.canonical_collection_name(&graph.edge_collection);
         let tx = self.begin_data_readonly_tx_for(&edge_collection)?;
         let Some(manifest) = load_manifest(&tx, graph.storage_id)? else {
-            return Ok(GraphEdgeScanOutcome::Fallback("missing-sidecar-manifest"));
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "missing-sidecar-manifest",
+                reads: 0,
+            });
         };
         if manifest.format_version != GRAPH_ADJACENCY_FORMAT_VERSION {
-            return Ok(GraphEdgeScanOutcome::Fallback("sidecar-format-mismatch"));
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "sidecar-format-mismatch",
+                reads: 0,
+            });
         }
         let snapshot_generation = collection_generation_from_tx(&tx, &edge_collection)?;
         if manifest.source_generation != snapshot_generation {
-            return Ok(GraphEdgeScanOutcome::Fallback(
-                "sidecar-generation-mismatch",
-            ));
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "sidecar-generation-mismatch",
+                reads: 0,
+            });
         }
 
-        let mut edges = AccountedVec::try_new(controls)?;
         let mut reads = 0usize;
+        if self.collection_uses_column_store(&edge_collection)? {
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "unverified-column-sidecar",
+                reads,
+            });
+        }
+        if !self.verify_graph_adjacency_controlled(&tx, &graph, &manifest, controls, &mut reads)? {
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "incomplete-sidecar-membership",
+                reads,
+            });
+        }
+        let mut edges = AccountedVec::try_new(controls)?;
         if request.limit != Some(0) {
             for prefix_request in graph_prefix_scans(
                 &graph,
@@ -62,7 +81,10 @@ impl Midge {
                 ) {
                     Ok(()) => {}
                     Err(CassieError::Parse(_)) => {
-                        return Ok(GraphEdgeScanOutcome::Fallback("malformed-sidecar"));
+                        return Ok(GraphEdgeScanOutcome::Fallback {
+                            reason: "malformed-sidecar",
+                            reads,
+                        });
                     }
                     Err(error) => return Err(error),
                 }
@@ -71,7 +93,10 @@ impl Midge {
         check_controls(controls)?;
         drop(tx);
         if self.collection_generation(&edge_collection)? != snapshot_generation {
-            return Ok(GraphEdgeScanOutcome::Fallback("concurrent-source-change"));
+            return Ok(GraphEdgeScanOutcome::Fallback {
+                reason: "concurrent-source-change",
+                reads,
+            });
         }
 
         let (mut edges, memory) = edges.into_parts();

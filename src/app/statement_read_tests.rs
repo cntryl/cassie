@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 thread_local! {
     static AFTER_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
+    static BEFORE_CAPTURE: RefCell<Option<Box<dyn FnOnce()>>> = RefCell::new(None);
 }
 
 pub(super) fn after_statement_view_capture() {
@@ -16,7 +17,31 @@ pub(super) fn after_statement_view_capture() {
     }
 }
 
+pub(super) fn before_statement_view_capture() {
+    let callback = BEFORE_CAPTURE.with(|slot| slot.borrow_mut().take());
+    if let Some(callback) = callback {
+        callback();
+    }
+}
+
 struct CaptureHook;
+struct BeforeCaptureHook;
+
+impl BeforeCaptureHook {
+    fn install(callback: impl FnOnce() + 'static) -> Self {
+        BEFORE_CAPTURE.with(|slot| {
+            assert!(slot.borrow().is_none(), "one scoped pre-capture hook");
+            *slot.borrow_mut() = Some(Box::new(callback));
+        });
+        Self
+    }
+}
+
+impl Drop for BeforeCaptureHook {
+    fn drop(&mut self) {
+        BEFORE_CAPTURE.with(|slot| slot.borrow_mut().take());
+    }
+}
 
 impl CaptureHook {
     fn install(callback: impl FnOnce() + 'static) -> Self {
@@ -345,4 +370,77 @@ fn should_validate_commit_against_fresh_gated_data_inside_a_read_scope() {
         current_children.is_empty(),
         "failed commit publishes no orphan"
     );
+}
+
+#[test]
+fn should_key_cached_results_to_the_captured_data_epoch() {
+    // Arrange
+    let path =
+        std::env::temp_dir().join(format!("cassie-statement-cache-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let reader = cassie.create_session("reader", None);
+    let writer = cassie.create_session("writer", None);
+    execute(
+        &cassie,
+        &writer,
+        "CREATE TABLE epoch_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(&cassie, &writer, "INSERT INTO epoch_rows VALUES (1, 10)");
+    let sql = "SELECT n FROM epoch_rows";
+    let warm = execute(&cassie, &reader, sql);
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let (resume_tx, resume_rx) = std::sync::mpsc::channel();
+    let (finished_tx, finished_rx) = std::sync::mpsc::channel();
+    let old_cassie = Arc::clone(&cassie);
+    let old_reader = reader.clone();
+    let old_query = std::thread::spawn(move || {
+        let _hook = CaptureHook::install(move || {
+            ready_tx.send(()).expect("captured old view");
+            resume_rx
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .expect("resume old query");
+        });
+        let result = execute(&old_cassie, &old_reader, sql);
+        finished_tx
+            .send(result.clone())
+            .expect("old query result stored");
+        result
+    });
+    ready_rx
+        .recv_timeout(std::time::Duration::from_secs(30))
+        .expect("old query capture");
+    let writer_cassie = Arc::clone(&cassie);
+    let old_result = Arc::new(parking_lot::Mutex::new(None));
+    let recorded = Arc::clone(&old_result);
+    let _hook = BeforeCaptureHook::install(move || {
+        execute(&writer_cassie, &writer, "UPDATE epoch_rows SET n = 110");
+        resume_tx
+            .send(())
+            .expect("resume old owner after cache invalidation");
+        *recorded.lock() = Some(
+            finished_rx
+                .recv_timeout(std::time::Duration::from_secs(30))
+                .expect("old result stored under epochE"),
+        );
+    });
+
+    // Act
+    let newer_capture = execute(&cassie, &reader, sql);
+    let old_capture = old_query.join().expect("old captured query");
+    let fresh = execute(&cassie, &reader, sql);
+    let observed_old = old_result.lock().take().expect("old completion");
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert_eq!(warm, vec![vec![Value::Int64(10)]]);
+    assert_eq!(old_capture, warm);
+    assert_eq!(observed_old, warm);
+    assert_eq!(
+        newer_capture,
+        vec![vec![Value::Int64(110)]],
+        "captured new epoch cannot hit old in-flight result"
+    );
+    assert_eq!(fresh, newer_capture);
 }

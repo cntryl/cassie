@@ -214,6 +214,12 @@ pub(super) fn data_epoch_key() -> Vec<u8> {
     key(FAMILY_DATA_EPOCH, &[])
 }
 
+pub(super) fn data_epoch_key_scratch_bytes() -> usize {
+    // encode owns three borrowed-component slots and one exact-capacity key
+    // buffer. Composite encoding copies these fixed parts with two separators.
+    3 * std::mem::size_of::<&[u8]>() + ROOT.len() + BASELINE.len() + FAMILY_DATA_EPOCH.len() + 3
+}
+
 pub(super) fn object_id_counter_key() -> Vec<u8> {
     key(FAMILY_OBJECT_ID_COUNTER, &[])
 }

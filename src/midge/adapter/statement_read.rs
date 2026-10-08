@@ -15,6 +15,7 @@ pub(crate) struct StatementDataRead {
     tx: cntryl_midge::Transaction,
     midge: Arc<Midge>,
     database: String,
+    data_epoch: u64,
     _memory: QueryMemoryReservation,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
 }
@@ -35,6 +36,10 @@ impl StatementDataRead {
         controls: &QueryExecutionControls,
     ) -> Result<Arc<Self>, CassieError> {
         Self::capture_with_overlay(midge, database, controls, None)
+    }
+
+    pub(crate) const fn data_epoch(&self) -> u64 {
+        self.data_epoch
     }
 
     pub(crate) fn overlay(&self) -> Option<&Arc<crate::app::StatementOverlay>> {
@@ -63,10 +68,15 @@ impl StatementDataRead {
             })?;
         let memory = controls.reserve_query_memory(bytes)?;
         let tx = midge.database_tx(database, TransactionMode::ReadOnly)?;
+        let epoch_scratch =
+            controls.reserve_query_memory(super::key_encoding::data_epoch_key_scratch_bytes())?;
+        let data_epoch = Midge::load_data_epoch_from_tx(&tx)?;
+        drop(epoch_scratch);
         Ok(Arc::new(Self {
             tx,
             midge: Arc::clone(midge),
             database: database.to_owned(),
+            data_epoch,
             _memory: memory,
             overlay,
         }))

@@ -143,6 +143,9 @@ impl Cassie {
         )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
+        #[cfg(test)]
+        super::statement_read_tests::before_statement_view_capture();
+
         let owner = if is_data_read {
             Some(
                 session.capture_statement_read(
@@ -161,6 +164,12 @@ impl Cassie {
         // suspends a reader scope rather than borrowing its stale validation view.
         let statement_controls = controls.with_statement_read(owner);
         let controls = &statement_controls;
+        if let (Some(key), Some(owner)) = (
+            cache_context.exec_cache_key.as_mut(),
+            controls.statement_read(),
+        ) {
+            key.data_epoch = owner.data_epoch();
+        }
         let _read_scope =
             crate::midge::adapter::StatementReadScope::enter(controls.statement_read());
 

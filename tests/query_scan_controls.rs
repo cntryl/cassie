@@ -2216,7 +2216,7 @@ mod graph_resilience {
 
         // Assert
         assert_eq!(rows, vec![vec![Value::String("e1".into())]]);
-        assert_eq!(visited, 1, "startup should rebuild the bounded sidecar");
+        assert_eq!(visited, 7, "one source row, four members, manifest and selected member");
         let _ = std::fs::remove_dir_all(path);
     });
     }
@@ -2229,7 +2229,7 @@ mod graph_resilience {
     }
 
     #[test]
-    fn should_bound_filtered_native_graph_reads_to_the_requested_edge_type() {
+    fn should_verify_all_authoritative_edges_before_filtered_native_graph_reads() {
         // Arrange
         let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
         use_local_storage();
@@ -2290,8 +2290,9 @@ mod graph_resilience {
         // Assert
         assert_eq!(rows, vec![vec![Value::String("knows-1".into())]]);
         assert!(visited > 0, "native graph reads must be observable");
-        assert!(visited <= 2, "expected bounded edge-type reads, got {visited}");
-        assert!(reads <= 4, "expected bounded storage reads, got {reads}");
+        assert_eq!(visited, 66 * 5 + 2, "authoritative source, complete sidecar and selected member");
+        assert_eq!(after["graph"]["last_reads"].as_u64(), Some(visited));
+        assert!(reads <= visited * 2 + 4, "linear storage-read bound, got {reads}");
         assert_eq!(
             after["query"]["current_accounted_memory_bytes"].as_u64(),
             Some(0)
@@ -3081,7 +3082,8 @@ mod specialized_query_controls {
         const fn controlled_read_bound(self) -> u64 {
             match self {
                 Self::TimeSeries => (3 * FIXTURE_ROWS + 1) as u64,
-                Self::ColumnProjection | Self::ColumnAggregate | Self::Graph => FIXTURE_ROWS as u64,
+                Self::ColumnProjection | Self::ColumnAggregate => FIXTURE_ROWS as u64,
+                Self::Graph => (5 * FIXTURE_ROWS + 1 + RESULT_LIMIT) as u64,
             }
         }
     }
@@ -3451,7 +3453,10 @@ mod specialized_query_controls {
                 (2 * FIXTURE_ROWS) as u64
             ),
             AnalyticalFamily::Graph => {
-                assert!(metric(after, "graph", "last_reads") <= FIXTURE_ROWS as u64);
+                assert!(
+                    metric(after, "graph", "last_reads")
+                        <= (5 * FIXTURE_ROWS + 1 + RESULT_LIMIT) as u64
+                );
                 assert!(metric(after, "graph", "last_candidates") <= FIXTURE_ROWS as u64);
             }
         }
@@ -3544,6 +3549,47 @@ mod specialized_query_controls {
         }
     }
 
+    fn assert_graph_fallback_metrics(
+        fallback: &FallbackEvidence,
+        selected_metrics: &serde_json::Value,
+    ) {
+        let final_metrics = &fallback.final_metrics;
+        let overlay_metrics = fallback
+            .overlay_metrics
+            .as_ref()
+            .expect("graph overlay metrics");
+        assert_eq!(
+            metric(overlay_metrics, "graph", "traversals")
+                - metric(selected_metrics, "graph", "traversals"),
+            1
+        );
+        assert_eq!(
+            overlay_metrics["graph"]["last_fallback_reason"].as_str(),
+            Some("transaction-overlay")
+        );
+        assert!(metric(overlay_metrics, "graph", "last_reads") <= 65);
+        assert!(metric(overlay_metrics, "graph", "last_candidates") <= 65);
+        assert!(
+            metric(overlay_metrics, "graph", "reads") - metric(selected_metrics, "graph", "reads")
+                <= 65
+        );
+        assert!(
+            metric(overlay_metrics, "graph", "candidates")
+                - metric(selected_metrics, "graph", "candidates")
+                <= 65
+        );
+        assert_eq!(
+            metric(final_metrics, "graph", "traversals")
+                - metric(overlay_metrics, "graph", "traversals"),
+            1
+        );
+        assert!(
+            metric(final_metrics, "graph", "last_reads")
+                <= (5 * (FIXTURE_ROWS + 1) + 1 + RESULT_LIMIT) as u64
+        );
+        assert!(metric(final_metrics, "graph", "last_candidates") <= FIXTURE_ROWS as u64);
+    }
+
     #[test]
     fn should_publish_only_deterministic_bounded_final_analytical_paths() {
         let _hook_guard = query_scan_control_test_guard();
@@ -3608,38 +3654,7 @@ mod specialized_query_controls {
                 family.label()
             );
             if matches!(family, AnalyticalFamily::Graph) {
-                let overlay_metrics = fallback
-                    .overlay_metrics
-                    .as_ref()
-                    .expect("graph overlay metrics");
-                assert_eq!(
-                    metric(overlay_metrics, "graph", "traversals")
-                        - metric(&selected_metrics, "graph", "traversals"),
-                    1
-                );
-                assert_eq!(
-                    overlay_metrics["graph"]["last_fallback_reason"].as_str(),
-                    Some("transaction-overlay")
-                );
-                assert!(metric(overlay_metrics, "graph", "last_reads") <= 65);
-                assert!(metric(overlay_metrics, "graph", "last_candidates") <= 65);
-                assert!(
-                    metric(overlay_metrics, "graph", "reads")
-                        - metric(&selected_metrics, "graph", "reads")
-                        <= 65
-                );
-                assert!(
-                    metric(overlay_metrics, "graph", "candidates")
-                        - metric(&selected_metrics, "graph", "candidates")
-                        <= 65
-                );
-                assert_eq!(
-                    metric(final_metrics, "graph", "traversals")
-                        - metric(overlay_metrics, "graph", "traversals"),
-                    1
-                );
-                assert!(metric(final_metrics, "graph", "last_reads") <= FIXTURE_ROWS as u64);
-                assert!(metric(final_metrics, "graph", "last_candidates") <= FIXTURE_ROWS as u64);
+                assert_graph_fallback_metrics(&fallback, &selected_metrics);
             } else {
                 assert_eq!(
                     family.successful_paths(final_metrics),

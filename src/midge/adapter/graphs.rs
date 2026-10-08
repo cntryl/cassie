@@ -8,6 +8,8 @@ use super::{encode_row, CassieError, Midge, Uuid};
 mod reconcile;
 #[path = "graphs/scan.rs"]
 mod scan;
+#[path = "graphs/verification.rs"]
+mod verification;
 
 /// Version 2 folds the anchor node type to lowercase in adjacency keys, so
 /// version 1 sidecars fall back to the row scan until reconcile rebuilds them.
@@ -26,7 +28,10 @@ pub(crate) enum GraphEdgeScanOutcome {
         memory: crate::runtime::QueryMemoryReservation,
         reads: usize,
     },
-    Fallback(&'static str),
+    Fallback {
+        reason: &'static str,
+        reads: usize,
+    },
 }
 
 pub(crate) struct GraphEdgeScanRequest<'a> {

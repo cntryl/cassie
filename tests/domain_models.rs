@@ -1,6 +1,8 @@
 // Consolidated integration suite: domain_models.
 // Shared fixtures live in tests/support; former test targets remain named modules.
 
+#[path = "domain_models/graph_completeness.rs"]
+mod graph_completeness;
 #[path = "support/graph.rs"]
 mod support_graph;
 #[path = "support/graph_neighbors.rs"]

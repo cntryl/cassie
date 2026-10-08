@@ -2059,7 +2059,11 @@ mod benchmark_harness_contract {
     #[test]
     fn should_require_bounded_result_evidence_from_tier3_specialized_queries() {
         // Arrange
-        let source = include_str!("../benches/tier3_system_query.rs");
+        let source = [
+            include_str!("../benches/tier3_system_query.rs"),
+            include_str!("../benches/tier3_system_query/graph.rs"),
+        ]
+        .join("\n");
 
         // Act
         let evidence_helpers = [

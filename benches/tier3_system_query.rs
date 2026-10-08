@@ -14,7 +14,6 @@ const FULLTEXT_SQL: &str = "SELECT _id, search_score(body, $1) AS score FROM ben
 const VECTOR_SQL: &str = "SELECT _id, vector_distance(embedding, $1) AS distance FROM bench_documents ORDER BY distance ASC LIMIT 20";
 const HYBRID_SQL: &str = "SELECT _id, hybrid_score(search_score(body, $1), vector_score(embedding, $2)) AS score FROM bench_documents ORDER BY score DESC LIMIT 20";
 const JOIN_SQL: &str = "SELECT bench_join_users.name, bench_join_orders.total FROM bench_join_users JOIN bench_join_orders ON bench_join_users.user_key = bench_join_orders.order_user_key LIMIT 50";
-const GRAPH_SQL: &str = "SELECT node_id FROM graph_expand($1, $2, $3, $4, $5, $6, $7)";
 const TIME_SERIES_SQL: &str = "SELECT tenant, amount FROM bench_time_series_events WHERE tenant = $1 AND event_at >= $2 AND event_at < $3 ORDER BY event_at LIMIT 512";
 const EXPECTED_COLUMN_ROW: [Value; 5] = [
     Value::Int64(5_000),
@@ -23,7 +22,6 @@ const EXPECTED_COLUMN_ROW: [Value; 5] = [
     Value::Int64(90),
     Value::Int64(98),
 ];
-const EXPECTED_GRAPH_NODES: [&str; 4] = ["node-1", "node-2", "node-3", "node-4"];
 const TIME_SERIES_EXPECTED_ROWS: usize = 512;
 const COLUMN_SEGMENTS: u64 = 391;
 const COLUMN_QUERIES_PER_BATCH: u64 = 32;
@@ -31,7 +29,6 @@ const VECTOR_EXACT_QUERIES_PER_BATCH: u64 = 2;
 const INDEXED_VECTOR_QUERIES_PER_BATCH: u64 = 4;
 const JOIN_QUERIES_PER_BATCH: u64 = 4;
 const TIME_SERIES_QUERIES_PER_BATCH: u64 = 2;
-const GRAPH_READ_BOUND: u64 = 8;
 const VECTOR_DIMENSIONS: usize = 3;
 const VECTOR_FIXTURE_SEED: u64 = 0;
 const VECTOR_TOP_K: usize = 20;
@@ -43,6 +40,9 @@ const IVFFLAT_PROBES: usize = 16;
 const IVFFLAT_TRAINING_SAMPLE_SIZE: usize = 4_096;
 const IVFFLAT_TRAINING_SEED: u64 = 42;
 const ANN_RECALL_FLOOR: f64 = 0.90;
+
+#[path = "tier3_system_query/graph.rs"]
+mod graph;
 
 #[path = "support/fixture_dir.rs"]
 mod fixture_dir;
@@ -92,7 +92,7 @@ fn main() {
         FIXTURE_ROWS,
         workloads::Tier3QueryDomains {
             join: join_case.is_some(),
-            graph: graph_case.is_some(),
+            graph: false,
             time_series: false,
         },
     )
@@ -102,7 +102,7 @@ fn main() {
 
     bench_core_representatives(&mut runner, &context, fixture_setup, core_cases);
     bench_join_representative(&mut runner, &context, fixture_setup, join_case);
-    bench_graph_representative(&mut runner, &context, fixture_setup, graph_case);
+    graph::bench_authoritative_graph_representative(&mut runner, &runtime, graph_case);
     bench_time_series_representatives(&mut runner, &runtime, time_series_cases);
     workloads::assert_result_cache_disabled(&context);
 
@@ -533,52 +533,6 @@ fn bench_join_representative(
     assert_metric_unchanged(&before, &after, "joins", "vectorized_fallbacks");
 }
 
-fn bench_graph_representative(
-    runner: &mut stress::CassieStressRunner,
-    context: &workloads::BenchContext,
-    fixture_setup: Duration,
-    case: Option<stress::StressCase>,
-) {
-    let Some(case) = case else {
-        return;
-    };
-    let case_setup = Instant::now();
-    workloads::assert_fixture_boundaries(context, "bench_graph_nodes", "node-0", "node-99999");
-    let preflight =
-        workloads::assert_explain_contains(context, GRAPH_SQL, graph_params(), "operators=");
-    let case = evidenced(
-        case,
-        context,
-        fixture_setup + case_setup.elapsed(),
-        preflight,
-    );
-    let before = context.cassie.metrics();
-    runner.measure_batch(case, 1, || execute_graph_evidence(context));
-    let after = context.cassie.metrics();
-    assert_metric_increased(&before, &after, "graph", "traversals");
-    let operations = metric_delta(&before, &after, "graph", "traversals");
-    assert_eq!(
-        metric_delta(&before, &after, "graph", "rows"),
-        operations.saturating_mul(
-            u64::try_from(EXPECTED_GRAPH_NODES.len()).expect("graph result count should fit u64"),
-        ),
-        "Tier 3 graph result metrics"
-    );
-    let read_bound = operations.saturating_mul(GRAPH_READ_BOUND);
-    assert_metric_delta_bounded(&before, &after, "graph", "reads", read_bound);
-    assert_metric_delta_bounded(&before, &after, "graph", "candidates", read_bound);
-    assert!(
-        metric(&after, "graph", "last_reads") <= GRAPH_READ_BOUND,
-        "Tier 3 graph final-path read bound"
-    );
-    assert!(
-        metric(&after, "graph", "last_candidates") <= GRAPH_READ_BOUND,
-        "Tier 3 graph final-path candidate bound"
-    );
-    assert_storage_read_bound(&before, &after, read_bound.saturating_mul(2));
-    assert_query_cleanup(context);
-}
-
 fn bench_time_series_representatives(
     runner: &mut stress::CassieStressRunner,
     runtime: &tokio::runtime::Runtime,
@@ -793,19 +747,6 @@ fn assert_vector_ordering(rows: &[Vec<Value>]) {
     }
 }
 
-fn execute_graph_evidence(context: &workloads::BenchContext) -> usize {
-    let result = context
-        .cassie
-        .execute_sql(&context.session, GRAPH_SQL, graph_params())
-        .expect("Tier 3 graph representative query");
-    let expected = EXPECTED_GRAPH_NODES
-        .into_iter()
-        .map(|node| vec![Value::String(node.to_string())])
-        .collect::<Vec<_>>();
-    assert_eq!(result.rows, expected, "Tier 3 graph expansion result");
-    std::hint::black_box(result.rows.len())
-}
-
 #[derive(Clone, Copy)]
 enum VectorIndexKind {
     Hnsw,
@@ -872,18 +813,6 @@ fn hybrid_params() -> Vec<Value> {
     vec![
         Value::String("alpha delta".to_string()),
         Value::Vector(Vector::new(vec![1.0, 0.0, 0.0])),
-    ]
-}
-
-fn graph_params() -> Vec<Value> {
-    vec![
-        Value::String("bench_graph".to_string()),
-        Value::String("doc".to_string()),
-        Value::String("node-0".to_string()),
-        Value::Int64(4),
-        Value::String("out".to_string()),
-        Value::String("links".to_string()),
-        Value::Int64(64),
     ]
 }
 
@@ -971,6 +900,10 @@ fn storage_reads(snapshot: &serde_json::Value) -> u64 {
 }
 
 fn assert_query_cleanup(context: &workloads::BenchContext) {
+    assert_query_cleanup_with_budget(context, workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES);
+}
+
+fn assert_query_cleanup_with_budget(context: &workloads::BenchContext, budget: usize) {
     let metrics = context.cassie.metrics();
     assert_eq!(
         metric(&metrics, "runtime", "running_queries"),
@@ -989,8 +922,7 @@ fn assert_query_cleanup(context: &workloads::BenchContext) {
     );
     assert!(
         metric(&metrics, "query", "peak_accounted_memory_bytes")
-            <= u64::try_from(workloads::ANALYTICAL_BENCHMARK_QUERY_MEMORY_BYTES)
-                .expect("Tier 3 memory budget should fit u64"),
+            <= u64::try_from(budget).expect("Tier 3 memory budget should fit u64"),
         "Tier 3 peak query memory bound"
     );
 }

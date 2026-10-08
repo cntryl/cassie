@@ -66,6 +66,9 @@ and current CHECK/DEFAULT definition routes. Include supported direct durable
 metadata admission, generated definitions and definition parsing/use after
 restore/replay. Quoted/comment text is not an operator. Preserve existing
 in-memory registration signatures and current CHECK/default grammar.
+Nested SQL definition admission also propagates the exact selected parser
+rejection from CHECK/default guards before publication. Other malformed or
+unsupported stored SQL keeps its existing caller-owned diagnostics.
 
 Opaque stored bytes are not rewritten; startup does not reject a keyword
 substring. Existing definitions and no-op/authorization semantics remain

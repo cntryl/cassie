@@ -296,3 +296,139 @@ fn should_reject_loaded_index_predicate_use() {
         "should_reject_loaded_index_predicate_use should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
 }
+
+#[test]
+fn should_reject_nested_default_parser_guard_before_procedure_publication() {
+    // Arrange
+    let fixture = sql_fixture("null_safe_nested_default_parser", &[]);
+    let procedure = cassie::catalog::ProcedureMeta {
+        name: "forbidden_parser_default".into(),
+        args: vec![],
+        body: "CREATE TABLE nested_default (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))"
+            .into(),
+    };
+    let parser_error =
+        cassie::sql::parse_statement(&procedure.body).expect_err("selected parser guard");
+    assert_eq!(parser_error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(parser_error.message().contains("persisted definitions"));
+
+    // Act
+    let result = fixture.cassie.midge.put_procedure(&procedure);
+    let published = fixture
+        .cassie
+        .midge
+        .get_procedure(&procedure.name)
+        .expect("read procedure");
+
+    // Assert
+    eprintln!("nested DEFAULT procedure published={}", published.is_some());
+    assert!(
+        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        "nested DEFAULT must preserve selected Unsupported rejection"
+    );
+    assert!(published.is_none(), "rejected procedure must not publish");
+}
+
+#[test]
+fn should_reject_nested_check_parser_guard_before_procedure_publication() {
+    // Arrange
+    let fixture = sql_fixture("null_safe_nested_check_parser", &[]);
+    let procedure = cassie::catalog::ProcedureMeta {
+        name: "forbidden_parser_check".into(),
+        args: vec![],
+        body: "CREATE TABLE nested_check (n BIGINT CHECK (n IS DISTINCT FROM NULL))".into(),
+    };
+    let parser_error =
+        cassie::sql::parse_statement(&procedure.body).expect_err("selected parser guard");
+    assert_eq!(parser_error.kind(), cassie::sql::SqlErrorKind::Unsupported);
+    assert!(parser_error.message().contains("persisted definitions"));
+
+    // Act
+    let result = fixture.cassie.midge.put_procedure(&procedure);
+    let published = fixture
+        .cassie
+        .midge
+        .get_procedure(&procedure.name)
+        .expect("read procedure");
+
+    // Assert
+    eprintln!("nested CHECK procedure published={}", published.is_some());
+    assert!(
+        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        "nested CHECK must preserve selected Unsupported rejection"
+    );
+    assert!(published.is_none(), "rejected procedure must not publish");
+}
+
+#[test]
+fn should_preserve_unrelated_procedure_parser_admission() {
+    // Arrange
+    let fixture = sql_fixture("null_safe_legacy_parser_admission", &[]);
+    let cases = [
+        (
+            "legacy_malformed",
+            "CREATE TABLE unfinished (",
+            cassie::sql::SqlErrorKind::Syntax,
+        ),
+        (
+            "legacy_unsupported",
+            "VACUUM absent",
+            cassie::sql::SqlErrorKind::Unsupported,
+        ),
+    ];
+    for (name, body, kind) in cases {
+        let parser_error = cassie::sql::parse_statement(body).expect_err("legacy parser rejection");
+        assert_eq!(parser_error.kind(), kind);
+        let procedure = cassie::catalog::ProcedureMeta {
+            name: name.into(),
+            args: vec![],
+            body: body.into(),
+        };
+        // Act
+        let result = fixture.cassie.midge.put_procedure(&procedure);
+        let published = fixture
+            .cassie
+            .midge
+            .get_procedure(name)
+            .expect("read legacy procedure");
+        // Assert
+        assert!(
+            result.is_ok(),
+            "unrelated parser diagnostics remain owned by existing execution callers"
+        );
+        assert_eq!(
+            published.expect("legacy admission remains unchanged").body,
+            body
+        );
+    }
+}
+
+#[test]
+fn should_reject_recursive_procedure_parser_guard() {
+    // Arrange
+    let fixture = sql_fixture("null_safe_recursive_parser_guard", &[]);
+    let procedure = cassie::catalog::ProcedureMeta {
+        name: "forbidden_recursive_parser".into(), args: vec![],
+        body: r#"CREATE PROCEDURE inner_guard() AS "CREATE TABLE nested_guard (n BOOLEAN DEFAULT (NULL IS NOT DISTINCT FROM NULL))""#.into(),
+    };
+    assert!(
+        cassie::sql::parse_statement(&procedure.body).is_ok(),
+        "outer routine syntax is supported"
+    );
+    // Act
+    let result = fixture.cassie.midge.put_procedure(&procedure);
+    let published = fixture
+        .cassie
+        .midge
+        .get_procedure(&procedure.name)
+        .expect("read recursive procedure");
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        "recursive procedure must report the selected Unsupported rejection"
+    );
+    assert!(
+        published.is_none(),
+        "rejected recursive procedure must not publish"
+    );
+}

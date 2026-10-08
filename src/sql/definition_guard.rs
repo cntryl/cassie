@@ -33,10 +33,21 @@ pub(crate) fn expression_sql(sql: &str) -> Result<(), CassieError> {
 }
 
 pub(crate) fn query_sql(sql: &str) -> Result<(), CassieError> {
-    if let Ok(query) = super::parse_statement(sql) {
-        statement(&query)?;
+    match super::parse_statement(sql) {
+        Ok(query) => statement(&query),
+        Err(error)
+            if error.kind() == super::SqlErrorKind::Unsupported
+                && error
+                    .message()
+                    .strip_prefix("unsupported feature: ")
+                    .unwrap_or(error.message())
+                    == DIAGNOSTIC =>
+        {
+            Err(CassieError::Unsupported(DIAGNOSTIC.into()))
+        }
+        // Other malformed/unsupported definitions retain their existing caller diagnostics.
+        Err(_) => Ok(()),
     }
-    Ok(())
 }
 
 pub(crate) fn statement(query: &ParsedStatement) -> Result<(), CassieError> {

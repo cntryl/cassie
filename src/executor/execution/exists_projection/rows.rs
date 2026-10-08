@@ -79,8 +79,24 @@ fn outer_row(
         );
         entries.push((name, value.clone()));
     }
+    let mut aliases = Vec::new();
+    aliases
+        .try_reserve_exact(row.aliases().len().checked_mul(2).ok_or_else(|| {
+            crate::app::CassieError::ResourceLimit("EXISTS alias count overflow".into())
+        })?)
+        .map_err(|error| allocation(&error))?;
+    for (name, index) in row.aliases() {
+        check_timeout(env.controls)?;
+        aliases.push((name.clone(), *index));
+        let literal = row.entries().get(*index).and_then(|(field, _)| {
+            super::super::outer_names::literal_outer_alias(&env.cassie.catalog, source, name, field)
+        });
+        if let Some(literal) = literal.filter(|literal| literal != name) {
+            aliases.push((literal, *index));
+        }
+    }
     let memory = std::sync::Arc::new(memory);
-    let mut outer = BatchRow::new(entries)
+    let mut outer = BatchRow::with_aliases(entries, aliases)
         .with_optional_data_types(row.shared_data_types())
         .with_query_memory(row.query_memory())
         .with_operator_memory(row.operator_memory());

@@ -38,10 +38,13 @@ fn should_retain_enclosing_row_owners_for_exists_scope() {
     let logical =
         super::super::build_logical_plan_in_session(&cassie, None, &statement).expect("inner plan");
     let kind = DataType::Array(Box::new(DataType::Text));
-    let row = BatchRow::new(vec![(
-        "outer.a".into(),
-        crate::types::Value::Json(serde_json::json!(["x".repeat(768), null])),
-    )])
+    let row = BatchRow::with_aliases(
+        vec![(
+            "outer.a".into(),
+            crate::types::Value::Json(serde_json::json!(["x".repeat(768), null])),
+        )],
+        vec![("joined.a".into(), 0)],
+    )
     .with_optional_data_types(Some(Arc::new(vec![kind.clone()])));
     let parent = Arc::new(
         controls
@@ -70,6 +73,11 @@ fn should_retain_enclosing_row_owners_for_exists_scope() {
     drop(parent);
 
     // Assert
+    assert_eq!(
+        retained.get("joined.a"),
+        Some(&retained.entries()[0].1),
+        "qualified alias retains its original entry index"
+    );
     assert!(
         retained.query_memory().is_some(),
         "EXISTS scope must retain the enclosing query owner"
@@ -119,20 +127,27 @@ fn limits(budget: usize) -> crate::config::CassieRuntimeLimits {
 fn input(
     controls: &crate::runtime::QueryExecutionControls,
 ) -> (BatchRow, Arc<crate::runtime::QueryMemoryReservation>) {
-    let row = BatchRow::new(vec![
-        (
-            "outer.a".into(),
-            crate::types::Value::Json(serde_json::json!(["x".repeat(768), null])),
-        ),
-        (
-            "outer.s".into(),
-            crate::types::Value::String("y".repeat(513)),
-        ),
-        (
-            "outer.empty".into(),
-            crate::types::Value::Json(serde_json::json!([])),
-        ),
-    ])
+    let row = BatchRow::with_aliases(
+        vec![
+            (
+                "outer.a".into(),
+                crate::types::Value::Json(serde_json::json!(["x".repeat(768), null])),
+            ),
+            (
+                "outer.s".into(),
+                crate::types::Value::String("y".repeat(513)),
+            ),
+            (
+                "outer.empty".into(),
+                crate::types::Value::Json(serde_json::json!([])),
+            ),
+        ],
+        vec![
+            ("joined.a".into(), 0),
+            ("joined.s".into(), 1),
+            ("joined.empty".into(), 2),
+        ],
+    )
     .with_optional_data_types(Some(Arc::new(vec![
         DataType::Array(Box::new(DataType::Text)),
         DataType::Text,

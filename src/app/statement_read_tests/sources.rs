@@ -271,3 +271,103 @@ fn should_keep_correlated_projection_reads_on_the_captured_version() {
         ]
     );
 }
+
+#[test]
+fn should_preserve_joined_right_alias_indices_for_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    for sql in [
+        "UPDATE read_right SET id = id + 10",
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+        "INSERT INTO read_membership VALUES (12)",
+    ] {
+        execute(&fixture.cassie, &reader, sql);
+    }
+
+    // Act
+    let rows = execute(&fixture.cassie, &reader,
+        "SELECT l.id, EXISTS (SELECT 1 FROM read_membership m WHERE m.id = r.id) AS matched FROM read_left l JOIN read_right r ON r.id = l.id + 10 ORDER BY l.id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_keep_inner_column_priority_with_joined_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(
+        &fixture.cassie,
+        &reader,
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+    );
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO read_membership VALUES (2)",
+    );
+
+    // Act
+    let rows = execute(&fixture.cassie, &reader,
+        "SELECT l.id, EXISTS (SELECT 1 FROM read_membership m WHERE id = 2 AND m.id = l.id) AS matched FROM read_left l JOIN read_right r ON l.id = r.id ORDER BY l.id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_literal_joined_fields_for_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    for sql in [
+        r#"CREATE TABLE read_literal (id INT, "a.b" INT, "A.B" INT)"#,
+        "INSERT INTO read_literal VALUES (1, 1, 2), (2, 2, 1)",
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+        "INSERT INTO read_membership VALUES (1)",
+    ] {
+        execute(&fixture.cassie, &reader, sql);
+    }
+    let ordinary = execute(
+        &fixture.cassie,
+        &reader,
+        r#"SELECT l."a.b", l."A.B" FROM read_literal l JOIN read_right r ON l.id = r.id ORDER BY l.id"#,
+    );
+
+    // Act
+    let rows = execute(
+        &fixture.cassie,
+        &reader,
+        r#"SELECT EXISTS (SELECT 1 FROM read_membership m WHERE m.id = l."a.b") AS lower_match, EXISTS (SELECT 1 FROM read_membership m WHERE m.id = l."A.B") AS upper_match FROM read_literal l JOIN read_right r ON l.id = r.id ORDER BY l.id"#,
+    );
+
+    // Assert
+    assert_eq!(
+        ordinary,
+        vec![
+            vec![Value::Int64(1), Value::Int64(2)],
+            vec![Value::Int64(2), Value::Int64(1)]
+        ]
+    );
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Bool(true), Value::Bool(false)],
+            vec![Value::Bool(false), Value::Bool(true)]
+        ]
+    );
+}

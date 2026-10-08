@@ -23,6 +23,33 @@ pub(super) fn outer_field_name(
         name.to_owned()
     }
 }
+/// Add exact literal spelling only for an alias emitted by its owning source.
+pub(super) fn literal_outer_alias(
+    catalog: &Catalog,
+    source: &QuerySource,
+    name: &str,
+    field: &str,
+) -> Option<String> {
+    if let QuerySource::Join { left, right, .. } = source {
+        return literal_outer_alias(catalog, left, name, field)
+            .or_else(|| literal_outer_alias(catalog, right, name, field));
+    }
+    if !literal_field(catalog, source, field) {
+        return None;
+    }
+    let qualifiers = if let QuerySource::Collection(collection) = source {
+        crate::catalog::qualifier_variants(collection)
+    } else {
+        super::exists_correlated::outer_qualifier(source)
+            .into_iter()
+            .collect()
+    };
+    qualifiers.into_iter().find_map(|qualifier| {
+        let suffix = name.strip_prefix(&qualifier)?.strip_prefix('.')?;
+        (suffix == field).then(|| outer_field_name(catalog, source, Some(&qualifier), field))
+    })
+}
+
 fn literal_field(catalog: &Catalog, source: &QuerySource, name: &str) -> bool {
     match source {
         QuerySource::Aliased { source, .. } => literal_field(catalog, source, name),

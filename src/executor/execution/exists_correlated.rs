@@ -124,7 +124,16 @@ pub(super) fn scoped_outer_row(
             add(add(name.len(), alias)?, value_clone_bytes(value)?)?,
         )?;
     }
-    bytes = add(bytes, lookup_bytes(mul(row.entries().len(), 2)?, names)?)?;
+    for (name, _) in row.aliases() {
+        super::check_timeout(context.controls)?;
+        names = add(names, name.len())?;
+        bytes = add(bytes, add(size_of::<(String, usize)>(), name.len())?)?;
+    }
+    let alias_count = add(row.entries().len(), row.aliases().len())?;
+    bytes = add(
+        bytes,
+        lookup_bytes(add(row.entries().len(), alias_count)?, names)?,
+    )?;
     bytes = add(
         bytes,
         size_of::<crate::runtime::QueryMemoryReservation>() + 2 * size_of::<usize>(),
@@ -132,13 +141,22 @@ pub(super) fn scoped_outer_row(
     let memory = std::sync::Arc::new(context.controls.reserve_query_memory(bytes)?);
     let mut aliases = Vec::new();
     aliases
-        .try_reserve_exact(row.entries().len())
+        .try_reserve_exact(alias_count)
         .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
     for (index, (name, _)) in row.entries().iter().enumerate() {
         super::check_timeout(context.controls)?;
         let column = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
         if !inner_columns.as_slice().contains(&column) {
             aliases.push((column, index));
+        }
+    }
+    for (name, index) in row.aliases() {
+        super::check_timeout(context.controls)?;
+        let qualified =
+            crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified());
+        let column = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
+        if qualified || !inner_columns.as_slice().contains(&column) {
+            aliases.push((name.clone(), *index));
         }
     }
     let mut retained = BatchRow::with_aliases(row.entries().to_vec(), aliases)

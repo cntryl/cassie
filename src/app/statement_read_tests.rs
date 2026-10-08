@@ -623,6 +623,11 @@ fn should_isolate_captured_read_eligibility_from_other_sessions() {
     execute(&cassie, &reader, "INSERT INTO gate_rows VALUES (2, 20)");
     execute(&cassie, &writer, "INSERT INTO gate_rows VALUES (3, 30)");
     let captured_empty = reader.has_collection_changes("gate_rows");
+    let captured_snapshot_empty = reader
+        .staged_write_snapshot("gate_rows")
+        .ordered_changes()
+        .is_empty();
+    let captured_active = reader.read_transaction_is_active();
     let independent_live = writer.has_collection_changes("gate_rows");
     let unrelated = reader.has_collection_changes("unrelated_rows");
     drop(scope);
@@ -638,6 +643,14 @@ fn should_isolate_captured_read_eligibility_from_other_sessions() {
     assert!(
         !captured_empty,
         "late staged writes cannot change the captured empty overlay"
+    );
+    assert!(
+        captured_snapshot_empty,
+        "captured empty map cannot fall through to new live writes"
+    );
+    assert!(
+        captured_active,
+        "captured transaction flag survives the compact empty map"
     );
     assert!(
         independent_live,

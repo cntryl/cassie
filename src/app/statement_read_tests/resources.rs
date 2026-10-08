@@ -28,7 +28,7 @@ fn should_measure_combined_statement_owner_charge_during_materialized_source_exe
     execute(&cassie, &session, "BEGIN");
     let plan = direct_plan(&cassie, "SELECT lower(payload) AS payload FROM portal_shared_memory WHERE payload IS NOT NULL LIMIT 1001 OFFSET 0");
     let mut limits = cassie.runtime.limits();
-    limits.query_memory_budget_bytes = 258 * 1024;
+    limits.query_memory_budget_bytes = 256 * 1024;
     let data_controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
     let data = crate::midge::adapter::StatementDataRead::capture(
         &cassie.midge,
@@ -96,7 +96,7 @@ fn should_release_automatically_captured_owners_after_materialized_source_denial
             .put_document(
                 "denied_source",
                 Some(format!("doc-{index:04}")),
-                serde_json::json!({"payload":format!("{index:04}-{}", "x".repeat(1024))}),
+                serde_json::json!({"payload":format!("{index:04}-{}", "x".repeat(1025))}),
             )
             .expect("seed exact source fixture");
     }
@@ -130,6 +130,10 @@ fn should_release_automatically_captured_owners_after_materialized_source_denial
     drop(retry);
     // Assert
     eprintln!("source denial={denied} successful_reservation_peak_before_denial={peak} released={released} retry_rows={rows} retry_release={}", retry_controls.current_query_memory_bytes());
+    assert!(matches!(
+        denied,
+        crate::executor::QueryError::Cassie(crate::app::CassieError::ResourceLimit(_))
+    ));
     assert!(denied.to_string().contains("memory budget exceeded"));
     assert!(peak > 0);
     assert_eq!(released, 0);

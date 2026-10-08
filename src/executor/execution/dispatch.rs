@@ -733,20 +733,38 @@ pub(super) fn build_exists_logical_plan(
     context: &ExistsResolutionContext<'_>,
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
-    let outer_fields: std::collections::HashSet<String> = context
-        .outer_row
-        .map(|row| {
-            row.entries()
-                .iter()
-                .flat_map(|(name, _)| {
-                    [
-                        crate::sql::ColumnIdentifierPath::stored_row_lookup_key(name),
-                        crate::sql::ColumnIdentifierPath::stored_row_field_key(name),
-                    ]
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    use crate::executor::retained_memory::{add, hash_table_bytes, mul};
+    let mut outer_fields = std::collections::HashSet::new();
+    let _field_memory = if let Some(row) = context.outer_row {
+        let count = mul(add(row.entries().len(), row.aliases().len())?, 2)?;
+        let bytes = row
+            .entries()
+            .iter()
+            .map(|(name, _)| name)
+            .chain(row.aliases().iter().map(|(name, _)| name))
+            .try_fold(hash_table_bytes::<String>(count)?, |bytes, name| {
+                add(bytes, add(mul(name.len(), 8)?, 64)?)
+            })?;
+        let memory = context.controls.reserve_query_memory(bytes)?;
+        outer_fields
+            .try_reserve(count)
+            .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
+        for name in row
+            .entries()
+            .iter()
+            .map(|(name, _)| name)
+            .chain(row.aliases().iter().map(|(name, _)| name))
+        {
+            check_timeout(context.controls)?;
+            outer_fields.insert(crate::sql::ColumnIdentifierPath::stored_row_lookup_key(
+                name,
+            ));
+            outer_fields.insert(crate::sql::ColumnIdentifierPath::stored_row_field_key(name));
+        }
+        Some(memory)
+    } else {
+        None
+    };
     build_exists_logical_plan_with_fields(context, statement, &outer_fields)
 }
 

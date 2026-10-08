@@ -230,3 +230,119 @@ their owners and reject the observed threshold-minus-one budgets. The private
 join/window partition controls also pass. This is a focused checkpoint:
 combined joined-source/writer-barrier qualification, required full validation
 and exact-head hosted acceptance remain pending before issue closeout.
+
+## Combined joined correlation and statement-view repair
+
+The defined bundle is #761/#763/#864/#866. The composed preparation source
+`cee93785` with the intersection witness committed as `06b56a18` established
+RED: 0 passing, 1 failing, exit 101. A qualified joined outer alias was
+unresolvable before the nested read could qualify the captured statement view.
+The #866 literal-name checkpoint is composed at `28e345e5`; the selected repair
+now preserves each joined leaf's existing alias and literal-field authority.
+Static binding recurses joined leaves; runtime outer aliases survive projection,
+EXISTS binding and scoped attachment with their original entry indices.
+Qualified outer aliases remain authoritative; unqualified outer aliases are
+admitted only when the inner relation does not define that column. New names,
+alias vectors, lookup capacities and allocation overlap are admitted before
+construction, with existing cancellation checks and type/query/operator leases.
+The lazy SELECT callback, inherited statement Data owner/overlay, existing
+2 KiB WHERE control and fresh command mutation authorities remain required.
+
+The committed-barrier witness must return `[[1,true],[2,false]]` for the captured
+statement and `[[1,false],[2,true]]` for the next statement, and assert the
+independent writer committed after outer-left acquisition. Focused owner,
+attachment, literal-field and finite relational/snapshot controls precede full
+acceptance. This preparation does not claim acceptance: final repository checks
+run only after rebasing onto the actual merged #798 predecessor, followed by
+exact-head hosted checks and merged readback under the coordinator.
+
+The first composed intersection repair passed its exact committed-barrier
+witness (1/0). Independent source review requires explicit joined qualifier
+length times field-count admission, including table replacement overlap;
+generic source/schema clone estimates alone do not cover that cross-product.
+The private static scope now reserves that bound before rendering names and
+reserving the table. A threshold-minus-one denial and zero-charge cleanup
+witness is required. Jev's right-alias index, inner-priority and joined literal
+probabilities of 0.67, 0.67 and 0.45 require the three finite SQL probes.
+Their results and final acceptance are pending.
+
+The finite joined probes returned 4/1: right-side alias indices, inner-column
+priority, the static cross-product denial/cleanup control and an existing
+INSERT SELECT control pass. Ordinary JOIN SELECT of declared `"a.b"`/`"A.B"`
+fields succeeds, while its correlated SELECT EXISTS fails on the exact quoted
+qualified outer alias. This is an actual dynamic binding RED after static
+classification succeeds. The selected private extension canonicalizes only
+EXISTS outer aliases whose existing joined leaf and stored field establish
+literal provenance, preserving the original aliases and entry indices too.
+No shared source qualification or unsupported derived-label boundary changes.
+Additional alias capacity and name/lookup overlap remain admitted first.
+
+## Captured empty-overlay footprint
+
+Combined qualification found actual RED in the unchanged 2 KiB uncorrelated
+WHERE EXISTS control: requested 2269 bytes exceeds 2048. Its new joined scope
+and outer-field admission are unused. The existing resource attribution witness
+passes and measures Data 512, captured empty overlay 712, combined owner 1224,
+materialized source peak 262656, owner references 2/2 and release to zero.
+The empty overlay unnecessarily retains a whole map Arc and its conservative
+empty-root allowance. Empty maps can retain allocated roots after removal, so
+removing that allowance while retaining their map is not selected.
+
+The private repair represents captured empty writes with `None` inside the
+existing overlay owner, without retaining any map Arc. Nonempty COW maps keep
+their current admission. Captured active-transaction state and weak session
+identity remain retained and charged. A matching empty owner returns
+`Some(false)` eligibility and `Some(empty)` staged snapshot, never live staged
+state. This changes neither the statement-view contract nor public APIs.
+The original 2 KiB SQL/budget/predicates stay unchanged. Actual footprint and
+portal witnesses must precede restoring the historical 258 KiB portal fixture
+to its original 256 KiB budget; historical calibration receipts remain evidence.
+Nonempty/staged/savepoint/native controls and wire statement-view controls
+remain required, with no global cap or accounting waiver.
+
+The compact empty owner resource witness passes (1/0): Data 512 plus overlay
+192 equals 704; source peak is 262136, retained 704 releases to zero, owner
+references remain 2/2 and rows remain 64. Removing unretained map backing saves
+520 bytes and fits the original 256 KiB cap with eight bytes to spare. The
+unchanged old automatic-denial fixture actually succeeds at that cap; its
+`expect_err` failure is preserved as an obsolete fixture boundary, not a runtime
+regression. The positive 1024-byte-payload resource and portal fixtures now
+return to the original 256 KiB budget. Only the denial fixture increases each
+payload from 1024 to 1025 bytes to restore an actual denial at the unchanged
+cap; error type, prior successful peak, zero release, retry rows and worker
+assertions remain required. Actual denial requests 262328 bytes against 262144, with prior successful
+peak 244344 and release to zero. The retry returns 64 rows and releases to
+zero with no active operator workers. The portal lifecycle passes at its
+original 256 KiB cap with all hold/deny/rollback/close/replacement assertions.
+
+## Low-memory EXISTS fixture calibration
+
+After compacting the empty overlay, the original 2048-byte control still fails
+before EXISTS evaluates: outer Full conversion requests 2548 bytes. Exact
+attribution is current 1620 = captured owner 704 + retained input 916, zero
+identifier scratch, and complete output admission 928. The corresponding
+owner-free overlap 1844 is a calculation, not baseline executable proof. This
+path intentionally overlaps input/output backing, covered by converter denial
+controls; projected-name scratch does not apply to Full rows with TEXT metadata.
+
+The selected test-only calibration is 3 KiB: its original 2 KiB conversion
+allowance plus 1 KiB for the measured captured owner. SQL, 64 inner documents
+with 1024-byte payloads, one result row and exactly two visited scan entries
+remain unchanged. A full-inner SELECT must produce ResourceLimit at the same
+3 KiB cap and release current query memory to zero before the fresh scan
+counter for EXISTS. This replaces the preparatory exact-2-KiB fixture constraint
+while preserving pull termination under bounded memory. Production admission,
+evaluation order and default caps remain unchanged. Original RED traces stay
+preserved; revised GREEN and final post-predecessor full acceptance are pending.
+
+The calibrated 3 KiB focused control passes (1/0), including full-inner
+ResourceLimit, zero release, the original single EXISTS result and exactly two
+visited entries. The unchanged 2 KiB RED remains historical evidence.
+
+Preparation qualification passes: 56 statement-view controls, three wire
+statement-visibility controls, the original 256 KiB portal lifecycle, the
+44 finite relational controls and the added static-scope admission witness.
+The binary build, workspace/all-target/all-feature pedantic Clippy, formatting,
+seven touched-test validators and three repository policies pass locally.
+These preparation checks do not replace final ordered full acceptance after
+integration with actual predecessor main `ad0a001a65fae23726cd184fedf1f973d649e60c`.

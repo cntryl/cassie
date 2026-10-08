@@ -20,7 +20,7 @@ thread_local! {
 
 #[derive(Debug)]
 pub(crate) struct StatementOverlay {
-    writes: SharedTransactionWrites,
+    writes: Option<SharedTransactionWrites>,
     active_transaction: bool,
     identity: Weak<Mutex<SessionTransactionState>>,
     _memory: QueryMemoryReservation,
@@ -54,23 +54,31 @@ impl CassieSession {
             .checked_add(2 * size_of::<usize>())
             .and_then(|bytes| bytes.checked_add(size_of::<Mutex<SessionTransactionState>>()))
             .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
-            .and_then(|bytes| bytes.checked_add(size_of::<TransactionWrites>()))
-            .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
-            .and_then(|bytes| bytes.checked_add(transaction.writes.len().max(1).checked_mul(node)?))
             .ok_or_else(staged_snapshot_accounting_overflow)?;
-        let bytes = transaction
-            .writes
-            .iter()
-            .try_fold(base, |bytes, (name, changes)| {
-                let changes_bytes = collection_snapshot_bytes(changes)?;
-                bytes
-                    .checked_add(name.capacity())
-                    .and_then(|bytes| bytes.checked_add(changes_bytes))
-                    .ok_or_else(staged_snapshot_accounting_overflow)
-            })?;
+        // Do not retain a possibly allocated empty BTree root. None is still
+        // an authoritative captured empty view, including its transaction flag.
+        let bytes = if transaction.writes.is_empty() {
+            base
+        } else {
+            let base = base
+                .checked_add(size_of::<TransactionWrites>())
+                .and_then(|bytes| bytes.checked_add(2 * size_of::<usize>()))
+                .and_then(|bytes| bytes.checked_add(transaction.writes.len().checked_mul(node)?))
+                .ok_or_else(staged_snapshot_accounting_overflow)?;
+            transaction
+                .writes
+                .iter()
+                .try_fold(base, |bytes, (name, changes)| {
+                    let changes_bytes = collection_snapshot_bytes(changes)?;
+                    bytes
+                        .checked_add(name.capacity())
+                        .and_then(|bytes| bytes.checked_add(changes_bytes))
+                        .ok_or_else(staged_snapshot_accounting_overflow)
+                })?
+        };
         let memory = controls.reserve_query_memory(bytes)?;
         let overlay = Arc::new(StatementOverlay {
-            writes: Arc::clone(&transaction.writes),
+            writes: (!transaction.writes.is_empty()).then(|| Arc::clone(&transaction.writes)),
             active_transaction: transaction.status != SessionTransactionStatus::Idle,
             identity: Arc::downgrade(&self.transaction),
             _memory: memory,
@@ -104,8 +112,10 @@ impl CassieSession {
                     std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
                 })
                 .map(|owner| {
-                    owner.writes.iter().any(|(name, changes)| {
-                        !changes.is_empty() && crate::catalog::name_matches(name, collection)
+                    owner.writes.as_ref().is_some_and(|writes| {
+                        writes.iter().any(|(name, changes)| {
+                            !changes.is_empty() && crate::catalog::name_matches(name, collection)
+                        })
                     })
                 })
         })
@@ -134,7 +144,14 @@ pub(super) fn captured_snapshot(
             .filter(|owner| {
                 std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&session.transaction))
             })
-            .map(|owner| StagedWriteSnapshot::matching(&owner.writes, collection))
+            .map(|owner| {
+                owner
+                    .writes
+                    .as_deref()
+                    .map_or_else(StagedWriteSnapshot::default, |writes| {
+                        StagedWriteSnapshot::matching(writes, collection)
+                    })
+            })
     })
 }
 

@@ -1,6 +1,7 @@
 //! Static enclosing names copied only after admitted source metadata.
 use super::admission;
 use super::{check_timeout, ExistsResolutionContext, HashSet, QueryError, QuerySource};
+use crate::executor::retained_memory::{add, hash_table_bytes, mul};
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryMemoryReservation;
 
@@ -33,38 +34,89 @@ impl Scope {
         memory.try_grow(schema_bytes.checked_mul(256).ok_or_else(|| {
             crate::app::CassieError::ResourceLimit("EXISTS source copy size overflow".into())
         })?)?;
-        let fields = crate::sql::binder::source_row_fields(
-            source,
-            &namespace,
-            &context.cassie.catalog,
-            context.user_functions,
-        )
-        .map_err(|error| QueryError::General(error.to_string()))?;
-        let qualifier = super::super::exists_correlated::outer_qualifier(source);
         let mut names = HashSet::new();
-        names
-            .try_reserve(fields.len().saturating_mul(2))
-            .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
-        for field in fields {
-            check_timeout(context.controls)?;
-            let name = super::super::outer_names::outer_field_name(
-                &context.cassie.catalog,
-                source,
-                qualifier.as_deref(),
-                &field.name,
-            );
-            names.insert(crate::sql::ColumnIdentifierPath::stored_row_lookup_key(
-                &name,
-            ));
-            names.insert(crate::sql::ColumnIdentifierPath::stored_row_field_key(
-                &name,
-            ));
-        }
+        collect_names(context, source, &namespace, &mut names, &mut memory)?;
         Ok(Self {
             fields: names,
             _memory: memory,
         })
     }
+}
+
+fn collect_names(
+    context: &ExistsResolutionContext<'_>,
+    source: &QuerySource,
+    namespace: &std::collections::HashMap<String, Vec<crate::types::FieldSchema>>,
+    names: &mut HashSet<String>,
+    memory: &mut QueryMemoryReservation,
+) -> Result<(), QueryError> {
+    check_timeout(context.controls)?;
+    if let QuerySource::Join { left, right, .. } = source {
+        collect_names(context, left, namespace, names, memory)?;
+        return collect_names(context, right, namespace, names, memory);
+    }
+    let fields = crate::sql::binder::source_row_fields(
+        source,
+        namespace,
+        &context.cassie.catalog,
+        context.user_functions,
+    )
+    .map_err(|error| QueryError::General(error.to_string()))?;
+    let qualifier = super::super::exists_correlated::outer_qualifier(source);
+    let qualifiers = if let QuerySource::Collection(name) = source {
+        crate::catalog::qualifier_variants(name)
+    } else {
+        qualifier.into_iter().collect()
+    };
+    let variants = qualifiers.len().max(1);
+    let capacity = fields
+        .len()
+        .checked_mul(variants)
+        .and_then(|count| count.checked_mul(2))
+        .ok_or_else(|| {
+            crate::app::CassieError::ResourceLimit("EXISTS source field count overflow".into())
+        })?;
+    let longest_qualifier = qualifiers.iter().map(String::len).max().unwrap_or(0);
+    let names_bytes = fields.iter().try_fold(0, |bytes, field| {
+        check_timeout(context.controls)?;
+        // Cover quoted literal rendering, both canonical keys and temporary copies.
+        let rendered = add(add(longest_qualifier, 3)?, mul(field.name.len(), 2)?)?;
+        add(bytes, mul(variants, add(mul(rendered, 8)?, 8)?)?)
+    })?;
+    // Keep old table backing charged while reserving its complete replacement.
+    // Retaining the conservative table estimate also covers later leaf rehashes.
+    memory.try_grow(add(
+        names_bytes,
+        hash_table_bytes::<String>(add(names.len(), capacity)?)?,
+    )?)?;
+    names
+        .try_reserve(capacity)
+        .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
+    for field in fields {
+        check_timeout(context.controls)?;
+        if qualifiers.is_empty() {
+            insert_name(names, &field.name);
+        } else {
+            for qualifier in &qualifiers {
+                check_timeout(context.controls)?;
+                let name = super::super::outer_names::outer_field_name(
+                    &context.cassie.catalog,
+                    source,
+                    Some(qualifier),
+                    &field.name,
+                );
+                insert_name(names, &name);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn insert_name(names: &mut HashSet<String>, name: &str) {
+    names.insert(crate::sql::ColumnIdentifierPath::stored_row_lookup_key(
+        name,
+    ));
+    names.insert(crate::sql::ColumnIdentifierPath::stored_row_field_key(name));
 }
 
 type Schemas = AccountedVec<(
@@ -103,3 +155,7 @@ fn schemas(
     collect(context, source, &mut schemas)?;
     Ok(schemas)
 }
+
+#[cfg(test)]
+#[path = "scope_tests.rs"]
+mod tests;

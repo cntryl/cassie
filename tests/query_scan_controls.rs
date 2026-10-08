@@ -2476,9 +2476,9 @@ mod query_resource_controls {
     fn should_stop_exists_scan_after_first_inner_row_given_low_memory_budget() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        // Fit one outer JSON-backed row plus one identity-only inner row, including
-        // their tree-node allowances. The full inner scan cannot fit this budget.
-        let (cassie, path) = configured_cassie("exists-early-stop", 2 * 1024);
+        // Keep the original 2 KiB conversion allowance plus 1 KiB for the
+        // measured 704-byte captured statement owner. Full inner scanning denies.
+        let (cassie, path) = configured_cassie("exists-early-stop", 3 * 1024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2496,6 +2496,14 @@ mod query_resource_controls {
             .expect("create inner table");
         seed_documents(&cassie, "controlled_exists_outer", 1, 16);
         seed_documents(&cassie, "controlled_exists_inner", 64, 1_024);
+        let full_inner = cassie
+            .execute_sql(&session, "SELECT id FROM controlled_exists_inner", vec![])
+            .expect_err("full inner scan exceeds the same bounded budget");
+        assert!(matches!(full_inner, CassieError::ResourceLimit(_)));
+        assert_eq!(
+            cassie.metrics()["query"]["current_accounted_memory_bytes"],
+            0
+        );
         let before = cassie.midge.query_scan_entries_for_diagnostics();
 
         // Act

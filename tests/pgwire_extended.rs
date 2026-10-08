@@ -1,3 +1,6 @@
+#[path = "pgwire_extended/statement_visibility.rs"]
+mod statement_visibility;
+
 #[path = "pgwire_extended/conditional_expressions.rs"]
 mod conditional_expressions;
 
@@ -2642,10 +2645,11 @@ mod pgwire_portal_safety {
     fn should_enforce_retained_memory_budget_across_named_portal_lifecycle() {
         // Arrange
         // The source page and its handoff reservation must fit before portal retention.
+        // Include the admitted statement Data/overlay owner alongside source conversion.
         // Wider rows keep three retained results below the cap and the fourth above it;
         // closing one portal must release enough memory for the replacement result.
         let (cassie, config, path) =
-            configured_cassie_with_memory("portal-shared-memory", 1_000, 256 * 1_024);
+            configured_cassie_with_memory("portal-shared-memory", 1_000, 258 * 1_024);
         seed_large_rows(&cassie, "portal_shared_memory", 64, 1_024);
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()

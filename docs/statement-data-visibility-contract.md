@@ -113,7 +113,7 @@ from admission or allow cancellation to release charge before live buffers.
 | CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; eight existing conversion controls replayed successfully, including two active workers cancelled with zero charge/workers and reusable permits; statement worker dispatch qualification remains pending |
 | Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Captured staged-overlay rollback controls pass for scalar indexes, ordered reads, column summaries, analytical projections and projected batched scans; committed generation barriers remain pending |
 | Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; time-series overlay rollback controls pass; other artifact barriers remain pending |
-| Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | Existing witnesses to reuse; sharing acceptance pending |
+| Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | First Execute after Bind observes intervening commit; suspended savepoint rollback and Close controls pass; existing completion, cancellation, cap and concurrent-write controls replay; error-owner observability and broader ownership qualification remain pending |
 | Resource failures | Admission denial and cancellation preserve owner/row lifetime; cleanup releases owned charge | Pending focused controls |
 
 Qualification must retain exact source, inputs, results and command provenance.
@@ -176,3 +176,17 @@ those closures; Jev returned a newer-worker-read gap probability of 0.09. This
 resource replay does not establish whole-statement dispatch or portal ownership.
 Jev selected first-execution and suspended-portal boundary probes as the next
 qualification, with 0.97 confidence; those probes remain pending.
+
+The new finite wire probes passed 3/0: a commit between Bind and first Execute
+is visible at execution; a suspended cursor resumes its original remaining
+rows after staged writes and savepoint rollback; Close removes a live suspended
+portal. Existing completion controls replayed 5/0, and four exact cumulative
+cap, cancellation and concurrent-write controls passed. Global query-memory
+metrics do not report the separate portal retention controls, so an initial
+positive-global-charge assumption is preserved as an invalid test oracle.
+The existing retained-budget lifecycle fixture initially rejected its first
+page at 262656 bytes against 262144 before reaching its intended retention
+assertions. With two additional KiB for admitted statement owner/source overlap,
+its unchanged three-held, fourth-denied and Close/replacement assertions passed.
+This changes only the test fixture, not production limits or admitted charges.
+Dedicated error-owner observability and full statement acceptance remain pending.

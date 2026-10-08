@@ -444,3 +444,82 @@ fn should_key_cached_results_to_the_captured_data_epoch() {
     );
     assert_eq!(fresh, newer_capture);
 }
+
+#[test]
+fn should_reuse_the_statement_view_for_raw_database_reads() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-statement-raw-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let reader = cassie.create_session("reader", None);
+    let writer = cassie.create_session("writer", None);
+    execute(
+        &cassie,
+        &writer,
+        "CREATE TABLE raw_view_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(&cassie, &writer, "INSERT INTO raw_view_rows VALUES (1, 10)");
+    let database = &cassie.default_database;
+    let before = cassie
+        .midge
+        .raw_scan_prefix_database(database, &[])
+        .expect("initial Data");
+    let controls = crate::runtime::QueryExecutionControls::from_limits(
+        &cassie.runtime.limits(),
+        std::time::Instant::now(),
+    );
+    let owner = reader
+        .capture_statement_read(&cassie.midge, database, &controls)
+        .expect("capture");
+    let scope = crate::midge::adapter::StatementReadScope::enter(Some(&owner));
+    let overlay_scope = super::SessionReadScope::enter(owner.overlay());
+
+    // Act
+    execute(&cassie, &writer, "UPDATE raw_view_rows SET n = 110");
+    let captured = cassie
+        .midge
+        .raw_scan_prefix_database(database, &[])
+        .expect("captured Data prefix");
+    let page = cassie
+        .midge
+        .raw_scan_database_page(database, &[], None, usize::MAX)
+        .expect("captured page");
+    let point_values: Vec<_> = before
+        .iter()
+        .map(|(key, _)| {
+            cassie
+                .midge
+                .raw_get_database(database, key)
+                .expect("captured point")
+        })
+        .collect();
+    drop(overlay_scope);
+    drop(scope);
+    drop(owner);
+    let fresh = cassie
+        .midge
+        .raw_scan_prefix_database(database, &[])
+        .expect("fresh Data");
+    let current = controls.current_query_memory_bytes();
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert_ne!(fresh, before, "the UPDATE changed authoritative Data");
+    assert_eq!(
+        captured, before,
+        "raw prefix shares the captured transaction"
+    );
+    assert_eq!(
+        page, before,
+        "raw pagination shares the captured transaction"
+    );
+    assert_eq!(
+        point_values,
+        before
+            .iter()
+            .map(|(_, value)| Some(value.clone()))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(current, 0);
+}

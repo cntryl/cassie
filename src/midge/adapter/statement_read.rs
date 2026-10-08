@@ -15,6 +15,7 @@ pub(crate) struct StatementDataRead {
     tx: cntryl_midge::Transaction,
     midge: Arc<Midge>,
     database: String,
+    family_id: cntryl_midge::ColumnFamilyId,
     data_epoch: u64,
     _memory: QueryMemoryReservation,
     overlay: Option<Arc<crate::app::StatementOverlay>>,
@@ -67,7 +68,13 @@ impl StatementDataRead {
                 CassieError::ResourceLimit("statement read owner size overflow".to_string())
             })?;
         let memory = controls.reserve_query_memory(bytes)?;
-        let tx = midge.database_tx(database, TransactionMode::ReadOnly)?;
+        let family = midge.database_family(database)?;
+        let family_id = family.id();
+        let tx = midge
+            .engine
+            .begin_tx(family_id, TransactionMode::ReadOnly)?;
+        // The temporary family handle does not become statement-owned backing.
+        drop(family);
         let epoch_scratch =
             controls.reserve_query_memory(super::key_encoding::data_epoch_key_scratch_bytes())?;
         let data_epoch = Midge::load_data_epoch_from_tx(&tx)?;
@@ -76,6 +83,7 @@ impl StatementDataRead {
             tx,
             midge: Arc::clone(midge),
             database: database.to_owned(),
+            family_id,
             data_epoch,
             _memory: memory,
             overlay,
@@ -144,6 +152,21 @@ impl Drop for StatementReadScope {
 }
 
 impl Midge {
+    pub(super) fn statement_data_read_for_family(
+        &self,
+        family_id: cntryl_midge::ColumnFamilyId,
+    ) -> Option<DataReadTransaction> {
+        CURRENT_READ.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .filter(|owner| {
+                    std::ptr::eq(self, Arc::as_ptr(&owner.midge)) && owner.family_id == family_id
+                })
+                .map(|owner| DataReadTransaction::shared(Arc::clone(owner)))
+        })
+    }
+
     pub(super) fn statement_data_read(&self, database: &str) -> Option<DataReadTransaction> {
         CURRENT_READ.with(|current| {
             current

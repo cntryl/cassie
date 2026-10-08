@@ -37,7 +37,7 @@ impl Midge {
         family: StorageFamily,
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, CassieError> {
-        let tx = self.transaction(family, TransactionMode::ReadOnly)?;
+        let tx = self.begin_family_readonly_tx(family)?;
         let value = tx.get(key).map_err(CassieError::from)?;
         Ok(value.map(|value| value.to_vec()))
     }
@@ -50,7 +50,7 @@ impl Midge {
         database: &str,
         key: &[u8],
     ) -> Result<Option<Vec<u8>>, CassieError> {
-        let tx = self.database_tx(database, TransactionMode::ReadOnly)?;
+        let tx = self.begin_database_readonly_tx(database)?;
         let value = tx.get(key).map_err(CassieError::from)?;
         Ok(value.map(|value| value.to_vec()))
     }
@@ -63,7 +63,7 @@ impl Midge {
         family: StorageFamily,
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.transaction(family, TransactionMode::ReadOnly)?;
+        let tx = self.begin_family_readonly_tx(family)?;
         let values = collect_scan(
             tx.scan(&Query::new().prefix(prefix.to_vec().into()))
                 .map_err(CassieError::from)?,
@@ -79,7 +79,7 @@ impl Midge {
         database: &str,
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.database_tx(database, TransactionMode::ReadOnly)?;
+        let tx = self.begin_database_readonly_tx(database)?;
         let values = collect_scan(
             tx.scan(&Query::new().prefix(prefix.to_vec().into()))
                 .map_err(CassieError::from)?,
@@ -100,7 +100,7 @@ impl Midge {
         if let Some(after) = after {
             query = query.start_key(after.to_vec().into());
         }
-        let tx = self.database_tx(database, TransactionMode::ReadOnly)?;
+        let tx = self.begin_database_readonly_tx(database)?;
         let entries = collect_scan(tx.scan(&query).map_err(CassieError::from)?)?;
         Ok(entries
             .into_iter()
@@ -114,7 +114,7 @@ impl Midge {
         collection: &str,
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.database_tx_for_collection(collection, TransactionMode::ReadOnly)?;
+        let tx = self.begin_data_readonly_tx_for(collection)?;
         let values = collect_scan(
             tx.scan(&Query::new().prefix(prefix.to_vec().into()))
                 .map_err(CassieError::from)?,
@@ -128,7 +128,7 @@ impl Midge {
         prefix: &[u8],
         limit: usize,
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.database_tx_for_collection(collection, TransactionMode::ReadOnly)?;
+        let tx = self.begin_data_readonly_tx_for(collection)?;
         let values = collect_scan(
             tx.scan(
                 &Query::new()
@@ -148,7 +148,7 @@ impl Midge {
         family: &str,
         prefix: &[u8],
     ) -> Result<Vec<RawStorageEntry>, CassieError> {
-        let tx = self.transaction_by_name(family, TransactionMode::ReadOnly)?;
+        let tx = self.begin_named_readonly_tx(family)?;
         let values = collect_scan(
             tx.scan(&Query::new().prefix(prefix.to_vec().into()))
                 .map_err(CassieError::from)?,

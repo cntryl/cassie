@@ -146,3 +146,98 @@ fn should_reject_unchecked_stored_index_predicate_maintenance() {
         .expect("unchanged authoritative data")
         .is_empty());
 }
+
+#[test]
+fn should_reject_loaded_materialized_projection_repair_definition() {
+    // Arrange
+    let fixture = sql_fixture("null_safe_loaded_repair", &[]);
+    fixture
+        .cassie
+        .startup()
+        .expect("initialize canonical database scope");
+    for sql in [
+        "CREATE TABLE repair_source(n BIGINT)",
+        "INSERT INTO repair_source VALUES(7)",
+        "CREATE MATERIALIZED PROJECTION loaded_repair AS SELECT n FROM repair_source",
+        "ALTER MATERIALIZED PROJECTION loaded_repair BUILD VERSION",
+    ] {
+        fixture.execute(sql).expect("supported version fixture");
+    }
+    let metadata = fixture
+        .cassie
+        .catalog
+        .get_materialized_projection("loaded_repair")
+        .expect("definition");
+    let version = metadata.versions.last().expect("built version").clone();
+    let expected = fixture
+        .cassie
+        .midge
+        .list_row_hashes(&version.output_collection)
+        .expect("canonical version hashes")
+        .into_iter()
+        .next()
+        .expect("built row hash");
+    let (key, mut hash) = fixture
+        .cassie
+        .midge
+        .raw_scan_prefix(cassie::midge::adapter::StorageFamily::Data, &[])
+        .expect("actual data keys")
+        .into_iter()
+        .find_map(|(key, bytes)| {
+            let record =
+                serde_json::from_slice::<cassie::midge::adapter::RowHashRecord>(&bytes).ok()?;
+            (record.collection == expected.collection && record.row_id == expected.row_id)
+                .then_some((key, record))
+        })
+        .expect("exact authoritative version row-hash key");
+    hash.state = cassie::midge::adapter::StoredHashState::Stale;
+    fixture
+        .cassie
+        .midge
+        .raw_put(
+            cassie::midge::adapter::StorageFamily::Data,
+            &key,
+            &serde_json::to_vec(&hash).expect("record"),
+        )
+        .expect("controlled stale hash");
+    fixture
+        .execute(&format!(
+            "VERIFY PROJECTION loaded_repair VERSION {} MODE full",
+            version.version_id
+        ))
+        .expect("actual prior verification");
+    let mut metadata = fixture
+        .cassie
+        .catalog
+        .get_materialized_projection("loaded_repair")
+        .expect("verified definition");
+    assert!(metadata.integrity.repairable);
+    metadata.materialized.as_mut().expect("materialized").query =
+        "SELECT n FROM repair_source WHERE n IS DISTINCT FROM NULL".into();
+    let prior = serde_json::to_value(&metadata).expect("original metadata");
+    fixture
+        .cassie
+        .catalog
+        .register_projection_metadata(metadata);
+    // Act
+    let result = fixture.execute(&format!(
+        "REPAIR PROJECTION loaded_repair VERSION {} SCOPE projection-version",
+        version.version_id
+    ));
+    // Assert
+    assert!(
+        matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
+        "{result:?}"
+    );
+    assert_eq!(
+        serde_json::to_value(
+            fixture
+                .cassie
+                .catalog
+                .get_materialized_projection("loaded_repair")
+                .expect("retained metadata")
+        )
+        .expect("unchanged metadata"),
+        prior
+    );
+}

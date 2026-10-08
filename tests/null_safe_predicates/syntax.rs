@@ -73,3 +73,15 @@ fn should_roundtrip_transient_null_safe_ast_variants() {
         );
     }
 }
+
+#[test]
+fn should_preserve_existing_equality_ast_encoding() {
+    // Arrange
+    let golden = serde_json::json!({"Binary":{"left":{"IntegerLiteral":7},"op":"Eq","right":{"IntegerLiteral":8}}});
+    // Act
+    let expression: cassie::sql::ast::Expr =
+        serde_json::from_value(golden.clone()).expect("existing Expr encoding");
+    let encoded = serde_json::to_value(expression).expect("unchanged existing AST encoding");
+    // Assert
+    assert_eq!(encoded, golden);
+}

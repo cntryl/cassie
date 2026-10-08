@@ -126,3 +126,41 @@ fn should_preserve_current_canonical_nan_equality() {
         ]]
     );
 }
+
+#[test]
+fn should_preserve_contextual_json_boundary_semantics() {
+    // Arrange
+    let fixture = sql_fixture(
+        "null_safe_json_boundaries",
+        &[
+            "CREATE TABLE json_boundaries(id BIGINT,j JSON)",
+            "INSERT INTO json_boundaries VALUES(1,NULL),(2,'null'),(3,'{\"n\":1}')",
+        ],
+    );
+    // Act
+    let nulls = fixture
+        .execute("SELECT id,j IS NOT DISTINCT FROM NULL AS same FROM json_boundaries ORDER BY id")
+        .expect("SQL NULL differs from JSON null");
+    let malformed = ["=", "IS DISTINCT FROM", "IS NOT DISTINCT FROM"].map(|op| {
+        [1, 3].map(|id| {
+            fixture.execute(&format!(
+                "SELECT j {op} 'invalid-json' AS result FROM json_boundaries WHERE id={id}"
+            ))
+        })
+    });
+    // Assert
+    assert_eq!(
+        nulls.rows,
+        vec![
+            vec![Value::Int64(1), Value::Bool(true)],
+            vec![Value::Int64(2), Value::Bool(false)],
+            vec![Value::Int64(3), Value::Bool(false)]
+        ]
+    );
+    for result in malformed.into_iter().flatten() {
+        assert!(
+            matches!(result, Err(cassie::app::CassieError::Planner(ref message)) if message.contains("invalid JSON literal")),
+            "{result:?}"
+        );
+    }
+}

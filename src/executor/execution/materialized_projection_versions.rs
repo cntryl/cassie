@@ -28,6 +28,9 @@ pub(super) fn repair_materialized_projection_version(
             "projection version '{version_id}' does not exist"
         )));
     };
+    if let Some(materialized) = &metadata.materialized {
+        crate::sql::definition_guard::query_sql(&materialized.query).map_err(QueryError::Cassie)?;
+    }
     version.state = catalog::ProjectionVersionState::Building;
     version.last_error = None;
     version.verification = catalog::ProjectionRebuildVerificationMeta {

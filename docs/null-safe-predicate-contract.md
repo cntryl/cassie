@@ -87,7 +87,7 @@ expectations. Named existing tests, helper mappings and Jev judgments are not
 acceptance. Focused RED/GREEN, paths, source/log hashes, remaining gaps and
 required ordered gates are recorded with source/log hashes in isolated evidence.
 
-On main `e3bc2974`, focused controls passed 38 integration tests (31 slice
+On the isolated branch based on main `e3bc2974`, initial focused controls passed 38 integration tests (31 slice
 controls and seven existing support controls), two unit controls and 280 wire
 cycles in one wire test. The NULL-residual pagination control returned IDs3,5
 while actual counters reported a six-row collection scan and zero keyset/index
@@ -96,7 +96,15 @@ and projection-build/rollup-refresh controls reproduced and corrected rejection
 gaps. Corrected fixture attempts and the unsupported NaN test assumption remain
 in the evidence record; current FLOAT canonical NaN equality is preserved.
 
-This is a focused checkpoint, not completed acceptance. Remaining adversarial
-checks include malformed contextual literals and all supported restored version
-repair/replay callers. Complete ordered build/test/Clippy/fmt/validators, review,
+The final focused replay passed 41 integration controls (34 slice controls and
+seven existing support controls). A supported loaded-version repair reproduced
+a generic execution error instead of the selected unsupported-feature diagnostic;
+a guard now runs before version mutation/persistence. Malformed contextual JSON
+literals retain the existing binding error for ordinary and null-safe comparisons,
+including SQL NULL rows; JSON null remains distinct from SQL NULL. The existing
+Eq AST encoding golden is unchanged. Unsuitable fixture attempts remain separate
+from the genuine repair RED/GREEN evidence.
+
+This is focused qualification, not completed acceptance. Complete ordered
+build/test/Clippy/fmt/validators, review,
 publication and exact-head hosted validation are pending. #798 remains open.

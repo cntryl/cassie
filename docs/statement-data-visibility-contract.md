@@ -141,3 +141,13 @@ and cross-engine/session supplied-owner rejection. The generic `id` projection
 control passed before repair but bypassed this statistics-cache path; it is not
 evidence of that path's correctness. Other artifact paths and staged corpus
 statistics compatibility remain pending qualification.
+
+The staged-corpus statistics witness also established RED (0/1): a ten-row
+staged corpus reused the one-row committed corpus statistics (0.287682 versus
+1.492780 for an equivalent committed reference corpus). Shared Temp statistics
+lookup and storage are now bypassed when the captured collection overlay has
+changes. Context construction still uses exact captured rows. The focused
+statement suite passed 28/0; other-session and post-rollback committed scores
+remain unchanged. Jev's 0.15 staged-cache gap judgment was contradicted by this
+actual probe and is retained as a false negative. Eligibility of persisted
+artifacts after captured-overlay/live-session divergence remains pending.

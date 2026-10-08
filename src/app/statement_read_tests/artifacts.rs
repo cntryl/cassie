@@ -218,3 +218,66 @@ fn should_recapture_fulltext_cache_identity_for_another_engine() {
     assert_eq!(actual, expected);
     assert_eq!(released, 0);
 }
+
+#[test]
+fn should_keep_staged_fulltext_corpus_statistics_private_to_the_captured_overlay() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let other = fixture.cassie.create_session("other", None);
+    for table in ["staged_corpus", "reference_corpus"] {
+        execute(
+            &fixture.cassie,
+            &other,
+            &format!("CREATE TABLE {table} (id INT PRIMARY KEY, body TEXT)"),
+        );
+        execute(
+            &fixture.cassie,
+            &other,
+            &format!("INSERT INTO {table} VALUES (1, 'alpha beta')"),
+        );
+    }
+    let additional = "(2, 'beta'), (3, 'beta'), (4, 'beta'), (5, 'beta'), (6, 'beta'), (7, 'beta'), (8, 'beta'), (9, 'beta'), (10, 'beta')";
+    execute(
+        &fixture.cassie,
+        &other,
+        &format!("INSERT INTO reference_corpus VALUES {additional}"),
+    );
+    let sql = "SELECT _id, search_score(body, 'alpha') AS score FROM staged_corpus WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1";
+    let reference_sql = "SELECT _id, search_score(body, 'alpha') AS score FROM reference_corpus WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 1";
+    let committed = execute(&fixture.cassie, &other, sql);
+    let reference = execute(&fixture.cassie, &other, reference_sql);
+    execute(&fixture.cassie, &reader, "BEGIN");
+    execute(
+        &fixture.cassie,
+        &reader,
+        &format!("INSERT INTO staged_corpus VALUES {additional}"),
+    );
+
+    // Act
+    let staged = execute(&fixture.cassie, &reader, sql);
+    let isolated = execute(&fixture.cassie, &other, sql);
+    execute(&fixture.cassie, &reader, "ROLLBACK");
+    let rolled_back = execute(&fixture.cassie, &reader, sql);
+    let cache = fixture.cassie.metrics()["query_cache"].clone();
+    drop(fixture);
+
+    // Assert
+    eprintln!("staged corpus committed={committed:?} reference={reference:?} staged={staged:?} other={isolated:?} rollback={rolled_back:?} cache={cache}");
+    assert_ne!(
+        committed[0][1], reference[0][1],
+        "the larger corpus changes statistics"
+    );
+    assert_eq!(
+        staged[0][1], reference[0][1],
+        "staged rows use their own captured corpus statistics"
+    );
+    assert_eq!(
+        isolated, committed,
+        "another session sees committed corpus statistics"
+    );
+    assert_eq!(
+        rolled_back, committed,
+        "rollback restores the committed corpus statistics"
+    );
+}

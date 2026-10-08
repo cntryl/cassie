@@ -136,16 +136,22 @@ where
         .cloned()
         .unwrap_or_default()
         .cache_key();
-    if let Some(context) = query_cache::lookup_fulltext_stats(
-        &cassie.midge,
-        &cassie.runtime,
-        collection,
-        field,
-        &analyzer_key,
-        schema_epoch,
-        data_epoch,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?
+    let cacheable = !session.is_some_and(|session| session.has_collection_changes(collection));
+    if let Some(context) = cacheable
+        .then(|| {
+            query_cache::lookup_fulltext_stats(
+                &cassie.midge,
+                &cassie.runtime,
+                collection,
+                field,
+                &analyzer_key,
+                schema_epoch,
+                data_epoch,
+            )
+        })
+        .transpose()
+        .map_err(|error| QueryError::General(error.to_string()))?
+        .flatten()
     {
         return Ok(context);
     }
@@ -158,19 +164,21 @@ where
         tuning.b,
         tuning.analyzer,
     );
-    query_cache::store_fulltext_stats(
-        &cassie.midge,
-        &cassie.runtime,
-        query_cache::FulltextStatsCacheKey {
-            collection,
-            field,
-            analyzer_key: &analyzer_key,
-            schema_epoch,
-            data_epoch,
-        },
-        &context,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    if cacheable {
+        query_cache::store_fulltext_stats(
+            &cassie.midge,
+            &cassie.runtime,
+            query_cache::FulltextStatsCacheKey {
+                collection,
+                field,
+                analyzer_key: &analyzer_key,
+                schema_epoch,
+                data_epoch,
+            },
+            &context,
+        )
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    }
     Ok(context)
 }
 

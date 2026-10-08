@@ -28,6 +28,9 @@ pub(super) fn repair_materialized_projection_version(
             "projection version '{version_id}' does not exist"
         )));
     };
+    if let Some(materialized) = &metadata.materialized {
+        crate::sql::definition_guard::query_sql(&materialized.query).map_err(QueryError::Cassie)?;
+    }
     version.state = catalog::ProjectionVersionState::Building;
     version.last_error = None;
     version.verification = catalog::ProjectionRebuildVerificationMeta {
@@ -86,6 +89,7 @@ pub(super) fn build_projection_version(
             "materialized projection '{name}' is missing definition"
         ))
     })?;
+    crate::sql::definition_guard::query_sql(&materialized.query).map_err(QueryError::Cassie)?;
     let version_id = metadata.allocate_version_id();
     let output_collection = catalog::materialized_output_collection(name, &version_id);
     if metadata

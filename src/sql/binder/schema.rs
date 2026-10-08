@@ -263,6 +263,7 @@ pub(super) fn bind_create_view(
 
     let parsed = crate::sql::parser::parse_statement(&statement.query)
         .map_err(|error| CassieError::InvalidQuery(error.to_string()))?;
+    crate::sql::definition_guard::statement(&parsed)?;
     // Persist the whole body text: a set operation's or WITH query's parsed
     // `raw_sql` covers only its leading SELECT.
     let body = statement

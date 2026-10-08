@@ -636,6 +636,7 @@ fn plan_projection_query(
 ) -> Result<ProjectionBuildPlan, QueryError> {
     let parsed = crate::sql::parser::parse_statement(query)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::sql::definition_guard::statement(&parsed).map_err(QueryError::Cassie)?;
     if crate::sql::parameter_count(&parsed) != 0 {
         return Err(QueryError::General(
             "materialized projection definitions cannot contain bind parameters".into(),

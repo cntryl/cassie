@@ -6,6 +6,7 @@ use crate::types::DataType;
 pub mod ast;
 pub mod binder;
 mod column_identifier;
+pub(crate) mod definition_guard;
 pub mod functions;
 pub(crate) mod pagination;
 pub mod parser;

@@ -107,6 +107,30 @@ pub(super) fn parse_comparison_expression(raw: &str) -> Result<Expr, SqlError> {
         }
     }
 
+    for (token, op) in [
+        (" is not distinct from ", BinaryOp::IsNotDistinctFrom),
+        (" is distinct from ", BinaryOp::IsDistinctFrom),
+    ] {
+        if let Some((left, right)) = split_top_level(raw, token) {
+            if [" is distinct from ", " is not distinct from "]
+                .iter()
+                .any(|token| {
+                    split_top_level(left, token).is_some()
+                        || split_top_level(right, token).is_some()
+                })
+            {
+                return Err(SqlError::syntax(
+                    "chained null-safe comparisons require parentheses".into(),
+                ));
+            }
+            return Ok(Expr::Binary {
+                left: Box::new(parse_comparison_expression(left)?),
+                right: Box::new(parse_comparison_expression(right)?),
+                op,
+            });
+        }
+    }
+
     if let Some((left, right)) = split_top_level(raw, " is not null") {
         if right.trim().is_empty() {
             return Ok(Expr::IsNull {

@@ -430,6 +430,7 @@ pub(super) fn relation_output_schema(catalog: &Catalog, name: &str) -> Result<Sc
     }
 
     if let Some(view) = catalog.get_view(name) {
+        crate::sql::definition_guard::query_sql(&view.query)?;
         return Ok(view.schema);
     }
 
@@ -726,6 +727,8 @@ pub(crate) fn infer_expr_type(
             | BinaryOp::Or
             | BinaryOp::Eq
             | BinaryOp::NotEq
+            | BinaryOp::IsDistinctFrom
+            | BinaryOp::IsNotDistinctFrom
             | BinaryOp::Lt
             | BinaryOp::Lte
             | BinaryOp::Gt

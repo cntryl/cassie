@@ -183,6 +183,8 @@ fn binary_operand_family(
         BinaryOp::And | BinaryOp::Or => Ok(Some(OperandFamily::Boolean)),
         BinaryOp::Eq
         | BinaryOp::NotEq
+        | BinaryOp::IsDistinctFrom
+        | BinaryOp::IsNotDistinctFrom
         | BinaryOp::Lt
         | BinaryOp::Lte
         | BinaryOp::Gt
@@ -195,7 +197,13 @@ fn binary_operand_family(
                 right,
                 left_family,
                 right_family,
-                matches!(op, BinaryOp::Eq | BinaryOp::NotEq),
+                matches!(
+                    op,
+                    BinaryOp::Eq
+                        | BinaryOp::NotEq
+                        | BinaryOp::IsDistinctFrom
+                        | BinaryOp::IsNotDistinctFrom
+                ),
             )?;
             require_compatible_families(left_family, right_family, "comparison")?;
             Ok(Some(OperandFamily::Boolean))
@@ -580,6 +588,7 @@ pub(super) fn validate_function_calls(
                 function.args.len()
             )));
         }
+        crate::sql::definition_guard::expression_sql(&metadata.body)?;
     }
 
     Ok(())

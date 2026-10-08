@@ -182,6 +182,9 @@ pub(super) fn apply_default_constraint(
     constraint: &mut FieldConstraint,
     raw: &str,
 ) -> Result<(), SqlError> {
+    crate::sql::definition_guard::expression_sql(raw)
+        .map_err(|error| SqlError::unsupported(error.to_string()))?;
+
     if let Some(sequence) = crate::catalog::parse_nextval_default_expression(raw) {
         constraint.default_value = None;
         constraint.default_sequence = Some(sequence.clone());

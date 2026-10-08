@@ -24,6 +24,7 @@ The only accepted Cassie-owned on-disk baseline marker is `cassie-midge-layout-v
 | --- | --- | --- |
 | Core reads | `SELECT`, projection, aliases, expressions, `FROM`, `WHERE`, and searched or simple `CASE` expressions. | Stable |
 | Predicates and nulls | Comparison, boolean logic, `IS NULL`, `IN`, `BETWEEN`, three-valued logic | Stable |
+| Null-safe comparisons | `IS DISTINCT FROM` / `IS NOT DISTINCT FROM` over selected current scalar/ARRAY equality in query and DML expressions; scalar/residual fallback, persisted-definition rejection. See [finite contract](null-safe-predicate-contract.md). | Experimental |
 | Existing operator spelling | Compact and spaced `=`, `!=`, `<>`, `<`, `>`, `<=`, `>=`, `+`, `-`, `*`, and `/` share expression precedence, literal boundaries and parameter identity. Generic parser and bound-query witnesses live in `tests/parser_types/dialect_syntax.rs`; [#794](https://github.com/cntryl/cassie/issues/794) tracks qualification. | Experimental |
 | Ordering and pagination | `ORDER BY`, null placement, `LIMIT`, `OFFSET` | Stable |
 | Deduplication | `DISTINCT`, `DISTINCT ON` | Stable |

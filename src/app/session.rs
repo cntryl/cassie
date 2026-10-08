@@ -642,6 +642,9 @@ impl CassieSession {
 
     #[must_use]
     pub(crate) fn has_collection_changes(&self, collection: &str) -> bool {
+        if let Some(changed) = self.captured_has_collection_changes(collection) {
+            return changed;
+        }
         self.transaction
             .lock()
             .writes

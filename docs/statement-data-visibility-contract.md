@@ -18,7 +18,10 @@ and one immutable copy-on-write snapshot of its session's staged writes.
 Every selected read owner in that database uses those same captured owners.
 A commit after capture cannot change the statement's committed rows, index
 membership or Data metadata; a staged-write change after capture cannot
-change its overlay. Empty inputs obey the same acquisition law. A subsequent
+change its overlay. Read-path eligibility checks use that captured map, including
+an empty captured overlay; another session keeps its live staged-write authority.
+Mutation staging and commit checks retain their existing live state.
+Empty inputs obey the same acquisition law. A subsequent
 statement captures a fresh view and can observe later committed state.
 
 This law covers row sources, joined sources, repeated CTE and subquery reads,

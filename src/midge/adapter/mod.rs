@@ -980,25 +980,8 @@ impl Midge {
         metadata.schema_version = schema_version;
         Self::save_projection_metadata_to_tx(tx, &metadata)
     }
-
-    pub(crate) fn row_schema(&self, collection: &str) -> Result<RowSchema, CassieError> {
-        let collection = self.canonical_collection_name(collection);
-        let tx = self.begin_schema_readonly_tx()?;
-        if let Some(row_schema) = Self::load_row_schema_from_tx(&tx, &collection)? {
-            return Ok(row_schema);
-        }
-
-        let raw = tx
-            .get(&Self::collection_schema_key(&collection))
-            .map_err(CassieError::from)?
-            .ok_or_else(|| CassieError::CollectionNotFound(collection.clone()))?;
-        let schema: Schema = serde_json::from_slice(&raw).map_err(|error| {
-            CassieError::Parse(format!("invalid schema for '{collection}': {error}"))
-        })?;
-        Ok(RowSchema::from_schema(&schema))
-    }
 }
 
 mod statement_read;
-pub(crate) use statement_read::{StatementDataRead, StatementReadScope};
 use statement_read::DataReadTransaction;
+pub(crate) use statement_read::{StatementDataRead, StatementReadScope};

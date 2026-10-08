@@ -89,6 +89,22 @@ impl CassieSession {
         })
     }
 
+    pub(super) fn captured_has_collection_changes(&self, collection: &str) -> Option<bool> {
+        CURRENT_OVERLAY.with(|current| {
+            current
+                .borrow()
+                .as_ref()
+                .filter(|owner| {
+                    std::ptr::eq(owner.identity.as_ptr(), Arc::as_ptr(&self.transaction))
+                })
+                .map(|owner| {
+                    owner.writes.iter().any(|(name, changes)| {
+                        !changes.is_empty() && crate::catalog::name_matches(name, collection)
+                    })
+                })
+        })
+    }
+
     pub(crate) fn read_document_change(
         &self,
         collection: &str,

@@ -278,7 +278,11 @@ fn should_check_capture_controls_before_overlay_admission() {
         crate::runtime::QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
     let mut expired =
         crate::runtime::QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
-    expired.deadline = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+    expired.deadline = Some(
+        std::time::Instant::now()
+            .checked_sub(std::time::Duration::from_secs(1))
+            .expect("past deadline"),
+    );
 
     // Act
     let cancelled_result =
@@ -361,7 +365,7 @@ fn should_validate_commit_against_fresh_gated_data_inside_a_read_scope() {
 
     // Assert
     assert_eq!(captured, vec![vec![Value::Int64(1)]]);
-    assert!(current_parents.is_empty());
+    assert_eq!(current_parents, Vec::<Vec<Value>>::new());
     assert!(
         commit.is_err(),
         "commit must reject the deleted committed parent"
@@ -548,10 +552,16 @@ fn should_select_read_paths_using_the_captured_overlay() {
     );
     execute(&cassie, &reader, "BEGIN");
     execute(&cassie, &reader, "UPDATE overlay_path_rows SET n = 110");
+    let captured_eligibility = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let observed_eligibility = Arc::clone(&captured_eligibility);
     let nested_cassie = Arc::clone(&cassie);
     let nested_reader = reader.clone();
     let hook = CaptureHook::install(move || {
         execute(&nested_cassie, &nested_reader, "ROLLBACK");
+        observed_eligibility.store(
+            nested_reader.has_collection_changes("overlay_path_rows"),
+            std::sync::atomic::Ordering::SeqCst,
+        );
     });
 
     // Act
@@ -570,10 +580,68 @@ fn should_select_read_paths_using_the_captured_overlay() {
     std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
 
     // Assert
+    assert!(
+        captured_eligibility.load(std::sync::atomic::Ordering::SeqCst),
+        "read-path eligibility must still see captured staged changes"
+    );
     assert_eq!(fresh, vec![vec![Value::Int64(10)]]);
     assert_eq!(
         captured,
         vec![vec![Value::Int64(110)]],
         "a live rollback cannot bypass the captured staged row"
     );
+}
+
+#[test]
+fn should_isolate_captured_read_eligibility_from_other_sessions() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-overlay-gates-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let reader = cassie.create_session("reader", None);
+    let writer = cassie.create_session("writer", None);
+    execute(
+        &cassie,
+        &reader,
+        "CREATE TABLE gate_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(&cassie, &reader, "INSERT INTO gate_rows VALUES (1, 10)");
+    execute(&cassie, &reader, "BEGIN");
+    execute(&cassie, &writer, "BEGIN");
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    let owner = reader
+        .capture_statement_read(&cassie.midge, &cassie.default_database, &controls)
+        .expect("capture empty overlay");
+    let scope = super::SessionReadScope::enter(owner.overlay());
+
+    // Act
+    execute(&cassie, &reader, "INSERT INTO gate_rows VALUES (2, 20)");
+    execute(&cassie, &writer, "INSERT INTO gate_rows VALUES (3, 30)");
+    let captured_empty = reader.has_collection_changes("gate_rows");
+    let independent_live = writer.has_collection_changes("gate_rows");
+    let unrelated = reader.has_collection_changes("unrelated_rows");
+    drop(scope);
+    let restored_live = reader.has_collection_changes("gate_rows");
+    drop(owner);
+    let released = controls.current_query_memory_bytes();
+    execute(&cassie, &reader, "ROLLBACK");
+    execute(&cassie, &writer, "ROLLBACK");
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert!(
+        !captured_empty,
+        "late staged writes cannot change the captured empty overlay"
+    );
+    assert!(
+        independent_live,
+        "a different session keeps its live authority"
+    );
+    assert!(!unrelated);
+    assert!(
+        restored_live,
+        "scope exit restores the reader's live staged changes"
+    );
+    assert_eq!(released, 0);
 }

@@ -31,6 +31,7 @@ impl std::fmt::Debug for StatementDataRead {
 }
 
 impl StatementDataRead {
+    #[cfg(test)]
     pub(crate) fn capture(
         midge: &Arc<Midge>,
         database: &str,

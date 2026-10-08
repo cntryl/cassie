@@ -86,7 +86,7 @@ fn should_preserve_expired_deadline_for_null_safe_predicates() {
         // Assert
         assert!(
             matches!(result, Err(crate::app::CassieError::DeadlineExceeded)),
-            "{result:?}"
+            "should_preserve_expired_deadline_for_null_safe_predicates should report DeadlineExceeded"
         );
         assert_eq!(controls.current_query_memory_bytes(), 0);
         cassie.shutdown();

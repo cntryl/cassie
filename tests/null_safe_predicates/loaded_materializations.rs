@@ -30,7 +30,7 @@ fn should_reject_loaded_materialized_projection_rebuild_definition() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_loaded_materialized_projection_rebuild_definition should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert_eq!(
         serde_json::to_value(
@@ -69,7 +69,7 @@ fn should_reject_loaded_rollup_refresh_definition() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_loaded_rollup_refresh_definition should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert_eq!(
         fixture
@@ -137,7 +137,7 @@ fn should_reject_unchecked_stored_index_predicate_maintenance() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_unchecked_stored_index_predicate_maintenance should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
         .cassie
@@ -227,7 +227,7 @@ fn should_reject_loaded_materialized_projection_repair_definition() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_loaded_materialized_projection_repair_definition should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert_eq!(
         serde_json::to_value(

@@ -123,7 +123,7 @@ fn should_preserve_null_safe_query_cancellation() {
     // Assert
     assert!(
         matches!(result, Err(cassie::app::CassieError::QueryCancelled)),
-        "{result:?}"
+        "should_preserve_null_safe_query_cancellation should report QueryCancelled"
     );
     let snapshot = fixture.cassie.metrics();
     assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);
@@ -166,7 +166,7 @@ fn should_preserve_null_safe_scan_memory_denial() {
     // Assert
     assert!(
         matches!(result, Err(cassie::app::CassieError::ResourceLimit(_))),
-        "{result:?}"
+        "should_preserve_null_safe_scan_memory_denial should report ResourceLimit"
     );
     let snapshot = fixture.cassie.metrics();
     assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);

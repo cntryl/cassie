@@ -12,7 +12,7 @@ fn should_reject_persisted_view_null_safe_predicates_before_publication() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_persisted_view_null_safe_predicates_before_publication should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
         .execute("SELECT * FROM forbidden_null_safe")
@@ -27,7 +27,7 @@ fn should_preserve_keyword_text_in_existing_view_definitions() {
     let result = fixture
         .execute("CREATE VIEW allowed_keyword_text AS SELECT 'IS NOT DISTINCT FROM' AS text");
     // Assert
-    assert!(result.is_ok(), "{result:?}");
+    assert!(result.is_ok(), "should_preserve_keyword_text_in_existing_view_definitions should report successful keyword-text definition");
     assert_eq!(
         fixture.rows("SELECT text FROM allowed_keyword_text"),
         vec![vec![cassie::types::Value::String(
@@ -67,7 +67,7 @@ fn should_reject_direct_durable_null_safe_metadata_admission() {
     for (kind, result) in ["function", "procedure", "view"].iter().zip(results) {
         assert!(
             matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-            "{kind}: {result:?}"
+            "{kind}: should_reject_direct_durable_null_safe_metadata_admission should report Unsupported (SQLSTATE 0A000) for persisted definition"
         );
     }
     assert!(fixture
@@ -103,7 +103,7 @@ fn should_reject_sql_routine_null_safe_definitions() {
     for result in results {
         assert!(
             matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-            "{result:?}"
+            "should_reject_sql_routine_null_safe_definitions should report Unsupported (SQLSTATE 0A000) for persisted definition"
         );
     }
 }
@@ -131,7 +131,7 @@ fn should_reject_remaining_sql_null_safe_definition_carriers() {
     assert!(
         results.iter().all(|result| matches!(result,
         Err(CassieError::Unsupported(message)) if message.contains("persisted definitions"))),
-        "selected durable carrier results: {results:?}"
+        "should_reject_remaining_sql_null_safe_definition_carriers should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
 }
 
@@ -150,7 +150,7 @@ fn should_reject_null_safe_predicates_in_nested_procedure_definitions() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_null_safe_predicates_in_nested_procedure_definitions should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
         .cassie
@@ -194,7 +194,7 @@ fn should_reject_direct_default_expression_publication() {
     assert!(
         results.iter().all(|result| matches!(result,
         Err(CassieError::Unsupported(message)) if message.contains("persisted definitions"))),
-        "all durable default writers must reject before publication: {results:?}"
+        "should_reject_direct_default_expression_publication should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
         .cassie
@@ -219,7 +219,7 @@ fn should_reject_null_safe_arguments_in_stored_procedure_calls() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_null_safe_arguments_in_stored_procedure_calls should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert!(fixture
         .cassie
@@ -249,7 +249,7 @@ fn should_reject_loaded_default_expression_use() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_loaded_default_expression_use should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     assert_eq!(
         fixture.rows("SELECT id FROM loaded_default"),
@@ -293,6 +293,6 @@ fn should_reject_loaded_index_predicate_use() {
     // Assert
     assert!(
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
-        "{result:?}"
+        "should_reject_loaded_index_predicate_use should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
 }

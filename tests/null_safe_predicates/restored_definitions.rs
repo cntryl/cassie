@@ -80,7 +80,7 @@ fn should_reject_restored_null_safe_definitions_on_use() {
     assert!(
         results.iter().all(|result| matches!(result,
         Err(CassieError::Unsupported(message)) if message.contains("persisted definitions"))),
-        "restored definition use must reject the actual new AST operator: {results:?}"
+        "should_reject_restored_null_safe_definitions_on_use should report Unsupported (SQLSTATE 0A000) for persisted definition"
     );
     restored.shutdown();
 }

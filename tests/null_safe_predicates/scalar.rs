@@ -160,7 +160,7 @@ fn should_preserve_contextual_json_boundary_semantics() {
     for result in malformed.into_iter().flatten() {
         assert!(
             matches!(result, Err(cassie::app::CassieError::Planner(ref message)) if message.contains("invalid JSON literal")),
-            "{result:?}"
+            "should_preserve_contextual_json_boundary_semantics should report Planner for invalid JSON literal"
         );
     }
 }

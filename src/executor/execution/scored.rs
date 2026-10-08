@@ -104,16 +104,30 @@ struct FulltextSearchTuning<'a> {
 
 fn cached_search_context<D>(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     collection: &str,
     field: &str,
     documents: &[D],
     tuning: FulltextSearchTuning<'_>,
+    controls: &QueryExecutionControls,
 ) -> Result<filter::SearchContext, QueryError>
 where
     D: PostingListDocument,
 {
     let schema_epoch = cassie.runtime.schema_epoch();
-    let data_epoch = cassie.runtime.data_epoch();
+    let database = crate::catalog::relation_database_name(collection)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let data_epoch = controls
+        .statement_read()
+        .filter(|owner| {
+            owner.matches(&cassie.midge, &database)
+                && session.is_none_or(|session| {
+                    owner
+                        .overlay()
+                        .is_some_and(|overlay| overlay.matches_session(session))
+                })
+        })
+        .map_or_else(|| cassie.runtime.data_epoch(), |owner| owner.data_epoch());
     let analyzer_key = tuning
         .analyzer
         .get(&crate::sql::ColumnIdentifierPath::reference_field_key(

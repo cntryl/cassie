@@ -172,6 +172,7 @@ fn execute_row_fulltext_filtered_read(
     )?;
     let search_context = cached_search_context(
         cassie,
+        session,
         &spec.collection,
         &spec.text_field,
         &search_documents,
@@ -181,6 +182,7 @@ fn execute_row_fulltext_filtered_read(
             b: &search_index_options.field_b,
             analyzer: &search_index_options.field_analyzer,
         },
+        controls,
     )?;
     memory.push(context_memory);
     let query_memory = reserve_analyzed_text(controls, &spec.query, &analyzer)?;

@@ -130,3 +130,14 @@ pre-repair regression. The final source-only probe run passed 24 statement-view
 tests, including the observable RIGHT JOIN empty-input probe required after
 Jev returned an empty-witness gap probability of 0.37. Full acceptance remains
 pending as described above.
+
+The exact fulltext fallback now keys Temp corpus statistics to the matching
+captured Data owner's epoch, including engine, collection database and supplied
+session identity checks. The specialized `_id` score projection established
+RED (0/1): an old captured row scored 1.492780 from the newer warmed corpus
+instead of 0.287682 from its original corpus. The repaired focused statement
+suite passed 27/0, including statistics-cache hits, next-statement fresh scores
+and cross-engine/session supplied-owner rejection. The generic `id` projection
+control passed before repair but bypassed this statistics-cache path; it is not
+evidence of that path's correctness. Other artifact paths and staged corpus
+statistics compatibility remain pending qualification.

@@ -191,7 +191,7 @@ fn user_functions_for_plan(
     }
 }
 
-fn statement_read_controls(
+pub(super) fn statement_read_controls(
     cassie: &Cassie,
     session: Option<&CassieSession>,
     controls: &QueryExecutionControls,
@@ -217,7 +217,7 @@ fn statement_read_controls(
     Ok(controls.with_statement_read(Some(owner)))
 }
 
-fn enter_statement_read(
+pub(super) fn enter_statement_read(
     controls: &QueryExecutionControls,
 ) -> (
     crate::midge::adapter::StatementReadScope,

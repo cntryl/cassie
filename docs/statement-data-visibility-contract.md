@@ -46,6 +46,12 @@ upgrade or public API change is selected.
 
 ## Mutation and commit authority
 
+DML acquisition is limited to source materialization: INSERT SELECT, UPDATE
+matched rows and predicates, and DELETE matched rows and predicates. Their
+joins and EXISTS reads share that owner. The source scope ends before mutation
+preparation, uniqueness/FK checks, write staging and commit validation, which
+keep their existing authorities.
+
 A DML statement's read-source selection uses the statement view. Its private
 mutation staging, constraint checks and write transaction retain their
 existing authorities. A statement read owner must never substitute for the

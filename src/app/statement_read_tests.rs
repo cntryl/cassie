@@ -853,3 +853,5 @@ fn should_keep_direct_commands_on_fresh_mutation_authority() {
     assert_eq!(fresh, vec![vec![Value::Int64(10)]]);
     assert_eq!(released, 0);
 }
+
+mod dml;

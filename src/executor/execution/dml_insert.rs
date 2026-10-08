@@ -250,6 +250,13 @@ fn insert_source_rows(
             })
             .collect::<Result<Vec<_>, _>>(),
         InsertSource::Select(select) => {
+            let statement_controls =
+                crate::executor::execution::entrypoints::statement_read_controls(
+                    cassie, session, controls,
+                )?;
+            let controls = &statement_controls;
+            let (_read_scope, _overlay_scope) =
+                crate::executor::execution::entrypoints::enter_statement_read(controls);
             let logical = LogicalPlan {
                 command: None,
                 source: select.source.clone(),

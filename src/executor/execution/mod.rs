@@ -139,3 +139,8 @@ mod window_exec;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod statement_visibility;
+#[cfg(test)]
+pub(crate) use statement_visibility::JoinReadProbe;

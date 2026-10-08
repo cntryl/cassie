@@ -231,3 +231,6 @@ pub use execution::{
     ExecutionBreakdownOutput, QueryError, QueryResult,
 };
 pub(crate) use execution::{vector_prefilter_fallback_reason, vector_prefilter_supported};
+
+#[cfg(test)]
+pub(crate) use execution::JoinReadProbe;

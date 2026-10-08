@@ -95,6 +95,12 @@ fn matched_dml_rows(
     user_functions: &HashMap<String, FunctionMeta>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<BatchRow>, QueryError> {
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
+        cassie, session, controls,
+    )?;
+    let controls = &statement_controls;
+    let (_read_scope, _overlay_scope) =
+        crate::executor::execution::entrypoints::enter_statement_read(controls);
     let batches = scan::scan(cassie, session, table, controls)?;
     ensure_query_memory_budget(controls, &batches)?;
     let rows = batch::flatten_batches(batches);

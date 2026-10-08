@@ -223,13 +223,13 @@ mod teardown_tests {
                 .to_string_lossy()
                 .into_owned();
 
-            // Act
+            // Execute the isolated child's unwind probe.
             let result = std::panic::catch_unwind(|| {
                 let _directory = FixtureDirectory { path };
                 panic!("original fixture failure");
             });
 
-            // Assert
+            // Preserve the original panic for the parent protocol.
             assert_eq!(
                 result.expect_err("original panic").downcast_ref::<&str>(),
                 Some(&"original fixture failure")

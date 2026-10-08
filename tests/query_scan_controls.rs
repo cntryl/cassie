@@ -3721,8 +3721,9 @@ mod specialized_query_controls_retrieval {
     }
 
     struct RetrievalFixture {
+        // Fields drop in declaration order; storage owners must precede cleanup.
         cassie: Cassie,
-        path: String,
+        path: super::support_retrieval_directory::RetrievalDirectory,
         case: RetrievalCase,
     }
 
@@ -3769,13 +3770,24 @@ mod specialized_query_controls_retrieval {
 
     impl Drop for RetrievalFixture {
         fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.path);
+            // Keep the restriction on moving the engine out of the fixture.
+            // The engine and directory guard then drop in declaration order.
         }
     }
 
     fn fixture(case: RetrievalCase, memory_budget: usize) -> RetrievalFixture {
+        fixture_with_setup(case, memory_budget, |_, _| {})
+    }
+
+    fn fixture_with_setup(
+        case: RetrievalCase,
+        memory_budget: usize,
+        after_setup: impl FnOnce(&Cassie, &str),
+    ) -> RetrievalFixture {
         support::use_local_storage();
         let path = support::data_dir(&format!("specialized-{}", case.label()));
+        // Construct this before the engine so partial setup unwinds owner first.
+        let directory = super::support_retrieval_directory::RetrievalDirectory::new(path);
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.limits.query_memory_budget_bytes = memory_budget;
         config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
@@ -3784,8 +3796,8 @@ mod specialized_query_controls_retrieval {
             model: "deterministic-test".to_string(),
             dimensions: 3,
         });
-        let cassie =
-            Cassie::new_with_data_dir_and_config(&path, config).expect("retrieval fixture");
+        let cassie = Cassie::new_with_data_dir_and_config(directory.path(), config)
+            .expect("retrieval fixture");
         cassie.startup().expect("startup retrieval fixture");
         let session = cassie.create_session("tester", None);
         cassie
@@ -3856,7 +3868,12 @@ mod specialized_query_controls_retrieval {
             }
             RetrievalCase::Fulltext | RetrievalCase::VectorExact => {}
         }
-        RetrievalFixture { cassie, path, case }
+        after_setup(&cassie, directory.path());
+        RetrievalFixture {
+            cassie,
+            path: directory,
+            case,
+        }
     }
 
     fn metric(metrics: &serde_json::Value, family: &str, name: &str) -> u64 {
@@ -4102,12 +4119,13 @@ mod specialized_query_controls_retrieval {
         assert_query_cleanup(&fixture.cassie);
     }
 
-    #[test]
-    fn should_publish_only_deterministic_bounded_final_retrieval_paths() {
+    fn run_selected_retrieval_paths() -> Vec<String> {
         let _guard = cassie::midge::adapter::query_scan_control_test_guard();
+        let mut paths = Vec::new();
         for case in RetrievalCase::ALL {
             // Arrange
             let fixture = fixture(case, 4 * 1024 * 1024);
+            paths.push(fixture.path.path().to_owned());
             let session = fixture.cassie.create_session("reader", None);
             let query = fixture.query();
             let before = fixture.cassie.metrics();
@@ -4181,6 +4199,98 @@ mod specialized_query_controls_retrieval {
                 assert_query_cleanup(&fixture.cassie);
             }
         }
+        paths
+    }
+    #[test]
+    fn should_publish_only_deterministic_bounded_final_retrieval_paths() {
+        run_selected_retrieval_paths();
+    }
+
+    #[test]
+    fn should_drop_retrieval_fixture_owners_without_shutdown_timeout() {
+        // Arrange
+        let mut paths = Vec::new();
+
+        // Act
+        let warnings = super::support_teardown_evidence::capture_warnings(|| {
+            paths = run_selected_retrieval_paths();
+        });
+
+        // Assert
+        assert_eq!(paths.len(), RetrievalCase::ALL.len());
+        for path in paths {
+            assert!(
+                !std::path::Path::new(&path).exists(),
+                "retrieval fixture directory survived teardown: {path}"
+            );
+        }
+        assert!(
+            !warnings.contains("Midge graceful shutdown did not complete"),
+            "retrieval teardown warnings: {warnings}"
+        );
+    }
+
+    #[test]
+    fn should_clean_retrieval_directory_when_setup_unwinds() {
+        // Arrange
+        let mut path = String::new();
+        let mut outcome = Ok(());
+
+        // Act
+        let warnings = super::support_teardown_evidence::capture_warnings(|| {
+            outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                fixture_with_setup(
+                    RetrievalCase::VectorHnsw,
+                    4 * 1024 * 1024,
+                    |_, directory| {
+                        path = directory.to_owned();
+                        panic!("controlled retrieval setup panic");
+                    },
+                );
+            }));
+        });
+
+        // Assert
+        let error = outcome.expect_err("setup must unwind");
+        assert_eq!(
+            error.downcast_ref::<&str>(),
+            Some(&"controlled retrieval setup panic")
+        );
+        assert_ne!(path, "");
+        assert!(!std::path::Path::new(&path).exists());
+        assert!(
+            !warnings.contains("Midge graceful shutdown did not complete"),
+            "setup unwind warnings: {warnings}"
+        );
+    }
+
+    #[test]
+    fn should_release_retrieval_engine_while_cloned_reader_results_remain_live() {
+        // Arrange
+        let fixture = fixture(RetrievalCase::VectorHnsw, 4 * 1024 * 1024);
+        let path = fixture.path.path().to_owned();
+        let reader = fixture.cassie.create_session("reader", None);
+        let escaped_reader = reader.clone();
+        let result = fixture
+            .cassie
+            .execute_sql(&reader, &fixture.query(), vec![])
+            .expect("reader retrieval");
+        assert_query_cleanup(&fixture.cassie);
+        drop(reader);
+
+        // Act
+        let warnings = super::support_teardown_evidence::capture_warnings(|| drop(fixture));
+
+        // Assert
+        assert_eq!(escaped_reader.user, "reader");
+        assert_eq!(result.rows.len(), RESULT_LIMIT);
+        assert!(!std::path::Path::new(&path).exists());
+        assert!(
+            !warnings.contains("Midge graceful shutdown did not complete"),
+            "escaped reader teardown warnings: {warnings}"
+        );
+        drop(result);
+        drop(escaped_reader);
     }
 }
 
@@ -4189,3 +4299,9 @@ mod column_limit;
 
 #[path = "support/column_projection_fixture.rs"]
 mod support_column_projection_fixture;
+
+#[path = "support/teardown_evidence.rs"]
+mod support_teardown_evidence;
+
+#[path = "support/retrieval_directory.rs"]
+mod support_retrieval_directory;

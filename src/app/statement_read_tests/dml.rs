@@ -278,7 +278,7 @@ fn should_cancel_insert_select_without_retaining_source_owners() {
     );
     assert!(
         matches!(result, Err(crate::app::CassieError::QueryCancelled)),
-        "{result:?}"
+        "cancelled DML source must return QueryCancelled"
     );
     assert_eq!(copied, Vec::<Vec<Value>>::new());
     assert_eq!(retained, 0);

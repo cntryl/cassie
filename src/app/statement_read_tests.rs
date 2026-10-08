@@ -291,7 +291,12 @@ fn should_check_capture_controls_before_overlay_admission() {
         session.capture_statement_read(&cassie.midge, &cassie.default_database, &denied);
     let expired_result =
         session.capture_statement_read(&cassie.midge, &cassie.default_database, &expired);
-    println!("capture controls: cancelled={cancelled_result:?} denied={denied_result:?} expired={expired_result:?}");
+    println!(
+        "capture controls: cancelled_error={} denied_error={} expired_error={}",
+        cancelled_result.is_err(),
+        denied_result.is_err(),
+        expired_result.is_err()
+    );
     drop(cassie);
     std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
 
@@ -359,7 +364,7 @@ fn should_validate_commit_against_fresh_gated_data_inside_a_read_scope() {
     let current_parents = execute(&cassie, &reader, "SELECT id FROM view_parents");
     let current_children = execute(&cassie, &reader, "SELECT parent_id FROM view_children");
     let commit = outcome.lock().take().expect("commit attempt");
-    println!("gated commit: {commit:?}");
+    println!("gated commit rejected={}", commit.is_err());
     drop(cassie);
     std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
 
@@ -865,3 +870,5 @@ mod native_paths;
 mod resources;
 
 mod workers;
+
+mod graphs;

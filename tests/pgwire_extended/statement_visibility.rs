@@ -36,7 +36,11 @@ fn fixture(path: &str) -> Cassie {
     cassie
 }
 fn values(frames: &[(u8, Vec<u8>)]) -> Vec<String> {
-    assert_eq!(wire::error_code(frames), None, "{frames:?}");
+    assert_eq!(
+        wire::error_code(frames),
+        None,
+        "statement visibility fixture must not return an error SQLSTATE"
+    );
     wire::data_rows(frames)
         .into_iter()
         .map(|row| row.into_iter().next().flatten().expect("n"))

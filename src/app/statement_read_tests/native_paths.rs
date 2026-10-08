@@ -314,6 +314,14 @@ fn should_keep_captured_overlay_for_time_series_ranges() {
 }
 
 fn assert_commit_artifact_view(setup: &[&str], sql: &'static str) {
+    assert_artifact_view_after_mutation(setup, sql, |cassie, writer| insert(cassie, writer, 2, 20));
+}
+
+fn assert_artifact_view_after_mutation(
+    setup: &[&str],
+    sql: &'static str,
+    mutation: impl FnOnce(&Cassie, &CassieSession) + 'static,
+) {
     let fixture = Fixture::new(setup);
     let reader = fixture.cassie.create_session("artifact-reader", None);
     let writer = fixture.cassie.create_session("artifact-writer", None);
@@ -324,7 +332,7 @@ fn assert_commit_artifact_view(setup: &[&str], sql: &'static str) {
     let committed = Arc::new(AtomicBool::new(false));
     let observed = Arc::clone(&committed);
     let hook = CaptureHook::install(move || {
-        insert(&cassie, &writer, 2, 20);
+        mutation(&cassie, &writer);
         let rows = execute(&cassie, &writer, sql);
         *published.lock().expect("warm artifact oracle") = Some(rows);
         observed.store(true, Ordering::SeqCst);
@@ -410,4 +418,112 @@ fn should_keep_analytical_projection_rows_on_the_captured_committed_generation()
     assert_commit_artifact_view(&setup, sql);
     // Assert
     // The helper compares captured, warmed committed and next-statement oracles.
+}
+
+#[test]
+fn should_keep_an_old_scalar_candidate_after_its_live_index_membership_changes() {
+    // Arrange
+    let setup = ["CREATE INDEX native_n ON native_rows USING btree (n)"];
+    let sql = "SELECT n FROM native_rows WHERE n >= 0 AND n < 100";
+    // Act
+    assert_artifact_view_after_mutation(&setup, sql, |cassie, writer| {
+        execute(
+            cassie,
+            writer,
+            "UPDATE native_rows SET n = 110 WHERE id = 1",
+        );
+    });
+    // Assert
+    // The captured indexed row remains while the warmed current index excludes it.
+}
+#[test]
+fn should_keep_an_old_fulltext_posting_after_its_live_token_changes() {
+    // Arrange
+    let setup = ["CREATE INDEX native_text ON native_rows USING fulltext (body)"];
+    let sql = "SELECT _id, search_score(body, 'alpha') AS score FROM native_rows WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 10";
+    // Act
+    assert_artifact_view_after_mutation(&setup, sql, |cassie, writer| {
+        execute(
+            cassie,
+            writer,
+            "UPDATE native_rows SET body = 'beta' WHERE id = 1",
+        );
+    });
+    // Assert
+    // The captured alpha posting remains while the warmed current posting is absent.
+}
+#[test]
+fn should_keep_the_old_vector_distance_after_its_live_embedding_changes() {
+    // Arrange
+    let setup = ["CREATE INDEX native_vector ON native_rows USING vector (embedding) WITH (source_field = body, index_type = hnsw, metric = l2)"];
+    let sql = "SELECT _id, vector_distance(embedding, '[1,0]') AS distance FROM native_rows ORDER BY distance ASC LIMIT 10";
+    // Act
+    assert_artifact_view_after_mutation(&setup, sql, |cassie, writer| {
+        cassie
+            .execute_sql(
+                writer,
+                "UPDATE native_rows SET embedding = $1 WHERE id = 1",
+                vec![Value::Vector(crate::types::Vector::new(vec![10.0, 0.0]))],
+            )
+            .expect("commit changed indexed embedding");
+    });
+    // Assert
+    // The captured distance remains zero while the warmed current distance is nine.
+}
+
+#[test]
+fn should_keep_time_series_buckets_on_the_captured_committed_generation() {
+    // Arrange
+    let fixture = Fixture::new(&[]);
+    let reader = fixture.cassie.create_session("time-reader", None);
+    let writer = fixture.cassie.create_session("time-writer", None);
+    execute(
+        &fixture.cassie,
+        &writer,
+        "CREATE TABLE native_events (tenant TEXT, event_at TIMESTAMP, amount INT)",
+    );
+    execute(
+        &fixture.cassie,
+        &writer,
+        "INSERT INTO native_events VALUES ('acme', '2026-01-01T00:00:00Z', 10)",
+    );
+    execute(&fixture.cassie, &writer, "CREATE INDEX native_events_time ON native_events USING time_series (event_at) WITH (bucket_width = '1 hour', partition_by = tenant)");
+    let sql = "SELECT amount FROM native_events WHERE tenant = 'acme' AND event_at >= '2026-01-01T00:00:00Z' AND event_at < '2026-01-01T01:00:00Z' ORDER BY amount";
+    let original = execute(&fixture.cassie, &reader, sql);
+    let cassie = Arc::clone(&fixture.cassie);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = CaptureHook::install(move || {
+        execute(
+            &cassie,
+            &writer,
+            "INSERT INTO native_events VALUES ('acme', '2026-01-01T00:01:00Z', 20)",
+        );
+        assert_eq!(
+            execute(&cassie, &writer, sql),
+            vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]
+        );
+        observed.store(true, Ordering::SeqCst);
+    });
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    let metrics = fixture.cassie.metrics();
+    // Assert
+    assert!(committed.load(Ordering::SeqCst));
+    assert_eq!(original, vec![vec![Value::Int64(10)]]);
+    assert_eq!(captured, original);
+    assert_eq!(fresh, vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]);
+    eprintln!("committed time-series metrics={}", metrics["time_series"]);
+    assert!(
+        metrics["time_series"]["bucket_native_hits"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 4
+    );
+    assert_eq!(
+        metrics["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
 }

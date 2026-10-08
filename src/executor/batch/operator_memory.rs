@@ -139,10 +139,10 @@ impl BatchRow {
 
     /// Projected rows build their lookup lazily; retain admission for that future cache.
     pub(crate) fn pending_lookup_bytes(&self) -> Result<usize, CassieError> {
+        use crate::executor::retained_memory::{add, lookup_bytes};
         if self.lookup.get().is_some() {
             return Ok(0);
         }
-        use crate::executor::retained_memory::{add, lookup_bytes};
         let names = self
             .values
             .iter()

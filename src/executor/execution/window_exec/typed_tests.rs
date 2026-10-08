@@ -112,7 +112,7 @@ fn assert_selected(projection: &[SelectItem], path: &'static str) {
 }
 
 #[test]
-fn should_compute_typed_ranking_across_partitions_peers_and_input_splits() {
+fn should_compute_typed_ranking_across_every_input_split() {
     // Arrange
     let projection = projection("SELECT ROW_NUMBER() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS rn, RANK() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS r, DENSE_RANK() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS d");
     // Act
@@ -121,7 +121,7 @@ fn should_compute_typed_ranking_across_partitions_peers_and_input_splits() {
 }
 
 #[test]
-fn should_preserve_selected_value_window_frames_and_scalar_backed_payloads() {
+fn should_preserve_selected_value_window_semantics() {
     // Arrange
     let projection = projection("SELECT FIRST_VALUE(payload) OVER (PARTITION BY p ORDER BY n ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) AS fv, LAST_VALUE(payload) OVER (PARTITION BY p ORDER BY n) AS lv, LAG(payload) OVER (PARTITION BY p ORDER BY n) AS lagged, LEAD(payload) OVER (PARTITION BY p ORDER BY n) AS led");
     // Act
@@ -176,7 +176,7 @@ fn should_preserve_unknown_value_argument_descriptor_after_known_input_fields() 
 }
 
 #[test]
-fn should_match_shared_window_peers_for_mixed_numeric_keys_and_identity_ties() {
+fn should_match_shared_window_peer_ordering() {
     // Arrange
     let projection = projection("SELECT ROW_NUMBER() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS rn, RANK() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS r, DENSE_RANK() OVER (PARTITION BY p ORDER BY n NULLS LAST) AS d, LAST_VALUE(payload) OVER (PARTITION BY p ORDER BY n NULLS LAST) AS lv");
     let input = [
@@ -250,7 +250,7 @@ fn owned_rows(
 }
 
 #[test]
-fn should_release_prior_and_source_window_owners_after_budget_denial() {
+fn should_release_window_owner_chain_after_budget_denial() {
     // Arrange
     let projection = projection("SELECT FIRST_VALUE(payload) OVER (PARTITION BY p ORDER BY n ROWS BETWEEN 1 FOLLOWING AND 1 FOLLOWING) AS fv, LAST_VALUE(payload) OVER (PARTITION BY p ORDER BY n) AS lv, LAG(payload) OVER (PARTITION BY p ORDER BY n) AS lagged");
     let controls = controls();
@@ -301,7 +301,7 @@ fn should_release_prior_and_source_window_owners_after_budget_denial() {
 }
 
 #[test]
-fn should_preserve_unselected_window_expression_frame_and_cte_boundaries() {
+fn should_preserve_unselected_window_boundaries() {
     // Arrange
     for (sql, cte, path) in [
         ("SELECT FIRST_VALUE(n + 1) OVER (PARTITION BY p ORDER BY n) AS v", false, "scalar_expression_window"),
@@ -326,7 +326,7 @@ fn should_preserve_unselected_window_expression_frame_and_cte_boundaries() {
 }
 
 #[test]
-fn should_cancel_selected_windows_before_transferring_prior_and_source_owners() {
+fn should_cancel_selected_windows_before_owner_transfer() {
     // Arrange
     let cancellation = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

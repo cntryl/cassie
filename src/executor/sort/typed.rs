@@ -2,7 +2,12 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
-use super::*;
+use super::{
+    accounting, check_query_controls, chunk_rows_controlled, row_tie_key, sort_rows_by_key,
+    sort_rows_with_controls, top_k_batches_with_context, top_k_by_key, Batch, EvalInput, Expr,
+    KeyPart, OrderExpr, QueryExecutionControls, RowAccess, RowKey, SelectItem, SemanticValue,
+    SortRetentionContext, Value, DEFAULT_BATCH_SIZE,
+};
 use crate::executor::batch::BatchRow;
 use crate::executor::retained_memory::{add, lookup_bytes, mul};
 use crate::executor::typed_batch::{relational_diagnostics, row_bridge, Cell, TypedBatch};
@@ -275,11 +280,8 @@ impl DirectOrder {
             .projection
             .iter()
             .try_fold(names, |bytes, item| match item {
-                SelectItem::Column { name, alias, .. } => add(
-                    bytes,
-                    add(name.len(), alias.as_ref().map_or(0, String::len))?,
-                ),
-                SelectItem::Expr {
+                SelectItem::Column { name, alias, .. }
+                | SelectItem::Expr {
                     expr: Expr::Column(name),
                     alias,
                 } => add(

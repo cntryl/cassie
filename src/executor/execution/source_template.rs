@@ -50,7 +50,9 @@ pub(super) fn known_cte_template(
     let memory = Arc::new(memory);
     let data_types = if arrays {
         let mut types = Vec::new();
-        types.try_reserve_exact(fields.len()).map_err(allocation)?;
+        types
+            .try_reserve_exact(fields.len())
+            .map_err(|error| allocation(&error))?;
         for field in &fields {
             check_timeout(env.controls)?;
             types.push(field.data_type.clone());
@@ -60,7 +62,9 @@ pub(super) fn known_cte_template(
         None
     };
     let mut values = Vec::new();
-    values.try_reserve_exact(fields.len()).map_err(allocation)?;
+    values
+        .try_reserve_exact(fields.len())
+        .map_err(|error| allocation(&error))?;
     for field in fields {
         check_timeout(env.controls)?;
         values.push((field.name, Value::Null));
@@ -73,6 +77,6 @@ pub(super) fn known_cte_template(
     Ok(row)
 }
 
-fn allocation(error: std::collections::TryReserveError) -> QueryError {
+fn allocation(error: &std::collections::TryReserveError) -> QueryError {
     crate::app::CassieError::ResourceLimit(format!("unable to retain CTE template: {error}")).into()
 }

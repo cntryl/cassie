@@ -17,7 +17,7 @@ fn rows(values: &[Value]) -> Vec<BatchRow> {
 #[test]
 fn should_retain_typed_distinct_output_state_across_every_input_split() {
     // Arrange
-    let values = vec![
+    let values = [
         Value::Null,
         Value::Int64(7),
         Value::Null,
@@ -53,7 +53,7 @@ fn should_retain_typed_distinct_output_state_across_every_input_split() {
 }
 
 #[test]
-fn should_retain_selected_set_output_and_exact_cross_branch_equality() {
+fn should_retain_selected_set_output_with_exact_cross_branch_equality() {
     // Arrange
     for (operator, expected) in [
         ("UNION", 4),
@@ -131,7 +131,7 @@ fn should_keep_rich_distinct_adapter_state_admitted_until_output_drops() {
 }
 
 #[test]
-fn should_reject_cancelled_and_denied_distinct_flatten_before_input_handoff() {
+fn should_reject_distinct_flatten_before_input_handoff_with_failed_controls() {
     // Arrange
     for cancelled in [false, true] {
         let limits = CassieRuntimeLimits {
@@ -236,7 +236,7 @@ fn should_preserve_all_null_distinct_output_descriptor_provenance() {
                 &types
             ));
         } else {
-            assert!(output[0][0].data_types().is_empty());
+            assert_eq!(output[0][0].data_types(), []);
         }
         drop(output);
         assert_eq!(controls.current_query_memory_bytes(), 0);

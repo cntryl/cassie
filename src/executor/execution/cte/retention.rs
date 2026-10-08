@@ -2,7 +2,9 @@
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 
-use super::*;
+#[cfg(test)]
+use super::retention_tests;
+use super::{check_timeout, BatchRow, CteRows, QueryError, QueryExecutionControls, Value};
 use crate::executor::retained_memory::{add, data_type_clone_bytes, mul, value_clone_bytes};
 use crate::runtime::accounted::AccountedVec;
 use crate::runtime::QueryMemoryReservation;
@@ -149,7 +151,8 @@ impl RetainedRows {
         for row in &mut self.rows {
             check_timeout(controls)?;
             for ((name, _), alias) in row.iter_mut().zip(aliases) {
-                *name = alias.clone();
+                // Keep an independent exact-size clone: reusing capacity would alter admission.
+                drop(std::mem::replace(name, alias.clone()));
             }
         }
         self.memory.shrink_to(rows_bytes(&self.rows)?);

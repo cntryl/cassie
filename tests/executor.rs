@@ -6505,7 +6505,7 @@ mod typed_relational_phase_equivalence {
                         ]
                     );
                     assert_eq!(winners_page.rows, winners_all.rows[1..2]);
-                    assert!(zero.rows.is_empty());
+                    assert_eq!(zero.rows, [] as [Vec<Value>; 0]);
                     assert_eq!(
                         grouped_page
                             .columns
@@ -6640,7 +6640,7 @@ mod typed_alias_bound_integration {
                 assert_eq!(page.rows, all.rows[1..2]);
                 assert_eq!(prefix.rows, all.rows[..2]);
                 assert_eq!(unlimited.rows, all.rows);
-                assert!(zero.rows.is_empty());
+                assert_eq!(zero.rows, [] as [Vec<Value>; 0]);
                 assert_eq!(
                     unqualified.rows,
                     vec![

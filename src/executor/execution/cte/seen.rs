@@ -1,7 +1,12 @@
 //! Existing recursive UNION identity, with admitted candidate and retained key backing.
 use std::mem::size_of;
 
-use super::*;
+#[cfg(test)]
+use super::retention_tests;
+use super::{
+    check_timeout, retention, row_signature, HashSet, QueryError, QueryExecutionControls,
+    RetainedRows, SemanticKey, Value,
+};
 use crate::executor::retained_memory::{add, hash_table_bytes, mul, serialized_json_bytes};
 use crate::executor::semantic::SemanticValue;
 use crate::runtime::QueryMemoryReservation;

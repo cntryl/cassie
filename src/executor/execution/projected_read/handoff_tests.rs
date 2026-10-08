@@ -155,7 +155,7 @@ fn collection_handoff(use_breakdown: bool) {
         .iter()
         .all(|(_, value)| value == &Value::String("s".repeat(65_536))));
     // Existing ScalarBacked TEXT projection omits the ARRAY-only descriptor carrier.
-    assert!(row.data_types().is_empty());
+    assert_eq!(row.data_types(), []);
     let retained = controls.current_query_memory_bytes();
     assert!(
         retained >= actual,

@@ -417,7 +417,7 @@ fn derived_cte_template_source(alias: &str, lateral: bool) -> QuerySource {
 }
 
 #[test]
-fn should_retain_derived_and_lateral_cte_array_templates_until_drop() {
+fn should_retain_derived_lateral_cte_array_templates_until_drop() {
     // Arrange
     with_fixture(|cassie| {
         let mut missing = Vec::new();
@@ -481,7 +481,7 @@ fn should_retain_derived_and_lateral_cte_array_templates_until_drop() {
 }
 
 #[test]
-fn should_deny_derived_and_lateral_cte_template_aliases_before_construction() {
+fn should_deny_derived_lateral_cte_template_aliases_before_construction() {
     // Arrange
     with_fixture(|cassie| {
         let mut missing = Vec::new();

@@ -49,15 +49,7 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     let scan = scan_projected_read_batches(cassie, session, &spec, plan, controls)?;
     let mut batches = scan.batches;
     let mut batch_memory = ensure_query_memory_budget(controls, &batches)?;
-    breakdown.row_decode += scan.scan_timings.row_decode;
-    let measured_scan = scan
-        .scan_timings
-        .scan
-        .saturating_add(scan.scan_timings.row_decode);
-    breakdown.scan += scan
-        .scan_timings
-        .scan
-        .saturating_add(scan.started.elapsed().saturating_sub(measured_scan));
+    record_scan_durations(&mut breakdown, &scan.scan_timings, scan.started);
 
     if scan.pushdown_filter_absent {
         if let Some(filter_expr) = &plan.filter {
@@ -126,6 +118,18 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     record_breakdown_read_path(cassie, plan, heap_top_k_collection_name, rows.len());
 
     Ok(Some((rows, breakdown)))
+}
+
+fn record_scan_durations(
+    breakdown: &mut ExecutionBreakdownDurations,
+    timings: &super::scan::ScanTimings,
+    started: Instant,
+) {
+    breakdown.row_decode += timings.row_decode;
+    let measured_scan = timings.scan.saturating_add(timings.row_decode);
+    breakdown.scan += timings
+        .scan
+        .saturating_add(started.elapsed().saturating_sub(measured_scan));
 }
 
 fn point_lookup(

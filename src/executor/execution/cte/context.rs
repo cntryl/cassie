@@ -1,7 +1,9 @@
 //! The existing independent CTE namespace with its own retained map reservation.
 use std::ops::Deref;
 
-use super::*;
+#[cfg(test)]
+use super::retention_tests;
+use super::{check_timeout, retention, CteRelation, HashMap, QueryError, QueryExecutionControls};
 use crate::executor::retained_memory::{add, hash_table_bytes, mul};
 use crate::runtime::QueryMemoryReservation;
 

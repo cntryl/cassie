@@ -170,7 +170,7 @@ fn should_admit_direct_outer_projection_copies() {
             // Assert
             assert_eq!(output[0][0].get("x0"), Some(&value));
             if matches!(kind, DataType::Array(_)) {
-                assert_eq!(output[0][0].data_types(), [kind.clone()]);
+                assert_eq!(output[0][0].data_types(), std::slice::from_ref(&kind));
             }
             let row = output[0].remove(0);
             let (row, actual) = actual_body(row);
@@ -211,7 +211,7 @@ fn should_admit_direct_outer_projection_copies() {
 }
 
 #[test]
-fn should_preserve_public_lateral_outer_direct_values_and_types() {
+fn should_preserve_public_lateral_outer_direct_output() {
     // Arrange
     fixture(|cassie| {
         let session = cassie.create_session("tester", None);

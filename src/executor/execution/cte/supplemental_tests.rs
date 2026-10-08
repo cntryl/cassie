@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    copy_source_rows, execute_plan, retention, retention_tests, seen, BatchRow, Cassie, CteContext,
+    CteRelation, HashMap, QueryError, QueryExecutionControls, RetainedRows, Value,
+};
 use std::time::{Duration, Instant};
 
 fn fixture(run: impl FnOnce(&Cassie)) {
@@ -42,7 +45,56 @@ fn controls(budget: usize) -> QueryExecutionControls {
 }
 
 #[test]
-fn should_preserve_multiple_cte_references_and_deep_context_independence() {
+fn should_preserve_fresh_cte_alias_capacity_at_old_new_admission() {
+    // Arrange
+    for (old_len, new_len) in [(65_536, 1), (1, 65_536), (50, 60)] {
+        let rows = vec![vec![("o".repeat(old_len), Value::Int64(7))]];
+        let aliases = ["n".repeat(new_len)];
+        let expected_capacity = aliases[0].clone().capacity();
+        let run = |budget| {
+            let controls = controls(budget);
+            let parent = controls.reserve_query_memory(128).expect("live origin");
+            let retained = RetainedRows::copy(&rows, &controls).expect("original rows");
+            let before = controls.current_query_memory_bytes();
+            let output = retained.rename(&aliases, &controls);
+            (controls, parent, before, output)
+        };
+        // Act
+        let (successful, parent, before, output) = run(1024 * 1024);
+        let output = output.expect("independent alias replacement");
+        let peak = successful.peak_query_memory_bytes();
+        // Assert
+        assert_eq!(output.rows[0][0].0, aliases[0]);
+        assert_eq!(output.rows[0][0].0.capacity(), expected_capacity);
+        assert_eq!(output.rows[0][0].1, Value::Int64(7));
+        assert_eq!(rows[0][0].0, "o".repeat(old_len));
+        assert_eq!(peak, before + new_len);
+        assert_eq!(
+            output.memory.bytes(),
+            retention::rows_bytes(&output.rows).expect("actual replacement capacity")
+        );
+        assert_eq!(
+            successful.current_query_memory_bytes(),
+            parent.bytes() + output.memory.bytes()
+        );
+        drop(output);
+        assert_eq!(successful.current_query_memory_bytes(), parent.bytes());
+        drop(parent);
+        assert_eq!(successful.current_query_memory_bytes(), 0);
+        let (denied, parent, _, result) = run(peak - 1);
+        assert!(matches!(
+            result.map_err(crate::app::CassieError::from),
+            Err(crate::app::CassieError::ResourceLimit(_))
+        ));
+        assert_eq!(denied.current_query_memory_bytes(), parent.bytes());
+        assert_eq!(rows[0][0].0, "o".repeat(old_len));
+        drop(parent);
+        assert_eq!(denied.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_multiple_cte_reference_context_independence() {
     // Arrange
     fixture(|cassie| {
         let controls = controls(1024 * 1024);
@@ -68,7 +120,7 @@ fn should_preserve_multiple_cte_references_and_deep_context_independence() {
 }
 
 #[test]
-fn should_preserve_derived_lateral_and_exists_cte_copy_paths() {
+fn should_preserve_derived_lateral_exists_cte_copy_paths() {
     // Arrange
     fixture(|cassie| {
         for sql in [
@@ -92,7 +144,7 @@ fn should_preserve_derived_lateral_and_exists_cte_copy_paths() {
 }
 
 #[test]
-fn should_preserve_recursive_union_all_empty_and_depth_failure_cleanup() {
+fn should_preserve_recursive_union_all_cleanup_at_empty_seed_or_depth_failure() {
     // Arrange
     fixture(|cassie| {
         for operator in ["UNION", "UNION ALL"] {
@@ -141,7 +193,7 @@ fn should_preserve_recursive_union_all_empty_and_depth_failure_cleanup() {
 }
 
 #[test]
-fn should_release_context_and_source_copy_attempts_on_denial_cancel_and_deadline() {
+fn should_release_cte_copy_attempts_after_control_failure() {
     // Arrange
     let row = vec![("n".into(), Value::String("x".repeat(4096)))];
     let relation = CteRelation {
@@ -178,7 +230,9 @@ fn should_release_context_and_source_copy_attempts_on_denial_cancel_and_deadline
             query_timeout_ms: 1,
             ..crate::config::CassieRuntimeLimits::default()
         },
-        Instant::now() - Duration::from_secs(1),
+        Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .expect("one second before the test clock"),
     );
     assert!(matches!(
         relation
@@ -190,7 +244,7 @@ fn should_release_context_and_source_copy_attempts_on_denial_cancel_and_deadline
 }
 
 #[test]
-fn should_preserve_rich_source_copies_and_deny_old_new_peak_minus_one() {
+fn should_preserve_rich_source_copy_ownership_at_peak_budget_boundary() {
     // Arrange
     let rows = vec![vec![
         ("text".into(), Value::String("\n".repeat(4096))),
@@ -367,7 +421,7 @@ fn should_deny_accumulated_recursive_growth_before_mutating_original_rows() {
 }
 
 #[test]
-fn should_admit_actual_recursive_seen_table_and_rich_key_capacities() {
+fn should_admit_actual_recursive_seen_key_table_capacities() {
     // Arrange
     let controls = controls(1024 * 1024);
     let mut seen = seen::SeenRows::new(&controls).expect("seen state");
@@ -413,7 +467,7 @@ fn should_admit_actual_recursive_seen_table_and_rich_key_capacities() {
 }
 
 #[test]
-fn should_admit_non_power_of_two_accumulator_capacity_and_partial_append_cancellation() {
+fn should_admit_non_power_of_two_accumulator_growth_with_partial_copy_cancellation() {
     // Arrange
     let handle = crate::runtime::QueryCancellationHandle::new();
     let controls = QueryExecutionControls::with_cancellation(

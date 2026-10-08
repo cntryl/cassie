@@ -37,7 +37,7 @@ fn should_infer_selected_unknown_primitive_carriers_without_promoting_output_typ
 }
 
 #[test]
-fn should_decline_null_first_mixed_and_rich_keys_before_native_conversion() {
+fn should_decline_unselected_null_first_keys_before_native_conversion() {
     // Arrange
     for values in [
         vec![
@@ -75,7 +75,7 @@ fn should_decline_null_first_mixed_and_rich_keys_before_native_conversion() {
 }
 
 #[test]
-fn should_reject_bridge_admission_before_conversion_and_preserve_input() {
+fn should_preserve_input_on_bridge_admission_denial() {
     // Arrange
     let controls = controls();
     let rows = vec![BatchRow::new(vec![("n".into(), Value::Int64(7))])];

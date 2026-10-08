@@ -67,7 +67,7 @@ fn should_select_direct_distinct_on_second_column_across_every_split() {
 }
 
 #[test]
-fn should_preserve_shared_distinct_on_rich_and_exact_numeric_equality() {
+fn should_preserve_shared_distinct_on_semantic_equality() {
     // Arrange
     let values = [
         Value::Null,
@@ -169,7 +169,7 @@ fn owned_rows(
 }
 
 #[test]
-fn should_retain_huge_distinct_on_parent_and_prior_owners_until_winner_drops() {
+fn should_retain_huge_distinct_on_owner_chain_until_winner_drops() {
     // Arrange
     let controls = controls();
     let (input, source, prior) = owned_rows(&controls);
@@ -223,7 +223,7 @@ fn should_retain_huge_distinct_on_parent_and_prior_owners_until_winner_drops() {
 }
 
 #[test]
-fn should_preserve_distinct_on_expression_and_cte_scalar_boundaries() {
+fn should_preserve_distinct_on_scalar_boundaries() {
     // Arrange
     let statement =
         crate::sql::parse_statement("SELECT DISTINCT ON (n + 1) n").expect("expression SQL");
@@ -297,7 +297,7 @@ fn should_preserve_distinct_on_expression_and_cte_scalar_boundaries() {
 }
 
 #[test]
-fn should_control_empty_and_cancelled_distinct_on_without_operator_allocation() {
+fn should_control_distinct_on_without_operator_allocation() {
     // Arrange
     let limits = CassieRuntimeLimits {
         query_memory_budget_bytes: 0,

@@ -89,9 +89,9 @@ fn should_retain_precomputed_window_alias_copy_backing() {
 }
 
 #[test]
-fn should_preserve_legacy_scalar_source_projection_owner_and_values() {
+fn should_preserve_legacy_scalar_source_projection_contract() {
     // Arrange
-    let literal = "t".repeat(524288);
+    let literal = "t".repeat(524_288);
     let select = format!("concat(n, '{literal}') AS x");
     let expected = format!("{}{literal}", "s".repeat(65536));
     // Act
@@ -100,7 +100,7 @@ fn should_preserve_legacy_scalar_source_projection_owner_and_values() {
 }
 
 #[test]
-fn should_admit_wildcard_and_repeated_direct_copy_capacity_growth() {
+fn should_admit_mixed_direct_copy_capacity_growth() {
     // Arrange
     for count in [64, 256] {
         let path =

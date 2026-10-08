@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 #[test]
-fn should_keep_source_and_operator_reservations_until_last_row_clone_drops() {
+fn should_keep_row_reservations_until_last_clone_drops() {
     // Arrange
     let controls =
         QueryExecutionControls::from_limits(&CassieRuntimeLimits::default(), Instant::now());
@@ -35,7 +35,7 @@ fn should_keep_source_and_operator_reservations_until_last_row_clone_drops() {
 }
 
 #[test]
-fn should_preserve_operator_leases_across_owned_and_borrowed_projection() {
+fn should_preserve_operator_leases_across_projection_reconstruction() {
     // Arrange
     use crate::sql::ast::SelectItem;
     for borrowed in [false, true] {

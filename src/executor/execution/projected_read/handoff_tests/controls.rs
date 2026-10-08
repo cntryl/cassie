@@ -78,39 +78,7 @@ fn run(budget: usize, cancel: bool, empty: bool, array: bool) -> (usize, bool) {
     let succeeded = result.is_ok();
     match result {
         Ok(output) => {
-            if empty {
-                assert!(output.is_empty());
-                assert_eq!(
-                    output.capacity(),
-                    0,
-                    "empty output cannot hold row-attached charge"
-                );
-            } else {
-                assert_eq!(output.len(), 6);
-                assert_eq!(output.capacity(), 10, "5+1 flatten growth witness");
-                for (index, row) in output.iter().enumerate() {
-                    assert_eq!(
-                        row.get("n"),
-                        Some(&if array {
-                            Value::Null
-                        } else {
-                            Value::Int64(i64::try_from(index).expect("index"))
-                        })
-                    );
-                    if array {
-                        assert_eq!(row.data_types(), &[kind.clone()]);
-                    }
-                }
-                let actual = output
-                    .iter()
-                    .map(|row| row.owned_body_bytes().expect("warmed body"))
-                    .sum::<usize>()
-                    + output.capacity() * std::mem::size_of::<BatchRow>();
-                assert!(
-                    controls.current_query_memory_bytes() >= actual,
-                    "retained charge must cover actual output capacity and warmed lazy lookups"
-                );
-            }
+            assert_output(&output, &controls, empty, array, &kind);
             drop(output);
         }
         Err(error) if cancel => assert!(
@@ -132,8 +100,50 @@ fn run(budget: usize, cancel: bool, empty: bool, array: bool) -> (usize, bool) {
     (peak, succeeded)
 }
 
+fn assert_output(
+    output: &Vec<BatchRow>,
+    controls: &QueryExecutionControls,
+    empty: bool,
+    array: bool,
+    kind: &DataType,
+) {
+    if empty {
+        assert!(output.is_empty());
+        assert_eq!(
+            output.capacity(),
+            0,
+            "empty output cannot hold row-attached charge"
+        );
+    } else {
+        assert_eq!(output.len(), 6);
+        assert_eq!(output.capacity(), 10, "5+1 flatten growth witness");
+        for (index, row) in output.iter().enumerate() {
+            assert_eq!(
+                row.get("n"),
+                Some(&if array {
+                    Value::Null
+                } else {
+                    Value::Int64(i64::try_from(index).expect("index"))
+                })
+            );
+            if array {
+                assert_eq!(row.data_types(), std::slice::from_ref(kind));
+            }
+        }
+        let actual = output
+            .iter()
+            .map(|row| row.owned_body_bytes().expect("warmed body"))
+            .sum::<usize>()
+            + output.capacity() * std::mem::size_of::<BatchRow>();
+        assert!(
+            controls.current_query_memory_bytes() >= actual,
+            "retained charge must cover actual output capacity and warmed lazy lookups"
+        );
+    }
+}
+
 #[test]
-fn should_retain_non_power_of_two_output_capacity_and_lazy_lookups() {
+fn should_retain_complete_non_power_of_two_output_backing() {
     // Arrange
     let budget = 4 * 1024 * 1024;
     // Act

@@ -216,3 +216,58 @@ fn should_keep_visible_right_rows_captured_after_an_empty_left_read() {
         ]
     );
 }
+
+#[test]
+fn should_keep_correlated_projection_reads_on_the_captured_version() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(
+        &fixture.cassie,
+        &reader,
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+    );
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO read_membership VALUES (1)",
+    );
+    let cassie = Arc::clone(&fixture.cassie);
+    let writer = cassie.create_session("writer", None);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = crate::executor::JoinReadProbe::install(move || {
+        execute(&cassie, &writer, "BEGIN");
+        execute(&cassie, &writer, "DELETE FROM read_membership WHERE id = 1");
+        execute(&cassie, &writer, "INSERT INTO read_membership VALUES (2)");
+        execute(&cassie, &writer, "COMMIT");
+        observed.store(true, Ordering::SeqCst);
+    });
+    let sql = "SELECT l.id, EXISTS (SELECT 1 FROM read_membership u WHERE u.id = l.id) AS matched FROM read_left l JOIN read_right r ON l.id = r.id ORDER BY l.id";
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "membership commit occurred after outer left source acquisition"
+    );
+    assert_eq!(
+        captured,
+        vec![
+            vec![Value::Int64(1), Value::Bool(true)],
+            vec![Value::Int64(2), Value::Bool(false)]
+        ]
+    );
+    assert_eq!(
+        fresh,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}

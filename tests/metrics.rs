@@ -910,7 +910,9 @@ mod metrics_adaptive {
         use_local_storage();
         let path = data_dir("operator_switch_failure");
         let mut config = operator_switch_config(true, 0);
-        config.limits.query_memory_budget_bytes = 8 * 1_024;
+        // Local phase probe: admitted set/qualification inputs peak at 11,408 bytes;
+        // keyed replacement requires 17,048. Preserve a negative replacement fixture.
+        config.limits.query_memory_budget_bytes = 12 * 1_024;
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -967,6 +969,14 @@ mod metrics_adaptive {
             assert_eq!(after["query"]["current_accounted_memory_bytes"], 0);
             assert_eq!(after["runtime"]["running_queries"], 0);
             assert_eq!(after["runtime"]["active_operator_workers"], 0);
+            assert_eq!(
+                snapshot_delta(
+                    &after,
+                    &before,
+                    &["adaptive_candidates", "operator_switch_attempts"]
+                ),
+                1
+            );
             assert_eq!(
                 snapshot_delta(
                     &after,

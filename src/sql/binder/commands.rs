@@ -481,6 +481,17 @@ pub(super) fn bind_create_rollup(
         )));
     }
 
+    for expr in statement
+        .bucket
+        .args
+        .iter()
+        .chain(&statement.group_by)
+        .chain(&statement.filter)
+    {
+        crate::sql::definition_guard::expression(expr)?;
+    }
+    crate::sql::definition_guard::items(&statement.aggregates)?;
+
     let source = resolve_relation_name(statement.source.trim(), catalog, context)?;
     if virtual_views::schema(&source).is_some() || catalog.get_view(&source).is_some() {
         return Err(CassieError::Unsupported(format!(

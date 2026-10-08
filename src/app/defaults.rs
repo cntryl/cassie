@@ -9,6 +9,7 @@ pub(super) fn apply_default_values(
         CassieError::InvalidVector("document payload must be a JSON object".to_string())
     })?;
 
+    crate::sql::definition_guard::constraints(constraints)?;
     for constraint in constraints {
         if object.contains_key(&constraint.field) {
             continue;

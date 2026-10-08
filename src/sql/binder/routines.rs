@@ -58,6 +58,8 @@ pub(super) fn bind_create_function(
         CassieError::Planner(format!("invalid function body for '{name}': {error}"))
     })?;
 
+    crate::sql::definition_guard::expression(&parsed_body)?;
+
     if function_body_references(&parsed_body, &name) {
         return Err(CassieError::Planner(format!(
             "function '{name}' cannot call itself"
@@ -134,6 +136,8 @@ pub(super) fn bind_create_procedure(
     let parsed_body = crate::sql::parse_statement(&body).map_err(|error| {
         CassieError::Planner(format!("invalid procedure body for '{name}': {error}"))
     })?;
+    crate::sql::definition_guard::statement(&parsed_body)?;
+
     if matches!(parsed_body.statement, QueryStatement::Transaction(_)) {
         return Err(CassieError::Unsupported(
             "transaction control statements inside procedures are not supported in this version"
@@ -201,6 +205,7 @@ pub(super) fn bind_call_procedure(
         )));
     }
 
+    crate::sql::definition_guard::query_sql(&metadata.body)?;
     let mut bound = statement;
     bound.name = name;
     Ok(bound)

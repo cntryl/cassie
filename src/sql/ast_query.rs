@@ -255,6 +255,8 @@ pub enum Expr {
 pub enum BinaryOp {
     Eq,
     NotEq,
+    IsDistinctFrom,
+    IsNotDistinctFrom,
     Lt,
     Lte,
     Gt,

@@ -704,6 +704,9 @@ pub(super) fn parse_check_constraint(raw: &str) -> Result<ConstraintCheck, SqlEr
         .ok_or_else(|| SqlError::new("invalid CHECK expression".to_string()))?
         .trim();
 
+    crate::sql::definition_guard::expression_sql(inner)
+        .map_err(|error| SqlError::unsupported(error.to_string()))?;
+
     let (left, op, right) = parse_simple_comparison(inner)
         .ok_or_else(|| SqlError::new("unsupported CHECK expression".to_string()))?;
 

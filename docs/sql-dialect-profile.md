@@ -139,7 +139,16 @@ After the first wave, aggregate modifiers/Boolean/collection/statistical operato
 | Extension identity | Allowlisted built-in identities and explicit compatibility subset; no arbitrary plugin ABI. | #843/#844. |
 | Final finite corpus | Concrete signatures/forms per row and client versions; unresolved forms stay excluded. | #847/#848/#849. |
 
-Issue #792 remains open for the broad profile; user selection applies only to D1/D2 and existing named carveouts. It does not complete #793 or any runtime child.
+Issue #792 remains open for the broad profile. The selected finite decisions below do not complete #793 or qualify any pending runtime child.
+
+The 2026-10-08 selections additionally authorize the finite query/DML null-safe
+predicate slice in #798 with persisted-definition rejection, and one shared
+same-database Data statement snapshot in #763 while preserving suspended portals.
+The user also permits breaking durable changes: #793 now selects an explicitly
+versioned successor layout with verified export/recreate/reimport, as recorded in
+[the transition policy](extended-type-decisions.md). These selections resolve
+their named decision gates. They do not implement or qualify those capabilities,
+select all extended-family codecs/OIDs, or close the broad #792/#793 programs.
 
 ## Selected finite decisions and remaining proposals
 

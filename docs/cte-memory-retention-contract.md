@@ -25,6 +25,16 @@ Source references admit independent row copies, descriptors, aliases, lookup
 and output mapping before cloning and transfer the replacement charge to the
 returned rows. Original context and copied output may drop in either order.
 
+Source construction first admits its complete conservative old/new overlap.
+After constructing initial rows, measure their unleased body and eager lookup
+backing before attaching an owner. Release expired construction and qualification
+allowances while retaining actual row/output capacity, forthcoming chunk overlap,
+Arc metadata, descriptors and maximum serializer scratch. String/JSON rows retain
+the existing conservative physical-name normalization and text-field inference
+allowance; integer-only rows construct no text inference keys. Shared finalization
+separately admits replacement qualification aliases and lookup. This refinement
+preserves generic join/filter admission and the existing recursive workload budget.
+
 Estimates borrow existing values and use checked capacities and heap estimates.
 Serialized JSON length alone is not owned-memory authority, and estimation must
 not allocate a serialized copy before admission. Allocation, budget, cancellation

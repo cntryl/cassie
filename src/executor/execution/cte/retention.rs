@@ -181,3 +181,53 @@ pub(super) fn serialization_scratch(rows: &CteRows) -> Result<usize, QueryError>
         Ok(maximum.max(mul(counter.0, 2)?.max(128)))
     })
 }
+
+/// Existing initial row bodies plus backing/scratch still live at source handoff.
+pub(super) fn source_backing_bytes(
+    rows: &Vec<BatchRow>,
+    fields: &Vec<FieldSchema>,
+    serializer: usize,
+) -> Result<usize, QueryError> {
+    let count = rows.len();
+    let mut bytes = add(
+        mul(add(rows.capacity(), count)?, size_of::<BatchRow>())?,
+        add(
+            mul(
+                count.div_ceil(crate::executor::batch::DEFAULT_BATCH_SIZE),
+                2 * size_of::<super::super::Batch>(),
+            )?,
+            add(
+                fields_bytes(fields)?,
+                add(
+                    serializer,
+                    size_of::<QueryMemoryReservation>() + 2 * size_of::<usize>(),
+                )?,
+            )?,
+        )?,
+    )?;
+    for row in rows {
+        bytes = add(bytes, row.unleased_body_bytes()?)?;
+        // deduce_text_fields only normalizes names for String/JSON cells, before qualification.
+        if row
+            .entries()
+            .iter()
+            .any(|(_, value)| matches!(value, Value::String(_) | Value::Json(_)))
+        {
+            let names = row
+                .entries()
+                .iter()
+                .try_fold(0, |bytes, (name, _)| add(bytes, name.len()))?;
+            bytes = add(
+                bytes,
+                add(
+                    512,
+                    add(
+                        mul(names, 64)?,
+                        mul(row.entries().len(), 16 * size_of::<(String, usize)>())?,
+                    )?,
+                )?,
+            )?;
+        }
+    }
+    Ok(bytes)
+}

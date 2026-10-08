@@ -8,6 +8,8 @@ use crate::sql::ast::SetOperator;
 
 #[cfg(test)]
 mod retention_tests;
+#[cfg(test)]
+mod source_retention_tests;
 
 mod context;
 mod retention;
@@ -296,16 +298,23 @@ pub(super) fn copy_source_rows(
         )?;
         extra = add(extra, lookup_bytes(mul(row.len(), 8)?, mul(names, 8)?)?)?;
     }
-    extra = add(extra, retention::serialization_scratch(&copied.rows)?)?;
+    let serializer = retention::serialization_scratch(&copied.rows)?;
+    extra = add(extra, serializer)?;
     copied.memory.try_grow(extra)?;
-    let memory = Arc::new(copied.memory);
     let mut output = Vec::new();
     output
         .try_reserve_exact(count)
         .map_err(|error| retention::allocation(&error))?;
     for row in copied.rows {
         check_timeout(controls)?;
-        output.push(BatchRow::new(row).with_query_memory(Some(Arc::clone(&memory))));
+        output.push(BatchRow::new(row));
+    }
+    let retained = retention::source_backing_bytes(&output, &relation.fields, serializer)?;
+    copied.memory.shrink_to(retained);
+    let memory = Arc::new(copied.memory);
+    for row in &mut output {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = owned.with_query_memory(Some(Arc::clone(&memory)));
     }
     check_timeout(controls)?;
     Ok(output)

@@ -251,7 +251,7 @@ fn should_cancel_during_authoritative_graph_verification() {
         // Assert
         assert!(
             matches!(result, Err(cassie::app::CassieError::QueryCancelled)),
-            "entry {entries}: {result:?}"
+            "entry {entries} should report query cancellation"
         );
         assert_eq!(
             fixture.cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),

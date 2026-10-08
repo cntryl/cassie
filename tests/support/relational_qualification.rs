@@ -9,6 +9,9 @@ use serde::Deserialize;
 #[path = "relational_qualification/wire.rs"]
 mod wire;
 pub use wire::{cycle, run_wire};
+#[path = "relational_qualification/assertions.rs"]
+mod assertions;
+pub use assertions::matches_row;
 
 #[derive(Deserialize)]
 pub struct Records {

@@ -1,64 +1,4062 @@
 {
-"seeds": [
-{"table":"r","create":"CREATE TABLE r (id BIGINT,g TEXT,n BIGINT,f FLOAT,label TEXT,a TEXT[])","insert":"INSERT INTO r (id,g,n,f,label,a) VALUES ($1,$2,$3,$4,$5,$6)","columns":["id","g","n","f","label","a"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":25,"format":0,"utf8":"A","expected_carrier":"Value::String"},{"oid":20,"format":1,"hex":"0000000000000005","expected_carrier":"Value::Int64","exact_integer":"5"},{"oid":701,"format":1,"hex":"4014000000000000","expected_carrier":"Value::Float64","raw_bits":"4014000000000000"},{"oid":25,"format":0,"utf8":"first","expected_carrier":"Value::String"},{"oid":34025,"format":0,"utf8":"{\"x\",NULL}","expected_carrier":"Value::Json(array)","logical_descriptor":"DataType::Array(Text)","pg_parameter_oid":1009}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":25,"format":0,"utf8":"A","expected_carrier":"Value::String"},{"oid":20,"format":1,"hex":"0000000000000005","expected_carrier":"Value::Int64","exact_integer":"5"},{"oid":701,"format":1,"hex":"4014000000000000","expected_carrier":"Value::Float64","raw_bits":"4014000000000000"},{"oid":25,"format":0,"utf8":"second","expected_carrier":"Value::String"},{"oid":34025,"format":0,"utf8":"{\"x\",NULL}","expected_carrier":"Value::Json(array)","logical_descriptor":"DataType::Array(Text)","pg_parameter_oid":1009}],[{"oid":20,"format":1,"hex":"0000000000000003","expected_carrier":"Value::Int64","exact_integer":"3"},{"oid":25,"format":0,"utf8":"A","expected_carrier":"Value::String"},{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID and table schema"},{"oid":701,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID and table schema"},{"oid":25,"format":0,"utf8":"nil","expected_carrier":"Value::String"},{"oid":34025,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID and table schema","pg_parameter_oid":1009}],[{"oid":20,"format":1,"hex":"0000000000000004","expected_carrier":"Value::Int64","exact_integer":"4"},{"oid":25,"format":0,"utf8":"B","expected_carrier":"Value::String"},{"oid":20,"format":1,"hex":"fffffffffffffffe","expected_carrier":"Value::Int64","exact_integer":"-2"},{"oid":701,"format":1,"hex":"c000000000000000","expected_carrier":"Value::Float64","raw_bits":"c000000000000000"},{"oid":25,"format":0,"utf8":"negative","expected_carrier":"Value::String"},{"oid":34025,"format":0,"utf8":"{}","expected_carrier":"Value::Json(array)","logical_descriptor":"DataType::Array(Text)","pg_parameter_oid":1009}],[{"oid":20,"format":1,"hex":"0000000000000005","expected_carrier":"Value::Int64","exact_integer":"5"},{"oid":25,"format":0,"utf8":"B","expected_carrier":"Value::String"},{"oid":20,"format":1,"hex":"0000000000000000","expected_carrier":"Value::Int64","exact_integer":"0"},{"oid":701,"format":1,"hex":"8000000000000000","expected_carrier":"Value::Float64","raw_bits":"8000000000000000"},{"oid":25,"format":0,"utf8":"zero","expected_carrier":"Value::String"},{"oid":34025,"format":0,"utf8":"{\"z\"}","expected_carrier":"Value::Json(array)","logical_descriptor":"DataType::Array(Text)","pg_parameter_oid":1009}],[{"oid":20,"format":1,"hex":"0000000000000006","expected_carrier":"Value::Int64","exact_integer":"6"},{"oid":25,"format":0,"utf8":"B","expected_carrier":"Value::String"},{"oid":20,"format":1,"hex":"0000000000000007","expected_carrier":"Value::Int64","exact_integer":"7"},{"oid":701,"format":1,"hex":"401c000000000000","expected_carrier":"Value::Float64","raw_bits":"401c000000000000"},{"oid":25,"format":0,"utf8":"last","expected_carrier":"Value::String"},{"oid":34025,"format":0,"utf8":"{\"z\"}","expected_carrier":"Value::Json(array)","logical_descriptor":"DataType::Array(Text)","pg_parameter_oid":1009}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"text","value":"A"},{"kind":"integer","value":"5"},{"kind":"float_bits","value":"4014000000000000"},{"kind":"text","value":"first"},{"kind":"array","value":["x",null]}],[{"kind":"integer","value":"2"},{"kind":"text","value":"A"},{"kind":"integer","value":"5"},{"kind":"float_bits","value":"4014000000000000"},{"kind":"text","value":"second"},{"kind":"array","value":["x",null]}],[{"kind":"integer","value":"3"},{"kind":"text","value":"A"},{"kind":"null"},{"kind":"null"},{"kind":"text","value":"nil"},{"kind":"null"}],[{"kind":"integer","value":"4"},{"kind":"text","value":"B"},{"kind":"integer","value":"-2"},{"kind":"float_bits","value":"c000000000000000"},{"kind":"text","value":"negative"},{"kind":"array","value":[]}],[{"kind":"integer","value":"5"},{"kind":"text","value":"B"},{"kind":"integer","value":"0"},{"kind":"float_bits","value":"8000000000000000"},{"kind":"text","value":"zero"},{"kind":"array","value":["z"]}],[{"kind":"integer","value":"6"},{"kind":"text","value":"B"},{"kind":"integer","value":"7"},{"kind":"float_bits","value":"401c000000000000"},{"kind":"text","value":"last"},{"kind":"array","value":["z"]}]]},
-{"table":"seed","create":"CREATE TABLE seed (n BIGINT)","insert":"INSERT INTO seed (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}]],"expected_cells":[[{"kind":"integer","value":"1"}],[{"kind":"integer","value":"1"}]]},
-{"table":"case_fields","create":"CREATE TABLE case_fields (id BIGINT,\"Foo\" BIGINT,foo BIGINT)","insert":"INSERT INTO case_fields (id,\"Foo\",foo) VALUES ($1,$2,$3)","columns":["id","\"Foo\"","foo"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"000000000000000b","expected_carrier":"Value::Int64","exact_integer":"11"},{"oid":20,"format":1,"hex":"0000000000000016","expected_carrier":"Value::Int64","exact_integer":"22"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"0000000000000021","expected_carrier":"Value::Int64","exact_integer":"33"},{"oid":20,"format":1,"hex":"000000000000002c","expected_carrier":"Value::Int64","exact_integer":"44"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"11"},{"kind":"integer","value":"22"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"33"},{"kind":"integer","value":"44"}]]},
-{"table":"scope_l","create":"CREATE TABLE scope_l (id BIGINT,n BIGINT)","insert":"INSERT INTO scope_l (id,n) VALUES ($1,$2)","columns":["id","n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"000000000000005a","expected_carrier":"Value::Int64","exact_integer":"90"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"000000000000000a","expected_carrier":"Value::Int64","exact_integer":"10"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"90"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"10"}]]},
-{"table":"scope_h","create":"CREATE TABLE scope_h (id BIGINT,n BIGINT)","insert":"INSERT INTO scope_h (id,n) VALUES ($1,$2)","columns":["id","n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"000000000000000a","expected_carrier":"Value::Int64","exact_integer":"10"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"000000000000005a","expected_carrier":"Value::Int64","exact_integer":"90"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"10"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"90"}]]},
-{"table":"integers","create":"CREATE TABLE integers (id BIGINT,n BIGINT)","insert":"INSERT INTO integers (id,n) VALUES ($1,$2)","columns":["id","n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"0020000000000001","expected_carrier":"Value::Int64","exact_integer":"9007199254740993"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"fffffffffffffff9","expected_carrier":"Value::Int64","exact_integer":"-7"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"9007199254740993"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"-7"}]]},
-{"table":"guarded","create":"CREATE TABLE guarded (id BIGINT,n BIGINT)","insert":"INSERT INTO guarded (id,n) VALUES ($1,$2)","columns":["id","n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"0000000000000000","expected_carrier":"Value::Int64","exact_integer":"0"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"0"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"2"}]]},
-{"table":"l","create":"CREATE TABLE l (id BIGINT,k BIGINT)","insert":"INSERT INTO l (id,k) VALUES ($1,$2)","columns":["id","k"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"},{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"},{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"hex":"0000000000000003","expected_carrier":"Value::Int64","exact_integer":"3"},{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}],[{"oid":20,"format":1,"hex":"0000000000000004","expected_carrier":"Value::Int64","exact_integer":"4"},{"oid":20,"format":1,"hex":"0000000000000000","expected_carrier":"Value::Int64","exact_integer":"0"}],[{"oid":20,"format":1,"hex":"0000000000000005","expected_carrier":"Value::Int64","exact_integer":"5"},{"oid":20,"format":1,"hex":"0020000000000001","expected_carrier":"Value::Int64","exact_integer":"9007199254740993"}]],"expected_cells":[[{"kind":"integer","value":"1"},{"kind":"integer","value":"1"}],[{"kind":"integer","value":"2"},{"kind":"integer","value":"1"}],[{"kind":"integer","value":"3"},{"kind":"null"}],[{"kind":"integer","value":"4"},{"kind":"integer","value":"0"}],[{"kind":"integer","value":"5"},{"kind":"integer","value":"9007199254740993"}]]},
-{"table":"h","create":"CREATE TABLE h (id BIGINT,k FLOAT)","insert":"INSERT INTO h (id,k) VALUES ($1,$2)","columns":["id","k"],"bind_rows":[[{"oid":20,"format":1,"hex":"000000000000000a","expected_carrier":"Value::Int64","exact_integer":"10"},{"oid":701,"format":1,"hex":"3ff0000000000000","expected_carrier":"Value::Float64"}],[{"oid":20,"format":1,"hex":"000000000000000b","expected_carrier":"Value::Int64","exact_integer":"11"},{"oid":701,"format":1,"hex":"3ff0000000000000","expected_carrier":"Value::Float64"}],[{"oid":20,"format":1,"hex":"000000000000000c","expected_carrier":"Value::Int64","exact_integer":"12"},{"oid":701,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}],[{"oid":20,"format":1,"hex":"000000000000000d","expected_carrier":"Value::Int64","exact_integer":"13"},{"oid":701,"format":1,"hex":"8000000000000000","expected_carrier":"Value::Float64"}],[{"oid":20,"format":1,"hex":"000000000000000e","expected_carrier":"Value::Int64","exact_integer":"14"},{"oid":701,"format":1,"hex":"4340000000000000","expected_carrier":"Value::Float64"}]],"expected_cells":[[{"kind":"integer","value":"10"},{"kind":"float_bits","value":"3ff0000000000000"}],[{"kind":"integer","value":"11"},{"kind":"float_bits","value":"3ff0000000000000"}],[{"kind":"integer","value":"12"},{"kind":"null"}],[{"kind":"integer","value":"13"},{"kind":"float_bits","value":"8000000000000000"}],[{"kind":"integer","value":"14"},{"kind":"float_bits","value":"4340000000000000"}]]},
-{"table":"sa","create":"CREATE TABLE sa (n BIGINT)","insert":"INSERT INTO sa (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}]],"expected_cells":[[{"kind":"integer","value":"1"}],[{"kind":"integer","value":"1"}],[{"kind":"null"}]]},
-{"table":"sb","create":"CREATE TABLE sb (n BIGINT)","insert":"INSERT INTO sb (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000001","expected_carrier":"Value::Int64","exact_integer":"1"}],[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"}],[{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}],[{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}]],"expected_cells":[[{"kind":"integer","value":"1"}],[{"kind":"integer","value":"2"}],[{"kind":"null"}],[{"kind":"null"}]]},
-{"table":"sc","create":"CREATE TABLE sc (n BIGINT)","insert":"INSERT INTO sc (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000002","expected_carrier":"Value::Int64","exact_integer":"2"}],[{"oid":20,"format":1,"bytes":null,"expected_carrier":"Value::Null","descriptor_from":"declared parameter OID/table schema"}]],"expected_cells":[[{"kind":"integer","value":"2"}],[{"kind":"null"}]]},
-{"table":"triage.dot","create":"CREATE TABLE triage.dot (n BIGINT)","insert":"INSERT INTO triage.dot (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"000000000000000b","expected_carrier":"Value::Int64","exact_integer":"11"}]],"expected_cells":[[{"kind":"integer","value":"11"}]]},
-{"table":"\"triage.dot\"","create":"CREATE TABLE \"triage.dot\" (n BIGINT)","insert":"INSERT INTO \"triage.dot\" (n) VALUES ($1)","columns":["n"],"bind_rows":[[{"oid":20,"format":1,"hex":"0000000000000016","expected_carrier":"Value::Int64","exact_integer":"22"}]],"expected_cells":[[{"kind":"integer","value":"22"}]]}
-],
-"primary": [
-{"invariant":"SQL-001","sql":"SELECT id,label FROM r WHERE n >= 0 ORDER BY id","expected_rows":[[1,"first"],[2,"second"],[5,"zero"],[6,"last"]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"label","oid":25,"typlen":-1,"typmod":-1}],"error":null},
-{"invariant":"SQL-002","sql":"SELECT n FROM r GROUP BY GROUPING SETS (n)","expected_rows":null,"ordered":false,"columns":null,"error":{"message":"ErrorResponse","sqlstate":"0A000","message_fragment":"unsupported GROUP BY syntax","RowDescription_expected":false,"not_successful_zero_column_result":true}},
-{"invariant":"SQL-003","sql":"SELECT \"Foo\",foo FROM case_fields ORDER BY id","expected_rows":[[11,22],[33,44]],"ordered":true,"columns":[{"name":"Foo","oid":20,"typlen":8,"typmod":-1},{"name":"foo","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-004","sql":"SELECT n FROM triage.dot","expected_rows":[[11]],"ordered":false,"columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-005","sql":"SELECT l.n,h.n FROM scope_l AS l JOIN scope_h AS h ON l.id=h.id ORDER BY l.id","expected_rows":[[90,10],[10,90]],"ordered":true,"columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1},{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-006","sql":"SELECT q.x,q.a FROM (SELECT n AS x,a FROM r WHERE id=3) AS q","expected_rows":[[null,null]],"ordered":false,"columns":[{"name":"q.x","oid":20,"typlen":8,"typmod":-1},{"name":"q.a","oid":34025,"typlen":-1,"typmod":-1}],"error":null},
-{"invariant":"SQL-009","sql":"SELECT n+1 AS x,n/2 AS half FROM integers ORDER BY id","expected_rows":[[9007199254740994,4503599627370496],[-6,-3]],"ordered":true,"columns":[{"name":"x","oid":20,"typlen":8,"typmod":-1},{"name":"half","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-010","sql":"SELECT id,CASE WHEN n=0 THEN 9 ELSE 10/n END AS x FROM guarded ORDER BY id","expected_rows":[[1,9],[2,5]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"x","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-011","sql":"SELECT id,COALESCE(n,CAST(4 AS BIGINT)) AS x FROM r ORDER BY id","expected_rows":[[1,5],[2,5],[3,4],[4,-2],[5,0],[6,7]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"x","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-012","sql":"SELECT id FROM r ORDER BY n ASC,id","expected_rows":[[4],[5],[1],[2],[6],[3]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-013","sql":"SELECT id FROM r WHERE n>=0 ORDER BY n,id LIMIT 2 OFFSET 1","expected_rows":[[1],[2]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-014","sql":"SELECT label,n FROM r ORDER BY 2,1","expected_rows":[["negative",-2],["zero",0],["first",5],["second",5],["last",7],["nil",null]],"ordered":true,"columns":[{"name":"label","oid":25,"typlen":-1,"typmod":-1},{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-015","sql":"SELECT DISTINCT n FROM r","expected_rows":[[5],[null],[-2],[0],[7]],"ordered":false,"columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-016","sql":"SELECT n FROM sa UNION SELECT n FROM sb INTERSECT SELECT n FROM sc","expected_rows":[[1],[2],[null]],"ordered":false,"columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-017","sql":"SELECT COUNT(*) AS rows,COUNT(n) AS cells,SUM(n) AS total,MIN(n) AS low,MAX(n) AS high,AVG(n) AS mean FROM r","expected_rows":[[6,5,15,-2,7,3.0]],"ordered":false,"columns":[{"name":"rows","oid":20,"typlen":8,"typmod":-1},{"name":"cells","oid":20,"typlen":8,"typmod":-1},{"name":"total","oid":20,"typlen":8,"typmod":-1},{"name":"low","oid":20,"typlen":8,"typmod":-1},{"name":"high","oid":20,"typlen":8,"typmod":-1},{"name":"mean","oid":701,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-018","sql":"SELECT g,SUM(n) AS total FROM r GROUP BY g HAVING SUM(n)>6 ORDER BY g","expected_rows":[["A",10]],"ordered":true,"columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1},{"name":"total","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-019","sql":"SELECT l.id,h.id FROM l LEFT JOIN h ON l.k=h.k ORDER BY l.id,h.id","expected_rows":[[1,10],[1,11],[2,10],[2,11],[3,null],[4,13],[5,null]],"ordered":true,"columns":[{"name":"l.id","oid":20,"typlen":8,"typmod":-1},{"name":"h.id","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-020","sql":"SELECT l.id,h.id FROM l JOIN h ON l.k=h.k ORDER BY l.id,h.id","expected_rows":[[1,10],[1,11],[2,10],[2,11],[4,13]],"ordered":true,"columns":[{"name":"l.id","oid":20,"typlen":8,"typmod":-1},{"name":"h.id","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-021","sql":"SELECT o.id,q.n FROM r AS o JOIN LATERAL (SELECT i.n FROM r AS i WHERE i.id=o.id AND i.n>=0) AS q ON true ORDER BY o.id","expected_rows":[[1,5],[2,5],[5,0],[6,7]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-022","sql":"SELECT o.id,EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id AND i.n>=0) AS present FROM r AS o ORDER BY o.id","expected_rows":[[1,true],[2,true],[3,false],[4,false],[5,true],[6,true]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"present","oid":16,"typlen":1,"typmod":-1}],"error":null},
-{"invariant":"SQL-024","sql":"WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION ALL SELECT n+1 AS n FROM seq WHERE n<2) SELECT n FROM seq ORDER BY n","expected_rows":[[1],[1],[2],[2]],"ordered":true,"columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"error":null},
-{"invariant":"SQL-025","sql":"SELECT id,RANK() OVER (PARTITION BY g ORDER BY n) AS rank,DENSE_RANK() OVER (PARTITION BY g ORDER BY n) AS dense FROM r ORDER BY id","expected_rows":[[1,1,1],[2,1,1],[3,3,2],[4,1,1],[5,2,2],[6,3,3]],"ordered":true,"columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"rank","oid":20,"typlen":8,"typmod":-1},{"name":"dense","oid":20,"typlen":8,"typmod":-1}],"error":null}
-],
-"variants": [
-{"invariant":"SQL-001","sql":"SELECT/*ok*/id,\nlabel FROM r --ok\nWHERE n>=0 ORDER BY id","rows":[[1,"first"],[2,"second"],[5,"zero"],[6,"last"]],"descriptors":"id:20,label:25","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"label","oid":25,"typlen":-1,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"label","oid":25,"typlen":-1,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"label","oid":25,"typlen":-1,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"label","oid":25,"typlen":-1,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-003","sql":"SELECT \"Foo\" FROM case_fields WHERE foo=22","rows":[[11]],"descriptors":"Foo:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"Foo","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"Foo","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"Foo","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"Foo","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-004","sql":"SELECT n FROM \"triage.dot\"","rows":[[22]],"descriptors":"n:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-006","sql":"SELECT q.x,q.a FROM (SELECT n,a FROM r WHERE id=3) AS q(x)","rows":[[null,null]],"descriptors":"q.x:20,q.a:34025","pg_class":"row-compatible; PG array metadata separate","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"q.x","oid":20,"typlen":8,"typmod":-1},{"name":"q.a","oid":34025,"typlen":-1,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"q.x","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"q.a","oid":34025,"typlen":-1,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"q.x","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"q.a","oid":34025,"typlen":-1,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"q.x","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"q.a","oid":34025,"typlen":-1,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-010","sql":"SELECT id,CASE WHEN n=0 THEN 9 ELSE 10/n END AS x FROM guarded ORDER BY id","rows":[[1,9],[2,5]],"descriptors":"id:20,x:20","pg_class":"row-compatible runtime column guard","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"x","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"x","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"x","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"x","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-012","sql":"SELECT id FROM r ORDER BY n DESC,id","rows":[[3],[6],[1],[2],[5],[4]],"descriptors":"id:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-012","sql":"SELECT id FROM r ORDER BY n ASC NULLS FIRST,id","rows":[[3],[4],[5],[1],[2],[6]],"descriptors":"id:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-012","sql":"SELECT id FROM r ORDER BY n DESC NULLS LAST,id","rows":[[6],[1],[2],[5],[4],[3]],"descriptors":"id:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-013","sql":"SELECT id FROM r WHERE n>=0 ORDER BY n,id LIMIT 0","rows":[],"descriptors":"id:20 even empty","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-013","sql":"SELECT id FROM r WHERE n>=0 ORDER BY n,id OFFSET 9","rows":[],"descriptors":"id:20 even empty","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-015","sql":"SELECT DISTINCT ON(g) g,n FROM r ORDER BY g,n,id","rows":[["A",5],["B",-2]],"descriptors":"g:25,n:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1},{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":0},{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":0},{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":1},{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-016","sql":"SELECT n FROM sa UNION ALL SELECT n FROM sb","rows":[[1],[1],[null],[1],[2],[null],[null]],"descriptors":"n:20","pg_class":"row-compatible bag multiplicity","comparison":"bag","executed":false,"ordered_descriptor_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-016","sql":"SELECT n FROM sa INTERSECT SELECT n FROM sb","rows":[[1],[null]],"descriptors":"n:20","pg_class":"row-compatible bag","comparison":"bag","executed":false,"ordered_descriptor_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-016","sql":"SELECT n FROM sa EXCEPT SELECT n FROM sb","rows":[],"descriptors":"n:20 even empty","pg_class":"row-compatible bag","comparison":"bag","executed":false,"ordered_descriptor_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-017","sql":"SELECT COUNT(*) AS rows,COUNT(n) AS cells,SUM(n) AS total,MIN(n) AS low,MAX(n) AS high,AVG(n) AS mean FROM r WHERE id<0","rows":[[0,0,null,null,null,null]],"descriptors":"20,20,20,20,20,701","pg_class":"rows only SUM/AVG metadata separate","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"rows","oid":20,"typlen":8,"typmod":-1},{"name":"cells","oid":20,"typlen":8,"typmod":-1},{"name":"total","oid":20,"typlen":8,"typmod":-1},{"name":"low","oid":20,"typlen":8,"typmod":-1},{"name":"high","oid":20,"typlen":8,"typmod":-1},{"name":"mean","oid":701,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"rows","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"cells","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"low","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"high","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"mean","oid":701,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"rows","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"cells","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"low","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"high","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"mean","oid":701,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"rows","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"cells","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"low","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"high","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"mean","oid":701,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-018","sql":"SELECT g,SUM(n) AS total FROM r GROUP BY g HAVING SUM(n)>6 ORDER BY g LIMIT 1 OFFSET 1","rows":[],"descriptors":"g:25,total:20","pg_class":"rows only SUM metadata separate","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1},{"name":"total","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":0},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":0},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"g","oid":25,"typlen":-1,"typmod":-1,"format":1},{"name":"total","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-024","sql":"WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION SELECT n+1 AS n FROM seq WHERE n<2) SELECT n FROM seq ORDER BY n","rows":[[1],[2]],"descriptors":"n:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"n","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-025","sql":"SELECT id,ROW_NUMBER() OVER (PARTITION BY g ORDER BY n,id) AS rn,LAG(n) OVER (PARTITION BY g ORDER BY n,id) AS prev,LEAD(n) OVER (PARTITION BY g ORDER BY n,id) AS next FROM r ORDER BY id","rows":[[1,1,null,5],[2,2,5,null],[3,3,5,null],[4,1,null,0],[5,2,-2,7],[6,3,0,null]],"descriptors":"id:20,rn:20,prev:20,next:20","pg_class":"row-compatible","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"rn","oid":20,"typlen":8,"typmod":-1},{"name":"prev","oid":20,"typlen":8,"typmod":-1},{"name":"next","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"rn","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"prev","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"next","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"rn","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"prev","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"next","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"rn","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"prev","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"next","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-025","sql":"SELECT id,LAST_VALUE(n) OVER (PARTITION BY g ORDER BY n) AS last FROM r ORDER BY id","rows":[[1,5],[2,5],[3,null],[4,-2],[5,0],[6,7]],"descriptors":"id:20,last:20","pg_class":"row-compatible default peers","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"last","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}},
-{"invariant":"SQL-025","sql":"SELECT id,LAST_VALUE(n) OVER (PARTITION BY g ORDER BY n,id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last FROM r ORDER BY id","rows":[[1,null],[2,null],[3,null],[4,7],[5,7],[6,7]],"descriptors":"id:20,last:20","pg_class":"row-compatible selected ROWS","comparison":"ordered unless singleton/empty","executed":false,"ordered_descriptor_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1},{"name":"last","oid":20,"typlen":8,"typmod":-1}],"wire_protocol":{"statement_describe":{"message":"RowDescription","result_format_source":"no Bind; empty result_formats implies text0","expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":0}]},"portal_checks":[{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[0],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":0},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":0}]},{"describe_message":"RowDescription","execute_message":"DataRow/CommandComplete","bind_result_formats":[1],"expected_columns":[{"name":"id","oid":20,"typlen":8,"typmod":-1,"format":1},{"name":"last","oid":20,"typlen":8,"typmod":-1,"format":1}]}]}}
-]
+  "seeds": [
+    {
+      "table": "r",
+      "create": "CREATE TABLE r (id BIGINT,g TEXT,n BIGINT,f FLOAT,label TEXT,a TEXT[])",
+      "insert": "INSERT INTO r (id,g,n,f,label,a) VALUES ($1,$2,$3,$4,$5,$6)",
+      "columns": [
+        "id",
+        "g",
+        "n",
+        "f",
+        "label",
+        "a"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "A",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000005",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "5"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "4014000000000000",
+            "expected_carrier": "Value::Float64",
+            "raw_bits": "4014000000000000"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "first",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 0,
+            "utf8": "{\"x\",NULL}",
+            "expected_carrier": "Value::Json(array)",
+            "logical_descriptor": "DataType::Array(Text)",
+            "pg_parameter_oid": 1009
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "A",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000005",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "5"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "4014000000000000",
+            "expected_carrier": "Value::Float64",
+            "raw_bits": "4014000000000000"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "second",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 0,
+            "utf8": "{\"x\",NULL}",
+            "expected_carrier": "Value::Json(array)",
+            "logical_descriptor": "DataType::Array(Text)",
+            "pg_parameter_oid": 1009
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000003",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "3"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "A",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID and table schema"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID and table schema"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "nil",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID and table schema",
+            "pg_parameter_oid": 1009
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000004",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "4"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "B",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "fffffffffffffffe",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "-2"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "c000000000000000",
+            "expected_carrier": "Value::Float64",
+            "raw_bits": "c000000000000000"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "negative",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 0,
+            "utf8": "{}",
+            "expected_carrier": "Value::Json(array)",
+            "logical_descriptor": "DataType::Array(Text)",
+            "pg_parameter_oid": 1009
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000005",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "5"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "B",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000000",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "0"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "8000000000000000",
+            "expected_carrier": "Value::Float64",
+            "raw_bits": "8000000000000000"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "zero",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 0,
+            "utf8": "{\"z\"}",
+            "expected_carrier": "Value::Json(array)",
+            "logical_descriptor": "DataType::Array(Text)",
+            "pg_parameter_oid": 1009
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000006",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "6"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "B",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000007",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "7"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "401c000000000000",
+            "expected_carrier": "Value::Float64",
+            "raw_bits": "401c000000000000"
+          },
+          {
+            "oid": 25,
+            "format": 0,
+            "utf8": "last",
+            "expected_carrier": "Value::String"
+          },
+          {
+            "oid": 34025,
+            "format": 0,
+            "utf8": "{\"z\"}",
+            "expected_carrier": "Value::Json(array)",
+            "logical_descriptor": "DataType::Array(Text)",
+            "pg_parameter_oid": 1009
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "text",
+            "value": "A"
+          },
+          {
+            "kind": "integer",
+            "value": "5"
+          },
+          {
+            "kind": "float_bits",
+            "value": "4014000000000000"
+          },
+          {
+            "kind": "text",
+            "value": "first"
+          },
+          {
+            "kind": "array",
+            "value": [
+              "x",
+              null
+            ]
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "text",
+            "value": "A"
+          },
+          {
+            "kind": "integer",
+            "value": "5"
+          },
+          {
+            "kind": "float_bits",
+            "value": "4014000000000000"
+          },
+          {
+            "kind": "text",
+            "value": "second"
+          },
+          {
+            "kind": "array",
+            "value": [
+              "x",
+              null
+            ]
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "3"
+          },
+          {
+            "kind": "text",
+            "value": "A"
+          },
+          {
+            "kind": "null"
+          },
+          {
+            "kind": "null"
+          },
+          {
+            "kind": "text",
+            "value": "nil"
+          },
+          {
+            "kind": "null"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "4"
+          },
+          {
+            "kind": "text",
+            "value": "B"
+          },
+          {
+            "kind": "integer",
+            "value": "-2"
+          },
+          {
+            "kind": "float_bits",
+            "value": "c000000000000000"
+          },
+          {
+            "kind": "text",
+            "value": "negative"
+          },
+          {
+            "kind": "array",
+            "value": []
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "5"
+          },
+          {
+            "kind": "text",
+            "value": "B"
+          },
+          {
+            "kind": "integer",
+            "value": "0"
+          },
+          {
+            "kind": "float_bits",
+            "value": "8000000000000000"
+          },
+          {
+            "kind": "text",
+            "value": "zero"
+          },
+          {
+            "kind": "array",
+            "value": [
+              "z"
+            ]
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "6"
+          },
+          {
+            "kind": "text",
+            "value": "B"
+          },
+          {
+            "kind": "integer",
+            "value": "7"
+          },
+          {
+            "kind": "float_bits",
+            "value": "401c000000000000"
+          },
+          {
+            "kind": "text",
+            "value": "last"
+          },
+          {
+            "kind": "array",
+            "value": [
+              "z"
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "table": "seed",
+      "create": "CREATE TABLE seed (n BIGINT)",
+      "insert": "INSERT INTO seed (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "case_fields",
+      "create": "CREATE TABLE case_fields (id BIGINT,\"Foo\" BIGINT,foo BIGINT)",
+      "insert": "INSERT INTO case_fields (id,\"Foo\",foo) VALUES ($1,$2,$3)",
+      "columns": [
+        "id",
+        "\"Foo\"",
+        "foo"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000b",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "11"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000016",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "22"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000021",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "33"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000002c",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "44"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "11"
+          },
+          {
+            "kind": "integer",
+            "value": "22"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "33"
+          },
+          {
+            "kind": "integer",
+            "value": "44"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "scope_l",
+      "create": "CREATE TABLE scope_l (id BIGINT,n BIGINT)",
+      "insert": "INSERT INTO scope_l (id,n) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000005a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "90"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "10"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "90"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "10"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "scope_h",
+      "create": "CREATE TABLE scope_h (id BIGINT,n BIGINT)",
+      "insert": "INSERT INTO scope_h (id,n) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "10"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000005a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "90"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "10"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "90"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "integers",
+      "create": "CREATE TABLE integers (id BIGINT,n BIGINT)",
+      "insert": "INSERT INTO integers (id,n) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0020000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "9007199254740993"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "fffffffffffffff9",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "-7"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "9007199254740993"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "-7"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "guarded",
+      "create": "CREATE TABLE guarded (id BIGINT,n BIGINT)",
+      "insert": "INSERT INTO guarded (id,n) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000000",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "0"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "0"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "2"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "l",
+      "create": "CREATE TABLE l (id BIGINT,k BIGINT)",
+      "insert": "INSERT INTO l (id,k) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "k"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000003",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "3"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000004",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "4"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000000",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "0"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000005",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "5"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0020000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "9007199254740993"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          },
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          },
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "3"
+          },
+          {
+            "kind": "null"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "4"
+          },
+          {
+            "kind": "integer",
+            "value": "0"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "5"
+          },
+          {
+            "kind": "integer",
+            "value": "9007199254740993"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "h",
+      "create": "CREATE TABLE h (id BIGINT,k FLOAT)",
+      "insert": "INSERT INTO h (id,k) VALUES ($1,$2)",
+      "columns": [
+        "id",
+        "k"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "10"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "3ff0000000000000",
+            "expected_carrier": "Value::Float64"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000b",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "11"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "3ff0000000000000",
+            "expected_carrier": "Value::Float64"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000c",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "12"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000d",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "13"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "8000000000000000",
+            "expected_carrier": "Value::Float64"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000e",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "14"
+          },
+          {
+            "oid": 701,
+            "format": 1,
+            "hex": "4340000000000000",
+            "expected_carrier": "Value::Float64"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "10"
+          },
+          {
+            "kind": "float_bits",
+            "value": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "11"
+          },
+          {
+            "kind": "float_bits",
+            "value": "3ff0000000000000"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "12"
+          },
+          {
+            "kind": "null"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "13"
+          },
+          {
+            "kind": "float_bits",
+            "value": "8000000000000000"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "14"
+          },
+          {
+            "kind": "float_bits",
+            "value": "4340000000000000"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "sa",
+      "create": "CREATE TABLE sa (n BIGINT)",
+      "insert": "INSERT INTO sa (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "null"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "sb",
+      "create": "CREATE TABLE sb (n BIGINT)",
+      "insert": "INSERT INTO sb (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "1"
+          }
+        ],
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          }
+        ],
+        [
+          {
+            "kind": "null"
+          }
+        ],
+        [
+          {
+            "kind": "null"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "sc",
+      "create": "CREATE TABLE sc (n BIGINT)",
+      "insert": "INSERT INTO sc (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null",
+            "descriptor_from": "declared parameter OID/table schema"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "2"
+          }
+        ],
+        [
+          {
+            "kind": "null"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "triage.dot",
+      "create": "CREATE TABLE triage.dot (n BIGINT)",
+      "insert": "INSERT INTO triage.dot (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000b",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "11"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "11"
+          }
+        ]
+      ]
+    },
+    {
+      "table": "\"triage.dot\"",
+      "create": "CREATE TABLE \"triage.dot\" (n BIGINT)",
+      "insert": "INSERT INTO \"triage.dot\" (n) VALUES ($1)",
+      "columns": [
+        "n"
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000016",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "22"
+          }
+        ]
+      ],
+      "expected_cells": [
+        [
+          {
+            "kind": "integer",
+            "value": "22"
+          }
+        ]
+      ]
+    }
+  ],
+  "primary": [
+    {
+      "invariant": "SQL-001",
+      "sql": "SELECT id,label FROM r WHERE n >= 0 ORDER BY id",
+      "expected_rows": [
+        [
+          1,
+          "first"
+        ],
+        [
+          2,
+          "second"
+        ],
+        [
+          5,
+          "zero"
+        ],
+        [
+          6,
+          "last"
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "label",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-002",
+      "sql": "SELECT n FROM r GROUP BY GROUPING SETS (n)",
+      "expected_rows": null,
+      "ordered": false,
+      "columns": null,
+      "error": {
+        "message": "ErrorResponse",
+        "sqlstate": "0A000",
+        "message_fragment": "unsupported GROUP BY syntax",
+        "RowDescription_expected": false,
+        "not_successful_zero_column_result": true
+      }
+    },
+    {
+      "invariant": "SQL-003",
+      "sql": "SELECT \"Foo\",foo FROM case_fields ORDER BY id",
+      "expected_rows": [
+        [
+          11,
+          22
+        ],
+        [
+          33,
+          44
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "Foo",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "foo",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-004",
+      "sql": "SELECT n FROM triage.dot",
+      "expected_rows": [
+        [
+          11
+        ]
+      ],
+      "ordered": false,
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-005",
+      "sql": "SELECT l.n,h.n FROM scope_l AS l JOIN scope_h AS h ON l.id=h.id ORDER BY l.id",
+      "expected_rows": [
+        [
+          90,
+          10
+        ],
+        [
+          10,
+          90
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-006",
+      "sql": "SELECT q.x,q.a FROM (SELECT n AS x,a FROM r WHERE id=3) AS q",
+      "expected_rows": [
+        [
+          null,
+          null
+        ]
+      ],
+      "ordered": false,
+      "columns": [
+        {
+          "name": "q.x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "q.a",
+          "oid": 34025,
+          "typlen": -1,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-009",
+      "sql": "SELECT n+1 AS x,n/2 AS half FROM integers ORDER BY id",
+      "expected_rows": [
+        [
+          9007199254740994,
+          4503599627370496
+        ],
+        [
+          -6,
+          -3
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "half",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-010",
+      "sql": "SELECT id,CASE WHEN n=0 THEN 9 ELSE 10/n END AS x FROM guarded ORDER BY id",
+      "expected_rows": [
+        [
+          1,
+          9
+        ],
+        [
+          2,
+          5
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-011",
+      "sql": "SELECT id,COALESCE(n,CAST(4 AS BIGINT)) AS x FROM r ORDER BY id",
+      "expected_rows": [
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          -2
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          7
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-012",
+      "sql": "SELECT id FROM r ORDER BY n ASC,id",
+      "expected_rows": [
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          6
+        ],
+        [
+          3
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-013",
+      "sql": "SELECT id FROM r WHERE n>=0 ORDER BY n,id LIMIT 2 OFFSET 1",
+      "expected_rows": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-014",
+      "sql": "SELECT label,n FROM r ORDER BY 2,1",
+      "expected_rows": [
+        [
+          "negative",
+          -2
+        ],
+        [
+          "zero",
+          0
+        ],
+        [
+          "first",
+          5
+        ],
+        [
+          "second",
+          5
+        ],
+        [
+          "last",
+          7
+        ],
+        [
+          "nil",
+          null
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "label",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        },
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-015",
+      "sql": "SELECT DISTINCT n FROM r",
+      "expected_rows": [
+        [
+          5
+        ],
+        [
+          null
+        ],
+        [
+          -2
+        ],
+        [
+          0
+        ],
+        [
+          7
+        ]
+      ],
+      "ordered": false,
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-016",
+      "sql": "SELECT n FROM sa UNION SELECT n FROM sb INTERSECT SELECT n FROM sc",
+      "expected_rows": [
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          null
+        ]
+      ],
+      "ordered": false,
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-017",
+      "sql": "SELECT COUNT(*) AS rows,COUNT(n) AS cells,SUM(n) AS total,MIN(n) AS low,MAX(n) AS high,AVG(n) AS mean FROM r",
+      "expected_rows": [
+        [
+          6,
+          5,
+          15,
+          -2,
+          7,
+          3.0
+        ]
+      ],
+      "ordered": false,
+      "columns": [
+        {
+          "name": "rows",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "cells",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "total",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "low",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "high",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "mean",
+          "oid": 701,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-018",
+      "sql": "SELECT g,SUM(n) AS total FROM r GROUP BY g HAVING SUM(n)>6 ORDER BY g",
+      "expected_rows": [
+        [
+          "A",
+          10
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "g",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        },
+        {
+          "name": "total",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-019",
+      "sql": "SELECT l.id,h.id FROM l LEFT JOIN h ON l.k=h.k ORDER BY l.id,h.id",
+      "expected_rows": [
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          11
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          13
+        ],
+        [
+          5,
+          null
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "l.id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "h.id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-020",
+      "sql": "SELECT l.id,h.id FROM l JOIN h ON l.k=h.k ORDER BY l.id,h.id",
+      "expected_rows": [
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          11
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          4,
+          13
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "l.id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "h.id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-021",
+      "sql": "SELECT o.id,q.n FROM r AS o JOIN LATERAL (SELECT i.n FROM r AS i WHERE i.id=o.id AND i.n>=0) AS q ON true ORDER BY o.id",
+      "expected_rows": [
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          7
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-022",
+      "sql": "SELECT o.id,EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id AND i.n>=0) AS present FROM r AS o ORDER BY o.id",
+      "expected_rows": [
+        [
+          1,
+          true
+        ],
+        [
+          2,
+          true
+        ],
+        [
+          3,
+          false
+        ],
+        [
+          4,
+          false
+        ],
+        [
+          5,
+          true
+        ],
+        [
+          6,
+          true
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "present",
+          "oid": 16,
+          "typlen": 1,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-024",
+      "sql": "WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION ALL SELECT n+1 AS n FROM seq WHERE n<2) SELECT n FROM seq ORDER BY n",
+      "expected_rows": [
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          2
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    },
+    {
+      "invariant": "SQL-025",
+      "sql": "SELECT id,RANK() OVER (PARTITION BY g ORDER BY n) AS rank,DENSE_RANK() OVER (PARTITION BY g ORDER BY n) AS dense FROM r ORDER BY id",
+      "expected_rows": [
+        [
+          1,
+          1,
+          1
+        ],
+        [
+          2,
+          1,
+          1
+        ],
+        [
+          3,
+          3,
+          2
+        ],
+        [
+          4,
+          1,
+          1
+        ],
+        [
+          5,
+          2,
+          2
+        ],
+        [
+          6,
+          3,
+          3
+        ]
+      ],
+      "ordered": true,
+      "columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "rank",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "dense",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "error": null
+    }
+  ],
+  "variants": [
+    {
+      "invariant": "SQL-001",
+      "sql": "SELECT/*ok*/id,\nlabel FROM r --ok\nWHERE n>=0 ORDER BY id",
+      "rows": [
+        [
+          1,
+          "first"
+        ],
+        [
+          2,
+          "second"
+        ],
+        [
+          5,
+          "zero"
+        ],
+        [
+          6,
+          "last"
+        ]
+      ],
+      "descriptors": "id:20,label:25",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "label",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "label",
+              "oid": 25,
+              "typlen": -1,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "label",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "label",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-003",
+      "sql": "SELECT \"Foo\" FROM case_fields WHERE foo=22",
+      "rows": [
+        [
+          11
+        ]
+      ],
+      "descriptors": "Foo:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "Foo",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "Foo",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "Foo",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "Foo",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-004",
+      "sql": "SELECT n FROM \"triage.dot\"",
+      "rows": [
+        [
+          22
+        ]
+      ],
+      "descriptors": "n:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-006",
+      "sql": "WITH c AS (SELECT n,a FROM r WHERE id=3) SELECT q.x,q.a FROM c AS q(x)",
+      "rows": [
+        [
+          null,
+          null
+        ]
+      ],
+      "descriptors": "x:20,a:34025",
+      "pg_class": "row-compatible; PG array metadata separate",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "a",
+          "oid": 34025,
+          "typlen": -1,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "x",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "a",
+              "oid": 34025,
+              "typlen": -1,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "x",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "a",
+                "oid": 34025,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "x",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "a",
+                "oid": 34025,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-010",
+      "sql": "SELECT id,CASE WHEN n=0 THEN 9 ELSE 10/n END AS x FROM guarded ORDER BY id",
+      "rows": [
+        [
+          1,
+          9
+        ],
+        [
+          2,
+          5
+        ]
+      ],
+      "descriptors": "id:20,x:20",
+      "pg_class": "row-compatible runtime column guard",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "x",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "x",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "x",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "x",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-012",
+      "sql": "SELECT id FROM r ORDER BY n DESC,id",
+      "rows": [
+        [
+          3
+        ],
+        [
+          6
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          5
+        ],
+        [
+          4
+        ]
+      ],
+      "descriptors": "id:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-012",
+      "sql": "SELECT id FROM r ORDER BY n ASC NULLS FIRST,id",
+      "rows": [
+        [
+          3
+        ],
+        [
+          4
+        ],
+        [
+          5
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          6
+        ]
+      ],
+      "descriptors": "id:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-012",
+      "sql": "SELECT id FROM r ORDER BY n DESC NULLS LAST,id",
+      "rows": [
+        [
+          6
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          5
+        ],
+        [
+          4
+        ],
+        [
+          3
+        ]
+      ],
+      "descriptors": "id:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-013",
+      "sql": "SELECT id FROM r WHERE n>=0 ORDER BY n,id LIMIT 0",
+      "rows": [],
+      "descriptors": "id:20 even empty",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-013",
+      "sql": "SELECT id FROM r WHERE n>=0 ORDER BY n,id OFFSET 9",
+      "rows": [],
+      "descriptors": "id:20 even empty",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-015",
+      "sql": "SELECT DISTINCT ON(g) g,n FROM r ORDER BY g,n,id",
+      "rows": [
+        [
+          "A",
+          5
+        ],
+        [
+          "B",
+          -2
+        ]
+      ],
+      "descriptors": "g:25,n:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "g",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        },
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "g",
+              "oid": 25,
+              "typlen": -1,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "g",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "g",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-016",
+      "sql": "SELECT n FROM sa UNION ALL SELECT n FROM sb",
+      "rows": [
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          null
+        ],
+        [
+          1
+        ],
+        [
+          2
+        ],
+        [
+          null
+        ],
+        [
+          null
+        ]
+      ],
+      "descriptors": "n:20",
+      "pg_class": "row-compatible bag multiplicity",
+      "comparison": "bag",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-016",
+      "sql": "SELECT n FROM sa INTERSECT SELECT n FROM sb",
+      "rows": [
+        [
+          1
+        ],
+        [
+          null
+        ]
+      ],
+      "descriptors": "n:20",
+      "pg_class": "row-compatible bag",
+      "comparison": "bag",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-016",
+      "sql": "SELECT n FROM sa EXCEPT SELECT n FROM sb",
+      "rows": [],
+      "descriptors": "n:20 even empty",
+      "pg_class": "row-compatible bag",
+      "comparison": "bag",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-017",
+      "sql": "SELECT COUNT(*) AS rows,COUNT(n) AS cells,SUM(n) AS total,MIN(n) AS low,MAX(n) AS high,AVG(n) AS mean FROM r WHERE id<0",
+      "rows": [
+        [
+          0,
+          0,
+          null,
+          null,
+          null,
+          null
+        ]
+      ],
+      "descriptors": "20,20,20,20,20,701",
+      "pg_class": "rows only SUM/AVG metadata separate",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "rows",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "cells",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "total",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "low",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "high",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "mean",
+          "oid": 701,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "rows",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "cells",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "total",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "low",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "high",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "mean",
+              "oid": 701,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "rows",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "cells",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "total",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "low",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "high",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "mean",
+                "oid": 701,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "rows",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "cells",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "total",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "low",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "high",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "mean",
+                "oid": 701,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-018",
+      "sql": "SELECT g,SUM(n) AS total FROM r GROUP BY g HAVING SUM(n)>6 ORDER BY g LIMIT 1 OFFSET 1",
+      "rows": [],
+      "descriptors": "g:25,total:20",
+      "pg_class": "rows only SUM metadata separate",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "g",
+          "oid": 25,
+          "typlen": -1,
+          "typmod": -1
+        },
+        {
+          "name": "total",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "g",
+              "oid": 25,
+              "typlen": -1,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "total",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "g",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "total",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "g",
+                "oid": 25,
+                "typlen": -1,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "total",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-024",
+      "sql": "WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION SELECT n+1 AS n FROM seq WHERE n<2) SELECT n FROM seq ORDER BY n",
+      "rows": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      "descriptors": "n:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "n",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "n",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "n",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-025",
+      "sql": "SELECT id,ROW_NUMBER() OVER (PARTITION BY g ORDER BY n,id) AS rn,LAG(n) OVER (PARTITION BY g ORDER BY n,id) AS prev,LEAD(n) OVER (PARTITION BY g ORDER BY n,id) AS next FROM r ORDER BY id",
+      "rows": [
+        [
+          1,
+          1,
+          null,
+          5
+        ],
+        [
+          2,
+          2,
+          5,
+          null
+        ],
+        [
+          3,
+          3,
+          5,
+          null
+        ],
+        [
+          4,
+          1,
+          null,
+          0
+        ],
+        [
+          5,
+          2,
+          -2,
+          7
+        ],
+        [
+          6,
+          3,
+          0,
+          null
+        ]
+      ],
+      "descriptors": "id:20,rn:20,prev:20,next:20",
+      "pg_class": "row-compatible",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "rn",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "prev",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "next",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "rn",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "prev",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "next",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "rn",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "prev",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "next",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "rn",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "prev",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "next",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-025",
+      "sql": "SELECT id,LAST_VALUE(n) OVER (PARTITION BY g ORDER BY n) AS last FROM r ORDER BY id",
+      "rows": [
+        [
+          1,
+          5
+        ],
+        [
+          2,
+          5
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          -2
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          7
+        ]
+      ],
+      "descriptors": "id:20,last:20",
+      "pg_class": "row-compatible default peers",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "last",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "last",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "last",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "last",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "invariant": "SQL-025",
+      "sql": "SELECT id,LAST_VALUE(n) OVER (PARTITION BY g ORDER BY n,id ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last FROM r ORDER BY id",
+      "rows": [
+        [
+          1,
+          null
+        ],
+        [
+          2,
+          null
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          5,
+          7
+        ],
+        [
+          6,
+          7
+        ]
+      ],
+      "descriptors": "id:20,last:20",
+      "pg_class": "row-compatible selected ROWS",
+      "comparison": "ordered unless singleton/empty",
+      "executed": false,
+      "ordered_descriptor_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        },
+        {
+          "name": "last",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1
+        }
+      ],
+      "wire_protocol": {
+        "statement_describe": {
+          "message": "RowDescription",
+          "result_format_source": "no Bind; empty result_formats implies text0",
+          "expected_columns": [
+            {
+              "name": "id",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            },
+            {
+              "name": "last",
+              "oid": 20,
+              "typlen": 8,
+              "typmod": -1,
+              "format": 0
+            }
+          ]
+        },
+        "portal_checks": [
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              0
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              },
+              {
+                "name": "last",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 0
+              }
+            ]
+          },
+          {
+            "describe_message": "RowDescription",
+            "execute_message": "DataRow/CommandComplete",
+            "bind_result_formats": [
+              1
+            ],
+            "expected_columns": [
+              {
+                "name": "id",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              },
+              {
+                "name": "last",
+                "oid": 20,
+                "typlen": 8,
+                "typmod": -1,
+                "format": 1
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

@@ -65,3 +65,63 @@ Completion still requires all 22 primary invariants, concrete positive and
 negative variants, pagination parameters, rich keys, frames, operator path
 witnesses, selected PostgreSQL 18 oracle records, and normal required local
 and exact-head hosted validation.
+
+## SQL-006 preparation correction
+
+The positive variant originally assumed a positional alias list on a derived
+subquery, `FROM (SELECT n,a FROM r WHERE id=3) AS q(x)`. The current subquery
+parser treats the whole suffix as its alias; actual execution rejects `q.x`
+with SQLSTATE 42601. D1 selected prefix lists for ordinary Collection/Cte aliases,
+so this is an unsupported preparation input, not a regression or a request to
+extend the grammar. Preserve that failed attempt. The corrected variant uses
+`WITH c AS (SELECT n,a FROM r WHERE id=3) SELECT q.x,q.a FROM c AS q(x)`, with the
+same independent NULL rows and exact descriptors. The primary derived-source
+case keeps its supported inner projection alias `n AS x` and ordinary `AS q`.
+
+The corrected CTE prefix variant preserves output labels `x` and `a`: binder
+`aliases::lower_select` sets the projected alias from `ColumnIdentifierPath::declared_name`;
+`projection::compile_projection_ops` uses that explicit alias. The original
+prepared `q.x`/`q.a` metadata described the unchanged derived primary, not this
+CTE variant. All twenty variants executed successfully before this metadata
+assertion failed; the failed descriptor attempt remains retained.
+
+## Finite scalar frame qualification
+
+The independent frame records use four ordered BIGINT rows `(1,10)`,
+`(2,20)`, `(3,20)`, `(4,30)`. Peer groups are `[10]`, `[20,20]`,
+and `[30]`; endpoint expectations for GROUPS offsets and all three EXCLUDE
+forms are materialized before execution. Both statements retain the selected
+scalar frame path; this adds no syntax or native-path promotion. Embedded rows
+and text/binary Statement/Portal descriptors must match those literals.
+
+## Negative record scope
+
+The alias-arity negative is `WITH c AS (SELECT id FROM r) SELECT q.x FROM c AS q(x,y)`: one source field and two prefix aliases must reject under the selected CTE law. The earlier derived-list draft is unsupported preparation, preserved separately. Ordinal bounds, incompatible CASE outputs, recursive arity/types, and D2 bound errors retain their existing parser/binder/wire authorities; no rejection is treated as a request to add syntax.
+
+## Completed-path witness scope
+
+Scoped caller-thread subscribers retain every relational completion event, not
+a single last-path slot. Direct primitive sort/top-k/distinct/set/distinct-on
+and ranking windows must report their selected admitted paths. Expression
+ordering, CTE DISTINCT, and GROUPS frames must retain their named scalar
+boundaries. A composed DISTINCT then sort query requires both events. These
+witnesses do not infer worker coverage or private input handoff from an event;
+those are separate controls. No global subscriber is installed.
+
+## D2 repeated Bind qualification
+
+For one prepared query per text/binary format, rebind limits/offsets `2/1`,
+`1/2`, `0/0`, `NULL/0`, and `2/NULL` without reparsing the statement between
+binds. The fixed ordered eligible ids are `[5,1,2,6]`; exact results are
+`[1,2]`, `[2]`, `[]`, `[5,1,2,6]`, and `[5,1]`. Initial parameter Describe
+advertises BIGINT/BIGINT, Statement Describe is text, and every Portal Describe
+and DataRow preserves its Bind format. No stale bound or portal result may leak.
+
+## Focused evidence-gap probes
+
+Jev bounded review scored the preparation-oracle question 0.36 and scoped-event
+attribution question 0.39. The selected probes verify quoted CTE prefix labels
+`X`/`a` and BIGINT/ARRAY descriptors on NULL-only and empty inputs, and two
+concurrent independent caller subscribers with a barrier: primitive DISTINCT
+versus scalar GROUPS window. Neither subscriber may record the other owner.
+These probes do not assert async worker coverage or whole-matrix acceptance.

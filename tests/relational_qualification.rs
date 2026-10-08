@@ -9,3 +9,20 @@ mod support_temp_dirs;
 
 #[path = "relational_qualification/primary.rs"]
 mod primary;
+
+#[path = "relational_qualification/positive_variants.rs"]
+mod positive_variants;
+
+#[path = "relational_qualification/frames.rs"]
+mod frames;
+
+#[path = "relational_qualification/negative.rs"]
+mod negative;
+
+#[path = "relational_qualification/paths.rs"]
+mod paths;
+#[path = "support/relational_paths.rs"]
+mod support_relational_paths;
+
+#[path = "relational_qualification/pagination.rs"]
+mod pagination;

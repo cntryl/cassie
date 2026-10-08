@@ -637,3 +637,7 @@ mod tests {
         assert_eq!(canonical.as_deref(), Some("user_key"));
     }
 }
+
+#[cfg(test)]
+#[path = "source_join/qualification_tests.rs"]
+mod qualification_tests;

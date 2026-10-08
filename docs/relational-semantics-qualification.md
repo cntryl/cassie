@@ -172,3 +172,61 @@ remain preserved separately from runtime red/green evidence. The LEFT typed
 eligibility checks actual right-row/template entry and alias agreement before
 conversion; declining that check retains the existing semantic-key path. No
 runtime kernel, metadata rule, metrics implementation or public API changes.
+
+## Final selected split controls
+
+The next finite controls preserve the existing complete-input join adapter and
+window batch entrypoints. Homogeneous five-row sides receive all 6x6 source
+partition boundaries before their admitted flattening; independent LEFT/INNER
+pairs and actual typed completion remain required. The original six-row window
+seed receives splits 0..6, singleton batches and `[2,1,2,1]` chunks, with literal
+rank/dense-rank outputs and declared types. Separate source markers witness
+retention and final retirement; no streaming join API or shared scalar primary
+oracle is introduced. Existing typed join NULL/output-budget controls, rich
+DISTINCT fallback and recursive depth/resource controls supply their precise
+selected ownership checks when actually replayed on the refreshed source.
+
+The same final snapshot adds ordered private mixed-numeric DISTINCT literals
+(raw negative-zero first winner, exact large integer versus rounded float) and
+declared ARRAY NULL/empty/element-NULL identity across every batch split. These
+retain the existing semantic-key fallback and source owner until output drop.
+The review's quoted literal-dot column candidate first checks ordinary SELECT
+and WHERE EXISTS before correlated SELECT, using identical two-row inputs;
+unsupported baseline syntax is not treated as an invitation to extend grammar.
+
+## Selected delimited-field correlation repair
+
+[Bug #866](https://github.com/cntryl/cassie/issues/866) records actual ordinary
+quoted-field SELECT success with matching WHERE/SELECT EXISTS scope errors.
+A literal stored component such as `a.b` must be distinguished from an encoded
+qualified path using current source/schema/alias provenance and existing
+`ColumnIdentifierPath` authority, preserving the original WHERE phase and
+per-occurrence SELECT folding. Collection fields, selected CTE prefix renames
+and derived projection labels are probed separately before choosing the private
+naming seam. No punctuation-wide rewrite, new grammar, public API or per-row
+schema clone is selected. The original unsupported derived positional alias-list
+boundary remains unchanged. All current owner/cancellation and 2 KiB WHERE
+controls remain required.
+
+The finite #866 seam selects exact declared Collection fields, explicit derived
+projection aliases, unqualified ColumnIdentifierPath output components, and
+wildcard fields inherited from a single declared Collection (through ordinary
+aliases). Successful CTE-prefix remapping and supported derived `q.id` paths
+remain unchanged. The attempted outer `q."r.id"` reference to an unaliased
+qualified derived projection is unsupported even in ordinary SELECT and is
+recorded as a preparation error, not a grammar expansion. Literal raw names are
+escaped through the existing identifier helper before the current qualifier is
+prepended in static SELECT scope, dynamic SELECT rows and original WHERE rows.
+
+Current focused #866 regressions retain ordinary, WHERE and SELECT results for
+quoted dotted fields, escaped quotes, exact uppercase fields, successful CTE
+prefix remapping and the selected derived source shapes. The final literal
+inner-priority probe yields `true,false`; distinct `a.b`/`A.B` fields yield
+`false,true` in each row, with BOOLEAN descriptors. These answer the concrete
+Jev 0.74/0.64 candidates through actual tests, rather than model approval.
+The 34-test relational suite and unchanged 2 KiB WHERE control pass locally;
+three scoped-copy and four attachment admission/cancellation controls retain
+their owners and reject the observed threshold-minus-one budgets. The private
+join/window partition controls also pass. This is a focused checkpoint:
+combined joined-source/writer-barrier qualification, required full validation
+and exact-head hosted acceptance remain pending before issue closeout.

@@ -536,3 +536,291 @@ fn should_select_correlated_output_with_boolean_parameters() {
         );
     }
 }
+
+#[test]
+fn should_preserve_delimited_dotted_outer_field_correlation() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE dotted (\"a.b\" BIGINT)",
+        "INSERT INTO dotted (\"a.b\") VALUES (1),(2)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("selected delimited-field setup");
+    }
+    let queries = [
+        "SELECT q.\"a.b\" FROM dotted q ORDER BY q.\"a.b\"",
+        "SELECT q.\"a.b\" FROM dotted q WHERE EXISTS(SELECT 1 FROM dotted u WHERE u.\"a.b\"=q.\"a.b\") ORDER BY q.\"a.b\"",
+        "SELECT EXISTS(SELECT 1 FROM dotted u WHERE u.\"a.b\"=q.\"a.b\") FROM dotted q ORDER BY q.\"a.b\"",
+    ];
+    // Act
+    let results = queries
+        .iter()
+        .map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]))
+        .collect::<Vec<_>>();
+    // Assert
+    for (index, result) in results.iter().enumerate() {
+        println!("dotted field control{index}: success={}", result.is_ok());
+    }
+    for (index, result) in results.into_iter().enumerate() {
+        let result = result.expect("selected delimited identifier control");
+        let expected = if index == 2 {
+            vec![vec![Value::Bool(true)], vec![Value::Bool(true)]]
+        } else {
+            vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+        };
+        assert_eq!(result.rows.len(), 2, "dotted field control{index}");
+        assert!(
+            result
+                .rows
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| actual == &expected),
+            "dotted field control{index}"
+        );
+    }
+}
+
+#[test]
+fn should_classify_delimited_dotted_fields_from_supported_source_shapes() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE dotted (\"a.b\" BIGINT)",
+        "INSERT INTO dotted VALUES (1),(2)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("selected delimited source setup");
+    }
+    let prefixes = [
+        (
+            "cte_prefix",
+            "WITH c(x) AS (SELECT id FROM r WHERE id<=2) ",
+            "c AS q(\"a.b\")",
+        ),
+        (
+            "derived_projection",
+            "",
+            "(SELECT id AS \"a.b\" FROM r WHERE id<=2) q",
+        ),
+        ("derived_wildcard", "", "(SELECT * FROM dotted) q"),
+        (
+            "derived_unaliased_delimited",
+            "",
+            "(SELECT \"a.b\" FROM dotted) q",
+        ),
+    ];
+    let mut cases = Vec::new();
+    for (name, prefix, source) in prefixes {
+        cases.push((
+            format!("{name}_ordinary"),
+            format!("{prefix}SELECT q.\"a.b\" FROM {source} ORDER BY q.\"a.b\""),
+            false,
+        ));
+        cases.push((format!("{name}_where"),format!("{prefix}SELECT q.\"a.b\" FROM {source} WHERE EXISTS(SELECT 1 FROM r u WHERE u.id=q.\"a.b\") ORDER BY q.\"a.b\""),false));
+        cases.push((format!("{name}_select"),format!("{prefix}SELECT EXISTS(SELECT 1 FROM r u WHERE u.id=q.\"a.b\") FROM {source} ORDER BY q.\"a.b\""),true));
+    }
+    // Act
+    let results = cases
+        .iter()
+        .map(|(_, sql, _)| fixture.cassie.execute_sql(&fixture.session, sql, vec![]))
+        .collect::<Vec<_>>();
+    // Assert
+    for ((name, _, _), result) in cases.iter().zip(&results) {
+        println!("dotted source {name}: success={}", result.is_ok());
+    }
+    for ((name, _, boolean), result) in cases.iter().zip(results) {
+        let result = result.expect("selected source grammar control");
+        let expected = if *boolean {
+            vec![vec![Value::Bool(true)], vec![Value::Bool(true)]]
+        } else {
+            vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+        };
+        assert_eq!(result.rows.len(), 2, "{name}");
+        assert!(
+            result
+                .rows
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| actual == &expected),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_supported_derived_projection_labels() {
+    // Arrange
+    let fixture = fixture();
+    let cases = [
+        "SELECT q.\"r.id\" FROM (SELECT r.id FROM r WHERE id<=2) q ORDER BY q.\"r.id\"",
+        "SELECT q.\"r.id\" FROM (SELECT r.id FROM r WHERE id<=2) q WHERE EXISTS(SELECT 1 FROM r u WHERE u.id=q.\"r.id\") ORDER BY q.\"r.id\"",
+        "SELECT EXISTS(SELECT 1 FROM r u WHERE u.id=q.\"r.id\") FROM (SELECT r.id FROM r WHERE id<=2) q ORDER BY q.\"r.id\"",
+        "SELECT q.id FROM (SELECT a.id FROM r AS a WHERE id<=2) q ORDER BY q.id",
+        "SELECT q.id FROM (SELECT a.id FROM r AS a WHERE id<=2) q WHERE EXISTS(SELECT 1 FROM r u WHERE u.id=q.id) ORDER BY q.id",
+        "SELECT EXISTS(SELECT 1 FROM r u WHERE u.id=q.id) FROM (SELECT a.id FROM r AS a WHERE id<=2) q ORDER BY q.id",
+    ];
+    // Act
+    let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
+    // Assert
+    for (index, result) in results.iter().enumerate() {
+        println!(
+            "emitted projection control{index}: success={}",
+            result.is_ok()
+        );
+    }
+    for (index, result) in results.into_iter().enumerate() {
+        if index < 3 {
+            assert!(
+                matches!(result, Err(cassie::app::CassieError::Planner(_))),
+                "unsupported qualified output label control{index}"
+            );
+            continue;
+        }
+        let expected = if index % 3 == 2 {
+            vec![vec![Value::Bool(true)], vec![Value::Bool(true)]]
+        } else {
+            vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
+        };
+        let result = result.expect("selected emitted projection label");
+        assert_eq!(result.rows.len(), 2, "emitted projection control{index}");
+        assert!(
+            result
+                .rows
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| actual == &expected),
+            "emitted projection control{index}"
+        );
+    }
+}
+
+#[test]
+fn should_preserve_escaped_delimited_correlation_components() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE escaped (\"a.\"\"b\" BIGINT,\"A.B\" BIGINT)",
+        "INSERT INTO escaped VALUES (1,101),(2,102)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("escaped delimited setup");
+    }
+    let cases = [
+        "SELECT q.\"a.\"\"b\",q.\"A.B\" FROM escaped q ORDER BY q.\"a.\"\"b\"",
+        "SELECT q.\"a.\"\"b\",q.\"A.B\" FROM escaped q WHERE EXISTS(SELECT 1 FROM escaped u WHERE u.\"a.\"\"b\"=q.\"a.\"\"b\" AND u.\"A.B\"=q.\"A.B\") ORDER BY q.\"a.\"\"b\"",
+        "SELECT EXISTS(SELECT 1 FROM escaped u WHERE u.\"a.\"\"b\"=q.\"a.\"\"b\" AND u.\"A.B\"=q.\"A.B\") FROM escaped q ORDER BY q.\"a.\"\"b\"",
+    ];
+    // Act
+    let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
+    // Assert
+    for (index, result) in results.iter().enumerate() {
+        println!(
+            "escaped component control{index}: success={}",
+            result.is_ok()
+        );
+    }
+    for (index, result) in results.into_iter().enumerate() {
+        let expected = if index == 2 {
+            vec![vec![Value::Bool(true)], vec![Value::Bool(true)]]
+        } else {
+            vec![
+                vec![Value::Int64(1), Value::Int64(101)],
+                vec![Value::Int64(2), Value::Int64(102)],
+            ]
+        };
+        let result = result.expect("escaped delimited correlation");
+        assert_eq!(result.rows.len(), 2, "escaped component control{index}");
+        assert!(
+            result
+                .rows
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| actual == &expected),
+            "escaped component control{index}"
+        );
+    }
+}
+
+#[test]
+fn should_prefer_inner_delimited_field_scope() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE dotted (\"a.b\" BIGINT,\"A.B\" BIGINT)",
+        "INSERT INTO dotted VALUES (1,101),(2,102)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("finite dotted namespace setup");
+    }
+    let sql = "SELECT EXISTS(SELECT 1 FROM dotted u WHERE \"a.b\"=q.\"a.b\" AND u.\"a.b\"=1) FROM dotted q ORDER BY q.\"a.b\"";
+    // Act
+    let result = fixture
+        .cassie
+        .execute_sql(&fixture.session, sql, vec![])
+        .expect("selected dotted namespace query");
+    // Assert
+    let expected = vec![vec![Value::Bool(true)], vec![Value::Bool(false)]];
+    assert_eq!(result.rows.len(), 2);
+    assert_eq!(result.columns.len(), expected[0].len());
+    assert!(result.columns.iter().all(|column| column.type_oid == 16
+        && column.typlen == 1
+        && column.atttypmod == -1
+        && column.format_code == 0));
+    assert!(
+        result
+            .rows
+            .iter()
+            .zip(expected)
+            .all(|(actual, expected)| actual == &expected),
+        "finite literal dotted namespace rows"
+    );
+}
+
+#[test]
+fn should_distinguish_case_specific_dotted_fields() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE dotted (\"a.b\" BIGINT,\"A.B\" BIGINT)",
+        "INSERT INTO dotted VALUES (1,101),(2,102)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("finite dotted namespace setup");
+    }
+    let sql = "SELECT EXISTS(SELECT 1 FROM dotted u WHERE u.\"A.B\"=q.\"a.b\"),EXISTS(SELECT 1 FROM dotted u WHERE u.\"A.B\"=q.\"A.B\") FROM dotted q ORDER BY q.\"a.b\"";
+    // Act
+    let result = fixture
+        .cassie
+        .execute_sql(&fixture.session, sql, vec![])
+        .expect("selected dotted namespace query");
+    // Assert
+    let expected = vec![
+        vec![Value::Bool(false), Value::Bool(true)],
+        vec![Value::Bool(false), Value::Bool(true)],
+    ];
+    assert_eq!(result.rows.len(), 2);
+    assert_eq!(result.columns.len(), expected[0].len());
+    assert!(result.columns.iter().all(|column| column.type_oid == 16
+        && column.typlen == 1
+        && column.atttypmod == -1
+        && column.format_code == 0));
+    assert!(
+        result
+            .rows
+            .iter()
+            .zip(expected)
+            .all(|(actual, expected)| actual == &expected),
+        "finite literal dotted namespace rows"
+    );
+}

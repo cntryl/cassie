@@ -207,3 +207,115 @@ fn should_preserve_two_branch_set_multiplicity_across_owner_partitions() {
         }
     }
 }
+
+#[test]
+fn should_preserve_signed_zero_first_winner_with_exact_numeric_classes() {
+    // Arrange
+    let values = [
+        Value::Float64(-0.0),
+        Value::Int64(0),
+        Value::Float64(0.0),
+        Value::Int64(9_007_199_254_740_993),
+        Value::Float64(9_007_199_254_740_992.0),
+    ];
+    for split in 0..=values.len() {
+        let controls = controls();
+        let marker = Arc::new(
+            controls
+                .reserve_query_memory(256)
+                .expect("source owner marker"),
+        );
+        let weak = Arc::downgrade(&marker);
+        let rows = values
+            .iter()
+            .map(|value| {
+                BatchRow::new(vec![("n".into(), value.clone())])
+                    .with_query_memory(Some(Arc::clone(&marker)))
+            })
+            .collect::<Vec<_>>();
+        let mut left = rows;
+        let right = left.split_off(split);
+        drop(marker);
+        // Act
+        let output = distinct_batches(vec![left, right], &controls)
+            .expect("exact mixed numeric semantic keys");
+        // Assert
+        let rows = output.iter().flatten().collect::<Vec<_>>();
+        assert_eq!(rows.len(), 3);
+        match rows[0].get("n").expect("first winner") {
+            Value::Float64(value) => assert_eq!(value.to_bits(), 0x8000_0000_0000_0000),
+            _ => panic!("raw negative-zero winner carrier"),
+        }
+        assert_eq!(rows[1].get("n"), Some(&Value::Int64(9_007_199_254_740_993)));
+        assert_eq!(
+            rows[2].get("n"),
+            Some(&Value::Float64(9_007_199_254_740_992.0))
+        );
+        assert_eq!(
+            crate::executor::typed_batch::relational_diagnostics::last_path(),
+            Some(("distinct", "bounded_semantic_keys"))
+        );
+        assert!(weak.upgrade().is_some());
+        drop(rows);
+        drop(output);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}
+
+#[test]
+fn should_preserve_declared_array_null_identity_across_batch_splits() {
+    // Arrange
+    let values = [
+        Value::Null,
+        Value::Json(serde_json::json!([])),
+        Value::Json(serde_json::json!(["x", null])),
+        Value::Json(serde_json::json!([])),
+        Value::Json(serde_json::json!(["x", null])),
+        Value::Null,
+    ];
+    for split in 0..=values.len() {
+        let controls = controls();
+        let types = Arc::new(vec![DataType::Array(Box::new(DataType::Text))]);
+        let marker = Arc::new(
+            controls
+                .reserve_query_memory(256)
+                .expect("rich source marker"),
+        );
+        let weak = Arc::downgrade(&marker);
+        let mut left = values
+            .iter()
+            .map(|value| {
+                BatchRow::new(vec![("a".into(), value.clone())])
+                    .with_optional_data_types(Some(Arc::clone(&types)))
+                    .with_query_memory(Some(Arc::clone(&marker)))
+            })
+            .collect::<Vec<_>>();
+        let right = left.split_off(split);
+        drop(marker);
+        // Act
+        let output =
+            distinct_batches(vec![left, right], &controls).expect("selected ARRAY fallback");
+        // Assert
+        let rows = output.iter().flatten().collect::<Vec<_>>();
+        assert_eq!(rows.len(), 3);
+        assert_eq!(rows[0].get("a"), Some(&Value::Null));
+        assert_eq!(rows[1].get("a"), Some(&Value::Json(serde_json::json!([]))));
+        assert_eq!(
+            rows[2].get("a"),
+            Some(&Value::Json(serde_json::json!(["x", null])))
+        );
+        assert!(rows.iter().all(|row| row.data_types() == types.as_slice()
+            && row.operator_memory().is_some()
+            && row.query_memory().is_some()));
+        assert_eq!(
+            crate::executor::typed_batch::relational_diagnostics::last_path(),
+            Some(("distinct", "bounded_semantic_keys"))
+        );
+        assert!(weak.upgrade().is_some());
+        drop(rows);
+        drop(output);
+        assert!(weak.upgrade().is_none());
+        assert_eq!(controls.current_query_memory_bytes(), 0);
+    }
+}

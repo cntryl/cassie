@@ -71,13 +71,12 @@ fn outer_row(
         .map_err(|error| allocation(&error))?;
     for (name, value) in row.entries() {
         check_timeout(env.controls)?;
-        let name = if name.contains('.') {
-            name.clone()
-        } else if let Some(qualifier) = &qualifier {
-            format!("{qualifier}.{name}")
-        } else {
-            name.clone()
-        };
+        let name = super::super::outer_names::outer_field_name(
+            &env.cassie.catalog,
+            source,
+            qualifier.as_deref(),
+            name,
+        );
         entries.push((name, value.clone()));
     }
     let memory = std::sync::Arc::new(memory);

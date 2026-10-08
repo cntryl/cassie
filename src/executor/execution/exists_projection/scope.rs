@@ -47,13 +47,12 @@ impl Scope {
             .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
         for field in fields {
             check_timeout(context.controls)?;
-            let name = if field.name.contains('.') {
-                field.name
-            } else if let Some(qualifier) = &qualifier {
-                format!("{qualifier}.{}", field.name)
-            } else {
-                field.name
-            };
+            let name = super::super::outer_names::outer_field_name(
+                &context.cassie.catalog,
+                source,
+                qualifier.as_deref(),
+                &field.name,
+            );
             names.insert(crate::sql::ColumnIdentifierPath::stored_row_lookup_key(
                 &name,
             ));

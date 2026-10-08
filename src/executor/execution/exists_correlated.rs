@@ -36,7 +36,8 @@ pub(super) fn filter_rows_per_outer_row(
     let mut kept = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(context.controls)?;
-        let outer = qualified_outer_row(&row, qualifier.as_deref());
+        let outer =
+            qualified_outer_row(&context.cassie.catalog, source, &row, qualifier.as_deref());
         let row_context = ExistsResolutionContext {
             outer_row: Some(&outer),
             ..*context
@@ -73,7 +74,12 @@ pub(super) fn outer_qualifier(source: &QuerySource) -> Option<String> {
 /// Renames every unqualified entry to `qualifier.column`, so an unqualified
 /// name inside the subquery resolves to the subquery's own columns first
 /// (PostgreSQL scoping) and reaches the outer row only through its suffix.
-fn qualified_outer_row(row: &BatchRow, qualifier: Option<&str>) -> BatchRow {
+fn qualified_outer_row(
+    catalog: &crate::catalog::Catalog,
+    source: &QuerySource,
+    row: &BatchRow,
+    qualifier: Option<&str>,
+) -> BatchRow {
     let Some(qualifier) = qualifier else {
         return row.clone();
     };
@@ -81,11 +87,10 @@ fn qualified_outer_row(row: &BatchRow, qualifier: Option<&str>) -> BatchRow {
         row.entries()
             .iter()
             .map(|(name, value)| {
-                if name.contains('.') {
-                    (name.clone(), value.clone())
-                } else {
-                    (format!("{qualifier}.{name}"), value.clone())
-                }
+                (
+                    super::outer_names::outer_field_name(catalog, source, Some(qualifier), name),
+                    value.clone(),
+                )
             })
             .collect(),
     )

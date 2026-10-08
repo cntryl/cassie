@@ -8,6 +8,19 @@ use super::{
 };
 
 impl Catalog {
+    pub(crate) fn contains_declared_stored_field(&self, collection: &str, field: &str) -> bool {
+        let schemas = self.schemas.read();
+        schemas
+            .get(collection)
+            .or_else(|| {
+                schemas
+                    .iter()
+                    .find(|(stored, _)| name_matches(stored, collection))
+                    .map(|(_, schema)| schema)
+            })
+            .is_some_and(|schema| schema.fields.iter().any(|entry| entry.name == field))
+    }
+
     pub(crate) fn clone_schema_with_controls(
         &self,
         collection: &str,

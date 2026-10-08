@@ -56,6 +56,7 @@ mod entrypoints;
 mod exists_correlated;
 mod exists_plan;
 mod exists_projection;
+mod outer_names;
 mod result;
 
 pub(crate) use entrypoints::{

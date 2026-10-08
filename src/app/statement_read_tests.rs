@@ -861,3 +861,5 @@ mod sources;
 mod artifacts;
 
 mod native_paths;
+
+mod resources;

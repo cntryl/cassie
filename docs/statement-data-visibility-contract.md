@@ -107,7 +107,7 @@ from admission or allow cancellation to release charge before live buffers.
 
 | Obligation | Required oracle | Current disposition |
 | --- | --- | --- |
-| TX-01 through TX-06 and TX-08 through TX-09 | Reuse mapped mutation, commit-gate, recovery, settings and savepoint evidence; add only uncovered controls | Historical evidence; current implementation replay pending |
+| TX-01 through TX-06 and TX-08 through TX-09 | Reuse mapped mutation, commit-gate, recovery, settings and savepoint evidence; add only uncovered controls | Fourteen exact mapped mutation, visibility, savepoint, settings, atomicity and fresh-FK witnesses replayed 14/0; additional context qualification remains separate |
 | TX-07 | Captured whole-session COW overlay survives subsequent session writes and cursor resume | Per-cursor evidence exists; statement-wide owner pending |
 | TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Current focused source witnesses pass: multirow JOIN, empty acquisition and visible right rows after an empty left read; broader path qualification remains pending |
 | CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; eight existing conversion controls replayed successfully, including two active workers cancelled with zero charge/workers and reusable permits; statement worker dispatch qualification remains pending |
@@ -190,3 +190,21 @@ assertions. With two additional KiB for admitted statement owner/source overlap,
 its unchanged three-held, fourth-denied and Close/replacement assertions passed.
 This changes only the test fixture, not production limits or admitted charges.
 Dedicated error-owner observability and full statement acceptance remain pending.
+
+Fourteen exact mapped TX witnesses replayed 14/0 on committed `1b6c9d49`,
+covering statement rollback, multi-collection atomicity, foreign-key races,
+staged visibility, failed blocks, savepoints and session settings. Each named
+command executed one passing test; these are current replays of existing
+contracts, not additional pre-repair RED claims.
+
+A focused combined-owner witness measured the portal fixture's materialized
+source separately from cumulative portal retention. Data-only ownership held
+512 bytes; the captured empty session overlay held 712 additional bytes, for
+1224 combined bytes. The exact 64-row lower(payload) source with generated
+LIMIT 1001/OFFSET 0 completed at the calibrated 258 KiB budget with a measured
+execution peak of 262656 bytes. After dropping the result, 1224 remained until
+controls and owner dropped, then zero. Owner references remained two before
+and after the matching nested executor. The original denied request of 262656
+bytes and this successful measured peak are distinct evidence. This does not
+measure a pre-change baseline or the separate portal retention controls.
+Independent numerical attribution review and full acceptance remain pending.

@@ -41,8 +41,10 @@ fn should_match_positive_variant_literal_rows() {
 
     for (case, result) in variants.iter().zip(&results) {
         println!(
-            "positive observation {} {}: {result:?}",
-            case.invariant, case.sql
+            "positive observation {} {}: succeeded={}",
+            case.invariant,
+            case.sql,
+            result.is_ok()
         );
     }
 
@@ -51,8 +53,11 @@ fn should_match_positive_variant_literal_rows() {
         let result =
             result.unwrap_or_else(|error| panic!("{} {}: {error}", case.invariant, case.sql));
         println!(
-            "positive {} {}: {:?} {:?}",
-            case.invariant, case.sql, result.rows, result.columns
+            "positive {} {}: row_count={} column_count={}",
+            case.invariant,
+            case.sql,
+            result.rows.len(),
+            result.columns.len()
         );
         assert_eq!(result.rows.len(), case.rows.len(), "{}", case.sql);
         assert_eq!(

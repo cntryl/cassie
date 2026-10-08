@@ -58,8 +58,10 @@ fn should_match_literal_frame_endpoints() {
     for (case, result) in cases.iter().zip(results) {
         let result = result.unwrap_or_else(|error| panic!("{}: {error}", case.name));
         println!(
-            "frame {}: {:?} {:?}",
-            case.name, result.rows, result.columns
+            "frame {}: row_count={} column_count={}",
+            case.name,
+            result.rows.len(),
+            result.columns.len()
         );
         assert_eq!(result.rows.len(), case.rows.len(), "{}", case.name);
         assert!(

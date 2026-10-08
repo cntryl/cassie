@@ -65,16 +65,12 @@ fn should_match_independent_relational_truth_tables() {
             );
         }
         let expected = case.expected_rows.expect("literal rows");
-        assert_eq!(
-            result.rows.len(),
-            expected.len(),
-            "{}: {:?}",
-            case.invariant,
-            result.rows
-        );
+        assert_eq!(result.rows.len(), expected.len(), "{}", case.invariant);
         println!(
-            "{} rows={:?} columns={:?}",
-            case.invariant, result.rows, result.columns
+            "{} row_count={} column_count={}",
+            case.invariant,
+            result.rows.len(),
+            result.columns.len()
         );
         if case.ordered {
             assert!(
@@ -202,9 +198,9 @@ fn should_evaluate_correlated_exists_in_the_selected_output() {
     let filter = fixture.cassie.execute_sql(&fixture.session,
         "SELECT o.id FROM r AS o WHERE EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id AND i.n>=0) ORDER BY o.id", vec![]);
     for (name, result) in &results {
-        println!("{name}: {result:?}");
+        println!("{name}: succeeded={}", result.is_ok());
     }
-    println!("ordinary_alias_where_control: {filter:?}");
+    println!("ordinary_alias_where_control: succeeded={}", filter.is_ok());
 
     // Assert
     assert_eq!(
@@ -256,9 +252,8 @@ fn should_preserve_recursive_window_truth_tables() {
                 .iter()
                 .zip(expected)
                 .all(|(actual, expected)| matches_row(actual, expected)),
-            "{} rows={:?}",
-            case.invariant,
-            result.rows
+            "{} literal row mismatch",
+            case.invariant
         );
         let columns = case.columns.as_ref().expect("literal descriptor");
         assert_eq!(result.columns.len(), columns.len());
@@ -281,8 +276,10 @@ fn should_preserve_recursive_window_truth_tables() {
             );
         }
         println!(
-            "{} rows={:?} columns={:?}",
-            case.invariant, result.rows, result.columns
+            "{} row_count={} column_count={}",
+            case.invariant,
+            result.rows.len(),
+            result.columns.len()
         );
     }
 }
@@ -348,7 +345,7 @@ fn should_preserve_inner_scope_for_exists_output() {
     let nested = [correlated_case, correlated_function]
         .map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
     for (sql, result) in [correlated_case, correlated_function].iter().zip(&nested) {
-        println!("{sql}: {result:?}");
+        println!("{sql}: succeeded={}", result.is_ok());
     }
 
     // Assert
@@ -411,7 +408,7 @@ fn should_preserve_occurrence_scope_for_exists_output() {
     ]
     .map(|(id, present)| vec![Value::Int64(id), Value::Bool(present)]);
     for (sql, result) in results {
-        println!("scope control {sql}: {result:?}");
+        println!("scope control {sql}: succeeded={}", result.is_ok());
         assert_eq!(result.expect("occurrence scope").rows, expected, "{sql}");
     }
     assert_eq!(
@@ -443,12 +440,15 @@ fn should_skip_dead_correlated_exists_output() {
     let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
 
     for (sql, result) in cases.iter().zip(&results) {
-        println!("dead branch observation {sql}: {result:?}");
+        println!(
+            "dead branch observation {sql}: succeeded={}",
+            result.is_ok()
+        );
     }
 
     // Assert
     for ((sql, result), expected) in cases.into_iter().zip(results).zip([false, true]) {
-        println!("dead branch {sql}: {result:?}");
+        println!("dead branch {sql}: succeeded={}", result.is_ok());
         assert_eq!(
             result
                 .expect("dead correlated branch is not evaluated")
@@ -499,7 +499,7 @@ fn should_evaluate_correlated_case_operand_once() {
     let setting = fixture.session.setting("application_name");
 
     // Assert
-    println!("once-only CASE {sql}: {result:?} setting={setting:?}");
+    println!("once-only CASE {sql}: succeeded={}", result.is_ok());
     assert_eq!(
         result.expect("selected simple CASE").rows,
         vec![vec![Value::Bool(true)]]
@@ -525,7 +525,10 @@ fn should_select_correlated_output_with_boolean_parameters() {
 
     // Assert
     for ((sql, result), expected) in cases.into_iter().zip(results).zip([false, true]) {
-        println!("parameter-selected branch {sql}: {result:?}");
+        println!(
+            "parameter-selected branch {sql}: succeeded={}",
+            result.is_ok()
+        );
         assert_eq!(
             result.expect("selected Boolean parameter").rows,
             vec![vec![Value::Bool(expected)]],

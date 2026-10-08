@@ -50,8 +50,9 @@ fn should_reject_selected_invalid_relational_inputs() {
     );
     for ((case, result), frames) in cases.iter().zip(&results).zip(&packets) {
         println!(
-            "negative {}: {result:?} wire {:?}",
+            "negative {}: rejected={} wire {:?}",
             case.name,
+            result.is_err(),
             crate::support_pgwire::error_code(frames)
         );
     }

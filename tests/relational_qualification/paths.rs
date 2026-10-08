@@ -24,7 +24,7 @@ fn should_witness_each_selected_operator_completion() {
         .map(|(sql, _, _)| capture(|| fixture.cassie.execute_sql(&fixture.session, sql, vec![])))
         .collect::<Vec<_>>();
     for ((sql, _, _), (result, events)) in cases.iter().zip(&observations) {
-        println!("path {sql}: {result:?} {events:?}");
+        println!("path {sql}: succeeded={} {events:?}", result.is_ok());
     }
 
     // Assert

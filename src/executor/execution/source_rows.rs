@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "source_rows/qualification_tests.rs"]
+mod qualification_tests;
+
 #[path = "source_rows/distinct_on.rs"]
 mod direct_distinct_on;
 #[cfg(test)]

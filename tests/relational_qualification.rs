@@ -26,3 +26,6 @@ mod support_relational_paths;
 
 #[path = "relational_qualification/pagination.rs"]
 mod pagination;
+
+#[path = "relational_qualification/homogeneous_join.rs"]
+mod homogeneous_join;

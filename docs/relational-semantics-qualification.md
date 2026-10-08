@@ -125,3 +125,50 @@ attribution question 0.39. The selected probes verify quoted CTE prefix labels
 concurrent independent caller subscribers with a barrier: primitive DISTINCT
 versus scalar GROUPS window. Neither subscriber may record the other owner.
 These probes do not assert async worker coverage or whole-matrix acceptance.
+
+## Private owner-partition qualification
+
+DISTINCT consumes real batches. A 1,025-row declared BIGINT fixture repeats
+`NULL,1,2,3,0` classes and splits at 0, 1, 512, 1,023, 1,024, and 1,025.
+Literal first occurrences are `[NULL,1,2,3,0]`; each nonempty input partition
+owns a separate 256-byte source lease marker. Winners retain their actual source
+markers until output drop, and every marker and operator charge then retires.
+
+Set kernels consume complete row vectors. The existing adapter boundary receives
+partition-owned rows before flattening; no streaming set API is selected.
+The 4x5x3 source-partition grid for `sa UNION (sb INTERSECT sc)` preserves the
+independent bag `[NULL,1,2]`, with `sa=[1,1,NULL]`, `sb=[1,2,NULL,NULL]`,
+and `sc=[2,NULL]`. The four two-branch operators separately preserve their
+recorded bags. Input partitions include empty endpoints, declared types and
+source lease markers; output ownership and final zero charge are observed.
+Marker reservations witness existing source-owner retention, not an estimate of
+all test-fixture allocation. No runtime operator or public API is added.
+
+## Finite PostgreSQL and homogeneous join qualification
+
+Installed PostgreSQL 18.6 runs in an owned UUID cluster, UTF8/C-libc/UTC,
+with a private loopback endpoint. Forty-five preselected row comparisons passed:
+19 compatible primary cases, 20 variants, two homogeneous BIGINT join controls,
+two frames and two quoted-prefix NULL/empty cases. Unsupported Cassie SQL-002
+and original mixed exact-number join cases remain excluded; ARRAY OID and
+SUM/AVG descriptor parity are not inferred. Binary-derived FLOAT seed negative
+zero remains exactly `8000000000000000`. The first metadata-only attempt failed
+before any case because `lc_collate` is database catalog metadata, not a PG18
+SHOW parameter; that failed attempt and both strict cleanup receipts are retained.
+
+The homogeneous Cassie control uses independently enumerated seven LEFT and
+five INNER pairs with vectorized joins disabled and enabled. Actual unaliased
+LEFT joins report `vectorized`; INNER joins report `typed_hash`. Both report
+build4/probe5/matched5; disabled controls report merge with zero vectorized build.
+The legacy semantic-key LEFT diagnostic reports four non-NULL retained build
+rows as `right_input_rows_total`; typed INNER and merge report all five right
+source rows. Ordinary aliases preserve the same literal rows and `id`/`id`
+BIGINT descriptors in both wire formats. These are case-specific actual path
+witnesses, not native eligibility inferred from a configuration flag.
+
+Initial prepared metadata, blanket native/fallback attribution and physical
+right-input counter assumptions failed against current source. Those attempts
+remain preserved separately from runtime red/green evidence. The LEFT typed
+eligibility checks actual right-row/template entry and alias agreement before
+conversion; declining that check retains the existing semantic-key path. No
+runtime kernel, metadata rule, metrics implementation or public API changes.

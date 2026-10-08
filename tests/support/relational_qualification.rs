@@ -88,6 +88,10 @@ impl Drop for Directory {
 }
 
 pub fn fixture() -> Fixture {
+    fixture_with_vectorized_joins(false)
+}
+
+pub fn fixture_with_vectorized_joins(enabled: bool) -> Fixture {
     let directory = Directory(std::env::temp_dir().join(format!(
         "cassie-relational-qualification-{}",
         uuid::Uuid::new_v4()
@@ -97,6 +101,7 @@ pub fn fixture() -> Fixture {
     config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
     config.limits.query_timeout_ms = 0;
     config.limits.query_memory_budget_bytes = 64 * 1024 * 1024;
+    config.limits.vectorized_joins_enabled = enabled;
     let cassie = Arc::new(
         Cassie::new_with_data_dir_and_config(&directory.0, config).expect("qualification engine"),
     );

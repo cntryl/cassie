@@ -1,6 +1,6 @@
 # Extended SQL type decision inventory
 
-This is an unresolved decision inventory for [#793](https://github.com/cntryl/cassie/issues/793), following the [proposed dialect profile](sql-dialect-profile.md). It selects no persistent format or public wire identity. The [current finite type contract](type-contract.md) remains authoritative until a successor decision is approved and implemented.
+This records unresolved family decisions and the selected successor transition policy for [#793](https://github.com/cntryl/cassie/issues/793), following the [proposed dialect profile](sql-dialect-profile.md). The transition policy reserves a successor layout identity; concrete family byte tags and public wire identities remain unspecified. The [current finite type contract](type-contract.md) remains authoritative for existing runtime behavior until the successor is specified, implemented and qualified.
 
 The current source baseline is `4a09c41a3670dad3a4c4c2b7ef7583327c37ab6b`; historical child witnesses use `9ff42bc05c374f478a12a29caf7537268215e665`. Current values, declared types and codecs are owned by `src/types/value.rs`, `src/types/schema.rs`, `src/midge/row_blob/encoding.rs` and `src/pgwire/`. Source mappings below are planning evidence, not fresh execution or new support claims.
 
@@ -62,16 +62,57 @@ semantic and migration decisions do not need to block existing-type aliases or
 pagination. Broader prerequisites can be refined only through reviewed issue/doc
 updates, never an implementation convenience.
 
-## Persistent transition decision
+## Selected persistent transition policy (2026-10-08)
 
-The smallest common durable question is whether a new type/layout revision must
-read existing cassie-midge-layout-v2 data. Recommend retaining v2 without new type
-tags for current slices, then proposing a new explicitly versioned layout with
-verified export/recreate/reimport as the initial upgrade path. This is a proposal
-only: export must preserve exact old data/identity, operator rollback and restart
-proofs must be specified, and existing deployments must explicitly accept that
-boundary. An in-place mixed-version reader/migration would be a different,
-substantially larger scope and cannot be inferred from #793.
+The user answered the durable transition question with "breaking changes are
+fine" on 2026-10-08. Select an explicit successor Cassie layout and verified
+export/recreate/reimport as the initial upgrade policy. No mixed-version reader,
+in-place migration or compatibility-only public API adapter is required. This
+selection applies to the transition policy; the per-family value, byte-tag, OID
+and codec records above still require concrete specification before runtime.
+
+- Reserve the successor identity `cassie-midge-layout-v3`. Existing v2 bytes keep
+  their original interpretation. A v3 writer must reject a v2 store before
+  mutation; an old writer must reject a v3 store. A new layout marker alone does
+  not implement the new types or supply a migration.
+- Upgrade into a separate fresh store. Keep the quiesced original store and its
+  pinned executable intact until exported and reimported state has been verified.
+  Never silently reset, reinterpret or delete existing data during startup.
+- Export with the old type authority. Preserve exact values, SQL NULL identity,
+  canonical declared types, object dependencies and sequence state. A historical
+  NUMERIC declaration stored as FLOAT remains FLOAT in the export; it must not
+  become an exact decimal merely because the new parser accepts NUMERIC.
+- Define the versioned logical export and import schemas with the successor
+  family records before implementation. Derived indexes and other sidecars
+  rebuild from authoritative imported state. Raw sidecar bytes do not establish
+  portable data or type identity.
+- Reimport must reject unsupported or malformed values before publication and
+  retain existing resource, cancellation and atomicity requirements. Verify row
+  values/counts, schema/dependency meaning and restart behavior against the
+  quiesced source before switching clients. Wire OID changes require client
+  reconnect and fresh prepared statements; old suspended portals do not transfer.
+- Rollback uses the preserved original store and executable. It does not open
+  the successor store with the old writer. Writes made after switching require a
+  separately verified reverse-export path; that path is not selected here.
+- A deployment that must retain data remains blocked until the typed
+  export/reimport and restart witnesses exist. Neither an export command nor a
+  complete upgrader is implemented or qualified by this document. Release,
+  deployment and deletion remain separate actions.
+
+This policy resolves the common transition decision. It does not close #793,
+approve every recommended semantic proposal, select durable byte tags, promote
+support or remove #792 and the named runtime/qualification dependencies.
+
+### Historical transition proposal
+
+The previous common durable question was whether a new type/layout revision must
+read existing cassie-midge-layout-v2 data. The prior recommendation was to retain
+v2 without new type tags for current slices, then propose a new explicitly
+versioned layout with verified export/recreate/reimport as the initial upgrade
+path. At that point it was a proposal only. The selected 2026-10-08 policy above
+supersedes this common transition question; exact export, rollback and restart
+proofs still remain implementation obligations. An in-place mixed-version reader
+or migration remains a different, unselected scope.
 
 ## Finite public API selection refresh (2026-10-06)
 

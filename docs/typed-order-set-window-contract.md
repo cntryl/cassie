@@ -155,9 +155,9 @@ input references remain input references even when their final component matches
 an output alias; unqualified output aliases retain their existing scalar rules.
 Aliased source wrappers propagate the CTE scalar boundary through their wrapped
 source, including derived/set branches. This adds no public alias or expression
-rule. Owned alias qualification uses the shared #857 accounting handoff once its
-coherent implementation is integrated; that integration and full gates remain
-pending.
+rule. Owned alias qualification uses the integrated shared #857 accounting handoff.
+Actual Aliased route/template and long output-label focused evidence is recorded
+separately from the original #857 checkpoint. Coherent full gates remain pending.
 
 The #857 integration preserves D1 lowering: positional visible names map to
 original physical fields before executor dispatch. `source_row_fields` unwraps
@@ -169,3 +169,17 @@ alias qualifier carriers are separate owned strings: reserve their generation
 scratch before `alias_row_qualifier`, then route owned rows through the shared
 controlled qualification helper. Keep quoted/unquoted namespace behavior and
 binder error priority, including overlong alias-list errors, unchanged.
+
+For operator-bearing projection inputs, explicit output labels are admitted from
+borrowed aliases before compiled-key and output-name/lookup copies are built.
+This supplements the existing output estimate with checked conservative label
+backing and retains it through the existing projection owner. Ordinary unleased
+scalar projection and expression evaluation retain their existing support
+boundary; this adds no general expression-memory estimator claim.
+
+The same operator-bearing handoff admits projection width before construction:
+checked conservative compiled-op/source-name scratch, new row/entry/lookup slots,
+borrowed direct value/type-copy backing, and labels. Repeating one primitive
+column into many short labels must retain at least its actual new entry backing
+after the input owner drops. The estimates account old/new overlap and can deny
+before construction; scalar expression evaluation remains unpromoted.

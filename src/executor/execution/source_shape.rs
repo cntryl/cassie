@@ -27,7 +27,7 @@ pub(super) fn null_row(
         return combine_rows(&left, &right);
     }
     let namespace = super::super::cte::context_fields(context, env.controls)?;
-    let inferred_copy = if let QuerySource::Cte(name) = source {
+    let inferred_copy = if let QuerySource::Cte(name) = unaliased(source) {
         let _name_memory = env.controls.reserve_query_memory(name.len())?;
         let key = name.to_ascii_lowercase();
         context
@@ -47,15 +47,15 @@ pub(super) fn null_row(
         env.user_functions,
     )
     .map_err(|error| QueryError::General(error.to_string()))?;
-    if let (QuerySource::Cte(name), Some(memory)) = (source, inferred_copy) {
-        return known_cte_template(env, fields, memory, name);
+    if let (QuerySource::Cte(name), Some(memory)) = (unaliased(source), inferred_copy) {
+        return aliased_cte_template(env, source, fields, memory, name);
     }
     if super::super::dispatch::source_has_cte_boundary(source) {
-        if let QuerySource::Subquery { alias, .. } = source {
+        if let QuerySource::Subquery { alias, .. } = unaliased(source) {
             let memory = env
                 .controls
                 .reserve_query_memory(super::super::cte::source_fields_bytes(&fields)?)?;
-            return known_cte_template(env, fields, memory, alias);
+            return aliased_cte_template(env, source, fields, memory, alias);
         }
     }
     let data_types = fields
@@ -122,7 +122,7 @@ pub(super) fn attach_types(
         _ => {}
     }
     let namespace = super::super::cte::context_fields(context, env.controls)?;
-    let _inferred_copy = if let QuerySource::Cte(name) = source {
+    let _inferred_copy = if let QuerySource::Cte(name) = unaliased(source) {
         let _name_memory = env.controls.reserve_query_memory(name.len())?;
         let key = name.to_ascii_lowercase();
         context
@@ -197,3 +197,25 @@ pub(super) fn attach_types(
 #[path = "source_template.rs"]
 mod template;
 use template::known_cte_template;
+
+fn unaliased(mut source: &QuerySource) -> &QuerySource {
+    while let QuerySource::Aliased { source: inner, .. } = source {
+        source = inner;
+    }
+    source
+}
+
+fn aliased_cte_template(
+    env: &SourceExecutionEnv<'_>,
+    source: &QuerySource,
+    fields: Vec<crate::types::FieldSchema>,
+    memory: crate::runtime::QueryMemoryReservation,
+    fallback_qualifier: &str,
+) -> Result<BatchRow, QueryError> {
+    if let QuerySource::Aliased { alias, .. } = source {
+        let (qualifier, _scratch) = super::source_qualification::alias_qualifier(env, alias)?;
+        known_cte_template(env, fields, memory, &qualifier)
+    } else {
+        known_cte_template(env, fields, memory, fallback_qualifier)
+    }
+}

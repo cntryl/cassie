@@ -883,10 +883,17 @@ pub(super) fn reserve_projection_output_before_building(
         .max()
         .unwrap_or(1)
         .max(1);
+    let bytes = crate::executor::retained_memory::add(
+        baseline.saturating_mul(expansion),
+        projection_memory::state_bytes(batches, projection)?,
+    )?;
     controls
-        .reserve_query_memory(baseline.saturating_mul(expansion))
+        .reserve_query_memory(bytes)
         .map_err(QueryError::from)
 }
+
+#[path = "projection_memory.rs"]
+mod projection_memory;
 
 fn select_item_expansion_weight(item: &SelectItem) -> usize {
     match item {

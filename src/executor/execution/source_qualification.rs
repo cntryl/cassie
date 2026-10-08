@@ -43,3 +43,13 @@ pub(super) fn qualify_owned(
     check_timeout(env.controls)?;
     Ok(batches)
 }
+
+/// Admit temporary parsing, hexadecimal encoding and formatted carrier backing.
+pub(super) fn alias_qualifier(
+    env: &SourceExecutionEnv<'_>,
+    alias: &str,
+) -> Result<(String, QueryMemoryReservation), QueryError> {
+    check_timeout(env.controls)?;
+    let scratch = source_collection::qualification_scratch(env, alias)?;
+    Ok((crate::sql::binder::alias_row_qualifier(alias), scratch))
+}

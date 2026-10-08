@@ -40,13 +40,20 @@ pub(super) fn execute_query_source(
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) =
                 execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;
-            Ok((
+            let owned = batches
+                .iter()
+                .flatten()
+                .any(|row| row.query_memory().is_some() || row.operator_memory().is_some());
+            let batches = if owned {
+                let (qualifier, _scratch) = source_qualification::alias_qualifier(env, alias)?;
+                source_qualification::qualify_owned(env, batches, &qualifier)?
+            } else {
                 source_rows::qualify_batches(
                     batches,
                     &crate::sql::binder::alias_row_qualifier(alias),
-                ),
-                text_fields,
-            ))
+                )
+            };
+            Ok((batches, text_fields))
         }
         QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
         QuerySource::SingleRow => execute_single_row_source(env),
@@ -959,3 +966,7 @@ mod qualification_tests;
 
 #[path = "source_qualification.rs"]
 mod source_qualification;
+
+#[cfg(test)]
+#[path = "source_alias_accounting_tests.rs"]
+mod alias_accounting_tests;

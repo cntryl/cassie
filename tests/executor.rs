@@ -6541,6 +6541,33 @@ mod typed_alias_bound_integration {
     use cassie::types::Value;
 
     #[test]
+    fn should_deny_long_positional_prefix_output_backing() {
+        // Arrange
+        with_fixture_config(
+            "typed_prefix_budget",
+            |config| config.limits.query_memory_budget_bytes = 16 * 1024,
+            |cassie, session| {
+                let prefix = "p".repeat(4096);
+                let sql = format!("WITH c AS (SELECT CAST(NULL AS TEXT[]) AS n, CAST(2 AS BIGINT) AS tail) SELECT * FROM c AS a(\"{prefix}\")");
+                // Act
+                let result = cassie.execute_sql(session, &sql, vec![]);
+                let bad = cassie.execute_sql(
+                    session,
+                    "WITH c AS (SELECT CAST(1 AS BIGINT) AS n) SELECT * FROM c AS a(x,y)",
+                    vec![],
+                );
+                // Assert
+                assert!(matches!(
+                    result,
+                    Err(cassie::app::CassieError::ResourceLimit(_))
+                ));
+                let error = bad.expect_err("binder alias arity retains priority");
+                assert!(error.to_string().contains("more names than source columns"));
+            },
+        );
+    }
+
+    #[test]
     fn should_preserve_qualified_order_through_dynamic_pagination() {
         // Arrange
         with_fixture_config(

@@ -108,8 +108,8 @@ from admission or allow cancellation to release charge before live buffers.
 | --- | --- | --- |
 | TX-01 through TX-06 and TX-08 through TX-09 | Reuse mapped mutation, commit-gate, recovery, settings and savepoint evidence; add only uncovered controls | Historical evidence; current implementation replay pending |
 | TX-07 | Captured whole-session COW overlay survives subsequent session writes and cursor resume | Per-cursor evidence exists; statement-wide owner pending |
-| TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Pending genuine RED/GREEN |
-| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Pending genuine RED/GREEN |
+| TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Current focused source witnesses pass: multirow JOIN, empty acquisition and visible right rows after an empty left read; broader path qualification remains pending |
+| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; worker replay remains pending |
 | Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Pending path-specific barriers |
 | Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Pending source-backed path qualification |
 | Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | Existing witnesses to reuse; sharing acceptance pending |
@@ -120,3 +120,13 @@ A passing selected path does not promote another path. Keep #763 open while
 any selected acceptance is pending, failed or blocked. Complete repository
 validation, independent adversarial review, exact-head hosted checks and
 merged readback remain required before closure.
+
+Current focused witnesses live in
+`src/app/statement_read_tests/sources.rs`. Their barriers assert an independent
+session committed after capture or between source materializations, compare the
+captured rows and values, and then verify a fresh statement sees the commit.
+These tests qualify existing implementation behavior; they establish no new
+pre-repair regression. The final source-only probe run passed 24 statement-view
+tests, including the observable RIGHT JOIN empty-input probe required after
+Jev returned an empty-witness gap probability of 0.37. Full acceptance remains
+pending as described above.

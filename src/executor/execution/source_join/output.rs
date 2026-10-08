@@ -40,6 +40,9 @@ pub(super) fn finish_retained_join(
     memory.shrink_to(memory.bytes() - old_slots);
     let memory = Arc::new(memory);
     for row in batches.iter_mut().flatten() {
+        if row.operator_memory().is_some() {
+            row.attach_operator_memory(env.controls, Arc::clone(&memory))?;
+        }
         let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
         *row = owned.with_query_memory(Some(Arc::clone(&memory)));
     }

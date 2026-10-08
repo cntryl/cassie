@@ -1,7 +1,7 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
-use crate::executor::retained_memory::{add, grown_capacity, lookup_bytes, mul};
+use crate::executor::retained_memory::{add, lookup_bytes, mul};
 use crate::runtime::QueryMemoryReservation;
 
 use super::{check_timeout, qualify_row, scan, Batch, BatchRow, QueryError, SourceExecutionEnv};
@@ -65,12 +65,13 @@ pub(super) fn row_qualification_bytes(
         .aliases()
         .iter()
         .try_fold(0, |bytes, (name, _)| add(bytes, name.len()))?;
-    qualification_bytes(
+    qualification_bytes_with_capacity(
         collection,
         row.entries().len(),
         names,
         row.aliases().len(),
         alias_names,
+        row.alias_capacity(),
     )
 }
 
@@ -91,6 +92,17 @@ pub(super) fn qualification_bytes(
     old_aliases: usize,
     old_alias_names: usize,
 ) -> Result<usize, crate::app::CassieError> {
+    qualification_bytes_with_capacity(collection, entries, names, old_aliases, old_alias_names, 0)
+}
+
+fn qualification_bytes_with_capacity(
+    collection: &str,
+    entries: usize,
+    names: usize,
+    old_aliases: usize,
+    old_alias_names: usize,
+    old_capacity: usize,
+) -> Result<usize, crate::app::CassieError> {
     // Dots inside quoted components only increase this upper bound. Canonical qualifier
     // suffixes cannot exceed the conservatively escaped full relation name below.
     let variants = add(collection.bytes().filter(|byte| *byte == b'.').count(), 1)?;
@@ -101,8 +113,17 @@ pub(super) fn qualification_bytes(
         add(names, mul(entries, add(maximum_qualifier, 1)?)?)?,
     )?;
     let aliases = add(old_aliases, additional_aliases)?;
-    let capacity = grown_capacity(aliases, 4)?;
-    let buffers = mul(capacity, size_of::<(String, usize)>())?;
+    let mut capacity = old_capacity;
+    while capacity < aliases {
+        capacity = mul(capacity, 2)?.max(4);
+    }
+    // Reused alias slots already belong to the row's origin. Growth overlaps that
+    // backing until Vec reallocates, so admit the entire replacement buffer.
+    let buffers = if capacity > old_capacity {
+        mul(capacity, size_of::<(String, usize)>())?
+    } else {
+        0
+    };
     let lookup = lookup_bytes(
         add(entries, aliases)?,
         add(names, add(old_alias_names, alias_names)?)?,

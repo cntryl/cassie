@@ -33,7 +33,7 @@ fn should_keep_join_source_output_charged_after_returning_to_the_consumer() {
         kind: JoinKind::Cross,
         on: Expr::BoolLiteral(true),
     };
-    let mut cte_context = HashMap::new();
+    let mut cte_context = super::CteContext::new();
 
     // Act
     let (batches, text_fields) =
@@ -76,7 +76,7 @@ fn should_allocate_only_actual_row_slots_for_a_small_join_chunk() {
         kind: JoinKind::Cross,
         on: Expr::BoolLiteral(true),
     };
-    let mut cte_context = HashMap::new();
+    let mut cte_context = super::CteContext::new();
 
     // Act
     let (batches, _) =
@@ -142,7 +142,7 @@ fn should_keep_collection_source_body_charged_after_returning_to_a_loaded_join()
     let source = QuerySource::Collection(
         crate::sql::IdentifierPath::parse(&collection).expect("actual collection path"),
     );
-    let mut cte_context = HashMap::new();
+    let mut cte_context = super::CteContext::new();
 
     // Act
     let (batches, _) = execute_query_source(&env, &source, &mut cte_context, true, None, Some(1))
@@ -178,7 +178,7 @@ fn should_keep_collection_source_body_charged_after_returning_to_a_loaded_join()
 }
 
 #[test]
-fn should_admit_unleased_left_join_inputs_before_reading_the_right_source() {
+fn should_admit_owned_cte_left_inputs_before_reading_the_right_source() {
     // Arrange
     let path = std::env::temp_dir().join(format!(
         "cassie-unleased-left-source-admission-{}",
@@ -201,16 +201,29 @@ fn should_admit_unleased_left_join_inputs_before_reading_the_right_source() {
     };
     let left = QuerySource::Cte("unleased_left".to_owned());
     let mut context = unleased_left_context();
-    let (positive, _) = execute_query_source(&env, &left, &mut context, true, None, Some(1))
-        .expect("the existing CTE source's serialized check fits the same budget");
+    let mut positive_limits = config.limits.clone();
+    positive_limits.query_memory_budget_bytes = 1024 * 1024;
+    let positive_controls = QueryExecutionControls::from_limits(&positive_limits, Instant::now());
+    let positive_env = SourceExecutionEnv {
+        controls: &positive_controls,
+        ..env
+    };
+    let (positive, _) =
+        execute_query_source(&positive_env, &left, &mut context, true, None, Some(1))
+            .expect("the admitted complete CTE source fits its separate positive budget");
     assert_eq!(positive.iter().map(Vec::len).sum::<usize>(), 1);
-    assert!(positive[0][0].query_memory().is_none());
+    assert!(positive[0][0].query_memory().is_some());
+    assert!(
+        positive_controls.current_query_memory_bytes()
+            >= super::accounting::cloned_row_bytes(&positive[0][0]).expect("retained source shape")
+    );
     assert!(
         super::accounting::cloned_row_bytes(&positive[0][0]).expect("complete input shape")
             > config.limits.query_memory_budget_bytes,
         "the existing complete input admission must reject before the RHS canary",
     );
     drop(positive);
+    assert_eq!(positive_controls.current_query_memory_bytes(), 0);
     assert_eq!(controls.current_query_memory_bytes(), 0);
     let source = QuerySource::Join {
         left: Box::new(left),
@@ -296,11 +309,13 @@ fn unleased_left_context() -> super::CteContext {
             nullable: false,
         })
         .collect();
-    HashMap::from([(
+    super::CteContext::unleased(HashMap::from([(
         "unleased_left".to_owned(),
         super::super::super::cte::CteRelation {
             rows: vec![entries],
             fields,
+            _rows_memory: None,
+            _fields_memory: None,
         },
-    )])
+    )]))
 }

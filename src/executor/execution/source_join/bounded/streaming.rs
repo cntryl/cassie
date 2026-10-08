@@ -360,7 +360,7 @@ fn append_matching_row(
     retention.enter(JoinRetentionPhase::BoundedOutput);
     joined.try_push_combined(left, right, || {
         retention.before(JoinRetentionPhase::BoundedOutput)?;
-        let combined = combine_rows(left, right);
+        let combined = combine_rows(left, right)?;
         Ok(filter::eval_scalar(
             &combined,
             spec.on,

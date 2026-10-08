@@ -655,7 +655,7 @@ fn read_rollup_source_batches(
     let (batches, text_fields) = super::source::execute_query_source(
         &env,
         &plan.source,
-        &mut HashMap::new(),
+        &mut super::CteContext::new(),
         false,
         None,
         None,
@@ -723,6 +723,7 @@ fn materialize_rollup_batches(
 fn serialize_rollup_rows(rows: Vec<BatchRow>) -> Result<Vec<serde_json::Value>, QueryError> {
     rows.into_iter()
         .map(|row| {
+            let _operator_parent = row.operator_memory();
             let payload = row
                 .into_entries()
                 .into_iter()

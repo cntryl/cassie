@@ -1,12 +1,14 @@
 use super::plan_inspection;
+#[cfg(test)]
+use super::reserve_projection_output_before_building;
 use super::{
     aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
     check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan,
     execute_plan_with_outer_row, filter, graph, load_fulltext_index_options, plan_execution_env,
-    projection, reserve_projection_output_before_building, resolve_exists_expr, row_signature,
-    scan, sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie,
-    CassieSession, CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet,
-    Instant, JoinKind, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value,
+    projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
+    AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext,
+    ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan,
+    QueryError, QueryExecutionControls, QuerySource, Value,
 };
 
 #[path = "source_join.rs"]
@@ -40,13 +42,20 @@ pub(super) fn execute_query_source(
         QuerySource::Aliased { source, alias, .. } => {
             let (batches, text_fields) =
                 execute_query_source(env, source, cte_context, false, outer_row, row_budget)?;
-            Ok((
+            let owned = batches
+                .iter()
+                .flatten()
+                .any(|row| row.query_memory().is_some() || row.operator_memory().is_some());
+            let batches = if owned {
+                let (qualifier, _scratch) = source_qualification::alias_qualifier(env, alias)?;
+                source_qualification::qualify_owned(env, batches, &qualifier)?
+            } else {
                 source_rows::qualify_batches(
                     batches,
                     &crate::sql::binder::alias_row_qualifier(alias),
-                ),
-                text_fields,
-            ))
+                )
+            };
+            Ok((batches, text_fields))
         }
         QuerySource::Collection(name) => execute_collection_source(env, name, qualify, row_budget),
         QuerySource::SingleRow => execute_single_row_source(env),
@@ -268,18 +277,16 @@ fn execute_cte_source(
     name: &str,
     qualify: bool,
 ) -> SourceExecution {
+    let _key_memory = env.controls.reserve_query_memory(name.len())?;
     let key = name.to_ascii_lowercase();
-    let rows = cte_context
+    let relation = cte_context
         .get(&key)
-        .map(|relation| relation.rows.clone())
         .ok_or_else(|| QueryError::General(format!("relation '{name}' does not exist")))?;
+    let rows = super::cte::copy_source_rows(relation, env.controls, qualify.then_some(name))?;
     let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
         env,
-        batch::chunk_rows(
-            rows.into_iter().map(BatchRow::new).collect::<Vec<_>>(),
-            batch::DEFAULT_BATCH_SIZE,
-        ),
+        batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
         text_fields,
         qualify,
         name,
@@ -317,7 +324,7 @@ fn execute_subquery_source(
     // internal identity only under `_id`.
     let mut logical = logical;
     crate::planner::logical::rewrite_reserved_id_references(&mut logical, &env.cassie.catalog);
-    let mut subquery_context = cte_context.clone();
+    let mut subquery_context = cte_context.copy(env.controls)?;
     let plan_env = plan_execution_env(
         env.cassie,
         env.session,
@@ -331,12 +338,7 @@ fn execute_subquery_source(
         &mut subquery_context,
         if lateral { outer_row } else { None },
     )?;
-    let text_fields = deduce_text_fields(
-        &rows
-            .iter()
-            .map(|row| row.entries().to_vec())
-            .collect::<Vec<_>>(),
-    );
+    let text_fields = deduce_text_fields(&rows);
     finalize_source_batches(
         env,
         batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE),
@@ -354,7 +356,7 @@ fn finalize_source_batches(
     qualifier: &str,
 ) -> SourceExecution {
     if qualify {
-        batches = qualify_batches(batches, qualifier);
+        batches = source_qualification::qualify_owned(env, batches, qualifier)?;
     }
     ensure_query_memory_budget(env.controls, &batches)?;
     Ok((batches, text_fields))
@@ -837,7 +839,9 @@ fn apply_projection_phase(
     let grouped_projection = plan_uses_aggregate(plan)
         .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
     let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
-    let _output_memory = reserve_projection_output_before_building(controls, &batches, projection)?;
+    let (output_memory, _) = super::projection_handoff::ProjectionOutputMemory::admit(
+        controls, &batches, projection, false, true,
+    )?;
     batches = projection::project_batches(
         batches,
         projection,
@@ -846,6 +850,7 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
+    let _output_memory = output_memory.retain(controls, &mut batches)?;
     ensure_query_memory_budget(controls, &batches)?;
     if plan.distinct {
         batches = distinct_batches(batches, controls)?;
@@ -893,7 +898,7 @@ fn finalize_plan_rows(
             user_functions: env.user_functions,
             session: env.session,
         };
-        rows = sort::sort_rows_with_controls(rows, &eval, env.controls)?;
+        rows = sort::sort_batch_rows_with_controls(rows, &eval, env.controls)?;
     }
     Ok(slice_rows(rows, plan.offset_value(), plan.limit_value()))
 }
@@ -942,3 +947,22 @@ fn record_plan_metrics(
             .record_vector_execution(elapsed, candidate_rows, row_count);
     }
 }
+
+#[cfg(test)]
+#[path = "source_qualification_tests.rs"]
+mod qualification_tests;
+
+#[path = "source_qualification.rs"]
+mod source_qualification;
+
+#[cfg(test)]
+#[path = "source_alias_accounting_tests.rs"]
+mod alias_accounting_tests;
+
+#[cfg(test)]
+#[path = "source_projection_admission_tests.rs"]
+mod projection_admission_tests;
+
+#[cfg(test)]
+#[path = "source_projection_scope_tests.rs"]
+mod projection_scope_tests;

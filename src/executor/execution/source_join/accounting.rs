@@ -81,7 +81,10 @@ impl JoinRows {
 }
 
 /// Exact-capacity combined entries/aliases/types plus eager lookup and one output-row slot.
-pub(super) fn combined_row_bytes(left: &BatchRow, right: &BatchRow) -> Result<usize, CassieError> {
+pub(in crate::executor::execution) fn combined_row_bytes(
+    left: &BatchRow,
+    right: &BatchRow,
+) -> Result<usize, CassieError> {
     let entries = add(left.entries().len(), right.entries().len())?;
     let aliases = add(left.aliases().len(), right.aliases().len())?;
     let mut names = 0;

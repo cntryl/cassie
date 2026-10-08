@@ -299,7 +299,7 @@ fn should_keep_lateral_output_charged_after_its_right_source_drops() {
         };
         let on = Expr::BoolLiteral(true);
         let left_batches = vec![vec![row("left", 1, "l1"), row("left", 2, "l2")]];
-        let mut context = HashMap::new();
+        let mut context = super::CteContext::new();
 
         // Act
         let (batches, _) = execute_lateral_join(

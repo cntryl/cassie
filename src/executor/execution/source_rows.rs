@@ -1,3 +1,19 @@
+#[path = "source_rows/distinct_on.rs"]
+mod direct_distinct_on;
+#[cfg(test)]
+#[path = "source_rows/distinct_on_tests.rs"]
+mod distinct_on_tests;
+#[path = "source_rows/typed.rs"]
+mod typed;
+
+#[cfg(test)]
+#[path = "source_rows/typed_tests.rs"]
+mod typed_tests;
+
+#[cfg(test)]
+#[path = "source_rows/operator_memory_tests.rs"]
+mod operator_memory_tests;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write as _;
 
@@ -98,6 +114,7 @@ pub(in crate::executor::execution) fn source_contains_lateral(source: &QuerySour
 pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str) -> BatchRow {
     let data_types = row.shared_data_types();
     let query_memory = row.query_memory();
+    let operator_memory = row.operator_memory();
     let qualifiers = qualifier_variants(qualifier);
     let (values, mut aliases) = row.into_parts();
     for (index, (name, _)) in values.iter().enumerate() {
@@ -108,9 +125,13 @@ pub(in crate::executor::execution) fn qualify_row(row: BatchRow, qualifier: &str
     BatchRow::with_aliases(values, aliases)
         .with_optional_data_types(data_types)
         .with_query_memory(query_memory)
+        .with_operator_memory(operator_memory)
 }
 
-pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &BatchRow) -> BatchRow {
+pub(in crate::executor::execution) fn combine_rows(
+    left: &BatchRow,
+    right: &BatchRow,
+) -> Result<BatchRow, QueryError> {
     let width = left.entries().len().saturating_add(right.entries().len());
     let data_types = (!left.data_types().is_empty() || !right.data_types().is_empty()).then(|| {
         let mut types = Vec::with_capacity(width);
@@ -139,7 +160,12 @@ pub(in crate::executor::execution) fn combine_rows(left: &BatchRow, right: &Batc
             .iter()
             .map(|(name, index)| (name.clone(), left_width + index)),
     );
-    BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types)
+    Ok(BatchRow::with_aliases(values, aliases)
+        .with_optional_data_types(data_types)
+        .with_operator_memory(crate::executor::batch::OperatorMemory::merge(
+            left.operator_memory(),
+            right.operator_memory(),
+        )?))
 }
 
 pub(in crate::executor::execution) fn row_columns(rows: &[BatchRow]) -> Vec<String> {
@@ -180,6 +206,8 @@ pub(super) fn project_rows_to_schema(
 ) -> Result<Vec<BatchRow>, QueryError> {
     let mut projected = Vec::with_capacity(rows.len());
     for row in rows {
+        let operator_memory = row.operator_memory();
+        let query_memory = row.query_memory();
         let entries = row.into_entries();
         if entries.len() < schema.fields.len() {
             return Err(QueryError::General(format!(
@@ -194,7 +222,11 @@ pub(super) fn project_rows_to_schema(
         for (field, (_name, value)) in schema.fields.iter().zip(entries) {
             values.push((field.name.clone(), value));
         }
-        projected.push(BatchRow::new(values));
+        projected.push(
+            BatchRow::new(values)
+                .with_query_memory(query_memory)
+                .with_operator_memory(operator_memory),
+        );
     }
     Ok(projected)
 }
@@ -203,6 +235,9 @@ pub(super) fn distinct_batches(
     batches: Vec<Batch>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, QueryError> {
+    if !controls.uses_relational_cte_boundary() {
+        return typed::distinct_batches(batches, controls);
+    }
     // Keep the first occurrence of each row in input order: the input is
     // already sorted by ORDER BY, and DISTINCT must not reorder it.
     let mut seen = HashSet::<SemanticKey>::new();
@@ -221,10 +256,53 @@ pub(super) fn distinct_batches(
             rows.push(row);
         }
     }
+    super::check_timeout(controls)?;
+    crate::executor::typed_batch::relational_diagnostics::publish(
+        "distinct",
+        "scalar_cte_materialization",
+    );
     Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
 }
 
 pub(super) fn distinct_on_batches(
+    batches: Vec<Batch>,
+    distinct_on: &[Expr],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    let boundary = if controls.uses_relational_cte_boundary() {
+        "scalar_cte_materialization"
+    } else {
+        "scalar_expression_distinct_on"
+    };
+    let scalar = |batches| {
+        let output = scalar_distinct_on_batches(
+            batches,
+            distinct_on,
+            params,
+            search_context,
+            user_functions,
+            session,
+            controls,
+        )?;
+        crate::executor::typed_batch::relational_diagnostics::publish("distinct_on", boundary);
+        Ok(output)
+    };
+    if controls.uses_relational_cte_boundary()
+        || distinct_on
+            .iter()
+            .any(|expr| !matches!(expr, Expr::Column(_)))
+    {
+        super::check_timeout(controls)?;
+        return scalar(batches);
+    }
+    direct_distinct_on::apply(batches, distinct_on, controls, scalar)
+}
+
+fn scalar_distinct_on_batches(
     batches: Vec<Batch>,
     distinct_on: &[Expr],
     params: &[Value],
@@ -274,8 +352,11 @@ pub(super) fn apply_set_operation(
 ) -> Result<Vec<BatchRow>, QueryError> {
     super::check_timeout(controls)?;
     validate_set_width(&left, &right)?;
+    if !controls.uses_relational_cte_boundary() {
+        return typed::set(left, right, left_output_names, set.operator, controls);
+    }
     let right = rekey_set_rows(left_output_names, right);
-    match set.operator {
+    let output: Result<_, QueryError> = match set.operator {
         SetOperator::UnionAll => {
             let mut rows = left;
             rows.extend(right);
@@ -333,7 +414,14 @@ pub(super) fn apply_set_operation(
             }
             Ok(unique.into_values().collect())
         }
-    }
+    };
+    let output = output?;
+    super::check_timeout(controls)?;
+    crate::executor::typed_batch::relational_diagnostics::publish(
+        "set",
+        "scalar_cte_materialization",
+    );
+    Ok(output)
 }
 
 fn set_signatures(
@@ -361,9 +449,14 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
         .into_iter()
         .map(|row| {
             let data_types = row.shared_data_types();
+            let operator_memory = row.operator_memory();
+            let query_memory = row.query_memory();
             let entries = row.into_entries();
             if entries.len() != left_names.len() {
-                return BatchRow::new(entries).with_optional_data_types(data_types);
+                return BatchRow::new(entries)
+                    .with_optional_data_types(data_types)
+                    .with_query_memory(query_memory)
+                    .with_operator_memory(operator_memory);
             }
             BatchRow::new(
                 left_names
@@ -373,6 +466,8 @@ fn rekey_set_rows(left_names: &[String], right: Vec<BatchRow>) -> Vec<BatchRow> 
                     .collect(),
             )
             .with_optional_data_types(data_types)
+            .with_query_memory(query_memory)
+            .with_operator_memory(operator_memory)
         })
         .collect()
 }
@@ -554,7 +649,7 @@ mod tests {
         );
 
         // Act
-        let combined = combine_rows(&left, &right);
+        let combined = combine_rows(&left, &right).expect("combined row");
 
         // Assert
         assert_eq!(combined.entries().len(), 2);

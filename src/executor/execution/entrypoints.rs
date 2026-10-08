@@ -72,7 +72,7 @@ fn run_with_execution_breakdown_controls(
         });
     }
 
-    let mut cte_context: CteContext = HashMap::new();
+    let mut cte_context = CteContext::new();
     let (rows, mut breakdown) = execute_plan_with_execution_breakdown(
         cassie,
         None,
@@ -113,7 +113,7 @@ pub(crate) fn run_with_session_controls(
         );
     }
 
-    let mut cte_context: CteContext = HashMap::new();
+    let mut cte_context = CteContext::new();
     let rows = execute_physical_plan(
         cassie,
         session,

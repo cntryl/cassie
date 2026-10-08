@@ -1,0 +1,218 @@
+# Private typed ordering, set and window contract
+
+The integration owner selected this finite private implementation matrix for
+[#760](https://github.com/cntryl/cassie/issues/760) after #758 and #759 merged in
+`06195f0fc9c1e63a5236903976c07f480176dd8a` and were read back CLOSED.
+The coordinator selected a coherent #760 + [#857](https://github.com/cntryl/cassie/issues/857)
+bundle before integration and full validation; #761 owns later relational
+qualification. The #857 private plain-row/context accounting fix is integrated in this
+coherent bundle. Both issues require complete local validation, exact-head
+hosted checks and review before closure.
+This selection preserves the [typed batch contract](typed-batch-contract.md),
+[type contract](type-contract.md) and [performance contract](performance-contracts.md).
+It introduces no public API, persistent bytes, type identity, spilling or new
+cross-phase visibility contract. Selection is not executed acceptance.
+
+## Selected capability and phase matrix
+
+| Operator | Native typed selection | Preserved boundary |
+|---|---|---|
+| DISTINCT / DISTINCT ON | Tuple keys of NULL, SMALLINT, INT, BIGINT, FLOAT and BOOLEAN; direct keys for DISTINCT ON | Direct rich keys retain admitted shared semantic adaptation; DISTINCT ON expressions use the named scalar boundary below. Ordinary DISTINCT retains first input occurrence. DISTINCT ON follows its complete order before projection. |
+| UNION / UNION ALL / INTERSECT / EXCEPT | Same primitive tuples with existing branch widths and exported names/types | Shared semantic equality; existing UNION ALL signature order and multiplicity, other sets' signature order/deduplication. Existing absent ALL syntax remains absent; right source is uncapped input. |
+| Full sort / top-k | Direct primitive columns and safely resolved passthrough aliases, ASC/DESC and explicit/default NULL order | Direct rich keys use borrowed-value pre-admission and the existing typed semantic authority. Expressions retain the named scalar boundary below. Preserve exact semantic numeric comparison, row identity ties and full-sort prefix pagination. |
+| Windows | ROW_NUMBER, RANK, DENSE_RANK; existing one-argument LAG/LEAD at offset1; FIRST_VALUE/LAST_VALUE direct typed payload | Primitive partition/order keys, rich key adapters. FIRST/LAST selects existing ROWS bounds with EXCLUDE NO OTHERS, default peer RANGE or whole unordered partition. Explicit RANGE offsets, GROUPS and other exclusions preserve scalar fallback. |
+
+CTE materialization bodies retain the named `scalar_cte_materialization` boundary
+for these new #760 operators. The existing private CTE plain-row/context clone
+model and its SQL values/types/visibility remain unchanged. Outer operators over
+CTE source copies also use this boundary until retained owner provenance and
+pre-conversion replacement admission are independently established. This selection
+does not promote existing CTE materialization accounting to a bounded native claim.
+A focused body-native-decline/differential and budget/cleanup probe is required;
+confirmed baseline accounting defects belong to an evidence-linked follow-up.
+The existing plain-row CTE owner gap is recorded in [#857](https://github.com/cntryl/cassie/issues/857)
+with the bound live-row/accounted-zero probe. Its selected private accounting
+fix preserves plain owned rows and independent deep copies; it does not promote
+CTE operators to native execution or change their scalar boundary.
+
+ORDER BY expressions and user functions retain `scalar_expression_order` when
+they are not direct columns or safely resolved passthrough aliases. Existing SQL
+values, errors, direction/NULL policy and deterministic ties remain supported by
+the existing controlled scalar implementation. Its result allocation precedes
+key conversion admission; this boundary therefore makes no native or bounded
+admission claim. The finite selected path does not expand expression estimators.
+Direct rich keys qualify only when their borrowed value, type adaptation and tie
+allocation can be admitted before cloning/conversion. CTE and expression
+boundaries are explicit unpromoted dispositions for VEX-14 and VEX-22; selected
+primitive/direct-rich order paths must satisfy both invariants. Empty selected
+relational inputs check query controls and return without operator allocation.
+
+DISTINCT ON selects direct, consistently resolved borrowed columns before native
+conversion. Non-direct expressions or references that cannot be resolved to the
+same retained row-entry position use `scalar_expression_distinct_on`, preserving
+existing scalar SQL/error behavior and complete input order before projection.
+This boundary makes no native/bounded admission claim. Direct rich equality uses
+the existing scalar signature authority, with borrowed-value pre-admission;
+primitive selected-column positions are remapped into the private key batch.
+
+Windows select the entire projection before any native key/payload conversion.
+A non-direct partition/order expression or value argument retains
+`scalar_expression_window`; an unselected frame retains `scalar_window_frame`.
+Their existing scalar values, descriptors and frame laws remain supported, with
+no native/bounded admission promotion. The finite FIRST/LAST selection is explicit
+ROWS with NO OTHERS or an omitted frame's default peer RANGE/whole unordered
+partition; other explicit RANGE/GROUPS/exclusions stay at the scalar boundary.
+LAG/LEAD selects exactly one direct argument and the existing fixed offset1.
+
+Primitive partition/order/ranking work reads typed primitive cells. Direct value
+windows preserve the existing original Value and declared descriptor through a
+private ScalarBacked payload column; this is a typed transport/semantic adapter,
+not codec-native rich payload storage. Diagnostics distinguish
+`native_primitive_keys` from `native_primitive_keys_scalar_backed_payload`, and
+`bounded_semantic_keys` from `bounded_semantic_keys_scalar_backed_payload`.
+Direct rich partition equality retains the existing shared scalar signature;
+direct rich ordering and peers retain the existing ARRAY-aware authority. Peer
+boundaries exclude identity ties. Admit partition/indices/peers, key scratch,
+copied payloads, selected output clones, row-entry growth/descriptors and old/new
+backing before construction; retain prior/source owners across in-place append.
+Excluded window/CTE paths are unpromoted VEX-15/VEX-22 dispositions. Selected
+windows require actual scalar/frame differential, partition/peer/NULL/out-of-range,
+parent/old-new/budget/cancel/drop evidence before acceptance.
+
+Primitive keys use declared metadata when it agrees with their physical carriers.
+Rows without metadata qualify only after every cell has been inspected: homogeneous
+non-NULL integer, FLOAT or BOOLEAN cells select their private physical carrier;
+all-NULL keys select private Null. Within-column integer/FLOAT mixtures and
+NULL-first rich keys decline before native conversion. Independently typed set
+branches retain exact shared numeric equality. This physical inference never
+changes an output row's logical descriptor or scalar carrier.
+
+All payload families and descriptor/carrier provenance survive views/reordering.
+NaN/signed-zero/mixed exact integers reuse existing SemanticValue policy; no new
+PostgreSQL NaN parity. ARRAY comparison remains its shared typed-element authority.
+Window peer equality must not include deterministic row identity tie breakers.
+Grouping/HAVING → windows → sort/DISTINCT ON → projection/DISTINCT → set
+finalization/set-order → OFFSET/LIMIT remains the current phase order.
+Eligibility decline precedes native input conversion; admitted failures are
+terminal, never retried on partially consumed scalar input. Existing ordered
+index/pull LIMIT/EXISTS and exact-vector streaming paths retain their authority.
+
+## Blocking estimates, admission and ownership
+
+Full sort and windows initially block with admitted O(n) backing and state.
+DISTINCT/set retains admitted global key/membership state and selected output
+mapping. Top-k uses an O(k) key heap, where k includes offset, but may retain
+O(n) source parent backing through gather views. It is a blocking relational
+operator: no O(k) total-memory, encoded fusion or streaming claim is made.
+Exact vector top-k retains its separate bounded-heap contract unchanged.
+
+Before construction/growth admit actual capacities, tuple/key/identity heaps,
+indices/maps, peer/partition state, descriptors and old-plus-new overlap.
+Existing immutable source backing is charged once by its owner; copied backing
+requires new admission. Budget/overflow failures are controlled errors, without
+partial native output or success diagnostics. Retain every parent lease until
+its last output view drops. Huge-parent/small-winner probes must verify honest
+parent retention, budget denial and release, rather than assume compaction.
+Sequential FLOAT key normalization/comparison admits64bytes of formatter scratch;
+the shared finite ±2^63 guard limits its integral formatting to20characters.
+This is a conservative sequential scratch bound, not a parallel or arbitrary
+FLOAT decimal-format bound. Cancellation/deadline checks occur during keys,
+partition work and handoff.
+
+## Finite invariant acceptance plan
+
+| Owner | Selected obligation / required focused evidence |
+|---|---|
+| EXEC-04 | Existing phase order, grouped/HAVING fallback, peers/aliases/DISTINCT/OFFSET integrated scalar comparison. |
+| EXEC-05 | Typed sort/top-k equals scalar complete order/prefix for NULL, numeric, rich fallback, ties and k/offset. |
+| EXEC-06 | Exact shared equality across numeric equivalence classes, signed zero, NULL duplicates and sets. |
+| VEX-13 | Native primitive tuple DISTINCT/set and admitted rich adapters; all split boundaries, duplicate first occurrence, branch width/name and multiplicity. Native GROUP BY remains #758's selected boundary. |
+| VEX-14 | Primitive native ordering, rich ARRAY/temporal semantic adapter, exact big integers, deterministic identity ties and finite NaN policy. |
+| VEX-15 | Selected ranking/offset/value frame laws across partitions/peers/chunks; empty frames, NULL/out-of-range, nonselected frame fallback and payload/descriptor preservation. |
+| VEX-22 | Documented accounted blocking state; pre-admission failure, cancellation, parent/eviction/output drop and zero final reservations. |
+
+Selected DISTINCT/set, ordering and window increments have focused local
+execution evidence. Direct DISTINCT ON now has first-occurrence/all-split native
+execution, mixed-number/rich equality differential, original descriptor and
+huge-parent/prior-owner denial/drop evidence. Diagnostics distinguish all named
+scalar boundaries from accounted selected paths. The finite public phase probe passes with configured worker counts1/4 for its
+six-row fixture; it compares complete results with OFFSET/LIMIT0 and descriptors,
+and does not claim actual parallel dispatch. The implementation proceeded through DISTINCT/set, sort/top-k and windows
+as separate red/green increments. These focused controls are development
+evidence; existing scalar tests are oracles, not proof of native execution.
+Complete build → locked suite → full workspace/all-target/all-feature pedantic
+Clippy → fmt → each touched test validator and repository documentation/benchmark/
+module-size policies are required. Exact-revision validation, hosted checks and
+review, squash and source/issue readback are recorded separately.
+
+## Alias and pagination integration
+
+The selected kernels retain #858's bound AST authority: dynamic LIMIT/OFFSET
+expressions resolve before source budgeting and relational dispatch. Qualified
+input references remain input references even when their final component matches
+an output alias; unqualified output aliases retain their existing scalar rules.
+Aliased source wrappers propagate the CTE scalar boundary through their wrapped
+source, including derived/set branches. This adds no public alias or expression
+rule. Owned alias qualification uses the integrated shared #857 accounting handoff.
+Actual Aliased route/template and long output-label focused evidence is recorded
+separately from the original #857 checkpoint. Complete local validation and exact-head hosted acceptance are recorded
+separately; these focused controls do not supply them.
+
+The #857 integration preserves D1 lowering: positional visible names map to
+original physical fields before executor dispatch. `source_row_fields` unwraps
+Aliased sources and copies their physical descriptors; it does not rename those
+fields to the visible positional prefix. Known CTE descriptor/template admission
+must recurse through Aliased wrappers without adding renaming. Long visible
+prefixes are probed at their actual owning projection/output boundary. Runtime
+alias qualifier carriers are separate owned strings: reserve their generation
+scratch before `alias_row_qualifier`, then route owned rows through the shared
+controlled qualification helper. Keep quoted/unquoted namespace behavior and
+binder error priority, including overlong alias-list errors, unchanged.
+
+For operator-bearing projection inputs, explicit output labels are admitted from
+borrowed aliases before compiled-key and output-name/lookup copies are built.
+This supplements the existing output estimate with checked conservative label
+backing and retains it through the existing projection owner. Ordinary unleased
+scalar projection and expression evaluation retain their existing support
+boundary; this adds no general expression-memory estimator claim.
+
+The same operator-bearing handoff admits projection width before construction:
+checked conservative compiled-op/source-name scratch, new row/entry/lookup slots,
+borrowed direct value/type-copy backing, and labels. Repeating one primitive
+column into many short labels must retain at least its actual new entry backing
+after the input owner drops. The estimates account old/new overlap and can deny
+before construction; scalar expression evaluation remains unpromoted.
+
+For direct columns resolved from an existing outer scope, the controlled handoff
+borrows the same resolved value and recursive ARRAY type authority used by scalar
+projection before admitting its new copies. Column-name parsing scratch is
+admitted before resolution. Existing outer lookup, shadowing, values, metadata,
+and evaluation order remain authoritative; this selects no additional outer
+planning or generic expression support. Repeated rich ARRAY columns and outer
+String/Vector/ARRAY NULL copies must satisfy actual backing, parent/output drop,
+and near-budget denial probes.
+
+The specialized projected-read finalizer obeys this same ownership law after
+selected ordering. Its output reservation admits fresh copies and lease metadata
+before projection. Once compiled operations and projection assembly have ended,
+the mutable reservation may shrink to the complete retained row bodies, eager
+lookups, type descriptors, row/batch capacities and reservation Arc metadata;
+that bound must fit the prior admission without growth after construction.
+The new reservation attaches to returned operator-bearing rows before handoff,
+while their original query owner and previous operator roots remain retained.
+On a retention error, fresh borrowed output buffers release their rows and
+allocated outer capacity before the construction reservation drops.
+Ordinary unleased scalar rows keep the existing path. Wide repeated rich values,
+ARRAY descriptors, denial, cancellation and final-owner drop are actual focused
+controls; this does not select another expression or public API capability.
+
+The copy selection follows the existing projection compiler: columns, wildcard,
+stored aggregate fields recognized by its existing aggregate predicate, and
+stored window fields. A mixed projection containing a scalar function or general
+expression uses `scalar_expression_projection`; a conditional precomputed key
+does not establish a copy-only operation. That boundary preserves existing SQL
+values, descriptors and errors without asserting the old expression heuristic
+as a complete heap bound. The general source projection retains its existing
+broad output owner for this boundary; specialized read and timing finalizers
+preserve their existing local guard behavior. No scalar-expression or UDF memory
+qualification is claimed.

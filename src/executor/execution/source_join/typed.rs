@@ -223,7 +223,12 @@ fn row_from_output(
         }
         types.into()
     });
-    Ok(BatchRow::with_aliases(values, aliases).with_optional_data_types(data_types))
+    Ok(BatchRow::with_aliases(values, aliases)
+        .with_optional_data_types(data_types)
+        .with_operator_memory(crate::executor::batch::OperatorMemory::merge(
+            left.operator_memory(),
+            right.operator_memory(),
+        )?))
 }
 
 struct TransportTypes {

@@ -1,8 +1,7 @@
 use super::{
-    batch, catalog, ensure_query_memory_budget, filter, projection,
-    reserve_projection_output_before_building, scan, sort, virtual_views, BatchRow, BinaryOp,
-    Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta, HashMap, Instant,
-    LogicalPlan, QueryError, QueryExecutionControls, SelectItem, Value,
+    batch, catalog, ensure_query_memory_budget, filter, projection, scan, sort, virtual_views,
+    BatchRow, BinaryOp, Cassie, CassieSession, ExecutionBreakdownDurations, Expr, FunctionMeta,
+    HashMap, Instant, LogicalPlan, QueryError, QueryExecutionControls, SelectItem, Value,
 };
 
 mod breakdown;
@@ -10,6 +9,9 @@ mod breakdown;
 mod specialized;
 #[path = "projected_read/typed.rs"]
 mod typed;
+
+#[cfg(test)]
+mod handoff_tests;
 
 pub(super) use breakdown::execute_projected_filtered_read_with_breakdown;
 
@@ -255,12 +257,15 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
     }
 
     let cloned_input_memory = ensure_query_memory_budget(finalization.controls, batches)?;
-    let projected_output_memory = reserve_projection_output_before_building(
-        finalization.controls,
-        batches,
-        &finalization.plan.projection,
-    )?;
-    let projected_batches = projection::project_batches(
+    let (projected_output_memory, projection_slice_memory) =
+        super::projection_handoff::ProjectionOutputMemory::admit(
+            finalization.controls,
+            batches,
+            &finalization.plan.projection,
+            true,
+            false,
+        )?;
+    let mut projected_batches = projection::project_batches(
         batches.clone(),
         &finalization.plan.projection,
         finalization.params,
@@ -268,19 +273,22 @@ pub(super) fn finalize_projected_filtered_read_with_index_usage(
         finalization.user_functions,
         finalization.session,
     )?;
+    let projected_output_memory =
+        projected_output_memory.retain(finalization.controls, &mut projected_batches)?;
     drop(cloned_input_memory);
     drop(batch_memory);
     *batches = projected_batches;
     batch_memory = projected_output_memory;
 
     *batches = slice_batches_for_plan(
-        batches.clone(),
+        std::mem::take(batches),
         finalization.plan.offset_value(),
         finalization.plan.limit_value(),
     );
 
     let rows = batch::try_flatten_batches(std::mem::take(batches))?;
     drop(batch_memory);
+    drop(projection_slice_memory);
     if let Some(collection) = heap_top_k_collection_name {
         finalization
             .cassie

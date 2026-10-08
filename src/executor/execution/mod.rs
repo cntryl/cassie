@@ -68,10 +68,9 @@ pub(crate) use scored::install_ann_rerank_barriers;
 use cte::{execute_cte, CteContext};
 use dispatch::{
     build_logical_plan, build_logical_plan_in_session, check_timeout, ensure_query_memory_budget,
-    ensure_query_memory_budget_for_rows, execute_physical_plan, execute_plan,
-    execute_plan_with_execution_breakdown, execute_plan_with_outer_row, plan_execution_env,
-    reserve_projection_output_before_building, resolve_exists_expr, resolve_statement_exists,
-    ExistsResolutionContext,
+    execute_physical_plan, execute_plan, execute_plan_with_execution_breakdown,
+    execute_plan_with_outer_row, plan_execution_env, reserve_projection_output_before_building,
+    resolve_exists_expr, resolve_statement_exists, ExistsResolutionContext,
 };
 #[cfg(test)]
 use dispatch::{preferred_access_path_route, AccessPathRoute};
@@ -123,6 +122,7 @@ mod index_probe_canonicalization;
 mod index_read;
 mod ordered_read;
 mod projected_read;
+mod projection_handoff;
 mod scalar_index_constraints;
 mod time_series_read;
 

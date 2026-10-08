@@ -1,27 +1,85 @@
 use super::{
-    build_logical_plan, check_timeout, ensure_query_memory_budget_for_rows, execute_plan,
-    row_signature, BatchRow, Cassie, CassieSession, CommonTableExpression, CteQuery, FunctionMeta,
-    HashMap, HashSet, QueryError, QueryExecutionControls, Value,
+    build_logical_plan, check_timeout, execute_plan, row_signature, BatchRow, Cassie,
+    CassieSession, CommonTableExpression, CteQuery, FunctionMeta, HashMap, HashSet, QueryError,
+    QueryExecutionControls, Value,
 };
 use crate::executor::semantic::SemanticKey;
 use crate::sql::ast::SetOperator;
 
+#[cfg(test)]
+mod retention_tests;
+#[cfg(test)]
+mod source_retention_tests;
+
+mod context;
+mod retention;
+mod seen;
+pub(super) use context::CteContext;
+use retention::RetainedRows;
+
 pub(super) type CteRows = Vec<Vec<(String, Value)>>;
-#[derive(Clone)]
 pub(super) struct CteRelation {
     pub(super) rows: CteRows,
     pub(super) fields: Vec<crate::types::FieldSchema>,
+    pub(super) _rows_memory: Option<crate::runtime::QueryMemoryReservation>,
+    pub(super) _fields_memory: Option<crate::runtime::QueryMemoryReservation>,
 }
-pub(super) type CteContext = HashMap<String, CteRelation>;
+impl CteRelation {
+    fn copy(&self, controls: &QueryExecutionControls) -> Result<Self, QueryError> {
+        let rows = RetainedRows::copy(&self.rows, controls)?;
+        let fields_memory =
+            controls.reserve_query_memory(retention::fields_bytes(&self.fields)?)?;
+        check_timeout(controls)?;
+        let fields = self.fields.clone();
+        Ok(Self {
+            rows: rows.rows,
+            fields,
+            _rows_memory: Some(rows.memory),
+            _fields_memory: Some(fields_memory),
+        })
+    }
+}
 type CteExecution<'a> = Result<CteRelation, QueryError>;
+
+pub(super) struct ContextFields {
+    fields: HashMap<String, Vec<crate::types::FieldSchema>>,
+    _memory: crate::runtime::QueryMemoryReservation,
+}
+impl std::ops::Deref for ContextFields {
+    type Target = HashMap<String, Vec<crate::types::FieldSchema>>;
+    fn deref(&self) -> &Self::Target {
+        &self.fields
+    }
+}
 
 pub(super) fn context_fields(
     context: &CteContext,
-) -> HashMap<String, Vec<crate::types::FieldSchema>> {
-    context
-        .iter()
-        .map(|(name, relation)| (name.clone(), relation.fields.clone()))
-        .collect()
+    controls: &QueryExecutionControls,
+) -> Result<ContextFields, QueryError> {
+    use crate::executor::retained_memory::{add, hash_table_bytes};
+    check_timeout(controls)?;
+    let bytes = context.iter().try_fold(
+        hash_table_bytes::<(String, Vec<crate::types::FieldSchema>)>(context.len())?,
+        |bytes, (name, relation)| {
+            Ok::<_, QueryError>(add(
+                bytes,
+                add(name.len(), retention::fields_bytes(&relation.fields)?)?,
+            )?)
+        },
+    )?;
+    let memory = controls.reserve_query_memory(bytes)?;
+    let mut fields = HashMap::new();
+    fields
+        .try_reserve(context.len())
+        .map_err(|error| retention::allocation(&error))?;
+    for (name, relation) in context.iter() {
+        check_timeout(controls)?;
+        fields.insert(name.clone(), relation.fields.clone());
+    }
+    Ok(ContextFields {
+        fields,
+        _memory: memory,
+    })
 }
 
 fn recursion_depth_exceeded(name: &str, depth: usize) -> QueryError {
@@ -42,16 +100,15 @@ pub(super) fn execute_cte<'a>(
     controls: &'a QueryExecutionControls,
 ) -> CteExecution<'a> {
     check_timeout(controls)?;
+    let _name_memory = controls.reserve_query_memory(cte.name.len())?;
     let cte_name = cte.name.to_ascii_lowercase();
     let previous = cte_context.remove(&cte_name);
-    let fields = crate::sql::binder::cte_row_fields(
-        cte,
-        &context_fields(cte_context),
-        &cassie.catalog,
-        user_functions,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    let namespace = context_fields(cte_context, controls)?;
+    let fields =
+        crate::sql::binder::cte_row_fields(cte, &namespace, &cassie.catalog, user_functions)
+            .map_err(|error| QueryError::General(error.to_string()))?;
 
+    let fields_memory = controls.reserve_query_memory(retention::fields_bytes(&fields)?)?;
     let output = match &cte.query {
         CteQuery::Simple(statement) => {
             let logical = build_logical_plan(&cassie.catalog, statement.as_ref())?;
@@ -81,15 +138,14 @@ pub(super) fn execute_cte<'a>(
                 params,
                 controls,
             )?;
-            rows = rename_cte_rows(rows, &cte.aliases);
+            rows = rows.rename(&cte.aliases, controls)?;
 
-            let mut seen: HashSet<SemanticKey> = HashSet::new();
+            let mut seen = seen::SeenRows::new(controls)?;
             if matches!(operator, SetOperator::Union) {
-                rows.retain(|row| seen.insert(row_signature(row)));
+                seen.retain_unique(&mut rows, controls)?;
             }
-            let mut delta = rows.clone();
-            let mut memory = replace_recursive_memory(None, controls, &rows, &delta)?;
-            store_working_rows(cte_context, &cte_name, &delta, &fields);
+            let mut delta = RetainedRows::copy(&rows.rows, controls)?;
+            store_working_rows(cte_context, &cte_name, &delta.rows, &fields, controls)?;
             let mut stabilized = false;
 
             for _ in 0..controls.cte_recursion_depth {
@@ -103,13 +159,13 @@ pub(super) fn execute_cte<'a>(
                     params,
                     controls,
                 )?;
-                let recursive_rows = rename_cte_rows(recursive_rows, &cte.aliases);
+                let mut recursive_rows = recursive_rows.rename(&cte.aliases, controls)?;
 
                 let new_rows = match operator {
-                    SetOperator::Union => recursive_rows
-                        .into_iter()
-                        .filter(|row| seen.insert(row_signature(row)))
-                        .collect::<Vec<_>>(),
+                    SetOperator::Union => {
+                        seen.retain_unique(&mut recursive_rows, controls)?;
+                        recursive_rows
+                    }
                     SetOperator::UnionAll => recursive_rows,
                     _ => {
                         return Err(QueryError::General(
@@ -123,10 +179,9 @@ pub(super) fn execute_cte<'a>(
                     break;
                 }
 
-                rows.extend(new_rows.iter().cloned());
+                rows.append(&new_rows.rows, controls)?;
                 delta = new_rows;
-                memory = replace_recursive_memory(Some(memory), controls, &rows, &delta)?;
-                store_working_rows(cte_context, &cte_name, &delta, &fields);
+                store_working_rows(cte_context, &cte_name, &delta.rows, &fields, controls)?;
             }
 
             if !stabilized {
@@ -140,16 +195,18 @@ pub(super) fn execute_cte<'a>(
         }
     };
 
-    let output = rename_cte_rows(output, &cte.aliases);
+    let output = output.rename(&cte.aliases, controls)?;
     if let Some(previous_rows) = previous {
-        cte_context.insert(cte_name, previous_rows);
+        cte_context.insert(&cte_name, previous_rows, controls)?;
     } else {
         cte_context.remove(&cte_name);
     }
 
     Ok(CteRelation {
-        rows: output,
+        rows: output.rows,
         fields,
+        _rows_memory: Some(output.memory),
+        _fields_memory: Some(fields_memory),
     })
 }
 
@@ -157,15 +214,19 @@ fn store_working_rows(
     context: &mut CteContext,
     name: &str,
     rows: &CteRows,
-    fields: &[crate::types::FieldSchema],
-) {
-    context.insert(
-        name.to_string(),
-        CteRelation {
-            rows: rows.clone(),
-            fields: fields.to_vec(),
-        },
-    );
+    fields: &Vec<crate::types::FieldSchema>,
+    controls: &QueryExecutionControls,
+) -> Result<(), QueryError> {
+    let copied = RetainedRows::copy(rows, controls)?;
+    let fields_memory = controls.reserve_query_memory(retention::fields_bytes(fields)?)?;
+    let relation = CteRelation {
+        rows: copied.rows,
+        fields: fields.clone(),
+        _rows_memory: Some(copied.memory),
+        _fields_memory: Some(fields_memory),
+    };
+    context.insert(name, relation, controls)?;
+    Ok(())
 }
 
 fn execute_cte_plan(
@@ -176,7 +237,8 @@ fn execute_cte_plan(
     user_functions: &HashMap<String, FunctionMeta>,
     params: &[Value],
     controls: &QueryExecutionControls,
-) -> Result<CteRows, QueryError> {
+) -> Result<RetainedRows, QueryError> {
+    let controls = controls.for_relational_scalar_cte();
     execute_plan(
         cassie,
         session,
@@ -184,45 +246,85 @@ fn execute_cte_plan(
         context,
         user_functions,
         params,
-        controls,
+        &controls,
     )
-    .map(|rows| rows.into_iter().map(BatchRow::into_entries).collect())
+    .and_then(|rows| RetainedRows::from_output(rows, &controls))
 }
 
-fn replace_recursive_memory(
-    previous: Option<(
-        crate::runtime::QueryMemoryReservation,
-        crate::runtime::QueryMemoryReservation,
-    )>,
+pub(super) fn copy_source_rows(
+    relation: &CteRelation,
     controls: &QueryExecutionControls,
-    rows: &CteRows,
-    delta: &CteRows,
-) -> Result<
-    (
-        crate::runtime::QueryMemoryReservation,
-        crate::runtime::QueryMemoryReservation,
-    ),
-    QueryError,
-> {
-    drop(previous);
-    let rows_memory = ensure_query_memory_budget_for_rows(controls, rows)?;
-    let delta_memory = ensure_query_memory_budget_for_rows(controls, delta)?;
-    Ok((rows_memory, delta_memory))
+    qualifier: Option<&str>,
+) -> Result<Vec<BatchRow>, QueryError> {
+    use crate::executor::retained_memory::{add, lookup_bytes, mul};
+    use std::mem::size_of;
+    use std::sync::Arc;
+    let count = relation.rows.len();
+    if count == 0 {
+        check_timeout(controls)?;
+        return Ok(Vec::new());
+    }
+    let mut copied = RetainedRows::copy(&relation.rows, controls)?;
+    let qualifier_bytes = qualifier.map_or(0, str::len);
+    let mut extra = add(
+        mul(count, 2 * size_of::<BatchRow>())?,
+        add(
+            retention::fields_bytes(&relation.fields)?,
+            size_of::<crate::runtime::QueryMemoryReservation>() + 2 * size_of::<usize>(),
+        )?,
+    )?;
+    extra = add(
+        extra,
+        mul(
+            count.div_ceil(crate::executor::batch::DEFAULT_BATCH_SIZE),
+            2 * size_of::<super::Batch>(),
+        )?,
+    )?;
+    for row in &copied.rows {
+        let names = row
+            .iter()
+            .try_fold(0, |bytes, (name, _)| add(bytes, name.len()))?;
+        let names = add(names, mul(row.len(), qualifier_bytes)?)?;
+        // Lookup normalization, text-field inference and qualification alias backing overlap.
+        extra = add(
+            extra,
+            add(
+                512,
+                add(
+                    mul(names, 64)?,
+                    mul(row.len(), 16 * size_of::<(String, usize)>())?,
+                )?,
+            )?,
+        )?;
+        extra = add(extra, lookup_bytes(mul(row.len(), 8)?, mul(names, 8)?)?)?;
+    }
+    let serializer = retention::serialization_scratch(&copied.rows)?;
+    extra = add(extra, serializer)?;
+    copied.memory.try_grow(extra)?;
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(count)
+        .map_err(|error| retention::allocation(&error))?;
+    for row in copied.rows {
+        check_timeout(controls)?;
+        output.push(BatchRow::new(row));
+    }
+    let retained = retention::source_backing_bytes(&output, &relation.fields, serializer)?;
+    copied.memory.shrink_to(retained);
+    let memory = Arc::new(copied.memory);
+    for row in &mut output {
+        let owned = std::mem::replace(row, BatchRow::from_projected_values(Vec::new()));
+        *row = owned.with_query_memory(Some(Arc::clone(&memory)));
+    }
+    check_timeout(controls)?;
+    Ok(output)
 }
 
-fn rename_cte_rows(rows: CteRows, aliases: &[String]) -> CteRows {
-    if aliases.is_empty() || aliases.iter().any(|alias| alias == "*") {
-        return rows;
-    }
-    rows.into_iter()
-        .map(|row| {
-            row.into_iter()
-                .enumerate()
-                .map(|(index, (name, value))| {
-                    // Columns past the alias list keep their own names.
-                    (aliases.get(index).cloned().unwrap_or(name), value)
-                })
-                .collect()
-        })
-        .collect()
+#[cfg(test)]
+mod supplemental_tests;
+
+pub(super) fn source_fields_bytes(
+    fields: &Vec<crate::types::FieldSchema>,
+) -> Result<usize, QueryError> {
+    retention::fields_bytes(fields)
 }

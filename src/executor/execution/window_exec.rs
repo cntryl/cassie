@@ -15,7 +15,31 @@ use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod typed;
+
 pub(super) fn apply_window_functions(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&filter::SearchContext>,
+    user_functions: &HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    typed::apply(
+        batches,
+        projection,
+        &WindowExecutionContext {
+            params,
+            search_context,
+            user_functions,
+            session,
+            controls,
+        },
+    )
+}
+
+fn apply_scalar_window_functions(
     batches: Vec<Batch>,
     projection: &[SelectItem],
     params: &[Value],
@@ -868,3 +892,6 @@ fn compare_window_sort_parts(left: &WindowSortPart, right: &WindowSortPart) -> C
         SortDirection::Desc => cmp.reverse(),
     }
 }
+
+#[cfg(test)]
+mod typed_tests;

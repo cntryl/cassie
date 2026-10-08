@@ -64,6 +64,7 @@ pub struct QueryExecutionControls {
     pub query_memory_budget_bytes: usize,
     pub cte_recursion_depth: usize,
     cancellation: QueryCancellationHandle,
+    relational_cte_boundary: bool,
     memory: Arc<QueryMemoryTracker>,
 }
 
@@ -149,6 +150,7 @@ impl QueryExecutionControls {
             query_memory_budget_bytes: limits.query_memory_budget_bytes,
             cte_recursion_depth: limits.cte_recursion_depth,
             cancellation,
+            relational_cte_boundary: false,
             memory: Arc::new(QueryMemoryTracker {
                 budget: limits.query_memory_budget_bytes,
                 used: AtomicUsize::new(0),
@@ -173,6 +175,17 @@ impl QueryExecutionControls {
         &self,
     ) -> Option<&crate::midge::adapter::QueryScanControlScope> {
         self.cancellation.1.as_deref()
+    }
+
+    pub(crate) fn for_relational_scalar_cte(&self) -> Self {
+        Self {
+            relational_cte_boundary: true,
+            ..self.clone()
+        }
+    }
+
+    pub(crate) const fn uses_relational_cte_boundary(&self) -> bool {
+        self.relational_cte_boundary
     }
 
     #[must_use]

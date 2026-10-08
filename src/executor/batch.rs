@@ -1,3 +1,11 @@
+#[path = "batch/operator_memory.rs"]
+mod operator_memory;
+pub(crate) use operator_memory::OperatorMemory;
+
+#[cfg(test)]
+#[path = "batch/operator_memory_tests.rs"]
+mod operator_memory_tests;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -11,6 +19,7 @@ pub(crate) type RowAliases = Vec<(String, usize)>;
 
 #[derive(Debug, Clone)]
 pub(crate) struct BatchRow {
+    operator_memory: Option<Arc<operator_memory::OperatorMemory>>,
     values: RowEntries,
     aliases: RowAliases,
     lookup: OnceLock<HashMap<String, usize>>,
@@ -36,6 +45,7 @@ impl BatchRow {
             outer_scope: None,
             data_types: None,
             query_memory: None,
+            operator_memory: None,
         }
     }
 
@@ -47,6 +57,7 @@ impl BatchRow {
             outer_scope: None,
             data_types: None,
             query_memory: None,
+            operator_memory: None,
         }
     }
 
@@ -198,6 +209,12 @@ impl BatchRow {
 }
 
 pub(crate) trait RowAccess {
+    fn operator_memory(&self) -> Option<Arc<OperatorMemory>> {
+        None
+    }
+    fn query_memory(&self) -> Option<Arc<crate::runtime::QueryMemoryReservation>> {
+        None
+    }
     fn get(&self, name: &str) -> Option<&Value>;
     fn entries(&self) -> &[(String, Value)];
     fn column_type(&self, _name: &str) -> Option<&DataType> {
@@ -230,6 +247,12 @@ fn build_lookup(values: &[(String, Value)], aliases: &[(String, usize)]) -> Hash
 }
 
 impl RowAccess for BatchRow {
+    fn operator_memory(&self) -> Option<Arc<OperatorMemory>> {
+        BatchRow::operator_memory(self)
+    }
+    fn query_memory(&self) -> Option<Arc<crate::runtime::QueryMemoryReservation>> {
+        BatchRow::query_memory(self)
+    }
     fn maximum_type_heap_bytes(&self) -> Result<usize, CassieError> {
         let own = self.data_types().iter().try_fold(0, |maximum, data_type| {
             Ok::<_, CassieError>(maximum.max(data_type_clone_bytes(data_type)?))

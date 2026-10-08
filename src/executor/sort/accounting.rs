@@ -13,7 +13,7 @@ use crate::runtime::accounted::json;
 use crate::sql::ast::Expr;
 use crate::types::{DataType, Value};
 
-pub(super) fn type_scratch<R: RowAccess>(
+pub(crate) fn type_scratch<R: RowAccess>(
     row: &R,
     expr: &Expr,
     functions: &HashMap<String, FunctionMeta>,
@@ -70,7 +70,7 @@ impl TypeShape {
     }
 }
 
-pub(super) fn conversion_bytes(
+pub(crate) fn conversion_bytes(
     value: &Value,
     data_type: Option<&DataType>,
 ) -> Result<usize, CassieError> {
@@ -135,7 +135,7 @@ fn element_bytes(value: &serde_json::Value, data_type: &DataType) -> Result<usiz
     }
 }
 
-pub(super) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError> {
+pub(crate) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError> {
     match value {
         SemanticValue::String(value) | SemanticValue::Json(value) => Ok(value.capacity()),
         SemanticValue::Vector(values) => mul(values.capacity(), size_of::<u32>()),
@@ -147,7 +147,7 @@ pub(super) fn semantic_heap(value: &SemanticValue) -> Result<usize, CassieError>
     }
 }
 
-pub(super) fn tie_bytes(row: &impl RowAccess) -> Result<usize, CassieError> {
+pub(crate) fn tie_bytes(row: &impl RowAccess) -> Result<usize, CassieError> {
     let mut text_bytes = row.entries().len().saturating_sub(1);
     let mut scratch = 0;
     for (_, value) in row.entries() {

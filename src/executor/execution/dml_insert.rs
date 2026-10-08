@@ -295,6 +295,7 @@ fn insert_source_rows(
             Ok(rows
                 .into_iter()
                 .map(|row| {
+                    let _operator_parent = row.operator_memory();
                     row.into_entries()
                         .into_iter()
                         .map(|(_, value)| value)

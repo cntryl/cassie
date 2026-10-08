@@ -4,7 +4,7 @@ use std::collections::{BinaryHeap, HashMap, VecDeque};
 use crate::app::CassieSession;
 use crate::catalog::FunctionMeta;
 use crate::executor::batch::RowAccess;
-use crate::executor::batch::{flatten_batches, row_tie_key, Batch, DEFAULT_BATCH_SIZE};
+use crate::executor::batch::{row_tie_key, Batch, DEFAULT_BATCH_SIZE};
 use crate::executor::filter;
 use crate::executor::filter::SearchContext;
 use crate::executor::semantic::SemanticValue;
@@ -17,18 +17,17 @@ mod tests;
 
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
-mod accounting;
+pub(crate) mod accounting;
+mod typed;
+#[cfg(test)]
+mod typed_tests;
 
 pub(crate) fn sort_batches_with_controls(
     batches: Vec<Batch>,
     eval: &EvalInput<'_>,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    if eval.order.is_empty() {
-        return Ok(batches);
-    }
-    let rows = sort_rows_with_controls(flatten_batches(batches), eval, controls)?;
-    chunk_rows_controlled(rows.into_iter(), controls)
+    typed::sort_batches(batches, eval, controls)
 }
 
 pub(crate) fn sort_rows_with_controls<R>(
@@ -51,9 +50,20 @@ fn sort_rows_with_context<R>(
 where
     R: RowAccess,
 {
+    let order = eval.resolved_order();
+    sort_rows_by_key(rows, controls, retention, |row| {
+        eval.row_key_with_context(row, &order, retention, Some(controls))
+    })
+}
+
+fn sort_rows_by_key<R: RowAccess>(
+    rows: Vec<R>,
+    controls: &QueryExecutionControls,
+    retention: &SortRetentionContext<'_>,
+    mut key: impl FnMut(&R) -> Result<RowKey, crate::executor::QueryError>,
+) -> Result<Vec<R>, crate::executor::QueryError> {
     use crate::executor::retained_memory::{add, mul};
 
-    let order = eval.resolved_order();
     let slots = mul(rows.len(), 2 * std::mem::size_of::<(RowKey, R)>())?;
     let headers = mul(rows.len(), 2 * std::mem::size_of::<VecDeque<(RowKey, R)>>())?;
     let run_memory = controls.reserve_query_memory(add(slots, headers)?)?;
@@ -61,7 +71,7 @@ where
     let mut runs = Vec::with_capacity(rows.len());
     for row in rows {
         check_query_controls(controls)?;
-        let key = eval.row_key_with_context(&row, &order, retention, Some(controls))?;
+        let key = key(&row)?;
         runs.push(VecDeque::from([(key, row)]));
     }
     while runs.len() > 1 {
@@ -157,13 +167,15 @@ pub(crate) fn top_k_batches_with_controls(
     top_needed: usize,
     controls: &QueryExecutionControls,
 ) -> Result<Vec<Batch>, crate::executor::QueryError> {
-    top_k_batches_with_context(
-        batches,
-        eval,
-        top_needed,
-        controls,
-        &SortRetentionContext::default(),
-    )
+    typed::top_k_batches(batches, eval, top_needed, controls)
+}
+
+pub(crate) fn sort_batch_rows_with_controls(
+    rows: Vec<crate::executor::batch::BatchRow>,
+    eval: &EvalInput<'_>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<crate::executor::batch::BatchRow>, crate::executor::QueryError> {
+    typed::sort_rows(rows, eval, controls)
 }
 
 fn top_k_batches_with_context(
@@ -177,12 +189,26 @@ fn top_k_batches_with_context(
         return Ok(Vec::new());
     }
     let order = eval.resolved_order();
+    top_k_by_key(batches, top_needed, controls, retention, |row| {
+        eval.row_key_with_context(row, &order, retention, Some(controls))
+    })
+}
+
+fn top_k_by_key(
+    batches: Vec<Batch>,
+    top_needed: usize,
+    controls: &QueryExecutionControls,
+    retention: &SortRetentionContext<'_>,
+    mut key: impl FnMut(
+        &crate::executor::batch::BatchRow,
+    ) -> Result<RowKey, crate::executor::QueryError>,
+) -> Result<Vec<Batch>, crate::executor::QueryError> {
     let mut top = BinaryHeap::new();
     let mut backing_memory = controls.reserve_query_memory(0)?;
     for row in batches.into_iter().flatten() {
         check_query_controls(controls)?;
         let candidate = TopCandidate {
-            key: eval.row_key_with_context(&row, &order, retention, Some(controls))?,
+            key: key(&row)?,
             row,
         };
         if top.len() < top_needed && top.len() == top.capacity() {

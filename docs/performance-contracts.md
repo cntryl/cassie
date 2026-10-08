@@ -159,7 +159,7 @@ resource denial propagate without partial publication. Verification performs
 O(N + K) reads and O(N) retained key state for N authoritative edges and K adjacency
 members, normally K = 4N. Each independently opened neighborhood repeats this
 work. Exact-key sorting and lookup add O(N log N + K log N) comparison work;
-geometric key-slot growth retains old/new overlap. All verification, selected-prefix and fallback reads remain observable;
+Checked three-halves key-slot growth retains old/new overlap. All verification, selected-prefix and fallback reads remain observable;
 LIMIT 1 no longer promises at most two entries or four storage reads. Existing
 query budgets bound retained state, and page boundaries check cancellation and
 deadlines. No persistent format, generation-only certificate cache or shared

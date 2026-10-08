@@ -60,9 +60,16 @@ one-edge startup scan counts seven entries; the 66-edge filtered read counts332.
 The old two-entry/four-read assertions are preserved as superseded evidence.
 
 Five private key controls cover preconstruction denial, escaped/numeric key
-capacity, old/new slot admission at1-to2 and256-to512 growth, and geometric
-capacity. The geometric fixture has genuine RED257 versus512 allocated slots,
-then GREEN. A later ownership refinement retains slot and key owners together
+capacity, old/new slot admission at1-to2 and211-to316 growth, and bounded geometric
+capacity across1024 keys. The earlier doubling fixture had genuine RED257
+versus512 allocated slots, then GREEN. Complete validation subsequently found
+that doubling denied the unchanged positive64KiB fixture at75,374 bytes.
+Checked three-halves growth preserves amortized linear movement and admits
+that fixture without increasing its budget; all13 existing resource owners,
+three specialized controls, six completeness controls and five private key
+controls pass on the repaired source. The benchmark source-contract check also
+passes after reading its extracted focused graph module. The earlier full run
+retains3 failures and3,582 passing tests; its later gates did not run. A later ownership refinement retains slot and key owners together
 through sorting/comparison and field destruction. Sorting/binary comparisons
 add O(N log N + K log N) comparison work; geometric slot movement is amortized
 linear. Midge-owned snapshot/block cursor and generic catalog allocations are
@@ -74,7 +81,7 @@ including the geometric-growth attempt. A single lazy Midge iterator per
 verification namespace retains per-entry cancellation/deadline checks without
 reopening each128-entry page. The normal test-profile smoke harness passes with
 a dedicated `authoritative_graph_100k_128m` budget of128MiB: four candidates,
-1,999,989 storage reads, peak accounted memory75,017,445 bytes, no cache hits or
+1,999,989 storage reads, peak accounted memory76,103,269 bytes, no cache hits or
 fallbacks, and zero live query memory/workers. Other analytical profiles remain
 64MiB and the runtime default remains10MiB. One smoke sample is explicitly
 untrustworthy for latency/throughput qualification and establishes no SLA.

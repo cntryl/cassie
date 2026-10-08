@@ -35,9 +35,8 @@ impl ExpectedKeys {
             let capacity = self
                 .values
                 .capacity()
-                .checked_mul(2)
-                .ok_or_else(overflow)?
-                .max(1);
+                .checked_add((self.values.capacity() / 2).max(1))
+                .ok_or_else(overflow)?;
             let bytes = capacity
                 .checked_mul(size_of::<ExpectedKey>())
                 .ok_or_else(overflow)?;
@@ -374,18 +373,19 @@ mod tests {
         let mut keys = ExpectedKeys::try_new(&controls).expect("empty keys");
 
         // Act
-        for _ in 0..257 {
+        let mut growths = 0;
+        for _ in 0..1024 {
+            let previous_capacity = keys.values.capacity();
             let key = Accounted::try_new(&controls, size_of::<Vec<u8>>(), Vec::new).expect("key");
             push_expected_key(&mut keys, key, &controls).expect("slot");
+            growths += usize::from(keys.values.capacity() != previous_capacity);
         }
         let (values, memory) = keys.into_parts();
 
         // Assert
-        assert_eq!(
-            values.capacity(),
-            512,
-            "geometric slots avoid one reallocation per key"
-        );
+        assert!(growths <= 32, "geometric slots avoid per-key growth");
+        assert!(values.capacity() > values.len());
+        assert!(values.capacity() <= 2 * values.len());
         assert_eq!(memory.bytes(), values.capacity() * size_of::<ExpectedKey>());
         drop(values);
         drop(memory);
@@ -397,9 +397,9 @@ mod tests {
         // Arrange
         let slot = size_of::<ExpectedKey>();
         let inline = size_of::<Vec<u8>>();
-        let controls = controls(257 * inline + (256 + 512) * slot - 1);
+        let controls = controls(212 * inline + (211 + 316) * slot - 1);
         let mut keys = ExpectedKeys::try_new(&controls).expect("empty keys");
-        for _ in 0..256 {
+        for _ in 0..211 {
             let key = Accounted::try_new(&controls, inline, Vec::new).expect("existing key");
             push_expected_key(&mut keys, key, &controls).expect("existing slots");
         }
@@ -410,9 +410,9 @@ mod tests {
 
         // Assert
         assert!(matches!(result, Err(CassieError::ResourceLimit(_))));
-        assert_eq!(keys.len(), 256);
-        assert_eq!(keys.values.capacity(), 256);
-        assert_eq!(controls.current_query_memory_bytes(), 256 * (inline + slot));
+        assert_eq!(keys.len(), 211);
+        assert_eq!(keys.values.capacity(), 211);
+        assert_eq!(controls.current_query_memory_bytes(), 211 * (inline + slot));
         drop(keys);
         assert_eq!(controls.current_query_memory_bytes(), 0);
     }

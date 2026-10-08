@@ -110,11 +110,11 @@ from admission or allow cancellation to release charge before live buffers.
 | TX-01 through TX-06 and TX-08 through TX-09 | Reuse mapped mutation, commit-gate, recovery, settings and savepoint evidence; add only uncovered controls | Fourteen exact mapped mutation, visibility, savepoint, settings, atomicity and fresh-FK witnesses replayed 14/0; additional context qualification remains separate |
 | TX-07 | Captured whole-session COW overlay survives subsequent session writes and cursor resume | Per-cursor evidence exists; statement-wide owner pending |
 | TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Current focused source witnesses pass: multirow JOIN, empty acquisition and visible right rows after an empty left read; broader path qualification remains pending |
-| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; eight existing conversion controls replayed successfully, including two active workers cancelled with zero charge/workers and reusable permits; statement worker dispatch qualification remains pending |
-| Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Captured staged-overlay rollback controls pass for scalar indexes, ordered reads, column summaries, analytical projections and projected batched scans; committed generation barriers remain pending |
-| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; time-series overlay rollback controls pass; other artifact barriers remain pending |
+| CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; eight existing conversion controls replayed successfully, including two active workers cancelled with zero charge/workers and reusable permits; a 1026-row captured statement dispatched two scan workers after committed/staged divergence; other worker family controls remain pending |
+| Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Captured staged-overlay rollback controls pass for scalar indexes, ordered reads, column summaries, analytical projections and projected batched scans; six scalar/column/fulltext/vector/hybrid/projection committed-warm barriers pass; graph and other selected barriers remain pending |
+| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; time-series overlay rollback controls pass; six scalar/column/fulltext/vector/hybrid/projection committed-warm barriers pass; graph and time-series committed barriers remain pending |
 | Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | First Execute after Bind observes intervening commit; suspended savepoint rollback and Close controls pass; existing completion, cancellation, cap and concurrent-write controls replay; error-owner observability and broader ownership qualification remain pending |
-| Resource failures | Admission denial and cancellation preserve owner/row lifetime; cleanup releases owned charge | Pending focused controls |
+| Resource failures | Admission denial and cancellation preserve owner/row lifetime; cleanup releases owned charge | Combined-owner lifetime, automatic-owner source denial/retry and active conversion cancellation pass; complete repository qualification remains pending |
 
 Qualification must retain exact source, inputs, results and command provenance.
 A passing selected path does not promote another path. Keep #763 open while
@@ -207,4 +207,35 @@ controls and owner dropped, then zero. Owner references remained two before
 and after the matching nested executor. The original denied request of 262656
 bytes and this successful measured peak are distinct evidence. This does not
 measure a pre-change baseline or the separate portal retention controls.
-Independent numerical attribution review and full acceptance remain pending.
+Independent numerical attribution review accepted the measured single-owner overlap and narrow fixture calibration. Full acceptance remains pending.
+
+Six committed-generation source barriers passed: after capture, an independent
+session commits a second row and warms the newer scalar, column-summary,
+persisted fulltext, HNSW, hybrid or analytical-projection route. Captured
+candidates, values and scores still equal the original oracle; the subsequent
+statement equals the warmed newer oracle. These qualify existing behavior and
+claim no new pre-repair regression. Path-specific diagnostics are retained
+separately from the parallel suite output.
+
+The whole-statement scan witness dispatched one scan with two workers over
+1026 rows. It retained the captured committed rows and staged insert after an
+independent commit and nested rollback; the next statement saw only the later
+committed version. A direct materialized-source denial at the original budget
+returned requested 262656 > 262144, with 244736 as the peak of successful
+reservations before denial. Automatic-owner/row charge returned to zero; a
+fresh admitted retry returned 64 rows and released to zero. These distinct
+denied/successful-peak values are not interchangeable. The complete focused
+statement suite passed 47/0 before the worker test-name convention correction.
+Graph authority will be qualified after rebasing onto the merged #772 source;
+full ordered validation and hosted acceptance remain pending.
+
+Exact artifact diagnostics recorded four scalar range scans, four accelerated
+column-summary scans, four fulltext posting retrievals, four HNSW executions
+and hybrid ANN/posting retrieval. The analytical projection control retained
+correct captured rows through its existing stale-or-unverified fallback; its
+aggregate diagnostics include one optimized execution and four fallbacks, so
+this does not independently establish an optimized captured projection read.
+Jev identified insert-only old-candidate removal and changed-vector-score
+qualification gaps at 0.73 and 0.65. Focused after-capture UPDATE controls are
+required before final acceptance; no runtime defect is inferred from these
+probabilities. They follow the clean rebase to current graph authority.

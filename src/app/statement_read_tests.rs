@@ -863,3 +863,5 @@ mod artifacts;
 mod native_paths;
 
 mod resources;
+
+mod workers;

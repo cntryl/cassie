@@ -77,3 +77,66 @@ fn should_measure_combined_statement_owner_charge_during_materialized_source_exe
     drop(cassie);
     std::fs::remove_dir_all(path).expect("strict fixture cleanup");
 }
+
+#[test]
+fn should_release_automatically_captured_owners_after_materialized_source_denial() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-owner-denial-{}", uuid::Uuid::new_v4()));
+    let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("reader", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE denied_source (payload TEXT)",
+    );
+    for index in 0..64 {
+        cassie
+            .midge
+            .put_document(
+                "denied_source",
+                Some(format!("doc-{index:04}")),
+                serde_json::json!({"payload":format!("{index:04}-{}", "x".repeat(1024))}),
+            )
+            .expect("seed exact source fixture");
+    }
+    execute(&cassie, &session, "BEGIN");
+    let plan = direct_plan(&cassie, "SELECT lower(payload) AS payload FROM denied_source WHERE payload IS NOT NULL LIMIT 1001 OFFSET 0");
+    let mut limits = cassie.runtime.limits();
+    limits.query_memory_budget_bytes = 256 * 1024;
+    let controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
+    // Act
+    let denied = crate::executor::run_with_session_controls(
+        &cassie,
+        Some(&session),
+        &plan,
+        vec![],
+        &controls,
+    )
+    .expect_err("original budget denies source overlap");
+    let peak = controls.peak_query_memory_bytes();
+    let released = controls.current_query_memory_bytes();
+    limits.query_memory_budget_bytes = 258 * 1024;
+    let retry_controls = QueryExecutionControls::from_limits(&limits, std::time::Instant::now());
+    let retry = crate::executor::run_with_session_controls(
+        &cassie,
+        Some(&session),
+        &plan,
+        vec![],
+        &retry_controls,
+    )
+    .expect("fresh admitted source retry");
+    let rows = retry.rows.len();
+    drop(retry);
+    // Assert
+    eprintln!("source denial={denied} successful_reservation_peak_before_denial={peak} released={released} retry_rows={rows} retry_release={}", retry_controls.current_query_memory_bytes());
+    assert!(denied.to_string().contains("memory budget exceeded"));
+    assert!(peak > 0);
+    assert_eq!(released, 0);
+    assert_eq!(rows, 64);
+    assert_eq!(retry_controls.current_query_memory_bytes(), 0);
+    assert_eq!(cassie.runtime.snapshot().runtime.active_operator_workers, 0);
+    drop(session);
+    drop(cassie);
+    std::fs::remove_dir_all(path).expect("strict fixture cleanup");
+}

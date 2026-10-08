@@ -312,3 +312,102 @@ fn should_keep_captured_overlay_for_time_series_ranges() {
         Some(0)
     );
 }
+
+fn assert_commit_artifact_view(setup: &[&str], sql: &'static str) {
+    let fixture = Fixture::new(setup);
+    let reader = fixture.cassie.create_session("artifact-reader", None);
+    let writer = fixture.cassie.create_session("artifact-writer", None);
+    let original = execute(&fixture.cassie, &reader, sql);
+    let cassie = Arc::clone(&fixture.cassie);
+    let warm = Arc::new(std::sync::Mutex::new(None));
+    let published = Arc::clone(&warm);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = CaptureHook::install(move || {
+        insert(&cassie, &writer, 2, 20);
+        let rows = execute(&cassie, &writer, sql);
+        *published.lock().expect("warm artifact oracle") = Some(rows);
+        observed.store(true, Ordering::SeqCst);
+    });
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    let warm = warm
+        .lock()
+        .expect("warm oracle")
+        .take()
+        .expect("publisher read committed artifact");
+    eprintln!("artifact original={original:?} captured={captured:?} warm={warm:?} fresh={fresh:?} metrics={}", fixture.cassie.metrics());
+    assert!(committed.load(Ordering::SeqCst));
+    assert_ne!(original, warm, "publisher oracle differs after commit");
+    assert_eq!(
+        fresh, warm,
+        "next statement sees the committed warmed artifact"
+    );
+    assert_eq!(
+        captured, original,
+        "artifact candidates, values and scores use captured Data"
+    );
+}
+
+#[test]
+fn should_keep_scalar_index_candidates_on_the_captured_committed_generation() {
+    // Arrange
+    let setup = ["CREATE INDEX native_n ON native_rows USING btree (n)"];
+    let sql = "SELECT n FROM native_rows WHERE n >= 0 ORDER BY n";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}
+#[test]
+fn should_keep_column_summaries_on_the_captured_committed_generation() {
+    // Arrange
+    let setup =
+        ["CREATE INDEX native_column ON native_rows USING column (n) WITH (segment_size = 2)"];
+    let sql = "SELECT SUM(n) AS total FROM native_rows";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}
+#[test]
+fn should_keep_persisted_fulltext_scores_on_the_captured_committed_generation() {
+    // Arrange
+    let setup = ["CREATE INDEX native_text ON native_rows USING fulltext (body)"];
+    let sql = "SELECT _id, search_score(body, 'alpha') AS score FROM native_rows WHERE search(body, 'alpha') ORDER BY score DESC LIMIT 10";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}
+#[test]
+fn should_keep_vector_artifacts_on_the_captured_committed_generation() {
+    // Arrange
+    let setup = ["CREATE INDEX native_vector ON native_rows USING vector (embedding) WITH (source_field = body, index_type = hnsw, metric = l2)"];
+    let sql = "SELECT _id, vector_distance(embedding, '[1,0]') AS distance FROM native_rows ORDER BY distance ASC LIMIT 10";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}
+#[test]
+fn should_keep_hybrid_artifacts_on_the_captured_committed_generation() {
+    // Arrange
+    let setup = ["CREATE INDEX native_text ON native_rows USING fulltext (body)", "CREATE INDEX native_vector ON native_rows USING vector (embedding) WITH (source_field = body, index_type = hnsw, metric = cosine)"];
+    let sql = "SELECT _id, hybrid_score(search_score(body, 'alpha'), vector_score(embedding, '[1,0]')) AS score FROM native_rows ORDER BY score DESC LIMIT 10";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}
+#[test]
+fn should_keep_analytical_projection_rows_on_the_captured_committed_generation() {
+    // Arrange
+    let setup = ["CREATE MATERIALIZED PROJECTION native_projection WITH (analytical = true) AS SELECT id, n FROM native_rows"];
+    let sql = "SELECT id, n FROM native_rows WHERE n >= 0";
+    // Act
+    assert_commit_artifact_view(&setup, sql);
+    // Assert
+    // The helper compares captured, warmed committed and next-statement oracles.
+}

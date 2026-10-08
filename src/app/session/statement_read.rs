@@ -32,6 +32,12 @@ impl CassieSession {
         database: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<StatementDataRead>, CassieError> {
+        if controls.is_cancelled() {
+            return Err(CassieError::QueryCancelled);
+        }
+        if controls.is_timed_out() {
+            return Err(CassieError::DeadlineExceeded);
+        }
         let transaction = self.transaction.lock();
         let node = 11 * (size_of::<String>() + size_of::<Arc<CollectionChanges>>())
             + 16 * size_of::<usize>();

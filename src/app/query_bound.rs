@@ -72,6 +72,11 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        // A new top-level statement never borrows an enclosing read authority.
+        // This also protects early transaction/EXPLAIN returns and fresh gated
+        // commit validation when embedded execution is nested on one thread.
+        let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+        let _entry_overlay_scope = super::SessionReadScope::enter(None);
         let (mut params, declared_oids, wire_output) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;

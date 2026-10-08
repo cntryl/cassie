@@ -9,7 +9,6 @@ use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
 use crate::catalog::DEFAULT_SCHEMA;
-use crate::runtime::accounted::json;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]

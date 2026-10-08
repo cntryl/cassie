@@ -26,6 +26,12 @@ pub(crate) struct StatementOverlay {
     _memory: QueryMemoryReservation,
 }
 
+impl StatementOverlay {
+    pub(crate) fn matches_session(&self, session: &CassieSession) -> bool {
+        std::ptr::eq(self.identity.as_ptr(), Arc::as_ptr(&session.transaction))
+    }
+}
+
 impl CassieSession {
     pub(crate) fn capture_statement_read(
         &self,

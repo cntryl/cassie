@@ -24,6 +24,12 @@ Mutation staging and commit checks retain their existing live state.
 Empty inputs obey the same acquisition law. A subsequent
 statement captures a fresh view and can observe later committed state.
 
+Existing embedded executor entrypoints use the same acquisition law when called
+directly. An internally supplied matching owner must be installed for that
+execution; an ordinary direct call captures a fresh local owner before its first
+Data read. Reusing caller controls alone does not select transaction-wide
+repeatability. Command mutation authorities remain outside the read scope.
+
 This law covers row sources, joined sources, repeated CTE and subquery reads,
 worker execution, index candidate and row retrieval, column metadata and
 chunks, specialized retrieval, and their scalar or row fallbacks. A fallback

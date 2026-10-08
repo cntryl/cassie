@@ -49,10 +49,13 @@ fn run_with_execution_breakdown_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<ExecutionBreakdownOutput, QueryError> {
+    let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+    let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, None, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
+        let controls = controls.with_statement_read(None);
         let started = Instant::now();
         let result = dml_command::execute_command(
             cassie,
@@ -60,7 +63,7 @@ fn run_with_execution_breakdown_controls(
             command,
             &params,
             &user_functions,
-            controls,
+            &controls,
         )?;
         let breakdown = ExecutionBreakdownDurations {
             result_build: started.elapsed(),
@@ -72,6 +75,9 @@ fn run_with_execution_breakdown_controls(
         });
     }
 
+    let statement_controls = statement_read_controls(cassie, None, controls)?;
+    let controls = &statement_controls;
+    let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
     let (rows, mut breakdown) = execute_plan_with_execution_breakdown(
         cassie,
@@ -99,20 +105,26 @@ pub(crate) fn run_with_session_controls(
     params: Vec<Value>,
     controls: &QueryExecutionControls,
 ) -> Result<QueryResult, QueryError> {
+    let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+    let _entry_overlay_scope = crate::app::SessionReadScope::enter(None);
     let params = params.into_boxed_slice();
     let user_functions = user_functions_for_plan(cassie, session, &plan.logical);
 
     if let Some(command) = plan.logical.command.as_ref() {
+        let controls = controls.with_statement_read(None);
         return dml_command::execute_command(
             cassie,
             session,
             command,
             &params,
             &user_functions,
-            controls,
+            &controls,
         );
     }
 
+    let statement_controls = statement_read_controls(cassie, session, controls)?;
+    let controls = &statement_controls;
+    let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
     let rows = execute_physical_plan(
         cassie,
@@ -177,4 +189,43 @@ fn user_functions_for_plan(
     } else {
         HashMap::new()
     }
+}
+
+fn statement_read_controls(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    controls: &QueryExecutionControls,
+) -> Result<QueryExecutionControls, QueryError> {
+    let database = session
+        .and_then(|session| session.database.as_deref())
+        .unwrap_or(&cassie.default_database);
+    let matching = controls.statement_read().filter(|owner| {
+        owner.matches(&cassie.midge, database)
+            && session.is_none_or(|session| {
+                owner
+                    .overlay()
+                    .is_some_and(|overlay| overlay.matches_session(session))
+            })
+    });
+    let owner = if let Some(owner) = matching {
+        Arc::clone(owner)
+    } else if let Some(session) = session {
+        session.capture_statement_read(&cassie.midge, database, controls)?
+    } else {
+        crate::midge::adapter::StatementDataRead::capture(&cassie.midge, database, controls)?
+    };
+    Ok(controls.with_statement_read(Some(owner)))
+}
+
+fn enter_statement_read(
+    controls: &QueryExecutionControls,
+) -> (
+    crate::midge::adapter::StatementReadScope,
+    crate::app::SessionReadScope,
+) {
+    let read_scope = crate::midge::adapter::StatementReadScope::enter(controls.statement_read());
+    let overlay_scope = crate::app::SessionReadScope::enter(
+        controls.statement_read().and_then(|owner| owner.overlay()),
+    );
+    (read_scope, overlay_scope)
 }

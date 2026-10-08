@@ -645,3 +645,211 @@ fn should_isolate_captured_read_eligibility_from_other_sessions() {
     );
     assert_eq!(released, 0);
 }
+
+#[test]
+fn should_reuse_supplied_statement_controls_in_direct_executor_reads() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-direct-view-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let reader = cassie.create_session("reader", None);
+    let writer = cassie.create_session("writer", None);
+    execute(
+        &cassie,
+        &writer,
+        "CREATE TABLE direct_view_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(
+        &cassie,
+        &writer,
+        "INSERT INTO direct_view_rows VALUES (1, 10)",
+    );
+    let parsed =
+        crate::sql::parser::parse_statement("SELECT n FROM direct_view_rows").expect("parse");
+    let bound = crate::sql::binder::bind(parsed, &cassie.catalog).expect("bind");
+    let logical = crate::planner::logical::plan(&bound).expect("logical");
+    let physical = Arc::new(crate::planner::physical::build(logical));
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    let owner = reader
+        .capture_statement_read(&cassie.midge, &cassie.default_database, &controls)
+        .expect("capture");
+    let captured_controls = controls.with_statement_read(Some(owner));
+    execute(&cassie, &writer, "UPDATE direct_view_rows SET n = 110");
+
+    // Act
+    let captured =
+        crate::executor::run_with_controls(&cassie, &physical, vec![], &captured_controls)
+            .expect("captured direct read")
+            .rows;
+    drop(captured_controls);
+    let fresh = crate::executor::run_with_controls(&cassie, &physical, vec![], &controls)
+        .expect("fresh direct read")
+        .rows;
+    let released = controls.current_query_memory_bytes();
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert_eq!(captured, vec![vec![Value::Int64(10)]]);
+    assert_eq!(fresh, vec![vec![Value::Int64(110)]]);
+    assert_eq!(released, 0);
+}
+
+fn direct_plan(cassie: &Cassie, sql: &str) -> Arc<crate::planner::physical::PhysicalPlan> {
+    let parsed = crate::sql::parser::parse_statement(sql).expect("parse direct query");
+    let bound = crate::sql::binder::bind(parsed, &cassie.catalog).expect("bind direct query");
+    let logical = crate::planner::logical::plan(&bound).expect("plan direct query");
+    Arc::new(crate::planner::physical::build(logical))
+}
+
+#[test]
+fn should_recapture_direct_reads_for_another_engine() {
+    // Arrange
+    let first_path =
+        std::env::temp_dir().join(format!("cassie-direct-first-{}", uuid::Uuid::new_v4()));
+    let second_path =
+        std::env::temp_dir().join(format!("cassie-direct-second-{}", uuid::Uuid::new_v4()));
+    let first = Arc::new(Cassie::new_with_data_dir(&first_path).expect("first Cassie"));
+    let second = Arc::new(Cassie::new_with_data_dir(&second_path).expect("second Cassie"));
+    first.startup().expect("first startup");
+    second.startup().expect("second startup");
+    let first_session = first.create_session("reader", None);
+    let second_session = second.create_session("reader", None);
+    for (cassie, session, n) in [(&first, &first_session, 10), (&second, &second_session, 20)] {
+        execute(
+            cassie,
+            session,
+            "CREATE TABLE engine_rows (id INT PRIMARY KEY, n INT)",
+        );
+        execute(
+            cassie,
+            session,
+            &format!("INSERT INTO engine_rows VALUES (1, {n})"),
+        );
+    }
+    let physical = direct_plan(&second, "SELECT n FROM engine_rows");
+    let controls = first.runtime.query_controls(std::time::Instant::now());
+    let owner = first_session
+        .capture_statement_read(&first.midge, &first.default_database, &controls)
+        .expect("capture first engine");
+    let supplied = controls.with_statement_read(Some(owner));
+    let retained = controls.current_query_memory_bytes();
+
+    // Act
+    let read = crate::executor::run_with_controls(&second, &physical, vec![], &supplied)
+        .expect("second engine read")
+        .rows;
+    let breakdown =
+        crate::executor::run_with_execution_breakdown(&second, physical.as_ref().clone(), vec![])
+            .expect("second engine breakdown")
+            .result
+            .rows;
+    let remaining = controls.current_query_memory_bytes();
+    execute(&second, &second_session, "UPDATE engine_rows SET n = 30");
+    let fresh = crate::executor::run_with_controls(&second, &physical, vec![], &controls)
+        .expect("fresh second engine")
+        .rows;
+    drop(supplied);
+    let released = controls.current_query_memory_bytes();
+    drop(first);
+    drop(second);
+    std::fs::remove_dir_all(&first_path).expect("strict first fixture cleanup");
+    std::fs::remove_dir_all(&second_path).expect("strict second fixture cleanup");
+
+    // Assert
+    assert_eq!(read, vec![vec![Value::Int64(20)]]);
+    assert_eq!(breakdown, vec![vec![Value::Int64(20)]]);
+    assert_eq!(fresh, vec![vec![Value::Int64(30)]]);
+    assert!(retained > 0);
+    assert_eq!(remaining, retained, "only the supplied first owner remains");
+    assert_eq!(released, 0);
+}
+
+#[test]
+fn should_recapture_direct_reads_for_another_session() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-direct-session-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let first = cassie.create_session("first", None);
+    let second = cassie.create_session("second", None);
+    execute(
+        &cassie,
+        &first,
+        "CREATE TABLE session_rows (id INT PRIMARY KEY, n INT)",
+    );
+    execute(&cassie, &first, "INSERT INTO session_rows VALUES (1, 10)");
+    execute(&cassie, &first, "BEGIN");
+    execute(&cassie, &second, "BEGIN");
+    execute(&cassie, &first, "INSERT INTO session_rows VALUES (2, 20)");
+    execute(&cassie, &second, "INSERT INTO session_rows VALUES (3, 30)");
+    let physical = direct_plan(&cassie, "SELECT n FROM session_rows ORDER BY n");
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    let owner = first
+        .capture_statement_read(&cassie.midge, &cassie.default_database, &controls)
+        .expect("capture first session");
+    let supplied = controls.with_statement_read(Some(owner));
+
+    // Act
+    let read = crate::executor::run_with_session_controls(
+        &cassie,
+        Some(&second),
+        &physical,
+        vec![],
+        &supplied,
+    )
+    .expect("second session read")
+    .rows;
+    drop(supplied);
+    let released = controls.current_query_memory_bytes();
+    execute(&cassie, &first, "ROLLBACK");
+    execute(&cassie, &second, "ROLLBACK");
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    assert_eq!(read, vec![vec![Value::Int64(10)], vec![Value::Int64(30)]]);
+    assert_eq!(released, 0);
+}
+
+#[test]
+fn should_keep_direct_commands_on_fresh_mutation_authority() {
+    // Arrange
+    let path = std::env::temp_dir().join(format!("cassie-direct-command-{}", uuid::Uuid::new_v4()));
+    let cassie = Arc::new(Cassie::new_with_data_dir(&path).expect("Cassie"));
+    cassie.startup().expect("startup");
+    let session = cassie.create_session("reader", None);
+    execute(
+        &cassie,
+        &session,
+        "CREATE TABLE command_rows (id INT PRIMARY KEY, n INT)",
+    );
+    let physical = direct_plan(&cassie, "INSERT INTO command_rows VALUES (1, 20)");
+    let controls = cassie.runtime.query_controls(std::time::Instant::now());
+    let owner = session
+        .capture_statement_read(&cassie.midge, &cassie.default_database, &controls)
+        .expect("capture empty table");
+    let supplied = controls.with_statement_read(Some(owner));
+    execute(&cassie, &session, "INSERT INTO command_rows VALUES (1, 10)");
+    let scope = crate::midge::adapter::StatementReadScope::enter(supplied.statement_read());
+
+    // Act
+    let result = crate::executor::run_with_controls(&cassie, &physical, vec![], &supplied);
+    drop(scope);
+    drop(supplied);
+    let released = controls.current_query_memory_bytes();
+    let fresh = execute(&cassie, &session, "SELECT n FROM command_rows");
+    drop(cassie);
+    std::fs::remove_dir_all(&path).expect("strict fixture cleanup");
+
+    // Assert
+    let message = result
+        .expect_err("fresh uniqueness validation rejects the conflict")
+        .to_string();
+    assert!(
+        message.contains("unique") || message.contains("duplicate"),
+        "{message}"
+    );
+    assert_eq!(fresh, vec![vec![Value::Int64(10)]]);
+    assert_eq!(released, 0);
+}

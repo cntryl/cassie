@@ -31,13 +31,16 @@ impl std::fmt::Debug for StatementDataRead {
 }
 
 impl StatementDataRead {
-    #[cfg(test)]
     pub(crate) fn capture(
         midge: &Arc<Midge>,
         database: &str,
         controls: &QueryExecutionControls,
     ) -> Result<Arc<Self>, CassieError> {
         Self::capture_with_overlay(midge, database, controls, None)
+    }
+
+    pub(crate) fn matches(&self, midge: &Arc<Midge>, database: &str) -> bool {
+        Arc::ptr_eq(&self.midge, midge) && self.database.eq_ignore_ascii_case(database)
     }
 
     pub(crate) const fn data_epoch(&self) -> u64 {

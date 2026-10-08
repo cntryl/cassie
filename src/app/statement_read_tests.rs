@@ -859,3 +859,5 @@ mod dml;
 mod sources;
 
 mod artifacts;
+
+mod native_paths;

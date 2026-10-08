@@ -456,7 +456,7 @@ fn load_persisted_fulltext_read(
     spec: &FulltextFilteredReadSpec,
     controls: &QueryExecutionControls,
 ) -> Result<PersistedFulltextReadSelection, QueryError> {
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         return Ok(PersistedFulltextReadSelection::Exact("transaction_overlay"));
     }
     let Some(index) = cassie

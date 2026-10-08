@@ -24,7 +24,7 @@ pub(super) fn try_execute_column_batch_aggregate(
     let QuerySource::Collection(collection) = &plan.source else {
         return Ok(None);
     };
-    if session.is_some_and(|session| !session.collection_changes(collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(collection)) {
         cassie
             .runtime
             .record_aggregate_acceleration_row_blob_fallback();

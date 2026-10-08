@@ -39,8 +39,9 @@ visibility, authorization and descriptor laws remain authoritative.
 The view covers exactly one logical database's Data physical family.
 Schema/catalog and Temp visibility remain separate. Cross-database
 synchronization, transaction-wide repeatable snapshots, REPEATABLE READ,
-SERIALIZABLE and transactional DDL are not selected. Existing cross-database
-SQL support is not promoted to an atomic cross-database snapshot guarantee.
+SERIALIZABLE and transactional DDL are not selected. Ordinary bound SQL relations in another database remain rejected by the
+existing binder boundary. Internal adapter or direct-plan foreign-family reads
+retain fresh reads outside this same-database guarantee.
 Midge remains the only storage layer; no persistent layout, dependency
 upgrade or public API change is selected.
 
@@ -110,8 +111,8 @@ from admission or allow cancellation to release charge before live buffers.
 | TX-07 | Captured whole-session COW overlay survives subsequent session writes and cursor resume | Per-cursor evidence exists; statement-wide owner pending |
 | TX-10 joined sources | Commit barrier between empty, partial and multirow source reads returns only the captured version | Current focused source witnesses pass: multirow JOIN, empty acquisition and visible right rows after an empty left read; broader path qualification remains pending |
 | CTE, subquery and workers | Repeated reads reuse the same transaction and captured overlay | Repeated CTE consumers and derived-subquery join witnesses pass; CTE materialization does not prove a second raw read; worker replay remains pending |
-| Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Pending path-specific barriers |
-| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Pending source-backed path qualification |
+| Index and column paths | Candidate IDs, rows, metadata, generation and controlled fallback use one view | Captured staged-overlay rollback controls pass for scalar indexes, ordered reads, column summaries, analytical projections and projected batched scans; committed generation barriers remain pending |
+| Specialized paths and caches | Existing artifact fence or compatible cache identity; fallback stays on captured rows | Fulltext statistics epoch and staged-cache controls pass; persisted fulltext, HNSW and hybrid overlay rollback controls pass; other artifact barriers and time-series runtime qualification remain pending |
 | Portals | First-execution membership, values, order and overlay persist across resumes; termination releases owners | Existing witnesses to reuse; sharing acceptance pending |
 | Resource failures | Admission denial and cancellation preserve owner/row lifetime; cleanup releases owned charge | Pending focused controls |
 
@@ -139,8 +140,7 @@ instead of 0.287682 from its original corpus. The repaired focused statement
 suite passed 27/0, including statistics-cache hits, next-statement fresh scores
 and cross-engine/session supplied-owner rejection. The generic `id` projection
 control passed before repair but bypassed this statistics-cache path; it is not
-evidence of that path's correctness. Other artifact paths and staged corpus
-statistics compatibility remain pending qualification.
+evidence of that path's correctness. Other artifact paths remain pending qualification.
 
 The staged-corpus statistics witness also established RED (0/1): a ten-row
 staged corpus reused the one-row committed corpus statistics (0.287682 versus
@@ -149,5 +149,20 @@ lookup and storage are now bypassed when the captured collection overlay has
 changes. Context construction still uses exact captured rows. The focused
 statement suite passed 28/0; other-session and post-rollback committed scores
 remain unchanged. Jev's 0.15 staged-cache gap judgment was contradicted by this
-actual probe and is retained as a false negative. Eligibility of persisted
-artifacts after captured-overlay/live-session divergence remains pending.
+actual probe and is retained as a false negative. The subsequent native eligibility qualification is recorded below.
+
+Nine native read witnesses established semantic RED (0/9) when a statement
+captured staged writes and a nested ROLLBACK subsequently cleared the live
+session. Persisted fulltext top-k and filtered reads, scalar indexes, ordered
+reads, column summaries, HNSW, hybrid, analytical projections and the projected
+batched scan helper omitted captured staged rows or values. Ten private read
+eligibility gates now use the existing captured-overlay accessor; the projected
+batched helper merges its borrowed captured staged snapshot. Matching captured
+empty overlays dominate live state, while absent or mismatched session owners
+retain the existing live fallback. Fresh mutation and referential checks remain
+unchanged. The focused statement suite passed 37/0. Time-series received the
+same mechanical gate repair but has no new runtime witness yet. Jev returned
+captured-empty and borrowed-merge gap probabilities of 0.16 and 0.21; independent
+source review accepted the eleven-file runtime patch. These results do not
+complete committed artifact-generation barriers, portal/worker qualification
+or repository-wide acceptance.

@@ -166,7 +166,7 @@ fn try_execute_persisted_fulltext_top_k(
     if !spec.require_match {
         return Ok(PersistedFulltextTopK::Exact("zero_score_rows_required"));
     }
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         return Ok(PersistedFulltextTopK::Exact("transaction_overlay"));
     }
     let Some(index) = cassie

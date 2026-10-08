@@ -179,7 +179,7 @@ pub(super) fn bounded_hybrid_rows(
     controls: &QueryExecutionControls,
     diagnostics: &mut HybridSelectionDiagnostics,
 ) -> Result<Option<BoundedHybridRows>, QueryError> {
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         diagnostics.select_fallback("transaction-overlay", None);
         return Ok(None);
     }

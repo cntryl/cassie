@@ -1,7 +1,8 @@
 # Local test fixture ownership and cleanup
 
 The selected #782 harness bundle covers `SqlFixture` and
-`metrics_adaptive::should_report_operator_switch_failure_without_claiming_success`.
+`metrics_adaptive::should_report_operator_switch_failure_without_claiming_success`,
+and the typed-parameter fixture in `tests/parser_types.rs`.
 It preserves local storage, SQL inputs, configuration and correctness assertions.
 It does not change production storage, shutdown deadlines, runners or required
 checks, and does not convert other metrics fixtures.
@@ -23,6 +24,15 @@ failure cannot cause a second panic.
 Callers must finish any separately cloned Cassie, server or task owners before
 dropping a fixture. The audited current callers do not export such owners. This
 guard controls the fixture's fields; it cannot close an escaped external owner.
+
+The typed-parameter fixture uses a fresh local UUID directory and completes
+session and Cassie destruction before strict cleanup. Its former process-global
+memory setter could displace a generic fixture between local-mode selection and
+engine construction in the same test executable. A composed source probe ran all
+six original typed-parameter assertions in that constructor window: the old
+fixture left the generic local path absent, while the selected local fixture
+preserved the path and strict cleanup. This demonstrates the controlled mechanism,
+not a particular historical or hosted scheduling order.
 
 ## Finite diagnostic evidence
 

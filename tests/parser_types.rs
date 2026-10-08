@@ -5826,8 +5826,9 @@ mod typed_parameter_canonicalization {
     #[test]
     fn should_match_bound_string_parameters_like_inline_typed_literals() {
         // Arrange
-        std::env::set_var("CASSIE_STORAGE_MODE", "memory");
-        let cassie = Cassie::new_with_data_dir("unused").expect("cassie");
+        super::support_sql::use_local_storage();
+        let path = super::support_sql::data_dir("typed_string_parameters");
+        let cassie = Cassie::new_with_data_dir(&path).expect("cassie");
         cassie.startup().expect("startup");
         let session = cassie.create_session("tester", None);
         for sql in [
@@ -5881,6 +5882,9 @@ mod typed_parameter_canonicalization {
         assert_eq!(by_uuid_list, expected);
         assert_eq!(by_bytea, expected);
         assert_eq!(by_timestamp, expected);
+        drop(session);
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("remove typed parameter fixture after engine drop");
     }
 }
 

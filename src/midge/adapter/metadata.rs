@@ -73,6 +73,9 @@ impl Midge {
         &self,
         metadata: &IndexMeta,
     ) -> Result<IndexMeta, CassieError> {
+        for expr in metadata.expressions.iter().chain(&metadata.predicate) {
+            crate::sql::definition_guard::encoded_expression(expr)?;
+        }
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let relation_id = self
@@ -201,6 +204,13 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_rollup(&self, metadata: &RollupMeta) -> Result<(), CassieError> {
+        for expr in std::iter::once(&metadata.bucket_expr)
+            .chain(&metadata.group_keys)
+            .chain(metadata.aggregates.iter().map(|item| &item.expression))
+            .chain(&metadata.filter_expr)
+        {
+            crate::sql::definition_guard::expression_sql(expr)?;
+        }
         let mut tx = self.begin_schema_rw_tx()?;
         let value =
             serde_json::to_vec(metadata).map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -465,6 +475,7 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let value = serde_json::to_vec(constraints)
             .map_err(|error| CassieError::Parse(error.to_string()))?;
@@ -623,6 +634,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_function(&self, metadata: &crate::catalog::FunctionMeta) -> Result<(), CassieError> {
+        crate::sql::definition_guard::expression_sql(&metadata.body)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::function_key(&metadata.name);
         let value =
@@ -688,6 +700,7 @@ impl Midge {
         &self,
         metadata: &crate::catalog::ProcedureMeta,
     ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::query_sql(&metadata.body)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::procedure_key(&metadata.name);
         let value =
@@ -750,6 +763,7 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_view(&self, metadata: &crate::catalog::ViewMeta) -> Result<(), CassieError> {
+        crate::sql::definition_guard::query_sql(&metadata.query)?;
         let mut tx = self.begin_schema_rw_tx()?;
         let key = Self::view_key(&metadata.name);
         let value =

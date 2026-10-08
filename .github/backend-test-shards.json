@@ -66,6 +66,8 @@
         "--test",
         "relational_qualification",
         "--test",
+        "null_safe_predicates",
+        "--test",
         "sql_mutations",
         "--test",
         "sql_queries",

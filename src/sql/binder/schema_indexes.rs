@@ -35,6 +35,10 @@ pub(super) fn bind_create_index(
         return Ok(statement);
     }
 
+    for expr in statement.expressions.iter().chain(&statement.predicate) {
+        crate::sql::definition_guard::expression(expr)?;
+    }
+
     let fields = normalize_fields(&statement.fields);
     let expressions = statement.expressions.clone();
     if fields.is_empty() && expressions.is_empty() {

@@ -104,7 +104,34 @@ pub(super) fn parse_clauses(rest: &str) -> Result<Vec<ClauseMatch>, SqlError> {
 }
 
 pub(super) fn find_top_level_keyword(rest: &str, start: usize, token: &str) -> Option<usize> {
-    find_top_level_clause(rest, start, token)
+    if !token.eq_ignore_ascii_case("from") {
+        return find_top_level_clause(rest, start, token);
+    }
+    let mut cursor = start;
+    while let Some((position, end)) = find_top_level_keyword_span(rest, cursor, token) {
+        let predicate_from = ["is distinct from", "is not distinct from"]
+            .iter()
+            .any(|pattern| {
+                let mut predicate_cursor = 0;
+                while let Some((_, predicate_end)) =
+                    find_top_level_keyword_span(rest, predicate_cursor, pattern)
+                {
+                    if predicate_end == end {
+                        return true;
+                    }
+                    if predicate_end > end {
+                        break;
+                    }
+                    predicate_cursor = predicate_end;
+                }
+                false
+            });
+        if !predicate_from {
+            return Some(position);
+        }
+        cursor = end;
+    }
+    None
 }
 
 /// Finds the first top-level `UNION` and returns its byte offset, the byte

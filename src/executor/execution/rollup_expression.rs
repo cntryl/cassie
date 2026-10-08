@@ -114,6 +114,8 @@ fn format_float(value: f64) -> Result<String, String> {
 fn format_binary_operator(operator: &BinaryOp) -> &'static str {
     match operator {
         BinaryOp::Eq => "=",
+        BinaryOp::IsDistinctFrom => "IS DISTINCT FROM",
+        BinaryOp::IsNotDistinctFrom => "IS NOT DISTINCT FROM",
         BinaryOp::NotEq => "<>",
         BinaryOp::Lt => "<",
         BinaryOp::Lte => "<=",

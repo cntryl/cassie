@@ -5471,3 +5471,6 @@ mod pgwire_boolean_parameter_families {
 mod pgwire_transaction_boundaries;
 #[path = "pgwire_extended/transaction_portal_handoffs.rs"]
 mod pgwire_transaction_portal_handoffs;
+
+#[path = "pgwire_extended/null_safe_predicates.rs"]
+mod null_safe_predicates;

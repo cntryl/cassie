@@ -15,6 +15,9 @@ pub(super) fn bind_create_materialized_projection_statement(
             "CREATE MATERIALIZED PROJECTION requires a name".into(),
         ));
     }
+    if !(statement.if_not_exists && catalog.is_materialized_projection(&statement.name)) {
+        crate::sql::definition_guard::query_sql(&statement.query)?;
+    }
     Ok(parsed_statement(
         raw_sql,
         QueryStatement::CreateMaterializedProjection(statement),

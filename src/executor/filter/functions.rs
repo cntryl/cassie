@@ -358,6 +358,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
     let body = crate::sql::parser::parse_expression(&metadata.body).map_err(|error| {
         QueryError::General(format!("invalid function body for '{name}': {error}"))
     })?;
+    crate::sql::definition_guard::expression(&body).map_err(QueryError::Cassie)?;
     let locals = metadata
         .args
         .iter()

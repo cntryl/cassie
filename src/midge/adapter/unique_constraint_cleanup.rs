@@ -25,6 +25,7 @@ impl Midge {
         constraints: &[FieldConstraint],
         fields: &[String],
     ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
         let collection = collection.to_string();
         let mut fields = fields.to_vec();
         fields.sort_by_key(|field| crate::sql::ColumnIdentifierPath::stored_field_key(field));

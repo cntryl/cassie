@@ -362,6 +362,7 @@ impl Midge {
             return Ok(Some(values));
         }
 
+        crate::sql::definition_guard::index(index)?;
         let row = payload_to_row(payload, row_schema);
         let user_functions = HashMap::new();
         for raw_expression in expressions {
@@ -429,6 +430,7 @@ impl Midge {
                 index.name
             ))
         })?;
+        crate::sql::definition_guard::expression(&predicate)?;
         let row = payload_to_row(payload, row_schema);
         let matched = !filter::filter_rows(vec![row], &predicate, &[], None, &HashMap::new(), None)
             .map_err(|error| {

@@ -8,6 +8,9 @@ impl Midge {
     ///
     /// Returns an error when validation, storage, or execution fails.
     pub fn put_projection_metadata(&self, metadata: &ProjectionMeta) -> Result<(), CassieError> {
+        if let Some(definition) = &metadata.materialized {
+            crate::sql::definition_guard::query_sql(&definition.query)?;
+        }
         let mut metadata = metadata.clone();
         metadata.collection = self.canonical_collection_name(&metadata.collection);
         let mut tx = self.begin_schema_rw_tx()?;

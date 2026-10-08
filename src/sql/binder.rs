@@ -176,15 +176,22 @@ pub(crate) fn bind_initial_with_controls(
         bind_boolean_parameters(&mut statement, catalog, context, &[])?;
     }
     conditional_bindings::coerce_statement(&mut statement, catalog, context, &HashMap::new())?;
-    let indexes = bound_indexes(&statement, catalog);
+    let indexes = bound_indexes(&statement, catalog)?;
     Ok(BoundStatement { statement, indexes })
 }
 
-fn bound_indexes(statement: &ParsedStatement, catalog: &Catalog) -> Vec<IndexMeta> {
+fn bound_indexes(
+    statement: &ParsedStatement,
+    catalog: &Catalog,
+) -> Result<Vec<IndexMeta>, CassieError> {
     let Some(collection) = bound_statement_collection(statement) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
-    catalog.list_indexes(&collection)
+    let indexes = catalog.list_indexes(&collection);
+    for index in &indexes {
+        crate::sql::definition_guard::index(index)?;
+    }
+    Ok(indexes)
 }
 
 fn bound_statement_collection(statement: &ParsedStatement) -> Option<String> {
@@ -261,7 +268,7 @@ pub(crate) fn bind_with_outer_ctes(
             context,
         )?,
     };
-    let indexes = bound_indexes(&statement, catalog);
+    let indexes = bound_indexes(&statement, catalog)?;
     Ok(BoundStatement { statement, indexes })
 }
 

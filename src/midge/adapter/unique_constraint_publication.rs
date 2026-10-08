@@ -22,6 +22,7 @@ impl Midge {
         collection: &str,
         constraints: &[FieldConstraint],
     ) -> Result<(), CassieError> {
+        crate::sql::definition_guard::constraints(constraints)?;
         let collection = collection.to_string();
         self.with_collection_write_gates(std::slice::from_ref(&collection), || {
             self.prepare_unique_constraint_publication(&collection, constraints)

@@ -130,6 +130,7 @@ fn execute_view_source(
 ) -> SourceExecution {
     let parsed = crate::sql::parser::parse_statement(&view.query)
         .map_err(|error| QueryError::General(error.to_string()))?;
+    crate::sql::definition_guard::statement(&parsed).map_err(QueryError::Cassie)?;
     let logical = build_logical_plan_in_session(env.cassie, env.session, &parsed)?;
     let mut view_cte_context = CteContext::new();
     let rows = execute_plan(

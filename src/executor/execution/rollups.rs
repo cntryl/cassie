@@ -79,6 +79,7 @@ pub(super) fn refresh_rollup(
         .get_rollup(name)
         .ok_or_else(|| QueryError::General(format!("rollup '{name}' does not exist")))?;
     ensure_current_rollup_format(&meta)?;
+    crate::sql::definition_guard::rollup(&meta).map_err(QueryError::Cassie)?;
     let source_generation = cassie
         .midge
         .collection_generation(&meta.source_collection)

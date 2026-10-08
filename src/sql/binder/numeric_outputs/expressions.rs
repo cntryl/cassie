@@ -60,6 +60,8 @@ impl Analyzer<'_> {
                 | BinaryOp::Or
                 | BinaryOp::Eq
                 | BinaryOp::NotEq
+                | BinaryOp::IsDistinctFrom
+                | BinaryOp::IsNotDistinctFrom
                 | BinaryOp::Lt
                 | BinaryOp::Lte
                 | BinaryOp::Gt

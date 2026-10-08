@@ -567,6 +567,20 @@ fn binary_scalar(
             .or(right.predicate_result()?)
             .into_scalar(),
         BinaryOp::Eq => comparison_result(eq_value(left, right)),
+        BinaryOp::IsDistinctFrom | BinaryOp::IsNotDistinctFrom => {
+            let equal = match (left, right) {
+                (ScalarValue::Null, ScalarValue::Null) => true,
+                (ScalarValue::Null, _) | (_, ScalarValue::Null) => false,
+                _ => eq_value(left, right).ok_or_else(|| {
+                    QueryError::General("incompatible null-safe comparison operands".to_string())
+                })?,
+            };
+            ScalarValue::Bool(if matches!(op, BinaryOp::IsNotDistinctFrom) {
+                equal
+            } else {
+                !equal
+            })
+        }
         BinaryOp::NotEq => comparison_result(eq_value(left, right).map(|value| !value)),
         BinaryOp::Lt => comparison_result(ordered_cmp(left, right, std::cmp::Ordering::is_lt)),
         BinaryOp::Lte => comparison_result(ordered_cmp(left, right, |ordering| !ordering.is_gt())),
@@ -933,3 +947,7 @@ mod tests;
 
 #[path = "filter/json_equality.rs"]
 mod json_equality;
+
+#[cfg(test)]
+#[path = "filter/null_safe_tests.rs"]
+mod null_safe_tests;

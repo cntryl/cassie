@@ -258,7 +258,7 @@ impl Cassie {
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
         if let Some(session) = session {
-            if let Some(change) = session.document_change(collection, id) {
+            if let Some(change) = session.read_document_change(collection, id) {
                 return Ok(match change {
                     TransactionRowChange::Upsert(payload) => Some(DocumentRef {
                         id: id.to_string(),

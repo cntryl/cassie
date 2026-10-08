@@ -86,7 +86,8 @@ pub(crate) use error::unsupported_sql_error;
 pub use error::{CassieError, CatalogObjectKind, RetryableStorageError, StorageRetryKind};
 pub use session::CassieSession;
 pub(crate) use session::{
-    StagedWriteSnapshot, StatementMutationBatch, TransactionConflictIntent, TransactionRowChange,
+    SessionReadScope, StagedWriteSnapshot, StatementMutationBatch, StatementOverlay,
+    TransactionConflictIntent, TransactionRowChange,
 };
 pub(crate) use session_settings::all as all_session_settings;
 pub(crate) use session_settings::SettingKind;
@@ -143,3 +144,6 @@ pub use query_explain::{QueryExplainOutput, QueryExplainPlan};
 pub use replay::{projection_concurrency_test_guard, set_projection_replay_prepare_barriers};
 pub use replay::{ProjectionReplayBatch, ProjectionReplayEvent, ProjectionReplayReport};
 pub use snapshots::{CassieSnapshotManifest, CassieSnapshotOptions};
+
+#[cfg(test)]
+mod statement_read_tests;

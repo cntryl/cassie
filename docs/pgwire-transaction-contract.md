@@ -66,6 +66,9 @@ with an unresolved commit. Socket loss cannot undo an already completed commit.
 Every accepted Query has exactly one final ReadyForQuery unless the connection
 closes. READ COMMITTED may observe newer committed data between statements;
 a suspended portal retains its original snapshot/result and overlay.
+The selected shared same-database Data implementation and its pending
+qualification are defined in the
+[statement Data visibility contract](statement-data-visibility-contract.md).
 
 ## Controls inside a cycle
 

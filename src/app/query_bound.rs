@@ -89,6 +89,7 @@ impl Cassie {
             declared_oids,
             controls,
         )?;
+        let is_data_read = matches!(&parsed.statement, QueryStatement::Select(_));
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,
@@ -136,6 +137,34 @@ impl Cassie {
             wire_output,
         )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
+
+        let owner = if is_data_read {
+            Some(
+                session.capture_statement_read(
+                    &self.midge,
+                    session
+                        .database
+                        .as_deref()
+                        .unwrap_or(&self.default_database),
+                    controls,
+                )?,
+            )
+        } else {
+            None
+        };
+        // Each top-level execution owns a fresh local clone. A nested writer
+        // suspends a reader scope rather than borrowing its stale validation view.
+        let statement_controls = controls.with_statement_read(owner);
+        let controls = &statement_controls;
+        let _read_scope =
+            crate::midge::adapter::StatementReadScope::enter(controls.statement_read());
+
+        let _overlay_scope = super::SessionReadScope::enter(
+            controls.statement_read().and_then(|owner| owner.overlay()),
+        );
+
+        #[cfg(test)]
+        super::statement_read_tests::after_statement_view_capture();
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
         if let Some(reason) = result_cache_bypass {

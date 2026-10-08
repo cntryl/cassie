@@ -20,7 +20,7 @@ use super::{
 mod tests;
 
 pub(crate) struct ControlledOrderedRowCursor {
-    tx: cntryl_midge::Transaction,
+    tx: crate::midge::adapter::DataReadTransaction,
     row_schema: RowSchema,
     projection: Option<HashSet<String>>,
     include_historical_aliases: bool,

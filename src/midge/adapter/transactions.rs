@@ -220,8 +220,15 @@ impl Midge {
     pub(super) fn begin_data_readonly_tx_for(
         &self,
         collection: &str,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.database_tx_for_collection(collection, TransactionMode::ReadOnly)
+    ) -> Result<super::DataReadTransaction, CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let database =
+            relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
+        if let Some(tx) = self.statement_data_read(&database) {
+            return Ok(tx);
+        }
+        self.database_tx(&database, TransactionMode::ReadOnly)
+            .map(super::DataReadTransaction::fresh)
     }
 
     pub(super) fn begin_data_rw_tx_for(

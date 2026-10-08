@@ -998,3 +998,7 @@ impl Midge {
         Ok(RowSchema::from_schema(&schema))
     }
 }
+
+mod statement_read;
+pub(crate) use statement_read::{StatementDataRead, StatementReadScope};
+use statement_read::DataReadTransaction;

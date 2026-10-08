@@ -251,7 +251,10 @@ fn should_reject_loaded_default_expression_use() {
         matches!(result, Err(CassieError::Unsupported(ref message)) if message.contains("persisted definitions")),
         "{result:?}"
     );
-    assert!(fixture.rows("SELECT id FROM loaded_default").is_empty());
+    assert_eq!(
+        fixture.rows("SELECT id FROM loaded_default"),
+        Vec::<Vec<cassie::types::Value>>::new()
+    );
 }
 
 #[test]

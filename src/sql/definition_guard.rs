@@ -50,18 +50,7 @@ pub(crate) fn statement(query: &ParsedStatement) -> Result<(), CassieError> {
                 expression(expr)?;
             }
         }
-        QueryStatement::CreateRollup(definition) => {
-            for expr in definition
-                .bucket
-                .args
-                .iter()
-                .chain(&definition.group_by)
-                .chain(&definition.filter)
-            {
-                expression(expr)?;
-            }
-            items(&definition.aggregates)?;
-        }
+        QueryStatement::CreateRollup(definition) => create_rollup(definition)?,
         QueryStatement::CallProcedure(call) => {
             for expr in &call.args {
                 expression(expr)?;
@@ -233,4 +222,19 @@ pub(crate) fn rollup(metadata: &crate::catalog::RollupMeta) -> Result<(), Cassie
         expression_sql(expression)?;
     }
     Ok(())
+}
+
+pub(crate) fn create_rollup(
+    definition: &super::ast::CreateRollupStatement,
+) -> Result<(), CassieError> {
+    for expr in definition
+        .bucket
+        .args
+        .iter()
+        .chain(&definition.group_by)
+        .chain(&definition.filter)
+    {
+        expression(expr)?;
+    }
+    items(&definition.aggregates)
 }

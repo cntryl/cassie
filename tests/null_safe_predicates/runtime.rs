@@ -97,9 +97,10 @@ fn should_preserve_null_safe_transaction_overlay_visibility() {
     fixture.execute("ROLLBACK").expect("rollback staged row");
     // Assert
     assert_eq!(staged, vec![vec![Value::Int64(2)]]);
-    assert!(fixture
-        .rows("SELECT id FROM overlay_source WHERE n IS DISTINCT FROM 7")
-        .is_empty());
+    assert_eq!(
+        fixture.rows("SELECT id FROM overlay_source WHERE n IS DISTINCT FROM 7"),
+        Vec::<Vec<Value>>::new()
+    );
     let snapshot = fixture.cassie.metrics();
     assert_eq!(snapshot["query"]["current_accounted_memory_bytes"], 0);
     assert_eq!(snapshot["runtime"]["running_queries"], 0);

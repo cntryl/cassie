@@ -76,7 +76,13 @@ pub(super) fn state_bytes(
             )
         })?;
         let slots = grown_capacity(width.max(projection.len()), 4)?;
-        bytes = add(bytes, mul(slots, size_of::<(String, Value)>())?)?;
+        bytes = add(
+            bytes,
+            mul(
+                entry_slot_peak(width, projection.len())?,
+                size_of::<(String, Value)>(),
+            )?,
+        )?;
         bytes = add(bytes, lookup_bytes(width, 0)?)?;
         bytes = add(bytes, mul(names, 4)?)?;
         let mut wildcard_names = 0;
@@ -106,4 +112,16 @@ pub(super) fn state_bytes(
         }
     }
     Ok(bytes)
+}
+
+// Generic projection starts at the exact op count. Wildcard expansion can
+// cross that capacity; admit old and replacement arrays before Vec grows.
+fn entry_slot_peak(width: usize, initial: usize) -> Result<usize, CassieError> {
+    let mut capacity = initial;
+    let mut previous = 0;
+    while capacity < width {
+        previous = capacity;
+        capacity = mul(capacity, 2)?.max(4);
+    }
+    add(capacity, previous)
 }

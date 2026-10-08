@@ -122,6 +122,7 @@ mod index_probe_canonicalization;
 mod index_read;
 mod ordered_read;
 mod projected_read;
+mod projection_handoff;
 mod scalar_index_constraints;
 mod time_series_read;
 

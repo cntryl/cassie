@@ -1,10 +1,9 @@
 use super::{
     batch, ensure_query_memory_budget, execute_projected_point_lookup_read, filter,
     point_lookup_read_spec, projected_filtered_read_spec, projection, record_covering_index_usage,
-    reserve_projection_output_before_building, scan_projected_read_batches, slice_batches_for_plan,
-    sort_projected_batches, virtual_views, BatchRow, Cassie, CassieSession,
-    ExecutionBreakdownDurations, FunctionMeta, HashMap, Instant, LogicalPlan, QueryError,
-    QueryExecutionControls, Value,
+    scan_projected_read_batches, slice_batches_for_plan, sort_projected_batches, virtual_views,
+    BatchRow, Cassie, CassieSession, ExecutionBreakdownDurations, FunctionMeta, HashMap, Instant,
+    LogicalPlan, QueryError, QueryExecutionControls, Value,
 };
 use crate::executor::execution::time_series_read;
 
@@ -93,9 +92,15 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
 
     let projection_started = Instant::now();
     let cloned_input_memory = ensure_query_memory_budget(controls, &batches)?;
-    let projected_output_memory =
-        reserve_projection_output_before_building(controls, &batches, &plan.projection)?;
-    let projected_batches = projection::project_batches(
+    let (projected_output_memory, projection_slice_memory) =
+        super::super::projection_handoff::ProjectionOutputMemory::admit(
+            controls,
+            &batches,
+            &plan.projection,
+            true,
+            false,
+        )?;
+    let mut projected_batches = projection::project_batches(
         batches.clone(),
         &plan.projection,
         params,
@@ -103,6 +108,8 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
         user_functions,
         session,
     )?;
+    let projected_output_memory =
+        projected_output_memory.retain(controls, &mut projected_batches)?;
     drop(cloned_input_memory);
     drop(batch_memory);
     batches = projected_batches;
@@ -113,6 +120,7 @@ pub(in crate::executor::execution) fn execute_projected_filtered_read_with_break
     batches = slice_batches_for_plan(batches, plan.offset_value(), plan.limit_value());
     let rows = batch::try_flatten_batches(batches)?;
     drop(batch_memory);
+    drop(projection_slice_memory);
     breakdown.result_build += result_started.elapsed();
 
     record_breakdown_read_path(cassie, plan, heap_top_k_collection_name, rows.len());

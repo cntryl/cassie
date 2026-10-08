@@ -74,10 +74,9 @@ changing evaluation and visibility.
 | CTE-06 | Empty allocated contexts retain map capacity until drop; all failure paths avoid partial publication and native CTE promotion. |
 
 Write actual failing assertions before the smallest fixes. Preserve source/log
-hashes and Jev's specific questions/actions in ignored target evidence. Root
-integrates this isolated repair into the coherent #760 branch before one full
-ordered validation run. Focused qualification is not full-suite, hosted or
-closure proof.
+hashes and Jev's specific questions/actions in ignored target evidence. This private repair is integrated into the coherent #760 branch. Complete
+ordered validation and exact-head hosted checks and review remain required;
+focused qualification is not full-suite, hosted or closure proof.
 
 Map insertion admits borrowed name bytes before cloning the key. Lowercase-name
 scratch is admitted before normalization. ARRAY source descriptor replacement

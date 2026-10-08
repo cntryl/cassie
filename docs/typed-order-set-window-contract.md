@@ -5,10 +5,9 @@ The integration owner selected this finite private implementation matrix for
 `06195f0fc9c1e63a5236903976c07f480176dd8a` and were read back CLOSED.
 The coordinator selected a coherent #760 + [#857](https://github.com/cntryl/cassie/issues/857)
 bundle before integration and full validation; #761 owns later relational
-qualification. The separate #857 private plain-row/context accounting fix is
-planned and is not implemented in this tree until reviewed integration. #760
-remains open until that confirmed follow-up and the coherent required gates
-complete.
+qualification. The #857 private plain-row/context accounting fix is integrated in this
+coherent bundle. Both issues require complete local validation, exact-head
+hosted checks and review before closure.
 This selection preserves the [typed batch contract](typed-batch-contract.md),
 [type contract](type-contract.md) and [performance contract](performance-contracts.md).
 It introduces no public API, persistent bytes, type identity, spilling or new
@@ -138,14 +137,13 @@ execution, mixed-number/rich equality differential, original descriptor and
 huge-parent/prior-owner denial/drop evidence. Diagnostics distinguish all named
 scalar boundaries from accounted selected paths. The finite public phase probe passes with configured worker counts1/4 for its
 six-row fixture; it compares complete results with OFFSET/LIMIT0 and descriptors,
-and does not claim actual parallel dispatch. Coherent #760 + #857 validation
-remains pending; this is not closure or hosted qualification. Existing scalar tests are oracles, not proof of native
-execution.
-Implement DISTINCT/set, then sort/top-k, then windows as separate red/green
-increments. Once coherent, run build → complete locked suite → full workspace/
-all-target/all-feature pedantic Clippy → fmt → each touched test validator,
-then repository documentation/benchmark/module-size policies. Exact-head hosted
-review/checks, squash and source/issue readback remain coordinator work.
+and does not claim actual parallel dispatch. The implementation proceeded through DISTINCT/set, sort/top-k and windows
+as separate red/green increments. These focused controls are development
+evidence; existing scalar tests are oracles, not proof of native execution.
+Complete build → locked suite → full workspace/all-target/all-feature pedantic
+Clippy → fmt → each touched test validator and repository documentation/benchmark/
+module-size policies are required. Exact-revision validation, hosted checks and
+review, squash and source/issue readback are recorded separately.
 
 ## Alias and pagination integration
 
@@ -157,7 +155,8 @@ Aliased source wrappers propagate the CTE scalar boundary through their wrapped
 source, including derived/set branches. This adds no public alias or expression
 rule. Owned alias qualification uses the integrated shared #857 accounting handoff.
 Actual Aliased route/template and long output-label focused evidence is recorded
-separately from the original #857 checkpoint. Coherent full gates remain pending.
+separately from the original #857 checkpoint. Complete local validation and exact-head hosted acceptance are recorded
+separately; these focused controls do not supply them.
 
 The #857 integration preserves D1 lowering: positional visible names map to
 original physical fields before executor dispatch. `source_row_fields` unwraps
@@ -192,3 +191,28 @@ and evaluation order remain authoritative; this selects no additional outer
 planning or generic expression support. Repeated rich ARRAY columns and outer
 String/Vector/ARRAY NULL copies must satisfy actual backing, parent/output drop,
 and near-budget denial probes.
+
+The specialized projected-read finalizer obeys this same ownership law after
+selected ordering. Its output reservation admits fresh copies and lease metadata
+before projection. Once compiled operations and projection assembly have ended,
+the mutable reservation may shrink to the complete retained row bodies, eager
+lookups, type descriptors, row/batch capacities and reservation Arc metadata;
+that bound must fit the prior admission without growth after construction.
+The new reservation attaches to returned operator-bearing rows before handoff,
+while their original query owner and previous operator roots remain retained.
+On a retention error, fresh borrowed output buffers release their rows and
+allocated outer capacity before the construction reservation drops.
+Ordinary unleased scalar rows keep the existing path. Wide repeated rich values,
+ARRAY descriptors, denial, cancellation and final-owner drop are actual focused
+controls; this does not select another expression or public API capability.
+
+The copy selection follows the existing projection compiler: columns, wildcard,
+stored aggregate fields recognized by its existing aggregate predicate, and
+stored window fields. A mixed projection containing a scalar function or general
+expression uses `scalar_expression_projection`; a conditional precomputed key
+does not establish a copy-only operation. That boundary preserves existing SQL
+values, descriptors and errors without asserting the old expression heuristic
+as a complete heap bound. The general source projection retains its existing
+broad output owner for this boundary; specialized read and timing finalizers
+preserve their existing local guard behavior. No scalar-expression or UDF memory
+qualification is claimed.

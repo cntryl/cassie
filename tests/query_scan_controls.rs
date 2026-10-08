@@ -2524,7 +2524,10 @@ mod query_resource_controls {
     fn should_preserve_transaction_overlay_visibility_under_query_controls() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("transaction-overlay", 8 * 1_024);
+        // Selected owned sort/projection now admits fresh backing through handoff.
+        // Local calibration peaks at 9,882 bytes; 12 KiB keeps a positive margin
+        // for this visibility fixture. The separate denial controls keep their budgets.
+        let (cassie, path) = configured_cassie("transaction-overlay", 12 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

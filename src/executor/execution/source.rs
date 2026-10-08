@@ -1,12 +1,14 @@
 use super::plan_inspection;
+#[cfg(test)]
+use super::reserve_projection_output_before_building;
 use super::{
     aggregate, aggregate_accel, aggregate_exec, batch, build_logical_plan_in_session, catalog,
     check_timeout, deduce_text_fields, ensure_query_memory_budget, execute_plan,
     execute_plan_with_outer_row, filter, graph, load_fulltext_index_options, plan_execution_env,
-    projection, reserve_projection_output_before_building, resolve_exists_expr, row_signature,
-    scan, sort, virtual_views, window_exec, AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie,
-    CassieSession, CteContext, ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet,
-    Instant, JoinKind, LogicalPlan, QueryError, QueryExecutionControls, QuerySource, Value,
+    projection, resolve_exists_expr, row_signature, scan, sort, virtual_views, window_exec,
+    AnalyzerConfig, Batch, BatchRow, BinaryOp, Cassie, CassieSession, CteContext,
+    ExistsResolutionContext, Expr, FunctionMeta, HashMap, HashSet, Instant, JoinKind, LogicalPlan,
+    QueryError, QueryExecutionControls, QuerySource, Value,
 };
 
 #[path = "source_join.rs"]
@@ -837,18 +839,9 @@ fn apply_projection_phase(
     let grouped_projection = plan_uses_aggregate(plan)
         .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
     let projection = grouped_projection.as_deref().unwrap_or(&plan.projection);
-    let retain_output = batches
-        .iter()
-        .flatten()
-        .any(|row| row.operator_memory().is_some());
-    let mut output_memory =
-        reserve_projection_output_before_building(controls, &batches, projection)?;
-    if retain_output {
-        output_memory.try_grow(
-            std::mem::size_of::<crate::runtime::QueryMemoryReservation>()
-                + 2 * std::mem::size_of::<usize>(),
-        )?;
-    }
+    let (output_memory, _) = super::projection_handoff::ProjectionOutputMemory::admit(
+        controls, &batches, projection, false, true,
+    )?;
     batches = projection::project_batches(
         batches,
         projection,
@@ -857,12 +850,7 @@ fn apply_projection_phase(
         user_functions,
         session,
     )?;
-    if retain_output {
-        let output_memory = std::sync::Arc::new(output_memory);
-        for row in batches.iter_mut().flatten() {
-            row.attach_operator_memory(controls, std::sync::Arc::clone(&output_memory))?;
-        }
-    }
+    let _output_memory = output_memory.retain(controls, &mut batches)?;
     ensure_query_memory_budget(controls, &batches)?;
     if plan.distinct {
         batches = distinct_batches(batches, controls)?;
@@ -974,3 +962,7 @@ mod alias_accounting_tests;
 #[cfg(test)]
 #[path = "source_projection_admission_tests.rs"]
 mod projection_admission_tests;
+
+#[cfg(test)]
+#[path = "source_projection_scope_tests.rs"]
+mod projection_scope_tests;

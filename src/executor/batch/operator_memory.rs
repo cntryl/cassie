@@ -87,13 +87,22 @@ impl BatchRow {
 
     /// Admission for an existing body that arrived without any retained source/operator owner.
     pub(crate) fn unleased_body_bytes(&self) -> Result<usize, CassieError> {
+        if self.query_memory.is_some() || self.operator_memory.is_some() {
+            return Ok(0);
+        }
+        let mut bytes = self.owned_body_bytes()?;
+        if let Some(outer) = &self.outer_scope {
+            bytes = crate::executor::retained_memory::add(bytes, outer.unleased_body_bytes()?)?;
+        }
+        Ok(bytes)
+    }
+
+    /// Actual allocations owned by this row, independently of its inherited lease roots.
+    pub(crate) fn owned_body_bytes(&self) -> Result<usize, CassieError> {
         use crate::executor::retained_memory::{
             add, data_type_clone_bytes, hash_table_bytes, mul, value_clone_bytes,
         };
         use crate::types::{DataType, Value};
-        if self.query_memory.is_some() || self.operator_memory.is_some() {
-            return Ok(0);
-        }
         let mut bytes = add(
             mul(self.values.capacity(), size_of::<(String, Value)>())?,
             mul(self.aliases.capacity(), size_of::<(String, usize)>())?,
@@ -125,10 +134,22 @@ impl BatchRow {
                 bytes = add(bytes, data_type_clone_bytes(data_type)?)?;
             }
         }
-        if let Some(outer) = &self.outer_scope {
-            bytes = add(bytes, outer.unleased_body_bytes()?)?;
-        }
         Ok(bytes)
+    }
+
+    /// Projected rows build their lookup lazily; retain admission for that future cache.
+    pub(crate) fn pending_lookup_bytes(&self) -> Result<usize, CassieError> {
+        if self.lookup.get().is_some() {
+            return Ok(0);
+        }
+        use crate::executor::retained_memory::{add, lookup_bytes};
+        let names = self
+            .values
+            .iter()
+            .map(|(name, _)| name)
+            .chain(self.aliases.iter().map(|(name, _)| name))
+            .try_fold(0, |bytes, name| add(bytes, name.len()))?;
+        lookup_bytes(add(self.values.len(), self.aliases.len())?, names)
     }
 
     pub(crate) fn append_slot_backing_bytes(&self) -> Result<usize, CassieError> {

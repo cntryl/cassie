@@ -64,6 +64,8 @@
         "--test",
         "expression_index_upsert",
         "--test",
+        "relational_qualification",
+        "--test",
         "sql_mutations",
         "--test",
         "sql_queries",

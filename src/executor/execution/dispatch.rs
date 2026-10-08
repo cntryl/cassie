@@ -1,3 +1,7 @@
+#[path = "dispatch/exists_binding.rs"]
+mod exists_binding;
+pub(super) use exists_binding::build_exists_logical_plan_with_fields;
+
 #[cfg(test)]
 #[path = "dispatch/relational_boundary_tests.rs"]
 mod relational_boundary_tests;
@@ -197,8 +201,9 @@ fn execute_plan_with_physical(
     }
 
     let resolved_plan;
+    let _exists_memory;
     let (plan, physical) = if super::exists_plan::plan_has_unresolved_exists(plan) {
-        resolved_plan = super::exists_plan::resolve_plan_exists(
+        (resolved_plan, _exists_memory) = super::exists_plan::resolve_plan_exists(
             &ExistsResolutionContext {
                 cassie: env.cassie,
                 session: env.session,
@@ -618,9 +623,10 @@ pub(super) fn resolve_exists_expr<'a>(
                 context.params,
                 context.controls,
             );
-            let outer_row = context.outer_row.map(|row| {
-                super::exists_correlated::scoped_outer_row(context.cassie, &logical, row)
-            });
+            let outer_row = context
+                .outer_row
+                .map(|row| super::exists_correlated::scoped_outer_row(context, &logical, row))
+                .transpose()?;
             let rows = execute_plan_with_outer_row(
                 &env,
                 &logical,
@@ -723,24 +729,10 @@ fn resolve_cast_exists_expr<'a>(
     })
 }
 
-fn build_exists_logical_plan(
+pub(super) fn build_exists_logical_plan(
     context: &ExistsResolutionContext<'_>,
     statement: &crate::sql::ast::ParsedStatement,
 ) -> Result<LogicalPlan, QueryError> {
-    let binding_context = exists_binding_context(context);
-    // Relation names resolve against the enclosing statement's CTEs first.
-    let outer_ctes: HashMap<String, Vec<String>> = context
-        .cte_context
-        .iter()
-        .map(|(name, rows)| {
-            let columns = rows
-                .fields
-                .iter()
-                .map(|field| crate::sql::ColumnIdentifierPath::stored_field_key(&field.name))
-                .collect();
-            (name.clone(), columns)
-        })
-        .collect();
     let outer_fields: std::collections::HashSet<String> = context
         .outer_row
         .map(|row| {
@@ -755,23 +747,7 @@ fn build_exists_logical_plan(
                 .collect()
         })
         .unwrap_or_default();
-    let bound = crate::sql::binder::bind_with_outer_ctes(
-        statement.clone(),
-        &context.cassie.catalog,
-        &binding_context,
-        &outer_ctes,
-        &outer_fields,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
-    let mut plan = crate::planner::logical::plan(&bound)
-        .map_err(|error| QueryError::General(error.to_string()))?;
-    crate::planner::logical::rewrite_reserved_id_references(&mut plan, &context.cassie.catalog);
-    if plan.command.is_some() {
-        return Err(QueryError::General(
-            "CTE statements cannot include command statements".into(),
-        ));
-    }
-    Ok(plan)
+    build_exists_logical_plan_with_fields(context, statement, &outer_fields)
 }
 
 fn statement_binding_context(

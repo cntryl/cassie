@@ -16,16 +16,7 @@ pub(super) fn evaluate_argument<R: RowAccess + ?Sized>(
     }
     let expr = crate::sql::binder::generated_float_coercion_operand(argument)?;
     Some(
-        super::evaluate_expr_value(
-            row,
-            expr,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            context.local_args,
-        )
-        .and_then(|value| match value {
+        super::evaluate_expr_value_with_context(row, expr, context).and_then(|value| match value {
             Value::Int64(_) | Value::Float64(_) | Value::Null => Ok(promote(&value, true)),
             _ => Err(QueryError::General(
                 "invalid conditional FLOAT carrier".into(),

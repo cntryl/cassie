@@ -107,7 +107,8 @@ fn query_names(select: &SelectStatement, names: &mut HashSet<String>) {
     source_names(&select.source, names);
     for item in &select.projection {
         match item {
-            SelectItem::Column { .. } | SelectItem::Wildcard => {}
+            SelectItem::Column { name, .. } => reference_names(name, names),
+            SelectItem::Wildcard => {}
             SelectItem::Expr { expr, .. } => expression_names(expr, names),
             SelectItem::Function { function, .. } => {
                 for expr in &function.args {
@@ -192,7 +193,18 @@ fn statement_names(statement: &crate::sql::ast::ParsedStatement, names: &mut Has
     }
 }
 
+fn reference_names(name: &str, names: &mut HashSet<String>) {
+    if let Ok(path) = ColumnIdentifierPath::parse(name) {
+        if let Some(qualifier) = path.namespace_qualifier() {
+            names.insert(qualifier);
+        }
+    }
+}
+
 fn expression_names(expr: &Expr, names: &mut HashSet<String>) {
+    if let Expr::Column(name) = expr {
+        reference_names(name, names);
+    }
     if let Expr::Exists(statement) = expr {
         statement_names(statement, names);
     }

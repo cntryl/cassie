@@ -12,7 +12,7 @@ use super::{
     QuerySource,
 };
 
-use super::{Cassie, HashSet, LogicalPlan};
+use super::LogicalPlan;
 
 /// Returns whether `expr` contains an `EXISTS` subquery.
 pub(super) fn contains_exists(expr: &Expr) -> bool {
@@ -56,12 +56,15 @@ pub(super) fn filter_rows_per_outer_row(
 
 /// The name the enclosing relation's columns are qualified with, for a
 /// single-relation source whose rows carry unqualified column names.
-fn outer_qualifier(source: &QuerySource) -> Option<String> {
+pub(super) fn outer_qualifier(source: &QuerySource) -> Option<String> {
     match source {
         QuerySource::Collection(name) => {
             Some(crate::catalog::local_name(name).to_ascii_lowercase())
         }
         QuerySource::Subquery { alias, .. } => Some(alias.to_ascii_lowercase()),
+        QuerySource::Cte(name) | QuerySource::TableFunction { name, .. } => {
+            Some(name.to_ascii_lowercase())
+        }
         QuerySource::Aliased { alias, .. } => Some(crate::sql::binder::alias_row_qualifier(alias)),
         _ => None,
     }
@@ -92,40 +95,116 @@ fn qualified_outer_row(row: &BatchRow, qualifier: Option<&str>) -> BatchRow {
 /// the subquery's own relations do not define, so an unqualified name
 /// resolves to the innermost scope first, as in PostgreSQL.
 pub(super) fn scoped_outer_row(
-    cassie: &Cassie,
+    context: &ExistsResolutionContext<'_>,
     subquery: &LogicalPlan,
     row: &BatchRow,
-) -> BatchRow {
-    let mut inner_columns = HashSet::new();
-    collect_source_columns(cassie, &subquery.source, &mut inner_columns);
-    let aliases = row
-        .entries()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, (name, _))| {
-            let column = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
-            (!inner_columns.contains(&column)).then_some((column, index))
-        })
-        .collect();
-    BatchRow::with_aliases(row.entries().to_vec(), aliases)
+) -> Result<BatchRow, QueryError> {
+    use crate::executor::retained_memory::{add, lookup_bytes, mul, value_clone_bytes};
+    use std::mem::size_of;
+    super::check_timeout(context.controls)?;
+    let mut inner_columns = crate::runtime::accounted::AccountedVec::try_new(context.controls)?;
+    collect_source_columns(context, &subquery.source, &mut inner_columns)?;
+    let mut names = 0_usize;
+    let mut bytes = mul(
+        row.entries().len(),
+        size_of::<(String, crate::types::Value)>() + size_of::<(String, usize)>(),
+    )?;
+    for (name, value) in row.entries() {
+        super::check_timeout(context.controls)?;
+        // Canonical field spelling may quote/escape the stored final component.
+        let alias = add(mul(name.len(), 2)?, 2)?;
+        names = add(names, add(name.len(), alias)?)?;
+        bytes = add(
+            bytes,
+            add(add(name.len(), alias)?, value_clone_bytes(value)?)?,
+        )?;
+    }
+    bytes = add(bytes, lookup_bytes(mul(row.entries().len(), 2)?, names)?)?;
+    bytes = add(
+        bytes,
+        size_of::<crate::runtime::QueryMemoryReservation>() + 2 * size_of::<usize>(),
+    )?;
+    let memory = std::sync::Arc::new(context.controls.reserve_query_memory(bytes)?);
+    let mut aliases = Vec::new();
+    aliases
+        .try_reserve_exact(row.entries().len())
+        .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
+    for (index, (name, _)) in row.entries().iter().enumerate() {
+        super::check_timeout(context.controls)?;
+        let column = crate::sql::ColumnIdentifierPath::stored_row_field_key(name);
+        if !inner_columns.as_slice().contains(&column) {
+            aliases.push((column, index));
+        }
+    }
+    let mut retained = BatchRow::with_aliases(row.entries().to_vec(), aliases)
+        .with_optional_data_types(row.shared_data_types())
+        .with_query_memory(row.query_memory())
+        .with_operator_memory(row.operator_memory());
+    retained.attach_operator_memory(context.controls, memory)?;
+    Ok(retained)
 }
 
-fn collect_source_columns(cassie: &Cassie, source: &QuerySource, columns: &mut HashSet<String>) {
+fn collect_source_columns(
+    context: &ExistsResolutionContext<'_>,
+    source: &QuerySource,
+    columns: &mut crate::runtime::accounted::AccountedVec<String>,
+) -> Result<(), QueryError> {
+    fn append<'a>(
+        context: &ExistsResolutionContext<'_>,
+        names: impl Iterator<Item = &'a str>,
+        columns: &mut crate::runtime::accounted::AccountedVec<String>,
+    ) -> Result<(), QueryError> {
+        for name in names {
+            super::check_timeout(context.controls)?;
+            let bytes = name
+                .len()
+                .checked_mul(2)
+                .and_then(|bytes| bytes.checked_add(2))
+                .ok_or_else(|| {
+                    crate::app::CassieError::ResourceLimit("EXISTS field spelling overflow".into())
+                })?;
+            columns.try_push_with_result(bytes, || {
+                Ok::<_, crate::app::CassieError>(
+                    crate::sql::ColumnIdentifierPath::stored_field_key(name),
+                )
+            })?;
+        }
+        Ok(())
+    }
+    super::check_timeout(context.controls)?;
     match source {
         QuerySource::Collection(name) => {
-            if let Some(schema) = cassie.catalog.get_schema(name) {
-                columns.extend(
-                    schema.fields.iter().map(|field| {
-                        crate::sql::ColumnIdentifierPath::stored_field_key(&field.name)
-                    }),
-                );
+            let (schema, _memory) = context
+                .cassie
+                .catalog
+                .clone_schema_with_controls(name, context.controls)?;
+            if let Some(schema) = schema {
+                append(
+                    context,
+                    schema.fields.iter().map(|field| field.name.as_str()),
+                    columns,
+                )?;
             }
         }
-        QuerySource::Aliased { source, .. } => collect_source_columns(cassie, source, columns),
+        QuerySource::Cte(name) => {
+            if let Some(relation) = context.cte_context.get(name) {
+                append(
+                    context,
+                    relation.fields.iter().map(|field| field.name.as_str()),
+                    columns,
+                )?;
+            }
+        }
+        QuerySource::Aliased { source, .. } => collect_source_columns(context, source, columns)?,
         QuerySource::Join { left, right, .. } => {
-            collect_source_columns(cassie, left, columns);
-            collect_source_columns(cassie, right, columns);
+            collect_source_columns(context, left, columns)?;
+            collect_source_columns(context, right, columns)?;
         }
         _ => {}
     }
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "exists_correlated_retention_tests.rs"]
+mod retention_tests;

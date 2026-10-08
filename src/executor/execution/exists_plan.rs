@@ -56,29 +56,21 @@ pub(super) fn plan_has_unresolved_exists(plan: &LogicalPlan) -> bool {
 pub(super) fn resolve_plan_exists(
     context: &ExistsResolutionContext<'_>,
     plan: &LogicalPlan,
-) -> Result<LogicalPlan, QueryError> {
+) -> Result<(LogicalPlan, crate::runtime::QueryMemoryReservation), QueryError> {
+    let memory = super::exists_projection::reserve_clone(plan, context)?;
     let mut plan = plan.clone();
+    let mut scope = None;
     if let Some(having) = &plan.having {
         plan.having = Some(resolve_exists_expr(context, having)?);
     }
     for item in &mut plan.projection {
-        resolve_item(context, item)?;
+        super::exists_projection::resolve_item(context, &plan.source, item, &mut scope)?;
     }
     for order in &mut plan.order {
         resolve_order(context, order)?;
     }
     resolve_source(context, &mut plan.source)?;
-    Ok(plan)
-}
-
-fn resolve_all(
-    context: &ExistsResolutionContext<'_>,
-    exprs: &mut [Expr],
-) -> Result<(), QueryError> {
-    for expr in exprs {
-        *expr = resolve_exists_expr(context, expr)?;
-    }
-    Ok(())
+    Ok((plan, memory))
 }
 
 fn resolve_order(
@@ -87,28 +79,6 @@ fn resolve_order(
 ) -> Result<(), QueryError> {
     order.expr = resolve_exists_expr(context, &order.expr)?;
     Ok(())
-}
-
-fn resolve_item(
-    context: &ExistsResolutionContext<'_>,
-    item: &mut SelectItem,
-) -> Result<(), QueryError> {
-    match item {
-        SelectItem::Wildcard | SelectItem::Column { .. } => Ok(()),
-        SelectItem::Function { function, .. } => resolve_all(context, &mut function.args),
-        SelectItem::WindowFunction { function, .. } => {
-            resolve_all(context, &mut function.args)?;
-            resolve_all(context, &mut function.partition_by)?;
-            for order in &mut function.order_by {
-                resolve_order(context, order)?;
-            }
-            Ok(())
-        }
-        SelectItem::Expr { expr, .. } => {
-            *expr = resolve_exists_expr(context, expr)?;
-            Ok(())
-        }
-    }
 }
 
 fn resolve_source(

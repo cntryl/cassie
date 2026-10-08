@@ -1,0 +1,11 @@
+//! Finite independent relational truth tables on the selected merged contracts.
+
+#[path = "support/pgwire.rs"]
+mod support_pgwire;
+#[path = "support/relational_qualification.rs"]
+mod support_relational_qualification;
+#[path = "support/temp_dirs.rs"]
+mod support_temp_dirs;
+
+#[path = "relational_qualification/primary.rs"]
+mod primary;

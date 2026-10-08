@@ -17,6 +17,11 @@ use uuid::Uuid;
 /// PostgreSQL's message (SQLSTATE 22003) for an overflowing int8 result.
 pub(crate) const BIGINT_OUT_OF_RANGE: &str = "bigint out of range";
 
+#[path = "filter/exists_value.rs"]
+mod exists_value;
+pub(crate) use exists_value::{evaluate_resolving_exists, ExistsValueContext};
+pub(crate) type ExistsResolver<'a> = dyn Fn(&Expr) -> Result<bool, QueryError> + 'a;
+
 #[path = "filter/coalesce.rs"]
 mod coalesce;
 #[path = "filter/conditional.rs"]
@@ -43,6 +48,7 @@ pub(super) struct EvalContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     local_args: Option<&'a HashMap<String, Value>>,
     session: Option<&'a CassieSession>,
+    exists: Option<&'a ExistsResolver<'a>>,
 }
 
 #[derive(Debug, Clone)]
@@ -214,11 +220,12 @@ pub(crate) fn evaluate_expr_value<R: RowAccess + ?Sized>(
             user_functions,
             local_args,
             session,
+            exists: None,
         },
     )
 }
 
-fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
+pub(super) fn evaluate_expr_value_with_context<R: RowAccess + ?Sized>(
     row: &R,
     expr: &Expr,
     context: EvalContext<'_>,
@@ -250,6 +257,7 @@ fn eval_filter<R: RowAccess + ?Sized>(
             user_functions,
             local_args: None,
             session,
+            exists: None,
         },
     )?;
     value.is_true()
@@ -273,6 +281,7 @@ pub(crate) fn eval_scalar<R: RowAccess + ?Sized>(
             user_functions,
             local_args,
             session,
+            exists: None,
         },
     )
 }
@@ -340,9 +349,14 @@ fn eval_scalar_with_context<R: RowAccess + ?Sized>(
         } => eval_between_expr(row, expr, low, high, *negated, context),
         Expr::Not { expr } => eval_not_expr(row, expr, context),
         Expr::Cast { expr, data_type } => eval_cast_expr(row, expr, data_type, context),
-        Expr::Exists(_) => Err(QueryError::General(
-            "EXISTS predicate was not resolved before filtering".to_string(),
-        )),
+        Expr::Exists(_) => context.exists.map_or_else(
+            || {
+                Err(QueryError::General(
+                    "EXISTS predicate was not resolved before filtering".to_string(),
+                ))
+            },
+            |resolve| resolve(expr).map(ScalarValue::Bool),
+        ),
     }
 }
 

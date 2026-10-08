@@ -450,15 +450,19 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
-    batches = apply_projection_phase(
-        batches,
-        plan,
-        env.params,
-        search_context.as_ref(),
-        env.user_functions,
-        env.session,
-        env.controls,
-    )?;
+    batches = if super::exists_projection::contains(&plan.projection) {
+        apply_exists_projection_phase(env, batches, plan, cte_context, search_context.as_ref())?
+    } else {
+        apply_projection_phase(
+            batches,
+            plan,
+            env.params,
+            search_context.as_ref(),
+            env.user_functions,
+            env.session,
+            env.controls,
+        )?
+    };
 
     let rows = finalize_plan_rows(&phase_env, plan, cte_context, batches)?;
     record_plan_metrics(
@@ -506,7 +510,7 @@ fn load_source_batches(
         source_row_budget(plan, env.controls.max_result_rows),
     )?;
     if let Some(outer_row) = outer_row {
-        batches = attach_outer_scope(batches, outer_row);
+        batches = attach_outer_scope(batches, outer_row, env.controls)?;
     }
     Ok((batches, text_fields))
 }
@@ -855,6 +859,34 @@ fn apply_projection_phase(
     if plan.distinct {
         batches = distinct_batches(batches, controls)?;
         ensure_query_memory_budget(controls, &batches)?;
+    }
+    Ok(batches)
+}
+
+fn apply_exists_projection_phase(
+    env: &SourceExecutionEnv<'_>,
+    batches: Vec<Batch>,
+    plan: &LogicalPlan,
+    context: &CteContext,
+    search: Option<&filter::SearchContext>,
+) -> Result<Vec<Batch>, QueryError> {
+    let grouped = plan_uses_aggregate(plan)
+        .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
+    let projection = grouped.as_deref().unwrap_or(&plan.projection);
+    let (memory, _) = super::projection_handoff::ProjectionOutputMemory::admit(
+        env.controls,
+        &batches,
+        projection,
+        false,
+        true,
+    )?;
+    let mut batches =
+        super::exists_projection::project(env, context, &plan.source, batches, projection, search)?;
+    let _memory = memory.retain(env.controls, &mut batches)?;
+    ensure_query_memory_budget(env.controls, &batches)?;
+    if plan.distinct {
+        batches = distinct_batches(batches, env.controls)?;
+        ensure_query_memory_budget(env.controls, &batches)?;
     }
     Ok(batches)
 }

@@ -55,6 +55,7 @@ mod dispatch;
 mod entrypoints;
 mod exists_correlated;
 mod exists_plan;
+mod exists_projection;
 mod result;
 
 pub(crate) use entrypoints::{

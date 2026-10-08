@@ -346,3 +346,57 @@ The binary build, workspace/all-target/all-feature pedantic Clippy, formatting,
 seven touched-test validators and three repository policies pass locally.
 These preparation checks do not replace final ordered full acceptance after
 integration with actual predecessor main `ad0a001a65fae23726cd184fedf1f973d649e60c`.
+
+## Statements without Data dependencies
+
+Final integrated full qualification exposed four metadata-only SELECT failures:
+version, pg_catalog.version, current_schema and current_database attempted Data
+capture for a session naming the metadata-only database catalogdb and returned
+NotFound. A focused nested SingleRow EXISTS statement reproduces the same RED.
+The contract requires one captured owner before authoritative Data reads; a
+statement with provably no Data dependency need not acquire that owner.
+
+A focused private logical-plan predicate supplies the same conservative gate
+at bound SELECT capture and both public command-free executor entrypoints. It
+uses existing expression-child traversal, explicitly recursing EXISTS, source
+alias/derived/JOIN branches, CTE definitions and set branches, and every query
+expression position including window children and bounds. Actual collection,
+CTE reference and table-function sources and unknown function paths continue
+to require capture. Existing function-dependency inspection supplies builtin
+knowledge; pg_catalog.version is additionally recognized from its existing
+system dispatch. DML acquisition remains unconditional and no NotFound error
+is swallowed. Nested real Data must still share the ancestor capture even
+when its outer source is SingleRow. No public API, format, cap or evaluation
+order changes. Full RED logs remain immutable; focused and fresh full
+acceptance results are recorded separately.
+
+The first new nested missing-database fixture advances past capture and then
+reaches existing nested binding refusal for an absent catalog database. That
+is preserved as an admitted-namespace boundary, not promoted to a binder
+regression or expanded support. Nested SingleRow execution uses an existing
+metadata database; a separate private gate witness checks absent storage
+database, no statement owner and zero current/peak owner admission. The set
+visibility fixture compares its unordered bag; no implicit row order is
+selected. Existing scored/vector/index/rollup access paths require collection
+sources, so their Data acquisition remains behind conservative source capture.
+
+The no-Data repair passes the nine catalog probes, including all four original
+full-run failures, and 59 statement-view controls. The zero-owner witness
+records no retained statement read and zero current/peak admission; its owners
+and session drop before explicit engine shutdown and strict directory cleanup.
+The nested Data writer actually runs after ancestor capture for direct EXISTS,
+derived, CTE and set branches, with captured true and next-version false; set
+rows are compared as an unordered bag. The bound/window/function-child AST
+dependency witness, three wire visibility controls, 34 relational controls,
+three scoped-owner controls, four attachment controls and bounded WHERE
+control also pass. Build, broad pedantic Clippy, formatting, three newly
+touched-test validators and repository policies pass in preparation.
+
+The private capture-helper extraction uses command-free final plans in the
+admitted bound-execution path: exhaustive logical planner dispatch establishes
+that these correspond to parsed SELECT, while Explain and transaction paths
+return earlier and executable commands have explicit command plans. There is
+no SELECT INTO AST variant. This preserves the original SELECT dependency
+gate while keeping the bound-execution function under its line limit. Final
+ordered full validation must restart on the new clean integrated head; the
+prior partial full RED is preserved and is not reported as acceptance.

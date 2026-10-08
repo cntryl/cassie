@@ -2,6 +2,7 @@ pub mod aggregate;
 mod array_order;
 pub mod batch;
 mod execution;
+pub(crate) use execution::plan_needs_statement_data;
 
 pub(crate) fn delete_document_with_referential_actions(
     cassie: &crate::app::Cassie,

@@ -94,7 +94,6 @@ impl Cassie {
             declared_oids,
             controls,
         )?;
-        let is_data_read = matches!(&parsed.statement, QueryStatement::Select(_));
         if let QueryStatement::Explain(statement) = &parsed.statement {
             return self.explain_statement(
                 session,
@@ -137,7 +136,7 @@ impl Cassie {
         self.record_select_plan_decision(cache_context.is_select, &physical);
 
         let statement_controls =
-            self.capture_bound_statement_read(session, is_data_read, controls)?;
+            self.capture_bound_statement_read(session, &physical.logical, controls)?;
         let controls = &statement_controls;
         let (_read_scope, _overlay_scope) =
             Self::enter_bound_statement_read(&mut cache_context, controls);
@@ -218,12 +217,12 @@ impl Cassie {
     fn capture_bound_statement_read(
         &self,
         session: &CassieSession,
-        is_data_read: bool,
+        plan: &crate::planner::logical::LogicalPlan,
         controls: &QueryExecutionControls,
     ) -> Result<QueryExecutionControls, CassieError> {
         #[cfg(test)]
         super::statement_read_tests::before_statement_view_capture();
-        let owner = if is_data_read {
+        let owner = if plan.command.is_none() && crate::executor::plan_needs_statement_data(plan) {
             Some(
                 session.capture_statement_read(
                     &self.midge,

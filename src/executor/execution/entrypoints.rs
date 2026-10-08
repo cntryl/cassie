@@ -75,7 +75,7 @@ fn run_with_execution_breakdown_controls(
         });
     }
 
-    let statement_controls = statement_read_controls(cassie, None, controls)?;
+    let statement_controls = select_read_controls(cassie, None, &plan.logical, controls)?;
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
@@ -122,7 +122,7 @@ pub(crate) fn run_with_session_controls(
         );
     }
 
-    let statement_controls = statement_read_controls(cassie, session, controls)?;
+    let statement_controls = select_read_controls(cassie, session, &plan.logical, controls)?;
     let controls = &statement_controls;
     let (_read_scope, _overlay_scope) = enter_statement_read(controls);
     let mut cte_context = CteContext::new();
@@ -191,6 +191,19 @@ fn user_functions_for_plan(
     }
 }
 
+fn select_read_controls(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    plan: &LogicalPlan,
+    controls: &QueryExecutionControls,
+) -> Result<QueryExecutionControls, QueryError> {
+    if super::plan_needs_statement_data(plan) {
+        statement_read_controls(cassie, session, controls)
+    } else {
+        Ok(controls.with_statement_read(None))
+    }
+}
+
 pub(super) fn statement_read_controls(
     cassie: &Cassie,
     session: Option<&CassieSession>,
@@ -228,4 +241,38 @@ pub(super) fn enter_statement_read(
         controls.statement_read().and_then(|owner| owner.overlay()),
     );
     (read_scope, overlay_scope)
+}
+
+#[cfg(test)]
+mod no_data_tests {
+    use super::*;
+
+    #[test]
+    fn should_skip_statement_owner_for_table_free_execution() {
+        // Arrange
+        let path =
+            std::env::temp_dir().join(format!("cassie-no-data-owner-{}", uuid::Uuid::new_v4()));
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("reader", Some("catalogdb".into()));
+        let parsed =
+            crate::sql::parse_statement("SELECT EXISTS (SELECT 1)").expect("table-free query");
+        let bound =
+            crate::sql::binder::bind(parsed, &cassie.catalog).expect("bind default metadata scope");
+        let plan = crate::planner::logical::plan(&bound).expect("logical plan");
+        let controls = cassie.runtime.query_controls(Instant::now());
+        // Act
+        let selected = select_read_controls(&cassie, Some(&session), &plan, &controls)
+            .expect("no Data dependency");
+        // Assert
+        assert!(selected.statement_read().is_none());
+        assert_eq!(selected.current_query_memory_bytes(), 0);
+        assert_eq!(selected.peak_query_memory_bytes(), 0);
+        drop(selected);
+        drop(controls);
+        drop(session);
+        cassie.shutdown();
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("strict no-Data cleanup");
+    }
 }

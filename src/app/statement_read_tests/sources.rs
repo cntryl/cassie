@@ -371,3 +371,122 @@ fn should_preserve_literal_joined_fields_for_correlated_projection() {
         ]
     );
 }
+
+#[test]
+fn should_execute_table_free_nested_exists_without_a_database_snapshot() {
+    // Arrange
+    let fixture = Fixture::new();
+    let session = fixture.cassie.create_session("reader", None);
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &session,
+        "SELECT current_database(), EXISTS (SELECT 1), CASE WHEN EXISTS (SELECT 1 WHERE false) THEN false ELSE true END",
+        vec![],
+    ).expect("table-free reads do not require a storage database");
+    // Assert
+    assert_eq!(
+        result.rows,
+        vec![vec![
+            Value::String(fixture.cassie.default_database.clone()),
+            Value::Bool(true),
+            Value::Bool(true)
+        ]]
+    );
+}
+
+#[test]
+fn should_execute_direct_table_free_metadata_without_a_database_snapshot() {
+    // Arrange
+    let fixture = Fixture::new();
+    let session = fixture
+        .cassie
+        .create_session("reader", Some("catalogdb".into()));
+    let plan = super::direct_plan(&fixture.cassie, "SELECT current_database()");
+    let controls = fixture
+        .cassie
+        .runtime
+        .query_controls(std::time::Instant::now());
+    // Act
+    let result = crate::executor::run_with_session_controls(
+        &fixture.cassie,
+        Some(&session),
+        &plan,
+        vec![],
+        &controls,
+    )
+    .expect("direct metadata read does not require a storage database");
+    // Assert
+    assert_eq!(result.rows, vec![vec![Value::String("catalogdb".into())]]);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_capture_nested_data_before_table_free_query_execution() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let writer = fixture.cassie.create_session("writer", None);
+    let cases = [
+        ("SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched", false),
+        ("SELECT matched FROM (SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched) q", false),
+        ("WITH q AS (SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched) SELECT matched FROM q", false),
+        ("SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched UNION ALL SELECT false AS matched", true),
+    ];
+    // Act
+    let outcomes = cases
+        .into_iter()
+        .map(|(sql, set)| {
+            execute(
+                &fixture.cassie,
+                &writer,
+                "DELETE FROM read_left WHERE id = 1",
+            );
+            execute(
+                &fixture.cassie,
+                &writer,
+                "INSERT INTO read_left VALUES (1, 10)",
+            );
+            let fired = Arc::new(AtomicBool::new(false));
+            let observed = Arc::clone(&fired);
+            let cassie = Arc::clone(&fixture.cassie);
+            let nested_writer = cassie.create_session("nested-writer", None);
+            let hook = CaptureHook::install(move || {
+                execute(
+                    &cassie,
+                    &nested_writer,
+                    "DELETE FROM read_left WHERE id = 1",
+                );
+                observed.store(true, Ordering::SeqCst);
+            });
+            let captured = fixture
+                .cassie
+                .execute_sql(&reader, sql, vec![])
+                .expect("captured nested Data")
+                .rows;
+            drop(hook);
+            let fresh = fixture
+                .cassie
+                .execute_sql(&reader, sql, vec![])
+                .expect("fresh nested Data")
+                .rows;
+            (captured, fresh, fired.load(Ordering::SeqCst), set)
+        })
+        .collect::<Vec<_>>();
+    // Assert
+    for (mut captured, mut fresh, fired, set) in outcomes {
+        let mut expected = vec![vec![Value::Bool(true)]];
+        let mut next = vec![vec![Value::Bool(false)]];
+        if set {
+            expected.push(vec![Value::Bool(false)]);
+            next.push(vec![Value::Bool(false)]);
+        }
+        if set {
+            let key = |row: &Vec<Value>| !matches!(row.first(), Some(Value::Bool(true)));
+            captured.sort_by_key(key);
+            fresh.sort_by_key(key);
+        }
+        assert!(fired, "writer must actually run after ancestor capture");
+        assert_eq!(captured, expected);
+        assert_eq!(fresh, next);
+    }
+}

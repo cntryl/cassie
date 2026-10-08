@@ -131,6 +131,8 @@ mod time_series_read;
 mod fulltext_options;
 pub(crate) use fulltext_options::load_fulltext_index_options;
 mod graph;
+mod statement_data_dependency;
+pub(crate) use statement_data_dependency::plan_needs_statement_data;
 mod plan_inspection;
 pub(crate) use plan_inspection::{
     plan_needs_user_functions, plan_uses_function, plan_uses_function_including_views,

@@ -100,6 +100,9 @@ pub(in crate::executor::execution) fn outer_row(
         .with_optional_data_types(row.shared_data_types())
         .with_query_memory(row.query_memory())
         .with_operator_memory(row.operator_memory());
+    if let Some(ancestor) = row.outer_scope() {
+        outer = outer.with_outer_scope(std::sync::Arc::clone(ancestor));
+    }
     outer.attach_operator_memory(env.controls, memory)?;
     Ok(outer)
 }

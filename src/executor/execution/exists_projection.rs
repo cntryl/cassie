@@ -4,6 +4,7 @@ use super::{
 };
 
 mod admission;
+mod ancestor;
 mod rows;
 mod scope;
 
@@ -65,8 +66,24 @@ fn classify(
 ) -> Result<Expr, QueryError> {
     check_timeout(context.controls)?;
     if let Expr::Exists(statement) = expr {
-        match super::dispatch::build_exists_logical_plan(context, statement) {
-            Ok(_) => return super::resolve_exists_expr(context, expr),
+        let independent = ExistsResolutionContext {
+            outer_row: None,
+            ..*context
+        };
+        match super::dispatch::build_exists_logical_plan(&independent, statement) {
+            Ok(_) => {
+                if !ancestor::contains_nested(statement) {
+                    return super::resolve_exists_expr(context, expr);
+                }
+                if scope.is_none() {
+                    *scope = Some(scope::Scope::new(context, source)?);
+                }
+                let fields = &scope.as_ref().expect("admitted enclosing scope").fields;
+                if ancestor::references(context, statement, fields)? {
+                    return Ok(expr.clone());
+                }
+                return super::resolve_exists_expr(context, expr);
+            }
             Err(original) => {
                 check_timeout(context.controls)?;
                 if scope.is_none() {

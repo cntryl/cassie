@@ -32,3 +32,6 @@ mod homogeneous_join;
 
 #[path = "relational_qualification/joined_correlation.rs"]
 mod joined_correlation;
+
+#[path = "relational_qualification/ancestor_scope.rs"]
+mod ancestor_scope;

@@ -131,6 +131,10 @@ impl BatchRow {
         self
     }
 
+    pub(crate) fn outer_scope(&self) -> Option<&Arc<Self>> {
+        self.outer_scope.as_ref()
+    }
+
     pub(crate) fn has_outer_scope(&self) -> bool {
         self.outer_scope.is_some()
     }

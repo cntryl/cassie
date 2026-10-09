@@ -18,7 +18,9 @@ mod tests;
 mod retention;
 use retention::{SortRetentionContext, SortRetentionPhase};
 pub(crate) mod accounting;
+mod exists;
 mod typed;
+pub(crate) use exists::{requires_resolver, sort_batches_resolving};
 #[cfg(test)]
 mod typed_tests;
 
@@ -303,45 +305,32 @@ pub(crate) fn maintain_top_k_kernel(
 
 /// Resolves an ORDER BY reference to a projection alias into the aliased
 /// expression.
-pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
-    // A qualified reference names an input relation, never an output alias.
-    if matches!(expr, Expr::Column(name) if crate::sql::ColumnIdentifierPath::parse(name).is_ok_and(|path| path.is_qualified()))
-    {
+fn alias_item<'a>(expr: &Expr, projection: &'a [SelectItem]) -> Option<&'a SelectItem> {
+    let Expr::Column(alias) = expr else {
+        return None;
+    };
+    if crate::sql::ColumnIdentifierPath::parse(alias).is_ok_and(|path| path.is_qualified()) {
         return None;
     }
-    match expr {
-        Expr::Column(alias) => projection.iter().find_map(|item| {
-            let reference_key = crate::sql::ColumnIdentifierPath::reference_field_key(alias);
-            match item {
-                SelectItem::Column {
-                    name,
-                    alias: Some(project_alias),
-                    ..
-                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
-                    == reference_key =>
-                {
-                    Some(Expr::Column(name.clone()))
-                }
-                SelectItem::Function {
-                    function,
-                    alias: Some(project_alias),
-                    ..
-                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
-                    == reference_key =>
-                {
-                    Some(Expr::Function(function.clone()))
-                }
-                SelectItem::Expr {
-                    expr,
-                    alias: Some(project_alias),
-                } if crate::sql::ColumnIdentifierPath::stored_field_key(project_alias)
-                    == reference_key =>
-                {
-                    Some(expr.clone())
-                }
-                _ => None,
-            }
-        }),
+    let reference_key = crate::sql::ColumnIdentifierPath::reference_field_key(alias);
+    projection.iter().find(|item| {
+        let alias = match item {
+            SelectItem::Column { alias, .. }
+            | SelectItem::Function { alias, .. }
+            | SelectItem::Expr { alias, .. } => alias.as_ref(),
+            _ => None,
+        };
+        alias.is_some_and(|alias| {
+            crate::sql::ColumnIdentifierPath::stored_field_key(alias) == reference_key
+        })
+    })
+}
+
+pub(crate) fn alias_expr(expr: &Expr, projection: &[SelectItem]) -> Option<Expr> {
+    match alias_item(expr, projection)? {
+        SelectItem::Column { name, .. } => Some(Expr::Column(name.clone())),
+        SelectItem::Function { function, .. } => Some(Expr::Function(function.clone())),
+        SelectItem::Expr { expr, .. } => Some(expr.clone()),
         _ => None,
     }
 }
@@ -409,6 +398,19 @@ impl EvalInput<'_> {
         retention: &SortRetentionContext<'_>,
         controls: Option<&QueryExecutionControls>,
     ) -> Result<RowKey, crate::executor::QueryError> {
+        self.row_key_with_evaluator(row, order, retention, controls, |row, expr| {
+            self.value(row, expr)
+        })
+    }
+
+    fn row_key_with_evaluator<R: RowAccess>(
+        &self,
+        row: &R,
+        order: &[OrderExpr],
+        retention: &SortRetentionContext<'_>,
+        controls: Option<&QueryExecutionControls>,
+        evaluate: impl Fn(&R, &Expr) -> Result<Value, crate::executor::QueryError>,
+    ) -> Result<RowKey, crate::executor::QueryError> {
         use crate::executor::retained_memory::{add, mul};
 
         let mut memory = controls
@@ -421,7 +423,7 @@ impl EvalInput<'_> {
             .transpose()?;
         let mut parts = Vec::with_capacity(order.len());
         for order in order {
-            let value = self.value(row, &order.expr)?;
+            let value = evaluate(row, &order.expr)?;
             if let Some(controls) = controls {
                 check_query_controls(controls)?;
             }

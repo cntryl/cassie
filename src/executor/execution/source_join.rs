@@ -63,6 +63,7 @@ struct EquiJoinKeys {
 
 #[derive(Clone, Copy)]
 pub(super) struct JoinExecutionSpec<'a> {
+    pub(super) source: &'a QuerySource,
     pub(super) left: &'a QuerySource,
     pub(super) right: &'a QuerySource,
     pub(super) kind: JoinKind,
@@ -132,6 +133,10 @@ pub(super) fn execute_join_source<'a>(
         env,
         JoinRowsSpec {
             kind: spec.kind,
+            predicate_context: Some(JoinPredicateContext {
+                source: spec.source,
+                ctes: cte_context,
+            }),
             sources: Some((spec.left, spec.right)),
             on: spec.on,
             left_rows: &left_rows,
@@ -267,16 +272,15 @@ fn execute_lateral_join<'a>(
                 check_timeout(env.controls)?;
                 let combined = combine_rows(left_row, right_row)?;
                 let passes = matches!(spec.kind, JoinKind::Cross)
-                    || filter::eval_scalar(
+                    || evaluate_join_on(
+                        env,
+                        Some(JoinPredicateContext {
+                            source: spec.source,
+                            ctes: cte_context,
+                        }),
                         &combined,
                         spec.on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .is_true()?;
+                    )?;
                 Ok(passes.then_some(combined))
             })?;
             if accepted {
@@ -314,8 +318,52 @@ fn execute_lateral_join<'a>(
 }
 
 #[derive(Clone, Copy)]
+struct JoinPredicateContext<'a> {
+    source: &'a QuerySource,
+    ctes: &'a CteContext,
+}
+
+fn evaluate_join_on(
+    env: &SourceExecutionEnv<'_>,
+    context: Option<JoinPredicateContext<'_>>,
+    row: &BatchRow,
+    on: &Expr,
+) -> Result<bool, QueryError> {
+    if super::super::exists_correlated::contains_exists(on) {
+        let context = context.ok_or_else(|| {
+            QueryError::General("correlated JOIN predicate requires its source scope".into())
+        })?;
+        return match super::super::exists_phase::evaluate(
+            env,
+            context.ctes,
+            context.source,
+            row,
+            on,
+            None,
+        )? {
+            Value::Bool(value) => Ok(value),
+            Value::Null => Ok(false),
+            _ => Err(QueryError::General(
+                "Boolean expression requires BOOLEAN or SQL NULL".into(),
+            )),
+        };
+    }
+    filter::eval_scalar(
+        row,
+        on,
+        env.params,
+        None,
+        env.user_functions,
+        None,
+        env.session,
+    )?
+    .is_true()
+}
+
+#[derive(Clone, Copy)]
 struct JoinRowsSpec<'a> {
     kind: JoinKind,
+    predicate_context: Option<JoinPredicateContext<'a>>,
     sources: Option<(&'a QuerySource, &'a QuerySource)>,
     on: &'a Expr,
     left_rows: &'a [BatchRow],

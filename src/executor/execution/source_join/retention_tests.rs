@@ -124,6 +124,7 @@ fn probe_loaded_phase(phase: JoinRetentionPhase) -> Result<JoinResult, CassieErr
     let result = execute_loaded_join_with_context(
         &env,
         JoinRowsSpec {
+            predicate_context: None,
             sources: None,
             kind: if phase == JoinRetentionPhase::NestedOutput {
                 JoinKind::Cross

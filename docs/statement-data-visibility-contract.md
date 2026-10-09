@@ -509,3 +509,49 @@ ANN mutation barriers compare the paused reader against an exact pre-index oracl
 and distinguish it from a fresh post-mutation statement. Plan-cache database
 isolation creates two real Data families and checks distinguishable literal rows
 and cache-counter deltas. These fixture changes pass the final full local acceptance run.
+
+## Deferred EXISTS in late expression phases (#868)
+
+The proposed repair for [#868](https://github.com/cntryl/cassie/issues/868) carries
+the statement's captured Data view and immutable staged overlay through HAVING,
+scalar ORDER BY, JOIN ON residuals, and window arguments. These phases use the
+existing statement environment; they do not acquire a newer Data view. HAVING
+uses the actual post-aggregate group row. ORDER BY evaluates each key from its
+actual input row before sorting; comparisons consume retained semantic keys.
+JOIN evaluates the combined candidate row before outer-join null extension.
+Window arguments use the input row selected by the window frame.
+
+The common borrowed resolver preserves qualified field authority, structured
+column types, and the current and ancestor row owners. Existing query and
+operator reservations remain alive while a deferred expression reads the row;
+additional owned carriers are admitted before copying. Cancellation and deadline
+checks retain the ordinary phase behavior. Sort key retention has its own
+admission and does not substitute for the original row's ownership.
+
+The deterministic [phase visibility witnesses](../src/app/statement_read_tests/phase_visibility.rs)
+commit membership from ID 1 to ID 2 through an independent writer after the outer
+source has been acquired and before the late phase reads it. The captured and
+fresh statements must produce, respectively: HAVING rows `(1, 1)` and `(2, 1)`;
+ORDER BY IDs `[2, 1]` and `[1, 2]`; JOIN ON IDs `[1]` and `[2]`; and window argument
+values `[(1, true), (2, false)]` and `[(1, false), (2, true)]`. The writer barrier
+propagates errors and the fixture requires zero final query charge and workers.
+
+The [carrier admission witnesses](../src/executor/execution/exists_phase_tests.rs)
+check exact structured payload type, original input charge, ancestor owner
+liveness before and after evaluation, and retirement after the final reader.
+They measure an admitted peak, reject peak-minus-one, and check cancellation
+without prematurely retiring input owners. Selected SQL behavior is qualified
+by [HAVING](../tests/relational_qualification/exists_having.rs),
+[ORDER BY](../tests/relational_qualification/exists_order.rs),
+[JOIN ON](../tests/relational_qualification/join_on.rs), and
+[window argument](../tests/relational_qualification/exists_window.rs) witnesses.
+
+All six focused phase owner/visibility probes pass, including all four captured
+writer barriers. The independent sort invocation probe also passes, retaining
+the input owner through output consumption. Complete ordered local validation,
+exact-head hosted checks, independent review, merge and issue readback belong to
+the PR record. These selected phases do not qualify EXISTS in window
+partition or window ordering expressions, generic set-output scope, or arbitrary
+correlated grammar. #869's RETURNING acquisition choice remains unresolved and
+is not specified here. Support, native release, and production readiness remain
+unchanged.

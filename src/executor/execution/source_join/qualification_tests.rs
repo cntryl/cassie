@@ -153,6 +153,7 @@ fn should_preserve_typed_join_pairs_across_source_partition_grid() {
                     let joined = execute_loaded_join(
                         env,
                         JoinRowsSpec {
+                            predicate_context: None,
                             kind,
                             sources: None,
                             on: &on,

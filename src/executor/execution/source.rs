@@ -23,6 +23,9 @@ mod source_shape;
 #[path = "source_exists_projection.rs"]
 mod exists_projection_phase;
 
+#[path = "source_phases.rs"]
+mod phases;
+
 type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 pub(super) struct SourceExecutionEnv<'a> {
@@ -81,6 +84,7 @@ pub(super) fn execute_query_source(
         } => source_join::execute_join_source(
             env,
             source_join::JoinExecutionSpec {
+                source,
                 left,
                 right,
                 kind: *kind,
@@ -435,25 +439,9 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
-    batches = apply_aggregate_phase(&phase_env, batches, plan)?;
-    batches = apply_window_phase(
-        batches,
-        plan,
-        env.params,
-        search_context.as_ref(),
-        env.user_functions,
-        env.session,
-        env.controls,
-    )?;
-    batches = apply_sort_phase(
-        batches,
-        plan,
-        env.params,
-        search_context.as_ref(),
-        env.user_functions,
-        env.session,
-        env.controls,
-    )?;
+    batches = apply_aggregate_phase(&phase_env, batches, plan, cte_context)?;
+    batches = phases::window(env, cte_context, batches, plan, search_context.as_ref())?;
+    batches = phases::sort(env, cte_context, batches, plan, search_context.as_ref())?;
     batches = if super::exists_projection::contains(&plan.projection) {
         exists_projection_phase::apply(env, batches, plan, cte_context, search_context.as_ref())?
     } else {
@@ -701,6 +689,7 @@ fn apply_aggregate_phase(
     env: &PhaseExecutionEnv<'_>,
     batches: Vec<Batch>,
     plan: &LogicalPlan,
+    cte_context: &CteContext,
 ) -> Result<Vec<Batch>, QueryError> {
     if !plan_uses_aggregate(plan) {
         return Ok(batches);
@@ -720,119 +709,19 @@ fn apply_aggregate_phase(
         },
     )?;
     ensure_query_memory_budget(env.controls, &batches)?;
-    apply_having_phase(
-        batches,
+    super::exists_phase::having(
+        &SourceExecutionEnv {
+            cassie: env.cassie,
+            session: env.session,
+            user_functions: env.user_functions,
+            params: env.params,
+            controls: env.controls,
+        },
+        cte_context,
         plan,
-        env.params,
+        batches,
         env.search_context,
-        env.user_functions,
-        env.session,
-        env.controls,
     )
-}
-
-fn apply_having_phase(
-    batches: Vec<Batch>,
-    plan: &LogicalPlan,
-    params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
-    let Some(having) = plan.having.as_ref() else {
-        return Ok(batches);
-    };
-    let having = aggregate_exec::rewrite_aggregate_expr(having, &plan.group_by);
-    let _output_memory = ensure_query_memory_budget(controls, &batches)?;
-    let batches = filter::filter_batches(
-        batches,
-        &having,
-        params,
-        search_context,
-        user_functions,
-        session,
-    )?;
-    ensure_query_memory_budget(controls, &batches)?;
-    Ok(batches)
-}
-
-fn apply_window_phase(
-    batches: Vec<Batch>,
-    plan: &LogicalPlan,
-    params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
-    let batches = window_exec::apply_window_functions(
-        batches,
-        &plan.projection,
-        params,
-        search_context,
-        user_functions,
-        session,
-        controls,
-    )?;
-    ensure_query_memory_budget(controls, &batches)?;
-    Ok(batches)
-}
-
-fn apply_sort_phase(
-    mut batches: Vec<Batch>,
-    plan: &LogicalPlan,
-    params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    controls: &QueryExecutionControls,
-) -> Result<Vec<Batch>, QueryError> {
-    // Grouped rows carry only group keys and aggregate results, so ORDER BY
-    // keys are rewritten (aliases resolved) to read those columns.
-    let grouped_order = plan_uses_aggregate(plan).then(|| {
-        aggregate_exec::rewrite_aggregate_order(&plan.order, &plan.projection, &plan.group_by)
-    });
-    let (order, projection) = match &grouped_order {
-        Some(order) => (order.as_slice(), &[][..]),
-        None => (plan.order.as_slice(), plan.projection.as_slice()),
-    };
-    if !plan.distinct_on.is_empty() {
-        let eval = sort::EvalInput {
-            order,
-            projection,
-            params,
-            search_context,
-            user_functions,
-            session,
-        };
-        batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
-        ensure_query_memory_budget(controls, &batches)?;
-        batches = distinct_on_batches(
-            batches,
-            &plan.distinct_on,
-            params,
-            search_context,
-            user_functions,
-            session,
-            controls,
-        )?;
-        ensure_query_memory_budget(controls, &batches)?;
-        return Ok(batches);
-    }
-    if plan.set.is_none() && !plan.order.is_empty() {
-        let eval = sort::EvalInput {
-            order,
-            projection,
-            params,
-            search_context,
-            user_functions,
-            session,
-        };
-        batches = sort::sort_batches_with_controls(batches, &eval, controls)?;
-        ensure_query_memory_budget(controls, &batches)?;
-    }
-    Ok(batches)
 }
 
 fn apply_projection_phase(

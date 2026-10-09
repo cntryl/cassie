@@ -465,3 +465,58 @@ independent review, merge and issue readback belong to the PR record. These
 finite witnesses do not establish native release or production readiness.
 #761 remains open while #868 and #869 remain unresolved. Support and production
 readiness remain unchanged.
+
+## Selected correlated evaluation phases (#868)
+
+The next finite repair addresses the four supported contexts recorded in
+[#868](https://github.com/cntryl/cassie/issues/868), after the accepted ancestor
+scope repair in `700cbad7bc87801b51eceb0b532451d0dc021d1b`. It reuses the existing
+per-occurrence classifier and an admitted actual-row carrier, with a borrowed
+scalar resolver whose lifetime ends with that evaluation. The enclosing
+statement's CTE context, captured data view, controls, type identity, aliases
+and ancestor ownership remain authoritative. Independent occurrences retain
+existing eager folding; deferred occurrences follow reached CASE/COALESCE
+branches rather than resolving every branch before scalar evaluation.
+
+The selected phase authorities are:
+
+- HAVING reads the actual grouped row after aggregate-expression rewriting.
+  The finite controls distinguish multiple group keys, group cardinality,
+  selected scalar branches and empty grouped input.
+- ORDER BY computes correlated semantic keys from each actual row or group
+  before comparisons. Existing alias and grouped-expression rewriting must
+  precede deferred detection and key evaluation. Comparisons do not execute
+  subqueries. The selected controls cover deterministic Boolean ordering,
+  tie keys, LIMIT and a projection-alias probe.
+- JOIN ON evaluates the actual combined candidate before recording a match or
+  emitting an outer-join null extension. The finite controls distinguish
+  rejected candidates from post-join filtering, exact alias identity, selected
+  lateral/ancestor inputs and scalar branch selection. Existing pure-equality
+  routes retain their qualification; a correlated residual must be evaluated
+  or use an explicit supported scalar route.
+- Window value arguments read the frame-selected input row. Default and full
+  LAST_VALUE frames plus LAG distinguish that row from the current output row.
+  Existing typed eligibility, frame selection and ordinary argument evaluation
+  retain their authority.
+
+Correlated window PARTITION BY and window ORDER BY expressions are outside this
+selected argument repair. Set-output ordering scope is also outside this finite
+profile. These boundaries do not promote unsupported grammar, establish
+universal correlation, or qualify SQL-022 as complete. RETURNING remains the
+separate [#869](https://github.com/cntryl/cassie/issues/869) evaluation-phase
+contract; no DML visibility or atomicity rule is inferred here.
+
+The accepted-main HAVING reproduction is preserved separately from the earlier
+sibling diagnostic's recording-only exit zero. Focused desired-behavior tests
+are grouped in `tests/relational_qualification/exists_having.rs`,
+`exists_order.rs`, `join_on.rs` and `exists_window.rs`. Common admission and
+captured-statement witnesses check retained input owners, measured peak-minus-one
+denial, cancellation retirement, committed writer barriers and fresh-statement
+discrimination. The focused relational suite passes all 57 tests, including the
+projection-alias ordering probe, DISTINCT ON representatives and the selected
+phase cases. The separate six phase owner/visibility probes and one exact
+sort-key invocation probe pass. Existing typed sort/window controls pass 10/10
+and 7/7. Normal ordered full validation, exact-head hosted checks, independent
+review, merge and issue readback belong to the PR record. Historical RED receipts
+remain unaltered. #761 stays open while its selected blockers remain unresolved;
+support and production readiness are unchanged.

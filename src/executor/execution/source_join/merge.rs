@@ -1,7 +1,7 @@
 use super::{
-    accounting, check_timeout, combine_rows, filter, row_join_key, BatchRow, EquiJoinKeys,
-    JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows, JoinRowsSpec,
-    PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
+    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key, BatchRow,
+    EquiJoinKeys, JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows,
+    JoinRowsSpec, PendingJoinDiagnostic, QueryError, SourceExecutionEnv,
 };
 use crate::executor::semantic::SemanticKey;
 
@@ -209,16 +209,8 @@ fn merge_equal_key_groups(
                 retention.before(JoinRetentionPhase::MergeOutput)?;
                 check_timeout(env.controls)?;
                 let combined = combine_rows(&left_row.row, &right_row.row)?;
-                let passes = filter::eval_scalar(
-                    &combined,
-                    spec.rows.on,
-                    env.params,
-                    None,
-                    env.user_functions,
-                    None,
-                    env.session,
-                )?
-                .is_true()?;
+                let passes =
+                    evaluate_join_on(env, spec.rows.predicate_context, &combined, spec.rows.on)?;
                 Ok(passes.then_some(combined))
             })?;
             if accepted {

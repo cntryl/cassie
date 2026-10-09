@@ -1,13 +1,13 @@
-//! Resolves uncorrelated `EXISTS` subqueries outside a plan's `WHERE`.
+//! Classifies each `EXISTS` occurrence outside a plan's `WHERE`.
 //!
 //! `EXISTS` is a boolean expression that PostgreSQL accepts anywhere a boolean
 //! is legal: `HAVING`, a join's `ON`, the select list and function arguments.
 //! The row evaluator cannot run a subquery, so every such occurrence is
-//! replaced by its boolean result before the plan executes. The `WHERE`
+//! folded when independent or deferred to its actual row/group phase. The `WHERE`
 //! filter is resolved separately by `source::resolve_plan_filter`.
 
-use super::{resolve_exists_expr, ExistsResolutionContext, Expr, LogicalPlan, QueryError};
-use crate::sql::ast::{OrderExpr, QuerySource, SelectItem};
+use super::{ExistsResolutionContext, Expr, LogicalPlan, QueryError};
+use crate::sql::ast::{QuerySource, SelectItem};
 
 fn contains_exists(expr: &Expr) -> bool {
     expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)))
@@ -48,7 +48,7 @@ pub(super) fn plan_has_unresolved_exists(plan: &LogicalPlan) -> bool {
         || source_has_exists(&plan.source)
 }
 
-/// Returns `plan` with every `EXISTS` outside `WHERE` replaced by its result.
+/// Classifies `EXISTS` outside `WHERE`, preserving reached correlated nodes.
 ///
 /// # Errors
 ///
@@ -61,35 +61,37 @@ pub(super) fn resolve_plan_exists(
     let mut plan = plan.clone();
     let mut scope = None;
     if let Some(having) = &plan.having {
-        plan.having = Some(resolve_exists_expr(context, having)?);
+        plan.having = Some(super::exists_projection::classify(
+            context,
+            &plan.source,
+            having,
+            &mut scope,
+        )?);
     }
     for item in &mut plan.projection {
         super::exists_projection::resolve_item(context, &plan.source, item, &mut scope)?;
     }
     for order in &mut plan.order {
-        resolve_order(context, order)?;
+        order.expr =
+            super::exists_projection::classify(context, &plan.source, &order.expr, &mut scope)?;
     }
     resolve_source(context, &mut plan.source)?;
     Ok((plan, memory))
-}
-
-fn resolve_order(
-    context: &ExistsResolutionContext<'_>,
-    order: &mut OrderExpr,
-) -> Result<(), QueryError> {
-    order.expr = resolve_exists_expr(context, &order.expr)?;
-    Ok(())
 }
 
 fn resolve_source(
     context: &ExistsResolutionContext<'_>,
     source: &mut QuerySource,
 ) -> Result<(), QueryError> {
+    let QuerySource::Join { on, .. } = &*source else {
+        return Ok(());
+    };
+    let classified = super::exists_projection::classify(context, source, on, &mut None)?;
     if let QuerySource::Join {
         left, right, on, ..
     } = source
     {
-        *on = resolve_exists_expr(context, on)?;
+        *on = classified;
         resolve_source(context, left)?;
         resolve_source(context, right)?;
     }

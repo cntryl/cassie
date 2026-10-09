@@ -65,6 +65,7 @@ fn scalar_oracle_on(mut rows: Vec<BatchRow>, projection: &[SelectItem]) -> Vec<B
         user_functions: &functions,
         session: None,
         controls: &controls,
+        evaluate: None,
     };
     for (function, alias) in collect_window_functions(projection) {
         apply_single_window(&mut rows, function, alias.as_deref(), &context)
@@ -149,6 +150,7 @@ fn should_preserve_unknown_value_argument_descriptor_after_known_input_fields() 
         user_functions: &functions,
         session: None,
         controls: &oracle_controls,
+        evaluate: None,
     };
     for (function, alias) in collect_window_functions(&projection) {
         apply_single_window(&mut expected, function, alias.as_deref(), &context)

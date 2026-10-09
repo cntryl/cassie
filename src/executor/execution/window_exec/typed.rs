@@ -98,15 +98,7 @@ fn scalar(
     context: &WindowExecutionContext<'_>,
     path: &'static str,
 ) -> Result<Vec<Batch>, QueryError> {
-    let output = apply_scalar_window_functions(
-        batches,
-        projection,
-        context.params,
-        context.search_context,
-        context.user_functions,
-        context.session,
-        context.controls,
-    )?;
+    let output = apply_scalar_window_functions(batches, projection, context)?;
     relational_diagnostics::publish("window", path);
     Ok(output)
 }

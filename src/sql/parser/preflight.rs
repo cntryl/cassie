@@ -231,4 +231,38 @@ mod tests {
         // Assert
         assert!(result.is_ok());
     }
+    #[test]
+    fn should_preserve_exact_selected_preflight_admission_boundaries() {
+        // Arrange
+        let inputs = [
+            ("x".repeat(1_048_576), "x".repeat(1_048_577)),
+            (
+                format!("{}x,", "x,".repeat(49_999)),
+                format!("{}x,x", "x,".repeat(49_999)),
+            ),
+            (
+                format!("{}1{}", "(".repeat(128), ")".repeat(128)),
+                format!("{}1{}", "(".repeat(129), ")".repeat(129)),
+            ),
+            (
+                format!("{}x{}", "/*".repeat(128), "*/".repeat(128)),
+                format!("{}x{}", "/*".repeat(129), "*/".repeat(129)),
+            ),
+        ];
+        // Act
+        let results = inputs
+            .iter()
+            .map(|(admitted, denied)| (preflight_sql(admitted), preflight_sql(denied)))
+            .collect::<Vec<_>>();
+        // Assert
+        for (admitted, denied) in results {
+            assert!(admitted.is_ok());
+            assert_eq!(
+                denied
+                    .expect_err("one beyond selected preflight boundary")
+                    .kind(),
+                SqlErrorKind::ResourceLimit
+            );
+        }
+    }
 }

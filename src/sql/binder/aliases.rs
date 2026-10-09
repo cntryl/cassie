@@ -301,18 +301,45 @@ fn reference(name: &str, namespaces: &[Namespace], single: bool) -> Result<Strin
 }
 
 fn rewrite(expr: &mut Expr, spaces: &[Namespace], single: bool) -> Result<(), CassieError> {
+    rewrite_with_outer(expr, spaces, single, &std::collections::HashSet::new())
+}
+
+fn reference_with_outer(
+    name: &str,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<String, CassieError> {
+    let path = ColumnIdentifierPath::parse(name).map_err(CassieError::Planner)?;
+    if let Some(qualifier) = path.namespace_qualifier() {
+        let claimed_here = spaces
+            .iter()
+            .any(|space| space.name == qualifier || space.qualifier == qualifier);
+        if !claimed_here && lateral_fields.contains(&path.lookup_key()) {
+            return Ok(name.to_string());
+        }
+    }
+    reference(name, spaces, single)
+}
+
+fn rewrite_with_outer(
+    expr: &mut Expr,
+    spaces: &[Namespace],
+    single: bool,
+    lateral_fields: &std::collections::HashSet<String>,
+) -> Result<(), CassieError> {
     if let Expr::Exists(statement) = expr {
         nested::rewrite(statement, spaces)?;
         return Ok(());
     }
     if let Expr::Column(name) = expr {
-        *name = reference(name, spaces, single)?;
+        *name = reference_with_outer(name, spaces, single, lateral_fields)?;
         return Ok(());
     }
     let mut failure = None;
     *expr = expr.map_children(|child| {
         let mut child = child.clone();
-        if let Err(error) = rewrite(&mut child, spaces, single) {
+        if let Err(error) = rewrite_with_outer(&mut child, spaces, single, lateral_fields) {
             failure = Some(error);
         }
         child
@@ -343,6 +370,7 @@ pub(super) fn lower_select(
     select: &mut SelectStatement,
     catalog: &Catalog,
     scope: &CteScope,
+    lateral_fields: &std::collections::HashSet<String>,
 ) -> Result<(), CassieError> {
     if !has_alias(&select.source) {
         return Ok(());
@@ -352,11 +380,18 @@ pub(super) fn lower_select(
     if spaces.is_empty() {
         return Ok(());
     }
-    let correlated = select.filter.as_ref().is_some_and(|expr| {
-        expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)))
-    });
+    let correlated = select_contains_exists(select);
     let output_aliases = super::collect_projection_aliases(select);
+    // Reusing the collection's physical qualifier would hide an admitted
+    // enclosing reference to that same collection. Retain only this carrier.
+    let outer_source_collision = lateral_fields.iter().any(|name| {
+        ColumnIdentifierPath::parse(name)
+            .ok()
+            .and_then(|path| path.namespace_qualifier())
+            .is_some_and(|qualifier| spaces.iter().any(|space| space.hidden.contains(&qualifier)))
+    });
     let single = !correlated
+        && !outer_source_collision
         && !qualified_order_collision(select, &spaces, &output_aliases)
         && matches!(&select.source, QuerySource::Aliased { source, .. }
         if matches!(source.as_ref(), QuerySource::Collection(_)));
@@ -378,23 +413,25 @@ pub(super) fn lower_select(
                 let output = ColumnIdentifierPath::parse(name)
                     .map_err(CassieError::Planner)?
                     .declared_name();
-                *name = reference(name, &spaces, single)?;
+                *name = reference_with_outer(name, &spaces, single, lateral_fields)?;
                 if alias.is_none() {
                     *alias = Some(output);
                 }
             }
-            SelectItem::Expr { expr, .. } => rewrite(expr, &spaces, single)?,
+            SelectItem::Expr { expr, .. } => {
+                rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
+            }
             SelectItem::Function { function, .. } => {
                 for expr in &mut function.args {
-                    rewrite(expr, &spaces, single)?;
+                    rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
             }
             SelectItem::WindowFunction { function, .. } => {
                 for expr in function.args.iter_mut().chain(&mut function.partition_by) {
-                    rewrite(expr, &spaces, single)?;
+                    rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
                 }
                 for order in &mut function.order_by {
-                    rewrite(&mut order.expr, &spaces, single)?;
+                    rewrite_with_outer(&mut order.expr, &spaces, single, lateral_fields)?;
                 }
             }
             SelectItem::Wildcard => unreachable!(),
@@ -409,7 +446,7 @@ pub(super) fn lower_select(
         .chain(&mut select.group_by)
         .chain(&mut select.distinct_on)
     {
-        rewrite(expr, &spaces, single)?;
+        rewrite_with_outer(expr, &spaces, single, lateral_fields)?;
     }
     for order in &mut select.order {
         if let Expr::Column(name) = &order.expr {
@@ -419,7 +456,7 @@ pub(super) fn lower_select(
                 continue;
             }
         }
-        rewrite(&mut order.expr, &spaces, single)?;
+        rewrite_with_outer(&mut order.expr, &spaces, single, lateral_fields)?;
     }
     if single {
         let source = std::mem::replace(&mut select.source, QuerySource::SingleRow);
@@ -428,6 +465,28 @@ pub(super) fn lower_select(
         }
     }
     Ok(())
+}
+
+fn select_contains_exists(select: &SelectStatement) -> bool {
+    let has_exists =
+        |expr: &Expr| expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)));
+    select.filter.as_ref().is_some_and(has_exists)
+        || select.projection.iter().any(|item| match item {
+            SelectItem::Expr { expr, .. } => has_exists(expr),
+            SelectItem::Function { function, .. } => function.args.iter().any(has_exists),
+            SelectItem::WindowFunction { function, .. } => {
+                function
+                    .args
+                    .iter()
+                    .chain(&function.partition_by)
+                    .any(has_exists)
+                    || function
+                        .order_by
+                        .iter()
+                        .any(|order| has_exists(&order.expr))
+            }
+            _ => false,
+        })
 }
 
 fn has_alias(source: &QuerySource) -> bool {

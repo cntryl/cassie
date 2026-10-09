@@ -1,0 +1,119 @@
+{
+  "status": "MATERIALIZED_BEFORE_EXECUTION",
+  "seed": {
+    "create": "CREATE TABLE qualification_frames (id BIGINT,n BIGINT)",
+    "rows": [
+      [
+        1,
+        10
+      ],
+      [
+        2,
+        20
+      ],
+      [
+        3,
+        20
+      ],
+      [
+        4,
+        30
+      ]
+    ],
+    "oids": [
+      20,
+      20
+    ]
+  },
+  "cases": [
+    {
+      "name": "groups_neighbors",
+      "sql": "SELECT id,FIRST_VALUE(n) OVER (ORDER BY n GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS fv,LAST_VALUE(n) OVER (ORDER BY n GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS lv FROM qualification_frames ORDER BY id",
+      "rows": [
+        [
+          1,
+          10,
+          20
+        ],
+        [
+          2,
+          10,
+          30
+        ],
+        [
+          3,
+          10,
+          30
+        ],
+        [
+          4,
+          20,
+          30
+        ]
+      ],
+      "derivation": "Three peer groups [10],[20,20],[30]; first of prior-through-current and last of current-through-next group.",
+      "columns": [
+        "id",
+        "fv",
+        "lv"
+      ],
+      "oids": [
+        20,
+        20,
+        20
+      ],
+      "ordered": true,
+      "path": "scalar_window_frame"
+    },
+    {
+      "name": "frame_exclusions",
+      "sql": "SELECT id,LAST_VALUE(n) OVER (ORDER BY n ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE CURRENT ROW) AS without_current,FIRST_VALUE(n) OVER (ORDER BY n ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE GROUP) AS without_group,FIRST_VALUE(n) OVER (ORDER BY n ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING EXCLUDE TIES) AS without_ties FROM qualification_frames ORDER BY id",
+      "rows": [
+        [
+          1,
+          30,
+          20,
+          10
+        ],
+        [
+          2,
+          30,
+          10,
+          10
+        ],
+        [
+          3,
+          30,
+          10,
+          10
+        ],
+        [
+          4,
+          20,
+          10,
+          10
+        ]
+      ],
+      "derivation": "For current exclusion remove only current ordinal; for group remove equal ORDER BY peers; ties retain current but remove other equal peers. Endpoints of remaining ordered rows give literal values.",
+      "columns": [
+        "id",
+        "without_current",
+        "without_group",
+        "without_ties"
+      ],
+      "oids": [
+        20,
+        20,
+        20,
+        20
+      ],
+      "ordered": true,
+      "path": "scalar_window_frame"
+    }
+  ],
+  "authority": {
+    "selected_syntax": "tests/sql_queries.rs:should_apply_groups_window_frame_offsets/should_apply_window_frame_exclusions",
+    "selected_path": "src/executor/execution/window_exec/typed_tests.rs:should_preserve_unselected_window_boundaries"
+  },
+  "support": "Finite INTEGER peer fixture only; no added frame grammar or native promotion."
+}

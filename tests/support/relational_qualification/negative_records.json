@@ -1,0 +1,105 @@
+{
+  "status": "MATERIALIZED_BEFORE_EXECUTION",
+  "cases": [
+    {
+      "name": "ordinal_zero",
+      "sql": "SELECT id,n FROM r ORDER BY 0",
+      "sqlstate": "42601",
+      "message_fragment": "ORDER BY position 0 is not in select list"
+    },
+    {
+      "name": "ordinal_outside",
+      "sql": "SELECT id,n FROM r ORDER BY 3",
+      "sqlstate": "42601",
+      "message_fragment": "ORDER BY position 3 is not in select list"
+    },
+    {
+      "name": "case_incompatible",
+      "sql": "SELECT CASE WHEN id=1 THEN n ELSE 'wrong' END AS v FROM r",
+      "sqlstate": "42601",
+      "message_fragment": "CASE result"
+    },
+    {
+      "name": "recursive_arity",
+      "sql": "WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION ALL SELECT n,n FROM seq WHERE n<2) SELECT n FROM seq",
+      "sqlstate": "42601",
+      "message_fragment": "column count"
+    },
+    {
+      "name": "recursive_type",
+      "sql": "WITH RECURSIVE seq(n) AS (SELECT n FROM seed UNION ALL SELECT 'wrong' FROM seq WHERE n<2) SELECT n FROM seq",
+      "sqlstate": "42601",
+      "message_fragment": "type"
+    },
+    {
+      "name": "alias_arity",
+      "sql": "WITH c AS (SELECT id FROM r) SELECT q.x FROM c AS q(x,y)",
+      "sqlstate": "42P10",
+      "message_fragment": null
+    }
+  ],
+  "d2": [
+    {
+      "name": "negative_limit",
+      "sql": "SELECT id FROM r LIMIT $1",
+      "oids": [
+        20
+      ],
+      "utf8": [
+        "-1"
+      ],
+      "sqlstate": "2201W"
+    },
+    {
+      "name": "negative_offset",
+      "sql": "SELECT id FROM r OFFSET $1",
+      "oids": [
+        20
+      ],
+      "utf8": [
+        "-1"
+      ],
+      "sqlstate": "2201X"
+    },
+    {
+      "name": "bound_overflow",
+      "sql": "SELECT id FROM r LIMIT CAST($1 AS BIGINT)+1",
+      "oids": [
+        20
+      ],
+      "utf8": [
+        "9223372036854775807"
+      ],
+      "sqlstate": "22003"
+    },
+    {
+      "name": "unknown_arithmetic",
+      "sql": "SELECT id FROM r LIMIT $1+$2",
+      "oids": [
+        0,
+        0
+      ],
+      "utf8": [
+        "1",
+        "2"
+      ],
+      "sqlstate": "42725"
+    }
+  ],
+  "authority": [
+    "tests/sql_queries.rs:should_reject_ordinals_outside_the_select_list",
+    "src/sql/binder/validation_case.rs",
+    "src/sql/binder/select.rs",
+    "tests/pgwire_extended/pagination.rs:verify_bound_errors"
+  ],
+  "pending": [
+    "wrong-domain pagination exact carrier",
+    "recursive configured depth error",
+    "duplicate alias/wildcard ordinal",
+    "NULL pagination records",
+    "cross-family set compatibility selection",
+    "rich comparator fixture records"
+  ],
+  "support": "These errors are selected current contracts, not a request to implement PostgreSQL coercions.",
+  "preparation_correction": "Alias arity uses the selected CTE prefix-list law; the original unsupported derived-list preparation is preserved in remaining-records."
+}

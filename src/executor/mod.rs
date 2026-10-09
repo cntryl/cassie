@@ -2,6 +2,7 @@ pub mod aggregate;
 mod array_order;
 pub mod batch;
 mod execution;
+pub(crate) use execution::plan_needs_statement_data;
 
 pub(crate) fn delete_document_with_referential_actions(
     cassie: &crate::app::Cassie,
@@ -231,3 +232,6 @@ pub use execution::{
     ExecutionBreakdownOutput, QueryError, QueryResult,
 };
 pub(crate) use execution::{vector_prefilter_fallback_reason, vector_prefilter_supported};
+
+#[cfg(test)]
+pub(crate) use execution::JoinReadProbe;

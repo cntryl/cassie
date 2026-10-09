@@ -44,7 +44,9 @@ impl Midge {
         Self::load_data_epoch_from_tx(&tx)
     }
 
-    fn load_data_epoch_from_tx(tx: &cntryl_midge::Transaction) -> Result<u64, CassieError> {
+    pub(in crate::midge::adapter) fn load_data_epoch_from_tx(
+        tx: &cntryl_midge::Transaction,
+    ) -> Result<u64, CassieError> {
         let Some(raw) = tx.get(&Self::data_epoch_key()).map_err(CassieError::from)? else {
             return Ok(0);
         };

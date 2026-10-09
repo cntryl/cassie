@@ -1,3 +1,6 @@
+mod statement_read;
+pub(crate) use statement_read::{SessionReadScope, StatementOverlay};
+
 #[path = "session/transaction_origin.rs"]
 mod transaction_origin;
 
@@ -6,7 +9,6 @@ use super::{
     normalize_role_name, Arc, BTreeMap, CassieError, Mutex, Serialize, TransactionIsolation,
 };
 use crate::catalog::DEFAULT_SCHEMA;
-use crate::runtime::accounted::json;
 use std::sync::atomic::{AtomicI32, Ordering};
 
 #[derive(Debug, Clone, Serialize)]
@@ -145,32 +147,7 @@ impl StagedWriteSnapshot {
     }
 
     pub(crate) fn estimated_retained_bytes(&self) -> Result<usize, CassieError> {
-        // Charge a full internal BTree node per entry, including unused key/value slots.
-        // An empty owned map can retain its root, so its estimate includes one node too.
-        let node_bytes = 11
-            * (std::mem::size_of::<String>() + std::mem::size_of::<TransactionRowChange>())
-            + 16 * std::mem::size_of::<usize>();
-        let container_bytes =
-            std::mem::size_of::<CollectionChanges>() + 2 * std::mem::size_of::<usize>();
-        let map_bytes = self
-            .changes
-            .len()
-            .max(1)
-            .checked_mul(node_bytes)
-            .and_then(|bytes| bytes.checked_add(container_bytes))
-            .ok_or_else(staged_snapshot_accounting_overflow)?;
-        self.changes
-            .iter()
-            .try_fold(map_bytes, |bytes, (id, change)| {
-                let payload_bytes = match change {
-                    TransactionRowChange::Upsert(payload) => json::retained_bytes(payload)?,
-                    TransactionRowChange::Delete => 0,
-                };
-                bytes
-                    .checked_add(id.capacity())
-                    .and_then(|bytes| bytes.checked_add(payload_bytes))
-                    .ok_or_else(staged_snapshot_accounting_overflow)
-            })
+        statement_read::collection_snapshot_bytes(&self.changes)
     }
 }
 
@@ -657,11 +634,17 @@ impl CassieSession {
 
     #[must_use]
     pub(crate) fn staged_write_snapshot(&self, collection: &str) -> StagedWriteSnapshot {
+        if let Some(snapshot) = statement_read::captured_snapshot(self, collection) {
+            return snapshot;
+        }
         StagedWriteSnapshot::matching(&self.transaction.lock().writes, collection)
     }
 
     #[must_use]
     pub(crate) fn has_collection_changes(&self, collection: &str) -> bool {
+        if let Some(changed) = self.captured_has_collection_changes(collection) {
+            return changed;
+        }
         self.transaction
             .lock()
             .writes

@@ -1,8 +1,7 @@
 use super::search::{simple_search_score, SearchContext};
 use super::{
-    cast_scalar, eval_scalar, evaluate_expr_value, scalar_from_value, AnalyzerConfig,
-    CassieSession, DataType, EvalContext, Expr, FunctionCall, FunctionMeta, HashMap, QueryError,
-    Value,
+    cast_scalar, eval_scalar, scalar_from_value, AnalyzerConfig, CassieSession, DataType,
+    EvalContext, Expr, FunctionCall, HashMap, QueryError, Value,
 };
 use crate::catalog::{DEFAULT_SCHEMA, PG_CATALOG_SCHEMA};
 use crate::executor::batch::RowAccess;
@@ -16,32 +15,15 @@ pub(super) fn evaluate_function<R: RowAccess + ?Sized>(
 ) -> Result<Value, QueryError> {
     let name = function.name.to_ascii_lowercase();
     if name == "coalesce" {
-        return evaluate_coalesce(
-            function,
-            row,
-            context.params,
-            context.search_context,
-            context.user_functions,
-            context.session,
-            context.local_args,
-        );
+        return evaluate_coalesce(function, row, context);
     }
 
     let args: Vec<Value> = function
         .args
         .iter()
         .map(|arg| {
-            super::conditional::evaluate_argument(&name, arg, row, context).unwrap_or_else(|| {
-                evaluate_expr_value(
-                    row,
-                    arg,
-                    context.params,
-                    context.search_context,
-                    context.user_functions,
-                    context.session,
-                    context.local_args,
-                )
-            })
+            super::conditional::evaluate_argument(&name, arg, row, context)
+                .unwrap_or_else(|| super::evaluate_expr_value_with_context(row, arg, context))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -403,11 +385,7 @@ fn evaluate_user_defined_function<R: RowAccess + ?Sized>(
 pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     function: &FunctionCall,
     row: &R,
-    params: &[Value],
-    search_context: Option<&SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    local_args: Option<&HashMap<String, Value>>,
+    context: EvalContext<'_>,
 ) -> Result<Value, QueryError> {
     if function.args.is_empty() {
         return Err(QueryError::General(
@@ -416,15 +394,7 @@ pub(super) fn evaluate_coalesce<R: RowAccess + ?Sized>(
     }
 
     for arg in &function.args {
-        let value = evaluate_expr_value(
-            row,
-            arg,
-            params,
-            search_context,
-            user_functions,
-            session,
-            local_args,
-        )?;
+        let value = super::evaluate_expr_value_with_context(row, arg, context)?;
         if !matches!(value, Value::Null) {
             return Ok(super::coalesce::normalize_selected(value, function));
         }

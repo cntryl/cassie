@@ -1,0 +1,396 @@
+{
+  "status": "FOCUSED_QUALIFICATION_IN_PROGRESS",
+  "purpose": "SQL019/020 compatible homogeneous parity; does not replace hand-only mixed cases",
+  "seeds": [
+    {
+      "create": "CREATE TABLE pg_l (id BIGINT,k BIGINT)",
+      "insert": "INSERT INTO pg_l (id,k) VALUES ($1,$2)",
+      "rows": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          3
+        ]
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000003",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "3"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000004",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "4"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000000",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "0"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000005",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "5"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000003",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "3"
+          }
+        ]
+      ]
+    },
+    {
+      "create": "CREATE TABLE pg_h (id BIGINT,k BIGINT)",
+      "insert": "INSERT INTO pg_h (id,k) VALUES ($1,$2)",
+      "rows": [
+        [
+          10,
+          1
+        ],
+        [
+          11,
+          1
+        ],
+        [
+          12,
+          null
+        ],
+        [
+          13,
+          0
+        ],
+        [
+          14,
+          2
+        ]
+      ],
+      "bind_rows": [
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000a",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "10"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000b",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "11"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000001",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "1"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000c",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "12"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "bytes": null,
+            "expected_carrier": "Value::Null"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000d",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "13"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000000",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "0"
+          }
+        ],
+        [
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "000000000000000e",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "14"
+          },
+          {
+            "oid": 20,
+            "format": 1,
+            "hex": "0000000000000002",
+            "expected_carrier": "Value::Int64",
+            "exact_integer": "2"
+          }
+        ]
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "invariant": "SQL-019",
+      "sql": "SELECT l.id,h.id FROM pg_l AS l LEFT JOIN pg_h AS h ON l.k=h.k ORDER BY l.id,h.id",
+      "expected_rows": [
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          11
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          3,
+          null
+        ],
+        [
+          4,
+          13
+        ],
+        [
+          5,
+          null
+        ]
+      ],
+      "unaliased_sql": "SELECT pg_l.id,pg_h.id FROM pg_l LEFT JOIN pg_h ON pg_l.k=pg_h.k ORDER BY pg_l.id,pg_h.id",
+      "enabled_strategy": "vectorized",
+      "enabled_right_input": 4
+    },
+    {
+      "invariant": "SQL-020",
+      "sql": "SELECT l.id,h.id FROM pg_l AS l JOIN pg_h AS h ON l.k=h.k ORDER BY l.id,h.id",
+      "expected_rows": [
+        [
+          1,
+          10
+        ],
+        [
+          1,
+          11
+        ],
+        [
+          2,
+          10
+        ],
+        [
+          2,
+          11
+        ],
+        [
+          4,
+          13
+        ]
+      ],
+      "unaliased_sql": "SELECT pg_l.id,pg_h.id FROM pg_l JOIN pg_h ON pg_l.k=pg_h.k ORDER BY pg_l.id,pg_h.id",
+      "enabled_strategy": "typed_hash",
+      "enabled_right_input": 5
+    }
+  ],
+  "comparison": "ordered sequence",
+  "origin": "literal independent pair enumeration, NULL skips; no shared key helper",
+  "pg_only_descriptors": [
+    {
+      "name": "id",
+      "oid": 20,
+      "typlen": 8,
+      "typmod": -1
+    },
+    {
+      "name": "id",
+      "oid": 20,
+      "typlen": 8,
+      "typmod": -1
+    }
+  ],
+  "cassie_descriptors": [
+    {
+      "name": "id",
+      "oid": 20,
+      "typlen": 8,
+      "typmod": -1
+    },
+    {
+      "name": "id",
+      "oid": 20,
+      "typlen": 8,
+      "typmod": -1
+    }
+  ],
+  "cassie_wire_protocol": {
+    "statement_describe": {
+      "message": "RowDescription",
+      "result_format_source": "no Bind; empty result_formats implies text0",
+      "expected_columns": [
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1,
+          "format": 0
+        },
+        {
+          "name": "id",
+          "oid": 20,
+          "typlen": 8,
+          "typmod": -1,
+          "format": 0
+        }
+      ]
+    },
+    "portal_checks": [
+      {
+        "describe_message": "RowDescription",
+        "execute_message": "DataRow/CommandComplete",
+        "bind_result_formats": [
+          0
+        ],
+        "expected_columns": [
+          {
+            "name": "id",
+            "oid": 20,
+            "typlen": 8,
+            "typmod": -1,
+            "format": 0
+          },
+          {
+            "name": "id",
+            "oid": 20,
+            "typlen": 8,
+            "typmod": -1,
+            "format": 0
+          }
+        ]
+      },
+      {
+        "describe_message": "RowDescription",
+        "execute_message": "DataRow/CommandComplete",
+        "bind_result_formats": [
+          1
+        ],
+        "expected_columns": [
+          {
+            "name": "id",
+            "oid": 20,
+            "typlen": 8,
+            "typmod": -1,
+            "format": 1
+          },
+          {
+            "name": "id",
+            "oid": 20,
+            "typlen": 8,
+            "typmod": -1,
+            "format": 1
+          }
+        ]
+      }
+    ]
+  },
+  "label_parity": "PG [id,id] and Cassie [l.id,h.id] are separate authorities, not shared label expectation",
+  "selected_public_path": {
+    "disabled": "merge",
+    "enabled_left": "vectorized",
+    "enabled_inner": "typed_hash",
+    "support": "Actual complete-input direct controls, not native promotion by flag alone"
+  },
+  "correction": "Aliased join lower_select stores declared_name(id) as explicit projected alias; same source law as primarySQL005 n/n. Original qualified-label preparation retained in execution-protocols and firstfailedlog."
+}

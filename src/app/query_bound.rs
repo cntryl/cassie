@@ -72,6 +72,11 @@ impl Cassie {
         mode: ExecutionMode,
         controls: &QueryExecutionControls,
     ) -> Result<QueryResult, CassieError> {
+        // A new top-level statement never borrows an enclosing read authority.
+        // This also protects early transaction/EXPLAIN returns and fresh gated
+        // commit validation when embedded execution is nested on one thread.
+        let _entry_read_scope = crate::midge::adapter::StatementReadScope::enter(None);
+        let _entry_overlay_scope = super::SessionReadScope::enter(None);
         let (mut params, declared_oids, wire_output) = parameters;
         self.ensure_session_database_access(session)?;
         Self::ensure_statement_can_execute(session, &parsed, controls)?;
@@ -122,20 +127,19 @@ impl Cassie {
             controls,
             parameter_type_oids,
         )?;
-        super::query_parameters::validate_plan_parameters(
-            &physical.logical,
-            &self.catalog,
-            &self.binding_context_for_session(Some(session)),
-            parameter_type_oids,
-        )?;
-        let output_columns = self.bound_statement_output_columns(
-            &physical.logical,
+        let output_columns = self.validated_statement_output_columns(
             session,
-            declared_oids,
+            &physical.logical,
+            (parameter_type_oids, declared_oids, wire_output),
             controls,
-            wire_output,
         )?;
         self.record_select_plan_decision(cache_context.is_select, &physical);
+
+        let statement_controls =
+            self.capture_bound_statement_read(session, &physical.logical, controls)?;
+        let controls = &statement_controls;
+        let (_read_scope, _overlay_scope) =
+            Self::enter_bound_statement_read(&mut cache_context, controls);
 
         let result_cache_bypass = self.execution_result_cache_bypass_reason(session, &physical);
         if let Some(reason) = result_cache_bypass {
@@ -182,5 +186,75 @@ impl Cassie {
         }
 
         Ok(result)
+    }
+
+    fn enter_bound_statement_read(
+        cache_context: &mut super::query::QueryCacheContext,
+        controls: &QueryExecutionControls,
+    ) -> (
+        crate::midge::adapter::StatementReadScope,
+        super::SessionReadScope,
+    ) {
+        if let (Some(key), Some(owner)) = (
+            cache_context.exec_cache_key.as_mut(),
+            controls.statement_read(),
+        ) {
+            key.data_epoch = owner.data_epoch();
+        }
+        let read_scope =
+            crate::midge::adapter::StatementReadScope::enter(controls.statement_read());
+
+        let overlay_scope = super::SessionReadScope::enter(
+            controls.statement_read().and_then(|owner| owner.overlay()),
+        );
+
+        #[cfg(test)]
+        super::statement_read_tests::after_statement_view_capture();
+
+        (read_scope, overlay_scope)
+    }
+
+    fn capture_bound_statement_read(
+        &self,
+        session: &CassieSession,
+        plan: &crate::planner::logical::LogicalPlan,
+        controls: &QueryExecutionControls,
+    ) -> Result<QueryExecutionControls, CassieError> {
+        #[cfg(test)]
+        super::statement_read_tests::before_statement_view_capture();
+        let owner = if plan.command.is_none() && crate::executor::plan_needs_statement_data(plan) {
+            Some(
+                session.capture_statement_read(
+                    &self.midge,
+                    session
+                        .database
+                        .as_deref()
+                        .unwrap_or(&self.default_database),
+                    controls,
+                )?,
+            )
+        } else {
+            None
+        };
+        // Each top-level execution owns a fresh local clone. A nested writer
+        // suspends a reader scope rather than borrowing stale validation state.
+        Ok(controls.with_statement_read(owner))
+    }
+
+    fn validated_statement_output_columns(
+        &self,
+        session: &CassieSession,
+        logical: &crate::planner::logical::LogicalPlan,
+        wire: (&[i32], &[i32], bool),
+        controls: &QueryExecutionControls,
+    ) -> Result<Option<Vec<crate::executor::ColumnMeta>>, CassieError> {
+        let (parameter_type_oids, declared_oids, wire_output) = wire;
+        super::query_parameters::validate_plan_parameters(
+            logical,
+            &self.catalog,
+            &self.binding_context_for_session(Some(session)),
+            parameter_type_oids,
+        )?;
+        self.bound_statement_output_columns(logical, session, declared_oids, controls, wire_output)
     }
 }

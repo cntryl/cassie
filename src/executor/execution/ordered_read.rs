@@ -97,7 +97,7 @@ fn execute_ordered_row_id_page_with_projection_probe(
         return Ok(Some(Vec::new()));
     }
 
-    if session.is_some_and(|session| !session.collection_changes(spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(spec.collection)) {
         return Ok(None);
     }
 

@@ -220,8 +220,51 @@ impl Midge {
     pub(super) fn begin_data_readonly_tx_for(
         &self,
         collection: &str,
-    ) -> Result<cntryl_midge::Transaction, CassieError> {
-        self.database_tx_for_collection(collection, TransactionMode::ReadOnly)
+    ) -> Result<super::DataReadTransaction, CassieError> {
+        let canonical = self.canonical_collection_name(collection);
+        let database =
+            relation_database_name(&canonical).unwrap_or_else(|| self.default_database.clone());
+        self.begin_database_readonly_tx(&database)
+    }
+
+    pub(super) fn begin_database_readonly_tx(
+        &self,
+        database: &str,
+    ) -> Result<super::DataReadTransaction, CassieError> {
+        if let Some(tx) = self.statement_data_read(database) {
+            return Ok(tx);
+        }
+        self.database_tx(database, TransactionMode::ReadOnly)
+            .map(super::DataReadTransaction::fresh)
+    }
+
+    pub(super) fn begin_family_readonly_tx(
+        &self,
+        family: StorageFamily,
+    ) -> Result<super::DataReadTransaction, CassieError> {
+        if family == StorageFamily::Data {
+            return self.begin_database_readonly_tx(&self.default_database);
+        }
+        self.transaction(family, TransactionMode::ReadOnly)
+            .map(super::DataReadTransaction::fresh)
+    }
+
+    pub(super) fn begin_named_readonly_tx(
+        &self,
+        family: &str,
+    ) -> Result<super::DataReadTransaction, CassieError> {
+        let cf = self.engine.get_column_family(family).ok_or_else(|| {
+            CassieError::StorageMissingFamily(format!(
+                "required column family '{family}' is missing"
+            ))
+        })?;
+        if let Some(tx) = self.statement_data_read_for_family(cf.id()) {
+            return Ok(tx);
+        }
+        self.engine
+            .begin_tx(cf.id(), TransactionMode::ReadOnly)
+            .map(super::DataReadTransaction::fresh)
+            .map_err(CassieError::from)
     }
 
     pub(super) fn begin_data_rw_tx_for(

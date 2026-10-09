@@ -108,6 +108,8 @@ pub(super) fn execute_join_source<'a>(
         return execute_lateral_join(env, &spec, cte_context, left_batches);
     }
     let (left_rows, _left_memory) = prepare_join_rows(env, left_batches)?;
+    #[cfg(test)]
+    super::super::statement_visibility::after_left_source_read();
 
     let right_row_budget = matches!(spec.kind, JoinKind::Cross)
         .then_some(spec.row_budget)
@@ -635,3 +637,7 @@ mod tests {
         assert_eq!(canonical.as_deref(), Some("user_key"));
     }
 }
+
+#[cfg(test)]
+#[path = "source_join/qualification_tests.rs"]
+mod qualification_tests;

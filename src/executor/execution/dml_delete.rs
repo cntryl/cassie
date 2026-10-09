@@ -1,8 +1,8 @@
 use super::{
     batch, build_dml_result, check_timeout, dml_referential_actions, ensure_query_memory_budget,
-    filter, inserted_row_to_batch_row, row_id_from_batch_row, scan, Cassie, CassieSession,
-    DmlResultContext, FunctionMeta, HashMap, QueryError, QueryExecutionControls, QueryResult,
-    Value,
+    filter, inserted_row_to_batch_row, row_id_from_batch_row, scan, BatchRow, Cassie,
+    CassieSession, DmlResultContext, FunctionMeta, HashMap, QueryError, QueryExecutionControls,
+    QueryResult, Value,
 };
 
 pub(in crate::executor::execution) fn execute_delete(
@@ -39,26 +39,8 @@ fn execute_delete_with_held_referential_gates(
         QueryError::General(format!("collection '{}' not found", statement.table))
     })?;
 
-    let batches = scan::scan(cassie, session, &statement.table, controls)?;
-    ensure_query_memory_budget(controls, &batches)?;
-    let rows = batch::flatten_batches(batches);
-    let matched_rows = if let Some(filter_expr) = &statement.filter {
-        let mut filter_expr = crate::executor::execution::resolve_statement_exists(
-            cassie,
-            session,
-            filter_expr,
-            user_functions,
-            params,
-            controls,
-        )?;
-        crate::planner::logical::rewrite_expr_for_schema(
-            &mut filter_expr,
-            crate::planner::logical::collection_declares_id(&cassie.catalog, &statement.table),
-        );
-        filter::filter_rows(rows, &filter_expr, params, None, user_functions, session)?
-    } else {
-        rows
-    };
+    let matched_rows =
+        matched_delete_rows(cassie, session, statement, params, user_functions, controls)?;
 
     let mut deleted_count = 0usize;
     let mut returning_rows = Vec::new();
@@ -120,4 +102,42 @@ fn execute_delete_with_held_referential_gates(
         deleted_count,
         returning_rows,
     )
+}
+
+fn matched_delete_rows(
+    cassie: &Cassie,
+    session: Option<&CassieSession>,
+    statement: &crate::sql::ast::DeleteStatement,
+    params: &[Value],
+    user_functions: &HashMap<String, FunctionMeta>,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<BatchRow>, QueryError> {
+    let statement_controls = crate::executor::execution::entrypoints::statement_read_controls(
+        cassie, session, controls,
+    )?;
+    let controls = &statement_controls;
+    let (_read_scope, _overlay_scope) =
+        crate::executor::execution::entrypoints::enter_statement_read(controls);
+    let batches = scan::scan(cassie, session, &statement.table, controls)?;
+    ensure_query_memory_budget(controls, &batches)?;
+    let rows = batch::flatten_batches(batches);
+    let matched_rows = if let Some(filter_expr) = &statement.filter {
+        let mut filter_expr = crate::executor::execution::resolve_statement_exists(
+            cassie,
+            session,
+            filter_expr,
+            user_functions,
+            params,
+            controls,
+        )?;
+        crate::planner::logical::rewrite_expr_for_schema(
+            &mut filter_expr,
+            crate::planner::logical::collection_declares_id(&cassie.catalog, &statement.table),
+        );
+        filter::filter_rows(rows, &filter_expr, params, None, user_functions, session)?
+    } else {
+        rows
+    };
+
+    Ok(matched_rows)
 }

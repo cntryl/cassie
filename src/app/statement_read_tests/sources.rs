@@ -1,0 +1,492 @@
+//! Qualification of committed source versions, including empty acquisition.
+use super::{execute, CaptureHook, Cassie, Value};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+struct Directory(PathBuf);
+impl Drop for Directory {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).expect("strict source fixture cleanup");
+    }
+}
+struct Fixture {
+    cassie: Arc<Cassie>,
+    _directory: Directory,
+}
+impl Fixture {
+    fn new() -> Self {
+        let directory = Directory(
+            std::env::temp_dir().join(format!("cassie-source-view-{}", uuid::Uuid::new_v4())),
+        );
+        std::fs::create_dir_all(&directory.0).expect("create fixture directory");
+        let cassie = Arc::new(Cassie::new_with_data_dir(&directory.0).expect("Cassie"));
+        cassie.startup().expect("startup");
+        let setup = cassie.create_session("setup", None);
+        for table in ["read_left", "read_right"] {
+            execute(
+                &cassie,
+                &setup,
+                &format!("CREATE TABLE {table} (id INT PRIMARY KEY, n INT)"),
+            );
+            execute(
+                &cassie,
+                &setup,
+                &format!("INSERT INTO {table} VALUES (1, 10), (2, 20)"),
+            );
+        }
+        Self {
+            cassie,
+            _directory: directory,
+        }
+    }
+
+    fn commit_between_sources(&self) -> (crate::executor::JoinReadProbe, Arc<AtomicBool>) {
+        let cassie = Arc::clone(&self.cassie);
+        let writer = cassie.create_session("writer", None);
+        let observed = Arc::new(AtomicBool::new(false));
+        let committed = Arc::clone(&observed);
+        let hook = crate::executor::JoinReadProbe::install(move || {
+            execute(&cassie, &writer, "BEGIN");
+            execute(&cassie, &writer, "UPDATE read_left SET n = n + 100");
+            execute(&cassie, &writer, "UPDATE read_right SET n = n + 100");
+            execute(&cassie, &writer, "COMMIT");
+            committed.store(true, Ordering::SeqCst);
+        });
+        (hook, observed)
+    }
+}
+
+fn original_pairs() -> Vec<Vec<Value>> {
+    vec![
+        vec![Value::Int64(10), Value::Int64(10)],
+        vec![Value::Int64(20), Value::Int64(20)],
+    ]
+}
+fn fresh_pairs() -> Vec<Vec<Value>> {
+    vec![
+        vec![Value::Int64(110), Value::Int64(110)],
+        vec![Value::Int64(120), Value::Int64(120)],
+    ]
+}
+
+#[test]
+fn should_keep_multirow_join_sources_on_the_captured_version() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let sql = "SELECT l.n, r.n FROM read_left l JOIN read_right r ON l.id = r.id ORDER BY l.id";
+    let (hook, committed) = fixture.commit_between_sources();
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "commit occurred between reads"
+    );
+    assert_eq!(captured, original_pairs());
+    assert_eq!(fresh, fresh_pairs());
+}
+
+#[test]
+fn should_keep_repeated_cte_sources_on_the_captured_version() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let sql = "WITH repeated AS (SELECT id, n FROM read_left) SELECT l.n, r.n FROM repeated l JOIN repeated r ON l.id = r.id ORDER BY l.id";
+    let (hook, committed) = fixture.commit_between_sources();
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "commit occurred between CTE consumers"
+    );
+    assert_eq!(captured, original_pairs());
+    assert_eq!(fresh, fresh_pairs());
+}
+
+#[test]
+fn should_keep_derived_subquery_sources_on_the_captured_version() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let sql = "SELECT l.n, r.n FROM (SELECT id, n FROM read_left) l JOIN (SELECT id, n FROM read_right) r ON l.id = r.id ORDER BY l.id";
+    let (hook, committed) = fixture.commit_between_sources();
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "commit occurred between derived sources"
+    );
+    assert_eq!(captured, original_pairs());
+    assert_eq!(fresh, fresh_pairs());
+}
+
+#[test]
+fn should_capture_empty_sources_before_later_committed_inserts() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(&fixture.cassie, &reader, "DELETE FROM read_left");
+    let cassie = Arc::clone(&fixture.cassie);
+    let writer = cassie.create_session("writer", None);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = CaptureHook::install(move || {
+        execute(&cassie, &writer, "INSERT INTO read_left VALUES (1, 110)");
+        observed.store(true, Ordering::SeqCst);
+    });
+    let sql = "SELECT l.n, r.n FROM read_left l JOIN read_right r ON l.id = r.id";
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "insert committed after capture"
+    );
+    assert_eq!(captured, Vec::<Vec<Value>>::new());
+    assert_eq!(fresh, vec![vec![Value::Int64(110), Value::Int64(10)]]);
+}
+
+#[test]
+fn should_keep_visible_right_rows_captured_after_an_empty_left_read() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(&fixture.cassie, &reader, "DELETE FROM read_left");
+    let cassie = Arc::clone(&fixture.cassie);
+    let writer = cassie.create_session("writer", None);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = crate::executor::JoinReadProbe::install(move || {
+        execute(&cassie, &writer, "BEGIN");
+        execute(&cassie, &writer, "INSERT INTO read_left VALUES (1, 110)");
+        execute(&cassie, &writer, "UPDATE read_right SET n = n + 100");
+        execute(&cassie, &writer, "COMMIT");
+        observed.store(true, Ordering::SeqCst);
+    });
+    let sql =
+        "SELECT l.n, r.n FROM read_left l RIGHT JOIN read_right r ON l.id = r.id ORDER BY r.id";
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "commit followed the empty left read"
+    );
+    assert_eq!(
+        captured,
+        vec![
+            vec![Value::Null, Value::Int64(10)],
+            vec![Value::Null, Value::Int64(20)]
+        ]
+    );
+    assert_eq!(
+        fresh,
+        vec![
+            vec![Value::Int64(110), Value::Int64(110)],
+            vec![Value::Null, Value::Int64(120)]
+        ]
+    );
+}
+
+#[test]
+fn should_keep_correlated_projection_reads_on_the_captured_version() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(
+        &fixture.cassie,
+        &reader,
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+    );
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO read_membership VALUES (1)",
+    );
+    let cassie = Arc::clone(&fixture.cassie);
+    let writer = cassie.create_session("writer", None);
+    let committed = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&committed);
+    let hook = crate::executor::JoinReadProbe::install(move || {
+        execute(&cassie, &writer, "BEGIN");
+        execute(&cassie, &writer, "DELETE FROM read_membership WHERE id = 1");
+        execute(&cassie, &writer, "INSERT INTO read_membership VALUES (2)");
+        execute(&cassie, &writer, "COMMIT");
+        observed.store(true, Ordering::SeqCst);
+    });
+    let sql = "SELECT l.id, EXISTS (SELECT 1 FROM read_membership u WHERE u.id = l.id) AS matched FROM read_left l JOIN read_right r ON l.id = r.id ORDER BY l.id";
+
+    // Act
+    let captured = execute(&fixture.cassie, &reader, sql);
+    drop(hook);
+    let fresh = execute(&fixture.cassie, &reader, sql);
+    drop(fixture);
+
+    // Assert
+    assert!(
+        committed.load(Ordering::SeqCst),
+        "membership commit occurred after outer left source acquisition"
+    );
+    assert_eq!(
+        captured,
+        vec![
+            vec![Value::Int64(1), Value::Bool(true)],
+            vec![Value::Int64(2), Value::Bool(false)]
+        ]
+    );
+    assert_eq!(
+        fresh,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_joined_right_alias_indices_for_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    for sql in [
+        "UPDATE read_right SET id = id + 10",
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+        "INSERT INTO read_membership VALUES (12)",
+    ] {
+        execute(&fixture.cassie, &reader, sql);
+    }
+
+    // Act
+    let rows = execute(&fixture.cassie, &reader,
+        "SELECT l.id, EXISTS (SELECT 1 FROM read_membership m WHERE m.id = r.id) AS matched FROM read_left l JOIN read_right r ON r.id = l.id + 10 ORDER BY l.id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_keep_inner_column_priority_with_joined_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    execute(
+        &fixture.cassie,
+        &reader,
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+    );
+    execute(
+        &fixture.cassie,
+        &reader,
+        "INSERT INTO read_membership VALUES (2)",
+    );
+
+    // Act
+    let rows = execute(&fixture.cassie, &reader,
+        "SELECT l.id, EXISTS (SELECT 1 FROM read_membership m WHERE id = 2 AND m.id = l.id) AS matched FROM read_left l JOIN read_right r ON l.id = r.id ORDER BY l.id");
+
+    // Assert
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Int64(1), Value::Bool(false)],
+            vec![Value::Int64(2), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_preserve_literal_joined_fields_for_correlated_projection() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    for sql in [
+        r#"CREATE TABLE read_literal (id INT, "a.b" INT, "A.B" INT)"#,
+        "INSERT INTO read_literal VALUES (1, 1, 2), (2, 2, 1)",
+        "CREATE TABLE read_membership (id INT PRIMARY KEY)",
+        "INSERT INTO read_membership VALUES (1)",
+    ] {
+        execute(&fixture.cassie, &reader, sql);
+    }
+    let ordinary = execute(
+        &fixture.cassie,
+        &reader,
+        r#"SELECT l."a.b", l."A.B" FROM read_literal l JOIN read_right r ON l.id = r.id ORDER BY l.id"#,
+    );
+
+    // Act
+    let rows = execute(
+        &fixture.cassie,
+        &reader,
+        r#"SELECT EXISTS (SELECT 1 FROM read_membership m WHERE m.id = l."a.b") AS lower_match, EXISTS (SELECT 1 FROM read_membership m WHERE m.id = l."A.B") AS upper_match FROM read_literal l JOIN read_right r ON l.id = r.id ORDER BY l.id"#,
+    );
+
+    // Assert
+    assert_eq!(
+        ordinary,
+        vec![
+            vec![Value::Int64(1), Value::Int64(2)],
+            vec![Value::Int64(2), Value::Int64(1)]
+        ]
+    );
+    assert_eq!(
+        rows,
+        vec![
+            vec![Value::Bool(true), Value::Bool(false)],
+            vec![Value::Bool(false), Value::Bool(true)]
+        ]
+    );
+}
+
+#[test]
+fn should_execute_table_free_nested_exists_without_a_database_snapshot() {
+    // Arrange
+    let fixture = Fixture::new();
+    let session = fixture.cassie.create_session("reader", None);
+    // Act
+    let result = fixture.cassie.execute_sql(
+        &session,
+        "SELECT current_database(), EXISTS (SELECT 1), CASE WHEN EXISTS (SELECT 1 WHERE false) THEN false ELSE true END",
+        vec![],
+    ).expect("table-free reads do not require a storage database");
+    // Assert
+    assert_eq!(
+        result.rows,
+        vec![vec![
+            Value::String(fixture.cassie.default_database.clone()),
+            Value::Bool(true),
+            Value::Bool(true)
+        ]]
+    );
+}
+
+#[test]
+fn should_execute_direct_table_free_metadata_without_a_database_snapshot() {
+    // Arrange
+    let fixture = Fixture::new();
+    let session = fixture
+        .cassie
+        .create_session("reader", Some("catalogdb".into()));
+    let plan = super::direct_plan(&fixture.cassie, "SELECT current_database()");
+    let controls = fixture
+        .cassie
+        .runtime
+        .query_controls(std::time::Instant::now());
+    // Act
+    let result = crate::executor::run_with_session_controls(
+        &fixture.cassie,
+        Some(&session),
+        &plan,
+        vec![],
+        &controls,
+    )
+    .expect("direct metadata read does not require a storage database");
+    // Assert
+    assert_eq!(result.rows, vec![vec![Value::String("catalogdb".into())]]);
+    assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+#[test]
+fn should_capture_nested_data_before_table_free_query_execution() {
+    // Arrange
+    let fixture = Fixture::new();
+    let reader = fixture.cassie.create_session("reader", None);
+    let writer = fixture.cassie.create_session("writer", None);
+    let cases = [
+        ("SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched", false),
+        ("SELECT matched FROM (SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched) q", false),
+        ("WITH q AS (SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched) SELECT matched FROM q", false),
+        ("SELECT EXISTS (SELECT 1 FROM read_left WHERE id = 1) AS matched UNION ALL SELECT false AS matched", true),
+    ];
+    // Act
+    let outcomes = cases
+        .into_iter()
+        .map(|(sql, set)| {
+            execute(
+                &fixture.cassie,
+                &writer,
+                "DELETE FROM read_left WHERE id = 1",
+            );
+            execute(
+                &fixture.cassie,
+                &writer,
+                "INSERT INTO read_left VALUES (1, 10)",
+            );
+            let fired = Arc::new(AtomicBool::new(false));
+            let observed = Arc::clone(&fired);
+            let cassie = Arc::clone(&fixture.cassie);
+            let nested_writer = cassie.create_session("nested-writer", None);
+            let hook = CaptureHook::install(move || {
+                execute(
+                    &cassie,
+                    &nested_writer,
+                    "DELETE FROM read_left WHERE id = 1",
+                );
+                observed.store(true, Ordering::SeqCst);
+            });
+            let captured = fixture
+                .cassie
+                .execute_sql(&reader, sql, vec![])
+                .expect("captured nested Data")
+                .rows;
+            drop(hook);
+            let fresh = fixture
+                .cassie
+                .execute_sql(&reader, sql, vec![])
+                .expect("fresh nested Data")
+                .rows;
+            (captured, fresh, fired.load(Ordering::SeqCst), set)
+        })
+        .collect::<Vec<_>>();
+    // Assert
+    for (mut captured, mut fresh, fired, set) in outcomes {
+        let mut expected = vec![vec![Value::Bool(true)]];
+        let mut next = vec![vec![Value::Bool(false)]];
+        if set {
+            expected.push(vec![Value::Bool(false)]);
+            next.push(vec![Value::Bool(false)]);
+        }
+        if set {
+            let key = |row: &Vec<Value>| !matches!(row.first(), Some(Value::Bool(true)));
+            captured.sort_by_key(key);
+            fresh.sort_by_key(key);
+        }
+        assert!(fired, "writer must actually run after ancestor capture");
+        assert_eq!(captured, expected);
+        assert_eq!(fresh, next);
+    }
+}

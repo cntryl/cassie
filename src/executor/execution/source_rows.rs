@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "source_rows/qualification_tests.rs"]
+mod qualification_tests;
+
 #[path = "source_rows/distinct_on.rs"]
 mod direct_distinct_on;
 #[cfg(test)]
@@ -52,9 +56,27 @@ pub(super) fn qualify_batches(batches: Vec<Batch>, qualifier: &str) -> Vec<Batch
         .collect()
 }
 
-pub(super) fn attach_outer_scope(batches: Vec<Batch>, outer_row: &BatchRow) -> Vec<Batch> {
-    let outer_scope = std::sync::Arc::new(outer_row.clone());
-    batches
+pub(super) fn attach_outer_scope(
+    batches: Vec<Batch>,
+    outer_row: &BatchRow,
+    controls: &QueryExecutionControls,
+) -> Result<Vec<Batch>, QueryError> {
+    use crate::executor::retained_memory::add;
+    use std::mem::size_of;
+    super::super::check_timeout(controls)?;
+    let bytes = add(
+        add(
+            outer_row.owned_body_bytes()?,
+            outer_row.pending_lookup_bytes()?,
+        )?,
+        size_of::<BatchRow>()
+            + size_of::<crate::runtime::QueryMemoryReservation>()
+            + 4 * size_of::<usize>(),
+    )?;
+    let memory = std::sync::Arc::new(controls.reserve_query_memory(bytes)?);
+    let outer_scope =
+        std::sync::Arc::new(outer_row.clone().retain_operator_memory(controls, memory)?);
+    Ok(batches
         .into_iter()
         .map(|batch| {
             batch
@@ -62,7 +84,7 @@ pub(super) fn attach_outer_scope(batches: Vec<Batch>, outer_row: &BatchRow) -> V
                 .map(|row| row.with_outer_scope(std::sync::Arc::clone(&outer_scope)))
                 .collect()
         })
-        .collect()
+        .collect())
 }
 
 pub(super) fn source_row_budget(plan: &LogicalPlan, max_result_rows: usize) -> Option<usize> {
@@ -678,3 +700,7 @@ mod tests {
         assert!(lookup_columns.contains(&"postgres.public.users.user_key".to_string()));
     }
 }
+
+#[cfg(test)]
+#[path = "source_rows/outer_scope_admission_tests.rs"]
+mod outer_scope_admission_tests;

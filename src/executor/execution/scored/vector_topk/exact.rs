@@ -126,7 +126,7 @@ fn stream_exact_vector_candidates(
 > {
     if request
         .session
-        .is_some_and(|session| !session.collection_changes(&spec.collection).is_empty())
+        .is_some_and(|session| session.has_collection_changes(&spec.collection))
     {
         return Ok(None);
     }

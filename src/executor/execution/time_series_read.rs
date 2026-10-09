@@ -37,7 +37,7 @@ pub(super) fn try_execute_time_series_read(
     let Some(index) = selected_time_series_index(cassie, plan) else {
         return Ok(None);
     };
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         cassie
             .runtime
             .record_time_series_fallback("session-changes");

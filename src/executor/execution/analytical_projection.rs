@@ -17,7 +17,7 @@ pub(super) fn try_execute_analytical_projection(
     let QuerySource::Collection(source) = &plan.source else {
         return Ok(None);
     };
-    if session.is_some_and(|session| !session.collection_changes(source).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(source)) {
         return Ok(None);
     }
     if cassie.catalog.is_materialized_projection(source)

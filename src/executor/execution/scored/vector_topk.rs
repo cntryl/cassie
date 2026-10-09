@@ -39,7 +39,7 @@ pub(crate) fn execute_vector_distance_top_k(
         return Ok(Some(Vec::new()));
     }
 
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         diagnostics::record_transaction_overlay_exact_fallback(
             cassie,
             &spec,

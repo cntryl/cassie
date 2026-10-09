@@ -16,7 +16,7 @@ pub(crate) use accounted_page::{AccountedDocument, AccountedDocumentPage};
 const STORAGE_SCAN_PAGE_ENTRIES: usize = 256;
 
 pub(crate) struct MidgeRowCursor {
-    tx: cntryl_midge::Transaction,
+    tx: crate::midge::adapter::DataReadTransaction,
     prefix: Vec<u8>,
     last_key: Option<Vec<u8>>,
     row_schema: crate::midge::row_blob::RowSchema,

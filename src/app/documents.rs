@@ -258,7 +258,7 @@ impl Cassie {
         id: &str,
     ) -> Result<Option<DocumentRef>, CassieError> {
         if let Some(session) = session {
-            if let Some(change) = session.document_change(collection, id) {
+            if let Some(change) = session.read_document_change(collection, id) {
                 return Ok(match change {
                     TransactionRowChange::Upsert(payload) => Some(DocumentRef {
                         id: id.to_string(),
@@ -283,12 +283,11 @@ impl Cassie {
     ) -> Result<(Vec<Vec<DocumentRef>>, MidgeScanTimings), CassieError> {
         let started = Instant::now();
         let mut timings = MidgeScanTimings::default();
-        let collection_changes = if let Some(session) = session {
-            session.collection_changes(collection)
-        } else {
-            BTreeMap::new()
-        };
-        if collection_changes.is_empty() {
+        let collection_changes = session.map(|session| session.staged_write_snapshot(collection));
+        if collection_changes
+            .as_ref()
+            .is_none_or(super::session::StagedWriteSnapshot::is_empty)
+        {
             let (batches, scan_timings) = self
                 .midge
                 .scan_projected_rows_batched_filter_limit_with_timings(
@@ -313,19 +312,20 @@ impl Cassie {
             .map(|document| (document.id.clone(), document))
             .collect::<BTreeMap<_, _>>();
 
-        for (id, change) in collection_changes {
+        let collection_changes = collection_changes.expect("nonempty staged snapshot selected");
+        for (id, change) in collection_changes.ordered_changes() {
             match change {
                 TransactionRowChange::Upsert(payload) => {
                     rows.insert(
                         id.clone(),
                         DocumentRef {
-                            id,
-                            payload: project_payload_fields(&payload, fields),
+                            id: id.clone(),
+                            payload: project_payload_fields(payload, fields),
                         },
                     );
                 }
                 TransactionRowChange::Delete => {
-                    rows.remove(&id);
+                    rows.remove(id);
                 }
             }
         }

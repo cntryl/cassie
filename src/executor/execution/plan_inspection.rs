@@ -377,7 +377,7 @@ fn expr_needs_user_functions(expr: &Expr) -> bool {
     }
 }
 
-fn function_needs_user_functions(function: &FunctionCall) -> bool {
+pub(super) fn function_needs_user_functions(function: &FunctionCall) -> bool {
     let name = function.name.to_ascii_lowercase();
     let is_builtin = matches!(
         name.as_str(),

@@ -895,3 +895,6 @@ fn compare_window_sort_parts(left: &WindowSortPart, right: &WindowSortPart) -> C
 
 #[cfg(test)]
 mod typed_tests;
+
+#[cfg(test)]
+mod qualification_tests;

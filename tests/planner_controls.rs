@@ -1521,60 +1521,71 @@ mod plan_cache {
         // Arrange
         use_local_storage();
         let path = data_dir("database_isolation");
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-            let cassie = Cassie::new_with_data_dir(&path).unwrap();
-            let collection = "plan_cache_database_docs";
-            let schema = Schema {
-                fields: vec![FieldSchema {
-                    name: "title".to_string(),
-                    data_type: DataType::Text,
-                    nullable: true,
-                }],
-            };
-
+        let cassie = Cassie::new_with_data_dir(&path).expect("Cassie");
+        cassie.startup().expect("startup");
+        let setup = cassie.create_session("alice", None);
+        for database in ["primary_db", "analytics_db"] {
             cassie
-                .midge
-                .create_collection(collection, schema.clone())
-                .unwrap();
-            cassie.catalog.register_collection(
-                collection,
-                schema
-                    .fields
-                    .iter()
-                    .map(|field| (field.name.clone(), field.data_type.clone()))
-                    .collect(),
-            );
+                .execute_sql(&setup, &format!("CREATE DATABASE {database}"), vec![])
+                .expect("create database");
+        }
+        let primary = cassie.create_session("alice", Some("primary_db".to_string()));
+        let analytics = cassie.create_session("alice", Some("analytics_db".to_string()));
+        for (session, title) in [(&primary, "alpha"), (&analytics, "beta")] {
             cassie
-                .midge
-                .put_document(
-                    collection,
-                    Some("doc-1".to_string()),
-                    serde_json::json!({"title": "alpha"}),
+                .execute_sql(
+                    session,
+                    "CREATE TABLE plan_cache_database_docs (title TEXT)",
+                    vec![],
                 )
-                .unwrap();
+                .expect("create same-named database relation");
+            cassie
+                .execute_sql(
+                    session,
+                    &format!("INSERT INTO plan_cache_database_docs VALUES ('{title}')"),
+                    vec![],
+                )
+                .expect("seed distinguishing database row");
+        }
+        let before = cassie.metrics();
+        let misses_before = before["plan_cache"]["misses"].as_u64().expect("misses");
+        let hits_before = before["plan_cache"]["hits"].as_u64().expect("hits");
+        let sql = "SELECT title FROM plan_cache_database_docs";
 
-            let primary = cassie.create_session("alice", Some("primary_db".to_string()));
-            let analytics = cassie.create_session("alice", Some("analytics_db".to_string()));
-            let sql = "SELECT title FROM plan_cache_database_docs WHERE title = 'alpha'";
+        // Act
+        let first = cassie
+            .execute_sql(&primary, sql, vec![])
+            .expect("primary query");
+        let second = cassie
+            .execute_sql(&analytics, sql, vec![])
+            .expect("analytics query");
+        let metrics = cassie.metrics();
 
-            // Act
-            let first = cassie.execute_sql(&primary, sql, vec![]).unwrap();
-            let second = cassie.execute_sql(&analytics, sql, vec![]).unwrap();
-            let metrics = cassie.metrics();
-
-            // Assert
-            assert_eq!(first.rows.len(), 1);
-            assert_eq!(second.rows.len(), 1);
-            assert_eq!(metrics["plan_cache"]["misses"].as_u64(), Some(2));
-            assert_eq!(metrics["plan_cache"]["hits"].as_u64(), Some(0));
-
-            let _ = std::fs::remove_dir_all(path);
-        });
+        // Assert
+        assert_eq!(
+            first.rows,
+            vec![vec![cassie::types::Value::String("alpha".to_string())]]
+        );
+        assert_eq!(
+            second.rows,
+            vec![vec![cassie::types::Value::String("beta".to_string())]]
+        );
+        assert_eq!(
+            metrics["plan_cache"]["misses"].as_u64().expect("misses") - misses_before,
+            2
+        );
+        assert_eq!(
+            metrics["plan_cache"]["hits"].as_u64().expect("hits") - hits_before,
+            0
+        );
+        drop(first);
+        drop(second);
+        drop(primary);
+        drop(analytics);
+        drop(setup);
+        cassie.shutdown();
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("strict database fixture cleanup");
     }
 
     #[test]

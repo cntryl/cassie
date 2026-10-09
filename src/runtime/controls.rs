@@ -66,6 +66,7 @@ pub struct QueryExecutionControls {
     cancellation: QueryCancellationHandle,
     relational_cte_boundary: bool,
     memory: Arc<QueryMemoryTracker>,
+    statement_read: Option<Arc<crate::midge::adapter::StatementDataRead>>,
 }
 
 #[derive(Debug)]
@@ -125,6 +126,20 @@ impl Drop for QueryMemoryReservation {
 }
 
 impl QueryExecutionControls {
+    pub(crate) fn with_statement_read(
+        &self,
+        owner: Option<Arc<crate::midge::adapter::StatementDataRead>>,
+    ) -> Self {
+        Self {
+            statement_read: owner,
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn statement_read(&self) -> Option<&Arc<crate::midge::adapter::StatementDataRead>> {
+        self.statement_read.as_ref()
+    }
+
     #[must_use]
     pub fn from_limits(limits: &CassieRuntimeLimits, started_at: Instant) -> Self {
         Self::with_cancellation(limits, started_at, QueryCancellationHandle::new())
@@ -145,6 +160,7 @@ impl QueryExecutionControls {
         };
 
         Self {
+            statement_read: None,
             deadline,
             max_result_rows: limits.max_result_rows,
             query_memory_budget_bytes: limits.query_memory_budget_bytes,

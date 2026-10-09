@@ -48,6 +48,7 @@ pub(super) fn execute_fulltext_top_k(
         .collect::<Vec<_>>();
     let search_context = cached_search_context(
         cassie,
+        session,
         &spec.collection,
         &spec.text_field,
         &search_documents,
@@ -57,6 +58,7 @@ pub(super) fn execute_fulltext_top_k(
             b: &search_index_options.field_b,
             analyzer: &search_index_options.field_analyzer,
         },
+        controls,
     )?;
     let query_terms = filter::prepare_query_terms_with_analyzer(&spec.query, &analyzer);
     let (candidate_ids, _candidate_memory) = if spec.require_match {
@@ -164,7 +166,7 @@ fn try_execute_persisted_fulltext_top_k(
     if !spec.require_match {
         return Ok(PersistedFulltextTopK::Exact("zero_score_rows_required"));
     }
-    if session.is_some_and(|session| !session.collection_changes(&spec.collection).is_empty()) {
+    if session.is_some_and(|session| session.has_collection_changes(&spec.collection)) {
         return Ok(PersistedFulltextTopK::Exact("transaction_overlay"));
     }
     let Some(index) = cassie

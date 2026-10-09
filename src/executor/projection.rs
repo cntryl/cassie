@@ -43,6 +43,29 @@ pub(crate) fn project_rows<R>(
 where
     R: RowAccess,
 {
+    project_rows_resolving_exists(
+        rows,
+        projection,
+        params,
+        search_context,
+        user_functions,
+        session,
+        None,
+    )
+}
+
+pub(crate) fn project_rows_resolving_exists<R>(
+    rows: Vec<R>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    resolver: Option<&filter::ExistsResolver<'_>>,
+) -> Result<Vec<BatchRow>, QueryError>
+where
+    R: RowAccess,
+{
     let ops = compile_projection_ops(projection);
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
@@ -92,15 +115,29 @@ where
                         .cloned()
                         .map_or_else(
                             || {
-                                filter::evaluate_expr_value(
-                                    &row,
-                                    expr,
-                                    params,
-                                    search_context,
-                                    user_functions,
-                                    session,
-                                    None,
-                                )
+                                if let Some(resolver) = resolver {
+                                    filter::evaluate_resolving_exists(
+                                        &row,
+                                        expr,
+                                        filter::ExistsValueContext {
+                                            params,
+                                            search: search_context,
+                                            functions: user_functions,
+                                            session,
+                                            resolver,
+                                        },
+                                    )
+                                } else {
+                                    filter::evaluate_expr_value(
+                                        &row,
+                                        expr,
+                                        params,
+                                        search_context,
+                                        user_functions,
+                                        session,
+                                        None,
+                                    )
+                                }
                             },
                             Ok,
                         )?;
@@ -206,6 +243,32 @@ pub(crate) fn project_batches(
                 search_context,
                 user_functions,
                 session,
+            )
+        })
+        .collect()
+}
+
+pub(crate) fn project_batches_resolving_exists(
+    batches: Vec<Batch>,
+    projection: &[SelectItem],
+    params: &[Value],
+    search_context: Option<&SearchContext>,
+    user_functions: &std::collections::HashMap<String, FunctionMeta>,
+    session: Option<&CassieSession>,
+    resolver: &filter::ExistsResolver<'_>,
+) -> Result<Vec<Batch>, QueryError> {
+    check_projection_build_failure_point()?;
+    batches
+        .into_iter()
+        .map(|batch| {
+            project_rows_resolving_exists(
+                batch,
+                projection,
+                params,
+                search_context,
+                user_functions,
+                session,
+                Some(resolver),
             )
         })
         .collect()

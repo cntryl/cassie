@@ -20,6 +20,9 @@ mod source_collection;
 #[path = "source_shape.rs"]
 mod source_shape;
 
+#[path = "source_exists_projection.rs"]
+mod exists_projection_phase;
+
 type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 pub(super) struct SourceExecutionEnv<'a> {
@@ -451,15 +454,19 @@ pub(super) fn execute_source_query_with_outer_row(
         env.session,
         env.controls,
     )?;
-    batches = apply_projection_phase(
-        batches,
-        plan,
-        env.params,
-        search_context.as_ref(),
-        env.user_functions,
-        env.session,
-        env.controls,
-    )?;
+    batches = if super::exists_projection::contains(&plan.projection) {
+        exists_projection_phase::apply(env, batches, plan, cte_context, search_context.as_ref())?
+    } else {
+        apply_projection_phase(
+            batches,
+            plan,
+            env.params,
+            search_context.as_ref(),
+            env.user_functions,
+            env.session,
+            env.controls,
+        )?
+    };
 
     let rows = finalize_plan_rows(&phase_env, plan, cte_context, batches)?;
     record_plan_metrics(
@@ -507,7 +514,7 @@ fn load_source_batches(
         source_row_budget(plan, env.controls.max_result_rows),
     )?;
     if let Some(outer_row) = outer_row {
-        batches = attach_outer_scope(batches, outer_row);
+        batches = attach_outer_scope(batches, outer_row, env.controls)?;
     }
     Ok((batches, text_fields))
 }

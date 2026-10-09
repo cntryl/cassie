@@ -165,8 +165,7 @@ fn scalar_index_read_spec(
     else {
         return Ok(None);
     };
-    if session.is_some_and(|session| !session.collection_changes(&projected.collection).is_empty())
-    {
+    if session.is_some_and(|session| session.has_collection_changes(&projected.collection)) {
         return Ok(None);
     }
 

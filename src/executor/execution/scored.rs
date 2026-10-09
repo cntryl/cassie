@@ -104,16 +104,30 @@ struct FulltextSearchTuning<'a> {
 
 fn cached_search_context<D>(
     cassie: &Cassie,
+    session: Option<&CassieSession>,
     collection: &str,
     field: &str,
     documents: &[D],
     tuning: FulltextSearchTuning<'_>,
+    controls: &QueryExecutionControls,
 ) -> Result<filter::SearchContext, QueryError>
 where
     D: PostingListDocument,
 {
     let schema_epoch = cassie.runtime.schema_epoch();
-    let data_epoch = cassie.runtime.data_epoch();
+    let database = crate::catalog::relation_database_name(collection)
+        .unwrap_or_else(|| cassie.default_database.clone());
+    let data_epoch = controls
+        .statement_read()
+        .filter(|owner| {
+            owner.matches(&cassie.midge, &database)
+                && session.is_none_or(|session| {
+                    owner
+                        .overlay()
+                        .is_some_and(|overlay| overlay.matches_session(session))
+                })
+        })
+        .map_or_else(|| cassie.runtime.data_epoch(), |owner| owner.data_epoch());
     let analyzer_key = tuning
         .analyzer
         .get(&crate::sql::ColumnIdentifierPath::reference_field_key(
@@ -122,16 +136,22 @@ where
         .cloned()
         .unwrap_or_default()
         .cache_key();
-    if let Some(context) = query_cache::lookup_fulltext_stats(
-        &cassie.midge,
-        &cassie.runtime,
-        collection,
-        field,
-        &analyzer_key,
-        schema_epoch,
-        data_epoch,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?
+    let cacheable = !session.is_some_and(|session| session.has_collection_changes(collection));
+    if let Some(context) = cacheable
+        .then(|| {
+            query_cache::lookup_fulltext_stats(
+                &cassie.midge,
+                &cassie.runtime,
+                collection,
+                field,
+                &analyzer_key,
+                schema_epoch,
+                data_epoch,
+            )
+        })
+        .transpose()
+        .map_err(|error| QueryError::General(error.to_string()))?
+        .flatten()
     {
         return Ok(context);
     }
@@ -144,19 +164,21 @@ where
         tuning.b,
         tuning.analyzer,
     );
-    query_cache::store_fulltext_stats(
-        &cassie.midge,
-        &cassie.runtime,
-        query_cache::FulltextStatsCacheKey {
-            collection,
-            field,
-            analyzer_key: &analyzer_key,
-            schema_epoch,
-            data_epoch,
-        },
-        &context,
-    )
-    .map_err(|error| QueryError::General(error.to_string()))?;
+    if cacheable {
+        query_cache::store_fulltext_stats(
+            &cassie.midge,
+            &cassie.runtime,
+            query_cache::FulltextStatsCacheKey {
+                collection,
+                field,
+                analyzer_key: &analyzer_key,
+                schema_epoch,
+                data_epoch,
+            },
+            &context,
+        )
+        .map_err(|error| QueryError::General(error.to_string()))?;
+    }
     Ok(context)
 }
 

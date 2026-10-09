@@ -240,8 +240,8 @@ fn should_preserve_quoted_alias_namespace_ownership() {
     );
     let wrong_case = fixture.execute(r#"SELECT r.id FROM records "R" JOIN __cassie_relation_alias_52 ON "R".n=__cassie_relation_alias_52.n"#);
     let joined_outer_queries = [
-        "SELECT records.id FROM records JOIN __cassie_relation_alias_52 ON records.n=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n=records.n)",
-        r#"SELECT "R".key FROM records "R"(key,value) JOIN __cassie_relation_alias_52 ON "R".value=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n="R".value)"#,
+        "SELECT records.id AS id FROM records JOIN __cassie_relation_alias_52 ON records.n=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n=records.n) ORDER BY records.id",
+        r#"SELECT "R".key AS key FROM records "R"(key,value) JOIN __cassie_relation_alias_52 ON "R".value=__cassie_relation_alias_52.n WHERE EXISTS (SELECT __cassie_bound_alias_0.id FROM __cassie_bound_alias_0 WHERE __cassie_bound_alias_0.n="R".value) ORDER BY "R".key"#,
     ];
     let joined_outer_results = joined_outer_queries.map(|sql| fixture.execute(sql));
     // Assert
@@ -268,8 +268,23 @@ fn should_preserve_quoted_alias_namespace_ownership() {
         .expect_err("quoted R does not admit lower r")
         .to_string()
         .contains("unresolvable"));
-    for (sql, result) in joined_outer_queries.iter().zip(joined_outer_results) {
-        assert!(result.expect_err(sql).to_string().contains("unresolvable"));
+    for ((sql, result), name) in joined_outer_queries
+        .iter()
+        .zip(joined_outer_results)
+        .zip(["id", "key"])
+    {
+        let result = result.expect(sql);
+        assert_eq!(
+            result.rows,
+            vec![vec![Value::Int64(11)], vec![Value::Int64(12)]],
+            "{sql}"
+        );
+        assert_eq!(result.columns.len(), 1, "{sql}");
+        assert_eq!(result.columns[0].name, name, "{sql}");
+        assert_eq!(result.columns[0].type_oid, 23, "{sql}");
+        assert_eq!(result.columns[0].typlen, 4, "{sql}");
+        assert_eq!(result.columns[0].atttypmod, -1, "{sql}");
+        assert_eq!(result.columns[0].format_code, 0, "{sql}");
     }
 }
 

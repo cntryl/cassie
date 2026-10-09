@@ -433,3 +433,45 @@ no SELECT INTO AST variant. This preserves the original SELECT dependency
 gate while keeping the bound-execution function under its line limit. Final
 ordered full validation must restart on the new clean integrated head; the
 prior partial full RED is preserved and is not reported as acceptance.
+
+## Current integration review boundary
+
+The refreshed 2026-10-09 integration retains the selected #763/#864/#866
+implementation and the finite #761 qualification. Independent source review
+found no confirmed statement-view defect. A new actual joined WHERE literal-field
+RED (two failures, one inner-shadow control passing) selects reuse of the existing
+admitted outer-row helper for JOIN sources only; ordinary and SELECT controls
+succeeded before that WHERE failure. Its three focused regressions now pass.
+The copy-owner/denial/cancellation probe passes. The normal-profile locked full
+suite passes: 3,756 tests passed, zero failed, nine ignored. Full workspace/all-
+target/all-feature pedantic Clippy, formatting, 43 touched Rust test-file checks
+and repository test/document/benchmark/module policies pass. The only subsequent
+test change is a policy-required function rename; exact source-hash restoration
+proves its body unchanged, and the renamed probe plus broad Clippy/format/policy
+checks pass. Final hosted checks and merge evidence belong to the GitHub PR record.
+
+The finite sibling diagnostic records successful uncorrelated HAVING, ORDER BY,
+JOIN ON and window controls, with correlated failures tracked by
+[bug #868](https://github.com/cntryl/cassie/issues/868). Grouped SELECT correlation
+returns its exact expected rows. UPDATE RETURNING leaves both EXISTS variants
+unresolved, tracked by [bug #869](https://github.com/cntryl/cassie/issues/869).
+The recording harness's exit zero is not desired-behavior acceptance. These
+findings keep #761 open; this bundle does not claim sibling or RETURNING repair.
+
+The [delivery tracks](query-engine-delivery-tracks.md) retain primary ownership,
+activation gates and serial integration. #861 remains a separate unresolved
+wait-attribution investigation; its already-merged finite teardown repair is
+not proof of the multi-minute wait's cause.
+
+Nested ancestor scope remains unresolved ([#870](https://github.com/cntryl/cassie/issues/870)): a first-level correlated output returns the literal control rows, while nested SELECT and WHERE referencing the grandparent row fail binding. This finite probe does not establish a historical regression date. First-level repairs do not qualify complete SQL-022 correlation.
+
+The integration full run exposed outdated fixture boundaries. Tests that exercise
+first-wide-row denial and bounded identity scans now admit a finite 4 KiB budget:
+the captured owner charges 704 bytes before reading, while each wide payload is
+8 KiB. Exact first-entry counts, poisoned later rows, one/four-worker coverage and
+zero final reservations remain required. The positive two-row overlay/sort fixture
+uses 32 KiB; this does not raise runtime limits or replace separate denial probes.
+ANN mutation barriers compare the paused reader against an exact pre-index oracle
+and distinguish it from a fresh post-mutation statement. Plan-cache database
+isolation creates two real Data families and checks distinguishable literal rows
+and cache-counter deltas. These fixture changes pass the final full local acceptance run.

@@ -29,3 +29,6 @@ mod pagination;
 
 #[path = "relational_qualification/homogeneous_join.rs"]
 mod homogeneous_join;
+
+#[path = "relational_qualification/joined_correlation.rs"]
+mod joined_correlation;

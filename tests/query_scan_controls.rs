@@ -108,15 +108,18 @@ mod column_store_query_controls {
 
     use super::support_column_store_controls::{payload, Fixture, COLLECTION};
 
+    // Captured statement ownership admits 704 bytes before native reads.
+    // 4 KiB admits narrow identity paths while remaining below each 8 KiB payload.
+
     #[test]
     fn should_reject_each_storage_layout_at_the_first_wide_row_boundary() {
         let _guard = query_scan_control_test_guard();
         for column_store in [false, true] {
             // Arrange
             let fixture = if column_store {
-                Fixture::new("paired-column-memory", 512, 1, 128, 8_192)
+                Fixture::new("paired-column-memory", 4_096, 1, 128, 8_192)
             } else {
-                Fixture::row_store("paired-row-memory", 512, 128, 8_192)
+                Fixture::row_store("paired-row-memory", 4_096, 128, 8_192)
             };
             fixture.poison_payload(127);
             let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
@@ -148,11 +151,11 @@ mod column_store_query_controls {
             for column_store in [true, false] {
                 // Arrange
                 let fixture = if column_store {
-                    Fixture::new("full-shape-column-memory", 512, workers, 128, 8_192)
+                    Fixture::new("full-shape-column-memory", 4_096, workers, 128, 8_192)
                 } else {
                     Fixture::row_store_with_workers(
                         "full-shape-row-memory",
-                        512,
+                        4_096,
                         workers,
                         128,
                         8_192,
@@ -240,7 +243,8 @@ mod column_store_query_controls {
         let _guard = query_scan_control_test_guard();
         for workers in [1, 4] {
             // Arrange
-            let fixture = Fixture::new("column-store-pre-decode-budget", 512, workers, 128, 8_192);
+            let fixture =
+                Fixture::new("column-store-pre-decode-budget", 4_096, workers, 128, 8_192);
             fixture.poison_payload(127);
             for projection in [
                 format!("SELECT payload FROM {COLLECTION}"),
@@ -329,7 +333,7 @@ mod column_store_query_controls {
         let _guard = query_scan_control_test_guard();
         for workers in [1, 4] {
             // Arrange
-            let fixture = Fixture::new("column-store-bounded-limit", 512, workers, 128, 8_192);
+            let fixture = Fixture::new("column-store-bounded-limit", 4_096, workers, 128, 8_192);
             fixture.poison_payload(0);
             let before_reads = fixture.cassie.midge.query_scan_entries_for_diagnostics();
             set_query_scan_cancellation_after_entries(Some(2));
@@ -965,6 +969,15 @@ mod vector_ann_concurrency {
         index_type: &str,
         query_memory_budget_bytes: Option<usize>,
     ) -> Arc<Cassie> {
+        fixture_before_index(path, index_type, query_memory_budget_bytes, |_| {})
+    }
+
+    fn fixture_before_index(
+        path: &str,
+        index_type: &str,
+        query_memory_budget_bytes: Option<usize>,
+        before_index: impl FnOnce(&Cassie),
+    ) -> Arc<Cassie> {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         if let Some(query_memory_budget_bytes) = query_memory_budget_bytes {
             config.limits.query_memory_budget_bytes = query_memory_budget_bytes;
@@ -1002,6 +1015,7 @@ mod vector_ann_concurrency {
             .midge
             .put_fresh_documents(TABLE, documents)
             .expect("seed rows");
+        before_index(&cassie);
         let options = match index_type {
         "hnsw" => "index_type = hnsw, m = 8, ef_construction = 64, ef_search = 32",
         "ivfflat" => "index_type = ivfflat, lists = 4, probes = 4, training_sample_size = 32, training_seed = 7",
@@ -1018,14 +1032,22 @@ mod vector_ann_concurrency {
     }
 
     #[test]
-    fn should_discard_hnsw_attempt_when_source_changes_before_reranking() {
+    fn should_preserve_captured_hnsw_source_when_deleted_before_reranking() {
         // Arrange
         let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
         let path = support::data_dir("ann-concurrent-source");
-        let cassie = fixture(&path, "hnsw");
+        let mut expected = None;
+        let cassie = fixture_before_index(&path, "hnsw", None, |cassie| {
+            expected = Some(
+                cassie
+                    .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
+                    .expect("pre-index exact source oracle"),
+            );
+        });
+        let expected = expected.expect("captured exact source oracle");
         let before = cassie.metrics();
         let selected = Arc::new(Barrier::new(2));
         let resume = Arc::new(Barrier::new(2));
@@ -1051,6 +1073,7 @@ mod vector_ann_concurrency {
             .expect("delete selected source row");
         resume.wait();
         let resolved = query.join().expect("query thread");
+        let reader_metrics = cassie.metrics();
         cassie
             .execute_sql(
                 &cassie.create_session("tester", None),
@@ -1061,31 +1084,67 @@ mod vector_ann_concurrency {
         let exact = cassie
             .execute_sql(&cassie.create_session("tester", None), QUERY, vec![])
             .expect("exact baseline");
-        let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(resolved.rows, exact.rows);
         assert_eq!(
-            metrics["vector"]["last_fallback_reason"].as_str(),
+            resolved.rows, expected.rows,
+            "paused reader keeps its source view"
+        );
+        assert_ne!(
+            resolved.rows, exact.rows,
+            "next statement sees the committed mutation"
+        );
+        assert_eq!(
+            resolved.rows[0][0],
+            cassie::types::Value::String("row-0000".into())
+        );
+        assert_eq!(resolved.rows[0][1], cassie::types::Value::Float64(0.0));
+        assert!(exact
+            .rows
+            .iter()
+            .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
+        assert_ne!(
+            reader_metrics["vector"]["last_fallback_reason"].as_str(),
             Some("concurrent-source-change")
         );
-        assert_eq!(metrics["vector"]["hnsw_executions"].as_u64(), Some(0));
         assert_eq!(
-            metrics["vector"]["ann_reads_total"],
-            before["vector"]["ann_reads_total"]
+            reader_metrics["vector"]["hnsw_executions"].as_u64(),
+            before["vector"]["hnsw_executions"]
+                .as_u64()
+                .map(|count| count + 1)
         );
-        let _ = std::fs::remove_dir_all(path);
+        assert!(
+            reader_metrics["vector"]["ann_reads_total"]
+                .as_u64()
+                .unwrap()
+                > before["vector"]["ann_reads_total"].as_u64().unwrap()
+        );
+        drop(expected);
+        drop(resolved);
+        drop(exact);
+        cassie.shutdown();
+        drop(cassie);
+        std::fs::remove_dir_all(&path).expect("strict concurrent ANN cleanup");
+        assert!(!std::path::Path::new(&path).exists());
     }
 
     #[test]
-    fn should_discard_ivfflat_attempt_when_source_is_replaced_before_reranking() {
+    fn should_preserve_captured_ivfflat_source_when_replaced_before_reranking() {
         // Arrange
         let _ann_rerank_guard = ANN_RERANK_BARRIER_TEST_GUARD.write();
         let _hook_guard = cassie::midge::adapter::query_scan_control_test_guard();
         support::use_local_storage();
         std::env::set_var("CASSIE_EXECUTION_RESULT_CACHE_ENABLED", "false");
         let path = support::data_dir("ivfflat-concurrent-source");
-        let cassie = fixture(&path, "ivfflat");
+        let mut expected = None;
+        let cassie = fixture_before_index(&path, "ivfflat", None, |cassie| {
+            expected = Some(
+                cassie
+                    .execute_sql(&cassie.create_session("baseline", None), QUERY, vec![])
+                    .expect("pre-index exact source oracle"),
+            );
+        });
+        let expected = expected.expect("captured exact source oracle");
         let before = cassie.metrics();
         let selected = Arc::new(Barrier::new(2));
         let resume = Arc::new(Barrier::new(2));
@@ -1111,6 +1170,7 @@ mod vector_ann_concurrency {
             .expect("replace selected source vector");
         resume.wait();
         let resolved = query.join().expect("query thread");
+        let reader_metrics = cassie.metrics();
         cassie
             .execute_sql(
                 &cassie.create_session("tester", None),
@@ -1121,20 +1181,48 @@ mod vector_ann_concurrency {
         let exact = cassie
             .execute_sql(&cassie.create_session("tester", None), QUERY, vec![])
             .expect("exact baseline");
-        let metrics = cassie.metrics();
 
         // Assert
-        assert_eq!(resolved.rows, exact.rows);
         assert_eq!(
-            metrics["vector"]["last_fallback_reason"].as_str(),
+            resolved.rows, expected.rows,
+            "paused reader keeps its source view"
+        );
+        assert_ne!(
+            resolved.rows, exact.rows,
+            "next statement sees the committed mutation"
+        );
+        assert_eq!(
+            resolved.rows[0][0],
+            cassie::types::Value::String("row-0000".into())
+        );
+        assert_eq!(resolved.rows[0][1], cassie::types::Value::Float64(0.0));
+        assert!(exact
+            .rows
+            .iter()
+            .all(|row| row[0] != cassie::types::Value::String("row-0000".into())));
+        assert_ne!(
+            reader_metrics["vector"]["last_fallback_reason"].as_str(),
             Some("concurrent-source-change")
         );
-        assert_eq!(metrics["vector"]["ivfflat_executions"].as_u64(), Some(0));
         assert_eq!(
-            metrics["vector"]["ann_reads_total"],
-            before["vector"]["ann_reads_total"]
+            reader_metrics["vector"]["ivfflat_executions"].as_u64(),
+            before["vector"]["ivfflat_executions"]
+                .as_u64()
+                .map(|count| count + 1)
         );
-        let _ = std::fs::remove_dir_all(path);
+        assert!(
+            reader_metrics["vector"]["ann_reads_total"]
+                .as_u64()
+                .unwrap()
+                > before["vector"]["ann_reads_total"].as_u64().unwrap()
+        );
+        drop(expected);
+        drop(resolved);
+        drop(exact);
+        cassie.shutdown();
+        drop(cassie);
+        std::fs::remove_dir_all(&path).expect("strict concurrent ANN cleanup");
+        assert!(!std::path::Path::new(&path).exists());
     }
 
     #[test]
@@ -2436,7 +2524,8 @@ mod query_resource_controls {
     fn should_stop_limit_scan_before_low_memory_budget_is_exhausted() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        let (cassie, path) = configured_cassie("limit-early-stop", 512);
+        // Admit the 704-byte statement owner before testing the one-row stop.
+        let (cassie, path) = configured_cassie("limit-early-stop", 4_096);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(
@@ -2533,10 +2622,10 @@ mod query_resource_controls {
     fn should_preserve_transaction_overlay_visibility_under_query_controls() {
         // Arrange
         let _hook_guard = query_scan_control_test_guard();
-        // Selected owned sort/projection now admits fresh backing through handoff.
-        // Local calibration peaks at 9,882 bytes; 12 KiB keeps a positive margin
-        // for this visibility fixture. The separate denial controls keep their budgets.
-        let (cassie, path) = configured_cassie("transaction-overlay", 12 * 1_024);
+        // Captured transaction overlay and sort/projection owners share the budget.
+        // This positive visibility fixture uses a finite 32 KiB allowance;
+        // separate denial controls retain their selected low-memory frontiers.
+        let (cassie, path) = configured_cassie("transaction-overlay", 32 * 1_024);
         let session = cassie.create_session("tester", None);
         cassie
             .execute_sql(

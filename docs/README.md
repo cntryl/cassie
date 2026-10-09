@@ -54,6 +54,7 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Release Checklist](release-checklist.md)
 - [Tooling Contract](tooling-contract.md)
 - [Ordinary Aliases and Pagination Integration Plan](alias-pagination-plan.md)
+- [Query-engine Delivery Tracks](query-engine-delivery-tracks.md)
 - [Experimental Promotion Criteria](experimental-promotion-criteria.md)
 - [Promotion Evidence Matrix](promotion-evidence-matrix.md)
 - [Feature Ownership](feature-ownership.md)

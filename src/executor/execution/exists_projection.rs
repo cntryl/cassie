@@ -7,7 +7,7 @@ mod admission;
 mod rows;
 mod scope;
 
-pub(super) use rows::project;
+pub(super) use rows::{outer_row, project};
 
 pub(super) fn contains(projection: &[SelectItem]) -> bool {
     projection.iter().any(|item| match item {

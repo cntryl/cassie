@@ -56,7 +56,7 @@ pub(in crate::executor::execution) fn project(
     Ok(output)
 }
 
-fn outer_row(
+pub(in crate::executor::execution) fn outer_row(
     env: &SourceExecutionEnv<'_>,
     source: &crate::sql::QuerySource,
     row: &BatchRow,

@@ -36,8 +36,7 @@ pub(super) fn filter_rows_per_outer_row(
     let mut kept = Vec::new();
     for row in batch::flatten_batches(batches) {
         super::check_timeout(context.controls)?;
-        let outer =
-            qualified_outer_row(&context.cassie.catalog, source, &row, qualifier.as_deref());
+        let outer = qualified_outer_row(context, source, &row, qualifier.as_deref())?;
         let row_context = ExistsResolutionContext {
             outer_row: Some(&outer),
             ..*context
@@ -75,25 +74,40 @@ pub(super) fn outer_qualifier(source: &QuerySource) -> Option<String> {
 /// name inside the subquery resolves to the subquery's own columns first
 /// (PostgreSQL scoping) and reaches the outer row only through its suffix.
 fn qualified_outer_row(
-    catalog: &crate::catalog::Catalog,
+    context: &ExistsResolutionContext<'_>,
     source: &QuerySource,
     row: &BatchRow,
     qualifier: Option<&str>,
-) -> BatchRow {
+) -> Result<BatchRow, QueryError> {
     let Some(qualifier) = qualifier else {
-        return row.clone();
+        if matches!(source, QuerySource::Join { .. }) {
+            let env = super::source::SourceExecutionEnv {
+                cassie: context.cassie,
+                session: context.session,
+                user_functions: context.user_functions,
+                params: context.params,
+                controls: context.controls,
+            };
+            return super::exists_projection::outer_row(&env, source, row);
+        }
+        return Ok(row.clone());
     };
-    BatchRow::new(
+    Ok(BatchRow::new(
         row.entries()
             .iter()
             .map(|(name, value)| {
                 (
-                    super::outer_names::outer_field_name(catalog, source, Some(qualifier), name),
+                    super::outer_names::outer_field_name(
+                        &context.cassie.catalog,
+                        source,
+                        Some(qualifier),
+                        name,
+                    ),
                     value.clone(),
                 )
             })
             .collect(),
-    )
+    ))
 }
 
 /// Returns the qualified outer row with unqualified aliases for the columns
@@ -231,3 +245,7 @@ fn collect_source_columns(
 #[cfg(test)]
 #[path = "exists_correlated_retention_tests.rs"]
 mod retention_tests;
+
+#[cfg(test)]
+#[path = "exists_correlated_joined_tests.rs"]
+mod joined_tests;

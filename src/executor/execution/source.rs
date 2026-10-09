@@ -20,6 +20,9 @@ mod source_collection;
 #[path = "source_shape.rs"]
 mod source_shape;
 
+#[path = "source_exists_projection.rs"]
+mod exists_projection_phase;
+
 type SourceExecution = Result<(Vec<Batch>, Vec<String>), QueryError>;
 
 pub(super) struct SourceExecutionEnv<'a> {
@@ -452,7 +455,7 @@ pub(super) fn execute_source_query_with_outer_row(
         env.controls,
     )?;
     batches = if super::exists_projection::contains(&plan.projection) {
-        apply_exists_projection_phase(env, batches, plan, cte_context, search_context.as_ref())?
+        exists_projection_phase::apply(env, batches, plan, cte_context, search_context.as_ref())?
     } else {
         apply_projection_phase(
             batches,
@@ -860,34 +863,6 @@ fn apply_projection_phase(
     if plan.distinct {
         batches = distinct_batches(batches, controls)?;
         ensure_query_memory_budget(controls, &batches)?;
-    }
-    Ok(batches)
-}
-
-fn apply_exists_projection_phase(
-    env: &SourceExecutionEnv<'_>,
-    batches: Vec<Batch>,
-    plan: &LogicalPlan,
-    context: &CteContext,
-    search: Option<&filter::SearchContext>,
-) -> Result<Vec<Batch>, QueryError> {
-    let grouped = plan_uses_aggregate(plan)
-        .then(|| aggregate_exec::rewrite_aggregate_projection(&plan.projection, &plan.group_by));
-    let projection = grouped.as_deref().unwrap_or(&plan.projection);
-    let (memory, _) = super::projection_handoff::ProjectionOutputMemory::admit(
-        env.controls,
-        &batches,
-        projection,
-        false,
-        true,
-    )?;
-    let mut batches =
-        super::exists_projection::project(env, context, &plan.source, batches, projection, search)?;
-    let _memory = memory.retain(env.controls, &mut batches)?;
-    ensure_query_memory_budget(env.controls, &batches)?;
-    if plan.distinct {
-        batches = distinct_batches(batches, env.controls)?;
-        ensure_query_memory_budget(env.controls, &batches)?;
     }
     Ok(batches)
 }

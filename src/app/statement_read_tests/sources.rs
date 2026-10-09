@@ -490,3 +490,6 @@ fn should_capture_nested_data_before_table_free_query_execution() {
         assert_eq!(fresh, next);
     }
 }
+
+#[path = "sources/ancestor.rs"]
+mod ancestor;

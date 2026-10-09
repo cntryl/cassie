@@ -36,6 +36,38 @@ impl Scope {
         })?)?;
         let mut names = HashSet::new();
         collect_names(context, source, &namespace, &mut names, &mut memory)?;
+        let mut next = context.outer_row;
+        while let Some(row) = next {
+            check_timeout(context.controls)?;
+            let count = mul(add(row.entries().len(), row.aliases().len())?, 2)?;
+            let bytes = row
+                .entries()
+                .iter()
+                .map(|(name, _)| name)
+                .chain(row.aliases().iter().map(|(name, _)| name))
+                .try_fold(0, |bytes, name| {
+                    check_timeout(context.controls)?;
+                    add(bytes, add(mul(name.len(), 8)?, 64)?)
+                })?;
+            memory.try_grow(add(
+                bytes,
+                hash_table_bytes::<String>(add(names.len(), count)?)?,
+            )?)?;
+            names
+                .try_reserve(count)
+                .map_err(|error| crate::app::CassieError::ResourceLimit(error.to_string()))?;
+            for name in row
+                .entries()
+                .iter()
+                .map(|(name, _)| name)
+                .chain(row.aliases().iter().map(|(name, _)| name))
+            {
+                check_timeout(context.controls)?;
+                insert_name(&mut names, name);
+            }
+            next = row.outer_scope().map(std::sync::Arc::as_ref);
+        }
+
         Ok(Self {
             fields: names,
             _memory: memory,

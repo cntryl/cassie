@@ -79,17 +79,17 @@ fn qualified_outer_row(
     row: &BatchRow,
     qualifier: Option<&str>,
 ) -> Result<BatchRow, QueryError> {
+    if row.has_outer_scope() || matches!(source, QuerySource::Join { .. }) {
+        let env = super::source::SourceExecutionEnv {
+            cassie: context.cassie,
+            session: context.session,
+            user_functions: context.user_functions,
+            params: context.params,
+            controls: context.controls,
+        };
+        return super::exists_projection::outer_row(&env, source, row);
+    }
     let Some(qualifier) = qualifier else {
-        if matches!(source, QuerySource::Join { .. }) {
-            let env = super::source::SourceExecutionEnv {
-                cassie: context.cassie,
-                session: context.session,
-                user_functions: context.user_functions,
-                params: context.params,
-                controls: context.controls,
-            };
-            return super::exists_projection::outer_row(&env, source, row);
-        }
         return Ok(row.clone());
     };
     Ok(BatchRow::new(
@@ -177,6 +177,9 @@ pub(super) fn scoped_outer_row(
         .with_optional_data_types(row.shared_data_types())
         .with_query_memory(row.query_memory())
         .with_operator_memory(row.operator_memory());
+    if let Some(ancestor) = row.outer_scope() {
+        retained = retained.with_outer_scope(std::sync::Arc::clone(ancestor));
+    }
     retained.attach_operator_memory(context.controls, memory)?;
     Ok(retained)
 }
@@ -249,3 +252,7 @@ mod retention_tests;
 #[cfg(test)]
 #[path = "exists_correlated_joined_tests.rs"]
 mod joined_tests;
+
+#[cfg(test)]
+#[path = "exists_ancestor_tests.rs"]
+mod ancestor_tests;

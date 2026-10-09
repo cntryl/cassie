@@ -468,7 +468,36 @@ activation gates and serial integration. #861 remains a separate unresolved
 wait-attribution investigation; its already-merged finite teardown repair is
 not proof of the multi-minute wait's cause.
 
-Nested ancestor scope remains unresolved ([#870](https://github.com/cntryl/cassie/issues/870)): a first-level correlated output returns the literal control rows, while nested SELECT and WHERE referencing the grandparent row fail binding. This finite probe does not establish a historical regression date. First-level repairs do not qualify complete SQL-022 correlation.
+## Nested ancestor scope repair (#870)
+
+The accepted baseline `ce72a23f2d0a3cdb9a811107aec7629151fcd319`
+reproduced the nested SELECT and WHERE ancestor binding failure tracked by
+[#870](https://github.com/cntryl/cassie/issues/870). A first-level positive control
+passed. The focused repair retains the existing admitted ancestor row chain and
+supplies its qualified field authority during nested binding. A borrowed source
+namespace walk detects enclosing references inside deeper EXISTS before eager
+folding; inner names retain precedence. Ordinary uncorrelated occurrences keep
+the existing eager path, and correlated CASE/COALESCE uses selected evaluation.
+
+Focused relational witnesses cover exact nested Boolean/WHERE rows, distinct
+middle and ancestor values, selected CTE/derived intermediates, same-alias inner
+shadowing, quoted `a.b`/`A.B` identity, and dead/reached scalar branches. Tests live
+in `tests/relational_qualification/ancestor_scope.rs`. The original RED and later
+mixed-scope RED are separate from passing controls. This finite repair does not
+qualify arbitrary nested grammar or complete SQL-022 correlation.
+
+The committed writer barrier checks nested SELECT and WHERE against the
+captured membership, then verifies a fresh next statement sees the update. A
+separate staged-overlay witness rolls back the live session after capture and
+retains its staged membership only in the captured nested statement. Ancestor
+copy and inspection witnesses measure admitted peak, deny peak-minus-one,
+check cancellation cleanup, preserve typed parent owners through the final
+reader, and require zero charge on retirement. Focused controls pass; full
+local and exact-head hosted validation,
+independent review, merge and issue readback belong to the PR record. These
+finite witnesses do not establish native release or production readiness.
+#761 remains open while #868 and #869 remain unresolved. Support and production
+readiness remain unchanged.
 
 The integration full run exposed outdated fixture boundaries. Tests that exercise
 first-wide-row denial and bounded identity scans now admit a finite 4 KiB budget:

@@ -103,7 +103,10 @@ fn should_respect_lazy_correlated_order_branch_selection() {
         dead_result.expect("dead correlated key").rows,
         vec![vec![Value::Int64(1)], vec![Value::Int64(2)]]
     );
-    assert!(reached_result.is_err(), "{reached_result:?}");
+    assert!(
+        reached_result.is_err(),
+        "selected correlated ORDER branch must fail"
+    );
 }
 
 #[test]

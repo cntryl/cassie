@@ -48,6 +48,7 @@ fn should_admit_rebuilt_rich_window_lookup_after_large_prior_alias() {
         user_functions: &functions,
         session: None,
         controls: &controls,
+        evaluate: None,
     };
     // Act
     let result = keys(&[row], &function, &selection, &context);

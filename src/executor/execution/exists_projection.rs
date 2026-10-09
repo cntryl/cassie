@@ -7,6 +7,7 @@ mod admission;
 mod ancestor;
 mod rows;
 mod scope;
+pub(super) use scope::Scope;
 
 pub(super) use rows::{outer_row, project};
 
@@ -32,7 +33,7 @@ pub(super) fn resolve_item(
     context: &ExistsResolutionContext<'_>,
     source: &QuerySource,
     item: &mut SelectItem,
-    scope: &mut Option<scope::Scope>,
+    scope: &mut Option<Scope>,
 ) -> Result<(), QueryError> {
     let mut resolve = |expr: &mut Expr| {
         *expr = classify(context, source, expr, scope)?;
@@ -58,11 +59,11 @@ pub(super) fn resolve_item(
     Ok(())
 }
 
-fn classify(
+pub(super) fn classify(
     context: &ExistsResolutionContext<'_>,
     source: &QuerySource,
     expr: &Expr,
-    scope: &mut Option<scope::Scope>,
+    scope: &mut Option<Scope>,
 ) -> Result<Expr, QueryError> {
     check_timeout(context.controls)?;
     if let Expr::Exists(statement) = expr {

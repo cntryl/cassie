@@ -1,8 +1,8 @@
 use super::{
-    accounting, check_timeout, combine_rows, filter, row_join_key, vectorized_join_selection,
-    BatchRow, JoinKind, JoinResult, JoinRetentionContext, JoinRetentionPhase, JoinRows,
-    JoinRowsSpec, PendingJoinDiagnostic, QueryError, SourceExecutionEnv, VectorizedJoinOutcome,
-    VectorizedJoinSelection, VectorizedJoinSpec,
+    accounting, check_timeout, combine_rows, evaluate_join_on, row_join_key,
+    vectorized_join_selection, BatchRow, JoinKind, JoinResult, JoinRetentionContext,
+    JoinRetentionPhase, JoinRows, JoinRowsSpec, PendingJoinDiagnostic, QueryError,
+    SourceExecutionEnv, VectorizedJoinOutcome, VectorizedJoinSelection, VectorizedJoinSpec,
 };
 use crate::executor::semantic::SemanticKey;
 
@@ -26,16 +26,7 @@ pub(super) fn execute_nested_loop_join(
                 check_timeout(env.controls)?;
                 let combined = combine_rows(left_row, right_row)?;
                 let passes = matches!(spec.kind, JoinKind::Cross)
-                    || filter::eval_scalar(
-                        &combined,
-                        spec.on,
-                        env.params,
-                        None,
-                        env.user_functions,
-                        None,
-                        env.session,
-                    )?
-                    .is_true()?;
+                    || evaluate_join_on(env, spec.predicate_context, &combined, spec.on)?;
                 Ok(passes.then_some(combined))
             })?;
             if accepted {

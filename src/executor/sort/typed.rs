@@ -175,7 +175,7 @@ fn retain_rows(
     Ok(rows)
 }
 
-fn flatten(
+pub(super) fn flatten(
     batches: Vec<Batch>,
     controls: &QueryExecutionControls,
 ) -> Result<(Vec<BatchRow>, QueryMemoryReservation), crate::executor::QueryError> {

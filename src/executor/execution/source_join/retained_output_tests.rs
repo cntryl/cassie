@@ -305,6 +305,7 @@ fn should_keep_lateral_output_charged_after_its_right_source_drops() {
         let (batches, _) = execute_lateral_join(
             env,
             &JoinExecutionSpec {
+                source: &crate::sql::QuerySource::SingleRow,
                 left: &left_source,
                 right: &right_source,
                 kind: JoinKind::Cross,
@@ -418,6 +419,7 @@ fn rows_spec<'a>(
     templates: &'a (BatchRow, BatchRow),
 ) -> JoinRowsSpec<'a> {
     JoinRowsSpec {
+        predicate_context: None,
         sources: None,
         kind,
         on,

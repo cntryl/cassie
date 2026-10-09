@@ -35,3 +35,15 @@ mod joined_correlation;
 
 #[path = "relational_qualification/ancestor_scope.rs"]
 mod ancestor_scope;
+
+#[path = "relational_qualification/exists_having.rs"]
+mod exists_having;
+
+#[path = "relational_qualification/exists_order.rs"]
+mod exists_order;
+
+#[path = "relational_qualification/exists_window.rs"]
+mod exists_window;
+
+#[path = "relational_qualification/join_on.rs"]
+mod join_on;

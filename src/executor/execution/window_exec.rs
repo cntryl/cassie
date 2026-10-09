@@ -15,7 +15,9 @@ use crate::types::Value;
 
 use super::{check_timeout, QueryError};
 
+mod exists;
 mod typed;
+pub(super) use exists::apply_resolving;
 
 pub(super) fn apply_window_functions(
     batches: Vec<Batch>,
@@ -35,6 +37,7 @@ pub(super) fn apply_window_functions(
             user_functions,
             session,
             controls,
+            evaluate: None,
         },
     )
 }
@@ -42,35 +45,27 @@ pub(super) fn apply_window_functions(
 fn apply_scalar_window_functions(
     batches: Vec<Batch>,
     projection: &[SelectItem],
-    params: &[Value],
-    search_context: Option<&filter::SearchContext>,
-    user_functions: &HashMap<String, FunctionMeta>,
-    session: Option<&CassieSession>,
-    controls: &QueryExecutionControls,
+    context: &WindowExecutionContext<'_>,
 ) -> Result<Vec<Batch>, QueryError> {
-    check_timeout(controls)?;
+    check_timeout(context.controls)?;
     let windows = collect_window_functions(projection);
     if windows.is_empty() {
         return Ok(batches);
     }
 
-    let context = WindowExecutionContext {
-        params,
-        search_context,
-        user_functions,
-        session,
-        controls,
-    };
     let mut rows = batch::flatten_batches(batches);
     let _rows_memory = context
         .controls
         .reserve_query_memory(batch_rows_bytes(&rows))?;
     for (function, alias) in windows {
-        apply_single_window(&mut rows, function, alias.as_deref(), &context)?;
+        apply_single_window(&mut rows, function, alias.as_deref(), context)?;
     }
 
     Ok(batch::chunk_rows(rows, batch::DEFAULT_BATCH_SIZE))
 }
+
+type PhaseEvaluator<'a> =
+    dyn Fn(&BatchRow, &crate::sql::ast::Expr) -> Result<Value, QueryError> + 'a;
 
 struct WindowExecutionContext<'a> {
     params: &'a [Value],
@@ -78,6 +73,7 @@ struct WindowExecutionContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     session: Option<&'a CassieSession>,
     controls: &'a QueryExecutionControls,
+    evaluate: Option<&'a PhaseEvaluator<'a>>,
 }
 
 fn collect_window_functions(
@@ -762,6 +758,9 @@ fn window_arg_value(
     let Some(expr) = function.args.first() else {
         return Ok(Value::Null);
     };
+    if let Some(evaluate) = context.evaluate {
+        return evaluate(&rows[index], expr);
+    }
     filter::evaluate_expr_value(
         &rows[index],
         expr,

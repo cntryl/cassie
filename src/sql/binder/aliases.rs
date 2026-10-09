@@ -471,6 +471,8 @@ fn select_contains_exists(select: &SelectStatement) -> bool {
     let has_exists =
         |expr: &Expr| expr.any_descendant_or_self(&mut |expr| matches!(expr, Expr::Exists(_)));
     select.filter.as_ref().is_some_and(has_exists)
+        || select.having.as_ref().is_some_and(has_exists)
+        || select.order.iter().any(|order| has_exists(&order.expr))
         || select.projection.iter().any(|item| match item {
             SelectItem::Expr { expr, .. } => has_exists(expr),
             SelectItem::Function { function, .. } => function.args.iter().any(has_exists),

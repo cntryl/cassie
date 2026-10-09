@@ -65,6 +65,7 @@ fn should_cancel_an_activated_merge_replacement_before_publishing_success() {
     let result = execute_loaded_join_with_replacement_probe(
         &env,
         JoinRowsSpec {
+            predicate_context: None,
             sources: None,
             kind: JoinKind::Inner,
             on: &on,

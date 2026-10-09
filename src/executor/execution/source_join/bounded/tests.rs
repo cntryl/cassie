@@ -263,6 +263,7 @@ fn execute_selected(
         right: Box::new(Expr::Column(format!("{}.join_key", fixture.right))),
     };
     let spec = JoinExecutionSpec {
+        source: &crate::sql::QuerySource::SingleRow,
         left: &left,
         right: &right,
         kind: JoinKind::Inner,

@@ -54,6 +54,7 @@ mod cte;
 mod dispatch;
 mod entrypoints;
 mod exists_correlated;
+mod exists_phase;
 mod exists_plan;
 mod exists_projection;
 mod outer_names;
@@ -148,3 +149,6 @@ mod tests;
 mod statement_visibility;
 #[cfg(test)]
 pub(crate) use statement_visibility::JoinReadProbe;
+
+#[cfg(test)]
+mod exists_phase_tests;

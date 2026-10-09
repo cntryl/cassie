@@ -67,10 +67,6 @@ fn should_keep_exact_fulltext_stats_cache_on_the_captured_epoch() {
     drop(fixture);
 
     // Assert
-    eprintln!(
-        "fulltext original={original:?} captured={captured:?} warmed={warmed:?} fresh={fresh:?}"
-    );
-    eprintln!("fulltext cache metrics={}", metrics["query_cache"]);
     assert!(
         metrics["query_cache"]["fulltext_stats_hits"]
             .as_u64()
@@ -259,11 +255,9 @@ fn should_keep_staged_fulltext_corpus_statistics_private_to_the_captured_overlay
     let isolated = execute(&fixture.cassie, &other, sql);
     execute(&fixture.cassie, &reader, "ROLLBACK");
     let rolled_back = execute(&fixture.cassie, &reader, sql);
-    let cache = fixture.cassie.metrics()["query_cache"].clone();
     drop(fixture);
 
     // Assert
-    eprintln!("staged corpus committed={committed:?} reference={reference:?} staged={staged:?} other={isolated:?} rollback={rolled_back:?} cache={cache}");
     assert_ne!(
         committed[0][1], reference[0][1],
         "the larger corpus changes statistics"

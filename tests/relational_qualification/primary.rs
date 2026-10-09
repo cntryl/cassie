@@ -44,7 +44,6 @@ fn should_match_independent_relational_truth_tables() {
                 "{}: selected unsupported error: {actual:?}",
                 case.invariant
             );
-            println!("{} selected error: {actual}", case.invariant);
             continue;
         }
         let result = result.unwrap_or_else(|error| panic!("{}: {error}", case.invariant));
@@ -66,12 +65,6 @@ fn should_match_independent_relational_truth_tables() {
         }
         let expected = case.expected_rows.expect("literal rows");
         assert_eq!(result.rows.len(), expected.len(), "{}", case.invariant);
-        println!(
-            "{} row_count={} column_count={}",
-            case.invariant,
-            result.rows.len(),
-            result.columns.len()
-        );
         if case.ordered {
             assert!(
                 result
@@ -83,15 +76,20 @@ fn should_match_independent_relational_truth_tables() {
                 case.invariant
             );
         } else {
-            let mut remaining = result.rows;
+            let actual_rows = result.rows;
+            let mut matched = vec![false; actual_rows.len()];
             for row in expected {
-                let index = remaining
+                let index = actual_rows
                     .iter()
-                    .position(|actual| matches_row(actual, &row))
+                    .enumerate()
+                    .position(|(index, actual)| !matched[index] && matches_row(actual, &row))
                     .unwrap_or_else(|| panic!("{} missing bag member {row:?}", case.invariant));
-                remaining.remove(index);
+                matched[index] = true;
             }
-            assert_eq!(remaining, Vec::<Vec<Value>>::new());
+            assert!(
+                matched.into_iter().all(|present| present),
+                "unmatched bag row"
+            );
         }
     }
 }
@@ -197,10 +195,6 @@ fn should_evaluate_correlated_exists_in_the_selected_output() {
     });
     let filter = fixture.cassie.execute_sql(&fixture.session,
         "SELECT o.id FROM r AS o WHERE EXISTS(SELECT i.id FROM r AS i WHERE i.id=o.id AND i.n>=0) ORDER BY o.id", vec![]);
-    for (name, result) in &results {
-        println!("{name}: succeeded={}", result.is_ok());
-    }
-    println!("ordinary_alias_where_control: succeeded={}", filter.is_ok());
 
     // Assert
     assert_eq!(
@@ -275,12 +269,6 @@ fn should_preserve_recursive_window_truth_tables() {
                 case.invariant
             );
         }
-        println!(
-            "{} row_count={} column_count={}",
-            case.invariant,
-            result.rows.len(),
-            result.columns.len()
-        );
     }
 }
 
@@ -326,7 +314,6 @@ fn should_preserve_uncorrelated_output_folding() {
             matches!(error, cassie::app::CassieError::Execution(ref message) if message.contains("division by zero")),
             "{name}: {error:?}"
         );
-        println!("{name}: {error:?}");
     }
 }
 
@@ -344,9 +331,6 @@ fn should_preserve_inner_scope_for_exists_output() {
         .execute_sql(&fixture.session, inner_shadow, vec![]);
     let nested = [correlated_case, correlated_function]
         .map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
-    for (sql, result) in [correlated_case, correlated_function].iter().zip(&nested) {
-        println!("{sql}: succeeded={}", result.is_ok());
-    }
 
     // Assert
     assert_eq!(
@@ -408,7 +392,6 @@ fn should_preserve_occurrence_scope_for_exists_output() {
     ]
     .map(|(id, present)| vec![Value::Int64(id), Value::Bool(present)]);
     for (sql, result) in results {
-        println!("scope control {sql}: succeeded={}", result.is_ok());
         assert_eq!(result.expect("occurrence scope").rows, expected, "{sql}");
     }
     assert_eq!(
@@ -439,16 +422,8 @@ fn should_skip_dead_correlated_exists_output() {
     // Act
     let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
 
-    for (sql, result) in cases.iter().zip(&results) {
-        println!(
-            "dead branch observation {sql}: succeeded={}",
-            result.is_ok()
-        );
-    }
-
     // Assert
     for ((sql, result), expected) in cases.into_iter().zip(results).zip([false, true]) {
-        println!("dead branch {sql}: succeeded={}", result.is_ok());
         assert_eq!(
             result
                 .expect("dead correlated branch is not evaluated")
@@ -475,7 +450,6 @@ fn should_preserve_selected_exists_branch_errors() {
     // Assert
     for (sql, result) in cases.into_iter().zip(results) {
         let error = result.expect_err("selected correlated or eager uncorrelated error");
-        println!("selected/eager branch {sql}: {error:?}");
         assert!(
             matches!(error, cassie::app::CassieError::Execution(ref message)
             if message.contains("division by zero")),
@@ -499,7 +473,6 @@ fn should_evaluate_correlated_case_operand_once() {
     let setting = fixture.session.setting("application_name");
 
     // Assert
-    println!("once-only CASE {sql}: succeeded={}", result.is_ok());
     assert_eq!(
         result.expect("selected simple CASE").rows,
         vec![vec![Value::Bool(true)]]
@@ -525,10 +498,6 @@ fn should_select_correlated_output_with_boolean_parameters() {
 
     // Assert
     for ((sql, result), expected) in cases.into_iter().zip(results).zip([false, true]) {
-        println!(
-            "parameter-selected branch {sql}: succeeded={}",
-            result.is_ok()
-        );
         assert_eq!(
             result.expect("selected Boolean parameter").rows,
             vec![vec![Value::Bool(expected)]],
@@ -561,9 +530,6 @@ fn should_preserve_delimited_dotted_outer_field_correlation() {
         .map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]))
         .collect::<Vec<_>>();
     // Assert
-    for (index, result) in results.iter().enumerate() {
-        println!("dotted field control{index}: success={}", result.is_ok());
-    }
     for (index, result) in results.into_iter().enumerate() {
         let result = result.expect("selected delimited identifier control");
         let expected = if index == 2 {
@@ -630,9 +596,6 @@ fn should_classify_delimited_dotted_fields_from_supported_source_shapes() {
         .map(|(_, sql, _)| fixture.cassie.execute_sql(&fixture.session, sql, vec![]))
         .collect::<Vec<_>>();
     // Assert
-    for ((name, _, _), result) in cases.iter().zip(&results) {
-        println!("dotted source {name}: success={}", result.is_ok());
-    }
     for ((name, _, boolean), result) in cases.iter().zip(results) {
         let result = result.expect("selected source grammar control");
         let expected = if *boolean {
@@ -667,12 +630,6 @@ fn should_preserve_supported_derived_projection_labels() {
     // Act
     let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
     // Assert
-    for (index, result) in results.iter().enumerate() {
-        println!(
-            "emitted projection control{index}: success={}",
-            result.is_ok()
-        );
-    }
     for (index, result) in results.into_iter().enumerate() {
         if index < 3 {
             assert!(
@@ -720,12 +677,6 @@ fn should_preserve_escaped_delimited_correlation_components() {
     // Act
     let results = cases.map(|sql| fixture.cassie.execute_sql(&fixture.session, sql, vec![]));
     // Assert
-    for (index, result) in results.iter().enumerate() {
-        println!(
-            "escaped component control{index}: success={}",
-            result.is_ok()
-        );
-    }
     for (index, result) in results.into_iter().enumerate() {
         let expected = if index == 2 {
             vec![vec![Value::Bool(true)], vec![Value::Bool(true)]]

@@ -70,7 +70,6 @@ struct Observation {
     captured: Vec<Vec<Value>>,
     fresh: Vec<Vec<Value>>,
     rolled_back: bool,
-    metrics: serde_json::Value,
 }
 fn observe(setup: &[&str], sql: &'static str) -> Observation {
     let fixture = Fixture::new(setup);
@@ -90,7 +89,6 @@ fn observe(setup: &[&str], sql: &'static str) -> Observation {
     let captured = execute(&fixture.cassie, &reader, sql);
     drop(hook);
     let fresh = execute(&fixture.cassie, &reader, sql);
-    let metrics = fixture.cassie.metrics();
     drop(fixture);
     Observation {
         original,
@@ -98,11 +96,9 @@ fn observe(setup: &[&str], sql: &'static str) -> Observation {
         captured,
         fresh,
         rolled_back: rolled_back.load(Ordering::SeqCst),
-        metrics,
     }
 }
 fn assert_observation(result: &Observation) {
-    eprintln!("native original={:?} staged={:?} captured={:?} fresh={:?} read_paths={} search={} aggregate={} projections={} hybrid={}", result.original, result.staged, result.captured, result.fresh, result.metrics["read_paths"], result.metrics["search"], result.metrics["aggregate_acceleration"], result.metrics["projections"], result.metrics["hybrid"]);
     assert!(result.rolled_back, "live rollback completed after capture");
     assert_ne!(
         result.staged, result.original,
@@ -297,10 +293,6 @@ fn should_keep_captured_overlay_for_time_series_ranges() {
     assert_eq!(staged, vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]);
     assert_eq!(captured, staged);
     assert_eq!(fresh, original);
-    eprintln!(
-        "captured time-series rows={captured:?} metrics={}",
-        metrics["time_series"]
-    );
     assert!(
         metrics["time_series"]["bucket_native_hits"]
             .as_u64()
@@ -345,7 +337,6 @@ fn assert_artifact_view_after_mutation(
         .expect("warm oracle")
         .take()
         .expect("publisher read committed artifact");
-    eprintln!("artifact original={original:?} captured={captured:?} warm={warm:?} fresh={fresh:?} metrics={}", fixture.cassie.metrics());
     assert!(committed.load(Ordering::SeqCst));
     assert_ne!(original, warm, "publisher oracle differs after commit");
     assert_eq!(
@@ -515,7 +506,6 @@ fn should_keep_time_series_buckets_on_the_captured_committed_generation() {
     assert_eq!(original, vec![vec![Value::Int64(10)]]);
     assert_eq!(captured, original);
     assert_eq!(fresh, vec![vec![Value::Int64(10)], vec![Value::Int64(20)]]);
-    eprintln!("committed time-series metrics={}", metrics["time_series"]);
     assert!(
         metrics["time_series"]["bucket_native_hits"]
             .as_u64()

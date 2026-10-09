@@ -64,7 +64,6 @@ fn should_measure_combined_statement_owner_charge_during_materialized_source_exe
     drop(owner);
     let released = controls.current_query_memory_bytes();
     // Assert
-    eprintln!("owner overlap data_only={data_charge} overlay={} combined={owner_charge} source_execution_peak={peak} retained={retained} released={released} refs_before={references_before} refs_after={references_after} rows={rows}", owner_charge-data_charge);
     assert!(owner_charge > data_charge);
     assert_eq!(rows, 64);
     assert!(peak > owner_charge);
@@ -129,7 +128,6 @@ fn should_release_automatically_captured_owners_after_materialized_source_denial
     let rows = retry.rows.len();
     drop(retry);
     // Assert
-    eprintln!("source denial={denied} successful_reservation_peak_before_denial={peak} released={released} retry_rows={rows} retry_release={}", retry_controls.current_query_memory_bytes());
     assert!(matches!(
         denied,
         crate::executor::QueryError::Cassie(crate::app::CassieError::ResourceLimit(_))

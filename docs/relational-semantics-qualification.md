@@ -412,10 +412,15 @@ succeeded before that WHERE failure. Its three focused regressions now pass.
 The copy-owner/denial/cancellation probe passes. The normal-profile locked full
 suite passes: 3,756 tests passed, zero failed, nine ignored. Full workspace/all-
 target/all-feature pedantic Clippy, formatting, 43 touched Rust test-file checks
-and repository test/document/benchmark/module policies pass. The only subsequent
-test change is a policy-required function rename; exact source-hash restoration
-proves its body unchanged, and the renamed probe plus broad Clippy/format/policy
-checks pass. Final hosted checks and merge evidence belong to the GitHub PR record.
+and repository test/document/benchmark/module policies pass. A subsequent
+policy-required function rename has an exact body-equivalence receipt and a
+passing focused probe. Hosted CodeQL then flagged eleven test-output locations;
+static triage found fixed fixture/test-only paths rather than a production
+credential flow. Unnecessary diagnostics are removed, and unordered truth/carrier
+matching consumes a Boolean slot per occurrence without removing payload rows.
+Literal expectations, multiplicity, descriptors and runtime code are unchanged.
+Focused ownership/relational and broad quality rechecks are recorded separately
+from the full run. Final hosted checks and merge evidence belong to the PR record.
 
 The finite sibling diagnostic records successful uncorrelated HAVING, ORDER BY,
 JOIN ON and window controls, with correlated failures tracked by

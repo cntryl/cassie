@@ -67,10 +67,6 @@ fn should_keep_graph_neighborhood_membership_on_the_captured_committed_view() {
             Value::Float64(9.0)
         ]]
     );
-    eprintln!(
-        "captured graph rows={captured:?} fresh={fresh:?} metrics={}",
-        cassie.metrics()["graph"]
-    );
     assert_eq!(
         cassie.metrics()["query"]["current_accounted_memory_bytes"].as_u64(),
         Some(0)

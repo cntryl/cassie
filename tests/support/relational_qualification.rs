@@ -156,12 +156,15 @@ pub fn assert_seed_carriers(fixture: &Fixture) {
             "{}",
             seed.table
         );
-        let mut unmatched = result.rows;
+        let actual_rows = result.rows;
+        let mut matched = vec![false; actual_rows.len()];
         for expected in seed.expected_cells {
-            let index = unmatched
+            let index = actual_rows
                 .iter()
-                .position(|row| {
-                    row.len() == expected.len()
+                .enumerate()
+                .position(|(index, row)| {
+                    !matched[index]
+                        && row.len() == expected.len()
                         && row.iter().zip(&expected).all(|(actual, cell)| {
                             match (actual, cell.kind.as_str()) {
                                 (Value::Null, "null") => true,
@@ -183,8 +186,11 @@ pub fn assert_seed_carriers(fixture: &Fixture) {
                         })
                 })
                 .unwrap_or_else(|| panic!("{}: missing literal carrier row", seed.table));
-            unmatched.remove(index);
+            matched[index] = true;
         }
-        assert_eq!(unmatched, Vec::<Vec<Value>>::new());
+        assert!(
+            matched.into_iter().all(|present| present),
+            "unmatched carrier row"
+        );
     }
 }

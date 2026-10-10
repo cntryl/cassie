@@ -1,0 +1,435 @@
+{
+  "scope": "reference-only focused encoding/float contract probe",
+  "reference": {
+    "version": "18.6",
+    "server_version_num": 180006,
+    "platform": "Darwin arm64",
+    "build": "Homebrew postgresql@18 18.6; Apple clang 21.0.0; aarch64-apple-darwin25.6.0",
+    "source_archive_url": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2",
+    "source_archive_sha256": "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f",
+    "executables": {
+      "postgres": "db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425",
+      "initdb": "fbc3a1583cdcf2c2374586b1ba2cf5770c6f6d07458a59abbeed8a32dfda060e"
+    }
+  },
+  "cases": [
+    {
+      "database_encoding": "LATIN1",
+      "client_encoding": "UTF8",
+      "mode": "simple_text",
+      "sql": "SELECT convert_from(decode('e9','hex'),'LATIN1') AS value",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 0
+            }
+          ],
+          "rows": [
+            [
+              "c3a9"
+            ]
+          ],
+          "parameter_oids": []
+        }
+      ]
+    },
+    {
+      "database_encoding": "LATIN1",
+      "client_encoding": "UTF8",
+      "mode": "extended_binary",
+      "sql": "SELECT convert_from(decode('e9','hex'),'LATIN1') AS value",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "c3a9"
+            ]
+          ],
+          "parameter_oids": [],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "database_encoding": "LATIN1",
+      "client_encoding": "LATIN1",
+      "mode": "simple_text",
+      "sql": "SELECT convert_from(decode('e9','hex'),'LATIN1') AS value",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 0
+            }
+          ],
+          "rows": [
+            [
+              "e9"
+            ]
+          ],
+          "parameter_oids": []
+        }
+      ]
+    },
+    {
+      "database_encoding": "LATIN1",
+      "client_encoding": "LATIN1",
+      "mode": "extended_binary",
+      "sql": "SELECT convert_from(decode('e9','hex'),'LATIN1') AS value",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "e9"
+            ]
+          ],
+          "parameter_oids": [],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "database_encoding": "SQL_ASCII",
+      "client_encoding": "SQL_ASCII",
+      "mode": "extended_binary",
+      "parameter_hex": "ff",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "ff"
+            ]
+          ],
+          "parameter_oids": [
+            25
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 25,
+              "typmod": -1,
+              "size": -1,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 700,
+      "parameter_hex": "80000000",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "80000000"
+            ]
+          ],
+          "parameter_oids": [
+            700
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 700,
+      "parameter_hex": "7fc01234",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "7fc01234"
+            ]
+          ],
+          "parameter_oids": [
+            700
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 700,
+      "parameter_hex": "ffc01234",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "ffc01234"
+            ]
+          ],
+          "parameter_oids": [
+            700
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 700,
+              "typmod": -1,
+              "size": 4,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 701,
+      "parameter_hex": "8000000000000000",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "8000000000000000"
+            ]
+          ],
+          "parameter_oids": [
+            701
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 701,
+      "parameter_hex": "7ff8000000001234",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "7ff8000000001234"
+            ]
+          ],
+          "parameter_oids": [
+            701
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "scope": "raw float binary bit identity",
+      "oid": 701,
+      "parameter_hex": "fff8000000001234",
+      "result": [
+        {
+          "status": 2,
+          "sqlstate": null,
+          "command_tag": "SELECT 1",
+          "columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 1
+            }
+          ],
+          "rows": [
+            [
+              "fff8000000001234"
+            ]
+          ],
+          "parameter_oids": [
+            701
+          ],
+          "prepared_columns": [
+            {
+              "name": "value",
+              "name_hex": "76616c7565",
+              "oid": 701,
+              "typmod": -1,
+              "size": 8,
+              "format": 0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "owned_reference_retired": true
+}

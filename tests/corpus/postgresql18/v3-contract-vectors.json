@@ -1,0 +1,175 @@
+{
+  "schema": "cassie-v3-contract-vectors.v1",
+  "status": "specification_vectors_not_implemented_codec_pass",
+  "row": {
+    "meaning": "schema1/fields1int4=7,2SQLNULL,3absent; directory only nonNULL",
+    "hex": "43524233030000000100000003000000010302000000010000000100010001000000000000000400000007",
+    "expected_length": 43
+  },
+  "scalar_oracle_matches": [
+    {
+      "case": "numeric",
+      "column": "n",
+      "hex": "0002000000000003007b1194"
+    },
+    {
+      "case": "numeric",
+      "column": "tenth",
+      "hex": "0001ffff0000000103e8"
+    },
+    {
+      "case": "numeric",
+      "column": "nan",
+      "hex": "00000000c0000000"
+    },
+    {
+      "case": "numeric",
+      "column": "inf",
+      "hex": "00000000d0000020"
+    },
+    {
+      "case": "money_xml",
+      "column": "cash",
+      "hex": "00000000000004d2"
+    },
+    {
+      "case": "strings",
+      "column": "v",
+      "hex": "c3a9"
+    },
+    {
+      "case": "identifiers",
+      "column": "lsn",
+      "hex": "00000001abcdef00"
+    }
+  ],
+  "private_codec_vectors": [
+    {
+      "tag": 2,
+      "version": 1,
+      "meaning": "enum memberID4294967301",
+      "hex": "0000000100000005"
+    },
+    {
+      "tag": 3,
+      "version": 1,
+      "meaning": "nonnull composite: int4=1,jsonb documentnull",
+      "hex": "0000000201000100010000000400000001010001000100000005016e756c6c"
+    },
+    {
+      "tag": 3,
+      "version": 1,
+      "meaning": "nonnull allSQLNULL composite",
+      "hex": "000000020000"
+    },
+    {
+      "tag": 4,
+      "version": 1,
+      "meaning": "zero-dimensional empty array",
+      "hex": "00000000"
+    },
+    {
+      "tag": 4,
+      "version": 1,
+      "meaning": "one-dimensional int4 array lower0,length2,values1,SQLNULL",
+      "hex": "0000000100000002000000000100010001000000040000000100"
+    },
+    {
+      "tag": 5,
+      "version": 1,
+      "meaning": "canonical int4range [2,5)",
+      "hex": "020100010001000000040000000201000100010000000400000005"
+    },
+    {
+      "tag": 6,
+      "version": 1,
+      "meaning": "one canonical int4range [2,5)",
+      "hex": "000000010000001b020100010001000000040000000201000100010000000400000005"
+    },
+    {
+      "tag": 7,
+      "version": 1,
+      "meaning": "nonnull domain base int4=1",
+      "hex": "01000100010000000400000001"
+    },
+    {
+      "tag": 8,
+      "version": 1,
+      "meaning": "finite f32 vector [1,2]",
+      "hex": "000000023f80000040000000"
+    },
+    {
+      "tag": 9,
+      "version": 1,
+      "meaning": "grantor4294967310,PUBLIC grantee,SELECT+grantoption masks2",
+      "hex": "000000010000000e00000000000000000000000200000002"
+    }
+  ],
+  "negative_vectors": [
+    {
+      "target": "row",
+      "mutation": "replace format byte offset4 with04",
+      "reason": "unknown CRB3 version"
+    },
+    {
+      "target": "row",
+      "mutation": "replace presence byte offset17 with83",
+      "reason": "unused high bits set"
+    },
+    {
+      "target": "row",
+      "mutation": "replace null byte offset18 with04",
+      "reason": "NULL without presence"
+    },
+    {
+      "target": "row",
+      "mutation": "replace fieldID bytes offset23 with00000002",
+      "reason": "directory entry for SQLNULL"
+    },
+    {
+      "target": "row",
+      "mutation": "replace tag bytes offset27 with0000",
+      "reason": "unregistered tag"
+    },
+    {
+      "target": "row",
+      "mutation": "replace offset bytes offset31 with00000001",
+      "reason": "gap/exceeds complete partition"
+    },
+    {
+      "target": "row",
+      "mutation": "append00",
+      "reason": "trailing bytes"
+    },
+    {
+      "target": "domain tag7",
+      "hex": "00",
+      "reason": "nonnull domain wrappingSQLNULL"
+    },
+    {
+      "target": "range tag5",
+      "hex": "80",
+      "reason": "internal GiST flag not admitted"
+    },
+    {
+      "target": "range tag5",
+      "hex": "03",
+      "reason": "noncanonical empty+inclusive flags"
+    },
+    {
+      "target": "recursive datum",
+      "hex": "02",
+      "reason": "invalid state"
+    },
+    {
+      "target": "enum tag2",
+      "hex": "0000000000000000",
+      "reason": "unknown/reserved member identity"
+    },
+    {
+      "target": "ACL tag9",
+      "hex": "000000010000000e00000000000000000000000200000004",
+      "reason": "grantoption not subset of granted"
+    }
+  ]
+}

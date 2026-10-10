@@ -48,7 +48,8 @@ class WireTests(unittest.TestCase):
         self.assertEqual(simple[0]["rows"], [[None, "4e554c4c"]])
         self.assertEqual(binary[0]["rows"], [["0020000000000001"]])
         self.assertEqual(binary[0]["parameter_oids"], [20])
-        self.assertEqual(binary[0]["columns"], [{"name": "exact", "oid": 20, "typmod": -1, "size": 8, "format": 1}])
+        self.assertEqual(binary[0]["columns"], [{"name": "exact", "name_hex": "6578616374", "oid": 20,
+                                                "typmod": -1, "size": 8, "format": 1}])
         self.assertEqual(binary[0]["prepared_columns"][0]["oid"], 20)
         self.assertEqual([result["rows"] for result in multiple], [[["31"]], [["32"]]])
         self.assertEqual(error[0]["sqlstate"], "42703")

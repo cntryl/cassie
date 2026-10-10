@@ -150,7 +150,9 @@ The integration owner explicitly amended #794 and removed its broad #792 blocker
 
 The integration owner selected #802 finite SMALLINT/INT/BIGINT/FLOAT/TEXT/BOOLEAN signatures, PostgreSQL 18.6 coercion/NULL/eager-evaluation cases and explicitly cast parameter inputs, then removed its broad #792 blocker before implementation. New type families or unresolved coercion forms remain #792/#793-gated. The selected #802 slice reuses closed #752/#753/#432/#755 contracts. The #794 selection does not close or approve the full #792 profile. #794 is now merged and closed after the compact-argument lexical finding. #795 has the finite public alias AST/namespace contract selected below, and its #794 runtime prerequisite is now merged and closed.
 
-## Delivery and ownership
+## Historical first-wave delivery and ownership
+
+The following two paragraphs preserve the historical first-wave preparation record, including issue states and the former publication policy. The current workflow is defined in [Delivery priority and gates](#delivery-priority-and-gates).
 
 The integration owner owns contract review, shared AST/catalog/storage decisions, the dependency graph, exact-head review and serial publication/merge. Persistent sibling worktrees have separate target directories and server ports. Current #851 merged scan/filter/projection and portal qualification before this refresh; #756/#757 are closed and must not be rebuilt as missing foundation. Later #758/#759/#760 typed aggregates, joins and ordering/set/window kernels remain open. First-wave lanes are syntax/binding (#794 then #795), scalar expressions (#802) and pagination (#797). Parser changes are syntax-owned; function metadata/evaluator changes are scalar-owned; pagination isolates its helper and integration reviews shared query AST changes. Null-safe predicate grammar #798 follows the syntax merge.
 

@@ -8,6 +8,38 @@ fn execute(cassie: &Cassie, session: &CassieSession, sql: &str) {
         .expect("execute fixture statement");
 }
 
+fn assert_fixed_utc_day_spacing() {
+    let first_day = time::OffsetDateTime::parse(
+        "2024-03-10T00:00:00Z",
+        &time::format_description::well_known::Rfc3339,
+    )
+    .expect("first UTC day");
+    let second_day = time::OffsetDateTime::parse(
+        "2024-03-11T00:00:00Z",
+        &time::format_description::well_known::Rfc3339,
+    )
+    .expect("second UTC day");
+    assert_eq!(second_day - first_day, time::Duration::seconds(86_400));
+}
+
+fn assert_native_time_series_path(before: &serde_json::Value, after: &serde_json::Value) {
+    let counter = |metrics: &serde_json::Value, field: &str| {
+        metrics["time_series"][field].as_u64().unwrap_or_default()
+    };
+    assert_eq!(
+        counter(after, "bucket_native_hits") - counter(before, "bucket_native_hits"),
+        1
+    );
+    assert_eq!(
+        counter(after, "fallback_scans") - counter(before, "fallback_scans"),
+        0
+    );
+    assert_eq!(
+        after["query"]["current_accounted_memory_bytes"].as_u64(),
+        Some(0)
+    );
+}
+
 #[test]
 fn should_preserve_signed_zero_float_partition_rows() {
     // Arrange
@@ -127,17 +159,7 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
         let after = cassie.metrics();
 
         // Assert
-        let first_day = time::OffsetDateTime::parse(
-            "2024-03-10T00:00:00Z",
-            &time::format_description::well_known::Rfc3339,
-        )
-        .expect("first UTC day");
-        let second_day = time::OffsetDateTime::parse(
-            "2024-03-11T00:00:00Z",
-            &time::format_description::well_known::Rfc3339,
-        )
-        .expect("second UTC day");
-        assert_eq!(second_day - first_day, time::Duration::seconds(86_400));
+        assert_fixed_utc_day_spacing();
         assert_eq!(indexed, baseline);
         assert_eq!(
             indexed,
@@ -159,21 +181,7 @@ fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
                 vec![Value::String("2024-03-11T00:00:00Z".into())],
             ]
         );
-        let counter = |metrics: &serde_json::Value, field: &str| {
-            metrics["time_series"][field].as_u64().unwrap_or_default()
-        };
-        assert_eq!(
-            counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"),
-            1
-        );
-        assert_eq!(
-            counter(&after, "fallback_scans") - counter(&before, "fallback_scans"),
-            0
-        );
-        assert_eq!(
-            after["query"]["current_accounted_memory_bytes"].as_u64(),
-            Some(0)
-        );
+        assert_native_time_series_path(&before, &after);
         drop(cassie);
         std::fs::remove_dir_all(path).expect("remove fixture directory");
     });

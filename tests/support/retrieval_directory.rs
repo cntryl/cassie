@@ -1,22 +1,38 @@
 //! Remove retrieval fixture files only after their engine owner has dropped.
 use std::io::Write;
 
+use super::support_retrieval_phase_evidence::{RetrievalPhase, RetrievalPhaseEvidence};
+
 pub(super) struct RetrievalDirectory {
     path: String,
+    evidence: RetrievalPhaseEvidence,
 }
 
 impl RetrievalDirectory {
     pub(super) fn new(path: String) -> Self {
-        Self { path }
+        Self {
+            path,
+            evidence: RetrievalPhaseEvidence::default(),
+        }
     }
 
     pub(super) fn path(&self) -> &str {
         &self.path
     }
+
+    pub(super) fn set_evidence(&mut self, evidence: RetrievalPhaseEvidence) {
+        self.evidence = evidence;
+    }
+
+    pub(super) fn evidence(&self) -> &RetrievalPhaseEvidence {
+        &self.evidence
+    }
 }
 
 impl Drop for RetrievalDirectory {
     fn drop(&mut self) {
+        // This is after the fixture's Cassie field, not a background-worker claim.
+        self.evidence.entered(RetrievalPhase::DirectoryCleanup);
         if let Err(error) = std::fs::remove_dir_all(&self.path) {
             if std::thread::panicking() {
                 let _ = writeln!(
@@ -32,6 +48,8 @@ impl Drop for RetrievalDirectory {
                     self.path
                 );
             }
+        } else {
+            self.evidence.returned(RetrievalPhase::DirectoryCleanup);
         }
     }
 }

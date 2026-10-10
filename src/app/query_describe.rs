@@ -229,6 +229,17 @@ impl Cassie {
                 user_functions,
             )
         })
+        .or_else(|| {
+            self.catalog
+                .get_materialized_projection(&logical.collection)
+                .and_then(|projection| projection.materialized)
+                .map(|materialized| {
+                    crate::catalog::CollectionSchema::from_type_schema(
+                        logical.collection.clone(),
+                        &materialized.output_schema,
+                    )
+                })
+        })
         .or_else(|| self.catalog.get_schema(&logical.collection))
         .or_else(|| crate::catalog::CollectionSchema::virtual_view(&logical.collection))
         .or_else(|| {

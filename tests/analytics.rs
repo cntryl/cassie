@@ -11117,6 +11117,9 @@ mod maintenance_memory_controls {
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 
+#[path = "analytics/materialized_projection_metadata.rs"]
+mod materialized_projection_metadata;
+
 mod derived_read_equivalence {
     use super::support_read_equivalence::{sql, with_fixture};
 

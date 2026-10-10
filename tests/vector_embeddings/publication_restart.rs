@@ -1,7 +1,7 @@
 // Finite prepared and Data-applied publication recovery across two cold startups.
 use super::*;
 use crate::vector_publication_support::{
-    assert_cleanup, raw_rows, row_payloads, PendingBackfill, RawRecords,
+    assert_cleanup, raw_rows, row_payloads, PendingBackfill, RawRecords, SidecarSnapshot,
 };
 
 fn fixture(label: &str) -> (Cassie, String) {
@@ -99,6 +99,7 @@ fn assert_two_cold_startups(
     initial: (u64, u64),
     mut first_raw: Option<RawRecords>,
 ) {
+    let mut first_sidecars = None;
     for _ in 0..2 {
         let mut cassie = new_vector_cassie(path);
         let provider = std::sync::Arc::new(crate::backfill_provider::FailSecondProvider::default());
@@ -126,6 +127,15 @@ fn assert_two_cold_startups(
             "backfill changes generation and Data epoch exactly once across both startups"
         );
         assert_metadata(&cassie, &expected);
+        let sidecars = SidecarSnapshot::capture(&cassie, &expected, initial.0 + 1);
+        if let Some(first_sidecars) = first_sidecars.as_ref() {
+            assert_eq!(
+                &sidecars, first_sidecars,
+                "second cold startup preserves exact raw and decoded sidecars and state"
+            );
+        } else {
+            first_sidecars = Some(sidecars);
+        }
         assert_eq!(
             provider.call_count(),
             0,
@@ -135,6 +145,7 @@ fn assert_two_cold_startups(
         cassie.shutdown();
         drop(cassie);
     }
+    drop(first_sidecars);
     drop(first_raw);
     drop(expected);
     std::fs::remove_dir_all(path).expect("strict repeated-restart cleanup after owners drop");

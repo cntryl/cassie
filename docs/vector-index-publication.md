@@ -91,6 +91,17 @@ keeps SQL index metadata absent. Provider call counts stay zero, and generation
 and Data epoch advance only once across both startups. Final directory removal
 requires all engine, session and provider owners to have retired.
 
+The finite [#899](https://github.com/cntryl/cassie/issues/899) extension adds
+read-only assertions at both cold boundaries for the existing brute-force,
+cosine, three-dimensional profile. It requires exactly two physical and decoded
+normalized records with the staged physical identities, complete metadata and
+recovered generation. Magnitudes and coordinates must match an independent
+scalar equation over the staged f32 vectors, including finite and represented-bit
+checks. Exactly one physical vector-state record must decode to the recovered
+generation with no HNSW graph or IVFFlat training state. Raw and decoded snapshots
+must match across both startups. These new assertions have not yet executed;
+their qualification remains pending until focused and full validation complete.
+
 These witnesses add bounded evidence for `pub-004`, provider reuse in `pub-005`,
 and startup cleanup in `pub-006` under
 [#764](https://github.com/cntryl/cassie/issues/764). The broader ANN, corruption,

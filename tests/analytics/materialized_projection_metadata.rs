@@ -61,8 +61,16 @@ fn should_report_declared_types_for_direct_materialized_projection_reads() {
             session,
             "SELECT n,note FROM projection_type_all ORDER BY n",
         );
+        let offset_description = cassie
+            .describe_sql("SELECT n,note FROM projection_type_offset ORDER BY n")
+            .expect("describe direct offset projection");
+        let unrestricted_description = cassie
+            .describe_sql("SELECT n,note FROM projection_type_all ORDER BY n")
+            .expect("describe direct unrestricted projection");
 
         // Assert
+        assert_eq!(offset_description, expected_columns());
+        assert_eq!(unrestricted_description, expected_columns());
         assert_eq!(offset.columns, expected_columns());
         assert_eq!(
             offset.rows,

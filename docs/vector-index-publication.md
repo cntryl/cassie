@@ -67,3 +67,32 @@ journal records to force startup.
 SQL and REST must satisfy the same provider-failure, constraint-failure, atomic-write,
 interrupted-build, generation-mismatch, restart and repeat-replay invariants. Existing
 query support labels and Cassie's Production Candidate status are unchanged.
+
+## Repeated Cold Startup Qualification
+
+`tests/vector_embeddings/publication_restart.rs` owns two local, two-row witnesses:
+`should_recover_prepared_sql_vector_publication_across_two_cold_startups` interrupts
+SQL creation after preparation and before Data application;
+`should_recover_data_applied_rest_vector_publication_across_two_cold_startups`
+interrupts REST creation after the atomic Data commit and before sidecar publication.
+
+Each witness inspects the durable intent, exact staged identities and ordinals,
+and the publication-ID marker before shutdown. The prepared branch requires
+unchanged complete row payloads, canonical row bytes, collection generation and
+Data epoch, with no applied marker. The applied branch requires every staged
+payload, the exact marker, and a single generation and epoch increment, while
+vector and SQL metadata remain unpublished.
+
+Each subsequent cold startup must recover complete payloads, preserve canonical
+row bytes, hydrate the exact vector and SQL catalog metadata, and finish with
+no pending intent, staging records or applied marker. Those read-only assertions
+run before any manual replay. SQL creation publishes its SQL index; REST creation
+keeps SQL index metadata absent. Provider call counts stay zero, and generation
+and Data epoch advance only once across both startups. Final directory removal
+requires all engine, session and provider owners to have retired.
+
+These witnesses add bounded evidence for `pub-004`, provider reuse in `pub-005`,
+and startup cleanup in `pub-006` under
+[#764](https://github.com/cntryl/cassie/issues/764). The broader ANN, corruption,
+concurrent generation, maintenance, lifecycle and native release matrix remains
+tracked there; #764 and its downstream #765 qualification stay open.

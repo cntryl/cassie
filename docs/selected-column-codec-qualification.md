@@ -28,7 +28,7 @@ native performance promotion follows from these fixtures.
 | COL-08 | Stable ordered nonoverlapping half-open ranges preserve each row across split/compaction. | Unchanged; range/lifecycle proof remains outside this slice. |
 | COL-09 | One accelerated attempt belongs to one complete generation. | Unchanged; concurrent generation proof remains outside this slice. |
 | COL-10 | One-row DML rewrites necessary ranges and preserves untouched identities. | Unchanged; write-amplification/lifecycle proof remains outside this slice. |
-| COL-16 | Codec choice is deterministic with the declared complete-plain savings threshold and tie ordering. | Unchanged; this explicit decoder fixture does not qualify automatic encoder choice or savings. |
+| COL-16 | Codec choice is deterministic with the declared complete-plain savings threshold and tie ordering. | The original decoder checkpoint did not qualify encoder choice. The later finite selection-policy qualification below passed its three focused encoder tests; companion controls and final validation remain pending. |
 | COL-17 | Integer codecs preserve signed 64-bit values and validate packed boundaries. | Existing bitpack owners retained; no new integer-codec qualification claimed. |
 | COL-18 | Accepted ALP values reconstruct exact float bits; unsafe candidates decline. | Existing ALP owners retained; no new float qualification claimed. |
 | COL-19 | Constant chunks require identical scalar bytes, including signed-zero distinctions. | Existing constant owners retained; no new constant qualification claimed. |
@@ -151,3 +151,95 @@ fallback, restart recovery, capacity, native architecture or paired codec
 performance. All eleven parent owners retain their actual wider acceptance
 status. The PR should reference #768 as related work while those obligations
 remain open.
+
+
+## Finite COL-16 selection-policy qualification on 2026-10-10
+
+This later finite qualification belongs to
+[#903](https://github.com/cntryl/cassie/issues/903), a finite child of #768,
+at source baseline `0c754c12edf82d1c68d7519d010a5af9ad46fbdc`.
+The earlier dictionary checkpoint and its execution record above remain
+historical evidence. The original decoder fixture did not test automatic
+selection. Native prerequisites #758, #763 and #880 were read back closed
+before this candidate was prepared. Parent #768 remains open.
+
+The existing [performance contract](performance-contracts.md) requires a codec
+to save at least `max(32 bytes, 5% of the complete plain representation)`.
+`chunk.rs::encode_with_policy` uses the ceiling of complete Plain bytes divided
+by twenty and retains the earlier candidate on equal complete size. Its existing
+candidate order is Constant, RLE, Dictionary, Frame-of-reference, FSST and ALP,
+subject to logical-type eligibility. The ordinary storage caller is
+`column_batches/storage_v2.rs::encode_segment` through `encode_column_chunk`.
+This slice selects no new encoding, selector, format version or public API.
+
+CBC2 complete sizes include its 34-byte header, validity bitmap and payload.
+The following literal sizes are independently derived from this existing format;
+they were asserted and matched by the focused execution recorded below.
+
+| Finite law and input | Complete Plain bytes | Actual forced candidate expected bytes | Automatic choice expected |
+| --- | --- | --- | --- |
+| Two identical ASCII strings of length 23 / 24 / 25 | 89 / 91 / 93 | Constant 58 / 59 / 60, saving 31 / 32 / 33 | Plain 89 / Constant 59 / Constant 60 |
+| 5,744 / 5,745 Int64 positions, first six 42 and all remaining NULL | 800 / 801 | Constant 760 / 761, saving 40 / 40 | Constant 760 at required 40 / Plain 801 at required 41 |
+| Eighteen Int64 values, nine 0 then nine 255 | 181 | RLE 73 and Frame-of-reference 73 | RLE 73, the earlier equal-size candidate |
+
+The percentage pair changes one validity byte while retaining the same 48-byte
+Plain scalar payload and 8-byte Constant payload. It distinguishes the complete
+Plain percentage base from a payload-only base. The equality cases pin admission
+at exactly 32 bytes and exactly five percent. The compressed tie pins the existing
+strict-smaller replacement rule without duplicating selector arithmetic in tests.
+
+Three private `should_` tests in `chunk/selection_policy_tests.rs` invoke the
+existing forced encoder for eligible Constant, RLE and Frame-of-reference
+candidates before automatic selection. Every input also has a real forced Plain
+control. Each forced and selected chunk must pin codec, logical type, total and
+NULL counts, complete and decoded lengths, and exact round-trip values/NULL
+positions. Two ordinary invocations must return byte-identical chunks; accepted
+selection must equal the forced winner, and rejection must equal forced Plain.
+No storage engine, SQL server, new test hook or independent codec is introduced.
+
+### Actual focused execution and acceptance boundary
+
+On the unchanged production baseline
+`0c754c12edf82d1c68d7519d010a5af9ad46fbdc`, the three focused encoder
+tests passed: **3 passed, 0 failed, 0 ignored**. All nineteen forced and
+selected chunk records matched the literal sizes, codec identities and complete
+round-trip expectations above. This is a baseline qualification PASS for existing
+behavior; no runtime RED, repair, native result or support promotion is claimed.
+
+The actual command was `cargo test --locked --lib selection_policy_tests:: --
+--nocapture`, with ordinary profiles/default test threads, `CARGO_BUILD_JOBS=2`
+and `CARGO_INCREMENTAL=0`. The isolated worktree retains its source, runner,
+metadata, fully rehashed dependency-only seed and actual output under
+`target/903-evidence/actual-selected-20261010/`. The command log SHA-256 is
+`dc71a6e25aad49539b530de5265a4763bc55b1589088637230d48e825b897d58`;
+the actual executed and preserved test binary SHA-256 is
+`e78b517efb637f3c2c1e5f27b60413786a73e4f5183721a0e432399809ac01e4`.
+Independent review verified the exact three tests and nineteen records.
+
+Jev's fixture-isolation gap 0.63 and candidate-boundary gap 0.37 required these
+actual forced-candidate and automatic-selection witnesses. Their actual passing
+outputs supply that focused evidence. The three existing SQL companion controls,
+full ordered validation and final-head publication gates remain pending at this
+checkpoint. Run the following companion commands and replay the focused tests
+as part of final validation:
+
+```sh
+cargo test --locked --lib selection_policy_tests:: -- --nocapture
+cargo test --locked --test analytics column_batch_format_v2::should_select_each_typed_codec_deterministically -- --nocapture
+cargo test --locked --test analytics column_batch_format_v2::should_fall_back_to_plain_when_savings_do_not_clear_the_threshold -- --nocapture
+cargo test --locked --test analytics column_batch_format_v2::should_reduce_representative_compressible_bytes_by_at_least_twenty_five_percent -- --nocapture
+```
+
+Then complete the required ordered plain locked build, complete locked tests,
+full workspace/all-target/all-feature pedantic Clippy, format and touched-test
+validators, applicable repository policies, independent review and exact-head
+hosted checks. Execution receipts must pin source, command, log and binary hashes.
+The companion, full-validation and publication gates remain pending at this focused checkpoint.
+
+This child can qualify only the finite COL-16 floor, complete-percentage and
+compressed-tie boundaries above. Wider codec/numeric/selected-reader behavior,
+column-family/physical-layout mapping, marker/field atomicity, framing/fallback,
+publication, lifecycle, generation and range obligations, and retained native
+paired-codec objectives keep their individual evidence requirements. #768 remains
+open; the earlier #890 decoder evidence is neither duplicated nor expanded into
+a complete parent claim.

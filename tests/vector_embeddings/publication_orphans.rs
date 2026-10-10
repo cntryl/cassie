@@ -58,15 +58,16 @@ fn assert_rows_and_unpublished_metadata(cassie: &Cassie) {
         .catalog
         .get_vector_index("postgres.public.recover_backfill", "embedding")
         .is_none());
-    assert!(cassie
-        .midge
-        .list_indexes()
-        .expect("durable SQL metadata")
-        .is_empty());
-    assert!(cassie
-        .catalog
-        .list_indexes("postgres.public.recover_backfill")
-        .is_empty());
+    assert_eq!(
+        cassie.midge.list_indexes().expect("durable SQL metadata"),
+        [] as [cassie::catalog::IndexMeta; 0]
+    );
+    assert_eq!(
+        cassie
+            .catalog
+            .list_indexes("postgres.public.recover_backfill"),
+        [] as [cassie::catalog::IndexMeta; 0]
+    );
 }
 
 #[test]

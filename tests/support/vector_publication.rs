@@ -351,7 +351,10 @@ impl OrphanPublicationArtifacts {
                 "exact orphan artifact persists before startup"
             );
         }
-        assert!(records(cassie, StorageFamily::Schema, b"index-publication").is_empty());
+        assert_eq!(
+            records(cassie, StorageFamily::Schema, b"index-publication"),
+            [] as [(Vec<u8>, Vec<u8>); 0]
+        );
         assert_eq!(
             records(cassie, StorageFamily::Schema, b"vector-backfill-row").len(),
             2,

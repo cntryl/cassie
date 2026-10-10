@@ -21,7 +21,7 @@ fn dictionary_twin() -> Vec<u8> {
     bytes.extend_from_slice(&10_u64.to_le_bytes()); // Two plain length-prefixed scalars.
     bytes.push(0x03); // Both rows valid; unused bits clear.
     bytes.extend_from_slice(&2_u32.to_le_bytes()); // Dictionary entries.
-    for scalar in [b'a', b'b'] {
+    for &scalar in b"ab" {
         bytes.extend_from_slice(&1_u32.to_le_bytes());
         bytes.push(scalar);
     }

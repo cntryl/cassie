@@ -10,7 +10,7 @@ const INSERT: &str = "INSERT INTO skipped_returning (id,note) \
 const OBSERVE: &str = "SELECT id,note FROM skipped_returning ORDER BY id";
 
 #[test]
-fn should_return_only_inserted_rows_and_counts_when_conflicts_are_skipped() {
+fn should_preserve_skipped_conflict_insert_returning_contract() {
     // Arrange
     let fixture = sql_fixture("skipped-conflict-returning", &[]);
     fixture.cassie.startup().expect("startup");

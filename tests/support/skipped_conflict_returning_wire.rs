@@ -47,6 +47,7 @@ pub struct Transcript {
     pub parsed: Option<Frames>,
     pub first: Execution,
     pub retry: Execution,
+    pub retired_state: Frames,
 }
 
 struct Client {
@@ -165,13 +166,44 @@ async fn execute_fixture(fixture: &SqlFixture, binary: Option<bool>) -> Transcri
     let first = execute(fixture, &mut client, &mut observer, "mixed_insert", binary).await;
     // A fresh Bind/new portal executes the statement again; never re-Execute first.
     let retry = execute(fixture, &mut client, &mut observer, "fresh_retry", binary).await;
+    let pgwire = &fixture.cassie.metrics()["pgwire"];
+    assert_eq!(
+        pgwire["active_sessions"].as_u64().expect("active sessions"),
+        2
+    );
+    let finished = pgwire["sessions_finished_total"]
+        .as_u64()
+        .expect("finished sessions");
     drop((client, observer));
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let metrics = fixture.cassie.metrics();
+            let pgwire = &metrics["pgwire"];
+            if pgwire["active_sessions"].as_u64().expect("active sessions") == 0
+                && pgwire["sessions_finished_total"]
+                    .as_u64()
+                    .expect("finished sessions")
+                    == finished + 2
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("both original connections must retire after acknowledged commands");
+    let mut fresh_observer = Client::connect(server.addr).await;
+    let retired_state = fresh_observer
+        .cycle(vec![wire::simple_query_frame(OBSERVE)])
+        .await;
+    drop(fresh_observer);
     server.stop().await;
     Transcript {
         seed,
         parsed,
         first,
         retry,
+        retired_state,
     }
 }
 

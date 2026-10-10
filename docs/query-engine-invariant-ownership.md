@@ -203,6 +203,14 @@ fresh execution from the completed-portal shortcut. The draft's Jev retry-oracle
 gap 0.37 required these actual focused probes; the invocation law passed on all
 four selected ingress profiles.
 
+Independent review identified an acknowledged-commit evidence gap 0.50. The
+selected wire refinement waits for both original connections to retire using
+public `pgwire.active_sessions == 0` and `sessions_finished_total` advancing by
+exactly two, then connects a fresh observer and requires the exact committed
+three-row state, complete descriptors, command tag and ReadyForQuery `I`. The
+refined probe passed on all three wire profiles. Embedded execution remains
+unchanged.
+
 CON-01..09 and all remaining CON-10 mutations/ingress remain unqualified by this
 slice, including UPDATE/DELETE, INSERT SELECT, COPY/REST, other conflict arbiters,
 savepoints, restart and concurrency. EXISTS RETURNING is outside this owner.

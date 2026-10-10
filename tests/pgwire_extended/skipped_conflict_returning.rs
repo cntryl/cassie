@@ -102,6 +102,13 @@ fn assert_transcript(transcript: &Transcript, bound: bool) {
     }
     assert_execution(&transcript.first, bound, false);
     assert_execution(&transcript.retry, bound, true);
+    assert_result(
+        &transcript.retired_state,
+        b"TDDDCZ",
+        "id",
+        b"SELECT 3\0",
+        &[("1", "first"), ("2", "old"), ("3", "third")],
+    );
 }
 
 #[test]
@@ -117,18 +124,25 @@ fn should_match_skipped_conflict_returning_over_simple_query() {
 }
 
 #[test]
-fn should_match_skipped_conflict_returning_over_declared_text_and_binary_binds() {
-    // Arrange: independent equivalent fixtures for both input encodings.
-    let profiles = [
-        ("skipped-returning-text", Some(false)),
-        ("skipped-returning-binary", Some(true)),
-    ];
+fn should_match_skipped_conflict_returning_over_declared_text_bind() {
+    // Arrange
+    let label = "skipped-returning-text";
 
     // Act
-    let transcripts = profiles.map(|(label, binary)| run(label, binary));
+    let transcript = run(label, Some(false));
 
     // Assert
-    for transcript in transcripts {
-        assert_transcript(&transcript, true);
-    }
+    assert_transcript(&transcript, true);
+}
+
+#[test]
+fn should_match_skipped_conflict_returning_over_declared_binary_bind() {
+    // Arrange
+    let label = "skipped-returning-binary";
+
+    // Act
+    let transcript = run(label, Some(true));
+
+    // Assert
+    assert_transcript(&transcript, true);
 }

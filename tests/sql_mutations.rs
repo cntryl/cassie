@@ -24,6 +24,9 @@ mod support_sql_fixture;
 #[path = "sql_mutations/type_json_array_copy.rs"]
 mod type_json_array_copy;
 
+#[path = "sql_mutations/skipped_conflict_returning.rs"]
+mod skipped_conflict_returning;
+
 // Formerly tests/copy_transaction_boundaries.rs.
 mod copy_transaction_boundaries {
     use cassie::app::{Cassie, CassieSession};

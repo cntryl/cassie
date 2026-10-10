@@ -1,0 +1,12 @@
+{
+  "version": "18.6",
+  "server_version_num": 180006,
+  "platform": "Darwin arm64",
+  "build": "Homebrew postgresql@18 18.6; Apple clang 21.0.0; aarch64-apple-darwin25.6.0",
+  "source_archive_url": "https://ftp.postgresql.org/pub/source/v18.6/postgresql-18.6.tar.bz2",
+  "source_archive_sha256": "555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f",
+  "executables": {
+    "postgres": "db04623906717b3f12df02e2285e8f9990c8ebbb1c9be78a4b1f18afb2361425",
+    "initdb": "fbc3a1583cdcf2c2374586b1ba2cf5770c6f6d07458a59abbeed8a32dfda060e"
+  }
+}

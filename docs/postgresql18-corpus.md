@@ -1,0 +1,101 @@
+# PostgreSQL 18 Differential Corpus
+
+[#848](https://github.com/cntryl/cassie/issues/848) owns complete qualification.
+This stage-0 bootstrap supplies executable comparisons and a pending inventory;
+it does not complete that gate or claim dialect support. The
+[delivery contract](postgresql18-delivery.md) defines scope and closure.
+
+## Immutable inputs
+
+[Reference manifest](../tests/corpus/postgresql18/reference.json) pins PostgreSQL
+18.6 source archive SHA-256 and the local Darwin arm64 postgres/initdb executable
+hashes. The runner verifies the binaries before initializing an isolated
+reference store, starts its own local socket-only server, checks server_version_num
+and shuts it down after collection. A different executable fails admission;
+Linux/container qualification needs a separately recorded immutable artifact.
+Version strings alone are insufficient. Runtime library hashes are retained in
+receipts; complete deployment/build provenance remains a final qualification
+obligation.
+
+[Upstream inventory](../tests/corpus/postgresql18/inventory.json) is generated
+from the checksum-verified official source archive: SQL command synopses,
+pg_type.dat including generated array identities, pg_proc.dat signatures,
+catalog and PL/pgSQL anchors, explicit query contexts and regression/isolation
+input hashes. These are coverage-review inputs. Every entry begins pending;
+owners must classify individual forms, expand syntax/overloads and assign
+execution-path/context cells. Internal function and physical-server entries
+require explicit classification under the recorded architectural exceptions;
+their implementation language does not by itself exclude a built-in SQL function.
+
+Reproduce the inventory using the verified archive without extracting files:
+
+```sh
+python3 -m tools.pg18_parity.inventory \
+  --archive target/parity-evidence/postgresql-18.6.tar.bz2 \
+  --manifest tests/corpus/postgresql18/reference.json \
+  --output target/parity-evidence/inventory-regenerated.json
+```
+
+## Bootstrap execution
+
+[Bootstrap cells](../tests/corpus/postgresql18/bootstrap.json) exercise exact
+BIGINT values, SQL NULL versus text NULL, extrema, binary/NULL parameters and
+SQLSTATE across applicable simple text, extended text and extended binary
+paths. The development-only libpq adapter preserves raw value bytes, result
+column names/OIDs/typmods/lengths/formats, prepared descriptors/parameter OIDs,
+SQLSTATE and command tags. Unordered rows compare as bags with multiplicity;
+declared ordering compares sequences. Multiple simple-query results are retained.
+COPY streaming and further lifecycle adapters remain pending and cannot pass by
+being unavailable.
+
+Run against a separately started isolated Cassie instance. Store the connection
+string in CASSIE_PARITY_DSN; receipts do not include credentials or the DSN.
+The full Cassie commit argument is caller-asserted until linked to independent
+instance/build/deployment evidence. A receipt cannot certify an arbitrary
+endpoint's revision from the argument alone.
+
+```sh
+python3 -m tools.pg18_parity.run \
+  --reference-bin-dir /opt/homebrew/opt/postgresql@18/bin \
+  --libpq /opt/homebrew/opt/postgresql@18/lib/postgresql/libpq.dylib \
+  --cassie-revision <full-40-character-commit> \
+  --output target/p18-run
+```
+
+Use a fresh, short output path; reference socket paths have operating-system
+length limits. Each invocation retains its reference logs/store and receipt
+under ignored target output. Code 1 means a differential mismatch; code 2 means
+unavailable or incomplete qualification, including a passing bootstrap with
+pending inventory. This bootstrap deliberately has no complete-qualification
+success exit. Failed, skipped, unavailable, pending or unsupported in-scope
+cells keep #848 and the milestone open.
+
+The comparator's independent checks run with:
+
+```sh
+python3 tests/pg18_parity/test_comparison.py
+python3 tests/pg18_parity/test_wire.py
+python3 tests/pg18_parity/test_cancellation.py
+```
+
+The wire tests use the pinned local reference and fail when it is unavailable;
+they do not silently skip. Repository Rust test-policy validation does not
+discover Python tests, so these explicit commands are required in addition to
+the full ordered repository gate. These adapters are development tooling and
+do not add a storage layer or replace Cassie's Rust pipeline.
+
+## Growth and final gate
+
+Every bundle adds its exact forms/signatures, independent semantic assertions,
+path/context matrix and immutable receipts. Include scalar/typed/indexed/overlay,
+simple/extended text/binary, concurrency/privilege/locking/notification,
+cancellation/rollback/savepoints, restart/schema publication, prepared-transaction
+and large-object state, verified upgrade round trips, pinned generated clients
+and pg_dump/restore. Clocks, randomness and physical plans require explicit
+semantic assertions rather than byte equality or discarded differences.
+
+Final qualification must join required inventory/path cells to receipts with
+no missing, duplicate, unowned or nonpassing cells, verify instance revisions,
+and finish every owner/prerequisite and #849 resource/restart acceptance.
+The bootstrap's pending inventory count and incomplete classification cannot
+be promoted by passing the sample cases.

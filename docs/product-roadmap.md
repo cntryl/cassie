@@ -4,6 +4,24 @@ This document contains future work only. Current behavior and status live in [Fe
 
 Work is dependency-ordered. A later item does not begin while an earlier correctness or format dependency remains open.
 
+## Top priority: PostgreSQL 18 SQL parity
+
+Complete PostgreSQL 18.6 core SQL and full PL/pgSQL compatibility under the
+[selected dialect profile](sql-dialect-profile.md) and
+[delivery stages/owners](postgresql18-delivery.md), tracked by #791 in the
+Postgres SQL feature parity milestone. Bootstrap the differential corpus now
+and grow it with every bundle; #848 remains final conformance and #849 the
+resource/restart gate. Earlier finite decimal/array/temporal/procedural limits
+are intermediate slices, never final acceptance boundaries.
+
+Preserve completed query-engine foundations below. Their remaining prerequisite
+acceptance shares this priority while retaining existing milestones. Finish
+RETURNING/relational, codec/mutation, isolation/catalog and shared type/runtime
+dependencies before later runtime; record completed commits/tests for staged
+prerequisites. Only the profile's architectural exceptions may be excluded.
+Close #791 last after all in-scope corpus cells and owner/prerequisite criteria
+pass and #849 evidence is accepted.
+
 ## Production Evidence
 
 - define named disk-backed deployment profiles;

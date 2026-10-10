@@ -10,6 +10,26 @@ evaluation under their documented limits and may change before 1.0.
 
 Cassie is not Production-ready. Local disk-backed smoke evidence is sufficient to catch correctness and gross resource-bound regressions, but it is not representative-scale evidence for production latency, capacity, cancellation latency, recovery time, or sustained concurrency.
 
+## PostgreSQL 18 parity acceptance
+
+The top-priority [PostgreSQL 18 delivery program](postgresql18-delivery.md)
+targets complete core SQL and full PL/pgSQL. It is incomplete and makes no new
+support/readiness claim. The narrower Stable procedure/type/client evidence
+below remains valid within its historical boundary; those finite limits are
+intermediate delivery slices for this program, not final exclusions.
+
+#848 must pass every in-scope cell against immutable PostgreSQL 18.6 and the
+required Cassie revisions, including declared ordering/multiplicity, NULLs,
+coercion, OIDs/typmods, errors/tags/parameters and all applicable execution/wire/
+codec paths. Pinned clients/generated ORM SQL, pg_dump/restore, isolation,
+privileges, cancellation, notifications, lock release and rollback/savepoints
+are acceptance obligations. #849 additionally requires resource/restart,
+prepared-transaction/large-object recovery, transactional schema publication
+and verified v3 export/recreate/reimport with the original store preserved for
+rollback. Failed, skipped, unavailable, pending or unsupported in-scope cells
+keep the milestone open. Support promotion follows accepted evidence; close
+#791 last.
+
 ## Evidence Present
 
 - Locked build, full test, pedantic Clippy, and formatting gates.

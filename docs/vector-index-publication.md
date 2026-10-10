@@ -99,8 +99,19 @@ recovered generation. Magnitudes and coordinates must match an independent
 scalar equation over the staged f32 vectors, including finite and represented-bit
 checks. Exactly one physical vector-state record must decode to the recovered
 generation with no HNSW graph or IVFFlat training state. Raw and decoded snapshots
-must match across both startups. These new assertions have not yet executed;
-their qualification remains pending until focused and full validation complete.
+must match across both startups.
+
+Execution snapshot, 2026-10-10: at source `fa2f2702`, both existing witnesses
+passed in hosted storage qualification, with byte correspondence to the tested
+merge recorded in [the source and execution review](https://github.com/cntryl/cassie/pull/900#pullrequestreview-5479848665).
+An additional disposable assertion-sensitivity probe inserted one malformed
+physical record while decoded records remained unchanged. The existing physical
+count assertion rejected it, exact raw and decoded state was restored, and the
+original second startup and strict cleanup completed; see
+[the probe review](https://github.com/cntryl/cassie/pull/900#pullrequestreview-5480040061).
+At this snapshot, complete ordered local validation and final acceptance remain
+pending. Later immutable-head validation and integration records live in PR #900;
+these finite witnesses do not qualify the wider parent matrix.
 
 These witnesses add bounded evidence for `pub-004`, provider reuse in `pub-005`,
 and startup cleanup in `pub-006` under

@@ -16,27 +16,7 @@ fn should_preserve_sliced_selection_through_native_filter_projection() {
         ("flag".to_owned(), DataType::Boolean),
         ("payload".to_owned(), DataType::Text),
     ];
-    let columns = [
-        vec![
-            Value::Int64(100),
-            Value::Int64(10),
-            Value::Null,
-            Value::Int64(30),
-            Value::Int64(40),
-            Value::Int64(999),
-        ],
-        vec![
-            Value::Bool(true),
-            Value::Bool(true),
-            Value::Null,
-            Value::Bool(false),
-            Value::Bool(true),
-            Value::Bool(true),
-        ],
-        ["left", "a", "β", "c", "λ", "right"]
-            .map(|text| Value::String(text.to_owned()))
-            .to_vec(),
-    ];
+    let columns = source_columns();
     let predicate = Expr::Binary {
         left: Box::new(Expr::Binary {
             left: Box::new(Expr::Column("n".to_owned())),
@@ -92,27 +72,7 @@ fn should_preserve_sliced_selection_through_native_filter_projection() {
     assert_eq!(selected.len(), 5);
     assert_eq!(window.len(), 4);
     assert_eq!(window.schema(), &schema);
-    assert_eq!(
-        rows(&window),
-        vec![
-            vec![
-                Value::Int64(40),
-                Value::Bool(true),
-                Value::String("λ".to_owned())
-            ],
-            vec![
-                Value::Int64(40),
-                Value::Bool(true),
-                Value::String("λ".to_owned())
-            ],
-            vec![Value::Null, Value::Null, Value::String("β".to_owned())],
-            vec![
-                Value::Int64(30),
-                Value::Bool(false),
-                Value::String("c".to_owned())
-            ],
-        ]
-    );
+    assert_eq!(rows(&window), expected_window_rows());
     assert_eq!(
         scalar_truths,
         vec![
@@ -158,6 +118,51 @@ fn should_preserve_sliced_selection_through_native_filter_projection() {
     assert_eq!(rows(&alias), expected_rows);
     drop(alias);
     assert_eq!(controls.current_query_memory_bytes(), 0);
+}
+
+fn source_columns() -> [Vec<Value>; 3] {
+    [
+        vec![
+            Value::Int64(100),
+            Value::Int64(10),
+            Value::Null,
+            Value::Int64(30),
+            Value::Int64(40),
+            Value::Int64(999),
+        ],
+        vec![
+            Value::Bool(true),
+            Value::Bool(true),
+            Value::Null,
+            Value::Bool(false),
+            Value::Bool(true),
+            Value::Bool(true),
+        ],
+        ["left", "a", "β", "c", "λ", "right"]
+            .map(|text| Value::String(text.to_owned()))
+            .to_vec(),
+    ]
+}
+
+fn expected_window_rows() -> Vec<Vec<Value>> {
+    vec![
+        vec![
+            Value::Int64(40),
+            Value::Bool(true),
+            Value::String("λ".to_owned()),
+        ],
+        vec![
+            Value::Int64(40),
+            Value::Bool(true),
+            Value::String("λ".to_owned()),
+        ],
+        vec![Value::Null, Value::Null, Value::String("β".to_owned())],
+        vec![
+            Value::Int64(30),
+            Value::Bool(false),
+            Value::String("c".to_owned()),
+        ],
+    ]
 }
 
 fn scalar_oracle(columns: &[Vec<Value>], predicate: &Expr) -> (Vec<Value>, Vec<Vec<Value>>) {

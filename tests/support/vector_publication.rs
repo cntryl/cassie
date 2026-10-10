@@ -301,3 +301,80 @@ pub fn write_schema_record(cassie: &Cassie, key: Vec<u8>, record: Option<&serde_
     }
     tx.commit(WriteOptions::sync()).expect("commit record");
 }
+
+pub struct OrphanPublicationArtifacts {
+    entries: [(StorageFamily, Vec<u8>, Vec<u8>); 3],
+}
+
+impl OrphanPublicationArtifacts {
+    pub fn seed(cassie: &Cassie) -> Self {
+        assert_cleanup(cassie);
+        let publication = b"00000000-0000-4000-8000-000000000764";
+        let artifacts = Self {
+            entries: [
+                (
+                    StorageFamily::Schema,
+                    publication_key(b"vector-backfill-row", &[publication, &0_u64.to_be_bytes()]),
+                    br#"{"id":"unused","payload":{"body":"unused","embedding":[1.0,0.0,0.0]}}"#
+                        .to_vec(),
+                ),
+                (
+                    StorageFamily::Schema,
+                    publication_key(b"vector-backfill-row", &[publication, &1_u64.to_be_bytes()]),
+                    b"not-json".to_vec(),
+                ),
+                (
+                    StorageFamily::Data,
+                    publication_key(b"vector-backfill-applied", &[publication]),
+                    publication.to_vec(),
+                ),
+            ],
+        };
+        for (family, key, value) in &artifacts.entries {
+            cassie
+                .midge
+                .raw_put(*family, key, value)
+                .expect("durable orphan artifact injection");
+        }
+        artifacts.assert_present(cassie);
+        artifacts
+    }
+
+    pub fn assert_present(&self, cassie: &Cassie) {
+        for (family, key, value) in &self.entries {
+            assert_eq!(
+                cassie
+                    .midge
+                    .raw_get(*family, key)
+                    .expect("exact orphan key"),
+                Some(value.clone()),
+                "exact orphan artifact persists before startup"
+            );
+        }
+        assert!(records(cassie, StorageFamily::Schema, b"index-publication").is_empty());
+        assert_eq!(
+            records(cassie, StorageFamily::Schema, b"vector-backfill-row").len(),
+            2,
+            "exact orphan staged record count"
+        );
+        assert_eq!(
+            records(cassie, StorageFamily::Data, b"vector-backfill-applied").len(),
+            1,
+            "exact orphan applied marker count"
+        );
+    }
+
+    pub fn assert_absent(&self, cassie: &Cassie) {
+        for (family, key, _) in &self.entries {
+            assert_eq!(
+                cassie
+                    .midge
+                    .raw_get(*family, key)
+                    .expect("exact orphan key"),
+                None,
+                "startup removes the exact injected orphan artifact"
+            );
+        }
+        assert_cleanup(cassie);
+    }
+}

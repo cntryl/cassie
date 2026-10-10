@@ -118,3 +118,26 @@ and startup cleanup in `pub-006` under
 [#764](https://github.com/cntryl/cassie/issues/764). The broader ANN, corruption,
 concurrent generation, maintenance, lifecycle and native release matrix remains
 tracked there; #764 and its downstream #765 qualification stay open.
+
+## Orphan-Only Cold Startup Qualification
+
+The finite [#918](https://github.com/cntryl/cassie/issues/918) witness qualifies
+startup with no pending intent, two unreferenced Schema staging records and one
+Data applied marker. One staged value is opaque invalid JSON: the existing
+orphan-disposal rule removes unreferenced keys without decoding their values;
+referenced malformed staged rows retain their fail-closed contract.
+
+`tests/vector_embeddings/publication_orphans.rs` must prove exact durable
+artifact presence before the first startup and absence immediately after each
+of two cold startups, before any manual replay or cleanup. Complete row payloads,
+canonical row bytes, collection generation and Data epoch must remain unchanged.
+No vector or SQL metadata may appear, and provider calls must remain zero. The
+second startup must be idempotent, with all owners retired before directory
+removal. The two existing live-intent recovery witnesses remain unchanged as
+published-state controls.
+
+Preparation status, 2026-10-10: this is a source-only qualification candidate;
+actual cold startups, focused controls, complete local validation and hosted
+acceptance are not started. Current cleanup may already satisfy the witness.
+This adds no format, API or support promotion; broader parent #764 acceptance
+and downstream #765 qualification remain open.

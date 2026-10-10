@@ -2,7 +2,7 @@ use crate::support_relational_qualification::fixture;
 use cassie::types::Value;
 
 #[test]
-fn should_resolve_update_returning_exists_against_captured_view_and_new_row() {
+fn should_resolve_update_returning_exists_against_captured_view_with_new_row() {
     // Arrange
     let fixture = fixture();
     for sql in [
@@ -134,15 +134,13 @@ fn should_resolve_delete_returning_exists_against_deleted_old_row() {
 }
 
 #[test]
-fn should_use_prior_staged_view_for_update_and_delete_returning_in_transaction() {
+fn should_use_prior_staged_view_for_update_returning_in_transaction() {
     // Arrange
     let fixture = fixture();
     for sql in [
         "CREATE TABLE returning_tx_update(id BIGINT)",
-        "CREATE TABLE returning_tx_delete(id BIGINT)",
         "BEGIN",
         "INSERT INTO returning_tx_update VALUES(1)",
-        "INSERT INTO returning_tx_delete VALUES(3)",
     ] {
         fixture
             .cassie
@@ -163,18 +161,6 @@ fn should_use_prior_staged_view_for_update_and_delete_returning_in_transaction()
         "SELECT EXISTS(SELECT 1 FROM returning_tx_update WHERE id=2)",
         vec![],
     );
-    let deleted = fixture.cassie.execute_sql(
-        &fixture.session,
-        "DELETE FROM returning_tx_delete WHERE id=3 RETURNING id, \
-         EXISTS(SELECT 1 FROM returning_tx_delete WHERE id=3) AS prior_row",
-        vec![],
-    );
-    let delete_followup = fixture.cassie.execute_sql(
-        &fixture.session,
-        "SELECT EXISTS(SELECT 1 FROM returning_tx_delete WHERE id=3)",
-        vec![],
-    );
-
     // Assert
     assert_eq!(
         updated
@@ -188,6 +174,41 @@ fn should_use_prior_staged_view_for_update_and_delete_returning_in_transaction()
             .rows,
         vec![vec![Value::Bool(true)]]
     );
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, "ROLLBACK", vec![])
+        .expect("rollback staged test transaction");
+}
+
+#[test]
+fn should_use_prior_staged_view_for_delete_returning_in_transaction() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE returning_tx_delete(id BIGINT)",
+        "BEGIN",
+        "INSERT INTO returning_tx_delete VALUES(3)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("transaction snapshot setup");
+    }
+
+    // Act
+    let deleted = fixture.cassie.execute_sql(
+        &fixture.session,
+        "DELETE FROM returning_tx_delete WHERE id=3 RETURNING id, \
+         EXISTS(SELECT 1 FROM returning_tx_delete WHERE id=3) AS prior_row",
+        vec![],
+    );
+    let delete_followup = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT EXISTS(SELECT 1 FROM returning_tx_delete WHERE id=3)",
+        vec![],
+    );
+
+    // Assert
     assert_eq!(
         deleted
             .expect("DELETE RETURNING sees prior staged row")
@@ -207,7 +228,7 @@ fn should_use_prior_staged_view_for_update_and_delete_returning_in_transaction()
 }
 
 #[test]
-fn should_keep_returning_exists_lazy_and_rollback_on_selected_error() {
+fn should_skip_unselected_returning_exists_branch() {
     // Arrange
     let fixture = fixture();
     for sql in [
@@ -227,18 +248,6 @@ fn should_keep_returning_exists_lazy_and_rollback_on_selected_error() {
          COALESCE(true, EXISTS(SELECT 1 FROM returning_atomic WHERE 1/0=0)) AS selected",
         vec![],
     );
-    let failed = fixture.cassie.execute_sql(
-        &fixture.session,
-        "UPDATE returning_atomic SET id=id+10 WHERE id=1 RETURNING id, \
-         EXISTS(SELECT 1 FROM returning_atomic i WHERE i.id=1 AND 1/0=0) AS selected",
-        vec![],
-    );
-    let after_error = fixture.cassie.execute_sql(
-        &fixture.session,
-        "SELECT id FROM returning_atomic ORDER BY id",
-        vec![],
-    );
-
     // Assert
     let mut skipped_rows = skipped.expect("unselected EXISTS branch is lazy").rows;
     skipped_rows.sort_by_key(|row| match row.first() {
@@ -252,6 +261,36 @@ fn should_keep_returning_exists_lazy_and_rollback_on_selected_error() {
             vec![Value::Int64(2), Value::Bool(true)],
         ]
     );
+}
+
+#[test]
+fn should_rollback_update_when_returning_exists_errors() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE returning_atomic(id BIGINT)",
+        "INSERT INTO returning_atomic VALUES(1),(2)",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("atomic returning setup");
+    }
+
+    // Act
+    let failed = fixture.cassie.execute_sql(
+        &fixture.session,
+        "UPDATE returning_atomic SET id=id+10 WHERE id=1 RETURNING id, \
+         EXISTS(SELECT 1 FROM returning_atomic i WHERE i.id=1 AND 1/0=0) AS selected",
+        vec![],
+    );
+    let after_error = fixture.cassie.execute_sql(
+        &fixture.session,
+        "SELECT id FROM returning_atomic ORDER BY id",
+        vec![],
+    );
+
+    // Assert
     assert!(failed
         .expect_err("selected EXISTS error aborts UPDATE RETURNING")
         .to_string()
@@ -263,7 +302,7 @@ fn should_keep_returning_exists_lazy_and_rollback_on_selected_error() {
 }
 
 #[test]
-fn should_restore_prior_transaction_writes_after_returning_error_and_savepoint_rollback() {
+fn should_reject_reads_after_returning_error_until_savepoint_rollback() {
     // Arrange
     let fixture = fixture();
     for sql in [
@@ -297,6 +336,53 @@ fn should_restore_prior_transaction_writes_after_returning_error_and_savepoint_r
         vec![],
     );
     let status_after_savepoint_rollback = fixture.session.transaction_status();
+
+    // Assert
+    assert!(failed
+        .expect_err("selected RETURNING EXISTS error aborts the statement")
+        .to_string()
+        .contains("division by zero"));
+    assert_eq!(status_after_failure, "failed");
+    assert!(rejected_read
+        .expect_err("failed transaction rejects ordinary reads")
+        .to_string()
+        .contains("rollback required"));
+    rollback_to.expect("rollback to savepoint recovers transaction");
+    assert_eq!(status_after_savepoint_rollback, "in_transaction");
+    fixture
+        .cassie
+        .execute_sql(&fixture.session, "ROLLBACK", vec![])
+        .expect("rollback staged test transaction");
+}
+
+#[test]
+fn should_restore_prior_staged_writes_after_savepoint_rollback() {
+    // Arrange
+    let fixture = fixture();
+    for sql in [
+        "CREATE TABLE returning_savepoint(id BIGINT)",
+        "BEGIN",
+        "INSERT INTO returning_savepoint VALUES(1),(2)",
+        "SAVEPOINT before_returning_error",
+    ] {
+        fixture
+            .cassie
+            .execute_sql(&fixture.session, sql, vec![])
+            .expect("savepoint returning setup");
+    }
+
+    // Act
+    let failed = fixture.cassie.execute_sql(
+        &fixture.session,
+        "UPDATE returning_savepoint SET id=11 WHERE id=1 RETURNING id, \
+         EXISTS(SELECT 1 FROM returning_savepoint WHERE id=1 AND 1/0=0) AS selected",
+        vec![],
+    );
+    let rollback_to = fixture.cassie.execute_sql(
+        &fixture.session,
+        "ROLLBACK TO SAVEPOINT before_returning_error",
+        vec![],
+    );
     let recovered_rows = fixture.cassie.execute_sql(
         &fixture.session,
         "SELECT id FROM returning_savepoint ORDER BY id",
@@ -317,13 +403,7 @@ fn should_restore_prior_transaction_writes_after_returning_error_and_savepoint_r
         .expect_err("selected RETURNING EXISTS error aborts the statement")
         .to_string()
         .contains("division by zero"));
-    assert_eq!(status_after_failure, "failed");
-    assert!(rejected_read
-        .expect_err("failed transaction rejects ordinary reads")
-        .to_string()
-        .contains("rollback required"));
-    rollback_to.expect("rollback to savepoint recovers transaction");
-    assert_eq!(status_after_savepoint_rollback, "in_transaction");
+    rollback_to.expect("savepoint rollback restores prior staged writes");
     assert_eq!(
         recovered_rows
             .expect("savepoint restores prior staged writes")

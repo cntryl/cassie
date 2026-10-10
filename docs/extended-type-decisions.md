@@ -7,7 +7,7 @@ one-dimensional arrays and fixed-offset time selections remain intermediate
 slices. The [current finite type contract](type-contract.md) describes existing
 runtime support; these new records do not promote that support.
 
-## Selected direction and remaining decision
+## Selected direction and remaining acceptance
 
 The user selected `cassie-midge-layout-v3` with verified export/recreate/reimport
 on 2026-10-08, permitting breaking changes while preserving the original store
@@ -20,13 +20,16 @@ The snapshot's historical proposal wording records what was reviewed; the
 approval above supersedes that historical status. Do not ask for this common
 direction again.
 
-The [catalog/export schema proposal](postgresql18-catalog-export-proposal.md)
-specifies the remaining JSON record schemas, database-qualified Midge keys,
-global named-object allocator extension and staged import publication. Its
-SHA256 is `c2bd35c33658e5bdccc46809226a4c46d2b6bb89999fa219124ad9ca49b8b625`.
-It is **pending explicit user direction**. It does not select new persistent
-bytes merely because the common CRB3 direction was approved. Dependent runtime
-must wait for that decision and complete selected records.
+The user subsequently selected the concrete
+[catalog/export schemas](postgresql18-catalog-export-proposal.md) on 2026-10-10
+by directing work to proceed after the remaining decision was identified.
+The JSON record schemas, database-qualified Midge keys, global named-object
+allocator extension and staged import publication are now selected. The exact
+[approved catalog/export proposal](../tests/corpus/postgresql18/v3-catalog-export-approved-proposal.txt)
+has SHA256 `c2bd35c33658e5bdccc46809226a4c46d2b6bb89999fa219124ad9ca49b8b625`.
+Its historical pending status is superseded; do not request this decision again.
+Approval does not implement or qualify these bytes. Complete each affected
+record and its recorded prerequisites before dependent runtime.
 
 ## Contract records
 
@@ -95,8 +98,9 @@ The existing vector profile remains supported according to its current contract;
 extension matrix. Internal/pseudo-types retain real context/error behavior;
 an I/O catalog entry does not invent an externally constructible stored value.
 
-#793 remains open: the catalog/export decision, remaining staged records and
-actual upgrade verification are incomplete. #848 owns complete differential
+#793 remains open: remaining staged owner records, runtime qualification and
+actual upgrade verification are incomplete. The common and catalog/export
+decisions are selected. #848 owns complete differential
 qualification, #849 accepts resource/restart evidence, and #791 closes last.
 Failed, skipped, unavailable, pending and unsupported in-scope cells keep the
 program open. The full ordered local gate, adversarial probes, exact-head hosted

@@ -104,8 +104,8 @@ reference catalog and need the approved identity mapping for later comparisons.
 
 The literal v3 vectors specify future scalar/container/golden/negative codec
 acceptance. They do not certify an implemented encoder, decoder, restart or
-upgrade. The common v3 direction is approved; exact catalog/export schemas
-remain a separate pending proposal. The existing runner does not automatically
+upgrade. The common v3 direction and separately reviewed exact catalog/export
+schemas are approved; their historical proposal snapshots are retained. The existing runner does not automatically
 replay these richer setup/type/descriptor records. Owners must add its adapters
 and concrete path/context cells; unsupported adapters remain pending under #848.
 

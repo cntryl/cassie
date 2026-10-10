@@ -10,8 +10,9 @@ below makes the existing conventions explicit.
 The [family records](postgresql18-type-families.md) and
 [resolution/resource rules](postgresql18-type-resolution-resources.md) clarify
 admission under this direction. The exact
-[catalog/export schemas](postgresql18-catalog-export-proposal.md) remain a
-separate pending proposal, not an implied persistent selection.
+[catalog/export schemas](postgresql18-catalog-export-proposal.md) were explicitly
+selected separately on 2026-10-10; their exact approval snapshot and remaining
+acceptance obligations are recorded there.
 Source baseline: Cassie `769d4db8`, `src/midge/row_blob.rs`, its `encoding.rs`,
 `src/types/schema.rs` and the original `docs/extended-type-decisions.md`.
 

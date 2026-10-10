@@ -1,17 +1,22 @@
 # Concrete v3 catalog and logical export schemas
 
-Status: proposed remaining persistent catalog/export details for #793. The user
-already approved CRB3 framing, durable/wire type identity separation, codec tags
-1–9 and lossless export/recreate/reimport on 2026-10-10. This document does not
-reopen that direction. It specifies the metadata bytes and export envelope that
-the approved common proposal deliberately left to the per-family records.
+Status: explicitly selected by the user on 2026-10-10 after reviewing this
+concrete proposal. The exact approved bytes are
+[retained verbatim](../tests/corpus/postgresql18/v3-catalog-export-approved-proposal.txt),
+SHA256 `c2bd35c33658e5bdccc46809226a4c46d2b6bb89999fa219124ad9ca49b8b625`.
+The user's subsequent “proceeds” selects these remaining details; the archive's
+historical proposal wording is superseded by this approval record. CRB3 framing,
+durable/wire identity separation, codec tags 1–9 and lossless
+export/recreate/reimport were already approved separately. This record selects
+the remaining metadata bytes and export envelope for #793; it does not claim
+runtime or migration qualification.
 
 Source baseline: merged #877 `2345e9025d937b6479ee5bdd6e13091537292e5f`;
 current `src/catalog/metadata.rs`, `src/midge/adapter/metadata.rs`,
 `src/midge/row_blob.rs`, `src/types/schema.rs` and #793. Existing metadata uses
 JSON over Midge. Keep that organization and direct Midge ownership.
 
-## Recommended remaining selection
+## Selected catalog and export direction
 
 Use versioned UTF-8 JSON catalog records, with explicit field names and numeric
 identities encoded as decimal strings. Use the same semantic record schemas in
@@ -309,11 +314,11 @@ separately verified reverse-export procedure, not an old writer on v3 bytes.
 
 ## Approval and remaining acceptance boundary
 
-Approve this concrete catalog/export envelope, key namespace and identity
-extension within the already selected v3 direction. This would authorize the
-contract records and their tests; no runtime or migration is implemented by
-approval. Each exact per-family semantic/codec/resource record, independent
-golden/negative witness and owner dependency remains required. Later SQL-object,
+The user approved this concrete catalog/export envelope, key namespace and
+identity extension within the selected v3 direction. This authorizes the affected
+contract records and their implementation after their recorded prerequisites;
+no runtime or migration is implemented by approval. Each exact per-family
+semantic/codec/resource record, independent golden/negative witness and owner dependency remains required. Later SQL-object,
 prepared-transaction and large-object schemas stay gated by their named owners.
 The complete ordered gate, adversarial probes, exact-head hosted checks and
 checked integration still apply. #793 and #849 remain open until their actual

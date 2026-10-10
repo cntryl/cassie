@@ -16,9 +16,11 @@ by hash. Function existence does not imply externally constructible values.
 The owning PostgreSQL source routines define all lexical edge cases and errors;
 the summaries below select those routines' semantics, not a new approximation.
 
-The exact catalog/export schemas are a separate **proposal pending user direction**.
-References to those schemas specify the proposed completion; they do not select
-unapproved persistent bytes or authorize dependent runtime. #793 remains open.
+The exact [catalog/export schemas](postgresql18-catalog-export-proposal.md)
+were explicitly selected separately on 2026-10-10. Their retained approval
+snapshot fixes the reviewed bytes. Selection authorizes affected implementation
+after recorded prerequisites, without claiming runtime qualification. #793
+remains open for staged owner records and actual acceptance.
 
 ## Shared fields applied to every record
 
@@ -59,7 +61,8 @@ unapproved persistent bytes or authorize dependent runtime. #793 remains open.
    each owner must add scalar/typed/index/overlay/wire/rollback/restart and upgrade
    witnesses before support promotion. Reference-only success is not Cassie PASS.
 8. **Provenance/owners.** Full PostgreSQL semantics were selected by the user plan;
-   common v3 direction explicitly approved 2026-10-10. #793 owns these records,
+   common v3 and catalog/export directions explicitly approved 2026-10-10.
+   #793 owns these records,
    #904 shared implementation, #848 complete differential qualification, #849
    resource/restart evidence. Each owner below qualifies interaction with existing
    expressions/operators; later integration obligations do not gate unrelated

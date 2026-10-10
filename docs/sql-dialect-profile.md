@@ -257,13 +257,13 @@ After the first wave, aggregate modifiers/Boolean/collection/statistical operato
 
 [#793](https://github.com/cntryl/cassie/issues/793) owns the
 [type and durable-format decisions](extended-type-decisions.md). Full PostgreSQL
-semantics and the common CRB3 direction are selected. The family/resolution
-records define that target; exact catalog/export schemas remain a separate
-pending proposal. Complete each affected record before dependent runtime.
+semantics, the common CRB3 direction and the separately approved catalog/export
+schemas are selected. The family/resolution records define that target.
+Complete each affected record and recorded prerequisite before dependent runtime.
 
 | Decision | Required resolution | Blocked owners |
 | --- | --- | --- |
-| Extended types/ABI | Selected full PostgreSQL families, common v3 identities/codecs and recreate transition; pending exact catalog/export selection and staged extension-specific records. | #793 and its typed dependents. |
+| Extended types/ABI | Selected full PostgreSQL families, common v3 identities/codecs and recreate transition; selected exact catalog/export schemas; staged extension-specific records remain required. | #793 and its typed dependents. |
 | Temporal contract | Full PostgreSQL calendar/month, named-zone/DST and clock semantics; pinned 2026c source data, provider artifacts and actual qualification. | #814/#815. |
 | Regex/text collation | Engine/Unicode version, collation/case rules, pattern budget and bounded execution. | #799/#803. |
 | Procedural language | Full PL/pgSQL, dynamic SQL binding, recursion/resource bounds and trusted-language security; earlier subsets are intermediate. | #830/#832/#835/#836/#837. |
@@ -285,9 +285,10 @@ complete all family/catalog/export records, or close the broad #792/#793 program
 
 The 2026-10-10 approval subsequently selects the concrete
 [common CRB3/type identity/codec direction](postgresql18-v3-contract.md).
-The [catalog/export schema proposal](postgresql18-catalog-export-proposal.md)
-is still awaiting explicit direction; reference-only records and vectors do
-not establish runtime, migration or restart qualification.
+The user subsequently selected the concrete
+[catalog/export schemas](postgresql18-catalog-export-proposal.md) separately on
+2026-10-10. Both exact approval snapshots are retained. Reference-only records
+and vectors do not establish runtime, migration or restart qualification.
 
 #### Selected finite decisions and remaining proposals
 

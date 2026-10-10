@@ -1,14 +1,16 @@
 # PostgreSQL 18 type resolution and resource contract
 
-This is a selected semantic contract and proposed completion of #793's v3
+This is a selected semantic contract and part of #793's v3
 records, not current implementation/support evidence. It applies to every family
 record and the shared #904 type/catalog runtime. PostgreSQL 18.6 source archive
 `555610c24d53e4316da5b7d3fc25c279d96856d5e0e23ee308c328c5fa881d9f`
 is the immutable authority; source-file hashes accompany the registry inputs.
 
-The exact catalog/export schemas are a separate **proposal pending user direction**.
-References to those schemas specify the proposed completion; they do not select
-unapproved persistent bytes or authorize dependent runtime. #793 remains open.
+The exact [catalog/export schemas](postgresql18-catalog-export-proposal.md)
+were explicitly selected separately on 2026-10-10. Their retained approval
+snapshot fixes the reviewed bytes. Selection authorizes affected implementation
+after recorded prerequisites, without claiming runtime qualification. #793
+remains open for staged owner records and actual acceptance.
 
 ## One resolver and catalog authority
 

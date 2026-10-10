@@ -72,4 +72,4 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 - [Type-family records](postgresql18-type-families.md)
 - [Type resolution and resources](postgresql18-type-resolution-resources.md)
 - [Approved common v3 contract](postgresql18-v3-contract.md)
-- [Pending catalog/export schema proposal](postgresql18-catalog-export-proposal.md)
+- [Selected catalog/export schema contract](postgresql18-catalog-export-proposal.md)

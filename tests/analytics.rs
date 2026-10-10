@@ -11425,3 +11425,6 @@ mod nonfinite_projection_publication {
         });
     }
 }
+
+#[path = "analytics/selected_dictionary_validation.rs"]
+mod selected_dictionary_validation;

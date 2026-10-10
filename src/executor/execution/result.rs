@@ -29,6 +29,7 @@ pub(super) fn build_select_result(
         )
     })
     .or_else(|| plan.collection_schema.clone())
+    .or_else(|| materialized_projection_schema(cassie, &plan.logical.collection))
     .or_else(|| cassie.catalog.get_schema(&plan.logical.collection))
     // Describe types built-in catalog views from their declared schema;
     // without the same arm here every such column executes as text and
@@ -131,6 +132,18 @@ pub(super) fn build_select_result(
         rows,
         command: "SELECT".to_string(),
     })
+}
+
+fn materialized_projection_schema(
+    cassie: &Cassie,
+    collection: &str,
+) -> Option<crate::catalog::CollectionSchema> {
+    let projection = cassie.catalog.get_materialized_projection(collection)?;
+    let materialized = projection.materialized?;
+    Some(crate::catalog::CollectionSchema::from_type_schema(
+        collection.to_owned(),
+        &materialized.output_schema,
+    ))
 }
 
 fn materialize_operator_rows(

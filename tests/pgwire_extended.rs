@@ -74,6 +74,9 @@ mod pgwire_type_output_source_seams;
 #[path = "pgwire_extended/type_output_identifier_identity.rs"]
 mod pgwire_type_output_identifier_identity;
 
+#[path = "pgwire_extended/materialized_projection_metadata.rs"]
+mod pgwire_materialized_projection_metadata;
+
 // Formerly tests/pgwire_extended_control.rs.
 mod pgwire_extended_control {
     #![allow(unused_imports, dead_code)]

@@ -23,10 +23,14 @@ mod pgwire_pagination;
 mod pgwire_typed_portal;
 #[path = "pgwire_extended/portal_memory_calibration.rs"]
 mod portal_memory_calibration;
+#[path = "pgwire_extended/skipped_conflict_returning.rs"]
+mod skipped_conflict_returning;
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
 #[path = "support/portal_memory_calibration.rs"]
 mod support_portal_memory_calibration;
+#[path = "support/skipped_conflict_returning_wire.rs"]
+mod support_skipped_conflict_returning_wire;
 #[path = "support/sql.rs"]
 mod support_sql;
 #[path = "support/sql_fixture.rs"]

@@ -156,6 +156,74 @@ their selected paths and record actual acceptance rather than rewriting this bas
 | CON-09 — All expression references use the same exact-case-first column identity authority. | mapped-source-test; source-and-test | [#769](https://github.com/cntryl/cassie/issues/769) | Source: [src/sql/column_identifier.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/sql/column_identifier.rs); [src/executor/batch.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/batch.rs)<br>Evidence: [tests/storage_indexes.rs:should_bind_case_distinct_unique_indexes_to_their_exact_columns](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/storage_indexes.rs); [tests/sql_mutations.rs:should_bind_altered_check_constraint_to_declared_column_case](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/sql_mutations.rs) | Declare case-distinct sibling columns and exercise every index/constraint/default/projection binding. |
 | CON-10 — Mutation counts and RETURNING rows describe exactly the rows committed or staged by that statement. | probe-needed; probe-needed | [#769](https://github.com/cntryl/cassie/issues/769) | Source: [src/executor/execution/dml_insert.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/dml_insert.rs); [src/executor/execution/dml_update.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/dml_update.rs); [src/executor/execution/dml_delete.rs](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/dml_delete.rs)<br>Evidence: No complete named test pinned | Compare per-row mutation outcomes, final state, RETURNING order/width, command counts and retries across all ingress paths. |
 
+#### Finite CON-10 skipped-conflict qualification
+
+[#881](https://github.com/cntryl/cassie/issues/881) selects an existing-behavior
+probe on main `55b52e26ac570554ba394ec06d45568853e2866d`. The named #432 and
+#763 prerequisites are complete; the broader [#769](https://github.com/cntryl/cassie/issues/769)
+owner remains open. Runtime, grammar, persistent formats and support classifications
+are unchanged. The embedded, simple Query and declared text/binary Bind probes
+passed on unchanged runtime at main55. Required full validation remains pending.
+
+The fixture seeds `(2,'old')` in `skipped_returning(id BIGINT PRIMARY KEY,note TEXT)`.
+An INSERT VALUES source `(3,'third'),(2,'ignored'),(1,'first')` with
+`ON CONFLICT (id) DO NOTHING RETURNING id AS row_key,note` must return exactly
+`[(3,'third'),(1,'first')]` and `INSERT 0 2`. Fresh identical execution must return
+zero rows and `INSERT 0 0`, retaining the same BIGINT/TEXT result descriptor.
+Independent observers before execution and after each acknowledged command must
+see the exact committed seed/final state; the skipped payload never replaces `old`.
+
+Selected named probes:
+
+- [Embedded literals](../tests/sql_mutations/skipped_conflict_returning.rs):
+  `should_preserve_skipped_conflict_insert_returning_contract` is the current name
+  of the embedded probe, whose unchanged body passed before the test-only rename
+  with `cargo test --locked --test sql_mutations skipped_conflict_returning:: -- --nocapture`
+  on main55, including exact rows/counts/metadata and independent state/counters.
+- [Simple Query](../tests/pgwire_extended/skipped_conflict_returning.rs):
+  `should_match_skipped_conflict_returning_over_simple_query` passed.
+- [Declared text/binary input Bind](../tests/pgwire_extended/skipped_conflict_returning.rs):
+  `should_match_skipped_conflict_returning_over_declared_text_bind` and
+  `should_match_skipped_conflict_returning_over_declared_binary_bind` passed.
+
+All three wire tests passed with
+`cargo test --locked --test pgwire_extended skipped_conflict_returning:: -- --nocapture`.
+The existing ordinary DO NOTHING, multi-row source-order and completed-portal
+controls also passed, together with all four imported SqlFixture teardown controls.
+
+Extended execution declares OIDs `[20,25,20,25,20,25]`, uses a fresh Bind/new portal
+for retry, and keeps default text result format. The wire probes check exact
+descriptor fields, row widths, command tags and ReadyForQuery `I` boundaries; a
+second connection observes committed state. Completed-portal re-Execute remains
+an independent existing control. The fixture reuses strict SqlFixture cleanup;
+clients/server and the current-thread runtime retire before its storage owners.
+The focused [wire transcript helper](../tests/support/skipped_conflict_returning_wire.rs)
+reads public query counters immediately around each owner command, before observer
+queries: success count advances by one, returned-row count by two/zero, and errors
+stay unchanged. Embedded execution uses the same invocation law. This distinguishes
+fresh execution from the completed-portal shortcut. The draft's Jev retry-oracle
+gap 0.37 required these actual focused probes; the invocation law passed on all
+four selected ingress profiles.
+
+Independent review identified an acknowledged-commit evidence gap 0.50. The
+selected wire refinement waits for both original connections to retire using
+public `pgwire.active_sessions == 0` and `sessions_finished_total` advancing by
+exactly two, then connects a fresh observer and requires the exact committed
+three-row state, complete descriptors, command tag and ReadyForQuery `I`. The
+refined probe passed on all three wire profiles in a fresh owned run at
+`47adf372bd1019563da4efd2bfb0941674751780`, using the focused wire command above.
+The immutable-source receipt records three passed tests and zero failures;
+the earlier capacity-cancelled attempt supplies no PASS evidence. Embedded
+execution remains unchanged.
+
+CON-01..09 and all remaining CON-10 mutations/ingress remain unqualified by this
+slice, including UPDATE/DELETE, INSERT SELECT, COPY/REST, other conflict arbiters,
+savepoints, restart and concurrency. EXISTS RETURNING is outside this owner.
+Initial PASS is qualification GREEN; no runtime RED was observed. A mismatch
+requires a separately scoped Bug before runtime repair. Full
+validation is also pending on the independent [#880](https://github.com/cntryl/cassie/issues/880)
+baseline test-calibration repair.
+
 ### Storage ownership and schema lifecycle
 
 | Invariant / selected obligation | Baseline evidence | Primary owner | Baseline source and named evidence | Next probe |

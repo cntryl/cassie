@@ -45,5 +45,8 @@ mod exists_order;
 #[path = "relational_qualification/exists_window.rs"]
 mod exists_window;
 
+#[path = "relational_qualification/exists_returning.rs"]
+mod exists_returning;
+
 #[path = "relational_qualification/join_on.rs"]
 mod join_on;

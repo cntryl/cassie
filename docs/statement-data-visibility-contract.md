@@ -62,6 +62,24 @@ savepoint, session-setting and post-durable maintenance laws (TX-01 through
 TX-09) remain required. Read sharing cannot hide writes from the existing
 same-statement mutation or constraint machinery.
 
+Subqueries in `INSERT`, `UPDATE` and `DELETE` `RETURNING` expressions use the
+same pre-command Data view and immutable snapshot of prior transaction writes
+as other DML source reads. That view excludes writes staged by the current
+command. Correlation still supplies the command's returned row: the inserted
+or updated new row, or the deleted old row. Every row produced by one
+multirow command uses the same captured view; a later command captures a fresh
+view and can observe the earlier command's committed or staged writes. Install
+this view only for `RETURNING` source reads, keeping mutation preparation,
+constraint checks, staging and commit under their existing authorities.
+
+`RETURNING` remains atomic under the existing publish-after-complete-success
+wrapper. If expression evaluation fails, the command must preserve its current
+rollback, failed-transaction and savepoint behavior and must not publish a
+partial result or partially staged command. Lazy scalar selection, exact
+descriptors, admission, cancellation and owner retirement remain required.
+This finite selection does not establish uniform behavior for every DML family
+or expression form beyond the separately qualified cases.
+
 ## Portals and termination
 
 Parse, Bind and Describe alone do not capture a Data statement view. The

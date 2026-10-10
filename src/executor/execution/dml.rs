@@ -211,6 +211,7 @@ struct DmlResultContext<'a> {
     user_functions: &'a HashMap<String, FunctionMeta>,
     command_prefix: &'a str,
     controls: &'a QueryExecutionControls,
+    statement_read_controls: &'a QueryExecutionControls,
 }
 
 fn build_dml_result(
@@ -255,14 +256,43 @@ fn build_dml_result(
     } else {
         None
     };
-    let projected = projection::project_rows(
-        returning_rows,
-        context.returning,
-        context.params,
-        None,
-        context.user_functions,
-        context.session,
-    )?;
+    let projected = if super::exists_projection::contains(context.returning) {
+        let source = QuerySource::Collection(
+            crate::sql::IdentifierPath::parse(context.table).map_err(QueryError::General)?,
+        );
+        let env = super::source::SourceExecutionEnv {
+            cassie: context.cassie,
+            session: context.session,
+            user_functions: context.user_functions,
+            params: context.params,
+            controls: context.statement_read_controls,
+        };
+        let (_read_scope, _overlay_scope) =
+            crate::executor::execution::entrypoints::enter_statement_read(
+                context.statement_read_controls,
+            );
+        let mut ctes = CteContext::new();
+        super::exists_projection::project(
+            &env,
+            &mut ctes,
+            &source,
+            vec![returning_rows],
+            context.returning,
+            None,
+        )?
+        .into_iter()
+        .flatten()
+        .collect()
+    } else {
+        projection::project_rows(
+            returning_rows,
+            context.returning,
+            context.params,
+            None,
+            context.user_functions,
+            context.session,
+        )?
+    };
     let columns = dml_returning_columns(
         context.returning,
         column_schema.as_ref(),

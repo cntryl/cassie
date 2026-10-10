@@ -370,6 +370,38 @@ their selected paths and record actual acceptance rather than rewriting this bas
 | DERIVED-09 — Rollup v2 stores canonical parseable SQL and AST matching proves current group/filter/aggregate equivalence; legacy,corrupt,window or rebound-name cases decline unsupported substitution. | mapped-source-test; source_and_named_test_inventory_not_executed | [#773](https://github.com/cntryl/cassie/issues/773) | Source: [src/executor/execution/rollups.rs:764](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/rollups.rs#L764)<br>Evidence: [tests/domain_models.rs:2807::should_recover_expression_rollup_after_restart](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L2807) | Persist MAX(amount*10),escaped names,corrupt SQL and incompatible query shapes; compare restart/refresh to authoritative query. |
 | DERIVED-10 — Rollup preflight and gated Building-to-Ready publication prevent usable partial output; nonfinite values or maintenance debt force safe source behavior. | mapped-source-test; source_and_named_test_inventory_not_executed | [#773](https://github.com/cntryl/cassie/issues/773) | Source: [src/executor/execution/rollups.rs:134](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/src/executor/execution/rollups.rs#L134)<br>Evidence: [tests/domain_models.rs:3229::should_serialize_concurrent_rollup_publication_after_source_change](https://github.com/cntryl/cassie/blob/5f9bfd807d4e647401fbb8a587429c48425af61e/tests/domain_models.rs#L3229) | Place a late nonfinite group,race refresh/source writes and fail replacement/stale marking; fallback until complete current Ready rebuild. |
 
+#### Finite DERIVED-01 positive-OFFSET qualification
+
+[#887](https://github.com/cntryl/cassie/issues/887) selects the positive-`OFFSET`
+boundary of the existing unrestricted analytical substitution contract at main
+`55b52e26ac570554ba394ec06d45568853e2866d`. Prerequisites #760 and #763 are complete.
+The broader [#773](https://github.com/cntryl/cassie/issues/773) owner remains open.
+No runtime, public API, persistent format or support classification changes are selected.
+
+The focused probe uses two separate fresh local fixtures with execution-result
+caching disabled. Each seeds ordered BIGINT/TEXT/NULL rows `(1,'first')`,
+`(2,'second')`, `(3,NULL)`. A projection defined with `ORDER BY n OFFSET 1` must
+remain directly queryable as the final two rows while the unrestricted base query
+preserves all three rows and exact column metadata. Its completed analytical
+substitution counter must advance by zero around only that base query. A fresh
+otherwise identical unrestricted projection must preserve the complete base answer
+and advance the same counter by exactly one. Public accounted query memory,
+running-query and operator-worker counts must be zero after the selected queries.
+
+The selected [focused test](../tests/analytics/analytical_offset_substitution.rs),
+`should_decline_offset_projection_substitution_while_using_unrestricted_twin`,
+was executed on unchanged main and exposed a separate direct-projection metadata
+mismatch: `n BIGINT` is described as `TEXT` when reading the materialized
+projection. The source-query metadata and zero optimized-substitution delta were
+verified before the assertion failed. This reproduced finding is tracked in
+[#893](https://github.com/cntryl/cassie/issues/893); no runtime repair is included
+in this qualification. Re-run the restricted direct/base and unrestricted
+positive-control probes after #893 is fixed. Jev's initial route/result evidence
+gaps motivated these probes but do not establish correctness. DERIVED-02..10,
+broader typed physical-path qualification, restart, replay, lifecycle interruptions
+and concurrency remain outside this finite contribution. No ColumnStore, encoded
+execution or performance claim is made.
+
 ### Relational planning,execution,resources and equivalence
 
 | Invariant / selected obligation | Baseline evidence | Primary owner | Baseline source and named evidence | Next probe |

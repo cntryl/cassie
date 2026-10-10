@@ -16,7 +16,7 @@ Other documents may explain subsystem design or operator workflows. They must de
 - [Feature Support](feature-support.md)
 - [PostgreSQL Compatibility](postgres-compatibility.md)
 - [Finite SQL Type and Wire Contract](type-contract.md)
-- [Proposed Finite SQL Dialect Profile](sql-dialect-profile.md)
+- [Selected PostgreSQL 18 SQL Dialect Profile](sql-dialect-profile.md)
 - [Extended SQL Type Decision Proposals](extended-type-decisions.md)
 - [Internal Typed Batch Contract](typed-batch-contract.md)
 - [First Typed Pipeline Acceptance](typed-pipeline-acceptance.md)
@@ -66,5 +66,6 @@ Compile all benchmark owners with `cargo bench --locked --no-run --bench '*'`; r
 
 - [Selected SQL dialect profile](sql-dialect-profile.md)
 - [Delivery stages and owners](postgresql18-delivery.md)
+- [Timestamped ownership and prerequisite ledger](dialect-backlog-status.md)
 - [PostgreSQL SQL parity gap analysis](postgres-sql-parity-gap-analysis.md)
 - [Differential corpus and harness](postgresql18-corpus.md)

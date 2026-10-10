@@ -21,9 +21,14 @@
         "--test",
         "pgwire_core",
         "--test",
-        "pgwire_extended",
-        "--test",
         "planner_controls"
+      ]
+    },
+    {
+      "shard": "pgwire-extended",
+      "cargo_test_args": [
+        "--test",
+        "pgwire_extended"
       ]
     },
     {

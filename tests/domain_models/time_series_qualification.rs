@@ -56,3 +56,125 @@ fn should_preserve_signed_zero_float_partition_rows() {
         std::fs::remove_dir_all(path).expect("remove fixture directory");
     });
 }
+
+#[test]
+fn should_use_fixed_utc_day_buckets_across_spring_dst_transition() {
+    // Arrange
+    let _suite_query_scan_guard = cassie::midge::adapter::query_scan_control_test_guard();
+    super::support_sql::use_local_storage();
+    let path = super::support_sql::data_dir("time-series-spring-dst-fixed-day");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("runtime");
+    runtime.block_on(async {
+        let mut config = CassieRuntimeConfig::from_env().expect("config");
+        config.limits.execution_result_cache_enabled = ExecutionResultCacheEnabled::disabled();
+        let cassie = Cassie::new_with_data_dir_and_config(&path, config).expect("cassie");
+        cassie.startup().expect("startup");
+        let session = cassie.create_session("qualification", None);
+        for table in ["dst_day_baseline", "dst_day_indexed"] {
+            execute(
+                &cassie,
+                &session,
+                &format!("CREATE TABLE {table} (tenant TEXT, event_at TIMESTAMP, amount INT)"),
+            );
+            execute(
+                &cassie,
+                &session,
+                &format!(
+                    "INSERT INTO {table} (tenant,event_at,amount) VALUES \
+                     ('a','2024-03-10T00:30:00-05:00',1), \
+                     ('a','2024-03-10T23:30:00-04:00',2)"
+                ),
+            );
+        }
+        execute(
+            &cassie,
+            &session,
+            "CREATE INDEX dst_day_time ON dst_day_indexed USING time_series \
+             (event_at) WITH (bucket_width = '1 day', partition_by = tenant)",
+        );
+        let query = |table: &str| {
+            cassie
+                .execute_sql(
+                    &session,
+                    &format!(
+                        "SELECT event_at, amount \
+                         FROM {table} WHERE tenant='a' \
+                         AND event_at >= '2024-03-10T00:00:00Z' \
+                         AND event_at < '2024-03-12T00:00:00Z' ORDER BY event_at"
+                    ),
+                    vec![],
+                )
+                .expect("query DST boundary rows")
+                .rows
+        };
+        let baseline = query("dst_day_baseline");
+        let buckets = cassie
+            .execute_sql(
+                &session,
+                "SELECT time_bucket('1 day',event_at) AS utc_day \
+                 FROM dst_day_baseline ORDER BY event_at",
+                vec![],
+            )
+            .expect("bucket timestamps by fixed UTC days")
+            .rows;
+        let before = cassie.metrics();
+
+        // Act
+        let indexed = query("dst_day_indexed");
+        let after = cassie.metrics();
+
+        // Assert
+        let first_day = time::OffsetDateTime::parse(
+            "2024-03-10T00:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("first UTC day");
+        let second_day = time::OffsetDateTime::parse(
+            "2024-03-11T00:00:00Z",
+            &time::format_description::well_known::Rfc3339,
+        )
+        .expect("second UTC day");
+        assert_eq!(second_day - first_day, time::Duration::seconds(86_400));
+        assert_eq!(indexed, baseline);
+        assert_eq!(
+            indexed,
+            vec![
+                vec![
+                    Value::String("2024-03-10T05:30:00.000000Z".into()),
+                    Value::Int64(1),
+                ],
+                vec![
+                    Value::String("2024-03-11T03:30:00.000000Z".into()),
+                    Value::Int64(2),
+                ],
+            ]
+        );
+        assert_eq!(
+            buckets,
+            vec![
+                vec![Value::String("2024-03-10T00:00:00Z".into())],
+                vec![Value::String("2024-03-11T00:00:00Z".into())],
+            ]
+        );
+        let counter = |metrics: &serde_json::Value, field: &str| {
+            metrics["time_series"][field].as_u64().unwrap_or_default()
+        };
+        assert_eq!(
+            counter(&after, "bucket_native_hits") - counter(&before, "bucket_native_hits"),
+            1
+        );
+        assert_eq!(
+            counter(&after, "fallback_scans") - counter(&before, "fallback_scans"),
+            0
+        );
+        assert_eq!(
+            after["query"]["current_accounted_memory_bytes"].as_u64(),
+            Some(0)
+        );
+        drop(cassie);
+        std::fs::remove_dir_all(path).expect("remove fixture directory");
+    });
+}

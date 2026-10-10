@@ -560,7 +560,7 @@ baseline test-calibration repair.
 
 ## Executed CON-02 ingress qualification
 
-On the 2026-10-10 `origin/main` baseline `8c118df18a08b38767005ea1c7152a5487520e29`,
+On the 2026-10-10 `origin/main` baseline `059bc453c4dd8650f21b57b482b2f52433e8ecdc`,
 `tests/constraint_ingress.rs` exercises omitted defaults, explicit values, and
 explicit SQL NULL across INSERT VALUES, INSERT SELECT, UPDATE, COPY FROM STDIN,
 embedded document ingest, and REST document create. It compares committed rows

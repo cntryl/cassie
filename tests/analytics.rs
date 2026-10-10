@@ -11117,6 +11117,8 @@ mod maintenance_memory_controls {
 #[path = "support/read_equivalence.rs"]
 mod support_read_equivalence;
 
+#[path = "analytics/analytical_offset_substitution.rs"]
+mod analytical_offset_substitution;
 #[path = "analytics/materialized_projection_metadata.rs"]
 mod materialized_projection_metadata;
 

@@ -39,11 +39,14 @@ Syntax/alias and integer pagination work can preserve the current type universe.
 
 Native #794 remains the #802 lexical integration blocker; #850 separately tracks existing COALESCE numeric promotion. No broad #792/#793 approval is inferred from those carveouts. The integration owner should review extensions to those finite cases separately from this extended-type inventory. An unresolved descriptor/coercion case remains excluded or blocked until its decision is recorded; it must not silently inherit a registry helper's convenience type.
 
-## Recommended finite proposals (all pending approval)
+## Recommended finite proposals and approval status
 
 These options make #793 review concrete; they do not select bytes, public OIDs or
-migration policy automatically. Each row still requires its complete eight-field
-record above and the named focused compatibility/restart oracle before runtime.
+migration policy automatically. The user approved the current first selections
+in this table as written on 2026-10-10. That approval records these recommendations
+as the current direction; it does not supply omitted family details. Each row
+still requires its complete eight-field record above and the named focused
+compatibility/restart oracle before runtime.
 
 | Family | Recommended first selection | Explicit remaining gate |
 | --- | --- | --- |
@@ -61,6 +64,14 @@ Recommend reviewing NUMERIC and temporal contracts independently; their distinct
 semantic and migration decisions do not need to block existing-type aliases or
 pagination. Broader prerequisites can be refined only through reviewed issue/doc
 updates, never an implementation convenience.
+
+The approval does not invent per-family OIDs, durable byte tags, codecs, typmods,
+exact coercion tables, or durable representations beyond what each recommendation
+states. Those details remain gates wherever the family record above is incomplete.
+It does not close #793 or authorize runtime implementation for a family whose
+eight-field record is incomplete. Update this decision record with the missing
+family details and compatibility/restart evidence before beginning that family's
+runtime work.
 
 ## Selected persistent transition policy (2026-10-08)
 

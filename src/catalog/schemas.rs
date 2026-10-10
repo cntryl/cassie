@@ -23,6 +23,25 @@ impl CollectionSchema {
         }
     }
 
+    pub(crate) fn from_type_schema(
+        collection: impl Into<String>,
+        schema: &crate::types::Schema,
+    ) -> Self {
+        Self {
+            collection: collection.into(),
+            fields: schema
+                .fields
+                .iter()
+                .map(|field| FieldMeta {
+                    name: field.name.clone(),
+                    data_type: field.data_type.clone(),
+                    is_indexed: false,
+                    boost: None,
+                })
+                .collect(),
+        }
+    }
+
     /// The declared schema of a built-in `information_schema`/`pg_catalog`
     /// view, so Describe and execution type its columns identically.
     #[must_use]

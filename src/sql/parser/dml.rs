@@ -307,7 +307,7 @@ pub(super) fn parse_insert_target(
         return Err(SqlError::new("INSERT INTO requires a table name".into()));
     }
 
-    if !target[close + 1..].starts_with(' ') && target[close + 1..].chars().next().is_some() {
+    if !super::lexical::trim_separators(&target[close + 1..]).is_empty() {
         return Err(SqlError::new("INSERT column list is malformed".into()));
     }
 

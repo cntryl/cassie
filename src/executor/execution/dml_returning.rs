@@ -71,7 +71,7 @@ pub(super) fn build(
     let mut projected = Vec::new();
     projected
         .try_reserve_exact(count)
-        .map_err(allocation_error)?;
+        .map_err(|error| allocation_error(&error))?;
     projected.extend(batches.into_iter().flatten());
     #[cfg(test)]
     super::dml_returning_tests::observe(
@@ -133,26 +133,23 @@ fn materialize(
     let mut output = Vec::new();
     output
         .try_reserve_exact(rows.len())
-        .map_err(allocation_error)?;
-    #[cfg(test)]
-    let mut returning_row_index = 0;
+        .map_err(|error| allocation_error(&error))?;
     for row in rows {
         #[cfg(test)]
         {
             super::dml_returning_tests::observe(
-                super::dml_returning_tests::Phase::Materializing(returning_row_index),
+                super::dml_returning_tests::Phase::Materializing(output.len()),
                 controls,
                 affected_count,
                 std::slice::from_ref(&row),
                 1,
             );
-            returning_row_index += 1;
         }
         check_timeout(controls)?;
         let mut values = Vec::new();
         values
             .try_reserve_exact(row.entries().len())
-            .map_err(allocation_error)?;
+            .map_err(|error| allocation_error(&error))?;
         values.extend(row.into_entries().into_iter().map(|(_, value)| value));
         output.push(values);
     }
@@ -160,7 +157,7 @@ fn materialize(
     Ok(output)
 }
 
-fn allocation_error(error: std::collections::TryReserveError) -> QueryError {
+fn allocation_error(error: &std::collections::TryReserveError) -> QueryError {
     crate::app::CassieError::ResourceLimit(format!(
         "unable to materialize RETURNING result: {error}"
     ))

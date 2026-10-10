@@ -158,7 +158,7 @@ fn should_abort_delete_when_returning_reaches_each_exists_error() {
         // Assert
         assert!(
             matches!(actual, Err(CassieError::Execution(ref message)) if message == "division by zero"),
-            "exact reached DELETE RETURNING error: {actual:?}"
+            "exact reached DELETE RETURNING error"
         );
         assert_fresh_rows(&fixture, "family_target", &[("id", false)], &ids(&[1, 2]));
     }
@@ -187,7 +187,7 @@ fn should_check_fresh_insert_uniqueness_before_reached_returning_error() {
     assert!(
         matches!(duplicate, Err(CassieError::UniqueViolation { ref table, ref column, ref constraint })
             if table == "postgres.public.authority_target" && column == "code" && constraint == "authority_target_code_unique"),
-        "fresh preparation must report the earlier exact UNIQUE error: {duplicate:?}"
+        "fresh preparation must report the earlier exact UNIQUE error"
     );
     assert_fresh_rows(
         &fixture,
@@ -207,7 +207,7 @@ fn should_check_fresh_insert_uniqueness_before_reached_returning_error() {
     // Assert
     assert!(
         matches!(distinct, Err(CassieError::Execution(ref message)) if message == "division by zero"),
-        "distinct-value control must reach RETURNING: {distinct:?}"
+        "distinct-value control must reach RETURNING"
     );
     assert_fresh_rows(
         &fixture,

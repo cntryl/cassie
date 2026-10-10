@@ -51,7 +51,7 @@ fn should_abort_changed_rows_when_returning_case_reaches_each_error_form() {
         // Assert
         assert!(
             matches!(actual, Err(CassieError::Execution(ref message)) if message == "division by zero"),
-            "exact reached scalar error: {actual:?}"
+            "exact reached scalar error"
         );
         assert_original_rows(&fixture);
     }
@@ -103,7 +103,7 @@ fn should_abort_changed_rows_when_null_coalesce_reaches_independent_exists_error
     // Assert
     assert!(
         matches!(actual, Err(CassieError::Execution(ref message)) if message == "division by zero"),
-        "exact reached COALESCE error: {actual:?}"
+        "exact reached COALESCE error"
     );
     assert_original_rows(&fixture);
 }

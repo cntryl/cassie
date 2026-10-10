@@ -21,10 +21,16 @@ mod pgwire_aliases;
 mod pgwire_pagination;
 #[path = "pgwire_extended/typed_portal.rs"]
 mod pgwire_typed_portal;
+#[path = "pgwire_extended/portal_memory_calibration.rs"]
+mod portal_memory_calibration;
 #[path = "support/pgwire.rs"]
 mod support_pgwire;
+#[path = "support/portal_memory_calibration.rs"]
+mod support_portal_memory_calibration;
 #[path = "support/sql.rs"]
 mod support_sql;
+#[path = "support/sql_fixture.rs"]
+mod support_sql_fixture;
 #[path = "support/temp_dirs.rs"]
 mod support_temp_dirs;
 #[path = "support/typed_portal.rs"]
@@ -2302,31 +2308,6 @@ mod pgwire_portal_safety {
         (cassie, config, path)
     }
 
-    fn seed_large_rows(cassie: &Cassie, table: &str, count: usize, payload_size: usize) {
-        let session = cassie.create_session("tester", None);
-        cassie
-            .execute_sql(
-                &session,
-                &format!("CREATE TABLE {table} (payload TEXT)"),
-                vec![],
-            )
-            .expect("create table");
-        let rows = (0..count)
-            .map(|index| {
-                (
-                    Some(format!("doc-{index:04}")),
-                    serde_json::json!({
-                        "payload": format!("{index:04}-{}", "x".repeat(payload_size)),
-                    }),
-                )
-            })
-            .collect();
-        cassie
-            .midge
-            .put_fresh_documents(table, rows)
-            .expect("seed rows");
-    }
-
     fn seed_rows(cassie: &Cassie, table: &str, count: usize) {
         let session = cassie.create_session("tester", None);
         cassie
@@ -2638,118 +2619,6 @@ mod pgwire_portal_safety {
             server.abort();
             let _ = server.await;
         });
-        let _ = std::fs::remove_dir_all(path);
-    }
-
-    #[test]
-    fn should_enforce_retained_memory_budget_across_named_portal_lifecycle() {
-        // Arrange
-        // The source page and its handoff reservation must fit before portal retention.
-        // Include the admitted statement Data/overlay owner alongside source conversion.
-        // Wider rows keep three retained results below the cap and the fourth above it;
-        // closing one portal must release enough memory for the replacement result.
-        let (cassie, config, path) =
-            configured_cassie_with_memory("portal-shared-memory", 1_000, 256 * 1_024);
-        seed_large_rows(&cassie, "portal_shared_memory", 64, 1_024);
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("runtime");
-
-        runtime.block_on(async {
-        let (address, server) = spawn_server(cassie, config).await;
-        let mut socket = tokio::net::TcpStream::connect(address)
-            .await
-            .expect("connect");
-        let (read_half, mut write_half) = socket.split();
-        let mut reader = BufReader::new(read_half);
-        support::complete_startup(&mut reader, &mut write_half).await;
-        // Cross-Sync portals belong to an explicit transaction.
-        support::transaction_control(&mut reader, &mut write_half, "BEGIN").await;
-        support::write_frames(
-            &mut write_half,
-            vec![
-                support::parse_frame(
-                    "memory_stmt",
-                    "SELECT lower(payload) AS payload FROM portal_shared_memory WHERE payload IS NOT NULL",
-                ),
-                support::bind_frame("memory_portal_one", "memory_stmt", &[]),
-                support::execute_limited_frame("memory_portal_one", 1),
-                support::sync_frame(),
-            ],
-        )
-        .await;
-        let first = support::read_frames_until_ready(&mut reader).await;
-        assert_eq!(
-            data_values(&first).len(),
-            1,
-            "first portal frames: {first:?}"
-        );
-        assert!(first.iter().all(|(tag, _)| *tag != b'E'));
-
-        support::write_frames(
-            &mut write_half,
-            vec![
-                support::bind_frame("memory_portal_two", "memory_stmt", &[]),
-                support::execute_limited_frame("memory_portal_two", 1),
-                support::sync_frame(),
-            ],
-        )
-        .await;
-        let second = support::read_frames_until_ready(&mut reader).await;
-        assert_eq!(data_values(&second).len(), 1);
-        assert!(second.iter().all(|(tag, _)| *tag != b'E'));
-
-        support::write_frames(
-            &mut write_half,
-            vec![
-                support::bind_frame("memory_portal_three", "memory_stmt", &[]),
-                support::execute_limited_frame("memory_portal_three", 1),
-                support::sync_frame(),
-            ],
-        )
-        .await;
-        let third = support::read_frames_until_ready(&mut reader).await;
-        assert_eq!(data_values(&third).len(), 1);
-        assert!(third.iter().all(|(tag, _)| *tag != b'E'));
-
-        support::transaction_control(&mut reader, &mut write_half, "SAVEPOINT memory_probe").await;
-
-        // Act
-        support::write_frames(
-            &mut write_half,
-            vec![
-                support::bind_frame("memory_portal_four", "memory_stmt", &[]),
-                support::execute_limited_frame("memory_portal_four", 1),
-                support::sync_frame(),
-            ],
-        )
-        .await;
-        let overflow = support::read_frames_until_ready(&mut reader).await;
-
-        // Assert
-        assert_eq!(error_code(&overflow).as_deref(), Some("54000"));
-        assert_eq!(data_values(&overflow), [] as [std::string::String; 0]);
-        support::transaction_control(&mut reader, &mut write_half, "ROLLBACK TO memory_probe").await;
-
-        support::write_frames(
-            &mut write_half,
-            vec![
-                support::close_portal_frame("memory_portal_one"),
-                support::bind_frame("memory_portal_five", "memory_stmt", &[]),
-                support::execute_limited_frame("memory_portal_five", 1),
-                support::sync_frame(),
-            ],
-        )
-        .await;
-        let after_close = support::read_frames_until_ready(&mut reader).await;
-        assert_eq!(data_values(&after_close).len(), 1);
-        assert!(after_close.iter().all(|(tag, _)| *tag != b'E'));
-
-        drop(socket);
-        server.abort();
-        let _ = server.await;
-    });
         let _ = std::fs::remove_dir_all(path);
     }
 }

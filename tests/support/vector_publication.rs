@@ -1,8 +1,121 @@
 use cassie::app::Cassie;
+use cassie::embeddings::{
+    DistanceMetric, NormalizedVectorRecord, VectorIndexState, VectorIndexType,
+};
 use cassie::midge::adapter::StorageFamily;
 use cntryl_midge::{TransactionMode, WriteOptions};
 
 pub type RawRecords = Vec<(Vec<u8>, Vec<u8>)>;
+
+#[derive(Debug, PartialEq)]
+pub struct SidecarSnapshot {
+    normalized_raw: RawRecords,
+    state_raw: RawRecords,
+    normalized: Vec<NormalizedVectorRecord>,
+    state: VectorIndexState,
+}
+
+impl SidecarSnapshot {
+    pub fn capture(cassie: &Cassie, expected: &PendingBackfill, generation: u64) -> Self {
+        let index = &expected.vector_index;
+        assert_eq!(index.metadata.index_type, VectorIndexType::BruteForce);
+        assert_eq!(index.metadata.metric, DistanceMetric::Cosine);
+        assert_eq!(index.metadata.dimensions, 3);
+        let prefix = cassie
+            .midge
+            .normalized_vector_prefix_for_diagnostics(&index.collection, &index.field)
+            .expect("normalized-vector storage prefix");
+        let normalized_raw = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &prefix)
+            .expect("physical normalized-vector records");
+        assert_eq!(normalized_raw.len(), 2, "exact physical sidecar count");
+        let normalized = cassie
+            .midge
+            .list_normalized_vectors(&index.collection, &index.field)
+            .expect("decoded normalized-vector records");
+        assert_normalized_records(&normalized, expected, generation);
+
+        let key = cassie
+            .midge
+            .vector_state_key_for_diagnostics(&index.collection, &index.field)
+            .expect("vector-state storage key");
+        let state_raw = cassie
+            .midge
+            .raw_scan_prefix(StorageFamily::Data, &key)
+            .expect("physical vector-state record");
+        assert_eq!(state_raw.len(), 1, "exact physical vector-state count");
+        assert_eq!(state_raw[0].0, key, "exact vector-state key");
+        let state = cassie
+            .midge
+            .get_vector_index_state(&index.collection, &index.field)
+            .expect("decoded vector state")
+            .expect("recovered brute-force state is present");
+        assert_eq!(state.built_generation, generation);
+        assert!(state.hnsw_graph.is_none());
+        assert!(state.ivfflat_training.is_none());
+        Self {
+            normalized_raw,
+            state_raw,
+            normalized,
+            state,
+        }
+    }
+}
+
+fn assert_normalized_records(
+    records: &[NormalizedVectorRecord],
+    expected: &PendingBackfill,
+    generation: u64,
+) {
+    assert_eq!(expected.rows.len(), 2, "exact staged row count");
+    assert_eq!(records.len(), 2, "exact decoded sidecar count");
+    for (record, (id, payload)) in records.iter().zip(&expected.rows) {
+        assert_eq!(&record.id, id, "exact sorted staged physical identities");
+        assert_eq!(record.collection, expected.vector_index.collection);
+        assert_eq!(record.field, expected.vector_index.field);
+        assert_eq!(record.dimensions, 3);
+        assert_eq!(record.metric, DistanceMetric::Cosine);
+        assert_eq!(
+            record.normalization_version,
+            NormalizedVectorRecord::CURRENT_NORMALIZATION_VERSION
+        );
+        assert!(record.payload_available);
+        assert_eq!(record.built_generation, generation);
+        assert_scalar_normalization(record, payload);
+    }
+}
+
+fn assert_scalar_normalization(record: &NormalizedVectorRecord, payload: &serde_json::Value) {
+    let source: Vec<f32> = serde_json::from_value(payload["embedding"].clone())
+        .expect("authoritative staged f32 vector");
+    assert_eq!(source.len(), 3);
+    assert!(source.iter().all(|value| value.is_finite()));
+    // Derive the oracle from staged coordinates, without production vector math.
+    let magnitude = source
+        .iter()
+        .map(|value| f64::from(*value).powi(2))
+        .sum::<f64>()
+        .sqrt();
+    assert!(magnitude.is_finite());
+    assert!(record.magnitude.is_finite());
+    assert_eq!(record.magnitude.to_bits(), magnitude.to_bits());
+    assert_eq!(record.values.len(), source.len());
+    for (actual, source) in record.values.iter().zip(source) {
+        let coordinate = if magnitude > 0.0 {
+            f64::from(source) / magnitude
+        } else {
+            0.0
+        };
+        let expected: f32 = coordinate
+            .to_string()
+            .parse()
+            .expect("finite f32 coordinate");
+        assert!(expected.is_finite());
+        assert!(actual.is_finite());
+        assert_eq!(actual.to_bits(), expected.to_bits());
+    }
+}
 
 pub struct PendingBackfill {
     pub publication_id: String,

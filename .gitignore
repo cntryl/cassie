@@ -3,6 +3,7 @@
 
 # Rust backup files
 *.rs.bk
+__pycache__/
 
 # macOS files
 .DS_Store

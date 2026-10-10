@@ -1,0 +1,80 @@
+[
+  {
+    "id": "scalar:exact-bigint",
+    "owner": 793,
+    "sql": "SELECT CAST(9007199254740993 AS BIGINT) AS exact_value",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "scalar:null-identity",
+    "owner": 793,
+    "sql": "SELECT CAST(NULL AS TEXT) AS absent, CAST('NULL' AS TEXT) AS literal",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "scalar:ordered-extrema",
+    "owner": 802,
+    "sql": "SELECT GREATEST(CAST(2 AS BIGINT), CAST(9 AS BIGINT), CAST(NULL AS BIGINT)) AS greatest_value",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "parameter:binary-bigint",
+    "owner": 793,
+    "sql": "SELECT CAST($1 AS BIGINT) AS bound_value",
+    "ordered": false,
+    "parameters": [
+      {
+        "oid": 20,
+        "format": 1,
+        "value": "0020000000000001"
+      }
+    ],
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "parameter:null-text",
+    "owner": 793,
+    "sql": "SELECT CAST($1 AS TEXT) AS bound_value",
+    "ordered": false,
+    "parameters": [
+      {
+        "oid": 25,
+        "format": 0,
+        "value": null
+      }
+    ],
+    "modes": [
+      "extended_text",
+      "extended_binary"
+    ]
+  },
+  {
+    "id": "error:undefined-column",
+    "owner": 848,
+    "sql": "SELECT missing_parity_column",
+    "ordered": false,
+    "modes": [
+      "simple_text",
+      "extended_text",
+      "extended_binary"
+    ]
+  }
+]

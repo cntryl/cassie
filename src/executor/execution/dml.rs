@@ -271,10 +271,10 @@ fn build_dml_result(
             crate::executor::execution::entrypoints::enter_statement_read(
                 context.statement_read_controls,
             );
-        let mut ctes = CteContext::new();
+        let ctes = CteContext::new();
         super::exists_projection::project(
             &env,
-            &mut ctes,
+            &ctes,
             &source,
             vec![returning_rows],
             context.returning,

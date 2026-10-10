@@ -4,7 +4,7 @@ mod tests {
 
     use serde_json::{json, Value};
 
-    use super::super::super::{
+    use crate::performance_benchmarks::{
         benchmark_for_scenario, validate_complete_benchmark_artifacts,
         validate_hnsw_release_evidence, validate_ivfflat_release_evidence, BenchmarkOwnerManifest,
         BenchmarkSuiteManifest,

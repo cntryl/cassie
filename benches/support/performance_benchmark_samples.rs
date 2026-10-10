@@ -23,10 +23,6 @@ pub use performance_benchmark_query_validation::{
     validate_hnsw_release_evidence, validate_ivfflat_release_evidence,
 };
 
-#[cfg(test)]
-#[path = "performance_benchmark_query_evidence.rs"]
-mod performance_benchmark_query_evidence;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BenchmarkOwnerManifest {
     pub tier: u32,

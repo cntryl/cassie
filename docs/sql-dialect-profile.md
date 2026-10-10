@@ -253,20 +253,24 @@ The integration owner owns contract review, shared AST/catalog/storage decisions
 
 After the first wave, aggregate modifiers/Boolean/collection/statistical operators, JSON expressions and approved extended types can proceed in separate lanes only after their native prerequisites close. Array/table expansion follows its type/source prerequisites. Routines, triggers, isolation, transactional DDL and partitions remain blocked on selected lifecycle and persistence decisions. Each worker delivers one coherent bundle; integration publishes one PR at a time, verifies its final head and squash-merges, then remaining workers rebase and rerun affected checks.
 
-#### Unresolved contract decisions
+#### Contract selections and remaining gates
 
-[#793](https://github.com/cntryl/cassie/issues/793) owns the [extended-type decision inventory](extended-type-decisions.md). The decisions below remain unresolved and block affected runtime families. They must be approved as concrete contracts; this document does not choose their durable or public outcome.
+[#793](https://github.com/cntryl/cassie/issues/793) owns the
+[type and durable-format decisions](extended-type-decisions.md). Full PostgreSQL
+semantics and the common CRB3 direction are selected. The family/resolution
+records define that target; exact catalog/export schemas remain a separate
+pending proposal. Complete each affected record before dependent runtime.
 
 | Decision | Required resolution | Blocked owners |
 | --- | --- | --- |
-| Extended types/ABI | Values, names/OIDs/modifiers, codecs, operators, durable representation and migration/recreate policy. | #793 and its typed dependents. |
-| Temporal scope | Time-zone database/version, calendar/month arithmetic, DST ambiguity and SQL clock lifetimes. | #814/#815. |
+| Extended types/ABI | Selected full PostgreSQL families, common v3 identities/codecs and recreate transition; pending exact catalog/export selection and staged extension-specific records. | #793 and its typed dependents. |
+| Temporal contract | Full PostgreSQL calendar/month, named-zone/DST and clock semantics; pinned 2026c source data, provider artifacts and actual qualification. | #814/#815. |
 | Regex/text collation | Engine/Unicode version, collation/case rules, pattern budget and bounded execution. | #799/#803. |
-| Procedural language | Finite language/control flow, dynamic SQL binding, recursion/resource bounds and trusted-language security. | #830/#832/#835/#836/#837. |
+| Procedural language | Full PL/pgSQL, dynamic SQL binding, recursion/resource bounds and trusted-language security; earlier subsets are intermediate. | #830/#832/#835/#836/#837. |
 | Locks/isolation | Snapshot level, row identity/conflicts, deadlock policy, lock lifecycle and cancellation. | #819/#820/#822. |
 | Transactional catalog changes | Atomic schema publication, durable recovery, catalog/plan invalidation and concurrent readers. | #833/#837/#838/#839/#840. |
 | Extension identity | Allowlisted built-in identities and explicit compatibility subset; no arbitrary plugin ABI. | #843/#844. |
-| Final finite corpus | Concrete signatures/forms per row and client versions; unresolved forms stay excluded. | #847/#848/#849. |
+| Complete corpus | Every in-scope form/signature/context and pinned client workflow; unresolved forms remain pending and keep the milestone open. | #847/#848/#849. |
 
 Issue #792 remains open for the broad profile. The selected finite decisions below do not complete #793 or qualify any pending runtime child.
 
@@ -277,7 +281,13 @@ The user also permits breaking durable changes: #793 now selects an explicitly
 versioned successor layout with verified export/recreate/reimport, as recorded in
 [the transition policy](extended-type-decisions.md). These selections resolve
 their named decision gates. They do not implement or qualify those capabilities,
-select all extended-family codecs/OIDs, or close the broad #792/#793 programs.
+complete all family/catalog/export records, or close the broad #792/#793 programs.
+
+The 2026-10-10 approval subsequently selects the concrete
+[common CRB3/type identity/codec direction](postgresql18-v3-contract.md).
+The [catalog/export schema proposal](postgresql18-catalog-export-proposal.md)
+is still awaiting explicit direction; reference-only records and vectors do
+not establish runtime, migration or restart qualification.
 
 #### Selected finite decisions and remaining proposals
 

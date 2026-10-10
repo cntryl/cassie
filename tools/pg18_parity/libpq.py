@@ -63,6 +63,17 @@ class Connection:
     def __exit__(self, *_):
         self.close()
 
+    def _column(self, result, index):
+        api = self.api
+        raw_name = api.PQfname(result, index)
+        try:
+            display_name = raw_name.decode("utf-8")
+        except UnicodeDecodeError:
+            display_name = None
+        return {"name": display_name, "name_hex": raw_name.hex(),
+                "oid": api.PQftype(result, index), "typmod": api.PQfmod(result, index),
+                "size": api.PQfsize(result, index), "format": api.PQfformat(result, index)}
+
     def _snapshot(self, result):
         api = self.api
         count = api.PQnfields(result)
@@ -71,12 +82,7 @@ class Connection:
             "status": api.PQresultStatus(result),
             "sqlstate": state.decode() if state else None,
             "command_tag": (api.PQcmdStatus(result) or b"").decode(),
-            "columns": [
-                {"name": api.PQfname(result, col).decode(), "oid": api.PQftype(result, col),
-                 "typmod": api.PQfmod(result, col), "size": api.PQfsize(result, col),
-                 "format": api.PQfformat(result, col)}
-                for col in range(count)
-            ],
+            "columns": [self._column(result, col) for col in range(count)],
             "rows": [
                 [None if api.PQgetisnull(result, row, col) else
                  c.string_at(api.PQgetvalue(result, row, col), api.PQgetlength(result, row, col)).hex()

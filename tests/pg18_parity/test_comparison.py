@@ -76,6 +76,17 @@ class ComparisonTests(unittest.TestCase):
         self.assertTrue(duplicate)
         self.assertTrue(extra)
 
+    def should_detect_distinct_raw_names_with_the_same_unavailable_display(self):
+        # Arrange
+        expected = copy.deepcopy(self.result)
+        expected["columns"][0].update(name=None, name_hex="ff")
+        actual = copy.deepcopy(expected)
+        actual["columns"][0]["name_hex"] = "fe"
+        # Act
+        differences = compare(expected, actual, ordered=False)
+        # Assert
+        self.assertEqual(differences, ["columns"])
+
     def should_retain_catalog_signature_fields_after_quoted_braces(self):
         # Arrange
         source = "# comment {\n[{ oid => '1', proargnames => '{a,b}', proargtypes => 'int4 text', prosrc => 'x\\'y' }]"

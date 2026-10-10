@@ -48,6 +48,12 @@ declared ordering compares sequences. Multiple simple-query results are retained
 COPY streaming and further lifecycle adapters remain pending and cannot pass by
 being unavailable.
 
+Column descriptors retain authoritative raw name bytes as `name_hex`. `name`
+is a UTF-8 display value, or null when those bytes cannot be displayed as UTF-8;
+it never replaces the byte identity. This preserves legal SQL_ASCII and other
+encoding-dependent names without replacement-character collisions. Exact
+comparison includes both fields, including prepared descriptors.
+
 Run against a separately started isolated Cassie instance. Store the connection
 string in CASSIE_PARITY_DSN; receipts do not include credentials or the DSN.
 The full Cassie commit argument is caller-asserted until linked to independent
@@ -76,6 +82,7 @@ The comparator's independent checks run with:
 python3 tests/pg18_parity/test_comparison.py
 python3 tests/pg18_parity/test_wire.py
 python3 tests/pg18_parity/test_cancellation.py
+python3 tests/pg18_parity/test_column_names.py
 ```
 
 The wire tests use the pinned local reference and fail when it is unavailable;
@@ -83,6 +90,24 @@ they do not silently skip. Repository Rust test-policy validation does not
 discover Python tests, so these explicit commands are required in addition to
 the full ordered repository gate. These adapters are development tooling and
 do not add a storage layer or replace Cassie's Rust pipeline.
+
+## Type-contract reference inputs
+
+The [type decision index](extended-type-decisions.md) links 193 built-in metadata
+records, 22 eight-field family records, exact coercion/operator source inputs
+and source constants/hashes. Type observations capture 31 cases over 93
+simple-text/extended-text/extended-binary paths, including expected errors.
+Additional encoding/float and composite/range observations refine those records.
+These are **reference-only** captures; no Cassie runtime cell passes because its
+reference observation exists. Named fixture OIDs belong to the isolated
+reference catalog and need the approved identity mapping for later comparisons.
+
+The literal v3 vectors specify future scalar/container/golden/negative codec
+acceptance. They do not certify an implemented encoder, decoder, restart or
+upgrade. The common v3 direction is approved; exact catalog/export schemas
+remain a separate pending proposal. The existing runner does not automatically
+replay these richer setup/type/descriptor records. Owners must add its adapters
+and concrete path/context cells; unsupported adapters remain pending under #848.
 
 ## Growth and final gate
 

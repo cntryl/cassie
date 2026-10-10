@@ -4,6 +4,9 @@
 #[path = "parser_types/dialect_syntax.rs"]
 mod dialect_syntax;
 
+#[path = "parser_types/insert_source_boundary.rs"]
+mod insert_source_boundary;
+
 #[path = "parser_types/aliases.rs"]
 mod parser_aliases;
 

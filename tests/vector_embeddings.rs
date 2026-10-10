@@ -7615,6 +7615,10 @@ mod vector_write_path {
     use super::support_sql as support;
     use support::{data_dir, use_local_storage};
 
+    mod publication_restart {
+        include!("vector_embeddings/publication_restart.rs");
+    }
+
     fn new_vector_cassie(path: &str) -> Cassie {
         let mut config = CassieRuntimeConfig::from_env().expect("runtime config");
         config.embeddings = EmbeddingsRuntimeConfig::Local(LocalRuntimeConfig {

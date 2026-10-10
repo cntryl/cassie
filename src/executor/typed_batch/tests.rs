@@ -7,6 +7,9 @@ mod relational;
 #[path = "tests/boundaries.rs"]
 mod boundaries;
 
+#[path = "tests/sliced_selection.rs"]
+mod sliced_selection;
+
 #[path = "tests/families.rs"]
 pub(super) mod families;
 

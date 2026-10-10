@@ -520,3 +520,57 @@ and 7/7. Normal ordered full validation, exact-head hosted checks, independent
 review, merge and issue readback belong to the PR record. Historical RED receipts
 remain unaltered. #761 stays open while its selected blockers remain unresolved;
 support and production readiness are unchanged.
+
+## Selected EXISTS RETURNING phase (#869)
+
+The finite repair in [#869](https://github.com/cntryl/cassie/issues/869) follows
+the selected [statement Data visibility contract](statement-data-visibility-contract.md).
+All returned rows share the command's pre-command Data view and immutable
+snapshot of prior transaction writes. The current command's writes are absent
+from that subquery view. Correlation supplies the inserted or updated new row,
+or the deleted old row. Mutation preparation, same-command uniqueness checks,
+staging and publication retain their fresh authorities.
+
+Independent and correlated EXISTS occurrences follow reached scalar evaluation
+for each actual returned row. Dead CASE branches and unselected COALESCE
+arguments do not execute those occurrences, and a zero-row command does not
+evaluate them. Reached errors abort the command through the existing atomic
+wrapper. This selected DML phase does not change independent eager folding in
+SELECT or in the non-DML phases recorded above.
+
+The finite witnesses are grouped as follows:
+
+- `tests/relational_qualification/exists_returning.rs` retains the original
+  UPDATE, INSERT SELECT, DELETE, captured-view and error controls.
+- `exists_returning_phases.rs` pairs dead and reached CASE/COALESCE controls
+  with zero affected rows and independent committed readback.
+- `exists_returning_families.rs` adds separate ordinary and EXISTS controls for
+  INSERT VALUES, INSERT SELECT, changed UPDATE rows and deleted old rows, with
+  literal complete descriptors and typed row multisets. INSERT witnesses retain
+  a prior transaction write, distinguish the pre-command subquery view from the
+  new outer rows, and check a later statement and independent observers.
+  DELETE errors preserve the original rows. A two-row INSERT duplicate on a
+  non-id UNIQUE field must fail with the exact earlier constraint error before
+  a reached RETURNING division error; a distinct-value control must reach that
+  division error. Both commands leave an independent observer empty.
+- The private `src/executor/execution/dml_returning_tests.rs` witnesses admit
+  fresh copied output even when input rows already hold leases, retain actual
+  linked row and ancestor owners through all public rows, and reserve public
+  result slots. Cancellation and deadline checks apply during final
+  materialization. A phase-attributed real DML peak-minus-one denial must leave
+  writes unpublished; retirement releases private charges and workers. Public
+  copied result values remain independent after the materialization boundary.
+
+The earlier sibling diagnostics and their counts above are historical snapshots;
+they do not qualify this RETURNING phase. The corrected pre-repair probes passed
+the four new scalar-phase controls and nine original integration controls, while
+six of ten private helper probes exposed admission, parent-retention, public-slot,
+and final cancellation/deadline defects. Those RED receipts remain distinct from
+the repaired source and its pending replay. At this source checkpoint the six
+new family witnesses, the rebased source, complete ordered local validation,
+exact-head hosted checks, independent final review, merge and issue readback
+remain unqualified. Their current results belong to the PR record.
+
+This finite selection does not complete SQL-022, broaden supported grammar, or
+establish native release or production readiness. The wider
+[#761](https://github.com/cntryl/cassie/issues/761) program remains open.

@@ -47,7 +47,7 @@ upgrade or public API change is selected.
 
 ## Mutation and commit authority
 
-DML acquisition is limited to source materialization: INSERT SELECT, UPDATE
+DML source acquisition covers INSERT SELECT, UPDATE
 matched rows and predicates, and DELETE matched rows and predicates. Their
 joins and EXISTS reads share that owner. The source scope ends before mutation
 preparation, uniqueness/FK checks, write staging and commit validation, which
@@ -71,6 +71,13 @@ multirow command uses the same captured view; a later command captures a fresh
 view and can observe the earlier command's committed or staged writes. Install
 this view only for `RETURNING` source reads, keeping mutation preparation,
 constraint checks, staging and commit under their existing authorities.
+
+For this selected `RETURNING` phase, both independent and correlated EXISTS
+occurrences run only when scalar evaluation reaches them for an actual returned
+row. Dead CASE branches, an unselected COALESCE argument, and zero affected rows
+do not execute their subqueries. A reached occurrence preserves its normal
+error. This row-reached law is distinct from the existing eager folding of
+independent occurrences in SELECT and the selected non-DML phases.
 
 `RETURNING` remains atomic under the existing publish-after-complete-success
 wrapper. If expression evaluation fails, the command must preserve its current
@@ -570,6 +577,8 @@ the input owner through output consumption. Complete ordered local validation,
 exact-head hosted checks, independent review, merge and issue readback belong to
 the PR record. These selected phases do not qualify EXISTS in window
 partition or window ordering expressions, generic set-output scope, or arbitrary
-correlated grammar. #869's RETURNING acquisition choice remains unresolved and
-is not specified here. Support, native release, and production readiness remain
-unchanged.
+correlated grammar. At that #868 checkpoint, #869's RETURNING acquisition choice
+was unresolved. The selected pre-command view and row-reached evaluation law
+are now specified in the mutation and commit authority section above; the
+historical #868 evidence does not qualify them. Support, native release, and
+production readiness remain unchanged.

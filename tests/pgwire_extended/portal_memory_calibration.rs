@@ -107,6 +107,17 @@ fn should_enforce_retained_memory_budget_across_named_portal_lifecycle() {
         let requested = assert_retention_denial(&overflow, peak);
         println!("portal scarce lifecycle: source_budget={peak} source_peak={} fourth_requested={requested} source_count_delta=1 source_rows_delta=64 source_errors_delta=0", after.peak_accounted_memory_bytes);
         client.control("ROLLBACK TO memory_probe", b'T').await;
+        // Error recovery alone must not make space before the explicit Close.
+        let before_close = fixture.query();
+        let still_full = client.page("memory_portal_before_close").await;
+        let after_retry = fixture.query();
+        assert_eq!(after_retry.count, before_close.count + 1);
+        assert_eq!(after_retry.rows_returned_total, before_close.rows_returned_total + 64);
+        assert_eq!(after_retry.errors_total, before_close.errors_total);
+        assert_eq!(after_retry.peak_accounted_memory_bytes, u64::try_from(peak).expect("source peak fits u64"));
+        let retry_requested = assert_retention_denial(&still_full, peak);
+        println!("portal before-close probe: source_budget={peak} requested={retry_requested} source_count_delta=1 source_rows_delta=64 source_errors_delta=0");
+        client.control("ROLLBACK TO memory_probe", b'T').await;
         let after_close = client.cycle(vec![
             wire::close_portal_frame("memory_portal_one"),
             wire::bind_frame("memory_portal_five", "memory_stmt", &[]),

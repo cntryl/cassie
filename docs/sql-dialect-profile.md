@@ -257,9 +257,12 @@ A bound never allocates memory proportional to its magnitude.
 
 This is a selected finite subset, not full compatibility proof.
 The preparation oracle below pins the bare-parameter, explicitly cast arithmetic,
-NULL/negative/overflow cases. The local candidate has focused runtime evidence,
-with remaining joint red/green, descriptor, plan/portal and full-gate obligations
-recorded in [the integration plan](alias-pagination-plan.md). No extended
+NULL/negative/overflow cases. At the time of the 2026-10-07 preparation record,
+the local candidate had focused runtime evidence and remaining joint red/green,
+descriptor, plan/portal and full-gate obligations recorded in [the integration
+plan](alias-pagination-plan.md). PR #858 subsequently completed and merged the
+selected #795/#797 bundle; that finite closure does not establish broad PostgreSQL
+compatibility, complete #792/#793 coverage, or production readiness. No extended
 type or persistent-layout approval is implied.
 
 ### D3: extended contracts (#793)
@@ -284,12 +287,12 @@ in the original contract worktree was preserved and was not copied. Policy
 validation and local-link/source-owner checks are recorded separately; no Cargo
 build/test result is claimed for a documentation proposal. No issue closure,
 PR publication or merge is authorized by this document alone. The 2026-10-07
-joint-plan refresh is likewise documentation-only, but it describes the separate
-local #797 runtime candidate and the #795 implementation prerequisite as it stood
-at preparation time. Subsequent #852 merge readback permitted the selected joint
-#795/#797 runtime candidate; its focused tests do not substitute for pending
-complete gates or merged support. Historical
-proposal validation below is not fresh validation of that candidate.
+joint-plan refresh is likewise documentation-only and describes the separate
+local #797 runtime candidate and #795 implementation prerequisite as they stood
+at preparation time. PR #852 later closed the #794 lexical prerequisite; PR #858
+then completed and merged the selected joint #795/#797 bundle. The preparation
+tests and validation below are historical evidence, not fresh validation of the
+merged PR #858 head. Broader profile coverage and readiness gates remain open.
 
 ### User selection record and publication boundary
 
@@ -316,7 +319,10 @@ A fresh isolated Homebrew PostgreSQL 18.6 process on Darwin arm64 executed
 a generic alias/pagination statement corpus plus setup/version reads, with no Cassie runtime changes.
 The process was stopped after evidence collection. Full SQL/results and executable
 SHA256 are retained under target/contract-review in the refreshed worktree.
-This qualifies these proposal witnesses only, not #795/#797 implementation.
+This is PostgreSQL semantic-oracle evidence for the listed cases. Cassie
+implementation and finite issue closure were subsequently completed through PR
+#858; this reduced oracle corpus does not establish broad dialect compatibility
+or production readiness.
 
 | Proposal boundary | Executed result / SQLSTATE |
 | --- | --- |
@@ -334,9 +340,10 @@ Historical 2026-10-06 serde evidence was source-derived: public
 QuerySource/SelectStatement and Expr used derived Serialize/Deserialize, bounds
 were Option<i64>, and parser parameters used idx-1. This established the historical
 integer JSON shape and zero-based Expr::Param index. The 2026-10-07 local #797
-candidate now uses Option<Expr> and has focused serialization tests; the joint
-full gates and merged support remain pending. No superseded QueryBound proposal
-was implemented or tested.
+candidate used Option<Expr> and had focused serialization tests. PR #858 later
+merged the selected #795/#797 bundle, and both issues are closed. No superseded
+QueryBound proposal was implemented or tested; this historical record is not a
+fresh exact-head validation of PR #858.
 The user accepted breaking that historical query-AST shape. Implementation
 must instead prove exact current Expr literal/parameter/NULL serialization and
 execution behavior; no legacy literal-query round-trip requirement remains.
